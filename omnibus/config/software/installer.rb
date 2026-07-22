@@ -4,13 +4,14 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/fips.rb'
 require 'pathname'
 
 name 'installer'
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
+         exclude: ["**/.cache/**/*", "**/testdata/**/*", "**/.git/fsmonitor--daemon.ipc"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -39,12 +40,24 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
+  fips_args = fips_mode? ? "--fips-mode" : ""
+  if fips_mode?
+    add_msgo_to_env(env)
+  end
+
   bazel_flags = "--//:install_dir=#{install_dir}"
 
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
+
+    if fips_mode?
+      # Verify FIPS build tags took effect (build succeeding is not sufficient). See lib/fips.rb.
+      block do
+        fips_check_binary_for_expected_symbol(File.join(install_dir, "bin", "installer", "installer"))
+      end
+    end
 
     # Build both packages and dump them where gitlab will upload them.
     command "bazel build #{bazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -66,7 +79,7 @@ build do
         :live_stream => Omnibus.logger.live_stream(:info)
     end
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
     copy 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end

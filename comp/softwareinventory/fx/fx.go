@@ -17,7 +17,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			softwareinventoryimpl.New,
+			softwareinventoryimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[softwareinventory.Component](),
 

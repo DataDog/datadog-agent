@@ -22,6 +22,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // BenchAPI handles HTTP API requests for the bench.
@@ -1216,7 +1217,7 @@ func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
 
 // handleScoresConfig returns the server-side default AnomalyScorerConfig so the UI
 // never needs to hardcode threshold values. The response also includes
-// cooldown_secs so the Scorer tab can initialise its replay form correctly.
+// cooldown so the Scorer tab can initialise its replay form correctly.
 // GET /api/scores/config
 func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1234,7 +1235,7 @@ func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) 
 // by timestamp and fed second-by-second, with Advance called once per unique
 // second (and for any empty seconds in between).
 //
-// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown_secs": N }
+// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown": N }
 func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
@@ -1304,11 +1305,14 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	last := sorted[len(sorted)-1].Timestamp
 
 	collector := &scorerEventCollector{}
-	unsubscribe := scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
-		Listener:     collector,
+	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
 		CooldownSecs: req.CooldownSecs,
-	})
-	defer unsubscribe()
+	}, collector)
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, "subscribe severity events: "+err.Error())
+		return
+	}
+	defer subscription.Unsubscribe()
 
 	ai := 0
 	for sec := first; sec <= last; sec++ {
@@ -1323,17 +1327,17 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	state := scorer.ScoreState()
 	api.writeJSON(w, struct {
 		observerdef.AnomalyScoreState
-		Events []observerdef.SeverityEvent `json:"events"`
+		Events []severityeventsdef.SeverityEvent `json:"events"`
 	}{AnomalyScoreState: state, Events: collector.events})
 }
 
-// scorerEventCollector implements observerdef.AnomalyScorerListener, accumulating
+// scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating
 // every severity transition fired by the scorer's per-subscription state machine.
 type scorerEventCollector struct {
-	events []observerdef.SeverityEvent
+	events []severityeventsdef.SeverityEvent
 }
 
-func (c *scorerEventCollector) OnSeverityTransition(evt observerdef.SeverityEvent) {
+func (c *scorerEventCollector) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
 	c.events = append(c.events, evt)
 }
 

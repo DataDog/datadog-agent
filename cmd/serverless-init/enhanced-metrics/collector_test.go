@@ -307,3 +307,17 @@ func TestCollectorSendsUsageMetricOnCgroupFailure(t *testing.T) {
 		metrics.MetricSourceGoogleCloudRunEnhanced, mock.Anything, mock.Anything)
 	mockAgent.AssertNotCalled(t, "AddEnhancedMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestNewCollectorNilMetricAgent(t *testing.T) {
+	// Untyped nil interface.
+	c, err := NewCollector(nil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
+	assert.Nil(t, c)
+	assert.Error(t, err)
+
+	// Typed nil implementing EnhancedMetricSender, which is what main.go passes
+	// when metricAgent is a nil *ServerlessMetricAgent (use_dogstatsd disabled).
+	var typedNil *mockEnhancedMetricSender
+	c, err = NewCollector(typedNil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
+	assert.Nil(t, c)
+	assert.Error(t, err)
+}

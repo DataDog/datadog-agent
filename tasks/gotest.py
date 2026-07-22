@@ -29,6 +29,7 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -182,7 +183,7 @@ def _run_bazel(
     Returns:
        subprocess run result
     """
-    resolved_bazel = shutil.which("bazel")
+    resolved_bazel = shutil.which("bazelisk")
     if not resolved_bazel:
         raise Exit("bazelisk not found")
     cmd = [resolved_bazel] + list(args)
@@ -239,43 +240,39 @@ def get_bazel_test_targets(
         return {}
 
     scope = ' + '.join(bazel_patterns)
-    all_flags = ['-k', '--curses=no', '--color=no'] + (bazel_flags or [])
-    # We don't care about failure or stderr. There might be broken packages
-    # during development. We enumerate what we can and test those.
-    result = _run_bazel(
-        'cquery',
-        *all_flags,
-        f'kind(go_test, {scope}) except attr(tags, manual, {scope})',
-    )
-    output = result.stdout
-
-    if not output:
-        return {}
+    flags = ['-k', '--curses=no', '--color=no'] + (bazel_flags or [])
 
     # We must filter out the tests which are for the other flavors.
     # The naming pattern of flavorized tests is {name}_test_{flavor}, so we
     # can detect them by the suffix.
     other_flavors_suffixes = [f'_test_{flvr.name}' for flvr in AgentFlavor if flvr != flavor]
 
-    def should_skip(label):
-        for suffix in other_flavors_suffixes:
-            if label.endswith(suffix):
-                return True
-        return False
+    def _keep(obj: dict) -> bool:
+        if obj.get('type') != 'RULE':
+            return False
+        rule = obj.get('rule', {})
+        label = rule.get('name', '')
+        if any(label.endswith(s) for s in other_flavors_suffixes):
+            return False
+        tags_attr = next((a for a in rule.get('attribute', []) if a['name'] == 'tags'), None)
+        if tags_attr and 'manual' in tags_attr.get('stringListValue', []):
+            return False
+        return True
 
     targets = {}
-    for line in output.splitlines():
-        line = line.strip()
-        if not line or not line.startswith('//'):
-            continue
-        # Strip config hash: //pkg/util/log:log_test (abc1234) -> //pkg/util/log:log_test
-        label = line.split(' ')[0]
-        if should_skip(label):
-            continue
-        # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
-        package = label.split(':')[0]
-        dir_path = package[2:]  # strip //
-        targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+    with gitlab_section("Finding Bazel migrated tests", collapsed=True):
+        # -k (keep going) means Bazel exits non-zero when some packages fail to load but still
+        # streams valid results for the rest.  We iterate directly (not via list()) so that results
+        # already processed into `targets` are kept even when the generator raises at the end.
+        try:
+            for obj in bazel_query(f'kind(go_test, {scope})', _keep, flags=flags):
+                # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
+                label = obj['rule']['name']
+                package = label.split(':')[0]
+                dir_path = package[2:]  # strip //
+                targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+        except RuntimeError as e:
+            print(f"Warning: bazel query returned an error; results may be incomplete:\n{e}", file=sys.stderr)
     return targets
 
 
@@ -322,7 +319,7 @@ def _run_bazel_tests(
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    base_args = ["test", "--keep_going", "--build_tests_only", "--color=no"]
+    base_args = ["test", "--keep_going", "--build_tests_only", "--curses=no", "--color=no"]
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
@@ -688,6 +685,7 @@ def test(
         ctx,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_python="python" in unit_tests_tags,
     )
 
     # Use stdout if no profile is set
@@ -775,13 +773,18 @@ def test(
     exclude_packages: set[str] = set()
     bazel_targets: dict[str, str] = {}
     bazel_flags = []
+    if race:
+        bazel_flags.append("--config=gorace")
     if unit_tests_tags:
         # Critically important to sort the gotags because their order matters for configuration calculation.
         # That is, you don't cache unless they come out the same way.
         bazel_flags.append(f"--@rules_go//go/config:tags={','.join(sorted(unit_tests_tags))}")
+    bazel_query_duration_s: float = 0.0
     if skip_tests_covered_by_bazel or write_bazel_test_list or run_bazel_tests:
+        _t0 = time.monotonic()
         bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
-        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets")
+        bazel_query_duration_s = time.monotonic() - _t0
+        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets, in {bazel_query_duration_s:.3f}s")
 
         if write_bazel_test_list:
             with open(write_bazel_test_list, 'w') as f:
@@ -836,17 +839,20 @@ def test(
     # Bazel test output — displayed after go test results.
     bazel_success = True
     bazel_stats: TestStats | None = None
+    bazel_tests_duration_s: float = 0.0
     if run_bazel_tests and bazel_targets:
         print(f"\n{'=' * 12} Bazel tests {'=' * 12}")
         with gitlab_section("Bazel test results", collapsed=True):
+            _t0 = time.monotonic()
             bazel_stats = _run_bazel_tests(
                 ctx, flavor=flavor, targets=list(bazel_targets), bazel_flags=bazel_flags, verbose=verbose
             )
+            bazel_tests_duration_s = time.monotonic() - _t0
         bazel_success = bazel_stats.failed == 0
         bazel_status = (
             color_message('All tests passed', 'green') if bazel_success else color_message('Tests FAILED', 'red')
         )
-        print(f"DONE {bazel_stats.total} tests in {bazel_stats.duration_s:.3f}s")
+        print(f"DONE {bazel_stats.total} tests in {bazel_tests_duration_s:.3f}s")
         print(bazel_status)
 
     # Combined summary in the same style as the go Test Report block.

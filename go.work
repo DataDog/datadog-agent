@@ -1,4 +1,4 @@
-go 1.26.4
+go 1.26.5
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -9,6 +9,7 @@ use (
 	.
 	comp/anomalydetection/observer/def
 	comp/anomalydetection/recorder/def
+	comp/anomalydetection/severityevents/def
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -68,6 +69,7 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -107,13 +109,11 @@ use (
 	pkg/config/setup
 	pkg/config/structure
 	pkg/config/utils
-	pkg/config/viperconfig
 	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/sources
 	pkg/logs/status/statusinterface

@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -45,7 +45,7 @@ func (ci CreateIndexAction) Run(ctx context.Context, task *types.Task, credentia
 		return nil, err
 	}
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to MongoDB: %w", err)
 	}
@@ -60,7 +60,7 @@ func (ci CreateIndexAction) Run(ctx context.Context, task *types.Task, credentia
 
 	indexModel := mongo.IndexModel{
 		Keys:    inputs.Keys,
-		Options: inputs.Options,
+		Options: &options.IndexOptionsBuilder{Opts: optionsLister[options.IndexOptions]{inputs.Options}.List()},
 	}
 
 	indexName, err := collection.Indexes().CreateOne(ctx, indexModel)

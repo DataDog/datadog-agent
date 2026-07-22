@@ -28,6 +28,7 @@ from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
+    _resolve_target_platform,
     bin_name,
     get_build_flags,
     get_version,
@@ -46,19 +47,6 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
-
-if sys.platform == "win32":
-    # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
-    # This dir contains `aws.rb` which will execute if we just call `aws`,
-    # so we need to be explicit about the executable extension/path
-    AWS_CMD = "aws.exe"
-else:
-    AWS_CMD = "aws"
-
-CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
-CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
-CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
-LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
 @task
@@ -96,8 +84,9 @@ def build(
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+    target_platform = _resolve_target_platform()
 
-    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+    if not exclude_rtloader and not flavor.is_iot() and target_platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
             if enable_bazel:
@@ -108,15 +97,32 @@ def build(
                 rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
                 rtloader_install(ctx)
 
+    if flavor.is_iot():
+        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
+    else:
+        build_tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=flavor,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            platform=target_platform,
+        )
+
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_python="python" in build_tags,
+        platform=target_platform,
     )
 
-    if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
+    if target_platform == 'win32':
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
@@ -131,20 +137,6 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
-
-    if flavor.is_iot():
-        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", flavor=flavor)
-    else:
-        build_tags = compute_build_tags_for_flavor(
-            build="agent",
-            flavor=flavor,
-            build_include=build_include,
-            build_exclude=build_exclude,
-        )
-
-    if not glibc:
-        build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -187,6 +179,7 @@ _PLATFORM_TO_OS_TARGET = {
     "linux": "linux",
     "win32": "windows",
     "darwin": "darwin",
+    "aix": "aix",
 }
 
 
@@ -459,6 +452,19 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
+    copy_checks_d = ""
+    copy_checks_d_final = ""
+    if sys.platform.startswith("linux"):
+        from tasks.rust_shared_checks import build as rust_shared_checks_build
+
+        checks_d_staging = "bin/agent/dist/checks.d"
+        rust_shared_checks_build(ctx, checks_d_dir=checks_d_staging)
+        if os.path.isdir(checks_d_staging) and any(
+            f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
+        ):
+            copy_checks_d = f"COPY {checks_d_staging} /etc/datadog-agent/checks.d\n"
+            copy_checks_d_final = "COPY --from=bin /etc/datadog-agent/checks.d /etc/datadog-agent/checks.d\n"
+
     copy_extra_agents = ""
     if security_agent:
         from tasks.security_agent import build as security_agent_build
@@ -538,6 +544,7 @@ RUN apt-get clean && \
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
 COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
+{copy_checks_d}
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_ebpf_assets}
@@ -575,6 +582,7 @@ COPY --from=bin /opt/datadog-agent/bin/agent/agent                              
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
+{copy_checks_d_final}
 {copy_extra_agents}
 {copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
@@ -606,72 +614,6 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
         return containerized_integration_tests(
             ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
         )
-
-
-def _load_manifest_platform_overrides(integrations_dir):
-    """
-    Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
-
-    Returns a mapping of integration folder -> list of supported platform strings
-    (e.g. "linux", "windows", "mac_os"). Used as a fallback for integrations that
-    no longer ship a manifest.json.
-    """
-    import toml
-
-    config_path = os.path.join(integrations_dir, '.ddev', 'config.toml')
-    if not os.path.isfile(config_path):
-        return {}
-    with open(config_path) as f:
-        config = toml.load(f)
-    return config.get('overrides', {}).get('manifest', {}).get('platforms', {}) or {}
-
-
-@task
-def collect_integrations(_, integrations_dir, target_os, excluded):
-    """
-    Collect and print the list of integrations to install.
-
-    `excluded` is a comma-separated list of directories that don't contain an actual integration
-    """
-    import json
-
-    manifest_overrides = _load_manifest_platform_overrides(integrations_dir)
-    integrations = []
-
-    for entry in os.listdir(integrations_dir):
-        int_path = os.path.join(integrations_dir, entry)
-        if not os.path.isdir(int_path) or entry in excluded.split(','):
-            continue
-
-        manifest_file_path = os.path.join(int_path, "manifest.json")
-
-        if os.path.exists(manifest_file_path):
-            with open(manifest_file_path) as f:
-                manifest = json.load(f)
-
-            # Figure out whether the integration is supported on the target OS
-            if target_os == 'mac_os':
-                tag = 'Supported OS::macOS'
-            else:
-                tag = f'Supported OS::{target_os.capitalize()}'
-
-            if tag not in manifest['tile']['classifier_tags']:
-                continue
-        elif entry in manifest_overrides:
-            # No manifest.json; fall back to .ddev/config.toml [overrides.manifest.platforms]
-            if target_os not in manifest_overrides[entry]:
-                continue
-        else:
-            # No manifest file and no override -> assume the folder is not a working check
-            continue
-
-        # Skip folders that are not Python packages
-        if not os.path.isfile(os.path.join(int_path, 'pyproject.toml')):
-            continue
-
-        integrations.append(entry)
-
-    print(' '.join(sorted(integrations)))
 
 
 @task
@@ -743,116 +685,6 @@ def version(
         version = re.sub('-', '~', version)
         version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
     print(version)
-
-
-@task
-def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations):
-    """
-    Get cached integration wheels for given integrations.
-    python: Python version to retrieve integrations for
-    bucket: S3 bucket to retrieve integration wheels from
-    branch: namespace in the bucket to get the integration wheels from
-    integrations_dir: directory with Git repository of integrations
-    target_dir: local directory to put integration wheels to
-    integrations: comma-separated names of the integrations to try to retrieve from cache
-    """
-    integrations_hashes = {}
-    for integration in integrations.strip().split(","):
-        integration_path = os.path.join(integrations_dir, integration)
-        if not os.path.exists(integration_path):
-            raise Exit(f"Integration {integration} given, but doesn't exist in {integrations_dir}", code=2)
-        last_commit = ctx.run(
-            LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
-            hide="both",
-            echo=False,
-        )
-        integrations_hashes[integration] = last_commit.stdout.strip()
-
-    print(f"Trying to retrieve {len(integrations_hashes)} integration wheels from cache")
-    # On windows, maximum length of a command line call is 8191 characters, therefore
-    # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
-    # and just to make sure we don't do any of-by-one errors that would break this).
-    # WINDOWS NOTES: we have to not put the * in quotes, as there's no expansion on it, unlike on Linux
-    exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
-    sync_command_prefix = f"{AWS_CMD} s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
-    sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
-    for integration, hash in integrations_hashes.items():
-        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
-            hash=hash,
-            integration=integration,
-            python_version=python,
-            branch=branch,
-        )
-        if len(include_arg) + sync_commands[-1][1] > 8100:
-            sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
-        sync_commands[-1][0].append(include_arg)
-        sync_commands[-1][1] += len(include_arg)
-
-    for sync_command in sync_commands:
-        ctx.run("".join(sync_command[0]))
-
-    found = []
-    # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
-    for integration in sorted(integrations_hashes):
-        hash = integrations_hashes[integration]
-        original_path_glob = os.path.join(
-            target_dir,
-            CACHED_WHEEL_FULL_PATH_PATTERN.format(
-                hash=hash,
-                integration=integration,
-                python_version=python,
-                branch=branch,
-            ),
-        )
-        files_matched = glob.glob(original_path_glob)
-        if len(files_matched) == 0:
-            continue
-        elif len(files_matched) > 1:
-            raise Exit(
-                f"More than 1 wheel for integration {integration} matched by {original_path_glob}: {files_matched}"
-            )
-        wheel_path = files_matched[0]
-        print(f"Found cached wheel for integration {integration}")
-        shutil.move(wheel_path, target_dir)
-        found.append(f"datadog_{integration}")
-
-    print(f"Found {len(found)} cached integration wheels")
-    with open(os.path.join(target_dir, "found.txt"), "w") as f:
-        f.write('\n'.join(found))
-
-
-@task
-def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration):
-    """
-    Upload a built integration wheel for given integration.
-    python: Python version the integration is built for
-    bucket: S3 bucket to upload the integration wheel to
-    branch: namespace in the bucket to upload the integration wheels to
-    integrations_dir: directory with Git repository of integrations
-    build_dir: directory containing the built integration wheel
-    integration: name of the integration being cached
-    """
-    matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
-    files_matched = glob.glob(matching_glob)
-    if len(files_matched) == 0:
-        raise Exit(f"No wheel for integration {integration} found in {build_dir}")
-    elif len(files_matched) > 1:
-        raise Exit(f"More than 1 wheel for integration {integration} matched by {matching_glob}: {files_matched}")
-
-    wheel_path = files_matched[0]
-
-    last_commit = ctx.run(
-        LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
-        hide="both",
-        echo=False,
-    )
-    hash = last_commit.stdout.strip()
-
-    target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(
-        hash=hash, python_version=python, branch=branch
-    ) + os.path.basename(wheel_path)
-    print(f"Caching wheel {target_name}")
-    ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
 
 
 @task()

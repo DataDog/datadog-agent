@@ -37,13 +37,36 @@ message KueueQueue {
   string name = 2;
   KueueQueueType queue_type = 3;
   string cluster_queue = 4;
-  // resolved_tags holds the queue's label/annotation tags already resolved by
-  // the cluster agent against kubernetes_resources_{labels,annotations}_as_tags.
-  // Each entry is in "name:value" form where a leading '+' on the name denotes
-  // a high-cardinality tag (as interpreted by taglist.AddAuto).
-  repeated string resolved_tags = 5;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
   string uid = 7;
   KubeMetadataEventType type = 8;
+}
+
+message KueueResourceFlavor {
+  string name = 1;
+  map<string, string> labels = 2;
+  map<string, string> annotations = 3;
+  string uid = 4;
+  map<string, string> node_affinity_labels = 5;
+  KubeMetadataEventType type = 6;
+}
+
+message KueuePodSetAssignment {
+  string name = 1;
+  map<string, string> flavors = 2;
+}
+
+message KueueWorkload {
+  string namespace = 1;
+  string name = 2;
+  string queue = 3;
+  string cluster_queue = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+  string uid = 7;
+  repeated KueuePodSetAssignment pod_set_assignments = 8;
+  KubeMetadataEventType type = 9;
 }
 
 message KubeMetadataStreamResponse {
@@ -51,4 +74,6 @@ message KubeMetadataStreamResponse {
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;
   repeated KueueQueue kueue_queues = 4;
+  repeated KueueResourceFlavor kueue_resource_flavors = 5;
+  repeated KueueWorkload kueue_workloads = 6;
 }

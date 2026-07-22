@@ -19,12 +19,15 @@ go_library(
         "types_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/loader",
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/compiler",
         "//pkg/dyninst/ir",
+        "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
         "//pkg/util/kernel",
+        "//pkg/util/log",
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_cilium_ebpf//asm",
         "@com_github_cilium_ebpf//btf",

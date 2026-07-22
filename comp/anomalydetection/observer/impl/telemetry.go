@@ -19,6 +19,7 @@ const (
 	telemetryLogsIngested                    = "observer.logs.ingested"                       // Number of logs ingested by anomaly detection.
 	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                // Total bytes processed from ingested logs.
 	telemetryDroppedLogs                     = "observer.logs.dropped"                        // Number of logs dropped before processing.
+	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
@@ -39,6 +40,7 @@ type observerTelemetry struct {
 	logsIngested     telemetry.Counter
 	processedLogSize telemetry.Counter
 	droppedLogs      telemetry.Counter
+	filteredMetrics  telemetry.Counter
 	seriesCount      telemetry.Gauge
 	logsInFlight     telemetry.Gauge
 	storageEvicted   telemetry.Counter
@@ -97,6 +99,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryDroppedLogs,
 			[]string{"log_source"},
 			"Logs dropped because observer queue was full",
+		),
+		filteredMetrics: telemetryComp.NewCounter(
+			"observer",
+			telemetryFilteredMetrics,
+			[]string{"source"},
+			"Metrics filtered out before observer ingest, tagged by normalized source",
 		),
 		seriesCount: telemetryComp.NewGauge(
 			"observer",
@@ -179,6 +187,10 @@ func (t *observerTelemetry) recordLogIngested(logSource string, sizeBytes int) {
 func (t *observerTelemetry) recordDroppedLog(source string, tags []string) {
 	logSource := classifyLogSource(source, tags)
 	t.droppedLogs.Add(1, logSource)
+}
+
+func (t *observerTelemetry) recordFilteredMetric(source string) {
+	t.filteredMetrics.Add(1, source)
 }
 
 func (t *observerTelemetry) incrementLogsInFlight(logSource string) {

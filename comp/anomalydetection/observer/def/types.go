@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -288,6 +290,41 @@ type SeriesDetector interface {
 	Detect(series Series) DetectionResult
 }
 
+// CorrelatorEventKind identifies the type of a correlator lifecycle event.
+type CorrelatorEventKind int
+
+const (
+	// CorrelatorEventEpisodeStarted fires when the scorer enters its configured episode threshold.
+	CorrelatorEventEpisodeStarted CorrelatorEventKind = iota + 1
+	// CorrelatorEventEpisodeEnded fires when the scorer leaves its configured episode threshold.
+	CorrelatorEventEpisodeEnded
+	// CorrelatorEventCorrelationDetected fires when a correlator observes a
+	// pattern for the first time (or after it has gone inactive and recurred).
+	CorrelatorEventCorrelationDetected
+)
+
+// CorrelatorEvent is a typed lifecycle event produced by a correlator during Advance.
+// Reporters receive these via ReportOutput.CorrelatorEvents and can emit backend
+// notifications without relying on the one-shot dedup logic in ActiveCorrelations.
+// Correlators own recurrence detection and produce CorrelationDetected events via
+// a shared emitter; scorer-type correlators produce EpisodeStarted/EpisodeEnded.
+type CorrelatorEvent struct {
+	Kind CorrelatorEventKind
+	// CorrelatorName identifies the correlator that produced this event.
+	CorrelatorName string
+	// Timestamp is the data time (unix seconds) when the event occurred.
+	Timestamp int64
+	// Correlation is the pattern associated with this event.
+	// For EpisodeStarted: the newly opened episode (no end time yet).
+	// For EpisodeEnded: the closed episode with the final LastUpdated.
+	// For CorrelationDetected: the full active correlation at first-seen time.
+	Correlation ActiveCorrelation
+	// FromLevel and ToLevel carry the scorer severity transition.
+	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
+	FromLevel severityeventsdef.SeverityLevel
+	ToLevel   severityeventsdef.SeverityLevel
+}
+
 // Correlator accumulates anomaly events and produces correlated patterns.
 // Correlators are stateful and cluster/filter/summarize anomaly streams.
 //
@@ -305,6 +342,11 @@ type Correlator interface {
 	Advance(dataTime int64)
 	// ActiveCorrelations returns currently detected correlation patterns.
 	ActiveCorrelations() []ActiveCorrelation
+	// PendingEvents returns and drains typed lifecycle events accumulated during
+	// the last Advance call. The caller owns the returned slice; the correlator
+	// discards it after this call. Returns nil when no events are pending.
+	// Correlators with no lifecycle events (e.g. time-cluster) always return nil.
+	PendingEvents() []CorrelatorEvent
 	// Reset clears all internal state for reanalysis.
 	Reset()
 }
@@ -352,74 +394,6 @@ type AnomalyScoreBucket struct {
 	WeightSum float64 `json:"weight_sum"`
 	// Ewma is the EWMA value after processing this bucket.
 	Ewma float64 `json:"ewma"`
-}
-
-// SeverityLevel represents one of three severity states: Low, Medium, High.
-type SeverityLevel int
-
-const (
-	SeverityLow    SeverityLevel = 0
-	SeverityMedium SeverityLevel = 1
-	SeverityHigh   SeverityLevel = 2
-)
-
-// AnomalyScorerEventDirection describes whether a severity transition is an
-// escalation or de-escalation.
-type AnomalyScorerEventDirection int
-
-const (
-	// AnomalyScorerEventBoth delivers transitions in either direction (default zero value).
-	AnomalyScorerEventBoth AnomalyScorerEventDirection = 0
-	// AnomalyScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
-	AnomalyScorerEventEscalation AnomalyScorerEventDirection = 1
-	// AnomalyScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
-	AnomalyScorerEventDeescalation AnomalyScorerEventDirection = 2
-)
-
-// SeverityEvent records a severity state-machine transition.
-type SeverityEvent struct {
-	// Timestamp is the data time (unix seconds) when the transition occurred.
-	Timestamp int64 `json:"timestamp"`
-	// FromLevel is the state before the transition.
-	FromLevel SeverityLevel `json:"from_level"`
-	// ToLevel is the state after the transition.
-	ToLevel SeverityLevel `json:"to_level"`
-	// Direction is AnomalyScorerEventEscalation when ToLevel > FromLevel, and
-	// AnomalyScorerEventDeescalation when ToLevel < FromLevel.
-	Direction AnomalyScorerEventDirection `json:"direction"`
-}
-
-// AnomalyScorerListener receives severity state-machine transitions from the scorer.
-type AnomalyScorerListener interface {
-	OnSeverityTransition(event SeverityEvent)
-}
-
-// AnomalyScorerEventFilter selects which SeverityEvents are delivered to a listener.
-// All conditions are ANDed; a nil or empty slice means "any value".
-// The zero value AnomalyScorerEventFilter{} matches every transition.
-type AnomalyScorerEventFilter struct {
-	// FromLevels restricts to events whose FromLevel is in the set.
-	FromLevels []SeverityLevel
-	// ToLevels restricts to events whose ToLevel is in the set.
-	ToLevels []SeverityLevel
-	// Direction restricts by escalation or de-escalation.
-	Direction AnomalyScorerEventDirection
-}
-
-// AnomalyScorerConfiguration is the single object passed to Subscribe
-// when registering a listener. It bundles who to call (Listener), which
-// transitions to deliver (Filter), and per-subscription state-machine tuning.
-type AnomalyScorerConfiguration struct {
-	// Listener is called for each matching severity transition. Required.
-	Listener AnomalyScorerListener
-	// Filter controls which transitions are delivered.
-	// Zero value AnomalyScorerEventFilter{} delivers all transitions.
-	Filter AnomalyScorerEventFilter
-	// CooldownSecs is the minimum number of seconds that must elapse after a
-	// delivered transition before a downward (de-escalation) transition can be
-	// delivered again.
-	// Zero means no cooldown (every matching transition is delivered).
-	CooldownSecs int64
 }
 
 // AnomalyScoreState is the accumulated telemetry snapshot from the scorer.

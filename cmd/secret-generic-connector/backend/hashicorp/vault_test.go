@@ -4,6 +4,12 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// AIX is excluded because github.com/hashicorp/go-secure-stdlib/mlock does not
+// support AIX (its lockMemory is only defined for linux and darwin). This
+// transitively breaks compilation of github.com/hashicorp/vault/http on AIX.
+// Track https://github.com/hashicorp/go-secure-stdlib/pull/187 for the upstream fix.
+//go:build !aix
+
 package hashicorp
 
 import (

@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net"
 	"os"
 	"runtime"
@@ -36,37 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
-// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
-// Using a map ensures each prefix is only registered once.
-// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
-var (
-	registeredDelegatedAuthConfigs   = make(map[string]string)
-	registeredDelegatedAuthConfigsMu sync.Mutex
-)
-
 const (
-
-	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
-	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 100000
-
-	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
-	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
-	DefaultLinesOrBytesToSkip = 0
-
-	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
-	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
-	// value based on the configured fingerprint_strategy.
-	DefaultFingerprintingCount = 0
-
-	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
-	// Options are:
-	// - "line_checksum": compute the fingerprint by lines
-	// - "byte_checksum": compute the fingerprint by bytes
-	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "disabled"
-
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -116,9 +85,6 @@ const (
 	// in situations where we have a high value for `GOMAXPROCS`.
 	DefaultZstdCompressionLevel = 1
 
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -133,10 +99,6 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
-
-	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
-	// in the core agent if the process check is disabled.
-	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
@@ -188,8 +150,6 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 }
 
 func init() {
-	osinit()
-
 	// init default for code that access the config before it initialized
 	InitConfigObjects()
 }
@@ -297,11 +257,6 @@ func InitConfigObjects() {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
-	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs = make(map[string]string)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// -------------------------------------------------------------
 	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
 	// Add them to common_settings.go instead
@@ -313,6 +268,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCoreAgentFull(config)
 	// Settings associated with a feature / product that only appear in the full agent, not in serverless
 	initFullAgentOnlyComponents(config)
+
+	additionalAgentSetup(config)
 }
 
 // settings shared by full agent and serverless
@@ -333,6 +290,12 @@ func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
 	for _, f := range comps {
 		f(config)
 	}
+}
+
+func additionalAgentSetup(_ pkgconfigmodel.Setup) {
+	processesAddOverrideOnce.Do(func() {
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
@@ -653,7 +616,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
-	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
+	SanitizeDataPlaneConfig(config)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -699,34 +662,15 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
-	// Copy the registered configs map while holding the lock to avoid races during iteration
-	registeredDelegatedAuthConfigsMu.Lock()
-	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for prefix, apiKeyConfigKey := range configsCopy {
-		// Build the config key prefix for delegated_auth settings
-		var configPrefix string
-		if prefix == "" {
-			configPrefix = "delegated_auth"
-		} else {
-			configPrefix = prefix + ".delegated_auth"
-		}
-
+	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		// Build description for logging
-		description := "global"
-		if prefix != "" {
-			description = prefix
-		}
-
-		log.Infof("Configuring delegated authentication for '%s'", description)
+		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
@@ -734,11 +678,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			APIKeyConfigKey: apiKeyConfigKey,
+			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey: section.apiKeyPath,
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
@@ -773,21 +717,6 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 
 	// Provider-specific configuration (nested under provider name)
 	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
-
-	// Register this prefix for use in configureDelegatedAuth
-	// Build the API key config key
-	var apiKeyConfigKey string
-	if prefix == "" {
-		apiKeyConfigKey = "api_key"
-	} else {
-		apiKeyConfigKey = prefix + ".api_key"
-	}
-
-	// Map automatically handles duplicates - repeated registrations just overwrite with same value
-	// Use mutex to protect concurrent access during tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
-	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -902,22 +831,18 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
 	// setting in pkg/config/schema/yaml/.
 
-	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
-	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	config.Set("logs_config.use_http", true, pkgconfigmodel.SourceAgentRuntime)
 
-	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
 	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
-	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
-	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
 	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
@@ -928,20 +853,16 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
-	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
-	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
-	// Compliance
 	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
 
 	return nil
 }
 
 func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
@@ -1164,12 +1085,16 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms.
-// The Agent Data Plane (ADP) is supported on Linux and macOS. On unsupported
-// platforms this function always installs a SourceAgentRuntime override of
+// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// is false, this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
 // value was explicitly set to true at call time.
+//
+// Windows ADP runs only under dd-procmgr (via processes.d); dd-procmgr-service is
+// started by the core Agent only when process_manager.enabled is true.
 //
 // The goos parameter is the target OS string (normally runtime.GOOS). It is
 // exposed as a parameter so that tests can exercise both branches without
@@ -1180,13 +1105,40 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 // When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
 // is intended for local development on unsupported platforms only.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
-	if goos == "linux" || goos == "darwin" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+	if envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
 		return
 	}
-	if config.GetBool(DataPlaneEnabled) {
-		log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+
+	switch {
+	case goos == "linux", goos == "darwin", goos == "aix":
+		return
+	case goos == "windows":
+		if config.GetBool("process_manager.enabled") {
+			// LoadDatadog may have locked data_plane.enabled=false before fleet policies
+			// were merged; SourceAgentRuntime outranks SourceFleetPolicies, so clear the
+			// stale runtime override once process manager is enabled.
+			if config.GetSource(DataPlaneEnabled) == pkgconfigmodel.SourceAgentRuntime {
+				config.UnsetForSource(DataPlaneEnabled, pkgconfigmodel.SourceAgentRuntime)
+			}
+			return
+		}
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s requires process_manager.enabled on Windows and will be ignored", DataPlaneEnabled)
+		}
+	default:
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		}
 	}
+
 	config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// SanitizeDataPlaneConfig applies sanitizeDataPlaneConfig for the current host.
+// It is also called after fleet policy merging because fleet policies may set
+// process_manager.enabled or data_plane.enabled after the initial LoadDatadog pass.
+func SanitizeDataPlaneConfig(config pkgconfigmodel.Config) {
+	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1501,7 +1453,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                // Default level for the gzip algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
@@ -1516,13 +1468,6 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
-
-	// DEPRECATED in favor of `logs_config.force_use_http`.
-	config.BindEnvAndSetDefault(prefix+"use_http", false)
-	config.BindEnvAndSetDefault(prefix+"force_use_http", false)
-	// DEPRECATED in favor of `logs_config.force_use_tcp`.
-	config.BindEnvAndSetDefault(prefix+"use_tcp", false)
-	config.BindEnvAndSetDefault(prefix+"force_use_tcp", false)
 }
 
 // pathExists returns true if the given path exists
@@ -1578,6 +1523,16 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 }
 
 func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if pkgconfigenv.IsECSFargate() {
+		if val, found := platformValues["fargate"]; found {
+			return val
+		}
+	}
+	if pkgconfigenv.IsContainerized() {
+		if val, found := platformValues["container"]; found {
+			return val
+		}
+	}
 	if val, found := platformValues[runtime.GOOS]; found {
 		return val
 	}

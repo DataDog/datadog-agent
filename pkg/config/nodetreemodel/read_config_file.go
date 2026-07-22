@@ -152,7 +152,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 		if err != nil {
 			isLeaf, isKnown := knownKeys[currPath]
 			if isLeaf {
-				// Not found but known, the leaf setting must be valueless (defined by BindEnv or SetKnown)
+				// Not found but known, the leaf setting must be valueless. This should never happen
 				schemaChild = valuelessLeaf
 			} else {
 				if !isKnown {

@@ -45,6 +45,7 @@ go_library(
 go_test(
     name = "platform_test",
     srcs = [
+        "platform_aix_test.go",
         "platform_darwin_test.go",
         "platform_linux_test.go",
         "platform_test.go",

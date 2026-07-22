@@ -9,6 +9,8 @@ slack_teams_channels_check           @DataDog/agent-devx
 lint*                                @DataDog/agent-devx
 notify*                              @DataDog/agent-devx
 check_modules_replace                @DataDog/agent-devx
+fakeintake_check_version_bump        @DataDog/agent-devx
+publish_fakeintake_pinned            @DataDog/agent-devx
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
@@ -33,7 +35,6 @@ tests_serverless-init*                  @DataDog/serverless-azure-gcp
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
-procmgr_rust_tests                      @DataDog/agent-runtimes
 test_kmt_local_setup*                   @DataDog/ebpf-platform
 
 # Send count metrics about Golang dependencies
@@ -41,6 +42,9 @@ golang_deps_send_count_metrics       @DataDog/agent-runtimes
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/agent-runtimes
 golang_deps_commenter                @DataDog/agent-runtimes
+
+# Agent telemetry (COAT) metric PR reminder
+agenttelemetry_metric_vm_reminder*   @DataDog/fleet-remediation
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
@@ -207,7 +211,7 @@ new-e2e-cleanup-on-failure              @DataDog/agent-devx
 new-e2e-agent-configuration*            @DataDog/agent-configuration
 new-e2e-agent-subcommands*              @DataDog/agent-configuration
 new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
-new-e2e-agent-health                    @DataDog/agent-health
+new-e2e-agent-health                    @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- AppSec ---

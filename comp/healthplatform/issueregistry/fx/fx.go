@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for the registry component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(registryimpl.New),
+		fxutil.ProvideComponentConstructor(registryimpl.NewComponent),
 	)
 }

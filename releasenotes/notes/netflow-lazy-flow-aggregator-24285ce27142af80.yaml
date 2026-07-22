@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Reduce idle agent memory usage when Network Device Monitoring NetFlow is
+    disabled (the default). The NetFlow flow aggregator is no longer allocated
+    when the feature is off.
