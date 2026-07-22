@@ -539,9 +539,6 @@ profiles:
       - name: sketch_series.payload_full
       - name: sketch_series.sketch_too_big
       # Logs pipeline: send failures and adaptive-sampler drops.
-      - name: logs.dropped
-        preserve_tags:
-          - destination
       - name: logs_adaptive_sampler.dropped
         preserve_tags:
           - source
