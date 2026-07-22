@@ -41,19 +41,6 @@ func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string,
 	}, opts...)
 }
 
-// ScheduleReleaseOnDestroyOutput is ScheduleReleaseOnDestroy for a brand-new pool
-// member: instanceID/deleteScript aren't known until after the EC2 instance is
-// created (deleteScript embeds the lease token returned by registering the new
-// member), so both are taken as Outputs instead of plain strings.
-func ScheduleReleaseOnDestroyOutput(e aws.Environment, name string, instanceID pulumi.StringOutput, deleteScript pulumi.StringOutput, opts ...pulumi.ResourceOption) (*local.Command, error) {
-	return local.NewCommand(e.Ctx(), e.Namer.ResourceName(name), &local.CommandArgs{
-		Create:      pulumi.String("true"),
-		Delete:      deleteScript.ToStringPtrOutput(),
-		Environment: awsCommandEnvironment(e),
-		Triggers:    pulumi.Array{instanceID},
-	}, opts...)
-}
-
 // awsCommandEnvironment builds the env vars a local.Command needs to run AWS
 // CLI calls against e's account/region. AWS_PROFILE is omitted when e.Profile()
 // is empty (e.g. aws-vault-style credential env vars rather than a named

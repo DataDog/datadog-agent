@@ -39,15 +39,14 @@ const (
 )
 
 // macOSPoolProvisioner provisions a macOS environments.Host directly through the AWS
-// SDK and the resources/aws/ec2/pool package, bypassing Pulumi entirely: it acquires
-// (or creates) a member of the shared macOS EC2 pool instead of allocating a fresh
-// Dedicated Host per run, and waits for it to become SSH-reachable itself instead of
-// relying on a Pulumi remote.Host resource.
+// SDK and the resources/aws/ec2/pool package, bypassing Pulumi entirely: it acquires a
+// member of the shared macOS EC2 pool — provisioned and published by an external
+// service/job, never by this provisioner — and waits for it to become SSH-reachable
+// itself instead of relying on a Pulumi remote.Host resource.
 //
 // Pulumi's stack-config system (Pulumi.<stack>.yaml) has no reader outside a live
-// *pulumi.Context, so subnet/security-group/key-pair/instance-profile/region/profile
-// come from pool.LoadLaunchConfigFromEnv (E2E_MACOS_POOL_* env vars, falling back to
-// the sandbox account's hardcoded defaults) instead.
+// *pulumi.Context, so region/profile come from pool.LoadLaunchConfigFromEnv
+// (E2E_MACOS_POOL_* env vars, falling back to us-east-1) instead.
 //
 // instanceID/region/profile/leaseToken are populated by ProvisionEnv and read back by
 // Destroy: both are always called on the same provisioner value for a given stack (see
@@ -68,9 +67,8 @@ var _ provisioners.TypedProvisioner[environments.Host] = &macOSPoolProvisioner{}
 // NewMacOSPoolProvisioner returns a Pulumi-free provisioner for a macOS
 // environments.Host, drawing from the shared EC2 pool instead of Pulumi-managed
 // per-run infrastructure. opts are the same VMOptions passed to
-// ec2.WithEC2InstanceOptions (only OS/instance-type/user-data/host-ID/IMDS/volume
-// throughput are honored; everything else macOS-launch-specific comes from
-// pool.LoadLaunchConfigFromEnv).
+// ec2.WithEC2InstanceOptions; only the OS descriptor is used, to describe the
+// imported host's OSFamily/OSFlavor/OSVersion/Architecture.
 func NewMacOSPoolProvisioner(name string, opts ...ec2.VMOption) provisioners.TypedProvisioner[environments.Host] {
 	return &macOSPoolProvisioner{
 		id:   macOSPoolProvisionerBaseID + name,
@@ -83,7 +81,7 @@ func (p *macOSPoolProvisioner) ID() string {
 	return p.id
 }
 
-// ProvisionEnv acquires (or creates) a macOS pool instance and imports it into env.RemoteHost.
+// ProvisionEnv acquires an existing macOS pool instance and imports it into env.RemoteHost.
 func (p *macOSPoolProvisioner) ProvisionEnv(ctx context.Context, _ string, logger io.Writer, env *environments.Host) (provisioners.RawResources, error) {
 	// This provisioner only ever imports RemoteHost: CreateEnv pre-allocates the other
 	// importable fields too, and BuildEnvFromResources errors on any importable field
@@ -102,7 +100,6 @@ func (p *macOSPoolProvisioner) ProvisionEnv(ctx context.Context, _ string, logge
 	if err != nil {
 		return nil, err
 	}
-	cfg.HTTPTokensRequired = vmArgs.HTTPTokensRequired
 	p.region = cfg.Region
 	p.profile = cfg.Profile
 
@@ -118,36 +115,9 @@ func (p *macOSPoolProvisioner) ProvisionEnv(ctx context.Context, _ string, logge
 		return nil, err
 	}
 
-	if acquired.Found {
-		fmt.Fprintf(logger, "reusing macOS pool instance %s\n", acquired.InstanceID)
-		p.instanceID = acquired.InstanceID
-		p.leaseToken = acquired.LeaseToken
-	} else {
-		fmt.Fprintln(logger, "macOS pool empty: launching a new pool instance")
-
-		ami, err := pool.ResolveMacOSAMI(ctx, cfg.Region, cfg.Profile, *vmArgs.OSInfo)
-		if err != nil {
-			return nil, err
-		}
-
-		hostID, err := pool.AllocateDedicatedHost(ctx, ec2Client, cfg, vmArgs.InstanceType)
-		if err != nil {
-			return nil, err
-		}
-
-		instanceID, err := pool.LaunchInstance(ctx, ec2Client, cfg, ami, vmArgs.InstanceType, hostID)
-		if err != nil {
-			return nil, err
-		}
-
-		leaseToken, err := pool.RegisterNewMember(ctx, cfg.Region, cfg.Profile, ec2Client, instanceID, ownerID)
-		if err != nil {
-			return nil, err
-		}
-
-		p.instanceID = instanceID
-		p.leaseToken = leaseToken
-	}
+	fmt.Fprintf(logger, "reusing macOS pool instance %s\n", acquired.InstanceID)
+	p.instanceID = acquired.InstanceID
+	p.leaseToken = acquired.LeaseToken
 
 	privateIP, err := pool.DescribeInstance(ctx, ec2Client, p.instanceID)
 	if err != nil {

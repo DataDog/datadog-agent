@@ -4,9 +4,12 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package pool implements the tag-based instance discovery described in
-// MACOS_EC2_POOL_PROPOSAL.md's "Proposed architecture" section: an existing
-// pool instance is found by tag so a caller can attach to it (via Pulumi
-// import) instead of creating a new one.
+// MACOS_EC2_POOL_PROPOSAL.md's "Proposed architecture" section: a pool instance
+// is provisioned and published (via the S3 lease object) by an external
+// service/job, outside this package's responsibility. This package only
+// discovers already-published, idle members by tag and attaches to one (via
+// Pulumi import, or a direct SSH import for the non-Pulumi path) — it never
+// creates instances itself.
 package pool
 
 import (
@@ -183,13 +186,15 @@ func EnsureOwnedBaseline(ctx context.Context, client *awsec2.Client, instanceID,
 }
 
 // AcquireIdleInstance attempts to claim one idle instance from pool via a
-// conditional S3 write (If-None-Match for the very first claim on an
-// instance, If-Match on the current object's ETag otherwise), returning the
-// instance ID and a lease token (its new ETag) on success. It retries the
-// whole-pool scan up to maxAcquireRetries times, acquireRetryInterval apart,
-// since any instance could become idle between attempts. It does not reclaim
-// leases stranded by a non-graceful failure (deferred: time-based stale-lease
-// reclaim, see MACOS_EC2_POOL_PROPOSAL.md).
+// conditional S3 write (If-Match on the lease object's current ETag),
+// returning the instance ID and a lease token (its new ETag) on success. A
+// pool instance with no lease object yet is treated as not-yet-published by
+// the external provisioning job (not as a fresh instance to claim) and is
+// skipped. It retries the whole-pool scan up to maxAcquireRetries times,
+// acquireRetryInterval apart, since any instance could become idle or get
+// published between attempts. It does not reclaim leases stranded by a
+// non-graceful failure (deferred: time-based stale-lease reclaim, see
+// MACOS_EC2_POOL_PROPOSAL.md).
 func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -201,23 +206,21 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 
 		for _, id := range pool {
 			key := leasePrefix + id
-			var ifMatch, ifNoneMatch *string
 
 			getOut, getErr := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
 			if getErr != nil {
-				// No lease object yet for this instance: first-ever claim, create-only semantics.
-				ifNoneMatch = aws.String("*")
-			} else {
-				var current leaseRecord
-				decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
-				getOut.Body.Close()
-				if decodeErr != nil {
-					continue
-				}
-				if current.Status == "in-use" {
-					continue // held by someone else; try the next pool instance
-				}
-				ifMatch = getOut.ETag
+				// No lease object yet: the external provisioning job hasn't published
+				// this instance as available yet. Not claimable.
+				continue
+			}
+			var current leaseRecord
+			decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
+			getOut.Body.Close()
+			if decodeErr != nil {
+				continue
+			}
+			if current.Status == "in-use" {
+				continue // held by someone else; try the next pool instance
 			}
 
 			body, err := json.Marshal(leaseRecord{Status: "in-use", Owner: ownerPipelineID, LeasedAt: now.Unix()})
@@ -225,11 +228,10 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 				return "", "", fmt.Errorf("failed to marshal lease record for instance %s: %w", id, err)
 			}
 			putOut, putErr := client.PutObject(ctx, &s3.PutObjectInput{
-				Bucket:      aws.String(leaseBucket),
-				Key:         aws.String(key),
-				Body:        bytes.NewReader(body),
-				IfMatch:     ifMatch,
-				IfNoneMatch: ifNoneMatch,
+				Bucket:  aws.String(leaseBucket),
+				Key:     aws.String(key),
+				Body:    bytes.NewReader(body),
+				IfMatch: getOut.ETag,
 			})
 			if putErr != nil {
 				continue // precondition failed: someone else claimed it between our GetObject and PutObject
@@ -273,27 +275,25 @@ func ReleaseInstance(ctx context.Context, region, profile string, instanceID str
 	return nil
 }
 
-// AcquireResult is what Acquire returns for a successfully claimed pool member:
-// enough to either import the existing instance (InstanceID/HostID) or, if Found
-// is false, to know that a brand-new instance must be created and then registered
-// with RegisterNewMember.
+// AcquireResult is what Acquire returns for a successfully claimed pool member: enough
+// to import the existing instance (InstanceID/HostID) and later release it (LeaseToken).
 type AcquireResult struct {
-	Found      bool
 	InstanceID string
 	HostID     string
 	LeaseToken string
 }
 
-// Acquire lists every instance tagged PoolTagKey=PoolTagValue and attempts to claim
-// one idle member via AcquireIdleInstance. If the pool is currently empty, it
-// returns Found=false (no error) so the caller can create and register a new member.
+// Acquire lists every instance tagged PoolTagKey=PoolTagValue and attempts to claim one
+// idle, already-published member via AcquireIdleInstance. Instance creation and initial
+// publication (the S3 lease object) are owned by an external service/job, not by this
+// package, so an empty or fully-unavailable pool is an error, not a signal to create one.
 func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string) (AcquireResult, error) {
 	instances, err := ListPoolInstances(ctx, client, PoolTagKey, PoolTagValue)
 	if err != nil {
 		return AcquireResult{}, err
 	}
 	if len(instances) == 0 {
-		return AcquireResult{}, nil
+		return AcquireResult{}, fmt.Errorf("no macOS pool instances found (tag %s=%s)", PoolTagKey, PoolTagValue)
 	}
 
 	byID := make(map[string]PoolInstance, len(instances))
@@ -308,44 +308,10 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 		return AcquireResult{}, err
 	}
 	return AcquireResult{
-		Found:      true,
 		InstanceID: instanceID,
 		HostID:     byID[instanceID].HostID,
 		LeaseToken: leaseToken,
 	}, nil
-}
-
-// RegisterNewMember tags a brand-new instance as a pool member (PoolTagKey=PoolTagValue)
-// and seeds its lease record as claimed by ownerPipelineID, returning the lease token
-// (ETag) needed to later call ReleaseInstance.
-func RegisterNewMember(ctx context.Context, region, profile string, client *awsec2.Client, instanceID, ownerPipelineID string) (leaseToken string, err error) {
-	_, err = client.CreateTags(ctx, &awsec2.CreateTagsInput{
-		Resources: []string{instanceID},
-		Tags:      []awsec2types.Tag{{Key: pointer.Ptr(PoolTagKey), Value: pointer.Ptr(PoolTagValue)}},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to tag new pool member %s: %w", instanceID, err)
-	}
-
-	s3Client, err := newS3Client(ctx, region, profile)
-	if err != nil {
-		return "", err
-	}
-
-	body, err := json.Marshal(leaseRecord{Status: "in-use", Owner: ownerPipelineID, LeasedAt: time.Now().Unix()})
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal lease record for new pool member %s: %w", instanceID, err)
-	}
-	putOut, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(leaseBucket),
-		Key:         aws.String(leasePrefix + instanceID),
-		Body:        bytes.NewReader(body),
-		IfNoneMatch: aws.String("*"),
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to seed lease record for new pool member %s: %w", instanceID, err)
-	}
-	return aws.ToString(putOut.ETag), nil
 }
 
 // NewEC2Client builds an EC2 API client scoped to e's region/profile, for callers
