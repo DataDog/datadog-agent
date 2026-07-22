@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:dd_linux_bpf on
+
 exports_files([
     "types_linux.go",
     "types_linux_test.go",
