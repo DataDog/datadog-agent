@@ -1145,6 +1145,46 @@ func TestAggregateTotalHistogramPerEmitterHasIndependentOutputs(t *testing.T) {
 	}
 }
 
+func TestAggregateTotalRejectsReservedTotalPreserveTag(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		aggregateTotal bool
+		wantErr        string
+	}{
+		{
+			name:           "aggregate total enabled",
+			aggregateTotal: true,
+			wantErr:        "profile 'foo' metric 'bar.zoo' cannot preserve reserved tag 'total' when aggregate_total is enabled",
+		},
+		{name: "aggregate total disabled"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+            aggregate_total: %t
+            preserve_tags:
+              - total
+`, tt.aggregateTotal))
+
+			atelCfg, err := parseConfig(cfg)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
+			require.Contains(t, mCfg.preserveTagsMap, "total")
+		})
+	}
+}
+
 func TestAggregateTotalWithoutPreserveTags(t *testing.T) {
 	for _, preserveTags := range []struct {
 		name string
