@@ -142,6 +142,49 @@ example.com/uncovered.go:1.0,1.1 1 0
 	}
 }
 
+func TestGenerateCoverageDirReport(t *testing.T) {
+	dir := t.TempDir()
+	coverageDir := filepath.Join(dir, "coverage")
+	if err := os.Mkdir(coverageDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first := filepath.Join(coverageDir, "first.dat")
+	second := filepath.Join(coverageDir, "second.dat")
+	output := filepath.Join(dir, "merged.out")
+	manifest := filepath.Join(dir, "manifest.txt")
+
+	writeTestFile(t, first, `mode: atomic
+example.com/foo.go:1.1,1.5 1 2
+`)
+	writeTestFile(t, second, `mode: atomic
+example.com/bar.go:1.1,1.5 1 1
+/usr/lib/foo.go:1.1,1.5 1 1
+`)
+	writeTestFile(t, manifest, "example.com/foo.go\nexample.com/bar.go\n")
+
+	if err := generateCoverageDirReport(
+		coverageDir,
+		output,
+		[]string{"/usr/lib/.+"},
+		manifest,
+		"",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `mode: atomic
+example.com/bar.go:1.1,1.5 1 1
+example.com/foo.go:1.1,1.5 1 2
+`
+	if string(got) != want {
+		t.Fatalf("unexpected merged profile:\n%s", got)
+	}
+}
+
 func TestIgnoresFullLcovProfile(t *testing.T) {
 	dir := t.TempDir()
 	lcov := filepath.Join(dir, "coverage.dat")

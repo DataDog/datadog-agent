@@ -10,12 +10,27 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
 	"golang.org/x/tools/cover"
 )
 
+type stringListFlag []string
+
+func (f *stringListFlag) String() string {
+	return strings.Join(*f, ",")
+}
+
+func (f *stringListFlag) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
+
+// mergeBlock applies the standard go cover profile block merge (set |=, count/atomic +=).
+// Same semantics as tools like gocovmerge; independent implementation for Bazel integration.
 func mergeBlock(profile *cover.Profile, block cover.ProfileBlock) error {
 	index := sort.Search(len(profile.Blocks), func(i int) bool {
 		current := profile.Blocks[i]
@@ -270,6 +285,181 @@ func writeProfiles(path, mode string, profilesByFile map[string]*cover.Profile) 
 	return nil
 }
 
+func findDatFiles(coverageDir string) ([]string, error) {
+	var datFiles []string
+	err := filepath.WalkDir(coverageDir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".dat") {
+			datFiles = append(datFiles, path)
+		}
+		return nil
+	})
+	return datFiles, err
+}
+
+func readSourceManifest(path string) (map[string]struct{}, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	sources := make(map[string]struct{})
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasSuffix(line, ".gcno") || strings.HasSuffix(line, ".em") {
+			continue
+		}
+		sources[line] = struct{}{}
+	}
+	return sources, scanner.Err()
+}
+
+func readSourceReplacements(path string) (map[string]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	replacements := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		replacements[key] = value
+	}
+	return replacements, scanner.Err()
+}
+
+func applySourceReplacements(profilesByFile map[string]*cover.Profile, replacements map[string]string) {
+	if len(replacements) == 0 {
+		return
+	}
+	for oldName, profile := range profilesByFile {
+		if newName, ok := replacements[oldName]; ok {
+			profile.FileName = newName
+			delete(profilesByFile, oldName)
+			profilesByFile[newName] = profile
+		}
+	}
+}
+
+func filterProfilesByManifest(profilesByFile map[string]*cover.Profile, manifest map[string]struct{}) {
+	if len(manifest) == 0 {
+		return
+	}
+	for fileName := range profilesByFile {
+		if _, ok := manifest[fileName]; !ok {
+			delete(profilesByFile, fileName)
+		}
+	}
+}
+
+func filterProfilesByRegex(profilesByFile map[string]*cover.Profile, patterns []string) error {
+	if len(patterns) == 0 {
+		return nil
+	}
+	compiled := make([]*regexp.Regexp, 0, len(patterns))
+	for _, pattern := range patterns {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("compile filter_sources %q: %w", pattern, err)
+		}
+		compiled = append(compiled, re)
+	}
+	for fileName := range profilesByFile {
+		for _, re := range compiled {
+			if re.MatchString(fileName) {
+				delete(profilesByFile, fileName)
+				break
+			}
+		}
+	}
+	return nil
+}
+
+func mergeReportPaths(profilesByFile map[string]*cover.Profile, reportPaths []string) (string, error) {
+	mode := ""
+	for _, reportPath := range reportPaths {
+		profiles, isGoProfile, err := parseGoProfiles(reportPath)
+		if err != nil {
+			return "", fmt.Errorf("parse %s: %w", reportPath, err)
+		}
+		if isGoProfile {
+			if err := mergeProfiles(profilesByFile, profiles, &mode); err != nil {
+				return "", err
+			}
+			continue
+		}
+
+		baselineProfiles, isBaselineProfile, err := parseBaselineProfiles(reportPath)
+		if err != nil {
+			return "", fmt.Errorf("parse %s: %w", reportPath, err)
+		}
+		if isBaselineProfile {
+			if err := mergeBaselineProfiles(profilesByFile, baselineProfiles, &mode); err != nil {
+				return "", err
+			}
+		}
+	}
+	return mode, nil
+}
+
+func generateCoverageDirReport(coverageDir, outputFile string, filterSources []string, sourceFileManifest, sourcesToReplaceFile string) error {
+	datFiles, err := findDatFiles(coverageDir)
+	if err != nil {
+		return fmt.Errorf("list coverage files: %w", err)
+	}
+
+	profilesByFile := make(map[string]*cover.Profile)
+	mode, err := mergeReportPaths(profilesByFile, datFiles)
+	if err != nil {
+		return err
+	}
+
+	if sourcesToReplaceFile != "" {
+		replacements, err := readSourceReplacements(sourcesToReplaceFile)
+		if err != nil {
+			return fmt.Errorf("read sources_to_replace_file: %w", err)
+		}
+		applySourceReplacements(profilesByFile, replacements)
+	}
+
+	if sourceFileManifest != "" {
+		manifest, err := readSourceManifest(sourceFileManifest)
+		if err != nil {
+			return fmt.Errorf("read source_file_manifest: %w", err)
+		}
+		filterProfilesByManifest(profilesByFile, manifest)
+	}
+
+	if err := filterProfilesByRegex(profilesByFile, filterSources); err != nil {
+		return err
+	}
+
+	if mode == "" {
+		mode = "atomic"
+	}
+
+	if err := writeProfiles(outputFile, mode, profilesByFile); err != nil {
+		return fmt.Errorf("write merged profile: %w", err)
+	}
+	return nil
+}
+
 func generateReport(reportsFile, outputFile string) error {
 	reportPaths, err := readReportPaths(reportsFile)
 	if err != nil {
@@ -277,28 +467,9 @@ func generateReport(reportsFile, outputFile string) error {
 	}
 
 	profilesByFile := make(map[string]*cover.Profile)
-	mode := ""
-	for _, reportPath := range reportPaths {
-		profiles, isGoProfile, err := parseGoProfiles(reportPath)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", reportPath, err)
-		}
-		if isGoProfile {
-			if err := mergeProfiles(profilesByFile, profiles, &mode); err != nil {
-				return err
-			}
-			continue
-		}
-
-		baselineProfiles, isBaselineProfile, err := parseBaselineProfiles(reportPath)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", reportPath, err)
-		}
-		if isBaselineProfile {
-			if err := mergeBaselineProfiles(profilesByFile, baselineProfiles, &mode); err != nil {
-				return err
-			}
-		}
+	mode, err := mergeReportPaths(profilesByFile, reportPaths)
+	if err != nil {
+		return err
 	}
 	if mode == "" {
 		mode = "atomic"
@@ -312,13 +483,30 @@ func generateReport(reportsFile, outputFile string) error {
 
 func main() {
 	reportsFile := flag.String("reports_file", "", "file containing paths to coverage profiles")
+	coverageDir := flag.String("coverage_dir", "", "directory containing per-test coverage files")
 	outputFile := flag.String("output_file", "", "merged coverage profile")
+	sourceFileManifest := flag.String("source_file_manifest", "", "instrumented source file manifest")
+	sourcesToReplaceFile := flag.String("sources_to_replace_file", "", "reported-to-actual source path map")
+	var filterSources stringListFlag
+	flag.Var(&filterSources, "filter_sources", "exclude sources matching this regex")
 	flag.Parse()
-	if *reportsFile == "" || *outputFile == "" {
-		fmt.Fprintln(os.Stderr, "--reports_file and --output_file are required")
+
+	if *outputFile == "" {
+		fmt.Fprintln(os.Stderr, "--output_file is required")
 		os.Exit(1)
 	}
-	if err := generateReport(*reportsFile, *outputFile); err != nil {
+
+	var err error
+	switch {
+	case *reportsFile != "":
+		err = generateReport(*reportsFile, *outputFile)
+	case *coverageDir != "":
+		err = generateCoverageDirReport(*coverageDir, *outputFile, filterSources, *sourceFileManifest, *sourcesToReplaceFile)
+	default:
+		fmt.Fprintln(os.Stderr, "one of --reports_file or --coverage_dir is required")
+		os.Exit(1)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
