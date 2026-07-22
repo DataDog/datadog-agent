@@ -289,9 +289,7 @@ single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
   # allow_failure is driven by SMP_ALLOW_FAILURE so the parent trigger can
-  # decide per-context: "false" on the main-branch trigger (so a regression
-  # blocks the parent pipeline) and "true" on dev-branch triggers (so it
-  # doesn't block development).
+  # decide per-context without changing this shared child job.
   rules:
     - if: $SMP_ALLOW_FAILURE == "false"
       allow_failure: false
