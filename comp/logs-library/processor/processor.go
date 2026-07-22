@@ -290,6 +290,37 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 					break
 				}
 			}
+		case config.ExcludeAtJQMatch:
+			// if this message matches, we ignore it. Fail open (keep the message)
+			// on a runtime error, since a filter false-negative doesn't leak data.
+			if matched, err := rule.JQFilter(content); err == nil && matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+		case config.IncludeAtJQMatch:
+			// if this message doesn't match, we ignore it. Fail open (keep the
+			// message) on a runtime error, e.g. non-JSON content.
+			matched, err := rule.JQFilter(content)
+			if err != nil {
+				break
+			}
+			if !matched {
+				return false
+			}
+			msg.RecordProcessingRule(rule.Type, rule.Name)
+		case config.MaskJQTransform:
+			newContent, err := rule.JQTransform(content)
+			if err != nil {
+				// Fail closed: drop the message rather than risk leaking
+				// unredacted content when the jq transform can't run.
+				metrics.TlmJQEvalErrors.Inc(rule.Type, rule.Name)
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+			if !bytes.Equal(content, newContent) {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			}
+			content = newContent
 		}
 	}
 

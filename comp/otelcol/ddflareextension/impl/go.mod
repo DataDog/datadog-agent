@@ -54,6 +54,12 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-00010101000000-000000000000 // indirect
+	github.com/itchyny/gojq v0.12.19 // indirect
+	github.com/itchyny/timefmt-go v0.1.8 // indirect
+)
+
+require (
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.64.0 // indirect

@@ -88,6 +88,9 @@ var (
 	// TlmAutoMultilineStackTraceAggregatorFlush counts Go stack trace aggregation outcomes.
 	TlmAutoMultilineStackTraceAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_go_stack_trace_aggregator_flush", []string{"result"}, "Count of Go stack traces flushed from the stack trace aggregator")
 
+	// TlmJQEvalErrors tracks the count of mask_jq processing rule runtime errors.
+	TlmJQEvalErrors = telemetryimpl.GetCompatComponent().NewCounter("logs", "jq_eval_errors", []string{"rule_type", "rule_name"}, "Count of jq mask processing rule runtime errors")
+
 	// TlmUtilizationRatio is the N=15 EWMA utilization ratio of a component (~15s window).
 	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=15 EWMA, ~15s window)")
 	// TlmUtilizationItems is the EWMA item count held in a component and its buffers.
