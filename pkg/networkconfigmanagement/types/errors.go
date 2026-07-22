@@ -23,10 +23,10 @@ const (
 	ErrWrongDeviceID    ErrorType = "device_id_mismatch" // the config in the local store isn't for this deviceID
 	ErrWrongHash        ErrorType = "hash_mismatch"      // the config has doesn't match what's in the store
 	// Connection/profile errors
-	ErrCannotConnect ErrorType = "cannot_connect" // failed to connect to the device
-	ErrNoProfile     ErrorType = "no_profile"     // the device doesn't have a configured profile and no candidate matched
+	ErrCannotConnect ErrorType = "device_unreachable" // failed to connect to the device
+	ErrNoProfile     ErrorType = "no_profile"         // the device doesn't have a configured profile and no candidate matched
 	// ErrProfileNotMatched // the device DOES have an explicitly-configured profile but it doesn't agree with the Verify() method
-	ErrPushUnsupported ErrorType = "rollback_not_implemented" // the device's profile doesn't support pushing config
+	ErrPushUnsupported ErrorType = "rollback_not_supported" // the device's profile doesn't support pushing config
 	// Failures during the actual rollback
 	ErrCopyFailed       ErrorType = "copy_failed"        // we couldn't copy the configuration to the device
 	ErrSetRunningFailed ErrorType = "set_running_failed" // we couldn't set the running config
