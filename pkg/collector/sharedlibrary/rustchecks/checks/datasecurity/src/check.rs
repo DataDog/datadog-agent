@@ -49,7 +49,10 @@ fn run_sub_task(
     // than aborting the check, so every sub task produces exactly one event.
     let (status, failure_reason, matches) = match run_scan(scanner, sub_task) {
         Ok(matches) => {
-            println!("datasecurity: sub task succeeded ({} match(es))", matches.len());
+            println!(
+                "datasecurity: sub task succeeded ({} match(es))",
+                matches.len()
+            );
             (ScanStatus::Success, String::new(), matches)
         }
         Err(err) => {
