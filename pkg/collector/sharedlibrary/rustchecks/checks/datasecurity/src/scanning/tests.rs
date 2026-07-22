@@ -127,7 +127,7 @@ scanning_rules:
 // --- scanning behaviour ---------------------------------------------------
 
 #[test]
-fn suppression_drops_matching_rows() {
+fn scan_happy_path() {
     // Deserialize the scanning rules through the full instance config, exactly
     // as `CheckConfig::from_instance` does, then scan.
     let scanner = scanner_from_instance(
@@ -158,6 +158,213 @@ scan_data: []
         vec![Match {
             rule_id: "email".to_string(),
             column_name: "email".to_string(),
+            count_matched_rows: 2,
+        }]
+    );
+}
+
+#[test]
+fn scan_requires_included_keyword() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: token
+    pattern: '\d{6}'
+    proximity_keywords:
+      look_ahead_character_count: 30
+      included_keywords: ['token']
+scan_data: []
+"#,
+    );
+
+    let data = json!({
+        "note": [
+            "token 111111",
+            "999999"
+        ]
+    });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    // Only the row with the `token` keyword nearby matches.
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "token".to_string(),
+            column_name: "note".to_string(),
+            count_matched_rows: 1,
+        }]
+    );
+}
+
+#[test]
+fn scan_excludes_by_keyword() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: code
+    pattern: '\d{6}'
+    proximity_keywords:
+      look_ahead_character_count: 30
+      excluded_keywords: ['test']
+scan_data: []
+"#,
+    );
+
+    let data = json!({
+        "code": [
+            "secret 222222",
+            "test 333333"
+        ]
+    });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    // The row preceded by the `test` keyword is excluded.
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "code".to_string(),
+            column_name: "code".to_string(),
+            count_matched_rows: 1,
+        }]
+    );
+}
+
+#[test]
+fn scan_counts_row_once_with_multiple_matches() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: email
+    pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+scan_data: []
+"#,
+    );
+
+    // A single row holds two emails: both match the rule, but they share the
+    // same row path, so the row is counted once.
+    let data = json!({ "email": ["alice@corp.io and bob@corp.io"] });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "email".to_string(),
+            column_name: "email".to_string(),
+            count_matched_rows: 1,
+        }]
+    );
+}
+
+#[test]
+fn scan_filters_by_luhn_checksum() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: credit-card
+    pattern: '\d{16}'
+    validator:
+      type: LuhnChecksum
+scan_data: []
+"#,
+    );
+
+    let data = json!({
+        "card": [
+            "4242424242424242",
+            "4242424242424241"
+        ]
+    });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    // Only the Luhn-valid number is kept.
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "credit-card".to_string(),
+            column_name: "card".to_string(),
+            count_matched_rows: 1,
+        }]
+    );
+}
+
+#[test]
+fn scan_without_matches_is_empty() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: email
+    pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+scan_data: []
+"#,
+    );
+
+    let data = json!({ "name": ["alice", "bob"] });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    assert!(matches.is_empty());
+}
+
+#[test]
+fn scan_preserves_column_name_with_brackets() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: email
+    pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+scan_data: []
+"#,
+    );
+
+    // A quoted DB column can itself contain brackets, so the scanner path is
+    // `foo[bar][0]`; only the trailing row subscript should be stripped.
+    let data = json!({ "foo[bar]": ["alice@corp.io"] });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "email".to_string(),
+            column_name: "foo[bar]".to_string(),
+            count_matched_rows: 1,
+        }]
+    );
+}
+
+#[test]
+fn scan_preserves_column_name_with_dots() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: email
+    pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+scan_data: []
+"#,
+    );
+
+    // A quoted DB column can contain dots. The column is the leading path field,
+    // so it survives verbatim even though `.` is the Path segment separator.
+    let data = json!({ "first.last": ["alice@corp.io", "bob@corp.io"] });
+
+    let matches = scanner.scan(&data).expect("failed to scan data");
+
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "email".to_string(),
+            column_name: "first.last".to_string(),
             count_matched_rows: 2,
         }]
     );
