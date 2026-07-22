@@ -99,31 +99,89 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_socket_exit, struct tracepoint_raw_syscalls_
     return sys_socket_ret(args, args->ret);
 }
 
-SEC("cgroup/sock_create")
-static int hook_sock_create(struct bpf_sock *ctx) {
-    if (ctx->family != AF_INET && ctx->family != AF_INET6) {
-        return 1;
+static void __attribute__((always_inline)) save_pid_with_socket_storage(struct bpf_sock *ctx, u32 tgid) {
+    if (tgid == 0) {
+        return;
+    }
+
+    // record the owning pid in sk-local storage so TC classifiers can resolve it through bpf_sk_lookup
+    if (is_sk_lookup_pid_enabled()) {
+        u32 *stored_tgid = bpf_sk_storage_get(&sk_storage_pid, ctx, &tgid, BPF_SK_STORAGE_GET_F_CREATE);
+        if (stored_tgid != NULL) {
+            *stored_tgid = tgid;
+        }
+    }
+}
+
+static void __attribute__((always_inline)) save_pid_with_socket_cookie(void *ctx, u32 tgid) {
+    if (tgid == 0) {
+        return;
     }
 
     u64 cookie = bpf_get_socket_cookie(ctx);
     if (cookie == 0) {
-        return 1;
+        return;
     }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (pid_tgid == 0) {
-        return 1;
-    }
-    u32 tgid = pid_tgid >> 32;
-
     bpf_map_update_elem(&sock_cookie_pid, &cookie, &tgid, BPF_ANY);
+}
 
+SEC("cgroup/sock_create")
+int hook_sock_create(struct bpf_sock *ctx) {
+    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        save_pid_with_socket_cookie(ctx, tgid);
+        save_pid_with_socket_storage(ctx, tgid);
+    }
+    return 1;
+}
+
+SEC("cgroup/post_bind4")
+int hook_post_bind4(struct bpf_sock *ctx) {
+    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        save_pid_with_socket_cookie(ctx, tgid);
+        save_pid_with_socket_storage(ctx, tgid);
+    }
+    return 1;
+}
+
+SEC("cgroup/post_bind6")
+int hook_post_bind6(struct bpf_sock *ctx) {
+    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        save_pid_with_socket_cookie(ctx, tgid);
+        save_pid_with_socket_storage(ctx, tgid);
+    }
+    return 1;
+}
+
+SEC("cgroup/connect4")
+int hook_connect4(struct bpf_sock_addr *ctx) {
+    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        save_pid_with_socket_cookie(ctx, tgid);
+        save_pid_with_socket_storage(ctx->sk, tgid);
+    }
+    return 1;
+}
+
+SEC("cgroup/connect6")
+int hook_connect6(struct bpf_sock_addr *ctx) {
+    if (ctx->family == AF_INET || ctx->family == AF_INET6) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        save_pid_with_socket_cookie(ctx, tgid);
+        save_pid_with_socket_storage(ctx->sk, tgid);
+    }
     return 1;
 }
 
 SEC("cgroup/sock_release")
-static int hook_sock_release(struct bpf_sock *ctx)
-{
+int hook_sock_release(struct bpf_sock *ctx) {
     u64 cookie = bpf_get_socket_cookie(ctx);
     bpf_map_delete_elem(&sock_cookie_pid, &cookie);
     return 1;

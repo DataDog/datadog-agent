@@ -384,6 +384,15 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
+	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.config.Probe.NetworkEnabled {
+		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
+	}
+
+	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.IsSkLookupPidResolutionSupported() {
+		seclog.Warnf("The sk_lookup based network pid resolution feature of CWS isn't supported on this kernel version, setting event_monitoring_config.network.sk_lookup_pid_resolution.enabled to false")
+		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
+	}
+
 	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
 		p.config.RuntimeSecurity.SysCtlEBPFEnabled = false
@@ -2936,6 +2945,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
 		manager.ConstantEditor{
+			Name:  "sk_lookup_pid_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkSkLookupPidResolutionEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
@@ -3038,6 +3051,20 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 	return p.kernelVersion.HasSKStorageInTracingPrograms()
 }
 
+// IsSkLookupPidResolutionSupported reports whether the TC classifiers can resolve packet pids via
+// bpf_sk_lookup + sk-local storage (populated by the cgroup/socket hooks) instead of the
+// flow_pid map. Requires cgroup v2, the cgroup socket hooks, and bpf_sk_lookup / sk-local storage.
+func (p *EBPFProbe) IsSkLookupPidResolutionSupported() bool {
+	// the cgroup/sock_create hook that populates sk_storage_pid is attached at the cgroup v2 mount point
+	if len(p.cgroup2MountPath) == 0 || !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
+		return false
+	}
+
+	return p.kernelVersion.HasSkLookupForSchedCLS() &&
+		p.kernelVersion.HasSKStorageInSchedCLS() &&
+		p.kernelVersion.HasSKStorageInCgroupSock()
+}
+
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
@@ -3049,6 +3076,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
+		NetworkSkLookupPidEnabled:     p.config.Probe.NetworkSkLookupPidResolutionEnabled,
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),

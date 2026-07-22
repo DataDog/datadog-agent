@@ -215,6 +215,7 @@ go_test(
         "setsockopt_test.go",
         "signal_test.go",
         "simple_test.go",
+        "sk_lookup_pid_test.go",
         "socket_test.go",
         "span_test.go",
         "splice_test.go",
