@@ -68,6 +68,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 		if err != nil {
 			return nil, err
 		}
+		log.Infof("Received credentials tokens: %v", credentialTokens)
 		return &privateconnection.PrivateCredentials{
 			Tokens:      credentialTokens,
 			Type:        privateconnection.TokenAuthType,
