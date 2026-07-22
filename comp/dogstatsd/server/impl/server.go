@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -133,7 +132,6 @@ type dsdServer struct {
 
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
-	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
@@ -209,7 +207,6 @@ func initTelemetry() {
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
 }
 
-// TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 // NewComponent creates a new dogstatsd server component.
 func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
@@ -305,7 +302,6 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
-		serverlessFlushChan:     make(chan bool),
 		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
@@ -422,7 +418,6 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(socketStreamPath) > 0 {
-		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
 		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
@@ -625,19 +620,6 @@ func (s *dsdServer) forwarder(fcon net.Conn) {
 			s.packetsIn <- packets
 		}
 	}
-}
-
-// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *dsdServer) ServerlessFlush(sketchesBucketDelay time.Duration) {
-	s.log.Debug("Received a Flush trigger")
-
-	// make all workers flush their aggregated data (in the batchers) into the time samplers
-	s.serverlessFlushChan <- true
-
-	start := time.Now()
-	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.demultiplexer.ForceFlushToSerializer(start.Add(sketchesBucketDelay), true)
 }
 
 // dropCR drops a terminal \r from the data.

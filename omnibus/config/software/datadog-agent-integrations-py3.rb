@@ -22,14 +22,6 @@ if windows_target?
 end
 
 build do
-  # The dir for confs
-  if osx_target?
-    conf_dir = "#{install_dir}/etc/conf.d"
-  else
-    conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
-  end
-  mkdir conf_dir
-
   # aliases for pip
   if windows_target?
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
@@ -37,67 +29,15 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
-  # Install integration dependencies, datadog-checks-base, datadog-checks-downloader, and integration wheels
+  # Install integrations and their configs
   command "bazel run " \
           "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
           "--//:install_dir=#{install_dir} " \
           "-- //deps/agent_integrations:install --destdir=#{install_dir}",
     :live_stream => Omnibus.logger.live_stream(:info)
 
-  #
-  # Install Core integration configuration
-  #
-
-  block "Install integration configuration" do
-    # Discover configuration from the packages installed by Bazel above, so the copied configuration
-    # matches the actual installed wheels without going through the legacy collect-integrations task.
-    config_files = Dir.glob(
-      File.join(
-        site_packages_path,
-        "datadog_checks",
-        "*",
-        "data",
-        "{conf.yaml.example,conf.yaml.default,metrics.yaml,auto_conf.yaml}",
-      )
-    ).sort
-    raise "No integration configuration found under #{site_packages_path}/datadog_checks" if config_files.empty?
-
-    # For each conf file, if it already exists, that means the `datadog-agent` software def
-    # wrote it first. In that case, since the agent's confs take precedence, skip the conf.
-    config_files.each do |src|
-      data_dir = File.dirname(src)
-      check = File.basename(File.dirname(data_dir))
-      check_conf_dir = File.join(conf_dir, "#{check}.d")
-      filename = File.basename(src)
-
-      unless File.exist?(windows_safe_path(check_conf_dir, filename))
-        FileUtils.mkdir_p(check_conf_dir)
-        FileUtils.cp_r(src, check_conf_dir)
-      end
-    end
-
-    # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here.
-    FileUtils.rm_f(config_files)
-
-    # Move SNMP profiles to conf.d.
-    snmp_data_dir = File.join(site_packages_path, "datadog_checks", "snmp", "data")
-    snmp_conf_dir = File.join(conf_dir, "snmp.d")
-    %w[profiles default_profiles].each do |profile_dir|
-      src = File.join(snmp_data_dir, profile_dir)
-      FileUtils.mkdir_p(snmp_conf_dir)
-      FileUtils.mv(src, snmp_conf_dir)
-    end
-  end
-
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -B -m pip check"
-
-  unless windows_target?
-    block "Remove .exe files" do
-      # setuptools come from supervisor and ddtrace
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/setuptools/*.exe"))
-    end
-  end
 
   # Remove openssl copies from libraries that depend on it, and patch as necessary.
   # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder

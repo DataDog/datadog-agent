@@ -30,7 +30,7 @@ func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, s
 		log:      log,
 		store:    store,
 		sender:   sender,
-		devices:  NewMap[*DeviceContext](),
+		devices:  NewDeviceMap(deviceTimeout),
 		hostname: hostname,
 		profiles: profiles,
 		connect:  connectFn,
@@ -38,12 +38,18 @@ func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, s
 	}
 }
 
+// deviceTimeout is the maximum time to wait when attempting to lock a device.
+// Lock contention should be extremely rare - it only happens if two processes
+// try to access the same device at the same time, e.g. if a rollback triggers
+// at the same time that the NCM check tries to fetch the config.
+const deviceTimeout = time.Second * 30
+
 type networkDeviceConfigImpl struct {
 	log    log.Component
 	store  ncmstore.ConfigStore
 	sender sender.Sender
 
-	devices *Map[*DeviceContext]
+	devices *DeviceMap
 
 	inventoryMaxInterval  time.Duration
 	lastInventoryReportAt time.Time
@@ -60,18 +66,12 @@ func (n *networkDeviceConfigImpl) RegisterDevice(device *ncmconfig.DeviceInstanc
 	var profile *ncmprofile.NCMProfile
 	if device.Profile != "" {
 		var ok bool
-		profile, ok = n.profiles[device.Profile]
+		profile, ok = n.profiles[ncmprofile.ProfileName(device.Profile)]
 		if !ok {
 			return fmt.Errorf("nonexistent NCM profile %q specified for device %s", device.Profile, device.DeviceID())
 		}
 	}
-	// LoadOrStore so that if for some reason two threads try to do this at the
-	// same time they'll get the same device context.
-	dc, _ := n.devices.LoadOrStore(device.DeviceID(), &DeviceContext{})
-	dc.Lock()
-	defer dc.Unlock()
-	dc.SetDevice(device, profile)
-	return nil
+	return n.devices.RegisterDevice(context.Background(), device, profile)
 }
 
 // SetMaxReportInterval sets a maximum time to wait between sending inventory
@@ -90,24 +90,24 @@ func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
 // necessary. The inventory report will be included if the device had new
 // configuration, or if more than n.inventoryMaxInterval has elapsed since the
 // last time inventory was reported.
-func (n *networkDeviceConfigImpl) ReportConfig(deviceID string) error {
-	return n.ReportConfigWithSender(deviceID, n.sender)
+func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID string, baseSender sender.Sender) error {
+	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
+	log.Debug("Running config check.")
+	ctx = WithLogger(ctx, log)
+	dc, err := n.devices.GetAndLock(ctx, deviceID)
+	if err != nil {
+		return err
+	}
+	defer dc.UnlockOrLog(log)
+	return n.reportConfig(ctx, dc, baseSender)
 }
 
-// ReportConfigWithSender runs the NCM check using the specified sender.
-func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSender sender.Sender) error {
-	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-
-	ctx := WithLogger(context.Background(), log)
+// reportConfig implements the NCM check, applied to a device context that is
+// already locked.
+func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceContext, baseSender sender.Sender) error {
 	startTime := n.clock.Now()
-	dc, ok := n.devices.Load(deviceID)
-	if !ok {
-		return fmt.Errorf("unknown device: %q", deviceID)
-	}
-	// lock the device so that if two threads try to use the same device at the
-	// same time they won't collide.
-	dc.Lock()
-	defer dc.Unlock()
+	log := LoggerFromContext(ctx)
+	deviceID := dc.device.DeviceID()
 	if dc.noMatchingProfile {
 		log.Debugf("All profiles tested on past runs with no matches.")
 		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
@@ -115,23 +115,11 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
 
-	conn, err := n.connect(device)
+	conn, err := n.connectAndEnsureProfile(ctx, dc)
 	if err != nil {
-		log.Errorf("unable to connect to device: %s", err)
 		return err
 	}
 	defer conn.Close()
-
-	if dc.profile == nil {
-		log.Debug("No profile specified, testing known profiles")
-		prof, ok := n.findMatchingProfile(ctx, conn)
-		if !ok {
-			dc.noMatchingProfile = true
-			return fmt.Errorf("no matching NCM profile for device %s", deviceID)
-		}
-		dc.profile = prof
-	}
-	log.Debugf("Using profile %q", dc.profile.Name)
 
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(dc.profile)
@@ -214,20 +202,13 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return errors.New("rollback is disabled")
 	}
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-
+	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
 	ctx = WithLogger(ctx, log)
-	dc, ok := n.devices.Load(deviceID)
-	if !ok {
-		return fmt.Errorf("unknown device: %q", deviceID)
+	dc, err := n.devices.GetAndLock(ctx, deviceID)
+	if err != nil {
+		return err
 	}
-	// lock the device so that if two threads try to use the same device at the
-	// same time they won't collide.
-	dc.Lock()
-	defer dc.Unlock()
-	profile := dc.GetExplicitProfile()
-	if profile == nil {
-		return fmt.Errorf("no NCM profile configured for device %s", deviceID)
-	}
+	defer dc.UnlockOrLog(log)
 
 	rawConfig, metadata, err := n.store.GetConfig(configVersion)
 	if err != nil {
@@ -242,34 +223,64 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return fmt.Errorf("hash mismatch for config %q", configVersion)
 	}
 
-	conn, err := n.connect(dc.device)
+	conn, err := n.connectAndEnsureProfile(ctx, dc)
 	if err != nil {
 		return fmt.Errorf("%v: %w", deviceID, err)
 	}
 	defer conn.Close()
-	conn.SetProfile(profile)
 
 	err = conn.PushConfig(ctx, rawConfig)
 	if err != nil {
 		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
 	}
 
-	return n.ReportConfig(deviceID)
+	// TODO if this fails we should still return success so that the user knows
+	// the rollback itself happened.
+	reportErr := n.reportConfig(ctx, dc, n.sender)
+	if reportErr != nil {
+		log.Errorf("Rollback succeeded, but reportConfig failed: %v", reportErr)
+	}
+	return nil
+}
+
+// connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, error) {
+	log := LoggerFromContext(ctx)
+	conn, err := n.connect(dc.device)
+	if err != nil {
+		log.Errorf("unable to connect to device: %s", err)
+		return nil, err
+	}
+	if dc.profile == nil {
+		log.Debug("No profile specified, testing known profiles")
+		prof, ok := n.findMatchingProfile(ctx, conn)
+		if !ok {
+			dc.noMatchingProfile = true
+			_ = conn.Close()
+			return nil, fmt.Errorf("no matching NCM profile for device %s", dc.device.DeviceID())
+		}
+		dc.profile = prof
+	}
+	conn.SetProfile(dc.profile)
+	log.Debugf("Using profile %q", dc.profile.Name)
+	return conn, nil
 }
 
 // findMatchingProfile tests each profile until one is successful.
-// TODO use GetVersion instead of fetching the entire config.
 func (n *networkDeviceConfigImpl) findMatchingProfile(ctx context.Context, conn ncmremote.Connection) (*ncmprofile.NCMProfile, bool) {
 	logger := LoggerFromContext(ctx)
-	logger.Infof("Testing %d profiles", len(n.profiles))
+	logger.Debugf("Testing %d profiles", len(n.profiles))
 	for profName, prof := range n.profiles {
-		logger.Debugf("testing profile %s", profName)
-		conn.SetProfile(prof)
-		_, err := conn.RetrieveRunningConfig(context.Background())
-		if err != nil {
-			logger.Infof("Profile %s does not match: %s", profName, err)
+		if prof.Commands.Verify == nil {
 			continue
 		}
+		logger.Debugf("testing profile %s", profName)
+		conn.SetProfile(prof)
+		if err := conn.Verify(ctx); err != nil {
+			logger.Debugf("Profile %s does not match: %s", profName, err)
+			continue
+		}
+		logger.Infof("Profile match: %s", profName)
 		return prof, true
 	}
 	return nil, false
