@@ -343,7 +343,7 @@ require (
 	github.com/oliveagle/jsonpath v0.1.4
 	github.com/open-policy-agent/opa v1.18.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.157.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.157.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.157.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.157.0

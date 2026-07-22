@@ -106,8 +106,8 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFd
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 h1:RWengNIwukTxcDr9M+97sNutRR1RKhG96O6jWumTTnw=
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826/go.mod h1:TaXosZuwdSHYgviHp1DAtfrULt5eUgsSMsZf+YrPgl8=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.0 h1:FkQ53nCjkwZYsB/qsvRSdP+9iJPIlykDWp1QzwohrHE=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.0/go.mod h1:fVI7Dr90srzhJKmJEl9QQQEfyJWtLkf7iRtJCZ9thqo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284 h1:RMY7ujMz+1p/Yw+/BrTrr3Gq2nYkOcD56fdW+IIimf8=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284/go.mod h1:fVI7Dr90srzhJKmJEl9QQQEfyJWtLkf7iRtJCZ9thqo=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.157.0 h1:yM+TsAD0OEr1RdxZ/NB8C0kArZCkgzOjzOp9TbmdX0w=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.157.0/go.mod h1:rugNqTrH2rSgtTV4Sko7rI4WgETpYXwx+Cpi9FfpPuY=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.157.0 h1:oQWc2BKFkPqo14Zh+qDEWZItxJacKSubLjtFirojFnk=

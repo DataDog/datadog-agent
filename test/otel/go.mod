@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.80.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.80.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284
 )
 
 require (
