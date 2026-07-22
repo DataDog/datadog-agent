@@ -63,6 +63,7 @@
     - sudo umount /Volumes/Agent || true
   after_script:
     - sudo umount /Volumes/Agent || true
+    - !reference [.macos_runner_after_script]
   script:
     - set -eo pipefail
     - !reference [.vault_login]

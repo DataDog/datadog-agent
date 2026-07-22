@@ -1,0 +1,7 @@
+---
+fixes:
+- |
+    Fixed macOS CI jobs failing with ``permission denied`` during workspace cleanup
+    when running on GitLab Runner 18. Builds that produce read-only files in
+    ``dev/embedded/`` (e.g. omnibus, bazel tests) now run ``chmod -R u+w`` in
+    ``after_script`` so the next job's ``git clean`` can succeed.

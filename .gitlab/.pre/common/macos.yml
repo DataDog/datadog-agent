@@ -98,3 +98,12 @@
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools --verbose
+  after_script:
+    - !reference [.macos_runner_after_script]
+
+.macos_runner_after_script:
+  - |
+    # Make workspace writable so the next job's git clean (clear_worktree) succeeds.
+    # GitLab Runner 18 fails hard on 'permission denied' during workspace cleanup.
+    # Builds like omnibus leave read-only files in dev/embedded/ that block git clean.
+    chmod -R u+w "${CI_PROJECT_DIR}" 2>/dev/null || true
