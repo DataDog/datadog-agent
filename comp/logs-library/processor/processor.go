@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"sync"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
@@ -348,6 +350,30 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 			}
 			content = newContent
+		case config.MaskOTTLTransform:
+			// Fail closed, same policy as MaskVRLTransform: a masking rule that
+			// can't run shouldn't fall back to shipping unredacted content.
+			newContent, err := processOTTLTransform(content, rule)
+			if err != nil {
+				log.Errorf("%v", err)
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+			if !bytes.Equal(content, newContent) {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			}
+			content = newContent
+		case config.MaskJQTransform:
+			// Fail closed, same policy as MaskVRLTransform/MaskOTTLTransform.
+			newContent, err := rule.JQTransform(content)
+			if err != nil {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+			if !bytes.Equal(content, newContent) {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			}
+			content = newContent
 		case config.RemapSource:
 			for _, match := range rule.Matching {
 				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
@@ -402,32 +428,11 @@ func (p *Processor) processOTTLmsg(msg *message.Message, rule *config.Processing
 		return false
 	}
 
-	var m map[string]any
-
-	err := json.Unmarshal(msg.GetContent(), &m)
+	_, transformContext, err := buildOTTLTransformContext(msg.GetContent(), rule.Name)
 	if err != nil {
-		log.Errorf("error unmarshalling message content for OTTL processing rule `%s`: %v", rule.Name, err)
+		log.Errorf("%v", err)
 		return false
 	}
-
-	pdata := plog.NewLogRecord()
-	for k, v := range m {
-		switch val := v.(type) {
-		case string:
-			pdata.Attributes().PutStr(k, val)
-		case bool:
-			pdata.Attributes().PutBool(k, val)
-		case float64:
-			pdata.Attributes().PutDouble(k, val)
-		default:
-			log.Warnf("unsupported attribute type for key `%s` in OTTL processing rule `%s`, skipping this attribute", k, rule.Name)
-		}
-	}
-
-	rl := plog.NewResourceLogs()
-	sl := rl.ScopeLogs().AppendEmpty()
-
-	transformContext := ottllog.NewTransformContextPtr(rl, sl, pdata)
 	defer transformContext.Close()
 
 	match, err := rule.OTTLCondition.Eval(context.Background(), transformContext)
@@ -442,4 +447,74 @@ func (p *Processor) processOTTLmsg(msg *message.Message, rule *config.Processing
 
 	return match
 
+}
+
+// buildOTTLTransformContext decodes content as JSON and builds an OTTL transform
+// context from its top-level scalar (string/bool/number) fields; nested objects and
+// arrays are not visible to OTTL rules. The returned map is the fully decoded
+// document (including any fields OTTL can't see), for re-serializing after a
+// MaskOTTLTransform statement mutates the visible attributes. The caller is
+// responsible for calling Close() on the returned transform context.
+func buildOTTLTransformContext(content []byte, ruleName string) (map[string]any, *ottllog.TransformContext, error) {
+	var m map[string]any
+	if err := json.Unmarshal(content, &m); err != nil {
+		return nil, nil, fmt.Errorf("error unmarshalling message content for OTTL processing rule `%s`: %w", ruleName, err)
+	}
+
+	pdata := plog.NewLogRecord()
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			pdata.Attributes().PutStr(k, val)
+		case bool:
+			pdata.Attributes().PutBool(k, val)
+		case float64:
+			pdata.Attributes().PutDouble(k, val)
+		default:
+			log.Warnf("unsupported attribute type for key `%s` in OTTL processing rule `%s`, skipping this attribute", k, ruleName)
+		}
+	}
+
+	rl := plog.NewResourceLogs()
+	sl := rl.ScopeLogs().AppendEmpty()
+
+	return m, ottllog.NewTransformContextPtr(rl, sl, pdata), nil
+}
+
+// processOTTLTransform runs a MaskOTTLTransform rule's compiled OTTL statement
+// against content and returns the resulting message. Only top-level scalar fields
+// mutated by the statement are reflected in the output; the rest of the original
+// document is preserved as-is.
+func processOTTLTransform(content []byte, rule *config.ProcessingRule) ([]byte, error) {
+	if rule.OTTLStatement == nil {
+		return nil, fmt.Errorf("OTTL statement is not compiled for rule `%s`", rule.Name)
+	}
+
+	m, transformContext, err := buildOTTLTransformContext(content, rule.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer transformContext.Close()
+
+	if _, _, err := rule.OTTLStatement.Execute(context.Background(), transformContext); err != nil {
+		return nil, fmt.Errorf("error executing OTTL statement for processing rule `%s`: %w", rule.Name, err)
+	}
+
+	transformContext.GetLogRecord().Attributes().Range(func(k string, v pcommon.Value) bool {
+		switch v.Type() {
+		case pcommon.ValueTypeStr:
+			m[k] = v.Str()
+		case pcommon.ValueTypeBool:
+			m[k] = v.Bool()
+		case pcommon.ValueTypeDouble:
+			m[k] = v.Double()
+		}
+		return true
+	})
+
+	out, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("OTTL mask transform for processing rule `%s`: failed to encode output: %w", rule.Name, err)
+	}
+	return out, nil
 }

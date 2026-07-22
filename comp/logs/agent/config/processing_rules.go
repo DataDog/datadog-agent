@@ -27,6 +27,13 @@ import (
 const (
 	ExcludeAtMatchOTTL = "exclude_at_match_ottl"
 	IncludeAtMatchOTTL = "include_at_match_ottl"
+	// MaskOTTLTransform mutates the log line's content using an OTTL statement
+	// (e.g. `replace_pattern(attributes["message"], "\d+", "[REDACTED]")`). Like
+	// MaskVRLTransform, the replacement logic lives entirely in the OTTL statement,
+	// not in a separate placeholder field. Only top-level scalar (string/bool/number)
+	// JSON fields are visible to the statement — the same attribute-flattening
+	// limitation ExcludeAtMatchOTTL/IncludeAtMatchOTTL already have.
+	MaskOTTLTransform = "mask_ottl"
 
 	ExcludeAtMatch   = "exclude_at_match"
 	IncludeAtMatch   = "include_at_match"
@@ -41,6 +48,14 @@ const (
 	// IncludeAtJQMatch keeps only log lines for which the jq expression produces output.
 	// Non-JSON content is passed through unchanged.
 	IncludeAtJQMatch = "include_at_jq_match"
+	// MaskJQTransform mutates the log line's content using a jq program that
+	// transforms the whole parsed JSON document (e.g.
+	// `.message |= gsub("\d+"; "[REDACTED]")`), and re-serializes the result as the
+	// new content. Unlike ExcludeAtJQMatch/IncludeAtJQMatch, a non-JSON message, a
+	// jq runtime error, or a program producing no output are all treated as errors
+	// (fail-closed), since a masking rule that can't run shouldn't fall back to
+	// shipping unredacted content.
+	MaskJQTransform = "mask_jq"
 	// ExcludeAtVRLMatch drops log lines for which the VRL expression evaluates to true.
 	// The pattern must be a valid VRL boolean expression (e.g. `.status == "debug"`).
 	ExcludeAtVRLMatch = "exclude_at_vrl_match"
@@ -70,12 +85,20 @@ type ProcessingRule struct {
 	Pattern            string
 	Regex              *regexp.Regexp
 	OTTLCondition      *ottl.Condition[*ottllog.TransformContext]
-	Placeholder        []byte
-	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
+	// OTTLStatement is set for MaskOTTLTransform rules after compilation. It is
+	// executed directly against the message's OTTL transform context by the
+	// processor, mirroring how OTTLCondition is evaluated for the filter rules.
+	OTTLStatement *ottl.Statement[*ottllog.TransformContext]
+	Placeholder   []byte
+	Matching      []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
 	// JQFilter is set for ExcludeAtJQMatch and IncludeAtJQMatch rules after compilation.
 	// It returns (true, nil) when the jq program produces output for the given input,
 	// (false, nil) when it produces no output, and (false, err) on program error.
 	JQFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
+	// JQTransform is set for MaskJQTransform rules after compilation. It returns the
+	// mutated message content, or an error if the jq program failed to run or
+	// produced no output.
+	JQTransform func(input []byte) ([]byte, error) `json:"-" yaml:"-" mapstructure:"-"`
 	// VRLFilter is set for ExcludeAtVRLMatch and IncludeAtVRLMatch rules after compilation.
 	// It returns (true, nil) when the VRL expression matches the given input,
 	// (false, nil) when it doesn't, and (false, err) on a compile/runtime error.
@@ -114,7 +137,14 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			if err != nil {
 				return fmt.Errorf("invalid OTTL pattern %s for processing rule: %s, error: %v", rule.Pattern, rule.Name, err)
 			}
-		case ExcludeAtJQMatch, IncludeAtJQMatch:
+		case MaskOTTLTransform:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			if err := validateOTTLStatementPattern(rule.Pattern); err != nil {
+				return fmt.Errorf("invalid OTTL statement %s for processing rule: %s, error: %v", rule.Pattern, rule.Name, err)
+			}
+		case ExcludeAtJQMatch, IncludeAtJQMatch, MaskJQTransform:
 			if rule.Pattern == "" {
 				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
 			}
@@ -168,6 +198,13 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 			}
 			rule.JQFilter = makeJQFilter(prog)
 			continue
+		case MaskJQTransform:
+			prog, err := fastjq.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.JQTransform = makeJQTransform(prog)
+			continue
 		case ExcludeAtVRLMatch, IncludeAtVRLMatch:
 			prog, err := vrl.Compile(rule.Pattern)
 			if err != nil {
@@ -190,6 +227,12 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 		switch rule.Type {
 		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL:
 			err := compileOTTLProcessingRule(rule)
+			if err != nil {
+				return err
+			}
+
+		case MaskOTTLTransform:
+			err := compileOTTLMaskRule(rule)
 			if err != nil {
 				return err
 			}
@@ -245,6 +288,32 @@ func compileOTTLProcessingRule(rule *ProcessingRule) error {
 	return nil
 }
 
+// validateOTTLStatementPattern checks that the given OTTL statement is valid and can
+// be parsed by the OTTL parser.
+func validateOTTLStatementPattern(pattern string) error {
+	settings := component.TelemetrySettings{Logger: zap.NewNop()} // settings are only used for logging during parsing, so we can use a no-op logger here
+	parser, err := ottllog.NewParser(ottlfuncs.StandardFuncs[*ottllog.TransformContext](), settings)
+	if err != nil {
+		return err
+	}
+	_, err = parser.ParseStatement(pattern)
+	return err
+}
+
+func compileOTTLMaskRule(rule *ProcessingRule) error {
+	settings := component.TelemetrySettings{Logger: zap.NewNop()} // settings are only used for logging during parsing, so we can use a no-op logger here
+	parser, err := ottllog.NewParser(ottlfuncs.StandardFuncs[*ottllog.TransformContext](), settings)
+	if err != nil {
+		return err
+	}
+	statement, err := parser.ParseStatement(rule.Pattern)
+	if err != nil {
+		return fmt.Errorf("error parsing OTTL statement for processing rule `%s`: %v", rule.Name, err)
+	}
+	rule.OTTLStatement = statement
+	return nil
+}
+
 // makeJQFilter returns a function that reports whether a jq program produces output for the given input.
 // Non-JSON input always returns (false, nil) — never silently dropped.
 func makeJQFilter(prog *fastjq.Program) func([]byte) (bool, error) {
@@ -263,5 +332,22 @@ func makeJQFilter(prog *fastjq.Program) func([]byte) (bool, error) {
 			return false, err
 		}
 		return matched, nil
+	}
+}
+
+// makeJQTransform returns a function that runs a jq transform program against JSON
+// input and returns the resulting document as the new message content. An empty
+// result (the program produced no output, e.g. a select() with no match) is treated
+// as an error, since MaskJQTransform is fail-closed.
+func makeJQTransform(prog *fastjq.Program) func([]byte) ([]byte, error) {
+	return func(input []byte) ([]byte, error) {
+		result, err := prog.Run(input)
+		if err != nil {
+			return nil, err
+		}
+		if len(result) == 0 {
+			return nil, errors.New("jq mask transform produced no output")
+		}
+		return result, nil
 	}
 }

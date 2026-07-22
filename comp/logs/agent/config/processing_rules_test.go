@@ -98,6 +98,60 @@ func TestValidateVRLRulesRequirePattern(t *testing.T) {
 	}
 }
 
+func TestValidateAndCompileMaskOTTL(t *testing.T) {
+	t.Run("valid statement compiles", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type:    MaskOTTLTransform,
+			Name:    "mask_ottl_test",
+			Pattern: `replace_pattern(attributes["message"], "[0-9]+", "[REDACTED]")`,
+		}}
+		assert.NoError(t, ValidateProcessingRules(rules))
+		assert.NoError(t, CompileProcessingRules(rules))
+		assert.NotNil(t, rules[0].OTTLStatement)
+	})
+
+	t.Run("invalid statement is rejected", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type:    MaskOTTLTransform,
+			Name:    "mask_ottl_test",
+			Pattern: `not a valid ottl statement (`,
+		}}
+		assert.Error(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("empty pattern is rejected", func(t *testing.T) {
+		rules := []*ProcessingRule{{Type: MaskOTTLTransform, Name: "mask_ottl_test"}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "no pattern provided")
+	})
+}
+
+func TestValidateAndCompileMaskJQ(t *testing.T) {
+	t.Run("valid program compiles", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type:    MaskJQTransform,
+			Name:    "mask_jq_test",
+			Pattern: `.message |= gsub("[0-9]+"; "[REDACTED]")`,
+		}}
+		assert.NoError(t, ValidateProcessingRules(rules))
+		assert.NoError(t, CompileProcessingRules(rules))
+		assert.NotNil(t, rules[0].JQTransform)
+	})
+
+	t.Run("invalid pattern is rejected", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type:    MaskJQTransform,
+			Name:    "mask_jq_test",
+			Pattern: `.message |= `,
+		}}
+		assert.Error(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("empty pattern is rejected", func(t *testing.T) {
+		rules := []*ProcessingRule{{Type: MaskJQTransform, Name: "mask_jq_test"}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "no pattern provided")
+	})
+}
+
 func TestCompileSkipsRemapSource(t *testing.T) {
 	rules := []*ProcessingRule{{
 		Type: RemapSource,

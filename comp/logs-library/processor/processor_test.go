@@ -793,6 +793,61 @@ func TestRemapSource_EscapedDotPath(t *testing.T) {
 	})
 }
 
+func TestOTTLMask(t *testing.T) {
+	p := &Processor{}
+
+	t.Run("redacts content and records the rule", func(t *testing.T) {
+		rule := newOTTLProcessingRule(config.MaskOTTLTransform, `replace_pattern(attributes["message"], "[0-9]+", "[REDACTED]")`)
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+		msg := newMessage([]byte(`{"message":"id 123456"}`), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.JSONEq(t, `{"message":"id [REDACTED]"}`, string(msg.GetContent()))
+		assert.Equal(t, int64(1), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskOTTLTransform+":"+ruleName))
+	})
+
+	t.Run("does not record the rule when content is unchanged", func(t *testing.T) {
+		rule := newOTTLProcessingRule(config.MaskOTTLTransform, `replace_pattern(attributes["message"], "[0-9]+", "[REDACTED]")`)
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+		msg := newMessage([]byte(`{"message":"no digits here"}`), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.JSONEq(t, `{"message":"no digits here"}`, string(msg.GetContent()))
+		assert.Equal(t, int64(0), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskOTTLTransform+":"+ruleName))
+	})
+
+	t.Run("fails closed and drops the message on non-JSON content", func(t *testing.T) {
+		rule := newOTTLProcessingRule(config.MaskOTTLTransform, `replace_pattern(attributes["message"], "[0-9]+", "[REDACTED]")`)
+		src := *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+		msg := newMessage([]byte("plain text log line"), &src, "")
+		assert.False(t, p.applyRedactingRules(msg))
+	})
+}
+
+func TestJQMask(t *testing.T) {
+	p := &Processor{}
+
+	t.Run("redacts content and records the rule", func(t *testing.T) {
+		src := newJQSource(config.MaskJQTransform, `.message |= gsub("[0-9]+"; "[REDACTED]")`)
+		msg := newMessage([]byte(`{"message":"id 123456"}`), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.JSONEq(t, `{"message":"id [REDACTED]"}`, string(msg.GetContent()))
+		assert.Equal(t, int64(1), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskJQTransform+":"+ruleName))
+	})
+
+	t.Run("does not record the rule when content is unchanged", func(t *testing.T) {
+		src := newJQSource(config.MaskJQTransform, `.message |= gsub("[0-9]+"; "[REDACTED]")`)
+		msg := newMessage([]byte(`{"message":"no digits here"}`), &src, "")
+		assert.True(t, p.applyRedactingRules(msg))
+		assert.JSONEq(t, `{"message":"no digits here"}`, string(msg.GetContent()))
+		assert.Equal(t, int64(0), msg.Origin.LogSource.ProcessingInfo.GetCount(config.MaskJQTransform+":"+ruleName))
+	})
+
+	t.Run("fails closed and drops the message on non-JSON content", func(t *testing.T) {
+		src := newJQSource(config.MaskJQTransform, `.message |= gsub("[0-9]+"; "[REDACTED]")`)
+		msg := newMessage([]byte("plain text log line"), &src, "")
+		assert.False(t, p.applyRedactingRules(msg))
+	})
+}
+
 func newJQSource(ruleType, pattern string) sources.LogSource {
 	rule := &config.ProcessingRule{
 		Type:    ruleType,
