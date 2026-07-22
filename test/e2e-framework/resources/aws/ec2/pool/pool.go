@@ -23,7 +23,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	resourcesaws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 )
 
 // imageAvailableWaitTimeout bounds how long EnsureOwnedBaseline waits for a freshly
@@ -191,8 +190,8 @@ func EnsureOwnedBaseline(ctx context.Context, client *awsec2.Client, instanceID,
 // since any instance could become idle between attempts. It does not reclaim
 // leases stranded by a non-graceful failure (deferred: time-based stale-lease
 // reclaim, see MACOS_EC2_POOL_PROPOSAL.md).
-func AcquireIdleInstance(ctx context.Context, e resourcesaws.Environment, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, err error) {
-	client, err := newS3Client(ctx, e)
+func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, err error) {
+	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", "", err
 	}
@@ -252,8 +251,8 @@ func AcquireIdleInstance(ctx context.Context, e resourcesaws.Environment, pool [
 // ReleaseInstance marks instanceID idle again, conditioned on leaseToken still
 // matching the lease object's current ETag. Callers must revert the instance's
 // root volume before calling this.
-func ReleaseInstance(ctx context.Context, e resourcesaws.Environment, instanceID string, leaseToken string) error {
-	client, err := newS3Client(ctx, e)
+func ReleaseInstance(ctx context.Context, region, profile string, instanceID string, leaseToken string) error {
+	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return err
 	}
@@ -288,7 +287,7 @@ type AcquireResult struct {
 // Acquire lists every instance tagged PoolTagKey=PoolTagValue and attempts to claim
 // one idle member via AcquireIdleInstance. If the pool is currently empty, it
 // returns Found=false (no error) so the caller can create and register a new member.
-func Acquire(ctx context.Context, e resourcesaws.Environment, client *awsec2.Client, ownerPipelineID string) (AcquireResult, error) {
+func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string) (AcquireResult, error) {
 	instances, err := ListPoolInstances(ctx, client, PoolTagKey, PoolTagValue)
 	if err != nil {
 		return AcquireResult{}, err
@@ -304,7 +303,7 @@ func Acquire(ctx context.Context, e resourcesaws.Environment, client *awsec2.Cli
 		ids = append(ids, pi.InstanceID)
 	}
 
-	instanceID, leaseToken, err := AcquireIdleInstance(ctx, e, ids, ownerPipelineID)
+	instanceID, leaseToken, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID)
 	if err != nil {
 		return AcquireResult{}, err
 	}
@@ -319,7 +318,7 @@ func Acquire(ctx context.Context, e resourcesaws.Environment, client *awsec2.Cli
 // RegisterNewMember tags a brand-new instance as a pool member (PoolTagKey=PoolTagValue)
 // and seeds its lease record as claimed by ownerPipelineID, returning the lease token
 // (ETag) needed to later call ReleaseInstance.
-func RegisterNewMember(ctx context.Context, e resourcesaws.Environment, client *awsec2.Client, instanceID, ownerPipelineID string) (leaseToken string, err error) {
+func RegisterNewMember(ctx context.Context, region, profile string, client *awsec2.Client, instanceID, ownerPipelineID string) (leaseToken string, err error) {
 	_, err = client.CreateTags(ctx, &awsec2.CreateTagsInput{
 		Resources: []string{instanceID},
 		Tags:      []awsec2types.Tag{{Key: pointer.Ptr(PoolTagKey), Value: pointer.Ptr(PoolTagValue)}},
@@ -328,7 +327,7 @@ func RegisterNewMember(ctx context.Context, e resourcesaws.Environment, client *
 		return "", fmt.Errorf("failed to tag new pool member %s: %w", instanceID, err)
 	}
 
-	s3Client, err := newS3Client(ctx, e)
+	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", err
 	}
@@ -351,10 +350,10 @@ func RegisterNewMember(ctx context.Context, e resourcesaws.Environment, client *
 
 // NewEC2Client builds an EC2 API client scoped to e's region/profile, for callers
 // (outside this package) that need to list or tag pool instances themselves.
-func NewEC2Client(ctx context.Context, e resourcesaws.Environment) (*awsec2.Client, error) {
+func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, error) {
 	cfg, err := awsConfig.LoadDefaultConfig(ctx,
-		awsConfig.WithRegion(e.Region()),
-		awsConfig.WithSharedConfigProfile(e.Profile()),
+		awsConfig.WithRegion(region),
+		awsConfig.WithSharedConfigProfile(profile),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config for EC2 pool client: %w", err)
@@ -413,10 +412,10 @@ aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
 `, instanceID, BaselineSourceTag, leaseToken, leaseBucket, leasePrefix+instanceID)
 }
 
-func newS3Client(ctx context.Context, e resourcesaws.Environment) (*s3.Client, error) {
+func newS3Client(ctx context.Context, region, profile string) (*s3.Client, error) {
 	cfg, err := awsConfig.LoadDefaultConfig(ctx,
-		awsConfig.WithRegion(e.Region()),
-		awsConfig.WithSharedConfigProfile(e.Profile()),
+		awsConfig.WithRegion(region),
+		awsConfig.WithSharedConfigProfile(profile),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config for S3 lease client: %w", err)

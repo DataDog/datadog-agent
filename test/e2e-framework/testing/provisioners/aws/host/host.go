@@ -9,6 +9,7 @@ package awshost
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -71,6 +72,10 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	params := getProvisionerParams(opts...)
 	runParams := ec2.GetParams(params.runOptions...)
 
+	if usesMacOSPool(runParams) {
+		return NewMacOSPoolProvisioner(runParams.Name, runParams.InstanceOptions()...)
+	}
+
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
@@ -93,6 +98,23 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}, params.extraConfigParams)
 
 	return provisioner
+}
+
+// usesMacOSPool reports whether runParams describes a bare macOS host (no Agent,
+// FakeIntake, or Updater requested) that the non-Pulumi macOS pool provisioner can serve
+// directly. Any other combination (non-macOS OS, or a macOS host that also wants an
+// Agent/FakeIntake/Updater deployed) falls back to the existing Pulumi path, since the
+// pool provisioner only ever imports a bare RemoteHost.
+func usesMacOSPool(runParams *ec2.Params) bool {
+	if runParams.HasAgent() || runParams.HasFakeIntake() || runParams.InstallsUpdater() {
+		return false
+	}
+
+	family, err := ec2.InstanceOSFamily(runParams.InstanceOptions()...)
+	if err != nil {
+		return false
+	}
+	return family == os.MacOSFamily
 }
 
 func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {

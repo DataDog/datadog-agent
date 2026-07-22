@@ -72,11 +72,11 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 
 		if isMacOSPoolMember {
 			var err error
-			poolClient, err = pool.NewEC2Client(e.Ctx().Context(), e)
+			poolClient, err = pool.NewEC2Client(e.Ctx().Context(), e.Region(), e.Profile())
 			if err != nil {
 				return err
 			}
-			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e, poolClient, e.PipelineID())
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID())
 			if err != nil {
 				return err
 			}
@@ -127,7 +127,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				// and build its release script inside an ApplyT.
 				instanceID := instance.ID().ToStringOutput()
 				releaseScript := instanceID.ApplyT(func(id string) (string, error) {
-					leaseToken, err := pool.RegisterNewMember(e.Ctx().Context(), e, poolClient, id, e.PipelineID())
+					leaseToken, err := pool.RegisterNewMember(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, id, e.PipelineID())
 					if err != nil {
 						return "", err
 					}
