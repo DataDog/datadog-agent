@@ -1,7 +1,32 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_python//python:defs.bzl", "py_binary")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/openssl/openssl/releases/download/openssl-{version}/openssl-{version}.tar.gz",
+        package = "openssl",
+        version = "3.1.2",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE.txt",
+    visibility = ["//visibility:public"],
+)
 
 ENABLE_FIPS_CONFIG = [
     "--libdir=lib",
@@ -22,6 +47,12 @@ FIPS_LINUX = "fips.so"
 
 configure_make(
     name = "openssl_fips",
+    build_data = select({
+        "@platforms//os:windows": [
+            "@winlibs_mingw64//:windres",
+        ],
+        "//conditions:default": [],
+    }),
     configure_command = "Configure",
     configure_in_place = select({
         "@platforms//os:windows": True,
@@ -37,12 +68,7 @@ configure_make(
         "@platforms//os:windows": "perl",
         "//conditions:default": "",
     }),
-    build_data = select({
-        "@platforms//os:windows": [
-            "@winlibs_mingw64//:windres",
-        ],
-        "//conditions:default": [],
-    }),
+    copts = ["-O2"],
     env = select({
         "@platforms//os:windows": {
             # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
@@ -51,9 +77,7 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    copts = ["-O2"],
     lib_source = ":all",
-    resource_size = "enormous",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "ossl-modules/" + FIPS_LINUX,
@@ -63,6 +87,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
+    resource_size = "enormous",
     # We don't build FIPS for macOS, therefore, incompatible.
     target_compatible_with = select({
         "@platforms//os:macos": ["@platforms//:incompatible"],
@@ -95,12 +120,12 @@ genrule(
     srcs = ["fipsinstall.sh"],
     outs = ["fipsinstall.sh.out"],
     cmd = "$(execpath :_configure_fips_tool) --input $< --output $@ '{{install_dir}}=$(INSTALL_DIR)/embedded'",
-    tools = [":_configure_fips_tool"],
-    toolchains = ["@@//:install_dir"],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    toolchains = ["@@//:install_dir"],
+    tools = [":_configure_fips_tool"],
 )
 
 genrule(
@@ -111,8 +136,8 @@ genrule(
         "@platforms//os:windows": "$(execpath :_configure_fips_tool) --input $< --output $@ '{{embedded_ssl_dir}}=C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
         "//conditions:default": "$(execpath :_configure_fips_tool) --input $< --output $@ '{{embedded_ssl_dir}}=$(INSTALL_DIR)/embedded/ssl'",
     }),
-    tools = [":_configure_fips_tool"],
     toolchains = ["@@//:install_dir"],
+    tools = [":_configure_fips_tool"],
 )
 
 # configure_fips.py also supports a legacy --destdir interface for manual use.
