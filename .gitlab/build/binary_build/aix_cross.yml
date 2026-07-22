@@ -11,7 +11,6 @@
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   variables:
-    PATH: "/opt/aix-cross/bin:${PATH}"
     GOOS: aix
     GOARCH: ppc64
   before_script:
@@ -27,11 +26,11 @@ cross_build_agent-binary_aix_ppc64:
   script:
     # python/cgo-python is not supported for AIX cross builds yet (no AIX-native
     # libpython to link against on a Linux host) - see tasks/libs/common/utils.py.
-    - dda inv -- -e agent.build --build-exclude=python
+    - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e agent.build --build-exclude=python
     - file $CI_PROJECT_DIR/bin/agent/agent
 
 cross_build_trace_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
   script:
-    - dda inv -- -e trace-agent.build
+    - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e trace-agent.build
     - file $CI_PROJECT_DIR/bin/trace-agent/trace-agent
