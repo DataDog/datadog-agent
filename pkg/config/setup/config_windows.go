@@ -6,20 +6,9 @@
 package setup
 
 import (
-	"golang.org/x/sys/windows/registry"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
-
-const (
-	// defaultGuiPort is the default GUI port on Windows
-	defaultGuiPort = 5002
-)
-
-func osinit() {
-	// Fleet Automation
-	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
-}
 
 // FleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
 //
@@ -34,18 +23,7 @@ func FleetConfigOverride(config pkgconfigmodel.Config) {
 		return
 	}
 
-	// value is not set, get the default value from the registry
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		"SOFTWARE\\Datadog\\Datadog Agent",
-		registry.ALL_ACCESS)
-	if err != nil {
-		return
-	}
-	defer k.Close()
-	val, _, err := k.GetStringValue("fleet_policies_dir")
-	if err != nil {
-		return
-	}
+	val := winutil.ReadFleetPoliciesDirFromRegistry()
 	if val == "" {
 		return
 	}

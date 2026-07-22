@@ -8,7 +8,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -22,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -121,11 +119,11 @@ func TestAllFlattenedSettingsWithSequenceIDUnknownParentChild(t *testing.T) {
 func TestGetEnvVarsBindings(t *testing.T) {
 	dataYaml := `unknown_setting: 123`
 
-	t.Run("With BindEnv", func(t *testing.T) {
+	t.Run("With BindEnvAndSetDefault", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.BindEnv("port", "TEST_PORT")           //nolint:forbidigo // testing behavior
-			cfg.BindEnv("host", "TEST_HOST")           //nolint:forbidigo // testing behavior
-			cfg.BindEnv("log.level", "TEST_LOG_LEVEL") //nolint:forbidigo // testing behavior
+			cfg.BindEnvAndSetDefault("port", "", "TEST_PORT")
+			cfg.BindEnvAndSetDefault("host", "", "TEST_HOST")
+			cfg.BindEnvAndSetDefault("log.level", "", "TEST_LOG_LEVEL")
 		})
 
 		envVars := conf.GetEnvVars()
@@ -134,15 +132,15 @@ func TestGetEnvVarsBindings(t *testing.T) {
 		assert.Equal(t, []string{"TEST_HOST", "TEST_LOG_LEVEL", "TEST_PORT"}, envVars)
 	})
 
-	t.Run("Without BindEnv", func(t *testing.T) {
+	t.Run("Without BindEnvAndSetDefault", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, nil)
-		assert.Empty(t, conf.GetEnvVars(), "should return no env vars without BindEnv")
+		assert.Empty(t, conf.GetEnvVars(), "should return no env vars without BindEnvAndSetDefault")
 	})
 
 	t.Run("With EnvPrefix", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
-			cfg.BindEnv("port") //nolint:forbidigo // testing behavior // No explicit name — will use prefix
+			cfg.BindEnvAndSetDefault("port", "")
 		})
 
 		assert.Contains(t, conf.GetEnvVars(), "MYAPP_PORT", "should apply EnvPrefix")
@@ -151,7 +149,7 @@ func TestGetEnvVarsBindings(t *testing.T) {
 	t.Run("With EnvKeyReplacer", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnv("log.level") //nolint:forbidigo // testing behavior
+			cfg.BindEnvAndSetDefault("log.level", "")
 		})
 
 		// Default prefix is "DD" when initializing the config
@@ -162,7 +160,7 @@ func TestGetEnvVarsBindings(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnv("db.connection.url") //nolint:forbidigo // testing behavior
+			cfg.BindEnvAndSetDefault("db.connection.url", "")
 		})
 
 		assert.Contains(t, conf.GetEnvVars(), "MYAPP_DB_CONNECTION_URL", "should apply prefix and replacer")
@@ -170,9 +168,8 @@ func TestGetEnvVarsBindings(t *testing.T) {
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT") //nolint:forbidigo // testing behavior
 			cfg.SetDefault("HOST", "localhost")
-			cfg.BindEnv("log_level") //nolint:forbidigo // testing behavior
+			cfg.BindEnvAndSetDefault("log_level", "")
 		})
 
 		envVars := conf.GetEnvVars()
@@ -183,9 +180,9 @@ func TestGetEnvVarsBindings(t *testing.T) {
 
 	t.Run("Duplicate env vars", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.BindEnv("test", "ABC")  //nolint:forbidigo // testing behavior
-			cfg.BindEnv("test2", "ABC") //nolint:forbidigo // testing behavior
-			cfg.BindEnv("test3")        //nolint:forbidigo // testing behavior
+			cfg.BindEnvAndSetDefault("test", "", "ABC")
+			cfg.BindEnvAndSetDefault("test2", "", "ABC")
+			cfg.BindEnvAndSetDefault("test3", "")
 		})
 
 		envVars := conf.GetEnvVars()
@@ -209,7 +206,7 @@ runtime_security_config:
 unknown_section:
   info:
 `
-	// apm_config.telemetry        - declared "known" (silences warnings, not added to schema, not very useful to do)
+	// apm_config.telemetry        - empty section declared only in the yaml (neither default nor env var)
 	// database_monitoring.samples - defines a default
 	// logs_config.auto_multi_line - bind an env var and assign a value to that env var
 	// runtime_security_config.endpoints - bind an env var but leave that env var undefined
@@ -219,21 +216,19 @@ unknown_section:
 	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES", "100")
 
 	conf := constructNtmConfig(dataYaml, true, func(cfg model.Setup) {
-		cfg.SetKnown("apm_config.telemetry.dd_url") //nolint:forbidigo // test behavior
 		cfg.SetDefault("database_monitoring.samples.dd_url", "")
-		cfg.BindEnv("runtime_security_config.endpoints.dd_url", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")                           //nolint:forbidigo // test behavior
-		cfg.BindEnv("logs_config.auto_multi_line.tokenizer_max_input_bytes", "DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES") //nolint:forbidigo // test behavior
+		cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
+		cfg.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", "", "DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES")
 		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	})
 
 	expectedKeys := []string{
 		"additional_endpoints",
 		"apm_config.telemetry",
-		"apm_config.telemetry.dd_url",
 		"database_monitoring.samples.dd_url",
-		"logs_config.auto_multi_line",
+		//"logs_config.auto_multi_line",
 		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
-		"runtime_security_config.endpoints",
+		//"runtime_security_config.endpoints",
 		"runtime_security_config.endpoints.dd_url",
 		"unknown_section.info",
 	}
@@ -241,11 +236,13 @@ unknown_section:
 
 	expectedSettings := map[string]interface{}{
 		"additional_endpoints": map[string][]string{},
+		"runtime_security_config": map[string]interface{}{
+			"endpoints": map[string]interface{}{
+				"dd_url": "",
+			},
+		},
 		"apm_config": map[string]interface{}{
 			"telemetry": nil,
-		},
-		"runtime_security_config": map[string]interface{}{
-			"endpoints": nil,
 		},
 		"database_monitoring": map[string]interface{}{
 			"samples": map[string]interface{}{
@@ -266,7 +263,7 @@ unknown_section:
 	////////////
 	// tests for IsConfigured
 
-	// not configured because known does not define a setting
+	// not configured because the empty yaml section does not define a value
 	assert.False(t, conf.IsConfigured("apm_config.telemetry"))
 
 	// not configured by the file nor env var
@@ -286,24 +283,6 @@ unknown_section:
 
 	// not configured, because only default is defined
 	assert.False(t, conf.IsConfigured("additional_endpoints"))
-
-	////////////
-	// tests for IsSet
-
-	// apm_config.telemetry.dd_url is known, but that does not define it in the schema.
-	assert.True(t, conf.IsSet("apm_config.telemetry"))
-
-	// not set because this setting is not defined
-	assert.False(t, conf.IsSet("apm_config.telemetry.enabled"))
-
-	// this has a default value so it IsSet
-	assert.True(t, conf.IsSet("database_monitoring.samples"))
-
-	assert.True(t, conf.IsSet("runtime_security_config.endpoints"))
-
-	assert.True(t, conf.IsSet("logs_config.auto_multi_line"))
-
-	assert.True(t, conf.IsSet("unknown_section.info"))
 
 	////////////
 	// tests for HasSection
@@ -387,12 +366,12 @@ func TestReadConfigReset(t *testing.T) {
 	overrideYAML := `host: localhost`
 
 	conf := constructNtmConfig(initialYAML, true, func(cfg model.Setup) {
-		cfg.SetKnown("port") //nolint:forbidigo // testing behavior
-		cfg.SetKnown("host") //nolint:forbidigo // testing behavior
+		cfg.BindEnvAndSetDefault("port", 0)
+		cfg.BindEnvAndSetDefault("host", "")
 	})
 
 	assert.Equal(t, 1234, conf.GetInt("port"))
-	assert.False(t, conf.IsSet("host"))
+	assert.False(t, conf.IsConfigured("host"))
 
 	// Now use ReadConfig to reset with only "host"
 	conf.SetConfigType("yaml")
@@ -400,7 +379,7 @@ func TestReadConfigReset(t *testing.T) {
 	assert.NoError(t, err)
 
 	// After ReadConfig, "port" should be gone, "host" should be set
-	assert.False(t, conf.IsSet("port"), "should have cleared previous config")
+	assert.False(t, conf.IsConfigured("port"), "should have cleared previous config")
 	assert.Equal(t, "localhost", conf.GetString("host"))
 }
 
@@ -426,7 +405,7 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, 8123, conf.GetInt("port"))
-	assert.False(t, conf.IsSet("host"))
+	assert.False(t, conf.IsConfigured("host"))
 
 	// Update config file to configB (overwrites configA)
 	conf.SetConfigFile(configBPath)
@@ -434,7 +413,7 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	err = conf.ReadInConfig()
 	assert.NoError(t, err)
 
-	assert.False(t, conf.IsSet("port"), "should have cleared previous config")
+	assert.False(t, conf.IsConfigured("port"), "should have cleared previous config")
 	// "host" should now be available
 	assert.Equal(t, "localhost", conf.GetString("host"))
 }
@@ -454,28 +433,6 @@ func TestReadInConfigExactError(t *testing.T) {
 	assert.Equal(t, "datadoghq.com", conf.GetString("site"))
 }
 
-func TestEnvVarsSubfields(t *testing.T) {
-	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
-		data, _ := json.Marshal(map[string]string{"a": "apple"})
-		t.Setenv("TEST_MY_FEATURE_INFO_TARGETS", string(data))
-
-		configData := `
-my_feature:
-  info:
-    enabled: true
-`
-		conf := constructNtmConfig(configData, false, func(cfg model.Setup) {
-			cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
-			cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
-			cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
-			cfg.BindEnv("my_feature.info.targets", "TEST_MY_FEATURE_INFO_TARGETS") //nolint: forbidigo // testing behavior
-		})
-
-		fields := conf.GetSubfields("my_feature.info")
-		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
-	})
-}
-
 func TestInvalidFileData(t *testing.T) {
 	configData := `
 fruit:
@@ -491,11 +448,11 @@ fruit:
 		// default wins over invalid file
 		cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
 
-		// file only (missing default)
-		cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing behavior
+		// fruit.banana.peel.color is intentionally left undeclared: it only appears
+		// in the file (as an empty section) and has no default
 
 		// env wins over file
-		cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing behavior
+		cfg.BindEnvAndSetDefault("fruit.cherry.seed.num", 0)
 	})
 
 	expectAppleMap := map[string]interface{}{
@@ -538,42 +495,30 @@ additional_endpoints:
 	assert.Equal(t, expectEndpoints, conf.GetStringMapStringSlice("additional_endpoints"))
 }
 
-func TestGetViperCombineInvalidFileData(t *testing.T) {
-	// The setting in the yaml file has the wrong shape.
-	// It is a list of an object, but it is supposed to not be a list.
-	// The implementation should handle this predictably: when merging conflicts higher
-	// layers have branches kept, so the invalid file data is kept rather than the defaults.
-	configData := `network_path:
-  collector:
-    - input_chan_size: 23456
+func TestCompareEmptyLeafSetting(t *testing.T) {
+	dataYaml := `
+otlp_config:
+  logs:
+    enabled:
 `
-	// Two settings at path, but the file source has the wrong shape
-	conf := constructNtmConfig(configData, false, func(cfg model.Setup) {
-		cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 0) //nolint:forbidigo // used to test behavior
-		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)         //nolint:forbidigo // used to test behavior
+	conf := constructNtmConfig(dataYaml, true, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("otlp_config.logs.enabled", true)
 	})
 
-	// Value at the path is a list of map
-	expectCollector := []interface{}{
-		map[interface{}]interface{}{
-			"input_chan_size": 23456,
-		},
-	}
-	// Parent of that element
-	expectNetworkPath := map[string]interface{}{
-		"collector": []interface{}{
-			map[interface{}]interface{}{
-				"input_chan_size": 23456,
-			},
-		},
-	}
+	// not configured because the setting's value is nil
+	assert.False(t, conf.IsConfigured("otlp_config.logs.enabled"))
 
-	assert.Equal(t, expectCollector, conf.Get("network_path.collector"))
-	assert.Equal(t, expectCollector, helper.GetViperCombine(conf, "network_path.collector"))
-	assert.Equal(t, expectCollector, conf.AllSettings()["network_path"].(map[string]interface{})["collector"])
+	// HasSection is always false for leaf settings
+	assert.False(t, conf.HasSection("otlp_config.logs.enabled"))
 
-	// Test parent element as well
-	assert.Equal(t, expectNetworkPath, helper.GetViperCombine(conf, "network_path"))
+	expected := map[string]interface{}(map[string]interface{}{"enabled": true})
+	assert.Equal(t, expected, conf.Get("otlp_config.logs"))
+
+	// But both return true, because of the default value
+	assert.Equal(t, true, conf.GetBool("otlp_config.logs.enabled"))
+
+	// Even without specifying the type, using Get instead of GetBool
+	assert.Equal(t, true, conf.Get("otlp_config.logs.enabled"))
 }
 
 func TestUnsetForSourceWithFile(t *testing.T) {

@@ -39,6 +39,26 @@ func RegisterProvider(name string,
 	)
 }
 
+// RegisterProviderWithHealthPlatform adds a loader that needs the health platform component to the providers catalog.
+// It is used by providers that report Autodiscovery misconfigurations (e.g. malformed annotations) to the health platform
+// but do not need the other components passed to a full ConfigProviderFactory.
+func RegisterProviderWithHealthPlatform(name string,
+	factory func(providerConfig *pkgconfigsetup.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error),
+	providerCatalog map[string]types.ConfigProviderFactory) {
+	if factory == nil {
+		log.Infof("ConfigProvider factory %s does not exist.", name)
+		return
+	}
+
+	RegisterProviderWithComponents(
+		name,
+		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+			return factory(providerConfig, hp, telemetryStore)
+		},
+		providerCatalog,
+	)
+}
+
 // RegisterProviderWithComponents adds a loader to the providers catalog
 func RegisterProviderWithComponents(name string, factory types.ConfigProviderFactory, providerCatalog map[string]types.ConfigProviderFactory) {
 	if factory == nil {
@@ -63,7 +83,7 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.InstrumentationChecksRegisterName, NewInstrumentationChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
-	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
+	RegisterProviderWithHealthPlatform(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.ProcessLog, NewProcessLogConfigProvider, providerCatalog)
@@ -78,7 +98,7 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	}
 	RegisterProvider(names.PrometheusServicesRegisterName, prometheusServicesProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
-	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
+	RegisterProviderWithHealthPlatform(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
 	RegisterProvider(names.KubeCrdRegisterName, NewKubeCRDConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusHTTPSDRegisterName, NewPrometheusHTTPSDConfigProvider, providerCatalog)
 }

@@ -138,6 +138,18 @@ spec:
           processors: [resourcedetection, k8s_attributes]
           exporters: [otlp_http]
 
+  # Resource defaults for the Host Profiler container. Explicit zero requests avoid
+  # reserving CPU or memory on every node, while limits cap runaway usage. Set
+  # nonzero requests if your cluster policy requires them or you want reserved capacity.
+  # Increase the memory limit if the Host Profiler uploads debug symbols for large binaries.
+  resources:
+    requests:
+      cpu: "0"
+      memory: "0"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
   # Required Linux capabilities for host-wide eBPF profiling.
   # The container is not privileged and drops all default capabilities.
   securityContext:

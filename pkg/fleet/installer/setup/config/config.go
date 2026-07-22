@@ -41,9 +41,16 @@ func WriteConfigs(config Config, configDir string) error {
 		}
 	}
 	if config.ApplicationMonitoringYAML != nil {
-		err = WriteConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
+		appMonitoringPath := filepath.Join(configDir, "application_monitoring.yaml")
+		err = WriteConfig(appMonitoringPath, config.ApplicationMonitoringYAML, 0644, true)
 		if err != nil {
 			return fmt.Errorf("could not write application_monitoring.yaml: %w", err)
+		}
+		// application_monitoring.yaml must be world-readable so non-admin identities (e.g. an
+		// IIS App Pool identity) can read fleet config. The 0644 mode handles this on Linux;
+		// on Windows os.WriteFile ignores POSIX mode, so grant the Everyone-read ACL explicitly.
+		if err = grantEveryoneRead(appMonitoringPath); err != nil {
+			return fmt.Errorf("could not set permissions on application_monitoring.yaml: %w", err)
 		}
 	}
 	for name, config := range config.IntegrationConfigs {

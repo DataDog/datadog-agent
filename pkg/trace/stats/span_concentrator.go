@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"go.uber.org/atomic"
 )
 
@@ -25,10 +26,30 @@ type SpanConcentratorConfig struct {
 	ComputeStatsBySpanKind bool
 	// BucketInterval the size of our pre-aggregation per bucket
 	BucketInterval int64
-	// AdditionalMetricTagsCardinalityLimit is the maximum number of distinct additional metric tag stats entries per bucket. 0 disables the cap.
-	// This is a tracer-only control (dd-trace-go imports this package and sets it) — the
-	// Agent intentionally leaves it unset, so the cardinality cap is a no-op in the Agent.
+
+	// The fields below are tracer-only controls (dd-trace-go imports this package and sets them).
+	// The Agent intentionally leaves them all at zero so all cardinality caps are no-ops in the Agent.
+
+	// AdditionalMetricTagsCardinalityLimit caps distinct additional_metric_tags entries per bucket. 0 = no cap.
 	AdditionalMetricTagsCardinalityLimit int
+	// ResourceCardinalityLimit caps distinct resource values per bucket. 0 = no cap.
+	ResourceCardinalityLimit int
+	// HTTPEndpointCardinalityLimit caps distinct http_endpoint values per bucket. 0 = no cap.
+	HTTPEndpointCardinalityLimit int
+	// PeerTagsCardinalityLimit caps distinct peer_tags combinations per bucket. 0 = no cap.
+	PeerTagsCardinalityLimit int
+	// OriginCardinalityLimit caps distinct origin values per bucket. 0 = no cap.
+	OriginCardinalityLimit int
+	// WholeKeyCardinalityLimit caps the total distinct BucketsAggregationKeys per bucket. 0 = no cap.
+	// This is the backstop that guarantees a hard memory bound regardless of which field causes explosion.
+	WholeKeyCardinalityLimit int
+
+	// ObfuscationEnabled signals that the tracer is performing obfuscation/normalization.
+	// When true, string length caps (service ≤ 100, name ≤ 100, type ≤ 100, resource ≤ ResourceMaxBytes) are applied.
+	ObfuscationEnabled bool
+	// ResourceMaxBytes is the max byte length for resource strings when ObfuscationEnabled is true.
+	// Defaults to 5000; tracers should set to 15000 when the agent /info endpoint advertises the big_resource feature flag.
+	ResourceMaxBytes int
 }
 
 // StatSpan holds all the required fields from a span needed to calculate stats
@@ -65,6 +86,13 @@ const (
 	// context: tracer-side masking reports tracer_blocked_value, Agent-side reports agent_blocked_value.
 	blockedByTracerSentinel = "tracer_blocked_value"
 	blockedByAgentSentinel  = "agent_blocked_value"
+
+	// defaultResourceMaxBytes is the resource string length cap when big_resource is not advertised by the agent.
+	defaultResourceMaxBytes = 5000
+	// bigResourceMaxBytes is used when the agent /info endpoint advertises the big_resource feature flag.
+	bigResourceMaxBytes = 15000
+	// stringFieldMaxBytes is the length cap for service, name, and type fields.
+	stringFieldMaxBytes = 100
 )
 
 func maskAdditionalMetricTagValues(tags []string, sentinel string) []string {
@@ -170,9 +198,19 @@ func (sc *SpanConcentrator) matchingAdditionalMetricTagsV1(s *idx.InternalSpan, 
 type SpanConcentrator struct {
 	computeStatsBySpanKind                bool
 	additionalMetricTagValueBlockSentinel string
-	additionalTagsCardinalityLimit        int
-	lengthBlocks                          *atomic.Int64
-	capBlocks                             *atomic.Int64
+	cardinalityLimits                     BucketCardinalityLimits
+	obfuscationEnabled                    *atomic.Bool  // nil when zero-value; read via isObfuscationEnabled()
+	resourceMaxBytes                      *atomic.Int64 // nil when zero-value; read via getResourceMaxBytes()
+
+	// per-collapse-type atomic counters; drained on each flush via DrainBlockCounts
+	lengthBlocks          *atomic.Int64 // additional_metric_tags value > 200 chars
+	capBlocks             *atomic.Int64 // additional_metric_tags cardinality cap
+	wholeKeyCollapses     *atomic.Int64
+	resourceCollapses     *atomic.Int64
+	httpEndpointCollapses *atomic.Int64
+	peerTagsCollapses     *atomic.Int64
+	originCollapses       *atomic.Int64
+
 	// bucket duration in nanoseconds
 	bsize int64
 	// Timestamp of the oldest time bucket for which we allow data.
@@ -191,17 +229,35 @@ type SpanConcentrator struct {
 
 // NewSpanConcentrator builds a new SpanConcentrator object
 func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcentrator {
+	resourceMaxBytes := cfg.ResourceMaxBytes
+	if resourceMaxBytes <= 0 {
+		resourceMaxBytes = 5000
+	}
 	sc := &SpanConcentrator{
 		computeStatsBySpanKind:                cfg.ComputeStatsBySpanKind,
 		additionalMetricTagValueBlockSentinel: blockedByTracerSentinel,
-		additionalTagsCardinalityLimit:        cfg.AdditionalMetricTagsCardinalityLimit,
-		lengthBlocks:                          atomic.NewInt64(0),
-		capBlocks:                             atomic.NewInt64(0),
-		bsize:                                 cfg.BucketInterval,
-		oldestTs:                              alignTs(now.UnixNano(), cfg.BucketInterval),
-		bufferLen:                             defaultBufferLen,
-		mu:                                    sync.Mutex{},
-		buckets:                               make(map[int64]*RawBucket),
+		cardinalityLimits: BucketCardinalityLimits{
+			AdditionalTags: cfg.AdditionalMetricTagsCardinalityLimit,
+			Resource:       cfg.ResourceCardinalityLimit,
+			HTTPEndpoint:   cfg.HTTPEndpointCardinalityLimit,
+			PeerTags:       cfg.PeerTagsCardinalityLimit,
+			Origin:         cfg.OriginCardinalityLimit,
+			WholeKey:       cfg.WholeKeyCardinalityLimit,
+		},
+		obfuscationEnabled:    atomic.NewBool(cfg.ObfuscationEnabled),
+		resourceMaxBytes:      atomic.NewInt64(int64(resourceMaxBytes)),
+		lengthBlocks:          atomic.NewInt64(0),
+		capBlocks:             atomic.NewInt64(0),
+		wholeKeyCollapses:     atomic.NewInt64(0),
+		resourceCollapses:     atomic.NewInt64(0),
+		httpEndpointCollapses: atomic.NewInt64(0),
+		peerTagsCollapses:     atomic.NewInt64(0),
+		originCollapses:       atomic.NewInt64(0),
+		bsize:                 cfg.BucketInterval,
+		oldestTs:              alignTs(now.UnixNano(), cfg.BucketInterval),
+		bufferLen:             defaultBufferLen,
+		mu:                    sync.Mutex{},
+		buckets:               make(map[int64]*RawBucket),
 	}
 	return sc
 }
@@ -213,25 +269,80 @@ func (sc *SpanConcentrator) getAdditionalMetricTagValueBlockSentinel() string {
 	return sc.additionalMetricTagValueBlockSentinel
 }
 
+func (sc *SpanConcentrator) isObfuscationEnabled() bool {
+	return sc.obfuscationEnabled != nil && sc.obfuscationEnabled.Load()
+}
+
+func (sc *SpanConcentrator) getResourceMaxBytes() int {
+	if sc.resourceMaxBytes == nil {
+		return defaultResourceMaxBytes
+	}
+	return int(sc.resourceMaxBytes.Load())
+}
+
+// SetObfuscationEnabled updates whether string length caps are applied during stat span creation.
+// Should be called when the agent's obfuscation version is known (e.g. after /info is fetched).
+// bigResource should be true when the agent's /info feature_flags contains "big_resource".
+func (sc *SpanConcentrator) SetObfuscationEnabled(enabled bool, bigResource bool) {
+	if sc.obfuscationEnabled == nil || sc.resourceMaxBytes == nil {
+		return
+	}
+	sc.obfuscationEnabled.Store(enabled)
+	if enabled {
+		if bigResource {
+			sc.resourceMaxBytes.Store(bigResourceMaxBytes)
+		} else {
+			sc.resourceMaxBytes.Store(defaultResourceMaxBytes)
+		}
+	}
+}
+
 func (sc *SpanConcentrator) addLengthBlock() {
 	if sc.lengthBlocks != nil {
 		sc.lengthBlocks.Add(1)
 	}
 }
 
-func (sc *SpanConcentrator) addCapBlocks(delta int64) {
-	if sc.capBlocks != nil {
-		sc.capBlocks.Add(delta)
+func (sc *SpanConcentrator) addCollapses(result SpanCollapseResult) {
+	if result.AdditionalTagsCapBlock && sc.capBlocks != nil {
+		sc.capBlocks.Add(1)
+	}
+	if result.WholeKeyCollapsed && sc.wholeKeyCollapses != nil {
+		sc.wholeKeyCollapses.Add(1)
+	}
+	if result.ResourceCollapsed && sc.resourceCollapses != nil {
+		sc.resourceCollapses.Add(1)
+	}
+	if result.HTTPEndpointCollapsed && sc.httpEndpointCollapses != nil {
+		sc.httpEndpointCollapses.Add(1)
+	}
+	if result.PeerTagsCollapsed && sc.peerTagsCollapses != nil {
+		sc.peerTagsCollapses.Add(1)
+	}
+	if result.OriginCollapsed && sc.originCollapses != nil {
+		sc.originCollapses.Add(1)
 	}
 }
 
-// BlockCounts reports additional-metric-tag block events since the last drain.
+// BlockCounts reports cardinality collapse events since the last drain.
 type BlockCounts struct {
+	// LengthBlocks counts additional_metric_tags values that exceeded the 200-char length cap.
 	LengthBlocks int64
-	CapBlocks    int64
+	// CapBlocks counts additional_metric_tags entries that exceeded the per-bucket cardinality cap.
+	CapBlocks int64
+	// WholeKeyCollapses counts spans collapsed due to the whole-key cardinality limit.
+	WholeKeyCollapses int64
+	// ResourceCollapses counts spans whose resource field was collapsed to the sentinel.
+	ResourceCollapses int64
+	// HTTPEndpointCollapses counts spans whose http_endpoint field was collapsed to the sentinel.
+	HTTPEndpointCollapses int64
+	// PeerTagsCollapses counts spans whose peer_tags were collapsed to the sentinel.
+	PeerTagsCollapses int64
+	// OriginCollapses counts spans whose origin was collapsed.
+	OriginCollapses int64
 }
 
-// DrainBlockCounts atomically reads and zeroes the block counters.
+// DrainBlockCounts atomically reads and zeroes all collapse counters.
 func (sc *SpanConcentrator) DrainBlockCounts() BlockCounts {
 	var counts BlockCounts
 	if sc.lengthBlocks != nil {
@@ -239,6 +350,21 @@ func (sc *SpanConcentrator) DrainBlockCounts() BlockCounts {
 	}
 	if sc.capBlocks != nil {
 		counts.CapBlocks = sc.capBlocks.Swap(0)
+	}
+	if sc.wholeKeyCollapses != nil {
+		counts.WholeKeyCollapses = sc.wholeKeyCollapses.Swap(0)
+	}
+	if sc.resourceCollapses != nil {
+		counts.ResourceCollapses = sc.resourceCollapses.Swap(0)
+	}
+	if sc.httpEndpointCollapses != nil {
+		counts.HTTPEndpointCollapses = sc.httpEndpointCollapses.Swap(0)
+	}
+	if sc.peerTagsCollapses != nil {
+		counts.PeerTagsCollapses = sc.peerTagsCollapses.Swap(0)
+	}
+	if sc.originCollapses != nil {
+		counts.OriginCollapses = sc.originCollapses.Swap(0)
 	}
 	return counts
 }
@@ -303,11 +429,19 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	if traceutil.IsPartialSnapshotMetrics(config.Metrics) {
 		return nil, false
 	}
+	service, name, typ, resource := config.Service, config.Name, config.Type, config.Resource
+	if sc.isObfuscationEnabled() {
+		resourceMax := sc.getResourceMaxBytes()
+		service = normalize.TruncateUTF8(service, stringFieldMaxBytes)
+		name = normalize.TruncateUTF8(name, stringFieldMaxBytes)
+		typ = normalize.TruncateUTF8(typ, stringFieldMaxBytes)
+		resource = normalize.TruncateUTF8(resource, resourceMax)
+	}
 	return &StatSpan{
-		service:                      config.Service,
-		resource:                     config.Resource,
-		name:                         config.Name,
-		typ:                          config.Type,
+		service:                      service,
+		resource:                     resource,
+		name:                         name,
+		typ:                          typ,
 		error:                        config.Error,
 		parentID:                     config.ParentID,
 		start:                        config.Start,
@@ -341,11 +475,19 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 		spanError = 1
 	}
 	serviceSource, _ := s.GetAttributeAsString(tagServiceSource)
+	service, name, typ, resource := s.Service(), s.Name(), s.Type(), s.Resource()
+	if sc.isObfuscationEnabled() {
+		resourceMax := sc.getResourceMaxBytes()
+		service = normalize.TruncateUTF8(service, stringFieldMaxBytes)
+		name = normalize.TruncateUTF8(name, stringFieldMaxBytes)
+		typ = normalize.TruncateUTF8(typ, stringFieldMaxBytes)
+		resource = normalize.TruncateUTF8(resource, resourceMax)
+	}
 	return &StatSpan{
-		service:                      s.Service(),
-		resource:                     s.Resource(),
-		name:                         s.Name(),
-		typ:                          s.Type(),
+		service:                      service,
+		resource:                     resource,
+		name:                         name,
+		typ:                          typ,
 		error:                        int32(spanError),
 		parentID:                     s.ParentID(),
 		start:                        int64(s.Start()),
@@ -427,7 +569,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 
 	b, ok := sc.buckets[btime]
 	if !ok {
-		b = NewRawBucket(uint64(btime), uint64(sc.bsize), sc.additionalTagsCardinalityLimit)
+		b = NewRawBucket(uint64(btime), uint64(sc.bsize), sc.cardinalityLimits)
 		b.additionalMetricTagValueBlockSentinel = sc.getAdditionalMetricTagValueBlockSentinel()
 		sc.buckets[btime] = b
 	}
@@ -437,9 +579,8 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 	if tags.containerID != "" && len(tags.containerTags) > 0 {
 		b.containerTagsByID[tags.containerID] = tags.containerTags
 	}
-	if d := b.HandleSpan(s, weight, origin, aggKey); d > 0 {
-		sc.addCapBlocks(int64(d))
-	}
+	result := b.HandleSpan(s, weight, origin, aggKey)
+	sc.addCollapses(result)
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.

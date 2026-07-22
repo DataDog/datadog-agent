@@ -113,6 +113,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 			Minor:  agentVersion.Minor,
 			Patch:  agentVersion.Patch,
 			Pre:    agentVersion.Pre,
+			Meta:   agentVersion.Meta,
 			Commit: agentVersion.Commit,
 		},
 	}

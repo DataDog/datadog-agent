@@ -19,8 +19,6 @@ properties:
       Set to true to enable the GPU check in the core Agent.
       Required for GPU monitoring on non-containerized Linux hosts.
       Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
-    tags:
-    - template_section:Common
   nccl:
     node_type: section
     type: object
@@ -40,9 +38,6 @@ properties:
         default: false
         visibility: public
         description: Enable the NCCL collective performance check.
-        tags:
-        - template_section:Common
-        comment: NCCL
       host_socket_path:
         node_type: setting
         type: string
@@ -51,8 +46,6 @@ properties:
         description: |-
           Host directory containing the Agent's NCCL socket. Must match the
           hostPath volume mounted into training pods.
-        tags:
-        - template_section:Common
         comment: |-
           host_socket_path is read by the helm chart and operator to decide whether
           to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
@@ -65,8 +58,14 @@ properties:
         description: |-
           Full path to the Unix domain socket the Agent listens on for NCCL events.
           Must be under host_socket_path.
-        tags:
-        - template_section:Common
+  collection_interval_override:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: |-
+      gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+      cadence when > 0, taking precedence over the instance's min_collection_interval.
+      Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
   disabled_collectors:
     node_type: setting
     type: array
@@ -89,9 +88,13 @@ properties:
     node_type: setting
     type: string
     default: ''
+  parallel_collectors:
+    node_type: setting
+    type: boolean
+    default: true
   sp_process_metrics_request_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:
@@ -104,7 +107,3 @@ properties:
     node_type: setting
     type: integer
     default: 1024
-  parallel_collectors:
-    node_type: setting
-    type: boolean
-    default: true

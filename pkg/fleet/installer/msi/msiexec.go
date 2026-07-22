@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -438,8 +438,7 @@ func (m *Msiexec) Run(ctx context.Context) error {
 			span.SetTag("params.logfile", m.args.logFile)
 			span.SetTag("attempt_count", attemptCount)
 			if err != nil {
-				var perm *backoff.PermanentError
-				span.SetTag("is_error_retryable", !errors.As(err, &perm))
+				span.SetTag("is_error_retryable", !errors.Is(err, backoff.ErrPermanent))
 				// include the processed log data in the span, but only on error (msiexec failed)
 				// this way we get the error log on each attempt, in case it changes before the final error
 				// is reported by the caller.

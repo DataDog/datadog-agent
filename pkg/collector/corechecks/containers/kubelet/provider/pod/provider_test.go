@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -51,11 +50,9 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
-
 	mockConfig := configmock.New(suite.T())
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
@@ -96,7 +93,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockConfig.SetInTest("container_exclude", "name:agent-excluded")
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
-	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
+	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger, nil)
 }
 
 func TestProviderTestSuite(t *testing.T) {
@@ -342,7 +339,7 @@ func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error
 	}
 
 	var podList kubelet.PodList
-	if err := jsoniter.Unmarshal(data, &podList); err != nil {
+	if err := kubelet.NewPodUnmarshaller().Unmarshal(data, &podList); err != nil {
 		return err
 	}
 

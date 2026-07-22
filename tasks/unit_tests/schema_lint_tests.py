@@ -142,55 +142,26 @@ class TestCheckNodeTypesPresent(unittest.TestCase):
 
 class TestCheckSettingsHaveDefault(unittest.TestCase):
     def test_valid_schema_produces_no_errors(self):
-        errors = errors_for(lint.check_settings_have_default, "valid.yaml", set())
+        errors = errors_for(lint.check_settings_have_default, "valid.yaml")
         self.assertEqual(errors, [])
 
     def test_setting_without_default(self):
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", set())
+        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml")
         self.assertTrue(any("no_default" in e for e in errors), f"Expected error for no_default, got: {errors}")
 
-    def test_excepted_setting_with_tag_passes(self):
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", {"excepted_no_default"})
-        self.assertFalse(
-            any("excepted_no_default" in e for e in errors),
-            f"Excepted setting should not produce an error, got: {errors}",
-        )
-
-    def test_excepted_setting_without_tag_is_still_an_error(self):
-        # A setting in the exception list but without the required tag is an error
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", {"no_default"})
-        self.assertTrue(
-            any("no_default" in e and "TODO:fix-no-default" in e for e in errors),
-            f"Expected tag-enforcement error for no_default, got: {errors}",
-        )
-
     def test_setting_with_platform_default_passes(self):
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", set())
+        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml")
         self.assertFalse(any("with_platform_default" in e for e in errors))
 
 
 class TestCheckSettingsHaveType(unittest.TestCase):
     def test_valid_schema_produces_no_errors(self):
-        errors = errors_for(lint.check_settings_have_type, "valid.yaml", set())
+        errors = errors_for(lint.check_settings_have_type, "valid.yaml")
         self.assertEqual(errors, [])
 
     def test_setting_without_type(self):
-        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml", set())
+        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml")
         self.assertTrue(any("no_type" in e for e in errors), f"Expected error for no_type, got: {errors}")
-
-    def test_excepted_setting_with_tag_passes(self):
-        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml", {"excepted_no_type"})
-        self.assertFalse(
-            any("excepted_no_type" in e for e in errors),
-            f"Excepted setting should not produce an error, got: {errors}",
-        )
-
-    def test_excepted_setting_without_tag_is_still_an_error(self):
-        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml", {"no_type"})
-        self.assertTrue(
-            any("no_type" in e and "TODO:fix-missing-type" in e for e in errors),
-            f"Expected tag-enforcement error for no_type, got: {errors}",
-        )
 
 
 class TestCheckPlatformDefaultKeys(unittest.TestCase):
@@ -203,6 +174,10 @@ class TestCheckPlatformDefaultKeys(unittest.TestCase):
         self.assertTrue(
             any("missing_windows" in e for e in errors), f"Expected error for missing_windows, got: {errors}"
         )
+
+    def test_missing_aix_platform_key(self):
+        errors = errors_for(lint.check_platform_default_keys, "bad_platform_default.yaml")
+        self.assertTrue(any("missing_aix" in e for e in errors), f"Expected error for missing_aix, got: {errors}")
 
     def test_unknown_platform_key(self):
         errors = errors_for(lint.check_platform_default_keys, "bad_platform_default.yaml")

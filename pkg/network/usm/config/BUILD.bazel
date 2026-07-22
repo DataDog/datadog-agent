@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/config",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/kernelbugs",
+            "//pkg/network/config",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/kernelbugs",
+            "//pkg/network/config",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)

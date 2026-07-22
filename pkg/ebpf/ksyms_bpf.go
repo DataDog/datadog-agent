@@ -11,10 +11,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
 type ksymIterProgram struct {
@@ -38,6 +39,7 @@ func GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 				LogLevel:    ebpf.LogLevelBranch,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
+			Cache: managerOptions.VerifierOptions.Cache,
 		}
 
 		if err := collectionSpec.LoadAndAssign(&prog, &opts); err != nil {

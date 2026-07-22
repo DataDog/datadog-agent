@@ -93,8 +93,11 @@ func TestParseDaemonNameFromGroup(t *testing.T) {
 }
 
 func TestBuildTaskDefinitionARN(t *testing.T) {
-	arn := BuildTaskDefinitionARN("123456789012", "family-name", "us-east-1", "1")
+	arn := BuildTaskDefinitionARN("123456789012", "family-name", "us-east-1", "1", false)
 	require.Equal(t, "arn:aws:ecs:us-east-1:123456789012:task-definition/family-name:1", arn)
+
+	daemonARN := BuildTaskDefinitionARN("123456789012", "family-name", "us-east-1", "1", true)
+	require.Equal(t, "arn:aws:ecs:us-east-1:123456789012:daemon-task-definition/family-name:1", daemonARN)
 }
 
 func newMinimalTask(launchType string) v3or4.Task {
@@ -151,6 +154,7 @@ func TestParseV4TaskDaemonGroup(t *testing.T) {
 	task := getECSTaskEntity(t, events)
 	assert.Equal(t, "my-daemon", task.DaemonName)
 	assert.Equal(t, "arn:aws:ecs:us-east-1:123456789012:daemon/cluster/my-daemon", task.DaemonARN)
+	assert.Equal(t, "arn:aws:ecs:us-east-1:123456789012:daemon-task-definition/test-family:1", task.TaskDefinitionARN)
 	assert.Empty(t, task.ServiceName)
 	assert.Empty(t, task.ServiceARN)
 }
@@ -164,6 +168,7 @@ func TestParseV4TaskServiceGroup(t *testing.T) {
 	task := getECSTaskEntity(t, events)
 	assert.Equal(t, "my-service", task.ServiceName)
 	assert.Equal(t, "arn:aws:ecs:us-east-1:123456789012:service/cluster/my-service", task.ServiceARN)
+	assert.Equal(t, "arn:aws:ecs:us-east-1:123456789012:task-definition/test-family:1", task.TaskDefinitionARN)
 	assert.Empty(t, task.DaemonName)
 	assert.Empty(t, task.DaemonARN)
 }

@@ -96,8 +96,8 @@ type Provides struct {
 	Endpoint      api.AgentEndpointProvider
 }
 
-// NewGPUHostProvider creates a new hostgpu component
-func NewGPUHostProvider(deps Requires) Provides {
+// NewComponent creates a new hostgpu component
+func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	gh := &gpuHost{
 		conf:     deps.Config,

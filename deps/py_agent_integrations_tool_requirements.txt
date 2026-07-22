@@ -1,4 +1,2 @@
-build==1.5.0  # PEP 517 compatible build frontend
-hatchling==0.25.1  # Build backend used by integration packages
+hatchling==1.31.0  # Build backend used by integration packages
 installer==1.0.1  # Wheel installer
-colorama  # Transitive dependency for `build` on Windows; direct reference keeps the lock platform-independent

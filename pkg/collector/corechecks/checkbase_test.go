@@ -35,7 +35,7 @@ func TestCommonConfigure(t *testing.T) {
 	mycheck := &dummyCheck{
 		CheckBase: NewCheckBase(checkName),
 	}
-	mockSender := mocksender.NewMockSender(mycheck.ID())
+	mockSender := mocksender.NewMockSender(t, mycheck.ID())
 
 	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(defaultsInstance), "test", "config-provider")
 	assert.NoError(t, err)
@@ -60,7 +60,7 @@ func TestCommonConfigureCustomID(t *testing.T) {
 	}
 	mycheck.BuildID(1, []byte(customInstance), nil)
 	assert.NotEqual(t, checkName, string(mycheck.ID()))
-	mockSender := mocksender.NewMockSender(mycheck.ID())
+	mockSender := mocksender.NewMockSender(t, mycheck.ID())
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
 	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(customInstance), "test", "config-provider")

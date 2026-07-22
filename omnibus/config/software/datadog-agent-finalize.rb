@@ -27,14 +27,14 @@ build do
         # Push all the pieces built with Bazel.
 
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
-        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install",
+        command "bazel run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
-            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
+            command "bazel run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         elsif osx_target?
-            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
+            command "bazel run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         end
 
@@ -45,9 +45,6 @@ build do
 
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
-
-            # Remove .pyc files from embedded Python
-            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
@@ -97,6 +94,15 @@ build do
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
+            # Move the built-in shared-library checks into the package's checks.d,
+            # strip them to reduce size, then re-assert owner-only (0500) perms.
+            Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
+              dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
+              move lib, dest, :force => true
+              command "strip --strip-unneeded #{dest}"
+              command "chmod 0500 #{dest}"
+            end
+
             # Process manager config directory (read-only, under install dir)
             mkdir "#{install_dir}/processes.d"
 
@@ -109,9 +115,6 @@ build do
 
             # cleanup clutter
             delete "#{install_dir}/etc"
-
-            # Python bytecode caches (pyc files) are generated at runtime and should not be shipped.
-            command "find #{install_dir}/embedded -type d -name __pycache__ -prune -exec rm -rf {} +"
 
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
@@ -176,6 +179,25 @@ build do
             if install_dir.include?("/opt/datadog-packages")
               # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+
+              # The FIPS daemon has CapabilityBoundingSet=all in its systemd unit. This causes
+              # the kernel to set AT_SECURE when it exec's the installer.layer bootstrap binary,
+              # which makes the dynamic linker drop all $ORIGIN-based RPATH entries. Since
+              # rpath-edit above just converted every RPATH to $ORIGIN-relative, the binary
+              # would fall through to the system libcrypto (wrong version) and panic.
+              #
+              # Fix: add an absolute RPATH entry after rpath-edit. Absolute entries are always
+              # honoured under AT_SECURE. /opt/datadog-agent/embedded/lib is version-independent:
+              # it is the deb install path on deb hosts and a symlink to the current stable OCI
+              # tree on OCI-managed hosts.
+              if fips_mode?
+                installer_bin = "#{install_dir}/embedded/bin/installer"
+                if File.exist?(installer_bin)
+                  embedded_lib = "/opt/datadog-agent/embedded/lib"
+                  command "patchelf --add-rpath #{embedded_lib} #{installer_bin}"
+                  command "patchelf --print-rpath #{installer_bin} | grep -qF '#{embedded_lib}' || (echo 'ERROR: patchelf --add-rpath did not add #{embedded_lib} to #{installer_bin}' && exit 1)"
+                end
+              end
             end
         end
 

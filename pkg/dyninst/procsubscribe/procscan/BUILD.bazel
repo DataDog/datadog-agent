@@ -10,6 +10,7 @@ go_library(
         "time_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/discovery/tracermetadata",
@@ -48,7 +49,11 @@ go_test(
         "testdata/stat/special_chars.txt",
         "testdata/stat/with_spaces.txt",
     ],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/discovery/tracermetadata/model",
         "//pkg/dyninst/process",

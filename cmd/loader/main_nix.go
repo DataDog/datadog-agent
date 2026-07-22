@@ -283,7 +283,10 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 			traceCfgReceiverHost = cfg.GetString("bind_host")
 		}
 
-		if cfg.IsConfigured("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
+		// Gate on the value (not IsConfigured) so the Kubernetes binary default — applied at
+		// SourceDefault by applyKubernetesContainerDefaults — still forces 0.0.0.0 over an explicit
+		// bind_host, matching the historical datadog-kubernetes.yaml behavior.
+		if cfg.GetBool("apm_config.apm_non_local_traffic") {
 			traceCfgReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {
@@ -292,15 +295,8 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		traceCfgReceiverHost = "0.0.0.0"
 	}
 
-	traceCfgReceiverPort := 8126
-	if cfg.IsSet("apm_config.receiver_port") {
-		traceCfgReceiverPort = cfg.GetInt("apm_config.receiver_port")
-	}
-
-	traceCfgReceiverSocket := defaultpaths.GetDefaultReceiverSocket()
-	if cfg.IsSet("apm_config.receiver_socket") {
-		traceCfgReceiverSocket = cfg.GetString("apm_config.receiver_socket")
-	}
+	traceCfgReceiverPort := cfg.GetInt("apm_config.receiver_port")
+	traceCfgReceiverSocket := cfg.GetString("apm_config.receiver_socket")
 
 	// end of config initialization
 

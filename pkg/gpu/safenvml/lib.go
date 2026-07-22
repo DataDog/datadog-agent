@@ -81,6 +81,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
 		toNativeName("GetNumFans"),
+		toNativeName("GetPciInfo"),
 		toNativeName("GetPcieThroughput"),
 		toNativeName("GetCurrPcieLinkGeneration"),
 		toNativeName("GetMaxPcieLinkGeneration"),

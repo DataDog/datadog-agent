@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	emrInjectorVersion    = "0.64.0-1"
+	emrInjectorVersion    = "0.67.2-1"
 	emrJavaTracerVersion  = "1.63.0-1"
 	emrAgentVersion       = "7.79.2-1"
 	emrOpenLineageVersion = "1.49.0"

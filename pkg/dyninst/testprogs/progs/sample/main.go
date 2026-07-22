@@ -83,4 +83,5 @@ func runAll() {
 	executeReturns()
 	executeContextFuncs()
 	go returnGoroutineId()
+	executeContextImplFuncs()
 }
