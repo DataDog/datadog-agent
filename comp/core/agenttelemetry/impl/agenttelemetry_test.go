@@ -2583,6 +2583,31 @@ func TestNoPreserveTagsAggregateSeparatelyByEmitter(t *testing.T) {
 	require.Equal(t, 30.0, metricsByTag["emitter:system-probe:"].Gauge.GetValue())
 }
 
+func TestAggregationPreservedTagKeyDoesNotCollideOnDelimiters(t *testing.T) {
+	mCfg := &MetricConfig{
+		preserveTagsExists: true,
+		preserveTagsMap: map[string]any{
+			"a": struct{}{},
+			"c": struct{}{},
+			"d": struct{}{},
+		},
+	}
+	metrics := []*dto.Metric{
+		newGaugeMetric(10, newLabelPair("a", "b:c"), newLabelPair("d", "e")),
+		newGaugeMetric(20, newLabelPair("a", "b"), newLabelPair("c", "d:e")),
+	}
+
+	results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, dto.MetricType_GAUGE, metrics)
+
+	require.Len(t, results, 2)
+	labelsByValue := make(map[float64][]string, len(results))
+	for _, result := range results {
+		labelsByValue[result.Gauge.GetValue()] = metricLabelStrings(result)
+	}
+	require.Equal(t, []string{"a=b:c", "d=e", "emitter=agent"}, labelsByValue[10])
+	require.Equal(t, []string{"a=b", "c=d:e", "emitter=agent"}, labelsByValue[20])
+}
+
 func TestNonEmitterPreserveTagFiltersAndDropsUnlistedLabels(t *testing.T) {
 	mCfg := &MetricConfig{
 		Name:               "bar.zoo",

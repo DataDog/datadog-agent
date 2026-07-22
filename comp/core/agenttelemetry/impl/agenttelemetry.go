@@ -306,6 +306,22 @@ type metricAggregationKey struct {
 	preservedTags string
 }
 
+// encodeSortedAggregationLabels returns an unambiguous length-prefixed encoding for aggregation keys.
+func encodeSortedAggregationLabels(labels []*dto.LabelPair) string {
+	var key strings.Builder
+	for _, label := range labels {
+		name := label.GetName()
+		value := label.GetValue()
+		key.WriteString(strconv.Itoa(len(name)))
+		key.WriteByte(':')
+		key.WriteString(name)
+		key.WriteString(strconv.Itoa(len(value)))
+		key.WriteByte(':')
+		key.WriteString(value)
+	}
+	return key.String()
+}
+
 func effectiveEmitter(labels []*dto.LabelPair, localEmitter string) string {
 	for _, label := range labels {
 		if label.GetName() == "emitter" && label.GetValue() != "" {
@@ -349,7 +365,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 		key := metricAggregationKey{
 			emitter:       emitter,
-			preservedTags: convertLabelsToKey(preservedLabels),
+			preservedTags: encodeSortedAggregationLabels(preservedLabels),
 		}
 		if aggregate, ok := aggregates[key]; ok {
 			aggregateMetric(mt, aggregate, metric)
