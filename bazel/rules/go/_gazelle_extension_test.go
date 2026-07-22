@@ -376,6 +376,91 @@ dd_agent_go_test(
 	}
 }
 
+// TestGenerateRules_LinuxBPFOnlyTestSurvivesFlavorPruning reproduces the bug
+// found while auditing pkg/dyninst after "bazel: globally enable
+// dd_agent_go_test for pkg/": a package with both "dd_agent_go_test on" and
+// "dd_linux_bpf on" (dyninst's real, inherited state) whose test sources are
+// gated entirely behind //go:build linux_bpf lost its test rule outright.
+//
+// linux_bpf isn't a flavor, so dd_linux_bpf and dd_agent_go_test are
+// mutually exclusive (enforced in shouldReplace): once dd_linux_bpf is on,
+// shouldReplace declines and revertDdAgentGoTests takes over instead of
+// flavoring, then applyLinuxBPF tags the surviving plain go_test.
+func TestGenerateRules_LinuxBPFOnlyTestSurvivesFlavorPruning(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"x_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: true},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir})
+
+	if len(result.Gen) != 1 {
+		t.Fatalf("expected the linux_bpf-gated test to survive, got %d gen rules: %v", len(result.Gen), result.Gen)
+	}
+	got := result.Gen[0]
+	if got.Kind() != "go_test" {
+		t.Errorf("expected the rule to stay a plain go_test (not a flavor), got %s", got.Kind())
+	}
+	if want := []string{"test", linuxBPFTag}; !stringSlicesEqual(got.AttrStrings("gotags"), want) {
+		t.Errorf("gotags = %v, want %v", got.AttrStrings("gotags"), want)
+	}
+	if want := []string{linuxPlatform}; !stringSlicesEqual(got.AttrStrings("target_compatible_with"), want) {
+		t.Errorf("target_compatible_with = %v, want %v", got.AttrStrings("target_compatible_with"), want)
+	}
+}
+
+// TestGenerateRules_LinuxBPFDropsStaleFlavoredRule covers a package whose
+// test sources used to have an applicable flavor (so it was converted to
+// dd_agent_go_test) and later became linux_bpf-only. Once dd_linux_bpf turns
+// on, shouldReplace declines regardless of the flavor directive, so
+// revertDdAgentGoTests must remove that stale dd_agent_go_test, not leave it
+// alongside the plain go_test that replaces it.
+func TestGenerateRules_LinuxBPFDropsStaleFlavoredRule(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
+
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+dd_agent_go_test(
+    name = "pkg_test",
+    srcs = ["x_test.go"],
+)
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"x_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: true},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file, Dir: dir})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	if file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected the stale dd_agent_go_test to be replaced by a plain go_test, got %s", file.Rules[0].Kind())
+	}
+}
 func TestLoads(t *testing.T) {
 	mal, ok := NewLanguage().(language.ModuleAwareLanguage)
 	if !ok {
@@ -541,6 +626,16 @@ func TestShouldReplace(t *testing.T) {
 				},
 			},
 			want: true,
+		},
+		{
+			// linux_bpf is not a flavor, so the two are mutually exclusive:
+			// dd_linux_bpf wins even over an explicit dd_agent_go_test on.
+			name: "enabled but dd_linux_bpf also enabled",
+			c: &config.Config{Exts: map[string]interface{}{
+				extName:         ddAgentGoTestConfig{enabled: true},
+				linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+			}},
+			want: false,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
