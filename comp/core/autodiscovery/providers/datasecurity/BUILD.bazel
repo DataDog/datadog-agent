@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "datasecurity",
+    srcs = ["data_security.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
