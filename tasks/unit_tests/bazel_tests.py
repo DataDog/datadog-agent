@@ -10,6 +10,7 @@ from tasks.bazel import (
     _bazel_test_funcs_from_bep,
     _go_test_packages,
     _label_to_import_path,
+    _parse_bep,
     _test_xml_candidates,
     _test_xml_funcs,
 )
@@ -98,6 +99,119 @@ class TestTestXmlFuncs(unittest.TestCase):
 
 def _bep_line(event: dict) -> str:
     return json.dumps(event) + "\n"
+
+
+class TestParseBep(unittest.TestCase):
+    def test_reconstructs_cached_result_via_testlogs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exec_root = Path(tmpdir) / "exec_root"
+            reconstructed = exec_root / "bazel-out/k8-fastbuild/testlogs/pkg/foo/foo_test/test.xml"
+            reconstructed.parent.mkdir(parents=True)
+            reconstructed.write_text(_JUNIT_XML)
+
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                "".join(
+                    [
+                        _bep_line({"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": str(exec_root)}}),
+                        _bep_line(
+                            {
+                                "id": {"configuration": {"id": "cfg1"}},
+                                "configuration": {"makeVariable": {"BINDIR": "bazel-out/k8-fastbuild/bin"}},
+                            }
+                        ),
+                        _bep_line(
+                            {
+                                "id": {"testResult": {"label": "//pkg/foo:foo_test", "configuration": {"id": "cfg1"}}},
+                                "testResult": {
+                                    "cachedLocally": True,
+                                    "testActionOutput": [
+                                        {"name": "test.xml", "uri": "bytestream://example/blobs/abc/123"}
+                                    ],
+                                },
+                            }
+                        ),
+                    ]
+                )
+            )
+
+            xml_paths, cache_status = _parse_bep(bep_path)
+            self.assertEqual(xml_paths, [reconstructed])
+            self.assertEqual(cache_status, {f"{_IMPORT_PREFIX}/pkg/foo": True})
+
+    def test_local_result_not_duplicated_via_reconstructed_path(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exec_root = Path(tmpdir) / "exec_root"
+            reconstructed = exec_root / "bazel-out/k8-fastbuild/testlogs/pkg/foo/foo_test/test.xml"
+            reconstructed.parent.mkdir(parents=True)
+            reconstructed.write_text(_JUNIT_XML)
+            # The file:// URI Bazel reports for a local (non-cached) action
+            # points at the same underlying file as the reconstructed path.
+            file_uri_path = reconstructed
+
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                "".join(
+                    [
+                        _bep_line({"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": str(exec_root)}}),
+                        _bep_line(
+                            {
+                                "id": {"configuration": {"id": "cfg1"}},
+                                "configuration": {"makeVariable": {"BINDIR": "bazel-out/k8-fastbuild/bin"}},
+                            }
+                        ),
+                        _bep_line(
+                            {
+                                "id": {"testResult": {"label": "//pkg/foo:foo_test", "configuration": {"id": "cfg1"}}},
+                                "testResult": {
+                                    "testActionOutput": [{"name": "test.xml", "uri": file_uri_path.as_uri()}]
+                                },
+                            }
+                        ),
+                    ]
+                )
+            )
+
+            xml_paths, _ = _parse_bep(bep_path)
+            self.assertEqual(xml_paths, [file_uri_path])
+
+    def test_repeated_test_result_for_same_label_all_kept(self):
+        # A sharded or retried target reports multiple testResult events for
+        # the same label, each with its own test.xml; none should be dropped.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            first = Path(tmpdir) / "shard_0.xml"
+            second = Path(tmpdir) / "shard_1.xml"
+            first.write_text(_JUNIT_XML)
+            second.write_text(_JUNIT_XML)
+
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                "".join(
+                    [
+                        _bep_line(
+                            {
+                                "id": {"testResult": {"label": "//pkg/foo:foo_test", "configuration": {"id": "cfg1"}}},
+                                "testResult": {"testActionOutput": [{"name": "test.xml", "uri": first.as_uri()}]},
+                            }
+                        ),
+                        _bep_line(
+                            {
+                                "id": {"testResult": {"label": "//pkg/foo:foo_test", "configuration": {"id": "cfg1"}}},
+                                "testResult": {"testActionOutput": [{"name": "test.xml", "uri": second.as_uri()}]},
+                            }
+                        ),
+                    ]
+                )
+            )
+
+            xml_paths, _ = _parse_bep(bep_path)
+            self.assertEqual(sorted(xml_paths), sorted([first, second]))
+
+    def test_no_test_result_events_produces_nothing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(_bep_line({"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": "/exec/root"}}))
+            self.assertEqual(_parse_bep(bep_path), ([], {}))
 
 
 class TestBazelTestFuncsFromBep(unittest.TestCase):
