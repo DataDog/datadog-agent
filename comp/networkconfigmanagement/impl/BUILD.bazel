@@ -61,6 +61,7 @@ dd_agent_go_test(
         "//pkg/networkconfigmanagement/remote",
         "//pkg/networkconfigmanagement/report",
         "//pkg/networkconfigmanagement/store",
+        "//pkg/networkconfigmanagement/types",
         "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
         "//pkg/util/cache",

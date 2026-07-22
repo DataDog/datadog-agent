@@ -9,5 +9,6 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/networkconfigmanagement/config",
         "//pkg/networkconfigmanagement/remote",
+        "//pkg/networkconfigmanagement/types",
     ],
 )
