@@ -43,7 +43,7 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
         github_action_ref=args_per_repo[repo]["github_action_ref"],
         new_version=new_version,
     )
-    full_repo = f"DataDog/{repo}"
+    full_repo = f"ddoghq/{repo}"
     workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
 
     if workflow_conclusion != "success":
