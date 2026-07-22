@@ -3,6 +3,7 @@
 macro_rules! generate_ffi {
     ($check_function:ident, $version:ident) => {
         /// Entrypoint of the check
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
         #[unsafe(no_mangle)]
         pub extern "C" fn Run(
             check_id_cstr: *const std::ffi::c_char,
