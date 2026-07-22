@@ -165,6 +165,30 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 	return metricMap
 }
 
+func metricLabelStrings(m *dto.Metric) []string {
+	labels := make([]string, 0, len(m.GetLabel()))
+	for _, label := range m.GetLabel() {
+		labels = append(labels, label.GetName()+"="+label.GetValue())
+	}
+	return labels
+}
+
+func newLabelPair(name, value string) *dto.LabelPair {
+	return &dto.LabelPair{Name: &name, Value: &value}
+}
+
+func newCounterMetric(value float64, labels ...*dto.LabelPair) *dto.Metric {
+	return &dto.Metric{Label: labels, Counter: &dto.Counter{Value: &value}}
+}
+
+func newGaugeMetric(value float64, labels ...*dto.LabelPair) *dto.Metric {
+	return &dto.Metric{Label: labels, Gauge: &dto.Gauge{Value: &value}}
+}
+
+func newHistogramMetric(sampleCount uint64, labels ...*dto.LabelPair) *dto.Metric {
+	return &dto.Metric{Label: labels, Histogram: &dto.Histogram{SampleCount: &sampleCount}}
+}
+
 func makeTelMock(t *testing.T) telemetry.Component {
 	// Little hack. Telemetry component is not fully componentized, and relies on global registry so far
 	// so we need to reset it before running the test. This is not ideal and will be improved in the future.
@@ -705,8 +729,8 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Counter.GetValue())
 
-	// no tags
-	assert.Nil(t, m.GetLabel())
+	// Emitter is mandatory system metadata even when no tags are preserved.
+	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
 func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
@@ -744,8 +768,8 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Gauge.GetValue())
 
-	// no tags
-	assert.Nil(t, m.GetLabel())
+	// Emitter is mandatory system metadata even when preserve_tags is empty.
+	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
 func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
@@ -782,8 +806,8 @@ func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Gauge.GetValue())
 
-	// no tags
-	assert.Nil(t, m.GetLabel())
+	// Emitter is mandatory system metadata even when preserve_tags is omitted.
+	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
 func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
@@ -823,8 +847,8 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, uint64(3), m.Histogram.GetBucket()[3].GetCumulativeCount())
 
-	// no tags
-	assert.Nil(t, m.GetLabel())
+	// Emitter is mandatory system metadata even when no tags are preserved.
+	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
 // TestAggregateTagsAliasBackwardCompat verifies that the deprecated aggregate_tags YAML key
@@ -855,15 +879,15 @@ func TestAggregateTagsAliasBackwardCompat(t *testing.T) {
 	a.start()
 	r.(*runnerMock).run()
 
-	// aggregate_tags: [tag1] should aggregate by tag1, dropping tag2
+	// aggregate_tags: [tag1] should aggregate by emitter and tag1, dropping tag2.
 	require.Equal(t, 1, len(s.sentMetrics))
 	require.Equal(t, 2, len(s.sentMetrics[0].metrics))
 	metrics := makeStableMetricMap(s.sentMetrics[0].metrics)
 
-	require.Contains(t, metrics, "tag1:a1:")
-	assert.Equal(t, float64(30), metrics["tag1:a1:"].Counter.GetValue())
-	require.Contains(t, metrics, "tag1:a2:")
-	assert.Equal(t, float64(30), metrics["tag1:a2:"].Counter.GetValue())
+	require.Contains(t, metrics, "emitter:agent:tag1:a1:")
+	assert.Equal(t, float64(30), metrics["emitter:agent:tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metrics, "emitter:agent:tag1:a2:")
+	assert.Equal(t, float64(30), metrics["emitter:agent:tag1:a2:"].Counter.GetValue())
 }
 
 func TestTagSpecifiedAggregationCounter(t *testing.T) {
@@ -905,12 +929,12 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
 	metrics := makeStableMetricMap(s.sentMetrics[0].metrics)
 
 	// aggregated
-	require.Contains(t, metrics, "tag1:a1:")
-	m1 := metrics["tag1:a1:"]
+	require.Contains(t, metrics, "emitter:agent:tag1:a1:")
+	m1 := metrics["emitter:agent:tag1:a1:"]
 	assert.Equal(t, float64(30), m1.Counter.GetValue())
 
-	require.Contains(t, metrics, "tag1:a2:")
-	m2 := metrics["tag1:a2:"]
+	require.Contains(t, metrics, "emitter:agent:tag1:a2:")
+	m2 := metrics["emitter:agent:tag1:a2:"]
 	assert.Equal(t, float64(30), m2.Counter.GetValue())
 }
 
@@ -956,16 +980,16 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	metrics := makeStableMetricMap(s.sentMetrics[0].metrics)
 
 	// aggregated
-	require.Contains(t, metrics, "tag1:a1:")
-	m1 := metrics["tag1:a1:"]
+	require.Contains(t, metrics, "emitter:agent:tag1:a1:")
+	m1 := metrics["emitter:agent:tag1:a1:"]
 	assert.Equal(t, float64(30), m1.Counter.GetValue())
 
-	require.Contains(t, metrics, "tag1:a2:")
-	m2 := metrics["tag1:a2:"]
+	require.Contains(t, metrics, "emitter:agent:tag1:a2:")
+	m2 := metrics["emitter:agent:tag1:a2:"]
 	assert.Equal(t, float64(30), m2.Counter.GetValue())
 
-	require.Contains(t, metrics, "tag1:a3:")
-	m3 := metrics["tag1:a3:"]
+	require.Contains(t, metrics, "emitter:agent:tag1:a3:")
+	m3 := metrics["emitter:agent:tag1:a3:"]
 	assert.Equal(t, float64(150), m3.Counter.GetValue())
 
 	require.Contains(t, metrics, "total:6:")
@@ -1012,8 +1036,8 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	require.Equal(t, 2, len(s.sentMetrics[0].metrics)) // tag1:a1 + total
 
 	metrics1 := makeStableMetricMap(s.sentMetrics[0].metrics)
-	require.Contains(t, metrics1, "tag1:a1:")
-	assert.Equal(t, float64(100), metrics1["tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metrics1, "emitter:agent:tag1:a1:")
+	assert.Equal(t, float64(100), metrics1["emitter:agent:tag1:a1:"].Counter.GetValue())
 
 	// total should equal the partition sum (100)
 	// The total tag value will be "1" (1 timeseries after zero filtering)
@@ -1035,12 +1059,12 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	metrics2 := makeStableMetricMap(s.sentMetrics[0].metrics)
 
 	// tag1:a1 delta should be 50 (cumulative went from 100 to 150)
-	require.Contains(t, metrics2, "tag1:a1:")
-	assert.Equal(t, float64(50), metrics2["tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metrics2, "emitter:agent:tag1:a1:")
+	assert.Equal(t, float64(50), metrics2["emitter:agent:tag1:a1:"].Counter.GetValue())
 
 	// tag1:a2 delta should be 200 (new timeseries, no previous value)
-	require.Contains(t, metrics2, "tag1:a2:")
-	assert.Equal(t, float64(200), metrics2["tag1:a2:"].Counter.GetValue())
+	require.Contains(t, metrics2, "emitter:agent:tag1:a2:")
+	assert.Equal(t, float64(200), metrics2["emitter:agent:tag1:a2:"].Counter.GetValue())
 
 	// total tag value changed from "1" to "2" (timeseries count increased).
 	// The total delta MUST equal the sum of partition deltas: 50 + 200 = 250.
@@ -1048,7 +1072,7 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	// cache key miss when the total tag changed from total:"1" to total:"2".
 	require.Contains(t, metrics2, "total:2:")
 	totalValue := metrics2["total:2:"].Counter.GetValue()
-	partitionSum := metrics2["tag1:a1:"].Counter.GetValue() + metrics2["tag1:a2:"].Counter.GetValue()
+	partitionSum := metrics2["emitter:agent:tag1:a1:"].Counter.GetValue() + metrics2["emitter:agent:tag1:a2:"].Counter.GetValue()
 	assert.Equal(t, partitionSum, totalValue,
 		"total delta (%v) must equal sum of partition deltas (%v); mismatch indicates unstable cache key bug",
 		totalValue, partitionSum)
@@ -1561,10 +1585,10 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 
 	ms, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
-	m1, ok1 := getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	m1, ok1 := getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok1)
 	assert.Equal(t, m1.Value, 1.0)
-	m2, ok2 := getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	m2, ok2 := getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok2)
 	assert.Equal(t, m2.Value, 2.0)
 
@@ -1573,10 +1597,10 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	counter.AddWithTags(20, map[string]string{"tag": "val2"})
 	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
-	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok1)
 	assert.Equal(t, m1.Value, 10.0)
-	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok2)
 	assert.Equal(t, m2.Value, 20.0)
 
@@ -1585,20 +1609,20 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	counter.AddWithTags(200, map[string]string{"tag": "val2"})
 	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
-	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok1)
 	assert.Equal(t, m1.Value, 100.0)
-	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok2)
 	assert.Equal(t, m2.Value, 200.0)
 
 	// No addition (expected values should be zero)
 	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
-	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
+	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok1)
 	assert.Equal(t, m1.Value, 0.0)
-	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val2"})
+	m2, ok2 = getPayloadMetricByTagValues(ms, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok2)
 	assert.Equal(t, m2.Value, 0.0)
 }
@@ -2055,12 +2079,12 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 		"100":  {6, 12},
 		"+Inf": {2, 4},
 	}
-	metrics11, ok := getPayloadMetricByTagValues(metrics1, map[string]interface{}{"tag": "val1"})
+	metrics11, ok := getPayloadMetricByTagValues(metrics1, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok)
 	for k, b := range metrics11.Buckets {
 		assert.Equal(t, expecVals1[k].n1, b)
 	}
-	metrics12, ok := getPayloadMetricByTagValues(metrics1, map[string]interface{}{"tag": "val2"})
+	metrics12, ok := getPayloadMetricByTagValues(metrics1, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok)
 	for k, b := range metrics12.Buckets {
 		assert.Equal(t, expecVals1[k].n2, b)
@@ -2082,12 +2106,12 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 		"100":  {0, 0},
 		"+Inf": {0, 0},
 	}
-	metrics21, ok := getPayloadMetricByTagValues(metrics2, map[string]interface{}{"tag": "val1"})
+	metrics21, ok := getPayloadMetricByTagValues(metrics2, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok)
 	for k, b := range metrics21.Buckets {
 		assert.Equal(t, expecVals2[k].n1, b)
 	}
-	metrics22, ok := getPayloadMetricByTagValues(metrics2, map[string]interface{}{"tag": "val2"})
+	metrics22, ok := getPayloadMetricByTagValues(metrics2, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok)
 	for k, b := range metrics22.Buckets {
 		assert.Equal(t, expecVals2[k].n2, b)
@@ -2176,12 +2200,12 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 		"100":  {6, 12},
 		"+Inf": {2, 4},
 	}
-	metrics31, ok := getPayloadMetricByTagValues(metrics3, map[string]interface{}{"tag": "val1"})
+	metrics31, ok := getPayloadMetricByTagValues(metrics3, map[string]interface{}{"emitter": "agent", "tag": "val1"})
 	require.True(t, ok)
 	for k, b := range metrics31.Buckets {
 		assert.Equal(t, expecVals3[k].n1, b)
 	}
-	metrics32, ok := getPayloadMetricByTagValues(metrics3, map[string]interface{}{"tag": "val2"})
+	metrics32, ok := getPayloadMetricByTagValues(metrics3, map[string]interface{}{"emitter": "agent", "tag": "val2"})
 	require.True(t, ok)
 	for k, b := range metrics32.Buckets {
 		assert.Equal(t, expecVals3[k].n2, b)
@@ -2367,12 +2391,16 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
 	require.True(t, ok)
 	require.Len(t, metrics, 2)
 
-	coreMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{"domain": "https://api.datadoghq.com"})
+	coreMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
+		"domain":  "https://api.datadoghq.com",
+		"emitter": "agent",
+	})
 	require.True(t, ok)
 	assert.Equal(t, 5.0, coreMetric.Value)
 
 	adpMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
 		"domain":       "https://api.datadoghq.com",
+		"emitter":      "agent",
 		"remote_agent": "agent-data-plane",
 	})
 	require.True(t, ok)
@@ -2484,6 +2512,213 @@ func TestAgentTelemetryEventConfiguration(t *testing.T) {
 	assert.Len(t, atCfg.events, 3)
 	assert.Len(t, atCfg.schedule, 2)
 	assert.Len(t, atCfg.Profiles, 4)
+}
+
+func TestMandatoryEmitterWithOmittedAndEmptyPreserveTags(t *testing.T) {
+	for _, preserveTags := range []struct {
+		name string
+		yaml string
+	}{
+		{name: "omitted"},
+		{name: "empty", yaml: "            preserve_tags: []\n"},
+	} {
+		for _, metricType := range []struct {
+			name   string
+			typeID dto.MetricType
+			metric *dto.Metric
+		}{
+			{name: "counter", typeID: dto.MetricType_COUNTER, metric: newCounterMetric(2)},
+			{name: "gauge", typeID: dto.MetricType_GAUGE, metric: newGaugeMetric(3)},
+			{name: "histogram", typeID: dto.MetricType_HISTOGRAM, metric: newHistogramMetric(4)},
+		} {
+			t.Run(preserveTags.name+"/"+metricType.name, func(t *testing.T) {
+				cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+%s`, preserveTags.yaml))
+				atelCfg, err := parseConfig(cfg)
+				require.NoError(t, err)
+				mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
+
+				results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, metricType.typeID, []*dto.Metric{metricType.metric})
+
+				require.Len(t, results, 1)
+				require.Equal(t, []string{"emitter=agent"}, metricLabelStrings(results[0]))
+				switch metricType.typeID {
+				case dto.MetricType_COUNTER:
+					require.Equal(t, 2.0, results[0].Counter.GetValue())
+				case dto.MetricType_GAUGE:
+					require.Equal(t, 3.0, results[0].Gauge.GetValue())
+				case dto.MetricType_HISTOGRAM:
+					require.Equal(t, uint64(4), results[0].Histogram.GetSampleCount())
+				}
+			})
+		}
+	}
+}
+
+func TestNoPreserveTagsAggregateSeparatelyByEmitter(t *testing.T) {
+	metrics := []*dto.Metric{
+		newGaugeMetric(10, newLabelPair("unlisted", "local-one")),
+		newGaugeMetric(15, newLabelPair("emitter", ""), newLabelPair("unlisted", "local-two")),
+		newGaugeMetric(20, newLabelPair("emitter", "agent-data-plane"), newLabelPair("unlisted", "remote-one")),
+		newGaugeMetric(25, newLabelPair("emitter", "agent-data-plane"), newLabelPair("unlisted", "remote-two")),
+		newGaugeMetric(30, newLabelPair("emitter", "system-probe"), newLabelPair("unlisted", "probe")),
+	}
+
+	results := (&atel{localEmitter: "agent"}).aggregateMetricTags(&MetricConfig{}, dto.MetricType_GAUGE, metrics)
+
+	require.Len(t, results, 3)
+	metricsByTag := makeStableMetricMap(results)
+	require.Contains(t, metricsByTag, "emitter:agent:")
+	require.Equal(t, 25.0, metricsByTag["emitter:agent:"].Gauge.GetValue())
+	require.Contains(t, metricsByTag, "emitter:agent-data-plane:")
+	require.Equal(t, 45.0, metricsByTag["emitter:agent-data-plane:"].Gauge.GetValue())
+	require.Contains(t, metricsByTag, "emitter:system-probe:")
+	require.Equal(t, 30.0, metricsByTag["emitter:system-probe:"].Gauge.GetValue())
+}
+
+func TestNonEmitterPreserveTagFiltersAndDropsUnlistedLabels(t *testing.T) {
+	mCfg := &MetricConfig{
+		Name:               "bar.zoo",
+		PreserveTags:       []string{"compression_kind"},
+		preserveTagsExists: true,
+		preserveTagsMap:    map[string]any{"compression_kind": struct{}{}},
+	}
+	profile := &Profile{metricsMap: map[string]*MetricConfig{"bar_zoo": mCfg}}
+	metricType := dto.MetricType_GAUGE
+	metricName := "bar__zoo"
+	family := &dto.MetricFamily{
+		Name: &metricName,
+		Type: &metricType,
+		Metric: []*dto.Metric{
+			newGaugeMetric(10, newLabelPair("compression_kind", "zstd"), newLabelPair("unlisted", "one")),
+			newGaugeMetric(20, newLabelPair("compression_kind", "zstd"), newLabelPair("unlisted", "two")),
+			newGaugeMetric(100),
+		},
+	}
+
+	result := (&atel{localEmitter: "agent"}).transformMetricFamily(profile, family)
+
+	require.NotNil(t, result)
+	require.Len(t, result.metrics, 1)
+	require.Equal(t, []string{"compression_kind=zstd", "emitter=agent"}, metricLabelStrings(result.metrics[0]))
+	require.Equal(t, 30.0, result.metrics[0].Gauge.GetValue())
+}
+
+func TestEmitterPreserveTagIsCompatibilityNoOp(t *testing.T) {
+	mCfg := &MetricConfig{
+		Name:               "bar.zoo",
+		PreserveTags:       []string{"emitter"},
+		preserveTagsExists: true,
+		preserveTagsMap:    map[string]any{"emitter": struct{}{}},
+	}
+	profile := &Profile{metricsMap: map[string]*MetricConfig{"bar_zoo": mCfg}}
+	metricType := dto.MetricType_GAUGE
+	metricName := "bar__zoo"
+	family := &dto.MetricFamily{
+		Name: &metricName,
+		Type: &metricType,
+		Metric: []*dto.Metric{
+			newGaugeMetric(10),
+			newGaugeMetric(20, newLabelPair("emitter", "system-probe")),
+		},
+	}
+
+	result := (&atel{localEmitter: "trace-agent"}).transformMetricFamily(profile, family)
+
+	require.NotNil(t, result)
+	require.Len(t, result.metrics, 2)
+	metricsByTag := makeStableMetricMap(result.metrics)
+	require.Contains(t, metricsByTag, "emitter:trace-agent:")
+	require.Equal(t, 10.0, metricsByTag["emitter:trace-agent:"].Gauge.GetValue())
+	require.Contains(t, metricsByTag, "emitter:system-probe:")
+	require.Equal(t, 20.0, metricsByTag["emitter:system-probe:"].Gauge.GetValue())
+}
+
+func TestEmitterAndNonEmitterPreserveTagsUseOnlyNonEmitterForFiltering(t *testing.T) {
+	mCfg := &MetricConfig{
+		Name:               "bar.zoo",
+		PreserveTags:       []string{"emitter", "compression_kind"},
+		preserveTagsExists: true,
+		preserveTagsMap: map[string]any{
+			"emitter":          struct{}{},
+			"compression_kind": struct{}{},
+		},
+	}
+	profile := &Profile{metricsMap: map[string]*MetricConfig{"bar_zoo": mCfg}}
+	metricType := dto.MetricType_GAUGE
+	metricName := "bar__zoo"
+	family := &dto.MetricFamily{
+		Name: &metricName,
+		Type: &metricType,
+		Metric: []*dto.Metric{
+			newGaugeMetric(10, newLabelPair("compression_kind", "zstd")),
+			newGaugeMetric(20, newLabelPair("emitter", "agent-data-plane"), newLabelPair("compression_kind", "gzip")),
+			newGaugeMetric(100),
+			newGaugeMetric(200, newLabelPair("emitter", "system-probe")),
+		},
+	}
+
+	result := (&atel{localEmitter: "agent"}).transformMetricFamily(profile, family)
+
+	require.NotNil(t, result)
+	require.Len(t, result.metrics, 2)
+	metricsByTag := makeStableMetricMap(result.metrics)
+	localKey := "compression_kind:zstd:emitter:agent:"
+	remoteKey := "compression_kind:gzip:emitter:agent-data-plane:"
+	require.Contains(t, metricsByTag, localKey)
+	require.Equal(t, 10.0, metricsByTag[localKey].Gauge.GetValue())
+	require.Contains(t, metricsByTag, remoteKey)
+	require.Equal(t, 20.0, metricsByTag[remoteKey].Gauge.GetValue())
+}
+
+func TestEmitterCanonicalization(t *testing.T) {
+	tests := []struct {
+		name         string
+		localEmitter string
+		labels       []*dto.LabelPair
+		wantEmitter  string
+	}{
+		{name: "missing falls back to agent in legacy construction", wantEmitter: "agent"},
+		{name: "empty uses configured local emitter", localEmitter: "trace-agent", labels: []*dto.LabelPair{newLabelPair("emitter", "")}, wantEmitter: "trace-agent"},
+		{
+			name:         "first non-empty duplicate wins",
+			localEmitter: "agent",
+			labels: []*dto.LabelPair{
+				newLabelPair("emitter", ""),
+				newLabelPair("emitter", "agent-data-plane"),
+				newLabelPair("emitter", "system-probe"),
+				newLabelPair("allowed", "value"),
+			},
+			wantEmitter: "agent-data-plane",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mCfg := &MetricConfig{
+				preserveTagsExists: true,
+				preserveTagsMap: map[string]any{
+					"emitter": struct{}{},
+					"allowed": struct{}{},
+				},
+			}
+			results := (&atel{localEmitter: tt.localEmitter}).aggregateMetricTags(mCfg, dto.MetricType_GAUGE, []*dto.Metric{newGaugeMetric(1, tt.labels...)})
+
+			require.Len(t, results, 1)
+			wantLabels := []string{"emitter=" + tt.wantEmitter}
+			if tt.name == "first non-empty duplicate wins" {
+				wantLabels = []string{"allowed=value", "emitter=" + tt.wantEmitter}
+			}
+			require.Equal(t, wantLabels, metricLabelStrings(results[0]))
+		})
+	}
 }
 
 func TestEmitterTagDefaultsToAgent(t *testing.T) {

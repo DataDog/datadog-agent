@@ -116,11 +116,12 @@ type Event struct {
 //
 // profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
-// metric will be aggregated without any tags. If specified, only these tags are kept; all
-// others are dropped and their timeseries values are summed. A missing or empty emitter tag
-// defaults to "agent" when emitter is preserved. A timeseries with none of the configured tags
-// is removed unless emitter is the only preserved tag.
+// List of non-emitter tags to preserve when aggregating the metric. Emitter is mandatory
+// system metadata and is always retained, so including it in this list is a compatibility no-op.
+// If no non-emitter tags are configured, metrics are aggregated by emitter and all other tags are
+// dropped. Otherwise, only metrics containing at least one configured non-emitter tag are retained,
+// and only configured tags plus emitter are emitted. Missing or empty emitter values use the local
+// component identity.
 // The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
 //
 // profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
@@ -184,7 +185,7 @@ type Event struct {
 // The value is required and used in the corresponding payload
 
 // Default agent telemetry profiles config if not specified in the agent config file.
-// Note: If "preserve_tags" are not specified, metric will be aggregated without any tags.
+// If preserve_tags is not specified, metrics are aggregated by emitter and all other tags are dropped.
 //
 //go:embed defaultProfiles.yaml
 var defaultProfiles string

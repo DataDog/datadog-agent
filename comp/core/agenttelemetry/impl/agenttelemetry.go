@@ -301,104 +301,83 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
+type metricAggregationKey struct {
+	emitter       string
+	preservedTags string
+}
+
+func effectiveEmitter(labels []*dto.LabelPair, localEmitter string) string {
+	for _, label := range labels {
+		if label.GetName() == "emitter" && label.GetValue() != "" {
+			return label.GetValue()
+		}
+	}
+
+	if localEmitter != "" {
+		return localEmitter
+	}
+	return "agent"
+}
+
 func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
-	// Nothing to aggregate?
 	if len(ms) == 0 {
 		return nil
 	}
 
-	// Special case when no preserve tags are defined - aggregate all metrics
-	// aggregateMetric will sum all metrics into a single one without copying tags
-	if !mCfg.preserveTagsExists {
-		ma := &dto.Metric{}
-		for _, m := range ms {
-			aggregateMetric(mt, ma, m)
+	aggregates := make(map[metricAggregationKey]*dto.Metric)
+
+	// An empty preserve tag configuration does not enable aggregate_total.
+	aggregateTotal := mCfg.AggregateTotal && mCfg.preserveTagsExists
+	var totalMetric *dto.Metric
+	if aggregateTotal {
+		totalMetric = &dto.Metric{}
+	}
+
+	for _, metric := range ms {
+		origLabels := metric.GetLabel()
+		emitter := effectiveEmitter(origLabels, a.localEmitter)
+		preservedLabels := make([]*dto.LabelPair, 0, len(origLabels))
+		for _, label := range origLabels {
+			if label.GetName() == "emitter" {
+				continue
+			}
+			if _, ok := mCfg.preserveTagsMap[label.GetName()]; ok {
+				preservedLabels = append(preservedLabels, label)
+			}
 		}
+		preservedLabels = cloneLabelsSorted(preservedLabels)
 
-		return []*dto.Metric{ma}
-	}
-
-	amMap := make(map[string]*dto.Metric)
-
-	// Initialize total metric
-	var totalm *dto.Metric
-	if mCfg.AggregateTotal {
-		totalm = &dto.Metric{}
-	}
-
-	// Enumerate the metric's timeseries and aggregate them
-	_, preserveEmitter := mCfg.preserveTagsMap["emitter"]
-	for _, m := range ms {
-		tagsKey := ""
-
-		// if tags are defined, we need to create a key from them by dropping not specified
-		// in configuration tags. The key is constructed by concatenating specified tag names
-		// and values if a timeseries has tags is not specified
-		origTags := m.GetLabel()
-		if len(origTags) > 0 || preserveEmitter {
-			// create a key from the tags (and drop not specified in the configuration tags)
-			var specTags = make([]*dto.LabelPair, 0, len(origTags)+1)
-			hasEmitter := false
-			for _, t := range origTags {
-				if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
-					if t.GetName() == "emitter" && t.GetValue() == "" {
-						continue
-					}
-					specTags = append(specTags, t)
-					hasEmitter = hasEmitter || t.GetName() == "emitter"
-				}
-			}
-			if preserveEmitter && !hasEmitter {
-				name, value := "emitter", "agent"
-				specTags = append(specTags, &dto.LabelPair{Name: &name, Value: &value})
-			}
-			specTags = cloneLabelsSorted(specTags)
-
-			var sb strings.Builder
-			for _, t := range specTags {
-				sb.WriteString(makeLabelPairKey(t))
-			}
-			tagsKey = sb.String()
-
-			if mCfg.AggregateTotal {
-				aggregateMetric(mt, totalm, m)
-			}
-
-			// finally aggregate the metric on the created key
-			if aggm, ok := amMap[tagsKey]; ok {
-				aggregateMetric(mt, aggm, m)
-			} else {
-				// ... or create a new one with specifi value and specified tags
-				aggm := &dto.Metric{}
-				aggregateMetric(mt, aggm, m)
-				aggm.Label = specTags
-				amMap[tagsKey] = aggm
-			}
+		key := metricAggregationKey{
+			emitter:       emitter,
+			preservedTags: convertLabelsToKey(preservedLabels),
+		}
+		if aggregate, ok := aggregates[key]; ok {
+			aggregateMetric(mt, aggregate, metric)
 		} else {
-			// if no tags are specified, we aggregate all metrics into a single one
-			if mCfg.AggregateTotal {
-				aggregateMetric(mt, totalm, m)
-			}
+			aggregate := &dto.Metric{}
+			aggregateMetric(mt, aggregate, metric)
+			emitterName := "emitter"
+			aggregate.Label = append(preservedLabels, &dto.LabelPair{Name: &emitterName, Value: &emitter})
+			aggregate.Label = cloneLabelsSorted(aggregate.Label)
+			aggregates[key] = aggregate
+		}
+
+		if aggregateTotal {
+			aggregateMetric(mt, totalMetric, metric)
 		}
 	}
 
-	// Add total metric if needed
-	if mCfg.AggregateTotal {
+	results := slices.Collect(maps.Values(aggregates))
+	if aggregateTotal {
 		totalName := "total"
 		totalValue := strconv.Itoa(len(ms))
-		totalm.Label = []*dto.LabelPair{
+		totalMetric.Label = []*dto.LabelPair{
 			{Name: &totalName, Value: &totalValue},
 		}
-		amMap[totalName] = totalm
+		results = append(results, totalMetric)
 	}
 
-	// Anything to report?
-	if len(amMap) == 0 {
-		return nil
-	}
-
-	// Convert the map to a slice
-	return slices.Collect(maps.Values(amMap))
+	return results
 }
 
 // Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
@@ -516,16 +495,28 @@ func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.
 		return false
 	}
 
-	// filter out if tag does not contain in existing preserveTags. The emitter tag
-	// defaults to the core agent identity when it is the only preserved tag.
-	if mCfg.preserveTagsExists && !areTagsMatching(m.GetLabel(), mCfg.preserveTagsMap) {
-		_, preserveEmitter := mCfg.preserveTagsMap["emitter"]
-		if !preserveEmitter || len(mCfg.preserveTagsMap) != 1 {
-			return false
-		}
+	if !mCfg.preserveTagsExists {
+		return true
 	}
 
-	return true
+	hasNonEmitterPreserveTag := false
+	for tagName := range mCfg.preserveTagsMap {
+		if tagName != "emitter" {
+			hasNonEmitterPreserveTag = true
+			break
+		}
+	}
+	if !hasNonEmitterPreserveTag {
+		return true
+	}
+
+	labels := m.GetLabel()
+	for i, label := range labels {
+		if label.GetName() != "emitter" && areTagsMatching(labels[i:i+1], mCfg.preserveTagsMap) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentmetric {
