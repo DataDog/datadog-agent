@@ -104,8 +104,30 @@ bazel:test:windows-amd64:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
 
+# Coverage variant of .bazel:test:flavor. Runs `bazel coverage` with the
+# go_cover report generator (--config=coverage:go) and publishes the merged
+# legacy-format coverprofile as an artifact. Kept separate so only the jobs we
+# want to compare against the legacy base-flavor coverage opt in. The combined
+# report lands under `bazel info output_path`/_coverage/_coverage_report.dat;
+# the after_script lifts it to a stable, artifact-able path.
+.bazel:test:flavor:coverage:
+  extends: .bazel:test:flavor
+  script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || echo 'Failed to fetch an API key, no metrics will be emitted'; export DD_API_KEY
+    - !reference [.bazel:test:reporting:ci_links]
+    - bazel coverage --keep_going --remote_download_outputs=toplevel --test_arg=-test.v --build_event_json_file=$BEP_FILE --build_tests_only --combined_report=lcov --config=$FLAVOR --config=coverage:go //pkg/... //comp/... //cmd/...
+    - dda inv -- -e bazel.ensure-test-parity --bep $BEP_FILE --flavor-name $FLAVOR --emit-metrics
+  after_script:
+    - !reference [.bazel:test:reporting, after_script]
+    - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out" || true
+  artifacts:
+    paths:
+      - junit-*.tgz
+      - bazel-bep-*.json
+      - coverage-bazel-*.out
+
 bazel:test:linux-amd64:base:
-  extends: [ .bazel:runner:linux-amd64, .bazel:test:flavor ]
+  extends: [ .bazel:runner:linux-amd64, .bazel:test:flavor:coverage ]
   variables:
     FLAVOR: base
 
@@ -125,7 +147,7 @@ bazel:test:linux-amd64:iot:
     FLAVOR: iot
 
 bazel:test:linux-arm64:base:
-  extends: [ .bazel:runner:linux-arm64, .bazel:test:flavor ]
+  extends: [ .bazel:runner:linux-arm64, .bazel:test:flavor:coverage ]
   variables:
     FLAVOR: base
 
