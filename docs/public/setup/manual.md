@@ -54,7 +54,7 @@ Due to the [way some virtual environments handle executable paths](https://bugs.
     ```
     virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv
     ```
-- [Activate the virtualenv](https://virtualenv.pypa.io/en/latest/user_guide.html#activators) (OS-dependent). This must be done for every new terminal before you start.
+- [Activate the virtualenv](https://virtualenv.pypa.io/en/20.26.4/user_guide.html#activators) (OS-dependent). This must be done for every new terminal before you start.
 
 If using virtual environments when running the built Agent, you may need to override the built Agent's search path for Python check packages using the `PYTHONPATH` variable (your target path must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/) though).
 

@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
@@ -165,6 +167,30 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for runner loop to stop")
+	}
+}
+
+func TestWorkflowRunner_StartHeartbeat_StopsOnJobNotFound(t *testing.T) {
+	runner := &WorkflowRunner{
+		config: &config.Config{HeartbeatInterval: 10 * time.Millisecond},
+		opmsClient: &testopms.FakeOpmsClient{
+			HeartbeatFn: func(_ context.Context, _ actionsclientpb.Client, _, _, _ string) error {
+				return opms.ErrJobNotFound
+			},
+		},
+	}
+	task := newWorkflowTask("task-id", "com.datadoghq.test", "action", "job-id")
+
+	done := make(chan struct{})
+	go func() {
+		runner.startHeartbeat(context.Background(), task, log.FromContext(context.Background()))
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("heartbeat did not stop after job not found")
 	}
 }
 

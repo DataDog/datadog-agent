@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -294,7 +295,7 @@ func TestProviderEmptyTestsFailsClosed(t *testing.T) {
 	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
 }
 
-func TestProviderRejectsDynamicType(t *testing.T) {
+func TestProviderIgnoresDynamicType(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
 	assert.Empty(t, <-changesCh)
@@ -304,10 +305,33 @@ func TestProviderRejectsDynamicType(t *testing.T) {
 		"path/a": {Config: []byte(rawDynamicConfigString("test-config-a"))},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
-	assert.Contains(t, statuses.values["path/a"].Error, `unsupported Network Path config type "dynamic"`)
-	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
+	assert.NotContains(t, statuses.values, "path/a")
+	assert.NotContains(t, provider.GetConfigErrors(), "path/a")
 	assertNoChanges(t, changesCh)
+}
+
+func TestProviderDynamicTypeDefensivelyClearsScheduledStateAtSamePath(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(rawDynamicConfigString("dynamic-sentinel"))},
+	}, statuses.callback)
+
+	assert.NotContains(t, statuses.values, "path/a")
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	assert.Empty(t, second.Schedule)
+	assert.NotContains(t, provider.activeByPath, "path/a")
+	assert.NotContains(t, provider.GetConfigErrors(), "path/a")
 }
 
 func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
@@ -326,14 +350,14 @@ func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
 		"path/dynamic": {Config: []byte(rawDynamicConfigString("dynamic-sentinel"))},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateError, statuses.values["path/dynamic"].State)
+	assert.NotContains(t, statuses.values, "path/dynamic")
 	second := <-changesCh
 	require.Len(t, second.Unschedule, 1)
 	assert.Empty(t, second.Schedule)
 	instance := unmarshalInstance(t, second.Unschedule[0].Instances[0])
 	assert.Equal(t, "test-config-a", instance["test_config_id"])
 	assert.Equal(t, "api.example.com", instance["hostname"])
-	assert.NotEmpty(t, provider.GetConfigErrors()["path/dynamic"])
+	assert.NotContains(t, provider.GetConfigErrors(), "path/dynamic")
 }
 
 func TestProviderRejectsUnsupportedType(t *testing.T) {
@@ -378,6 +402,32 @@ func TestParseConfigValidBoundariesAndNormalization(t *testing.T) {
 
 	third := unmarshalInstance(t, configs[2].Instances[0])
 	assert.Equal(t, "ICMP", third["protocol"])
+}
+
+func TestParseConfigOutputIsAcceptedByNetworkPathCheck(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig(
+		"test-config-a",
+		`{"hostname":"api.example.com","port":443,"protocol":"tcp","max_ttl":30,"timeout_ms":1000,"interval_sec":60,"source_service":"frontend","destination_service":"api","tcp_method":"syn","traceroute_queries":3,"e2e_queries":50,"tags":["env:prod"]}`,
+	))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].Instances, 1)
+
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
+	require.NoError(t, err)
+	assert.Equal(t, "test-config-a", checkConfig.TestConfigID)
+	assert.Equal(t, "api.example.com", checkConfig.DestHostname)
+	assert.Equal(t, uint16(443), checkConfig.DestPort)
+	assert.Equal(t, payload.ProtocolTCP, checkConfig.Protocol)
+	assert.Equal(t, uint8(30), checkConfig.MaxTTL)
+	assert.Equal(t, time.Second, checkConfig.Timeout)
+	assert.Equal(t, time.Minute, checkConfig.MinCollectionInterval)
+	assert.Equal(t, "frontend", checkConfig.SourceService)
+	assert.Equal(t, "api", checkConfig.DestinationService)
+	assert.Equal(t, payload.TCPConfigSYN, checkConfig.TCPMethod)
+	assert.Equal(t, 3, checkConfig.TracerouteQueries)
+	assert.Equal(t, 50, checkConfig.E2eQueries)
+	assert.Equal(t, []string{"env:prod"}, checkConfig.Tags)
 }
 
 func TestParseConfigValidation(t *testing.T) {

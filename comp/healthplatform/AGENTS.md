@@ -38,7 +38,7 @@ Sub-package roles:
 | `forwarder/` | Stateless HTTP client; POSTs a `HealthReport` to the Datadog intake |
 
 > **`HealthCheckFunc` returns `IssueReport`, not `*Issue`.** The function signature is `func() ([]IssueReport, error)` — a check cannot return a fully-formed proto issue. If you need full control over all proto fields, use Path B and call `store.ReportIssue` directly.
-> `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly.
+> `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly. When a template *is* registered but `BuildIssue` errors, the minimal proto still gets `IssueType` from `Template.IssueType()` — only the fully-unregistered case ships an empty `IssueType`.
 
 ### Consuming healthplatform components from other code
 
@@ -102,11 +102,11 @@ The package is **not** blank-imported in `bundle.go` (no `init()` to trigger). E
 
 ## Naming conventions
 
-Each issue module exposes three identity fields. Get them wrong and either the registry panics at startup or the UI groups issues incorrectly.
+Each issue module exposes four identity fields. Get them wrong and either the registry panics at startup or the UI groups issues incorrectly.
 
 ### `IssueID` — kebab-case base, entity-specific suffix
 
-- **Base constant** (the exported `IssueID` or `AnnotationIssueID` / `TemplateIssueID` etc.): lowercase letters, digits, and hyphens only — e.g. `"check-execution-failure"`, `"ad-annotation"`.
+- **Base constant** (the exported `IssueID` or `AnnotationIssueID` / `TemplateIssueID` etc.): lowercase letters, digits, and hyphens only — e.g. `"rofs-permissions"`, `"ad-annotation"`.
 - **Full instance ID** (base + colon-separated suffix): the suffix is appended by the caller and may contain entity-specific characters such as `/`, `://`, spaces, or parentheses that naturally appear in Kubernetes entity names, container IDs, or UUIDs — e.g. `"ad-annotation:kube_service://default/my-svc"`, `"ad-template:nginx:containerd://abc123:deadbeef"`. Do not sanitize these away; the full ID is only used as a store map key, not displayed directly.
 - Scope: unique per issue *instance* — used as the store's map key
 - Export the base as a `const` in the issue file (or `module.go` when a module exists)
@@ -120,6 +120,15 @@ Each issue module exposes three identity fields. Get them wrong and either the r
 - Export as `const IssueName` in the issue file (or `module.go` when a module exists) and alias it as a package-private `const issueName = IssueName` in the `BuildIssue` file
 
 **Shared `IssueName` for external reporters:** when an external component (outside `issues/`) needs to reference `IssueName` to file reports, define the constant in the issue package itself (e.g. `admisconfig.AnnotationIssueName`) — the external reporter already imports that package to call `BuildIssue`. There is no need to mirror the constant in `store/def`.
+
+### `IssueType` — snake_case, stable per type, caller-set
+
+- Format: `IssueName` lowercased with spaces replaced by underscores (hyphens are preserved) — e.g. `"Check Execution Failure"` → `"check_execution_failure"`, `"Read-Only Filesystem Error"` → `"read-only_filesystem_error"`
+- Scope: same scope as `IssueName` — unique per issue *type*
+- **The agent never derives this value at runtime.** Each module defines its own `const IssueType` next to `IssueName` (following the same format rule above) and sets it explicitly in `BuildIssue`, exactly like `IssueName`. `store.ReportIssue` passes it through unmodified — it is not validated, backfilled, or overwritten. Any default derivation from `IssueName` for issues that omit it is the backend's responsibility, not the agent's — do not add that logic here to avoid duplicating it.
+- Export as `const IssueType` in the issue file (or `module.go` when a module exists) and alias it as a package-private `const issueType = IssueType` in the `BuildIssue` file
+- Path A modules also implement `Template.IssueType() string` (mirroring `IssueName() string`) returning the same const — the runner's minimal-fallback proto uses it when `BuildIssue` errors
+- Preserved across the full lifecycle: `store.ReportIssue`, `ResolveIssue`, `ResolveAllIssues`, and `loadFromDisk`'s resolved-tombstone reconstruction all carry it through unchanged, same as `IssueName`
 
 ### `Title` — human sentence, instance-specific
 
@@ -151,6 +160,7 @@ Declare every context key your module reads as a package-private `const` at the 
 | Field | Rule |
 |---|---|
 | `IssueName` | Must equal the `IssueName` const — never vary |
+| `IssueType` | Must equal the `IssueType` const — never vary. Must be `IssueName` lowercased with spaces replaced by underscores |
 | `Title` | Embed the most actionable instance-specific value; avoid static titles |
 | `Description` | One-sentence diagnosis; include the raw error message |
 | `Category` | Subsystem slug. Controls UI tab routing: `"configuration"` → Configuration tab; `"integration"` or `"check"` → Integrations tab; other values → default tab. Examples from existing modules: `"check-execution"`, `"autodiscovery"`, `"filesystem"`. New values can be created. |
@@ -185,7 +195,7 @@ Declare every context key your module reads as a package-private `const` at the 
 
 ### No built-in check (externally reported)
 
-Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `checkfailure`.
+Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `admissionprobe`.
 
 For the simplest externally-reported case where no runner template is needed at all, skip the module entirely and use Path B layout — see `ad-misconfiguration` for an example.
 
@@ -257,6 +267,7 @@ Every `BuildIssue` implementation must have a table-driven test. Mandatory asser
 ```go
 assert.Empty(t, issue.Id)                          // Id is set by the caller, never the template
 assert.Equal(t, IssueName, issue.IssueName)        // IssueName is stable
+assert.Equal(t, IssueType, issue.IssueType)        // IssueType is stable
 assert.Equal(t, expectedTitle, issue.Title)
 assert.Contains(t, issue.Description, expectedSub)
 assert.Equal(t, expectedStepCount, len(issue.Remediation.Steps))
@@ -329,7 +340,7 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 ### `IssueID` checks
 
-- [ ] The base `IssueID` constant is kebab-case: `[a-z0-9-]+` (e.g. `"ad-annotation"`, `"check-execution-failure"`)
+- [ ] The base `IssueID` constant is kebab-case: `[a-z0-9-]+` (e.g. `"ad-annotation"`, `"rofs-permissions"`)
 - [ ] The full instance ID (base + colon-separated suffix) is unique per issue instance and used consistently between the report and resolve call sites
 - [ ] No spaces or uppercase letters in the base constant
 - [ ] For Path B reporters: `issue.Id` is set to the full instance ID before calling `store.ReportIssue`
@@ -340,6 +351,13 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 - [ ] `IssueName` is a `const`, not a string literal — identical at every report site for the same issue type
 - [ ] `IssueName` in the filed issue matches the one registered by the module (Path A) or the exported constant (Path B)
 - [ ] `issue.IssueName` is **not** set inside `BuildIssue` to a value derived from the context (it must be the fixed `issueName` const)
+
+### `IssueType` checks
+
+- [ ] `IssueType` is a `const`, exported next to `IssueName`, and equals `IssueName` lowercased with spaces replaced by underscores (hyphens preserved)
+- [ ] `issue.IssueType` is set inside `BuildIssue` to the fixed `issueType` const — it is not computed at runtime and not left empty
+- [ ] Minimal fallback issues built at call sites (when `BuildIssue` errors) also set `IssueType` from the same package constant
+- [ ] For Path A modules: the `Module` struct implements `IssueType() string` returning the same const (mirrors `IssueName()`)
 
 ### `Title` checks
 
@@ -372,8 +390,10 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 | Gating `RegisterModuleFactory` on a config value in `init()` | Config is not available at init time |
 | Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
 | Setting `IssueNames` on `BuiltInHealthCheck` | Overwritten by `RegisterModule`; no effect but signals misunderstanding |
+| Leaving `issue.IssueType` unset in `BuildIssue` | The agent does not backfill it from `IssueName`; the field ships empty |
+| Computing `IssueType` at runtime instead of a fixed const | Duplicates logic that belongs to the backend; drifts silently if the naming rule ever changes |
 | Indexing `context` without a default | Silently embeds empty strings in titles/descriptions |
-| Defining `issueName` as a string literal instead of aliasing the exported const | The two diverge silently; use `const issueName = IssueName` |
+| Defining `issueName` or `issueType` as a string literal instead of aliasing the exported const | The two diverge silently; use `const issueName = IssueName` / `const issueType = IssueType` |
 | Adding a module (`init()` + `bundle.go` blank import) for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
 | Mirroring `IssueName` in `store/def/constants.go` when external reporters already import the issue package | Unnecessary indirection; reference the constant from the issue package directly (e.g. `admisconfig.AnnotationIssueName`) |
 | Omitting `check_noop.go` for a build-tag-constrained `check.go` | Package fails to compile on other platforms |

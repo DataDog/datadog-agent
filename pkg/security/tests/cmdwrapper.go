@@ -24,7 +24,7 @@ import (
 type wrapperType string
 
 const (
-	noWrapperType      wrapperType = "" //nolint:deadcode,unused
+	noWrapperType      wrapperType = "" //nolint:unused
 	stdWrapperType     wrapperType = "std"
 	dockerWrapperType  wrapperType = "docker"
 	podmanWrapperType  wrapperType = "podman"
