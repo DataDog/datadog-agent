@@ -11,6 +11,7 @@ go_library(
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/providers/types",
         "//pkg/collector/corechecks/networkpath",
+        "//pkg/config/setup",
         "//pkg/networkpath/payload",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",

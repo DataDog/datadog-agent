@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 	"sync"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -280,7 +282,6 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 		TracerouteQueries:     endpoint.TracerouteQueries,
 		E2eQueries:            endpoint.E2eQueries,
 		Tags:                  endpoint.Tags,
-		Timeout:               endpoint.TimeoutMS,
 		MinCollectionInterval: endpoint.IntervalSec,
 	}
 
@@ -312,6 +313,16 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 
 	if endpoint.TimeoutMS != nil && *endpoint.TimeoutMS <= 0 {
 		return networkPathInstanceConfig{}, errors.New("timeout_ms must be > 0")
+	}
+	if endpoint.TimeoutMS != nil {
+		maxTTL := setup.DefaultNetworkPathMaxTTL
+		if endpoint.MaxTTL != nil {
+			maxTTL = *endpoint.MaxTTL
+		}
+		// Reserve 10% of the total test budget so the traceroute library call has
+		// time to return after the per-hop work completes.
+		perHopTimeoutMS := int64(math.Ceil(float64(*endpoint.TimeoutMS) * 0.9 / float64(maxTTL)))
+		instance.Timeout = &perHopTimeoutMS
 	}
 	if endpoint.IntervalSec != nil && *endpoint.IntervalSec <= 0 {
 		return networkPathInstanceConfig{}, errors.New("interval_sec must be > 0")
