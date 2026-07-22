@@ -341,7 +341,6 @@ core,github.com/DataDog/zstd_0,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@d
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | Copyright (c) 2012 The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/Masterminds/goutils,Apache-2.0,Copyright 2014 Alexander Okoli
-core,github.com/Masterminds/semver,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/semver/v3,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/sprig/v3,MIT,Copyright (C) 2013-2020 Masterminds
 core,github.com/Microsoft/go-winio,MIT,Copyright (c) 2015 Microsoft
@@ -898,10 +897,19 @@ core,github.com/cloudflare/circl/math/mlsbset,BSD-3-Clause,Copyright (c) 2009 Th
 core,github.com/cloudflare/circl/sign,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/sign/ed25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/sign/ed448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
-core,github.com/cloudfoundry-community/go-cfclient/v2,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/client,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/config,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/internal/check,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/internal/http,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/internal/ios,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/internal/jwt,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/internal/path,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/resource,MIT,Copyright (c) 2017 Long Nguyen
+core,github.com/cloudfoundry/go-cfclient/v3/testutil,MIT,Copyright (c) 2017 Long Nguyen
 core,github.com/cncf/xds/go/udpa/annotations,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/cncf/xds/go/xds/annotations/v3,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/cncf/xds/go/xds/core/v3,Apache-2.0,Copyright 2020 Envoyproxy Authors
+core,github.com/codegangsta/inject,MIT,Copyright (c) 2013 Jeremy Saenz
 core,github.com/containerd/cgroups/v3,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup1/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -1150,6 +1158,7 @@ core,github.com/go-logr/logr/funcr,Apache-2.0,Copyright 2019 The logr Authors. |
 core,github.com/go-logr/logr/slogr,Apache-2.0,Copyright 2019 The logr Authors. | Copyright 2020 The logr Authors.
 core,github.com/go-logr/stdr,Apache-2.0,Copyright 2019 The logr Authors.
 core,github.com/go-logr/zapr,Apache-2.0,Copyright 2018 Solly Ross | Copyright 2019 The logr Authors.
+core,github.com/go-martini/martini,MIT,Copyright (c) 2015 Jeremy Saenz
 core,github.com/go-ole/go-ole,MIT,"Copyright © 2013-2017 Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-ole/go-ole/oleutil,MIT,"Copyright © 2013-2017 Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-openapi/analysis,Apache-2.0,Copyright 2015 go-swagger maintainers
@@ -1570,6 +1579,7 @@ core,github.com/mailru/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/buffer,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jlexer,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jwriter,MIT,Copyright (c) 2016 Mail.Ru Group
+core,github.com/martini-contrib/render,MIT,Copyright (c) 2013 Jeremy Saenz
 core,github.com/masahiro331/go-disk,MIT,Copyright (c) 2022 Masahiro331
 core,github.com/masahiro331/go-disk/fs,MIT,Copyright (c) 2022 Masahiro331
 core,github.com/masahiro331/go-disk/gpt,MIT,Copyright (c) 2022 Masahiro331
@@ -2137,6 +2147,7 @@ core,github.com/outcaste-io/ristretto/z,MIT,"Copyright (c) 2014 Andreas Briese, 
 core,github.com/outcaste-io/ristretto/z/simd,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved. | Copyright 2021 Dgraph Labs, Inc. and Contributors"
 core,github.com/outscale/osc-sdk-go/v2,BSD-3-Clause,Copyright (c) Outscale SAS. All rights reserved
 core,github.com/ovh/go-ovh/ovh,BSD-3-Clause,"Copyright (c) 2015-2025, OVH SAS"
+core,github.com/oxtoacart/bpool,Apache-2.0,Copyright 2014 Percy Wegmann
 core,github.com/package-url/packageurl-go,MIT,Copyright (c) the purl authors
 core,github.com/pandatix/go-cvss/30,MIT,Copyright (c) 2022 Lucas TESSON - PandatiX <lucastesson@protonmail.com>
 core,github.com/pandatix/go-cvss/31,MIT,Copyright (c) 2022 Lucas TESSON - PandatiX <lucastesson@protonmail.com>

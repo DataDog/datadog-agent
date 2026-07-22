@@ -155,7 +155,7 @@ use_repo(
     "com_github_cilium_ebpf",
     "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
-    "com_github_cloudfoundry_community_go_cfclient_v2",
+    "com_github_cloudfoundry_go_cfclient_v3",
     "com_github_containerd_cgroups_v3",
     "com_github_containerd_containerd_api",
     "com_github_containerd_containerd_v2",
