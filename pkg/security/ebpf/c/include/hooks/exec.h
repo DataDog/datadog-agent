@@ -371,8 +371,6 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
 
         send_event(ctx, EVENT_EXIT, event);
 
-        unregister_span_memory();
-
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
     }
@@ -882,9 +880,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     event->is_through_symlink = syscall->exec.is_through_symlink;
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
-
-    // as previously registered memory will become unreachable, we'll have to unregister the TLS
-    unregister_span_memory();
 
     return 0;
 }
