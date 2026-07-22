@@ -17,7 +17,19 @@ load(
 )
 load("//compliance/rules:ship_source_offer.bzl", "SHIP_SOURCE_ATTR_KIND")
 
+visibility("public")
+
 DEBUG_LEVEL = 0
+
+# Carries the JSON manifest of {name, origin, license, copyright} entries gathered by
+# license_csv, so downstream rules (e.g. version_manifest) can consume the structured
+# data without re-running the (expensive) license-gathering aspect themselves.
+PackageLicenseManifestInfo = provider(
+    doc = "Points at the JSON license manifest produced by a license_csv target.",
+    fields = {
+        "manifest_file": "File containing a JSON list of {name, origin, license, copyright} entries.",
+    },
+)
 
 def update_attribute_to_consumers(attribute_to_consumers, file, target):
     """Maintains map of metadata attribute files to the targets using them.
@@ -182,6 +194,10 @@ def _license_csv_impl(ctx):
         args.add("--csv_out", ctx.outputs.csv_out.path)
         outputs.append(ctx.outputs.csv_out)
         output_groups["csv"] = [ctx.outputs.csv_out]
+    if ctx.outputs.manifest_out:
+        args.add("--manifest_out", ctx.outputs.manifest_out.path)
+        outputs.append(ctx.outputs.manifest_out)
+        output_groups["manifest"] = [ctx.outputs.manifest_out]
     if ctx.attr.licenses_dir:
         copy_dir = ctx.actions.declare_directory(ctx.attr.licenses_dir)
         args.add("--licenses_dir", copy_dir.path)
@@ -277,6 +293,8 @@ def _license_csv_impl(ctx):
         DefaultInfo(files = depset(outputs)),
         OutputGroupInfo(**output_groups),
     ]
+    if ctx.outputs.manifest_out:
+        ret.append(PackageLicenseManifestInfo(manifest_file = ctx.outputs.manifest_out))
     return ret
 
 license_csv = rule(
@@ -290,6 +308,9 @@ license_csv = rule(
         "csv_out": attr.output(
             doc = """LICENSES.csv style output file.""",
             mandatory = True,
+        ),
+        "manifest_out": attr.output(
+            doc = """JSON manifest of {name, origin, license, copyright} entries.""",
         ),
         "offers_dir": attr.string(
             doc = """Name of folder to write ship source offers to.""",
