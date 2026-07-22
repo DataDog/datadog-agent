@@ -494,3 +494,209 @@ func TestContainerCreationHandlerHandle(t *testing.T) {
 		assert.Nil(t, les)
 	})
 }
+
+// TestPodStateHandlerCanHandle tests the CanHandle method for the PodStateHandler.
+func TestPodStateHandlerCanHandle(t *testing.T) {
+	h := NewPodStateHandler()
+	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
+	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
+
+	tests := []struct {
+		subdomain string
+		ev        workloadmeta.Event
+		want      bool
+	}{
+		{"event type set + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, true},
+		{"event type unset + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: pod}, true},
+		{"event type set + entity kind non-pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: cont}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.subdomain, func(t *testing.T) {
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+		})
+	}
+}
+
+// TestPodStateHandlerHandle tests the Handle method for the PodStateHandler.
+func TestPodStateHandlerHandle(t *testing.T) {
+	t.Run("entity type wrong", func(t *testing.T) {
+		h := NewPodStateHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{EntityID: workloadmeta.EntityID{ID: "ben-bitdiddle"}},
+		}
+		_, err := h.Handle(ev)
+		assert.Error(t, err)
+	})
+
+	t.Run("first observation with no phase and no conditions emits nothing", func(t *testing.T) {
+		h := NewPodStateHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: "alyssa-hacker", Kind: workloadmeta.KindKubernetesPod}},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
+
+	t.Run("first observation of phase and a condition reports unknown as the last-observed state", func(t *testing.T) {
+		h := NewPodStateHandler()
+		now := time.Now()
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{ID: "lem-tweakit", Kind: workloadmeta.KindKubernetesPod},
+				Phase:    "Pending",
+				Conditions: []workloadmeta.KubernetesPodCondition{
+					{Type: "Ready", Status: "False", LastTransitionTime: now},
+				},
+			},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 2)
+
+		phaseTransition := les[0].ProtoEvent.GetPod().GetTransition()
+		assert.Equal(t, model.PodStatusField_POD_STATUS_FIELD_PHASE, phaseTransition.GetField())
+		assert.Nil(t, phaseTransition.LastObservedState)
+		assert.Equal(t, "Pending", phaseTransition.GetNewState().GetPhase())
+		assert.Equal(t, model.Precision_PRECISION_APPROXIMATE, phaseTransition.GetPrecision())
+
+		conditionTransition := les[1].ProtoEvent.GetPod().GetTransition()
+		assert.Equal(t, model.PodStatusField_POD_STATUS_FIELD_CONDITION, conditionTransition.GetField())
+		assert.Nil(t, conditionTransition.LastObservedState)
+		assert.Equal(t, "False", conditionTransition.GetNewState().GetCondition().GetStatus())
+		assert.Equal(t, model.Precision_PRECISION_EXACT, conditionTransition.GetPrecision())
+		assert.Equal(t, now.Unix(), conditionTransition.GetTransitionTimestamp())
+	})
+
+	t.Run("phase change reports the prior phase as the last-observed state", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "louis-reasoner", Kind: workloadmeta.KindKubernetesPod}
+		_, err := h.Handle(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: podID, Phase: "Pending"},
+		})
+		require.NoError(t, err)
+
+		les, err := h.Handle(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: podID, Phase: "Running"},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		transition := les[0].ProtoEvent.GetPod().GetTransition()
+		assert.Equal(t, "Pending", transition.GetLastObservedState().GetPhase())
+		assert.Equal(t, "Running", transition.GetNewState().GetPhase())
+	})
+
+	t.Run("unchanged condition emits nothing", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "eva-lu-ator", Kind: workloadmeta.KindKubernetesPod}
+		now := time.Now()
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", LastTransitionTime: now}},
+			},
+		}
+		_, err := h.Handle(ev)
+		require.NoError(t, err)
+
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
+
+	t.Run("condition status change is unknowable, and a same-status timestamp advance proves a missed intermediate", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "ben-bitdiddle", Kind: workloadmeta.KindKubernetesPod}
+		t0 := time.Now()
+
+		_, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "False", LastTransitionTime: t0}},
+			},
+		})
+		require.NoError(t, err)
+
+		t1 := t0.Add(time.Second)
+		les, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", LastTransitionTime: t1}},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, les[0].ProtoEvent.GetPod().GetTransition().GetMissedIntermediate())
+
+		t2 := t1.Add(time.Second)
+		les, err = h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", LastTransitionTime: t2}},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN, les[0].ProtoEvent.GetPod().GetTransition().GetMissedIntermediate())
+	})
+
+	t.Run("a same-status timestamp advance proves a missed intermediate even when the reason also changed", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "alyssa-hacker", Kind: workloadmeta.KindKubernetesPod}
+		t0 := time.Now()
+
+		_, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", Reason: "PodReady", LastTransitionTime: t0}},
+			},
+		})
+		require.NoError(t, err)
+
+		t1 := t0.Add(time.Second)
+		les, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", Reason: "ContainersReady", LastTransitionTime: t1}},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN, les[0].ProtoEvent.GetPod().GetTransition().GetMissedIntermediate())
+	})
+
+	t.Run("unset clears shadow state, so a reappearing pod is treated as a first observation", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "lem-tweakit", Kind: workloadmeta.KindKubernetesPod}
+
+		_, err := h.Handle(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: podID, Phase: "Running"},
+		})
+		require.NoError(t, err)
+
+		les, err := h.Handle(workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: &workloadmeta.KubernetesPod{EntityID: podID}})
+		require.NoError(t, err)
+		assert.Nil(t, les)
+
+		les, err = h.Handle(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: podID, Phase: "Pending"},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Nil(t, les[0].ProtoEvent.GetPod().GetTransition().LastObservedState)
+		assert.Equal(t, "Pending", les[0].ProtoEvent.GetPod().GetTransition().GetNewState().GetPhase())
+	})
+}

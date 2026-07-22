@@ -11,6 +11,7 @@ go_library(
         "handler_container_creation.go",
         "handler_container_termination.go",
         "handler_pod_creation.go",
+        "handler_pod_state.go",
         "handler_pod_termination.go",
         "handler_task_termination.go",
         "processor.go",
