@@ -19,10 +19,8 @@ dd_agent_go_test(
     name = "evictor_test",
     srcs = ["evictor_test.go"],
     embed = [":evictor"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

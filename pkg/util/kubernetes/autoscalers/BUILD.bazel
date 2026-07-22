@@ -44,10 +44,8 @@ dd_agent_go_test(
         "processor_test.go",
     ],
     embed = [":autoscalers"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/autoscaling/datadogclient/mock",
         "//comp/core/telemetry/def",

@@ -47,6 +47,7 @@ dd_agent_go_test(
         "tcp_queue_length_test.go",
     ],
     embed = [":tcpqueuelength"],
+    tag_sets = ["linux_bpf"],
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
         "//pkg/ebpf",

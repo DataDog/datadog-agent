@@ -30,11 +30,8 @@ dd_agent_go_test(
     name = "systemd_test",
     srcs = ["systemd_test.go"],
     embed = [":systemd"],
-    flavors = [
-        "base",
-        "fips",
-        "iot",
-    ],
+    include_default = False,
+    tag_sets = ["systemd"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/impl-noop",

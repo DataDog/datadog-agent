@@ -18,10 +18,8 @@ dd_agent_go_test(
     name = "telemetry_test",
     srcs = ["collector_test.go"],
     embed = [":telemetry"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

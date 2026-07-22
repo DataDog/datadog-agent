@@ -28,10 +28,8 @@ dd_agent_go_test(
         "parsers_test.go",
     ],
     embed = [":metrics"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/clusteragent/metricsstore",

@@ -37,10 +37,8 @@ dd_agent_go_test(
     name = "kubeletconfig_test",
     srcs = ["kubeletconfig_test.go"],
     embed = [":kubeletconfig"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

@@ -69,7 +69,7 @@ func linuxBPFEnabled(c *config.Config) bool {
 // This treats "//go:build linux_bpf" (and e.g. "linux_bpf && linux") as
 // requiring the tag while ignoring "//go:build !linux_bpf". Platform/arch
 // tokens are free variables and go1.N tokens resolve against the toolchain,
-// both handled by canSatisfy (shared with the flavor logic).
+// both handled by canSatisfy (shared with test tag-set analysis).
 func requiresLinuxBPF(e constraint.Expr) bool {
 	return canSatisfy(e, map[string]bool{linuxBPFTag: true}) && !canSatisfy(e, nil)
 }
@@ -95,9 +95,8 @@ func srcsRequireLinuxBPF(srcs []string, pkgDir string) bool {
 }
 
 // applyLinuxBPF post-processes the generated rules of a linux_bpf-gated package.
-// It runs after test replacement, so dd_agent_go_test rules (kind != go_test)
-// are intentionally left alone: linux_bpf is not a flavor, and applicableFlavors
-// already drops linux_bpf-only tests from the flavored path.
+// It runs after test replacement, so dd_agent_go_test rules are left alone:
+// their source-derived linux_bpf tag set handles the test variant.
 //
 // Because tags/gotags/target_compatible_with are not mergeable for the Go kinds,
 // Gazelle's merger keeps an existing occurrence of such an attr verbatim (see

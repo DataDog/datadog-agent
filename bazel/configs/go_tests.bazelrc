@@ -1,0 +1,8 @@
+# Go race detector for test invocations. Usage: bazel test --config=gorace //...
+test:gorace --@rules_go//go/config:race
+test:gorace --test_env=GORACE=atexit_sleep_ms=50
+
+# Go-only coverage: emit go cover profiles and merge Bazel baseline files.
+# Usage: bazel coverage --config=coverage:go //pkg/...
+coverage:go --@rules_go//go/config:cover_format=go_cover
+coverage:go --coverage_report_generator=//bazel/tools/coverage:coverage

@@ -26,7 +26,8 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = ["clusterchecks_test.go"],
     embed = [":impl"],
-    flavors = ["base"],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/clusterchecks/types",
         "@com_github_stretchr_testify//assert",

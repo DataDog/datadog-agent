@@ -58,6 +58,7 @@ dd_agent_go_test(
         "util_docker_test.go",
     ],
     embed = [":docker"],
+    tag_sets = ["docker"],
     deps = [
         "//comp/core/workloadfilter/fx-mock",
         "//pkg/config/mock",

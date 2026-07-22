@@ -258,6 +258,10 @@ dd_agent_go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
+    tag_sets = [
+        "linux_bpf+nvml",
+        "npm",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [

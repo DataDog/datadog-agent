@@ -32,6 +32,7 @@ dd_agent_go_test(
         "leader_handler_tracing_test.go",
     ],
     embed = [":api"],
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
         "@com_github_stretchr_testify//assert",

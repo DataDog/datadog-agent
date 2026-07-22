@@ -30,10 +30,7 @@ dd_agent_go_test(
     name = "ecs_test",
     srcs = ["ecs_test.go"],
     embed = [":ecs"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = ["@com_github_stretchr_testify//require"],
 )

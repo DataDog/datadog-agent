@@ -25,10 +25,8 @@ dd_agent_go_test(
     name = "probe_test",
     srcs = ["probe_test.go"],
     embed = [":probe"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/mock",

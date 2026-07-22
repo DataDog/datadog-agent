@@ -54,6 +54,7 @@ dd_agent_go_test(
         "sketch_series_test.go",
     ],
     embed = [":metrics"],
+    tag_sets = ["zlib+zstd"],
     deps = [
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/endpoints",

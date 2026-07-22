@@ -15,10 +15,8 @@ go_library(
 dd_agent_go_test(
     name = "annotation_test",
     srcs = ["annotation_test.go"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         ":annotation",
         "//pkg/clusteragent/admission/mutate/common",

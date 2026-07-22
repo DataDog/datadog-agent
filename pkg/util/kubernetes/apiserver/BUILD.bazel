@@ -92,10 +92,8 @@ dd_agent_go_test(
         "warning_handler_test.go",
     ],
     embed = [":apiserver"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/api/v1:api",
         "//pkg/config/model",

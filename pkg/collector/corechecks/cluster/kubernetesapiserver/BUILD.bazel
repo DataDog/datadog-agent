@@ -56,10 +56,8 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":kubernetesapiserver"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/fx-mock",

@@ -16,10 +16,8 @@ dd_agent_go_test(
     name = "transformers_test",
     srcs = ["resourcetags_test.go"],
     embed = [":transformers"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/kubernetes",

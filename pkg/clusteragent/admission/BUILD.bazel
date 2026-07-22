@@ -50,10 +50,8 @@ dd_agent_go_test(
     name = "admission_test",
     srcs = ["util_test.go"],
     embed = [":admission"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@io_k8s_apimachinery//pkg/version",

@@ -18,11 +18,8 @@ dd_agent_go_test(
     name = "health_test",
     srcs = ["provider_test.go"],
     embed = [":health"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//pkg/aggregator/mocksender",

@@ -22,9 +22,7 @@ py_binary(
     visibility = ["//visibility:private"],
 )
 
-# Generate tags.go (the FlavorUnitTestTags map) from tasks/build_tags.bzl, the
-# single source of truth, so the Go extension and the flavor_gotags() macro
-# share one tag definition.
+# Generate flavorless test-tag data from tasks/build_tags.bzl.
 run_binary(
     name = "gen_tags_go_src",
     srcs = ["//tasks:build_tags.bzl"],

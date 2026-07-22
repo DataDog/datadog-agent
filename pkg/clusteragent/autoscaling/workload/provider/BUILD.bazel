@@ -42,10 +42,8 @@ dd_agent_go_test(
     name = "provider_test",
     srcs = ["provider_test.go"],
     embed = [":provider"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/autoscaling/autoscalinggate",
         "@com_github_stretchr_testify//assert",

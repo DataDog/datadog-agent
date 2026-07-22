@@ -29,10 +29,8 @@ dd_agent_go_test(
     name = "config_test",
     srcs = ["config_test.go"],
     embed = [":config"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//cmd/security-agent/command",
         "//pkg/util/fxutil",

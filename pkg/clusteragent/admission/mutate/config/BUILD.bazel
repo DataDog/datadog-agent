@@ -32,10 +32,8 @@ dd_agent_go_test(
     srcs = ["config_test.go"],
     data = glob(["testdata/**"]),
     embed = [":config"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//cmd/cluster-agent/admission",
         "//comp/core/config",

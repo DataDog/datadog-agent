@@ -51,11 +51,8 @@ dd_agent_go_test(
         "events_test.go",
     ],
     embed = [":containerd"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["containerd"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",

@@ -201,20 +201,20 @@ func TestApplyLinuxBPF_Idempotent(t *testing.T) {
 	}
 }
 
-// TestApplyLinuxBPF_SkipsDdAgentGoTest verifies flavored tests are left to the
-// flavor logic (linux_bpf is not a flavor).
+// TestApplyLinuxBPF_SkipsDdAgentGoTest verifies macro tests are left to
+// source-derived tag-set handling.
 func TestApplyLinuxBPF_SkipsDdAgentGoTest(t *testing.T) {
 	dir := t.TempDir()
 	writeGoFile(t, dir, "bpf.go", "//go:build linux_bpf")
 
 	lib := rule.NewRule("go_library", "mylib")
 	lib.SetAttr("srcs", []string{"bpf.go"})
-	flavored := rule.NewRule("dd_agent_go_test", "mylib_test")
-	flavored.SetAttr("embed", []string{":mylib"})
+	tagged := rule.NewRule("dd_agent_go_test", "mylib_test")
+	tagged.SetAttr("embed", []string{":mylib"})
 
-	applyResult(dir, nil, lib, flavored)
+	applyResult(dir, nil, lib, tagged)
 
-	if got := flavored.AttrStrings("gotags"); len(got) != 0 {
+	if got := tagged.AttrStrings("gotags"); len(got) != 0 {
 		t.Errorf("dd_agent_go_test gotags = %v, want none", got)
 	}
 }

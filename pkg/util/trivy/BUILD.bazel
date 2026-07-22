@@ -90,10 +90,8 @@ dd_agent_go_test(
         "trivy_test.go",
     ],
     embed = [":trivy"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["containerd+crio+docker+trivy"],
     # These tests are meaningless except on linux.
     # - the library is only functional with the gotag 'trivy'
     # - test rule strips 'trivy' because it is a LINUX_ONLY_FLAG

@@ -28,6 +28,7 @@ dd_agent_go_test(
         "image_util_test.go",
     ],
     embed = [":sbomutil"],
+    tag_sets = ["trivy"],
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/util/pointer",

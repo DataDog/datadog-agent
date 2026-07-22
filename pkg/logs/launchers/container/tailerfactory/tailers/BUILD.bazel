@@ -29,8 +29,8 @@ dd_agent_go_test(
     name = "tailers_test",
     srcs = ["tailer_test.go"],
     embed = [":tailers"],
-    # Only do base becuase other flavors do not build with the needed kubelet tags.
-    flavors = ["base"],  # keep
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/logs/tailers/container",
         "@com_github_stretchr_testify//require",

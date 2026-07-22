@@ -31,10 +31,8 @@ dd_agent_go_test(
         "mutation_test.go",
     ],
     embed = [":config"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/log/mock",
         "//pkg/clusteragent/admission/mutate/common",

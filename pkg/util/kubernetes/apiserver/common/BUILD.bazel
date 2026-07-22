@@ -44,10 +44,8 @@ dd_agent_go_test(
         "version_test.go",
     ],
     embed = [":common"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/util/cache",
         "//pkg/util/kubernetes/apiserver/common/namespace",

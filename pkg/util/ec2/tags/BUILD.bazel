@@ -38,6 +38,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":tags"],
+    tag_sets = ["ec2"],
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",

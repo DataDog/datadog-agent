@@ -25,11 +25,8 @@ dd_agent_go_test(
     name = "networkconfigmanagement_test",
     srcs = ["networkconfigmanagement_test.go"],
     embed = [":networkconfigmanagement"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    include_default = False,
+    tag_sets = ["ncm"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",

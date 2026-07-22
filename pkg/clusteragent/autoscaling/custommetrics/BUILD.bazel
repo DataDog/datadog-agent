@@ -43,10 +43,8 @@ dd_agent_go_test(
         "store_configmap_test.go",
     ],
     embed = [":custommetrics"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

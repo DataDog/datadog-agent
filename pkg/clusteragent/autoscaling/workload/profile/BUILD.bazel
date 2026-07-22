@@ -46,10 +46,8 @@ dd_agent_go_test(
         "workload_watcher_test.go",
     ],
     embed = [":profile"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/autoscaling",
         "//pkg/clusteragent/autoscaling/store",

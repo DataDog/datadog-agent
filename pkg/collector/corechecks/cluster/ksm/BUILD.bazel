@@ -64,10 +64,8 @@ dd_agent_go_test(
         "kubernetes_state_transformers_test.go",
     ],
     embed = [":ksm"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//pkg/aggregator/mocksender",

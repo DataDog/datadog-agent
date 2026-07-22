@@ -225,10 +225,8 @@ dd_agent_go_test(
     name = "diagnose_test",
     srcs = ["command_test.go"],
     embed = [":diagnose"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent/command",

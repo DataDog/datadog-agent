@@ -285,6 +285,13 @@ is written in the Starlark∩Python subset so it is both `load()`ed by `//BUILD.
 step. Edit that file to add or change a tag, using `set([...])` (a `{...}` literal is a dict in
 Starlark). The `AgentFlavor` mapping stays in `build_tags.py`, since Starlark has no enums.
 
+Unit tests are flavorless. `dd_agent_go_test` always uses the minimal `test` tag and derives extra,
+package-local tag combinations from `//go:build` constraints. Dependency-only optimization tags in
+`DEP_ONLY_TAGS` are not propagated through ordinary test graphs. The inheritable
+`# gazelle:go_test_tag_sets tag+combination,...` directive defines canonical combinations for the
+tags it names. Gazelle uses those combinations instead of unsafe partial modes and only considers
+embedded library constraints when a configured combination satisfies them.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:

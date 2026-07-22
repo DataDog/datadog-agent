@@ -29,10 +29,8 @@ dd_agent_go_test(
         "collector_discovery_test.go",
     ],
     embed = [":discovery"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

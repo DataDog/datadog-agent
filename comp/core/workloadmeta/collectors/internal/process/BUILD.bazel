@@ -114,11 +114,8 @@ dd_agent_go_test(
         "process_service_collector_test.go",
     ],
     embed = [":process"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    include_default = False,
+    tag_sets = ["systemprobechecks"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",

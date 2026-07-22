@@ -67,10 +67,8 @@ dd_agent_go_test(
         "scheduler_test.go",
     ],
     embed = [":spot"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

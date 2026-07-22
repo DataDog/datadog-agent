@@ -34,6 +34,7 @@ dd_agent_go_test(
     name = "containersorpods_test",
     srcs = ["containers_or_pods_test.go"],
     embed = [":containersorpods"],
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",

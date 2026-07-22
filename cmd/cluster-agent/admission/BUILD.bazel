@@ -33,10 +33,8 @@ dd_agent_go_test(
     name = "admission_test",
     srcs = ["server_test.go"],
     embed = [":admission"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/admission/common",
         "@com_github_stretchr_testify//assert",

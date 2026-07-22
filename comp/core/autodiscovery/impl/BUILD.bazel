@@ -73,6 +73,10 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":impl"],
+    tag_sets = [
+        "python",
+        "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+    ],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

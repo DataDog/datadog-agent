@@ -36,10 +36,8 @@ dd_agent_go_test(
         "tags_test.go",
     ],
     embed = [":tagsfromlabels"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/config",
         "//pkg/clusteragent/admission/mutate/common",

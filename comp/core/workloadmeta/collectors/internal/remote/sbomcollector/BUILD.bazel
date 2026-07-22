@@ -34,10 +34,8 @@ dd_agent_go_test(
     name = "sbomcollector_test",
     srcs = ["sbom_collector_test.go"],
     embed = [":sbomcollector"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["trivy"],
     deps = [
         "//comp/core/workloadmeta/collectors/sbomutil",
         "//comp/core/workloadmeta/def",

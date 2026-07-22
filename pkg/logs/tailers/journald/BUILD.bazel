@@ -39,11 +39,8 @@ dd_agent_go_test(
         "tailer_test.go",
     ],
     embed = [":journald"],
-    flavors = [
-        "base",
-        "fips",
-        "iot",
-    ],
+    include_default = False,
+    tag_sets = ["systemd"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/tagger/fx-mock",
