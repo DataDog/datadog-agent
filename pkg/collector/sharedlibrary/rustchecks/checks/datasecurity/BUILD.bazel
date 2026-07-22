@@ -11,9 +11,14 @@ rust_shared_library(
     edition = "2024",
     target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
+    # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`
+    aliases = {
+        "@crates//:dd-sensitive-data-scanner": "dd_sds",
+    },
     deps = [
         "//pkg/collector/sharedlibrary/rustchecks/core",
         "@crates//:anyhow",
+        "@crates//:dd-sensitive-data-scanner",
         "@crates//:libc",
         "@crates//:serde",
         "@crates//:serde_json",

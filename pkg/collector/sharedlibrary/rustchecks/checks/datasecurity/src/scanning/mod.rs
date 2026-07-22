@@ -67,9 +67,10 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Matc
     rows.into_iter()
         .map(|((column, rule_index), paths)| {
             // return an error if the rule index is unknown.
-            let rule_id = rule_ids.get(rule_index).cloned().with_context(|| {
-                format!("scanner returned unknown rule index {rule_index}")
-            })?;
+            let rule_id = rule_ids
+                .get(rule_index)
+                .cloned()
+                .with_context(|| format!("scanner returned unknown rule index {rule_index}"))?;
             Ok(Match {
                 rule_id,
                 column_name: column.to_string(),

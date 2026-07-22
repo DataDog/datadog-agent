@@ -57,7 +57,12 @@ scanning_rules:
     // Scanner keeps the rule ids in declaration order.
     assert_eq!(
         scanner.rule_ids,
-        ["rule-included", "rule-excluded", "rule-suppression", "rule-luhn"]
+        [
+            "rule-included",
+            "rule-excluded",
+            "rule-suppression",
+            "rule-luhn"
+        ]
     );
 
     // Every rule, fully parsed. `RootRuleConfig::new` fills the defaults

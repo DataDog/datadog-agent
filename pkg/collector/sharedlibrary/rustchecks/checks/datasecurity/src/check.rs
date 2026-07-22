@@ -47,7 +47,9 @@ fn run_sub_task(
 
     // TODO(DSEC-139): fetch the rows from postgres.
     let data = fetch_data(sub_task);
-    let matches = scanner.scan(&data).context("failed to scan sub task data")?;
+    let matches = scanner
+        .scan(&data)
+        .context("failed to scan sub task data")?;
 
     let payload = ScanEventPayload {
         task_id: config.task_id.clone(),
@@ -61,7 +63,8 @@ fn run_sub_task(
     );
 
     // TODO(DSEC-140): send sdsresult rather than an event
-    let payload_json = serde_json::to_string(&payload).context("failed to serialize scan event payload")?;
+    let payload_json =
+        serde_json::to_string(&payload).context("failed to serialize scan event payload")?;
     check.event(
         "datasecurity scan result",
         &payload_json,
