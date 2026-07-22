@@ -156,8 +156,10 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 		}
 		if existing != nil {
 			existingConfigID = existing.ConfigUUID
-			// This config matched the latest, refresh its LastAccessedAt instead of making a new entry
-			existing.LastAccessedAt = now
+			// This config matched the latest, refresh its LastAccessedAt instead of making a new entry.
+			// Clamp rather than overwrite: `now` was captured before hashing/marshaling/compression and
+			// acquiring the lock, so a concurrent GetConfig could have set a newer value in the meantime.
+			existing.LastAccessedAt = max(now, existing.LastAccessedAt)
 			updatedMetadataJSON, err := json.Marshal(existing)
 			if err != nil {
 				return fmt.Errorf("marshal config metadata error: %w", err)

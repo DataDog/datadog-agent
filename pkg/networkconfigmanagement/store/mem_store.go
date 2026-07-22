@@ -73,7 +73,9 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 
 	if existingID := m.findLatestMatch(deviceID, configType, rawHash); existingID != "" {
 		existing := m.metadata[existingID]
-		existing.LastAccessedAt = now
+		// Clamp rather than overwrite: `now` was captured before acquiring the lock,
+		// so a concurrent GetConfig could have set a newer value in the meantime.
+		existing.LastAccessedAt = max(now, existing.LastAccessedAt)
 		m.metadata[existingID] = existing
 		return existingID, rawHash, false, nil
 	}
