@@ -16,5 +16,6 @@ go_binary(
         "linux_bpf",
         "test",
     ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
