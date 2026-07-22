@@ -9,11 +9,13 @@
 package symbolcopier
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
@@ -132,7 +134,9 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 
 	args = append(args, inputPath, outputPath)
 
+	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, "objcopy", args...)
+	cmd.Stderr = &stderrBuf
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start copying symbols: %w", err)
 	}
@@ -142,7 +146,13 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 		slog.Warn("Could not adjust OOM score", slog.String("error", err.Error()))
 	}
 
-	return cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		if stderr := strings.TrimSpace(stderrBuf.String()); stderr != "" {
+			return fmt.Errorf("%w: %s", err, stderr)
+		}
+		return err
+	}
+	return nil
 }
 
 func getStringFlags(flags elf.SectionFlag) string {
