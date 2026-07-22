@@ -1,0 +1,37 @@
+# Sample allowlist for the Datadog Agent "powershell" check (admin-owned policy).
+#
+# To use it: copy this file to `powershell_allowlist.yaml` in this same directory
+# and edit it to permit only the read-only Get-* cmdlets your environment needs.
+# The powershell check reads ONLY `powershell_allowlist.yaml` (never this
+# .example file), so no cmdlet is permitted until you create it.
+#
+# This directory (C:\ProgramData\Datadog\protected) is writable only by
+# Administrators and SYSTEM. The allowlist must be owned by Administrators or
+# SYSTEM, or the check refuses to load it and collects nothing (fail closed).
+#
+# Format:
+#   version: 1                    # required; only version 1 is supported
+#   allowed_cmdlets:              # required; at least one entry
+#     <Get-Cmdlet>:               # key: a read-only Get-* cmdlet name (Get-<Noun>)
+#       module: <ModuleName>      # required; the cmdlet must resolve to this module
+#                                 # at runtime (rejects a shadowing function). Use "*"
+#                                 # to skip. Must match (Get-Command <cmdlet>).ModuleName.
+#       parameters:               # optional; the parameters an instance may pass
+#         <ParameterName>:
+#           required: <bool>      # optional (default false)
+#           allowed_values: [...] # optional; exact-match whitelist of values
+#           pattern: '<regex>'    # optional; value must match (anchor with ^...$)
+#
+# `allowed_values` takes precedence over `pattern`; if neither is set, any value
+# is accepted for that (declared) parameter.
+
+version: 1
+allowed_cmdlets:
+  Get-Service:
+    module: Microsoft.PowerShell.Management
+    parameters:
+      Name: { required: false, pattern: '^[A-Za-z0-9 _.*-]+$' }
+  Get-Certificate:
+    module: PKI
+    parameters:
+      Template: { required: false, allowed_values: [WebServer, CodeSigning] }

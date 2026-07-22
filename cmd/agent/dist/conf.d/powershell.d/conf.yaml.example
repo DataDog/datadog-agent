@@ -1,0 +1,131 @@
+## All options defined here are available to all instances.
+#
+# init_config:
+#
+#   ## The check runs only cmdlets that an administrator has approved in the
+#   ## allowlist file. That file is read from a FIXED, non-configurable location:
+#   ##
+#   ##     C:\ProgramData\Datadog\protected\powershell_allowlist.yaml
+#   ##
+#   ## The `protected` directory is created by the Agent installer and is writable
+#   ## only by Administrators and SYSTEM (the Agent user can only read it). The file
+#   ## must be owned by Administrators or SYSTEM. If it is missing, unparseable,
+#   ## fails schema validation, or is not admin-owned, the check runs nothing and
+#   ## logs an error (fail closed).
+#   ##
+#   ## Allowlist format:
+#   ##
+#   ##   version: 1                    # required; only version 1 is supported
+#   ##   allowed_cmdlets:              # required; must contain at least one cmdlet
+#   ##     <Get-Cmdlet>:               # key: a read-only Get-* cmdlet name (Get-<Noun>)
+#   ##       module: <ModuleName>      # required; the cmdlet must resolve to this
+#   ##                                 # module at runtime (rejects a shadowing
+#   ##                                 # function). Must match (Get-Command <cmdlet>).ModuleName.
+#   ##                                 # Use "*" to explicitly skip the module check.
+#   ##       parameters:               # optional; the parameters an instance may pass
+#   ##         <ParameterName>:        # parameter name ([A-Za-z0-9_]); an instance `filter`
+#   ##           required: <bool>      # optional (default false); instance must pass it
+#   ##           allowed_values:       # optional; exact-match whitelist of values
+#   ##             - <value1>
+#   ##             - <value2>
+#   ##           pattern: '<regex>'    # optional; value must match this Go (RE2) regex
+#   ##
+#   ## Rules enforced at configure time (any violation fails the instance closed):
+#   ##   - An instance's `cmdlet` must be a key under `allowed_cmdlets`.
+#   ##   - Every parameter an instance passes via `filters` must be declared under
+#   ##     that cmdlet's `parameters`; undeclared parameters are rejected.
+#   ##   - A parameter value must satisfy `allowed_values` (if set) OR `pattern` (if
+#   ##     set). `allowed_values` takes precedence; if neither is set, any value is
+#   ##     accepted for that (declared) parameter.
+#   ##   - A parameter with `required: true` must be present in the instance.
+#   ##   - Any cmdlet used in an instance's `tag_queries` must ALSO be allowlisted.
+#   ##     Join cmdlets are invoked with no user parameters, so only the name is checked.
+#   ##
+#   ## Note: `pattern` is matched as a SUBSTRING, so anchor it with ^...$ to constrain
+#   ## the whole value (e.g. '^[A-Za-z0-9 _.*-]+$'); otherwise a partial match passes.
+#   ## Values are always bound to the cmdlet as data (never interpolated), so this is
+#   ## a policy/scope control, not the injection defense.
+#   ##
+#   ## Example allowlist:
+#   ##
+#   ##   version: 1
+#   ##   allowed_cmdlets:
+#   ##     Get-Service:                       # any service name of the allowed shape
+#   ##       module: Microsoft.PowerShell.Management
+#   ##       parameters:
+#   ##         Name: { required: false, pattern: '^[A-Za-z0-9 _.*-]+$' }
+#   ##     Get-Certificate:                   # only these two templates permitted
+#   ##       module: PKI
+#   ##       parameters:
+#   ##         Template: { required: false, allowed_values: [WebServer, CodeSigning] }
+#   ##     Get-Process:                       # no parameters permitted (name only)
+#   ##       module: Microsoft.PowerShell.Management
+#
+#   ## @param service - string - optional
+#   ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+#   #
+#   # service: <SERVICE>
+#
+# instances:
+#
+#     ## @param cmdlet - string - required
+#     ## The read-only Get-* cmdlet to run. Must be present in the admin allowlist.
+#     #
+#   - cmdlet: Get-Service
+#
+#     ## @param name - string - optional
+#     ## Optional prefix for emitted metric names: `<name>.<metric_name>`. When
+#     ## omitted, the metric name is used as-is (no prefix).
+#     #
+#     name: windows_service
+#
+#     ## @param filters - list - optional
+#     ## Named cmdlet parameters, bound as data (never interpolated). Each entry is
+#     ## either a [Name, Value] tuple or a {name: ..., value: ...} mapping. Every
+#     ## parameter and value must be permitted by the allowlist.
+#     #
+#     filters:
+#       - [Name, Dnscache]
+#
+#     ## @param metrics - list - required
+#     ## How to map cmdlet output properties to metrics. Each entry is either a
+#     ## [property, metric_name, metric_type] tuple or a mapping
+#     ## {property: ..., name: ..., type: ...}. `type` defaults to gauge and may be
+#     ## gauge, rate, count, monotonic_count, histogram, or distribution.
+#     ##
+#     ## Use the literal 1 as the property for a metric that emits a constant 1 whose
+#     ## tags carry the signal - useful when all the interesting columns are strings.
+#     #
+#     metrics:
+#       - [Status, service.status, gauge]
+#
+#     ## @param tag_by - list of strings - optional
+#     ## Add per-row tags from output properties. Each entry is "Property" or
+#     ## "Property AS alias".
+#     #
+#     tag_by:
+#       - Name AS service
+#       - Status
+#
+#     ## @param tag_queries - list - optional
+#     ## Join to another allowlisted Get-* cmdlet to add a tag. Each entry is
+#     ## [LinkSourceProperty, TargetCmdlet, LinkTargetProperty, "TargetProperty AS alias"].
+#     #
+#     tag_queries:
+#       - [<LINK_SOURCE_PROP>, <TARGET_GET_CMDLET>, <LINK_TARGET_PROP>, <TARGET_PROP> AS <alias>]
+#
+#     ## @param timeout - integer - optional - default: 30
+#     ## Maximum seconds to wait for a single cmdlet invocation before killing it.
+#     ## Applies per cmdlet run, so an instance that also uses `tag_queries` allows
+#     ## this many seconds for the main cmdlet and for each join cmdlet separately.
+#     #
+#     timeout: 30
+#
+#     ## @param tags - list of strings - optional
+#     ## A list of tags to attach to every metric emitted by this instance.
+#     ##
+#     ## Learn more about tagging at https://docs.datadoghq.com/tagging
+#     #
+#     tags:
+#       - <KEY_1>:<VALUE_1>
+#       - <KEY_2>:<VALUE_2>
