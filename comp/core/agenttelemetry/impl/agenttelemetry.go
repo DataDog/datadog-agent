@@ -552,8 +552,7 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		return nil
 	}
 
-	// Filter the metric according to the profile configuration
-	// Currently we only support filtering out zero values if specified in the profile
+	// Filter source time series according to zero-value, excluded-label, and preserve-label rules.
 	var fm []*dto.Metric
 	for _, m := range mfam.Metric {
 		if isMetricFiltered(p, mCfg, mt, m) {
