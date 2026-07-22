@@ -76,19 +76,12 @@
   review:
     name: '#agent-discovery'
     id: 'C089ER2M7MZ'
-'@datadog/agent-health':
-  notification:
-    name: '#agent-health'
-    id: 'C08U2C0GCMV'
-  review:
-    name: '#agent-health'
-    id: 'C08U2C0GCMV'
 '@datadog/fleet-remediation':
   notification:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
 '@datadog/agent-integrations':
   notification:

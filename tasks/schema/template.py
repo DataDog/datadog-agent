@@ -35,6 +35,12 @@ default_path = {
         "${run_path}": "/opt/datadog-agent/run",
         "${log_path}": "/opt/datadog-agent/logs",
     },
+    "aix": {
+        "${conf_path}": "/etc/datadog-agent",
+        "${install_path}": "/opt/datadog-agent",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/var/log/datadog",
+    },
 }
 
 # Maps env_parser schema values to their human-readable env var type descriptions.
@@ -219,7 +225,7 @@ def _get_node_types_and_default(full_name, node, os_target):
             yaml_type, env_type = "list of strings", "space-separated list of strings"
         elif node["items"]["type"] == "object":
             yaml_type, env_type = "list of object", "JSON list of object"
-        elif node["items"]["type"] == "number":
+        elif node["items"]["type"] in ["number", "integer"]:
             yaml_type, env_type = "list of integers", "JSON array of numbers or space-separated list of integers"
         else:
             raise Exception(f"unknown array of type: {node['items']['type']}")

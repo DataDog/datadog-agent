@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.82.0",
+    "current_milestone": "7.83.0",
     "dependencies": {
         "AGENT_DATA_PLANE_HASH_DARWIN_AMD64": "c46f14cb5818a570e61489b33b9c5e74d00b646fe4ab5f35b6f283499859c17b",
         "AGENT_DATA_PLANE_HASH_DARWIN_ARM64": "e1ceb847f924501c5310aa24c28ff5b1a2f732a987113d2c082c1c50548cca30",
@@ -27,6 +27,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.81.0"
+        "7": "7.81.1"
     }
 }
