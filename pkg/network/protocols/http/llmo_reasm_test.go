@@ -17,8 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// makeRespSample encodes an llmRespEvent (connection key + a read window) into
-// the raw ring-buffer sample bytes that processLLMResponseEvent decodes.
+// makeRespSample encodes an llmRespEvent (connection key + a read window, on
+// stream 0) into the raw ring-buffer sample bytes that processLLMResponseEvent
+// decodes. Used to feed a single response's reads in chunks.
 func makeRespSample(key llmConnKey, data []byte) []byte {
 	var ev llmRespEvent
 	ev.Key = key
@@ -55,18 +56,24 @@ func openAIResp(answer, finish string) []byte {
 	return append(http2DataFrameHeader(len(body)), []byte(body)...)
 }
 
-func newLLMTestStatKeeper() *StatKeeper {
-	return &StatKeeper{
-		llmRespContent: make(map[llmConnKey]string),
-		llmGenUsage:    make(map[llmConnKey]llmUsage),
-	}
+// storeReqOnStream stores a minimal parsed request so the response consumer has
+// something to pair its reassembled response with (and therefore emits).
+func storeReqOnStream(h *StatKeeper, key llmConnKey, stream uint32, prompt string) {
+	h.storeReq(llmStreamKey{conn: key, stream: stream}, llmReqParsed{
+		model:    "gpt-4o-mini",
+		provider: providerOpenAI,
+		prompt:   prompt,
+	})
 }
 
 // TestResponseReassemblyLargeAnswer: a large answer that arrives across many
-// reads is reassembled and cached in full (not truncated to the first read).
+// reads is reassembled in full (not truncated to the first read) before it is
+// paired and emitted.
 func TestResponseReassemblyLargeAnswer(t *testing.T) {
-	h := newLLMTestStatKeeper()
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 1111, DstPort: 443}
+	storeReqOnStream(h, key, 0, "big question")
 
 	answer := strings.Repeat("eBPF runs sandboxed programs in the kernel safely. ", 220) + " END_ANSWER_MARKER_XYZ"
 	framed := openAIResp(answer, "stop")
@@ -77,17 +84,18 @@ func TestResponseReassemblyLargeAnswer(t *testing.T) {
 		h.processLLMResponseEvent(makeRespSample(key, ch))
 	}
 
-	got, ok := h.lookupRespContent(key)
-	assert.True(t, ok, "answer should be cached")
-	assert.Equal(t, answer, got, "the full answer must be reassembled, including the trailing marker")
-	assert.True(t, strings.HasSuffix(got, "END_ANSWER_MARKER_XYZ"), "trailing marker present")
+	require.Len(t, emitted, 1, "one complete response emits once")
+	assert.Equal(t, answer, emitted[0].response, "the full answer must be reassembled, including the trailing marker")
+	assert.True(t, strings.HasSuffix(emitted[0].response, "END_ANSWER_MARKER_XYZ"), "trailing marker present")
 }
 
 // TestResponseReassemblyIncomplete: before the usage (end of the response) is
-// seen, nothing is cached — the consumer keeps accumulating.
+// seen, nothing is emitted — the consumer keeps accumulating.
 func TestResponseReassemblyIncomplete(t *testing.T) {
-	h := newLLMTestStatKeeper()
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 2222, DstPort: 443}
+	storeReqOnStream(h, key, 0, "q")
 
 	answer := strings.Repeat("partial ", 500)
 	framed := openAIResp(answer, "stop")
@@ -97,44 +105,47 @@ func TestResponseReassemblyIncomplete(t *testing.T) {
 	for _, ch := range chunks[:len(chunks)-1] {
 		h.processLLMResponseEvent(makeRespSample(key, ch))
 	}
-	_, ok := h.lookupRespContent(key)
-	assert.False(t, ok, "must not cache until the response is complete (usage seen)")
+	assert.Empty(t, emitted, "must not emit until the response is complete (usage seen)")
 
 	// Final chunk completes it.
 	h.processLLMResponseEvent(makeRespSample(key, chunks[len(chunks)-1]))
-	got, ok := h.lookupRespContent(key)
-	assert.True(t, ok)
-	assert.Equal(t, answer, got)
+	require.Len(t, emitted, 1)
+	assert.Equal(t, answer, emitted[0].response)
 }
 
 // TestResponseReassemblyResetsBetweenResponses: two responses on one connection
-// must not be concatenated — the second resets after the first completes.
+// must not be concatenated — the second starts a fresh buffer after the first
+// completes.
 func TestResponseReassemblyResetsBetweenResponses(t *testing.T) {
-	h := newLLMTestStatKeeper()
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 3333, DstPort: 443}
 
+	storeReqOnStream(h, key, 0, "q1")
 	a1 := strings.Repeat("first answer sentence. ", 120) + " END1"
 	for _, ch := range splitBytes(openAIResp(a1, "stop"), 1500) {
 		h.processLLMResponseEvent(makeRespSample(key, ch))
 	}
-	got1, ok := h.lookupRespContent(key)
-	assert.True(t, ok)
-	assert.Equal(t, a1, got1)
+	require.Len(t, emitted, 1)
+	assert.Equal(t, a1, emitted[0].response)
 
+	storeReqOnStream(h, key, 0, "q2")
 	a2 := strings.Repeat("second different answer. ", 120) + " END2"
 	for _, ch := range splitBytes(openAIResp(a2, "stop"), 1500) {
 		h.processLLMResponseEvent(makeRespSample(key, ch))
 	}
-	got2, ok := h.lookupRespContent(key)
-	assert.True(t, ok)
-	assert.Equal(t, a2, got2, "second response must fully replace the first, not append to it")
+	require.Len(t, emitted, 2)
+	assert.Equal(t, a2, emitted[1].response, "second response must fully replace the first, not append to it")
 }
 
 // TestResponseReassemblyToolCallGen: a tool-call generation (finish_reason
-// tool_calls) reassembled across reads caches its token usage for the workflow.
+// tool_calls) reassembled across reads caches its token usage for the workflow
+// and suppresses its own flat span.
 func TestResponseReassemblyToolCallGen(t *testing.T) {
-	h := newLLMTestStatKeeper()
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 4444, DstPort: 443}
+	storeReqOnStream(h, key, 0, "weather in Paris?")
 
 	body := `{"id":"chatcmpl-t","object":"chat.completion",` +
 		`"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[` +
@@ -148,6 +159,8 @@ func TestResponseReassemblyToolCallGen(t *testing.T) {
 	u, ok := h.lookupGenUsage(key)
 	assert.True(t, ok, "tool-call generation usage should be cached")
 	assert.Equal(t, int64(58), u.total)
+	require.Len(t, emitted, 1)
+	assert.True(t, emitted[0].suppressFlat, "a tool-call generation suppresses its flat span")
 }
 
 // TestParseLargeRequestPrompt: a large user prompt in a request body (behind a

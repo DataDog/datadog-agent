@@ -77,12 +77,6 @@ type llmConnKey struct {
 	Pad uint32
 }
 
-// llmBody mirrors the eBPF llm_body_t struct.
-type llmBody struct {
-	Len  uint32
-	Data [llmBodyBufferSize]byte
-}
-
 // llmReqParsed is a request body parsed from the request ring buffer: model,
 // provider, messages/prompt, and any tool call + result carried in the request
 // history (a follow-up call). Queued FIFO per connection until a transaction
@@ -94,7 +88,9 @@ type llmReqParsed struct {
 	prompt       string
 	reqToolCalls []llmToolCall
 	toolResults  []llmToolResult
-	sessionID    string // app-supplied session/conversation id (see parseSessionID)
+	sessionID    string    // app-supplied session/conversation id (see parseSessionID)
+	pid          uint32    // client PID that wrote the request (for service resolution)
+	arrived      time.Time // when the request event was processed (for latency)
 }
 
 // llmReqEvent mirrors the eBPF llm_req_event_t: a connection key plus a captured
@@ -679,93 +675,97 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 	agent.Finish(llmobs.WithFinishTime(end))
 }
 
-// captureLLMBody marks the connection as LLM traffic (so the eBPF write hook
-// captures bodies for subsequent requests) and reads back the most recently
-// captured request body for this connection, returning the parsed model and
-// prompt. Returns empty strings when the LLMO maps are not wired up or no body
-// has been captured yet for this connection.
-func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (info llmSpanInfo) {
+// flagLLMConn marks a connection as LLM traffic so the eBPF write/read hooks
+// begin capturing its decrypted request/response bodies. Called from add() the
+// first time an LLM-looking path is seen on the connection (subsequent
+// requests/responses on it are then captured and paired by the consumers).
+func (h *StatKeeper) flagLLMConn(connKey types.ConnectionKey) {
 	if h.llmConnMap == nil {
-		return info
+		return
 	}
-
-	// Resolve the service name from the client PID in userspace, using the same
-	// inference USM uses (process_service_inference).
-	info.service = h.resolveLLMService(pid)
-
 	key := newLLMConnKey(connKey)
-
-	// Flag the connection so future writes/reads on it get captured.
 	flag := uint8(1)
 	if err := h.llmConnMap.Put(&key, &flag); err != nil {
 		log.Debugf("LLMO: failed to flag connection: %v", err)
 	}
+}
 
-	// Request body: streamed via the request ring buffer and queued FIFO per
-	// connection (see the request consumer), so each captured body is consumed
-	// exactly once — no single-slot overwrite when a connection fires several
-	// requests in quick succession (e.g. both turns of a tool conversation).
-	if req, ok := h.dequeueReq(key); ok {
-		info.model = req.model
-		info.provider = req.provider
-		info.messages = req.messages
-		info.prompt = req.prompt
-		info.reqToolCalls = req.reqToolCalls
-		info.toolResults = req.toolResults
-		info.sessionID = req.sessionID
+// toConnectionKey rebuilds a types.ConnectionKey from the LLMO key (they share
+// field layout; the LLMO key just adds trailing padding for the eBPF map).
+func (k llmConnKey) toConnectionKey() types.ConnectionKey {
+	return types.ConnectionKey{
+		SrcIPHigh: k.SrcIPHigh,
+		SrcIPLow:  k.SrcIPLow,
+		DstIPHigh: k.DstIPHigh,
+		DstIPLow:  k.DstIPLow,
+		SrcPort:   k.SrcPort,
+		DstPort:   k.DstPort,
 	}
+}
 
-	// Response body tail -> token usage (parsed per provider).
-	if data, ok := h.lookupBody(h.llmRespBodyMap, &key); ok {
-		info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(data, info.provider)
+// llmPathForProvider synthesizes the request path for the span resource. The
+// capture is the DATA frame (JSON body), not the HEADERS frame, so the real
+// :path isn't available in the consumer; these APIs use a fixed path per
+// provider anyway.
+func llmPathForProvider(provider string) string {
+	switch provider {
+	case providerAnthropic:
+		return "/v1/messages"
+	default:
+		return "/v1/chat/completions"
 	}
+}
 
-	// Response body head -> assistant message content + tool calls.
-	if data, ok := h.lookupBody(h.llmRespHeadMap, &key); ok {
-		info.response = parseResponseText(data, info.provider)
-		info.toolCalls = parseToolCalls(data, info.provider)
-	}
-	// Prefer the streamed, per-connection cached answer over the head map (the
-	// head is a single slot churned by later responses).
-	//
-	// NOTE: this is latest-wins per connection, so when one connection serves
-	// several conversations, a request can be paired with a later conversation's
-	// answer. Correct per-request pairing needs HTTP/2 stream-id keying (a FIFO
-	// queue does not work: transactions aren't processed in wire order).
-	if c, ok := h.lookupRespContent(key); ok && c != "" {
-		info.response = c
-	}
+// pairAndEmit builds and emits an LLM span from a request and the reassembled
+// response body captured on the same (conn, stream). Running from the response
+// consumer, it pairs each response with its exact request — correct regardless
+// of transaction ordering or HTTP/2 multiplexing.
+func (h *StatKeeper) pairAndEmit(key llmStreamKey, req llmReqParsed, respBuf []byte) {
+	var info llmSpanInfo
+	// Resolve the service from the client PID captured with the request, using
+	// the same inference USM uses (process_service_inference).
+	info.service = h.resolveLLMService(req.pid)
+	info.model = req.model
+	info.provider = req.provider
+	info.messages = req.messages
+	info.prompt = req.prompt
+	info.reqToolCalls = req.reqToolCalls
+	info.toolResults = req.toolResults
+	info.sessionID = req.sessionID
 
-	// A connection with a cached tool-call generation is running tool workflows
-	// (the consumer cached it as the response streamed in). Recover the
-	// first-gen usage for the workflow's first llm span, and mark this
-	// transaction to suppress its standalone flat span — the conversation is
-	// shown as the agent workflow, so a flat llm span would be a duplicate.
-	if u, ok := h.lookupGenUsage(key); ok {
+	provider := info.provider
+	if provider == "" {
+		provider = responseProvider(respBuf)
+	}
+	info.inputTokens, info.outputTokens, info.totalTokens = parseLLMUsage(respBuf, provider)
+	info.response = parseResponseText(respBuf, provider)
+	info.toolCalls = parseToolCalls(respBuf, provider)
+
+	// A tool-call generation is turn 1 of a workflow: cache its usage by
+	// connection (the workflow's two turns share the connection, sequentially)
+	// so the follow-up's first llm span carries turn-1 cost, and suppress this
+	// turn's flat span — the conversation is shown as the agent workflow instead.
+	if isToolCallGen(respBuf, provider) {
+		h.cacheGenUsage(key.conn, llmUsage{input: info.inputTokens, output: info.outputTokens, total: info.totalTokens})
 		info.suppressFlat = true
-		if len(info.reqToolCalls) > 0 {
+	}
+	// A follow-up request carries the prior turn's tool call + result: recover
+	// turn 1's usage for the workflow's first llm span.
+	if len(info.reqToolCalls) > 0 && len(info.toolResults) > 0 {
+		if u, ok := h.lookupGenUsage(key.conn); ok {
 			info.firstGenUsage = u
 		}
 	}
 
-	return info
-}
-
-// lookupBody reads a captured body from an LLMO map and returns its valid
-// prefix. ok is false when the map is unset or has no entry for the key.
-func (h *StatKeeper) lookupBody(m *ebpf.Map, key *llmConnKey) ([]byte, bool) {
-	if m == nil {
-		return nil, false
+	latencyNs := float64(time.Since(req.arrived).Nanoseconds())
+	if latencyNs <= 0 {
+		latencyNs = 1
 	}
-	var body llmBody
-	if err := m.Lookup(key, &body); err != nil {
-		return nil, false
+	emit := h.llmEmit
+	if emit == nil {
+		emit = emitLLMSpan
 	}
-	n := body.Len
-	if n > llmBodyBufferSize {
-		n = llmBodyBufferSize
-	}
-	return body.Data[:n], true
+	emit(llmPathForProvider(provider), MethodPost, 200, key.conn.toConnectionKey(), latencyNs, info)
 }
 
 // llmRespReasmCap bounds a reassembled response buffer (protects memory against
@@ -844,8 +844,10 @@ func (h *StatKeeper) processLLMRequestEvent(sample []byte) {
 	req.reqToolCalls = parseToolCalls(raw, req.provider)
 	req.toolResults = parseToolResults(raw, req.provider)
 	req.sessionID = parseSessionID(raw, req.provider)
+	req.pid = ev.Pid
+	req.arrived = time.Now()
 
-	h.enqueueReq(ev.Key, req)
+	h.storeReq(llmStreamKey{conn: ev.Key, stream: ev.StreamID}, req)
 }
 
 // StartLLMOResponseConsumer is exported so the HTTP/2 protocol can start it.
@@ -867,11 +869,10 @@ func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
 	return nil
 }
 
-// processLLMResponseEvent parses one streamed response-tail event and caches,
-// per connection: the token usage of a tool-call generation (for the follow-up
-// workflow's first llm span), and the latest assistant answer text (a reliable
-// source for the span output, since the per-connection head map is churned by
-// later responses before poll-batched processing reads it).
+// processLLMResponseEvent reassembles a response, keyed by (conn, stream), and
+// when the response is complete pairs it with its exact request (stored under
+// the same key by the request consumer) and emits the span. Running on a single
+// goroutine, the reassembly map needs no lock.
 func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 	var ev llmRespEvent
 	if err := binary.Read(bytes.NewReader(sample), binary.LittleEndian, &ev); err != nil {
@@ -883,10 +884,11 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 	}
 	chunk := ev.Data[:n]
 
+	key := llmStreamKey{conn: ev.Key, stream: ev.StreamID}
+
 	// A response larger than one read arrives across several read events (the
-	// server streams it in multiple TLS records). Reassemble per connection by
-	// appending each read until usage is seen. This consumer runs on a single
-	// goroutine, so the map needs no lock.
+	// server streams it in multiple TLS records). Reassemble per stream by
+	// appending each read until the response is complete.
 	//
 	// NOTE: when the server splits the body across multiple HTTP/2 DATA frames,
 	// the interleaved 9-byte frame headers make the concatenation invalid JSON,
@@ -894,13 +896,19 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 	// stitching multi-frame bodies needs USM's HTTP/2 frame reassembly (the
 	// naive tap here starts mid-stream after warm-up, so it can't frame-align).
 	if h.llmRespReasm == nil {
-		h.llmRespReasm = make(map[llmConnKey]*llmRespReasm)
+		h.llmRespReasm = make(map[llmStreamKey]*llmRespReasm)
 	}
-	r := h.llmRespReasm[ev.Key]
+	// Bound the reassembly map against responses that never complete.
+	if len(h.llmRespReasm) >= llmStreamMapCap {
+		for k := range h.llmRespReasm {
+			delete(h.llmRespReasm, k)
+			break
+		}
+	}
+	r := h.llmRespReasm[key]
 	if r == nil || r.complete {
-		// Previous response finished (or none yet): start a fresh buffer.
 		r = &llmRespReasm{}
-		h.llmRespReasm[ev.Key] = r
+		h.llmRespReasm[key] = r
 	}
 	if room := llmRespReasmCap - len(r.buf); room > 0 {
 		if len(chunk) > room {
@@ -909,20 +917,26 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 		r.buf = append(r.buf, chunk...)
 	}
 
-	// Usage sits at the very end of the response JSON, so its presence means the
-	// whole response (content included) has been accumulated. Until then, keep
-	// appending later reads.
+	// The response is complete when token usage is present (it sits at the very
+	// end of the response JSON, so seeing it means the whole body — content
+	// included — has been accumulated). END_STREAM is an early-finalize/drop
+	// defense: if the stream terminated we stop accumulating even without usage,
+	// so a response that carries none (an error, a streamed body) can't wedge the
+	// buffer open and grow memory. Best-effort — seeing END_STREAM depends on a
+	// read starting at the terminating frame.
 	provider := responseProvider(r.buf)
-	in, out, tot := parseLLMUsage(r.buf, provider)
-	if tot == 0 {
+	_, _, tot := parseLLMUsage(r.buf, provider)
+	if tot == 0 && ev.EndStream == 0 {
 		return
 	}
 	r.complete = true
-	if isToolCallGen(r.buf, provider) {
-		h.cacheGenUsage(ev.Key, llmUsage{input: in, output: out, total: tot})
-	}
-	if c := parseResponseText(r.buf, provider); c != "" {
-		h.cacheRespContent(ev.Key, c)
+	delete(h.llmRespReasm, key)
+
+	// Pair with the request captured on this exact stream and emit. Without a
+	// stored request (warm-up, or the request event was lost) there's no prompt
+	// or model to build a span from, so drop it.
+	if req, ok := h.takeReq(key); ok {
+		h.pairAndEmit(key, req, r.buf)
 	}
 }
 

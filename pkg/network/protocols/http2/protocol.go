@@ -65,8 +65,6 @@ const (
 	// LLMO PoC maps (defined in pkg/network/ebpf/c/protocols/tls/llmo.h).
 	llmMonitoredConnectionsMap = "llm_monitored_connections"
 	llmRequestEventsMap        = "llm_request_events"
-	llmResponseBodiesMap       = "llm_response_bodies"
-	llmResponseHeadsMap        = "llm_response_heads"
 	llmResponseEventsMap       = "llm_response_events"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
@@ -314,30 +312,29 @@ func (p *Protocol) PreStart() (err error) {
 
 	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
 
-	// LLMO PoC: wire up the eBPF maps used to capture decrypted LLM request
-	// bodies so HTTP/2 LLM transactions can be enriched with model + prompt.
+	// LLMO PoC: flag map gates body capture; the request/response ring-buffer
+	// consumers parse the captured bodies, pair them by (conn, stream), and emit
+	// the LLM spans. Request and response bodies are streamed as events (not a
+	// single map slot), so a connection firing several requests quickly delivers
+	// every one, in order.
 	if connMap, _, errConn := p.mgr.GetMap(llmMonitoredConnectionsMap); errConn == nil {
-		if respMap, _, errResp := p.mgr.GetMap(llmResponseBodiesMap); errResp == nil {
-			if headMap, _, errHead := p.mgr.GetMap(llmResponseHeadsMap); errHead == nil {
-				p.statkeeper.EnableLLMO(connMap, respMap, headMap)
-				// Request bodies are streamed (not a single map slot), so a
-				// connection firing several requests quickly delivers every one.
-				if reqEv, _, errReq := p.mgr.GetMap(llmRequestEventsMap); errReq == nil {
-					if err := p.statkeeper.StartLLMORequestConsumer(reqEv); err != nil {
-						log.Warnf("LLMO: request-event consumer not started: %v", err)
-					}
-				} else {
-					log.Warnf("LLMO: request events map not found: %v", errReq)
-				}
-				if evMap, _, errEv := p.mgr.GetMap(llmResponseEventsMap); errEv == nil {
-					if err := p.statkeeper.StartLLMOResponseConsumer(evMap); err != nil {
-						log.Warnf("LLMO: response-event consumer not started: %v", err)
-					}
-				} else {
-					log.Warnf("LLMO: response events map not found: %v", errEv)
-				}
+		p.statkeeper.EnableLLMO(connMap)
+		if reqEv, _, errReq := p.mgr.GetMap(llmRequestEventsMap); errReq == nil {
+			if err := p.statkeeper.StartLLMORequestConsumer(reqEv); err != nil {
+				log.Warnf("LLMO: request-event consumer not started: %v", err)
 			}
+		} else {
+			log.Warnf("LLMO: request events map not found: %v", errReq)
 		}
+		if evMap, _, errEv := p.mgr.GetMap(llmResponseEventsMap); errEv == nil {
+			if err := p.statkeeper.StartLLMOResponseConsumer(evMap); err != nil {
+				log.Warnf("LLMO: response-event consumer not started: %v", err)
+			}
+		} else {
+			log.Warnf("LLMO: response events map not found: %v", errEv)
+		}
+	} else {
+		log.Warnf("LLMO: monitored-connections map not found: %v", errConn)
 	}
 
 	p.eventsConsumer.Start()
