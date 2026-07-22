@@ -466,7 +466,10 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		}
+		entry.Credentials.AUID = sharedconsts.AuditUIDUnset
 	}
 
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
