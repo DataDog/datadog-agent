@@ -383,7 +383,10 @@ agents:
   useHostNetwork: true
 `, kindClusterName)
 
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
+		newOpts := []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(helmValues),
+			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		params.agentOptions = append(params.agentOptions, imageLoadOptions...)
 		agent, err := helm.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
