@@ -18,10 +18,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
+
+func defaultAuthGosnmpProtocol(t *testing.T) gosnmp.SnmpV3AuthProtocol {
+	protocol, err := gosnmplib.GetAuthProtocol(defaultAuthProtocol())
+	require.NoError(t, err)
+	return protocol
+}
+
+func defaultPrivGosnmpProtocol(t *testing.T) gosnmp.SnmpV3PrivProtocol {
+	protocol, err := gosnmplib.GetPrivProtocol(defaultPrivProtocol())
+	require.NoError(t, err)
+	return protocol
+}
 
 func Test_snmpSession_Configure(t *testing.T) {
 	tests := []struct {
@@ -174,9 +187,9 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags: gosnmp.AuthPriv,
 			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
 				UserName:                 "myUser",
-				AuthenticationProtocol:   gosnmp.SHA256,
+				AuthenticationProtocol:   defaultAuthGosnmpProtocol(t),
 				AuthenticationPassphrase: "myAuthKey",
-				PrivacyProtocol:          gosnmp.AES,
+				PrivacyProtocol:          defaultPrivGosnmpProtocol(t),
 				PrivacyPassphrase:        "myPrivKey",
 			},
 		},
@@ -192,7 +205,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags: gosnmp.AuthPriv,
 			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
 				UserName:                 "myUser",
-				AuthenticationProtocol:   gosnmp.SHA256,
+				AuthenticationProtocol:   defaultAuthGosnmpProtocol(t),
 				AuthenticationPassphrase: "myAuthKey",
 				PrivacyProtocol:          gosnmp.AES,
 				PrivacyPassphrase:        "myPrivKey",
@@ -212,7 +225,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				UserName:                 "myUser",
 				AuthenticationProtocol:   gosnmp.SHA,
 				AuthenticationPassphrase: "myAuthKey",
-				PrivacyProtocol:          gosnmp.AES,
+				PrivacyProtocol:          defaultPrivGosnmpProtocol(t),
 				PrivacyPassphrase:        "myPrivKey",
 			},
 		},
@@ -496,26 +509,30 @@ func TestUseUnconnectedUDPSocketPropagation(t *testing.T) {
 	}
 }
 
-// Test_snmpSession_v3DefaultProtocols_FIPSCompatible documents that the
-// default v3 auth/priv protocols (sha256/aes) are usable under FIPS.
+// Test_snmpSession_v3DefaultProtocols_FIPSCompatible documents that the default
+// v3 auth/priv protocols always produce usable USM keys, whether or not FIPS
+// mode is active.
 //
-// NewGosnmpSession only fills the security-parameter struct; the sha256/aes
-// crypto is not exercised until USM key derivation runs. During a real
-// collection that happens lazily inside sess.GetNext (gosnmp's v3 discovery),
-// but that path needs a live device and would time out identically with or
-// without FIPS. So we drive the exact same key-derivation code directly via
-// InitSecurityKeys.
+// defaultAuthProtocol/defaultPrivProtocol select MD5/DES outside FIPS mode
+// and SHA256/AES under FIPS mode, since MD5/DES key derivation silently produces
+// an empty key under FIPS mode.
 //
-// The sha256/aes localization produces non-empty keys both in a normal build
-// and under GODEBUG=fips140=only, unlike the previous md5/des defaults whose
-// key derivation silently produced empty keys in FIPS mode.
+// NewGosnmpSession only fills the security-parameter struct; the crypto is not
+// exercised until USM key derivation runs. During a real collection that
+// happens lazily inside sess.GetNext (gosnmp's v3 discovery), but that path
+// needs a live device and would time out identically with or without FIPS. So
+// we drive the exact same key-derivation code directly via InitSecurityKeys.
+//
+// Run with GODEBUG=fips140=only to exercise the FIPS branch (SHA256/AES);
+// without it, this exercises the default branch (MD5/DES), which also
+// succeeds since MD5/DES work fine outside FIPS mode.
 func Test_snmpSession_v3DefaultProtocols_FIPSCompatible(t *testing.T) {
 	config := checkconfig.CheckConfig{
 		IPAddress: "1.2.3.4",
 		Port:      uint16(1234),
 		User:      "myUser",
-		AuthKey:   "myAuthKey", // defaults AuthProtocol to sha256
-		PrivKey:   "myPrivKey", // defaults PrivProtocol to aes
+		AuthKey:   "myAuthKey", // defaults AuthProtocol via defaultAuthProtocol()
+		PrivKey:   "myPrivKey", // defaults PrivProtocol via defaultPrivProtocol()
 	}
 	s, err := NewGosnmpSession(&config)
 	require.NoError(t, err)
@@ -526,6 +543,6 @@ func Test_snmpSession_v3DefaultProtocols_FIPSCompatible(t *testing.T) {
 	usm.AuthoritativeEngineID = "myEngineID"
 
 	require.NoError(t, usm.InitSecurityKeys())
-	require.NotEmpty(t, usm.SecretKey, "sha256 auth key derivation produced no key")
-	require.NotEmpty(t, usm.PrivacyKey, "aes priv key derivation produced no key")
+	require.NotEmpty(t, usm.SecretKey, "auth key derivation produced no key (FIPS mode?)")
+	require.NotEmpty(t, usm.PrivacyKey, "priv key derivation produced no key (FIPS mode?)")
 }

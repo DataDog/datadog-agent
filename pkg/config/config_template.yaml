@@ -4601,7 +4601,7 @@ api_key:
 #             # @param authProtocol - string - optional
 #             # The authentication protocol to use when connecting to your SNMP devices.
 #             # Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-#             # Defaults to SHA256 when `authentication_key` is specified.
+#             # Defaults to MD5 when `authentication_key` is specified, or SHA256 in FIPS mode.
 #             # SNMPv3 only.
 #
 #             authProtocol: <AUTHENTICATION_PROTOCOL>
@@ -4615,7 +4615,7 @@ api_key:
 #             # @param privProtocol - string - optional
 #             # The privacy protocol to use when connecting to your SNMP devices.
 #             # Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-#             # Defaults to AES when `privacy_key` is specified.
+#             # Defaults to DES when `privacy_key` is specified, or AES in FIPS mode.
 #             # SNMPv3 only.
 #
 #             privProtocol: <PRIVACY_PROTOCOL>

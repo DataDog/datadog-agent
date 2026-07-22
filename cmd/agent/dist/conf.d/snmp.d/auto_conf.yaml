@@ -54,7 +54,7 @@ instances:
     ## @param authProtocol - string - optional
     ## Authentication type to use when connecting to your SNMP devices.
     ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-    ## Default to SHA256 when `authKey` is specified.
+    ## Default to MD5 when `authKey` is specified, or SHA256 in FIPS mode.
     #
     authProtocol: "%%extra_auth_protocol%%"
 
@@ -66,7 +66,7 @@ instances:
     ## @param privProtocol - string - optional
     ## Privacy type to use when connecting to your SNMP devices.
     ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-    ## Default to AES when `privKey` is specified.
+    ## Default to DES when `privKey` is specified, or AES in FIPS mode.
     #
     privProtocol: "%%extra_priv_protocol%%"
 
