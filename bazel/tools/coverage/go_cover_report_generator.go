@@ -121,24 +121,20 @@ func parseGoProfiles(path string) ([]*cover.Profile, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	defer file.Close()
+
 	scanner := bufio.NewScanner(file)
-	isGoProfile := false
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" {
-			isGoProfile = strings.HasPrefix(line, "mode: ")
+			if !strings.HasPrefix(line, "mode: ") {
+				return nil, false, nil
+			}
 			break
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		file.Close()
 		return nil, false, err
-	}
-	if err := file.Close(); err != nil {
-		return nil, false, err
-	}
-	if !isGoProfile {
-		return nil, false, nil
 	}
 
 	profiles, err := cover.ParseProfiles(path)
