@@ -108,7 +108,6 @@ var bpfMapNames = []string{
 	"sock_cookie_pid",
 	"sock_meta",
 	"socket_field_ap",
-	"span_tls",
 	"splice_entry_fl",
 	"splice_exit_fla",
 	"str_array_buffe",
