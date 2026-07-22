@@ -54,7 +54,6 @@ def test_send_usage_event(proc):
         {
             'type': 'SEND_USAGE_EVENT',
             'tool': 'test-tool',
-            'user_id': 'test-user',
             'approved': True,
         },
     )
