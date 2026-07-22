@@ -22,4 +22,6 @@ type ConfigStore interface {
 	GetConfig(configUUID string) (string, *types.ConfigMetadata, error)
 	CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error)
 	GetAllConfigMetadata() ([]*types.ConfigMetadata, error)
+	// SetPinned sets the IsPinned field on the stored config metadata, preventing eviction.
+	SetPinned(configUUID string, pinned bool) error
 }

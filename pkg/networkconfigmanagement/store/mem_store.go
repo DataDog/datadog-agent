@@ -131,6 +131,9 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 	return rawConfig, &meta, nil
 }
 
+// SetPinned is a stub for the in-memory store that always returns nil.
+func (m *memConfigStore) SetPinned(_ string, _ bool) error { return nil }
+
 // GetAllConfigMetadata returns metadata for every stored config across all devices,
 // sorted by ConfigUUID for deterministic ordering.
 func (m *memConfigStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {

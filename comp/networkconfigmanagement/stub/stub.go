@@ -64,3 +64,11 @@ func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
 	return s.GetConfigEndpointHandler()
 }
+
+// PinConfig implements [networkconfigmanagement.Component].
+func (s *NCMStub) PinConfig(_ context.Context, _, _, _ string) error { return s.GetError() }
+
+// PinEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) PinEndpointHandler() http.HandlerFunc {
+	return s.GetConfigEndpointHandler()
+}

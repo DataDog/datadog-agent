@@ -35,4 +35,9 @@ type Component interface {
 	GetConfigEndpointHandler() http.HandlerFunc
 	// RollbackEndpointHandler returns an HTTP handler for getting configuration
 	RollbackEndpointHandler() http.HandlerFunc
+	// PinConfig marks a config as pinned in the local boltdb store so it is
+	// excluded from eviction.
+	PinConfig(ctx context.Context, deviceID string, configID string, hash string) error
+	// PinEndpointHandler returns an HTTP handler for the pin config endpoint.
+	PinEndpointHandler() http.HandlerFunc
 }

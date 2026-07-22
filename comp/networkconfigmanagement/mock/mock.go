@@ -30,6 +30,16 @@ func (m *mockNetworkConfigManagement) RollbackEndpointHandler() http.HandlerFunc
 	panic("unimplemented")
 }
 
+// PinConfig implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) PinConfig(_ context.Context, _, _, _ string) error {
+	return errors.New("TODO unimplemented")
+}
+
+// PinEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) PinEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFunc {
 	panic("unimplemented")
