@@ -11,5 +11,6 @@ go_library(
         "//pkg/networkconfigmanagement/config",
         "//pkg/networkconfigmanagement/remote",
         "//pkg/networkconfigmanagement/store",
+        "//pkg/networkconfigmanagement/types",
     ],
 )
