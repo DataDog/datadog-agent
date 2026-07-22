@@ -1,0 +1,22 @@
+{
+  "components": {
+    "log_metrics_extractor": {
+      "enabled": false
+    },
+    "connection_error_extractor": {
+      "enabled": false
+    },
+    "log_pattern_extractor": {
+      "enabled": false
+    },
+    "log_tokenizer_extractor": {
+      "enabled": false
+    },
+    "log_tokenizer_fuzzy_extractor": {
+      "enabled": true,
+      "max_eval_bytes": 2048,
+      "min_pattern_count_before_emit": 5,
+      "match_threshold": 0.9
+    }
+  }
+}

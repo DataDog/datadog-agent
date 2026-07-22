@@ -103,6 +103,7 @@ Extractors convert raw observations into timeseries:
 | `log_metrics_extractor` | enabled | Derives metrics from log patterns and JSON fields |
 | `connection_error_extractor` | disabled | Detects connection-error patterns in logs |
 | `log_pattern_extractor` | enabled | Clusters log messages into semantic patterns |
+| `log_tokenizer_fuzzy_extractor` | disabled | Clusters Logs-tokenizer patterns using adaptive sampling's fuzzy match |
 | `log_tokenizer_extractor` | disabled | Counts exact structural patterns from the Logs tokenizer |
 
 ## Examples

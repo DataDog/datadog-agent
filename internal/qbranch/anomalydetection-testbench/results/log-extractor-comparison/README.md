@@ -5,5 +5,6 @@ All arms disable JSON numeric extraction and explicit connection-error extractio
 | Arm | Branch | Mean F1 | Scenarios |
 |---|---|---:|---:|
 | Logs tokenizer, exact token hash | `eokye/tokenizer_use` | 0.1017195873 | 12 |
+| Logs tokenizer, fuzzy 0.9 match | `eokye/tokenizer_fuzzy` | 0.1770880232 | 12 |
 
 `io-contention` is omitted because no recording exists in the official scenario index or S3 bucket.

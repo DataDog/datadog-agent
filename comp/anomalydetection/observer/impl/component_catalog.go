@@ -155,6 +155,21 @@ func defaultCatalog() *componentCatalog {
 					return cfg, nil
 				},
 			},
+			{
+				name:           LogTokenizerFuzzyExtractorName,
+				displayName:    "Log Tokenizer Extractor (Fuzzy Match)",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogTokenizerFuzzyExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogTokenizerFuzzyExtractor(cfg.(LogTokenizerFuzzyExtractorConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogTokenizerFuzzyExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("%s: failed to parse JSON config: %w", LogTokenizerFuzzyExtractorName, err)
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Detectors ----
 			{
 				name:           "cusum",
