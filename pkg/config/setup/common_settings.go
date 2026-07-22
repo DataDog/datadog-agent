@@ -1571,6 +1571,10 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
 	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")
+	// When true, DogStatsD fails to start (the process exits non-zero) when no listener
+	// (UDP port, UDS socket, or named pipe) could be created. When false, the failure is
+	// only logged and the process keeps running.
+	config.BindEnvAndSetDefault("dogstatsd_require_listener", false)
 	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
 	// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
 	// https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
