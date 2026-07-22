@@ -7,7 +7,7 @@ package agenttelemetryimpl
 
 import (
 	"fmt"
-	"slices"
+	"sort"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
@@ -113,32 +113,15 @@ func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
 	}
 }
 
-// getEmitterLabel returns the emitter LabelPair from labels when present with a non-empty
-// value. Returns a synthetic {emitter:"agent"} when absent or empty-valued.
-func getEmitterLabel(labels []*dto.LabelPair) *dto.LabelPair {
-	for _, l := range labels {
-		if l.GetName() == "emitter" && l.GetValue() != "" {
-			return l
-		}
-	}
-	name := "emitter"
-	val := "agent"
-	return &dto.LabelPair{Name: &name, Value: &val}
-}
-
-// cloneLabelsSorted returns a shallow-copied, name-sorted slice of label pairs.
+// Make cloned lables sorted by label name and value label pairs
 func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
-	if len(labels) == 0 {
-		return nil
-	}
 	sorted := make([]*dto.LabelPair, len(labels))
 	copy(sorted, labels)
-	slices.SortFunc(sorted, func(a, b *dto.LabelPair) int {
-		if a.GetName() != b.GetName() {
-			return strings.Compare(a.GetName(), b.GetName())
-		}
-		return strings.Compare(a.GetValue(), b.GetValue())
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].GetName() < sorted[j].GetName() ||
+			(sorted[i].GetName() == sorted[j].GetName() && sorted[i].GetValue() < sorted[j].GetValue())
 	})
+
 	return sorted
 }
 

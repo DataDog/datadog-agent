@@ -118,8 +118,9 @@ type Event struct {
 // -----------------------------------------------------
 // List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
 // metric will be aggregated without any tags. If specified, only these tags are kept; all
-// others are dropped and their timeseries values are summed. In case none of the tags match
-// any timeseries, those timeseries are removed from the metric's JSON object.
+// others are dropped and their timeseries values are summed. A missing or empty emitter tag
+// defaults to "agent" when emitter is preserved. A timeseries with none of the configured tags
+// is removed unless emitter is the only preserved tag.
 // The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
 //
 // profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
