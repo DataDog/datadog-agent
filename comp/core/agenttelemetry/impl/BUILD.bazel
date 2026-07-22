@@ -25,6 +25,7 @@ go_library(
         "//comp/logs/agent/config",
         "//pkg/config/utils",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/util/flavor",
         "//pkg/util/hostinfo",
         "//pkg/util/http",
         "//pkg/util/log/errortracking",

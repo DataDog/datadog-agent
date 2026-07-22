@@ -29,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -43,10 +44,11 @@ type atel struct {
 	logComp log.Component
 	telComp telemetry.Component
 
-	enabled bool
-	sender  sender
-	runner  runner
-	atelCfg *Config
+	enabled      bool
+	localEmitter string
+	sender       sender
+	runner       runner
+	atelCfg      *Config
 
 	lightTracer *installertelemetry.Telemetry
 
@@ -147,12 +149,17 @@ func createSender(
 	return sender, err
 }
 
+func localEmitterFromFlavor(agentFlavor string) string {
+	return strings.ReplaceAll(agentFlavor, "_", "-")
+}
+
 func createAtel(
 	cfgComp config.Component,
 	logComp log.Component,
 	telComp telemetry.Component,
 	sender sender,
-	runner runner) *atel {
+	runner runner,
+	localEmitter string) *atel {
 	// Parse Agent Telemetry Configuration configuration
 	atelCfg, err := parseConfig(cfgComp)
 	if err != nil {
@@ -227,13 +234,14 @@ func createAtel(
 	)
 
 	return &atel{
-		enabled: true,
-		cfgComp: cfgComp,
-		logComp: logComp,
-		telComp: telComp,
-		sender:  sender,
-		runner:  runner,
-		atelCfg: atelCfg,
+		enabled:      true,
+		localEmitter: localEmitter,
+		cfgComp:      cfgComp,
+		logComp:      logComp,
+		telComp:      telComp,
+		sender:       sender,
+		runner:       runner,
+		atelCfg:      atelCfg,
 
 		lightTracer: installertelemetry.NewTelemetry(
 			tracerHTTPClient,
@@ -272,6 +280,7 @@ func NewComponent(deps Requires) Provides {
 		deps.Telemetry,
 		nil,
 		nil,
+		localEmitterFromFlavor(flavor.GetFlavor()),
 	)
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks

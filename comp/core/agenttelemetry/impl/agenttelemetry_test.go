@@ -217,7 +217,7 @@ func getTestAtel(t *testing.T,
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, sndr, runner)
+	atel := createAtel(cfg, log, tel, sndr, runner, "agent")
 	if atel == nil {
 		err = errors.New("failed to create atel")
 	}
@@ -259,7 +259,7 @@ agent_telemetry:
 
 	var atel *atel
 	assert.NotPanics(t, func() {
-		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
+		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{}, "agent")
 	})
 	require.NotNil(t, atel)
 	require.NotNil(t, atel.errLogsCh)
@@ -534,6 +534,39 @@ func getPayloadMetricByTagValues(metrics []*MetricPayload, tags map[string]inter
 
 // ------------------------------
 // Tests
+
+func TestLocalEmitterNormalization(t *testing.T) {
+	tests := []struct {
+		flavor string
+		want   string
+	}{
+		{flavor: "agent", want: "agent"},
+		{flavor: "cluster_agent", want: "cluster-agent"},
+		{flavor: "trace_agent", want: "trace-agent"},
+		{flavor: "otel_agent", want: "otel-agent"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.flavor, func(t *testing.T) {
+			assert.Equal(t, tt.want, localEmitterFromFlavor(tt.flavor))
+		})
+	}
+}
+
+func TestLocalEmitterCreateAtelStoresNormalizedFlavor(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, getCommonYAMLConfig(true, "foo.bar"))
+	a := createAtel(
+		cfg,
+		makeLogMock(t),
+		makeTelMock(t),
+		&senderMock{},
+		&runnerMock{},
+		localEmitterFromFlavor("cluster_agent"),
+	)
+
+	require.True(t, a.enabled)
+	assert.Equal(t, "cluster-agent", a.localEmitter)
+}
 
 func TestEnabled(t *testing.T) {
 	a := getTestAtel(t, nil, getCommonYAMLConfig(true, "foo.bar"), nil, nil, nil)
