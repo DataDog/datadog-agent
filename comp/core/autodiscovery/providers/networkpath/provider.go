@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,6 +31,7 @@ const (
 	scheduledType = "scheduled"
 	dynamicType   = "dynamic"
 	configSource  = names.NetworkPathRemoteConfig + ":" + scheduledType
+	defaultMaxTTL = 30
 )
 
 // Provider receives scheduled Network Path tests from Remote Configuration.
@@ -315,7 +315,7 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 		return networkPathInstanceConfig{}, errors.New("timeout_ms must be > 0")
 	}
 	if endpoint.TimeoutMS != nil {
-		maxTTL := setup.DefaultNetworkPathMaxTTL
+		maxTTL := defaultMaxTTL
 		if endpoint.MaxTTL != nil {
 			maxTTL = *endpoint.MaxTTL
 		}
