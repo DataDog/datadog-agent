@@ -34,7 +34,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mdlayher/vsock v1.3.0
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/grpc v1.82.0
+	google.golang.org/grpc v1.82.1
 )
 
 require (
