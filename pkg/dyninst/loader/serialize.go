@@ -232,6 +232,13 @@ func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
 
 	switch t := t.(type) {
 	case *ir.GoContextImplementationType:
+		// An impl that is not a chain link carries no chain-walk layout; it is
+		// captured as an ordinary struct, so leave the context fields at their
+		// -1 defaults and don't floor byte_len (there is no INIT rewrite to
+		// reserve for).
+		if !t.HasChainData() {
+			break
+		}
 		info.Go_context_is_context = 1
 		info.Go_context_context_offset = t.ContextOffset
 		info.Go_context_key_offset = t.KeyOffset
@@ -240,9 +247,9 @@ func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
 		// preamble reserves at least 40 bytes of payload. The
 		// SM_OP_GO_CONTEXT_CHAIN_INIT opcode rewrites the just-serialized
 		// data item to type=TraceContextType and zeros 40 bytes of payload;
-		// without this floor, tiny context impls (emptyCtx, backgroundCtx,
-		// todoCtx) would have a payload reservation smaller than 40 bytes
-		// and the zero would overrun into the next data item's header.
+		// without this floor, a chain-walked impl smaller than 40 bytes would
+		// have a payload reservation too small for the zero, overrunning into
+		// the next data item's header.
 		if info.Byte_len < ir.TraceContextByteSize {
 			info.Byte_len = ir.TraceContextByteSize
 		}
@@ -254,11 +261,12 @@ func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
 		info.Ddtrace_span_context_offset = t.SpanContextOffset
 		info.Ddtrace_span_context_trace_id_offset = t.SpanContextTraceIDOffset
 	case *ir.PointerType:
-		// Pointer-to-context-impl types also use the chain-walk enqueue
-		// routine (compiler emits [INIT, HOP, RETURN] for
-		// *context.cancelCtx, etc.) — floor byte_len to 40 bytes for the
-		// same reason as struct impls.
-		if _, ok := t.Pointee.(*ir.GoContextImplementationType); ok {
+		// A pointer to a chain-walked context impl also uses the chain-walk
+		// enqueue routine (compiler emits [INIT, HOP, RETURN] for
+		// *context.cancelCtx, etc.) — floor byte_len to 40 bytes for the same
+		// reason as struct impls. A pointer to a non-chain-link impl is a plain
+		// pointer and needs no floor.
+		if impl, ok := t.Pointee.(*ir.GoContextImplementationType); ok && impl.HasChainData() {
 			if info.Byte_len < ir.TraceContextByteSize {
 				info.Byte_len = ir.TraceContextByteSize
 			}

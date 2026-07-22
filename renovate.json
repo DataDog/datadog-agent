@@ -309,6 +309,25 @@
         "depNameTemplate": "datadog.dd",
         "datasourceTemplate": "custom.ansible-galaxy-datadog-dd",
         "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\"npm:(?<depName>[^\"]+)\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "datasourceTemplate": "npm",
+        "versioningTemplate": "npm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\\bnode\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "node",
+        "datasourceTemplate": "node",
+        "versioningTemplate": "node"
       }
     ],
     "customDatasources": {

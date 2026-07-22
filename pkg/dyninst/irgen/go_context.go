@@ -108,6 +108,15 @@ func annotateSpecialGoTypes(
 				attrs.ValueOffset = int32(val.Offset)
 			}
 		}
+		// Wrap every concrete context.Context implementation as a
+		// GoContextImplementationType so the IR labels it descriptively. An
+		// impl that is not a chain link (no embedded parent context and no
+		// key/value payload) has attrs.HasChainData() == false; the compiler
+		// and loader key off that to capture its fields as an ordinary struct
+		// instead of running the chain walk, which would replace struct-field
+		// capture with a dead-ending walk and discard the struct's fields.
+		// Chain-link contexts reached during ordinary capture still trigger the
+		// walk and still populate the top-level trace context.
 		tc.typesByID[id] = &ir.GoContextImplementationType{
 			StructureType:       st,
 			GoContextAttributes: attrs,

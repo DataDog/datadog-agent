@@ -42,6 +42,18 @@ func getMkdirProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_do_mkdirat",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filename_mkdirat",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_filename_mkdirat",
+			},
+		},
 	}
 
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{

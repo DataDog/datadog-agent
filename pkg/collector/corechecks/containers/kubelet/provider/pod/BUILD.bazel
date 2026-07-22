@@ -62,7 +62,6 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/kubelet",
-        "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",

@@ -130,8 +130,24 @@ int hook_do_mkdirat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_mkdirat")
+int hook_filename_mkdirat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
+    if (!syscall) {
+        umode_t mode = (umode_t)CTX_PARM3(ctx);
+        return trace__sys_mkdir(ctx, ASYNC_SYSCALL, NULL, mode);
+    }
+    return 0;
+}
+
 HOOK_EXIT("do_mkdirat")
 int rethook_do_mkdirat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_mkdirat")
+int rethook_filename_mkdirat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }

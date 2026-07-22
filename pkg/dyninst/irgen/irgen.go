@@ -645,6 +645,11 @@ func generateIR(
 		}
 	}
 	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport, contextImplIRTypeIDs)
+	// annotateSpecialGoTypes swaps wrapped impls in for their plain
+	// StructureType entries in typesByID. Rebind references so pointees,
+	// fields, and variables point at the wrappers rather than the orphaned
+	// pre-wrap instances.
+	rebindTypeReferences(typeCatalog, materializedSubprograms)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
@@ -2805,7 +2810,18 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 	if err := completeGoTypes(tc, 1, tc.idAlloc.alloc); err != nil {
 		return err
 	}
+	rebindTypeReferences(tc, subprograms)
+	return nil
+}
 
+// rebindTypeReferences points every type reference and subprogram variable at
+// the canonical type instance for its ID in tc.typesByID. It must run after any
+// pass that replaces a typesByID entry with a new object for the same ID (type
+// finalization, and annotateSpecialGoTypes' wrapper substitution); otherwise a
+// PointerType.Pointee or field can dangle at a stale instance, so the compiler
+// keys a type's ProcessType handler off one object while the loader looks it up
+// off another and finds no enqueue_pc.
+func rebindTypeReferences(tc *typeCatalog, subprograms []*ir.Subprogram) {
 	visitTypeReferences(tc, func(t *ir.Type) {
 		if *t == nil {
 			return
@@ -2818,7 +2834,6 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 			v.Type = tc.typesByID[v.Type.GetID()]
 		}
 	}
-	return nil
 }
 
 type processedDwarf struct {

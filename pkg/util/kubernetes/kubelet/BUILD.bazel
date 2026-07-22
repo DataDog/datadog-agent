@@ -40,6 +40,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/retry",
         "@com_github_json_iterator_go//:go",
+        "@com_github_modern_go_reflect2//:reflect2",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/runtime",
@@ -57,6 +58,7 @@ dd_agent_go_test(
     name = "kubelet_test",
     srcs = [
         "deviceplugin_test.go",
+        "json_test.go",
         "kubelet_client_test.go",
         "kubelet_common_test.go",
         "kubelet_hosts_test.go",
@@ -78,7 +80,6 @@ dd_agent_go_test(
         "//pkg/errors",
         "//pkg/util/log",
         "//pkg/util/log/setup",
-        "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",

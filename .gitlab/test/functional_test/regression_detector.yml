@@ -119,7 +119,9 @@ trigger-single-machine-performance-regression_detector:
     - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   allow_failure: true
 
-# This job is used to run the regression detector on the main branch. On main, we notify failures 
+# This job is used to run the regression detector on the main branch. It remains
+# linked to the parent pipeline, but the detector job is currently allowed to
+# fail on main while #incident-57148 is investigated.
 trigger-single-machine-performance-regression_detector-main:
   extends:
     - .trigger-single-machine-performance-regression_detector
@@ -129,5 +131,4 @@ trigger-single-machine-performance-regression_detector-main:
   trigger:
     strategy: depend
   variables:
-    SMP_ALLOW_FAILURE: "false"
-
+    SMP_ALLOW_FAILURE: "true"

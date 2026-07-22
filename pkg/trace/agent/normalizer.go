@@ -452,15 +452,7 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	firstSpan := t.Spans[0]
-
 	for _, span := range t.Spans {
-		if span == nil {
-			continue
-		}
-		if firstSpan == nil {
-			firstSpan = span
-		}
 		if err := a.normalizeV1(ts, span); err != nil {
 			return err
 		}

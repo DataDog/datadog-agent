@@ -1,0 +1,21 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+dd_url: http://127.0.0.1:9091
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+private_action_runner:
+  # Enable the Private Action Runner.
+  enabled: true
+  # The SMP environment has no real Datadog backend to enroll against (all
+  # egress is blackholed), so disable self-enrollment to keep the runner in a
+  # steady idle state instead of retrying enrollment in a loop.
+  self_enroll: false
+  # Throwaway static identity so the runner gets past startup and idles. Without
+  # it, startup fails on the incomplete-identity check and the process exits
+  # before total_pss_bytes can be sampled. Never authenticates: egress is blackholed.
+  urn: "urn:dd:apps:on-prem-runner:us1:1:smp-regression"
+  private_key: "eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkhqMjZFRGtySVJiTXYyUlYta2hLM09JODZMVlUtS0E4dnJ6QkZWdmFYVUEiLCJ5Ijoic0RSREpPemxMZ2pEUnJKbS01YTMtdlFraTZiZExiT0IxY3FldEpxVXNnNCIsImQiOiJBbXhKaVJtMS1icTBLVS1FMng1eHlTclJKTVg3NmJHRlJFNlJLS3lqWDVRIiwiYWxnIjoiRVMyNTYiLCJ1c2UiOiJzaWcifQ"

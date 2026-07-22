@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "integrations",
+    srcs = ["registry.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/scenarios/aws/integrations/aws_neuron",
+        "//test/e2e-framework/scenarios/aws/integrations/etcd",
+        "//test/e2e-framework/scenarios/aws/integrations/kafka",
+        "//test/e2e-framework/scenarios/aws/integrations/postgres",
+        "//test/e2e-framework/scenarios/aws/integrations/redisdb",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
