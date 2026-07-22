@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "coverage_lib",
+    srcs = ["go_cover_report_generator.go"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/tools/coverage",
+    visibility = ["//visibility:private"],
+    deps = ["@org_golang_x_tools//cover"],
+)
+
+go_binary(
+    name = "coverage",
+    embed = [":coverage_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "coverage_test",
+    srcs = ["go_cover_report_generator_test.go"],
+    embed = [":coverage_lib"],
+    gotags = ["test"],
+)
