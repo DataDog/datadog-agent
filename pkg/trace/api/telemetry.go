@@ -86,16 +86,17 @@ type telemetryRequest struct {
 // injectionMetadata is the payload sent inside a telemetryRequest with
 // request_type=injection-metadata by the SSI tracer-injection sidecar.
 type injectionMetadata struct {
-	Component        string `json:"component"`
-	ComponentVersion string `json:"component_version"`
-	Result           string `json:"result"`
-	ResultReason     string `json:"result_reason"`
-	ResultClass      string `json:"result_class"`
-	RuntimeID        string `json:"runtime_id"`
-	CommandLine      string `json:"command_line"`
-	TimestampMillis  int64  `json:"timestamp_millis"`
-	CreateTimeMillis int64  `json:"create_time_millis"`
-	Language         string `json:"language"`
+	Component        string          `json:"component"`
+	ComponentVersion string          `json:"component_version"`
+	Result           string          `json:"result"`
+	ResultReason     string          `json:"result_reason"`
+	ResultClass      string          `json:"result_class"`
+	RuntimeID        string          `json:"runtime_id"`
+	CommandLine      string          `json:"command_line"`
+	TimestampMillis  int64           `json:"timestamp_millis"`
+	CreateTimeMillis int64           `json:"create_time_millis"`
+	Language         string          `json:"language"`
+	Metadata         json.RawMessage `json:"metadata,omitempty"`
 }
 
 // patchJSONField re-encodes the JSON object raw, replacing only the named
@@ -329,12 +330,6 @@ func (f *TelemetryForwarder) scrubCommandLine(cmdLine string) string {
 	return f.cmdLineScrubber.ScrubLine(cmdLine)
 }
 
-// stripCommandLineSecrets returns body with the command_line field of an
-// injection-metadata payload redacted by the default scrubber. It is a no-op
-// for any request that is not an APM injection-metadata payload, and for
-// payloads that fail to decode — the latter so a malformed body is still
-// proxied to the intake (where it can be observed) rather than silently
-// dropped here.
 func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []byte) []byte {
 	if req.Header.Get(telemetryRequestTypeHeader) != apmTelemetryRequestType {
 		return body
@@ -357,24 +352,44 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 		f.logger.Error("telemetry proxy: failed to decode injection-metadata payload: %v", err)
 		return body
 	}
-	if payload.CommandLine == "" {
-		return body
+
+	rawPayload := msg.Payload
+	changed := false
+
+	if payload.CommandLine != "" {
+		scrubbed := f.scrubCommandLine(payload.CommandLine)
+		if scrubbed != payload.CommandLine {
+			scrubbedJSON, err := json.Marshal(scrubbed)
+			if err != nil {
+				f.logger.Error("telemetry proxy: failed to encode scrubbed command_line: %v", err)
+				return body
+			}
+			rawPayload, err = patchJSONField(rawPayload, "command_line", scrubbedJSON)
+			if err != nil {
+				f.logger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
+				return body
+			}
+			changed = true
+		}
 	}
 
-	scrubbed := f.scrubCommandLine(payload.CommandLine)
-	if scrubbed == payload.CommandLine {
-		return body
+	if len(payload.Metadata) > 0 {
+		scrubbedMetadata, metadataChanged, err := scrubJSONValue(payload.Metadata, f.cmdLineScrubber)
+		if err != nil {
+			f.logger.Error("telemetry proxy: failed to scrub injection-metadata metadata field: %v", err)
+			return body
+		}
+		if metadataChanged {
+			rawPayload, err = patchJSONField(rawPayload, "metadata", scrubbedMetadata)
+			if err != nil {
+				f.logger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
+				return body
+			}
+			changed = true
+		}
 	}
 
-	scrubbedJSON, err := json.Marshal(scrubbed)
-	if err != nil {
-		f.logger.Error("telemetry proxy: failed to encode scrubbed command_line: %v", err)
-		return body
-	}
-
-	rawPayload, err := patchJSONField(msg.Payload, "command_line", scrubbedJSON)
-	if err != nil {
-		f.logger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
+	if !changed {
 		return body
 	}
 
@@ -384,6 +399,109 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 		return body
 	}
 	return out
+}
+
+// sensitiveMetadataKeys mirrors sensitiveArgFlags but matches JSON object
+// keys within the free-form injection-metadata metadata field, since its
+// shape isn't fixed and may carry a raw property value under a descriptive
+// key (e.g. {"env_var": "DD_API_KEY", "value": "..."}) rather than a
+// "flag=value" pair scrubCommandLine's regexes can key off of.
+var sensitiveMetadataKeys = sensitiveArgFlags
+
+func isSensitiveMetadataKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	for _, word := range sensitiveMetadataKeys {
+		if normalized == word {
+			return true
+		}
+	}
+	return false
+}
+
+var valueKeyNames = map[string]bool{"value": true, "val": true}
+
+func isSensitiveWord(s string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(s, "-", "_"))
+	for _, word := range sensitiveArgFlags {
+		if strings.Contains(normalized, word) {
+			return true
+		}
+	}
+	return false
+}
+
+// scrubJSONValue walks an arbitrary JSON value and redacts string leaves: outright, when the enclosing
+// object key names a known-sensitive field (see sensitiveMetadataKeys) or
+// when a sibling key's value names one (see valueKeyNames/isSensitiveWord),
+// and otherwise via s, which redacts embedded "flag=value"/"flag: value"
+// patterns the same way it does for command_line. It reports whether
+// anything changed so callers can skip re-encoding untouched payloads.
+func scrubJSONValue(raw json.RawMessage, s *scrubber.Scrubber) (json.RawMessage, bool, error) {
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return raw, false, err
+	}
+	scrubbed, changed := scrubValue("", v, s)
+	if !changed {
+		return raw, false, nil
+	}
+	out, err := json.Marshal(scrubbed)
+	if err != nil {
+		return raw, false, err
+	}
+	return out, true, nil
+}
+
+func scrubValue(key string, v interface{}, s *scrubber.Scrubber) (interface{}, bool) {
+	switch val := v.(type) {
+	case string:
+		if isSensitiveMetadataKey(key) {
+			if val == "********" {
+				return val, false
+			}
+			return "********", true
+		}
+		scrubbed := s.ScrubLine(val)
+		return scrubbed, scrubbed != val
+	case map[string]interface{}:
+		hasSensitiveNameDesignator := false
+		for k, elem := range val {
+			if str, ok := elem.(string); ok && !valueKeyNames[strings.ToLower(k)] && isSensitiveWord(str) {
+				hasSensitiveNameDesignator = true
+				break
+			}
+		}
+		changed := false
+		for k, elem := range val {
+			if hasSensitiveNameDesignator && valueKeyNames[strings.ToLower(k)] {
+				if str, ok := elem.(string); ok {
+					if str != "********" {
+						val[k] = "********"
+						changed = true
+					}
+					continue
+				}
+			}
+			scrubbedElem, elemChanged := scrubValue(k, elem, s)
+			if elemChanged {
+				val[k] = scrubbedElem
+				changed = true
+			}
+		}
+		return val, changed
+	case []interface{}:
+		changed := false
+		for i, elem := range val {
+			scrubbedElem, elemChanged := scrubValue(key, elem, s)
+			if elemChanged {
+				val[i] = scrubbedElem
+				changed = true
+			}
+		}
+		return val, changed
+	default:
+		return v, false
+	}
 }
 
 func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
