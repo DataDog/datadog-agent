@@ -38,8 +38,6 @@ test_kmt_local_setup_linux:
 test_kmt_local_setup_macos:
   extends: .test_kmt_local_setup
   before_script:
-    - !reference [.vault_login]
-    - !reference [.aws_retry_config]
     # Drop GOPROXY entries not usable from macOS runners, before any go command.
     - !reference [.sanitize_goproxy]
     - !reference [.setup_github_token_read]

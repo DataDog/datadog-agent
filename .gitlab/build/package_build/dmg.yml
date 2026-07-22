@@ -65,7 +65,6 @@
     - sudo umount /Volumes/Agent || true
   script:
     - set -eo pipefail
-    - !reference [.vault_login]
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
     # List Python and Go existing environments and their disk space
@@ -73,6 +72,8 @@
     - !reference [.macos_setup_cache]
     - !reference [.retrieve_linux_go_deps]
     - bash .gitlab/build/package_build/build_agent_dmg.sh
+    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities (no macOS IAM instance role needed)
+    - ci-identities-gitlab-job-client assume-role
     - !reference [.upload_sbom_artifacts]
 
 agent_dmg-x64-a7:

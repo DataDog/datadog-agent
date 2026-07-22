@@ -65,15 +65,6 @@
       dda self pip install awscli==1.29.45
     fi
 
-.vault_login:
-  # Point the CLI to our internal vault
-  - export VAULT_ADDR=https://vault.us1.ddbuild.io
-  - vault login -method=aws -no-print
-
-.aws_retry_config:
-  - export AWS_RETRY_MODE=standard
-  - export AWS_RETRY_MAX_ATTEMPTS=5
-
 .macos_gitlab:
   extends: [".bazel:defs:cache:macos"]
   needs: ["go_deps", "go_tools_deps"]
@@ -83,8 +74,6 @@
   variables:
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
   before_script:
-    - !reference [.vault_login]
-    - !reference [.aws_retry_config]
     # Drop GOPROXY entries not usable from macOS runners, before any go command.
     - !reference [.sanitize_goproxy]
     # Selecting the current Go version
