@@ -2,8 +2,6 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
-
 exports_files([
     "tcp_queue_length_kern_types_linux.go",
     "tcp_queue_length_kern_types_linux_test.go",
@@ -40,18 +38,36 @@ go_library(
     ],
 )
 
+# tcp_queue_length_kern_types_linux_test.go and tcp_queue_length_test.go must be
+# in separate rules because tcp_queue_length_kern_types_linux_test.go needs
+# //pkg/ebpf/ebpftest:cgo_align (for TestCgoAlignment) while
+# tcp_queue_length_test.go needs //pkg/ebpf/ebpftest (for TestBuildMode/CORE).
+# Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+# and cannot coexist in the same rule's deps.
+
+dd_agent_go_test(
+    name = "tcpqueuelength_types_test",
+    # keep: split from tcpqueuelength_test; see comment above.
+    srcs = ["tcp_queue_length_kern_types_linux_test.go"],
+    embed = [":tcpqueuelength"],
+    # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
+    deps = select({
+        "@rules_go//go/platform:linux": ["//pkg/ebpf/ebpftest:cgo_align"],
+        "//conditions:default": [],
+    }),
+)
+
 dd_agent_go_test(
     name = "tcpqueuelength_test",
-    srcs = [
-        "tcp_queue_length_kern_types_linux_test.go",
-        "tcp_queue_length_test.go",
-    ],
+    # keep: split from tcpqueuelength_types_test; see comment above.
+    srcs = ["tcp_queue_length_test.go"],
     embed = [":tcpqueuelength"],
+    # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode/runtime",
-        "//pkg/ebpf/ebpftest:cgo_align",
+        "//pkg/ebpf/ebpftest",
         "//pkg/util/kernel",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
