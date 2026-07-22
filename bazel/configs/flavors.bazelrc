@@ -16,6 +16,6 @@ test:iot          --test_tag_filters=flavor_iot       --config=gorace
 test:no-dd-agent-go-tests  --test_tag_filters=-dd_agent_go_test --config=gorace
 
 # Go-only coverage: emit go cover profiles and merge Bazel baseline files.
-# Usage: bazel coverage --config=coverage:go //pkg/...
-coverage:go --@rules_go//go/config:cover_format=go_cover
-coverage:go --coverage_report_generator=//bazel/tools/coverage:coverage
+# Usage: bazel coverage --config=go_cover //pkg/...
+coverage:go_cover --@rules_go//go/config:cover_format=go_cover
+coverage:go_cover --coverage_report_generator=//bazel/tools/coverage:coverage
