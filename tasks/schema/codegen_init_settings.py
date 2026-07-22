@@ -1,12 +1,20 @@
 import os
 import re
+import subprocess
 
 file_header = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
+
 package setup
+"""
+
+constant_header = """//
+// The following code is generated from the schema and should never be manually edited
+//
 """
 
 
@@ -386,6 +394,11 @@ def dict_to_gotype(inp):
 
 
 def to_vartype(node, setting_default):
+    if node.get('type') == 'array':
+        tags = node.get('tags')
+        if tags:
+            if 'golang_type:[]int' in tags:
+                return f"[]int{setting_default}"
     return f"{dict_to_gotype(node)}{setting_default}"
 
 
@@ -549,11 +562,122 @@ config_setup_func_names = [
     'remoteflags',
     'OTLP',
     'setupProcesses',
+    'setupPrivateActionRunner',
     'anomalyDetection',
     'initMainSystemProbeConfig',
     'initCWSSystemProbeConfig',
     'initUSMSystemProbeConfig',
 ]
+
+
+def gen_delegated_auth_map(core_schema, system_probe_schema, core_out, system_probe_out):
+    """
+    Constant generator: appends the delegated auth map to the relevant buffers.
+
+    core_schema         - loaded core schema object
+    system_probe_schema - loaded system-probe schema object
+    core_out            - Go source lines for the core constant file
+    system_probe_out    - Go source lines for the system-probe constant file
+    """
+
+    def collect_delegated_auth_keys(schema):
+        keys = []
+
+        # Visitor for each setting
+        def visit(curr_path, node):
+            if node.get("node_type") == "setting":
+                return
+
+            for name, child in node["properties"].items():
+                if name == "delegated_auth":
+                    keys.append(curr_path)
+                else:
+                    path = curr_path + "." + name if curr_path else name
+                    visit(path, child)
+
+        visit("", schema)
+        return keys
+
+    def emit(out, keys):
+        out.append("""
+            type delegatedAuthConfig struct {
+              apiKeyPath        string
+              delegatedAuthPath string
+              description       string
+            }
+
+            // delegatedAuthKeys list all the \"delegated_auth\" configuration section.
+            // This list is used to fully initialize authentication through cloud provider instead of API key
+            var delegatedAuthKeys = []delegatedAuthConfig{""")
+
+        for key in keys:
+            parent_section_name = key.rsplit(".")[0]
+            parent_section = key.rsplit(".")[0]
+
+            if parent_section != "":
+                parent_section += "."
+            if parent_section_name == "":
+                parent_section_name = "global"
+
+            out.append(f"""
+                {{
+                  apiKeyPath: "{parent_section}api_key",
+                  delegatedAuthPath : "{parent_section}delegated_auth",
+                  description: "{parent_section_name}",
+                }},""")
+        out.append("}")
+        out.append("")
+
+    emit(core_out, collect_delegated_auth_keys(core_schema))
+
+
+# Ordered list of generator functions used to produce the constant files.
+# Each is called with (core_schema, system_probe_schema, core_out, system_probe_out)
+# and may append Go code to either output buffer.
+constant_generators = [
+    gen_delegated_auth_map,
+]
+
+
+def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
+    """
+    Generate the core and system-probe constant files by running each generator
+    in `constant_generators` in order. Each generator receives both schemas and
+    both output buffers, so it can append Go code to either file.
+
+    core_schema         - loaded core schema object
+    system_probe_schema - loaded system-probe schema object
+    outsource_dir       - the directory to output source code to
+    """
+    header = file_header.split('\n') + constant_header.split('\n')
+    core_out = list(header)
+    system_probe_out = list(header)
+
+    for generator in constant_generators:
+        generator(core_schema, system_probe_schema, core_out, system_probe_out)
+
+    for filename, sourcecode in (
+        ("generated.go", core_out),
+        # For now we don't have any content for system_probe.
+        # ("system_probe_generated.go", system_probe_out),
+    ):
+        print('Output %s' % filename)
+        out_filename = os.path.join(outsource_dir, filename)
+        with open(out_filename, "w") as f:
+            f.write(gofmt('\n'.join(sourcecode)))
+
+
+def gofmt(source):
+    """
+    Format Go source code with gofmt and return the result.
+    """
+    return subprocess.run(
+        ["gofmt"],
+        input=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
 
 
 def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
