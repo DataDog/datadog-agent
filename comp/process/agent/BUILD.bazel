@@ -1,0 +1,116 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agent_aix.go",
+        "agent_fallback.go",
+        "agent_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/agent",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/config/setup",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/config/setup",
+            "//pkg/process/checks",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:js": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/config/setup",
+            "//pkg/process/checks",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -202,7 +202,7 @@ def submit_gensim_eks(
     )
     if status_buf.getvalue().strip():
         raise Exit(
-            f"gensim-episodes checkout is dirty ({gensim_repo_path}).\n" "Commit or stash changes before submitting."
+            f"gensim-episodes checkout is dirty ({gensim_repo_path}).\nCommit or stash changes before submitting."
         )
 
     # ── 5-6. Check cluster accessibility and guard against busy cluster ──
@@ -214,7 +214,7 @@ def submit_gensim_eks(
     try:
         aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
     except Exception:
-        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin-8h -- "
 
     kubeconfig_path = _find_kubeconfig(stack_name)
     if os.path.exists(kubeconfig_path):
@@ -227,7 +227,7 @@ def submit_gensim_eks(
         if cluster_ok and cluster_ok.ok:
             # Check for active orchestrator job
             job_result = ctx.run(
-                f"KUBECONFIG={kubeconfig_path} kubectl get job gensim-orchestrator " f"-n {namespace} -o json",
+                f"KUBECONFIG={kubeconfig_path} kubectl get job gensim-orchestrator -n {namespace} -o json",
                 warn=True,
                 hide=True,
             )
@@ -250,7 +250,7 @@ def submit_gensim_eks(
                     # Job completed or failed -- clean it up
                     tool.info("Cleaning up previous orchestrator job.")
                     ctx.run(
-                        f"KUBECONFIG={kubeconfig_path} kubectl delete job " f"gensim-orchestrator -n {namespace}",
+                        f"KUBECONFIG={kubeconfig_path} kubectl delete job gensim-orchestrator -n {namespace}",
                         warn=True,
                         hide=True,
                     )
@@ -681,7 +681,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: st
         local_config = config.get_local_config(config_path)
         aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
     except (ValidationError, Exit):
-        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin-8h -- "
 
     short_stack = full_stack_name.split("/")[-1]
 

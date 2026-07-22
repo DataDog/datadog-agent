@@ -44,64 +44,18 @@ exports_files(glob(
 
 exports_files(["go.mod"])
 
-# TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
+# TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/subcommands/*.go
-# gazelle:exclude cmd/agent/subcommands/check
 # gazelle:exclude cmd/agent/subcommands/processchecks
-# gazelle:exclude cmd/agent/subcommands/run/*.go
-# gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent/*.go
-# gazelle:exclude cmd/cluster-agent/api/*.go
 # gazelle:exclude cmd/cluster-agent/custommetrics
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
-# gazelle:exclude cmd/cluster-agent/subcommands/check
 # gazelle:exclude cmd/cluster-agent/subcommands/start
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/*go
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/*.go
-# gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/run
-# gazelle:exclude cmd/iot-agent
-# gazelle:exclude cmd/process-agent/command
-# gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/serverless-init/*.go
-# cloudservice imports mode directly; excluded until mode is migrated,
-# then drop this exclude too.
-# gazelle:exclude cmd/serverless-init/cloudservice
-# gazelle:exclude cmd/serverless-init/mode
-# gazelle:exclude comp/collector/bundle.go
-# gazelle:exclude comp/collector/collector/fx
-# gazelle:exclude comp/core/gui/fx
-# gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/metadata/clusteragent/fx
-# gazelle:exclude comp/metadata/clusteragent/impl
-# gazelle:exclude comp/process/agent/*.go
-# gazelle:exclude comp/process/agent/fx
-# gazelle:exclude comp/process/agent/impl
-# gazelle:exclude comp/process/runner/fx
-# gazelle:exclude comp/process/runner/impl
-# gazelle:exclude comp/process/submitter
-# gazelle:exclude pkg/cli/subcommands/autoscalerlist
-# gazelle:exclude pkg/cli/subcommands/check
-# gazelle:exclude pkg/cli/subcommands/processchecks
-# gazelle:exclude pkg/clusteragent/admission/*.go
-# gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/discovery
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/common
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/ecs
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/k8s/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/transformers/k8s
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/*.go
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
-# gazelle:exclude pkg/collector/corechecks/oracle/*.go
-# gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
-# gazelle:exclude pkg/collector/corechecks/orchestrator/pod
-# gazelle:exclude pkg/commonchecks
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
 # binary out of Bazel, consistent with testprogs binaries relying on the
@@ -119,8 +73,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/ebpf/uprobes/testutil/standalone_attacher
-# Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
-# gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/network/tracer/testutil/proxy/external_unix_proxy_server
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
 # gazelle:exclude pkg/serverless/otlp
@@ -204,6 +156,7 @@ exports_files(["go.mod"])
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor //pkg/proto/pbgo/privateactionrunner/executor
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr //pkg/proto/pbgo/procmgr
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
@@ -411,6 +364,7 @@ write_source_files(
         "//pkg/proto/pbgo/mocks/core:api_mockgen",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/executor:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
         "//pkg/proto/pbgo/process:write_pb_go",
         "//pkg/proto/pbgo/procmgr:write_pb_go",
