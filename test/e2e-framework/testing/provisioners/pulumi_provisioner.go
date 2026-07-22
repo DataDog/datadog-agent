@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -85,8 +86,25 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		return nil, err
 	}
 
-	resources := make(RawResources, len(stackOutput.Outputs))
-	for key, value := range stackOutput.Outputs {
+	resources, err := rawResourcesFromOutputs(stackOutput.Outputs)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = logger.Write([]byte(fmt.Sprintf("Pulumi stack %s successfully provisioned\nResources:\n%v\n\n", stackName, dumpRawResources(resources))))
+	if err != nil {
+		// Log the error but don't fail the provisioning
+		fmt.Printf("Failed to write log: %v\n", err)
+	}
+
+	return resources, nil
+}
+
+// rawResourcesFromOutputs converts a Pulumi OutputMap to RawResources. Outputs
+// whose values are not maps (legacy scalar outputs) are silently skipped.
+func rawResourcesFromOutputs(outputs auto.OutputMap) (RawResources, error) {
+	resources := make(RawResources, len(outputs))
+	for key, value := range outputs {
 		// Skipping legacy outputs that are not maps
 		if reflect.TypeOf(value.Value).Kind() != reflect.Map {
 			continue
@@ -100,13 +118,6 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 
 		resources[key] = marshalled
 	}
-
-	_, err = logger.Write([]byte(fmt.Sprintf("Pulumi stack %s successfully provisioned\nResources:\n%v\n\n", stackName, dumpRawResources(resources))))
-	if err != nil {
-		// Log the error but don't fail the provisioning
-		fmt.Printf("Failed to write log: %v\n", err)
-	}
-
 	return resources, nil
 }
 
