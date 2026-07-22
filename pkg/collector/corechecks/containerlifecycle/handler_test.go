@@ -6,6 +6,7 @@
 package containerlifecycle
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// ownerStore is a configurable stub for container owner lookups.
+// ownerStore is a configurable stub for container owner lookups. A container
+// only "exists" in the store if it has an entry in owners, matching the real
+// store's behavior of returning an error for containers it doesn't hold.
 type ownerStore struct {
 	workloadmeta.Component
 	owners map[string]*workloadmeta.EntityID
@@ -26,7 +29,7 @@ func (s *ownerStore) GetContainer(id string) (*workloadmeta.Container, error) {
 	if owner, ok := s.owners[id]; ok {
 		return &workloadmeta.Container{Owner: owner}, nil
 	}
-	return &workloadmeta.Container{}, nil
+	return nil, errors.New("container not found")
 }
 
 func storeWithOwner(containerID string, owner *workloadmeta.EntityID) *ownerStore {
