@@ -104,11 +104,10 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  # Stage Rust shared-library checks (Linux only).
+  # Stage Rust shared-library checks (Linux only). Built with Bazel; the install
+  # rule places the cdylib at <destdir>/checks.d/libdatadog-agent-datasecurity.so.
   if linux_target?
-    command "dda inv -- -e rust-shared-checks.build --checks-d-dir=\"#{conf_dir}/checks.d\"",
-      env: env,
-      :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{bazel_flags} //pkg/collector/sharedlibrary/rustchecks:install -- --destdir='#{conf_dir}'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d

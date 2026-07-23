@@ -450,10 +450,18 @@ def hacky_dev_image_build(
     copy_checks_d = ""
     copy_checks_d_final = ""
     if sys.platform.startswith("linux"):
-        from tasks.rust_shared_checks import build as rust_shared_checks_build
+        from tasks.libs.build.bazel import bazel
 
         checks_d_staging = "bin/agent/dist/checks.d"
-        rust_shared_checks_build(ctx, checks_d_dir=checks_d_staging)
+        # Build + stage the Rust shared-library checks with Bazel. The install
+        # rule writes <destdir>/checks.d/libdatadog-agent-<check>.so.
+        bazel(
+            ctx,
+            "run",
+            "//pkg/collector/sharedlibrary/rustchecks:install",
+            "--",
+            f"--destdir={os.path.abspath('bin/agent/dist')}",
+        )
         if os.path.isdir(checks_d_staging) and any(
             f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
         ):

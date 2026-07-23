@@ -1,0 +1,23 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+# Rust shared-library checks are Linux-only (the `rustchecks_crates` hub is
+# configured for linux triples only).
+_LINUX = ["@platforms//os:linux"]
+
+# Shared runtime used by every Rust check crate. The `generate_ffi!` macro and
+# the Aggregator/AgentCheck API live here. Consumers depend on this via the
+# `shlib_core` alias (matching the Cargo `package = "core"` rename).
+rust_library(
+    name = "core",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "core",
+    edition = "2024",
+    target_compatible_with = _LINUX,
+    visibility = ["//pkg/collector/sharedlibrary/rustchecks:__subpackages__"],
+    deps = [
+        "@rustchecks_crates//:anyhow",
+        "@rustchecks_crates//:libc",
+        "@rustchecks_crates//:serde",
+        "@rustchecks_crates//:serde_yaml",
+    ],
+)
