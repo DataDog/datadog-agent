@@ -78,6 +78,30 @@ func buildPayloadJSON(t *testing.T, configID, host string, queries []QuerySpec) 
 
 var singleQuery = []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}}
 
+func TestHasSupportedIntegration(t *testing.T) {
+	tests := []struct {
+		name            string
+		integrationName string
+		want            bool
+	}{
+		{name: "PostgreSQL", integrationName: "postgres", want: true},
+		{name: "SAP HANA", integrationName: "sap_hana", want: true},
+		{name: "SQL Server", integrationName: "sqlserver", want: true},
+		{name: "unsupported integration", integrationName: "mysql", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := integration.Config{
+				Name:      test.integrationName,
+				Instances: []integration.Data{integration.Data("data_observability:\n  enabled: true\n")},
+			}
+			c, _ := newStreamComponent(t, []integration.Config{cfg})
+			assert.Equal(t, test.want, c.hasSupportedIntegration())
+		})
+	}
+}
+
 // --- Stream() lifecycle tests ---
 
 func TestStream_InitialEmptyChangesSentImmediately(t *testing.T) {
