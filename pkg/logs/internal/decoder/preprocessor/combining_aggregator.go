@@ -27,11 +27,14 @@ type bucket struct {
 	shouldTruncate bool
 }
 
-func (b *bucket) add(msg *message.Message, tokens []Token) {
+func (b *bucket) add(msg *message.Message, tokens []Token, retainTokens bool) {
 	if b.originalDataLen > 0 {
 		b.contentLen += len(message.EscapedLineFeed)
 	}
 	b.contentLen += len(msg.GetContent())
+	if retainTokens {
+		tokens = cloneTokens(tokens)
+	}
 	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 	b.originalDataLen += msg.RawDataLen
 }
@@ -219,14 +222,14 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == noAggregate {
 		a.flushToCollected()
 		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
-		a.bucket.add(msg, tokens)
+		a.bucket.add(msg, tokens, false)
 		a.flushToCollected()
 		return a.collected
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
-		a.bucket.add(msg, tokens)
+		a.bucket.add(msg, tokens, false)
 		a.flushToCollected()
 		return a.collected
 	}
@@ -235,7 +238,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == startGroup {
 		a.flushToCollected()
 		a.multiLineMatchInfo.Add(1)
-		a.bucket.add(msg, tokens)
+		a.bucket.add(msg, tokens, msg.RawDataLen < a.maxContentSize)
 		if msg.RawDataLen >= a.maxContentSize {
 			// A startGroup can still truncate, but only because this individual line is
 			// already at the limit on its own. That's the remaining single-line truncation
@@ -255,8 +258,13 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	}
 
 	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
-	a.bucket.add(msg, tokens)
+	a.bucket.add(msg, tokens, true)
 	return a.collected
+}
+
+// UsesTokens reports that this aggregator only transports tokens to the sampler.
+func (a *combiningAggregator) UsesTokens() bool {
+	return false
 }
 
 // Flush flushes the aggregator and returns any pending messages.

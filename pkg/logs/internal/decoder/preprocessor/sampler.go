@@ -20,7 +20,8 @@ import (
 // message and returns it unchanged or nil if the message should be dropped.
 // tokens are the tokenized first line of the message, used to identify its pattern.
 type Sampler interface {
-	// Process handles a completed log message and returns it, or nil to drop it.
+	// Process handles a completed log message and returns it, or nil to drop it. tokens
+	// are borrowed for the duration of the call and must be cloned before retention.
 	Process(msg *message.Message, tokens []Token) *message.Message
 
 	// Flush flushes any buffered state and returns a pending message, or nil if empty.
@@ -39,6 +40,11 @@ func NewNoopSampler() *NoopSampler {
 // Process returns the message unchanged.
 func (s *NoopSampler) Process(msg *message.Message, _ []Token) *message.Message {
 	return msg
+}
+
+// UsesTokens reports that NoopSampler does not inspect tokenizer output.
+func (s *NoopSampler) UsesTokens() bool {
+	return false
 }
 
 // Flush is a no-op since NoopSampler has no buffered state.
@@ -305,7 +311,7 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, 
 	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	s.entries = append(s.entries, samplerEntry{
-		tokens:     tokens,
+		tokens:     cloneTokens(tokens),
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
@@ -313,6 +319,11 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, 
 	})
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
+}
+
+// UsesTokens reports that AdaptiveSampler uses tokens for pattern matching.
+func (s *AdaptiveSampler) UsesTokens() bool {
+	return true
 }
 
 // Flush is a no-op — the adaptive sampler does not buffer messages.

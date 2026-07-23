@@ -32,15 +32,18 @@ func (s *captureSampler) Flush() *message.Message { return nil }
 // captureAggregator wraps an aggregator and exposes the received slice.
 // Used to verify that the aggregator received the right messages from processOne.
 type captureAggregator struct {
-	received []*message.Message
+	received       []*message.Message
+	receivedTokens [][]Token
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, tokens []Token) []AggregatedMessageWithTokens {
 	a.received = append(a.received, msg)
+	a.receivedTokens = append(a.receivedTokens, tokens)
 	return []AggregatedMessageWithTokens{{Msg: msg}}
 }
 func (a *captureAggregator) Flush() []AggregatedMessageWithTokens { return nil }
 func (a *captureAggregator) IsEmpty() bool                        { return true }
+func (a *captureAggregator) UsesTokens() bool                     { return false }
 
 // flushCaptureAggregator tracks flush calls.
 type flushCaptureAggregator struct {
@@ -100,6 +103,36 @@ func TestPreprocessor_AggregatorReceivesMessage(t *testing.T) {
 
 	require.Len(t, aggregator.received, 1)
 	assert.Equal(t, `2024-01-01 12:00:00 INFO Starting`, string(aggregator.received[0].GetContent()))
+}
+
+func TestPreprocessorSkipsUnusedTokenization(t *testing.T) {
+	aggregator := &captureAggregator{}
+	tokenizer := NewTokenizer(1000)
+	outputChan := make(chan *message.Message, 1)
+	preprocessor := NewPreprocessor(aggregator, tokenizer, NewNoopLabeler(), NewNoopSampler(),
+		outputChan, NewNoopJSONAggregator(), NewNoopStackTraceAggregator(), 10*time.Second, 0)
+
+	preprocessor.Process(newTestPreprocessorMessage("tokenization is unnecessary"))
+
+	assert.Empty(t, tokenizer.tsBuf)
+	require.Len(t, aggregator.receivedTokens, 1)
+	assert.Nil(t, aggregator.receivedTokens[0])
+}
+
+func TestPreprocessorDoesNotRetainLabelOnlyTokens(t *testing.T) {
+	aggregator := &captureAggregator{}
+	tokenizer := NewTokenizer(1000)
+	heuristic := &mockTokenCapturingHeuristic{}
+	labeler := NewLabeler([]Heuristic{heuristic}, nil)
+	outputChan := make(chan *message.Message, 1)
+	preprocessor := NewPreprocessor(aggregator, tokenizer, labeler, NewNoopSampler(),
+		outputChan, NewNoopJSONAggregator(), NewNoopStackTraceAggregator(), 10*time.Second, 0)
+
+	preprocessor.Process(newTestPreprocessorMessage("2024-01-01 INFO label me"))
+
+	assert.NotEmpty(t, heuristic.capturedTokens)
+	require.Len(t, aggregator.receivedTokens, 1)
+	assert.Nil(t, aggregator.receivedTokens[0])
 }
 
 // TestPreprocessor_TokenizesAfterJSONAggregation verifies that the aggregator sees the combined

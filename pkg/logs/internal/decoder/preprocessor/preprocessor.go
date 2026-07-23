@@ -25,6 +25,22 @@ type Preprocessor struct {
 	flushTimeout         time.Duration
 	flushTimer           *time.Timer
 	labelerMaxBytes      int // tokens beyond this byte offset are not passed to the labeler; 0 = no limit
+	labelerUsesTokens    bool
+	aggregatorUsesTokens bool
+	samplerUsesTokens    bool
+}
+
+type tokenConsumer interface {
+	UsesTokens() bool
+}
+
+// usesTokens defaults to true so implementations that do not advertise their
+// capability retain the existing behavior.
+func usesTokens(consumer any) bool {
+	if c, ok := consumer.(tokenConsumer); ok {
+		return c.UsesTokens()
+	}
+	return true
 }
 
 // NewPreprocessor creates a new Preprocessor.
@@ -37,6 +53,10 @@ type Preprocessor struct {
 func NewPreprocessor(aggregator Aggregator, tokenizer *Tokenizer, labeler Labeler, sampler Sampler,
 	outputChan chan *message.Message, jsonAggregator JSONAggregator, stackTraceAggregator StackTraceAggregator,
 	flushTimeout time.Duration, labelerMaxBytes int) *Preprocessor {
+	labelerUsesTokens := usesTokens(labeler)
+	aggregatorUsesTokens := usesTokens(aggregator)
+	samplerUsesTokens := usesTokens(sampler)
+
 	return &Preprocessor{
 		outputChan:           outputChan,
 		jsonAggregator:       jsonAggregator,
@@ -47,6 +67,9 @@ func NewPreprocessor(aggregator Aggregator, tokenizer *Tokenizer, labeler Labele
 		sampler:              sampler,
 		flushTimeout:         flushTimeout,
 		labelerMaxBytes:      labelerMaxBytes,
+		labelerUsesTokens:    labelerUsesTokens,
+		aggregatorUsesTokens: aggregatorUsesTokens,
+		samplerUsesTokens:    samplerUsesTokens,
 	}
 }
 
@@ -67,23 +90,34 @@ func (p *Preprocessor) Process(msg *message.Message) {
 // Messages already combined by an upstream aggregator (IsMultiLine == true)
 // are labeled noAggregate so the CombiningAggregator emits them standalone.
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
-	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
+	var tokens []Token
+	var tokenIndices []int
+	if p.labelerUsesTokens || p.aggregatorUsesTokens || p.samplerUsesTokens {
+		tokens, tokenIndices = p.tokenizer.tokenizeBorrowed(msg.GetContent())
+	}
+
+	labelTokens, labelIndices := tokens, tokenIndices
+	if p.labelerUsesTokens {
+		labelTokens, labelIndices = limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
+	}
 
 	var label Label
 	switch {
 	case msg.ParsingExtra.IsMultiLine:
 		label = noAggregate
-	case len(tokens) == 0:
+	case len(msg.GetContent()) == 0:
 		// Empty lines tokenize to nothing, so token-based heuristics (notably the
 		// timestamp detector) would log errors about missing tokens. Skip the labeler
 		// and treat the line as a continuation, which matches the labeler's default
 		// label and lets a blank line fold into the current group.
 		label = aggregate
 	default:
-		labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
 		label = p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
 	}
 
+	if !p.aggregatorUsesTokens && !p.samplerUsesTokens {
+		tokens = nil
+	}
 	for _, completed := range p.aggregator.Process(msg, label, tokens) {
 		p.sample(completed)
 	}

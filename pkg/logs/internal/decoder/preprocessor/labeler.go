@@ -37,6 +37,7 @@ type Heuristic interface {
 // Labeler classifies a log line as startGroup, noAggregate, or aggregate.
 // Tokens and tokenIndices are pre-computed by the Preprocessor's Tokenizer step
 // and forwarded here so that heuristics can inspect them without re-tokenizing.
+// Both slices are borrowed for the duration of Label and must not be retained.
 type Labeler interface {
 	Label(content []byte, tokens []Token, tokenIndices []int) Label
 }
@@ -81,6 +82,11 @@ func (l *labeler) Label(content []byte, tokens []Token, tokenIndices []int) Labe
 	return context.label
 }
 
+// UsesTokens reports that heuristic labelers inspect tokenizer output.
+func (l *labeler) UsesTokens() bool {
+	return true
+}
+
 // NoopLabeler is a Labeler that always returns noAggregate without any processing.
 // Use this for pipeline paths that don't need auto-multiline detection
 // (e.g. pass-through, regex multiline).
@@ -94,6 +100,11 @@ func NewNoopLabeler() *NoopLabeler {
 // Label always returns noAggregate without inspecting content or tokens.
 func (l *NoopLabeler) Label(_ []byte, _ []Token, _ []int) Label {
 	return noAggregate
+}
+
+// UsesTokens reports that NoopLabeler does not inspect tokenizer output.
+func (l *NoopLabeler) UsesTokens() bool {
+	return false
 }
 
 func labelToString(label Label) string {

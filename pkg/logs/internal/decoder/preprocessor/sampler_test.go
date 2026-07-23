@@ -115,6 +115,17 @@ func TestAdaptiveSampler_NewPatternIsAllowed(t *testing.T) {
 	requireNoSampledCountTag(t, out)
 }
 
+func TestAdaptiveSamplerRetainsNewPatternTokens(t *testing.T) {
+	s := newSampler(10, 1.0, 0)
+	tokens := []Token{1, 2}
+
+	s.Process(testMsg(), tokens)
+	tokens[0] = 9
+
+	require.Len(t, s.entries, 1)
+	assert.Equal(t, []Token{1, 2}, s.entries[0].tokens)
+}
+
 // A new pattern entry starts with BurstSize-1 credits so that the burst
 // allowance accounts for the first message already emitted.
 func TestAdaptiveSampler_NewPatternCredits(t *testing.T) {

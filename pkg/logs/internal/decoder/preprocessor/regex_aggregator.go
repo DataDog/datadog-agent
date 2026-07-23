@@ -93,10 +93,10 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token)
 		a.patternMatchedOnce = true
 		a.sendBuffer()
 		// This line starts a new group; capture its tokens as the first-line tokens.
-		a.firstLineTokens = tokens
+		a.firstLineTokens = cloneTokens(tokens)
 	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
-		a.firstLineTokens = tokens
+		a.firstLineTokens = cloneTokens(tokens)
 	}
 
 	isTruncated := a.shouldTruncate
@@ -126,6 +126,11 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token)
 	}
 
 	return a.collected
+}
+
+// UsesTokens reports that this aggregator only transports tokens to the sampler.
+func (a *RegexAggregator) UsesTokens() bool {
+	return false
 }
 
 // Flush returns any buffered content as a completed message and resets state.

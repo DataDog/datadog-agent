@@ -266,10 +266,11 @@ func TestOverflowedGroupEmitsOriginalTokens(t *testing.T) {
 	secondTokens := []Token{3, 4}
 
 	require.Empty(t, ag.Process(newMessage("123"), startGroup, firstTokens))
+	firstTokens[0] = 9
 
 	completed := ag.Process(newMessage("456"), aggregate, secondTokens)
 	require.Len(t, completed, 2)
-	assert.Equal(t, firstTokens, completed[0].Tokens)
+	assert.Equal(t, []Token{1, 2}, completed[0].Tokens)
 	assert.Equal(t, secondTokens, completed[1].Tokens)
 }
 
@@ -454,6 +455,18 @@ func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 	assert.Equal(t, "START second group", string(msgs[0].GetContent()))
 }
 
+func TestRegexAggregatorRetainsFirstLineTokens(t *testing.T) {
+	ag := NewRegexAggregator(regexp.MustCompile(`^START`), 1000, false, status.NewInfoRegistry(), "multi_line")
+	tokens := []Token{1, 2}
+
+	require.Empty(t, ag.Process(newMessage("START first group"), noAggregate, tokens))
+	tokens[0] = 9
+	completed := ag.Process(newMessage("START second group"), noAggregate, nil)
+
+	require.Len(t, completed, 1)
+	assert.Equal(t, []Token{1, 2}, completed[0].Tokens)
+}
+
 // Tests for detectingAggregator
 
 func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
@@ -475,6 +488,18 @@ func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "at line 2", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+}
+
+func TestDetectingAggregatorRetainsPendingTokens(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
+	tokens := []Token{1, 2}
+
+	require.Empty(t, ag.Process(newMessage("Error: Exception"), startGroup, tokens))
+	tokens[0] = 9
+	completed := ag.Process(newMessage("  at line 1"), aggregate, nil)
+
+	require.Len(t, completed, 2)
+	assert.Equal(t, []Token{1, 2}, completed[0].Tokens)
 }
 
 func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {

@@ -6,7 +6,18 @@
 // Package preprocessor contains auto multiline detection and aggregation logic.
 package preprocessor
 
-import "github.com/DataDog/datadog-agent/pkg/logs/message"
+import (
+	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+)
+
+// cloneTokens retains a borrowed token slice beyond the current processing
+// call. Keeping this operation explicit prevents every log line from paying
+// for ownership when most consumers are synchronous.
+func cloneTokens(tokens []Token) []Token {
+	return slices.Clone(tokens)
+}
 
 // AggregatedMessageWithTokens pairs a completed log message with the tokens from its first line.
 // Tokens are used by the sampler for pattern-based rate limiting.
@@ -23,7 +34,8 @@ type AggregatedMessageWithTokens struct {
 type Aggregator interface {
 	// Process handles a log line and returns zero or more completed messages.
 	// label is the result of labeling this message; aggregators that don't use it may ignore it.
-	// tokens are the tokenized first line, forwarded into AggregatedMessageWithTokens.Tokens for the sampler.
+	// tokens are borrowed until the next Process call. Aggregators must clone them before
+	// retaining them; slices returned for immediate sampling may remain borrowed.
 	Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens
 
 	// Flush returns any buffered messages and clears internal state.

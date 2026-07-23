@@ -57,6 +57,11 @@ func (a *PassThroughAggregator) Process(msg *message.Message, _ Label, tokens []
 	return a.collected
 }
 
+// UsesTokens reports that this aggregator only transports tokens to the sampler.
+func (a *PassThroughAggregator) UsesTokens() bool {
+	return false
+}
+
 // Flush returns nil since PassThroughAggregator has no buffered state.
 func (a *PassThroughAggregator) Flush() []AggregatedMessageWithTokens {
 	return nil

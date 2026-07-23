@@ -109,14 +109,30 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	}
 }
 
-// Tokenize tokenizes the input bytes and returns tokens and their start indices.
-// The caller is responsible for slicing the input to the desired length.
+// Tokenize tokenizes the input bytes and returns caller-owned tokens and start
+// indices. The returned slices remain valid across subsequent Tokenize calls.
 func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
+	tokens, indices := t.tokenizeBorrowed(input)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
+	result := make([]Token, len(tokens))
+	copy(result, tokens)
+	resultIndices := make([]int, len(indices))
+	copy(resultIndices, indices)
+	return result, resultIndices
+}
+
+// tokenizeBorrowed tokenizes input without allocating result slices. The
+// returned slices alias the Tokenizer's scratch buffers and remain valid only
+// until the next call on t.
+func (t *Tokenizer) tokenizeBorrowed(input []byte) ([]Token, []int) {
 	maxBytes := len(input)
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
 		maxBytes = t.maxEvalBytes
 	}
-	return t.tokenize(input[:maxBytes])
+	return t.tokenizeIntoBuffers(input[:maxBytes])
 }
 
 // emitToken appends a token to the output slices, checking for special tokens first.
@@ -145,9 +161,8 @@ func (t *Tokenizer) emitToken(input []byte, ts []Token, indicies []int, token To
 	return ts, indicies
 }
 
-// tokenize converts a byte slice to a list of tokens.
-// This function return the slice of tokens, and a slice of indices where each token starts.
-func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
+// tokenizeIntoBuffers converts a byte slice to borrowed tokens and start indices.
+func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	inputLen := len(input)
 	if inputLen == 0 {
 		return nil, nil
@@ -182,14 +197,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	// Store working buffers back for reuse
 	t.tsBuf = ts
 	t.idxBuf = indicies
-
-	// Allocate exact-sized result slices - smaller than inputLen
-	n := len(ts)
-	result := make([]Token, n)
-	copy(result, ts)
-	resultIdx := make([]int, n)
-	copy(resultIdx, indicies)
-	return result, resultIdx
+	return ts, indicies
 }
 
 // getSpecialToken returns a case-insensitive special token.

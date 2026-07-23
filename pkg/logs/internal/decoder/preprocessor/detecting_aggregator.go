@@ -103,13 +103,18 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 		}
 		d.multiLineMatchInfo.Add(1)
 		d.previousMsg = msg
-		d.previousMsgTokens = tokens
+		d.previousMsgTokens = cloneTokens(tokens)
 		d.previousWasStartGroup = true
 		d.processSimulatedStartGroup(msg)
 		return d.collected
 	}
 
 	return d.collected
+}
+
+// UsesTokens reports that this aggregator only transports tokens to the sampler.
+func (d *detectingAggregator) UsesTokens() bool {
+	return false
 }
 
 // Flush returns any pending message (called on handler flush).
