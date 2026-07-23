@@ -1726,14 +1726,14 @@ func TestMarshalAgentPayload_WithContainerDebug(t *testing.T) {
 		AgentVersion: "7.50.0",
 		IdxTracerPayloads: []*idx.TracerPayload{
 			{
-				Strings:        []string{"", "container-1"},
+				Strings:        []string{"", "container-1", "resolution timeout", "timeout"},
 				ContainerIDRef: 1,
 				ContainerDebug: &idx.ContainerDebug{
-					Error:                "resolution timeout",
-					LatencyMs:            150,
-					WasBuffered:          true,
-					BufferMs:             200,
-					BufferEvictionReason: "timeout",
+					ErrorRef:                2,
+					LatencyMs:               150,
+					WasBuffered:             true,
+					BufferMs:                200,
+					BufferEvictionReasonRef: 3,
 				},
 			},
 		},
@@ -1749,11 +1749,11 @@ func TestMarshalAgentPayload_WithContainerDebug(t *testing.T) {
 	require.Len(t, decoded.IdxTracerPayloads, 1)
 	tp := decoded.IdxTracerPayloads[0]
 	require.NotNil(t, tp.ContainerDebug)
-	assert.Equal(t, "resolution timeout", tp.ContainerDebug.Error)
+	assert.Equal(t, "resolution timeout", tp.Strings[tp.ContainerDebug.ErrorRef])
 	assert.Equal(t, int64(150), tp.ContainerDebug.LatencyMs)
 	assert.True(t, tp.ContainerDebug.WasBuffered)
 	assert.Equal(t, int64(200), tp.ContainerDebug.BufferMs)
-	assert.Equal(t, "timeout", tp.ContainerDebug.BufferEvictionReason)
+	assert.Equal(t, "timeout", tp.Strings[tp.ContainerDebug.BufferEvictionReasonRef])
 }
 
 func TestMarshalAgentPayload_WithContainerDebugNil(t *testing.T) {
@@ -1803,9 +1803,9 @@ func TestMarshalAgentPayload_WithContainerDebugPartialFields(t *testing.T) {
 	require.Len(t, decoded.IdxTracerPayloads, 1)
 	cd := decoded.IdxTracerPayloads[0].ContainerDebug
 	require.NotNil(t, cd)
-	assert.Equal(t, "", cd.Error)
+	assert.Equal(t, uint32(0), cd.ErrorRef)
 	assert.Equal(t, int64(0), cd.LatencyMs)
 	assert.True(t, cd.WasBuffered)
 	assert.Equal(t, int64(50), cd.BufferMs)
-	assert.Equal(t, "", cd.BufferEvictionReason)
+	assert.Equal(t, uint32(0), cd.BufferEvictionReasonRef)
 }

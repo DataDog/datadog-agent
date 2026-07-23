@@ -1,5 +1,8 @@
 """Scripts and configuration embedded into the installer as data."""
 
+# Don't try to make a package for the generator functions. We do that here as :tmpl_lib.
+# gazelle:exclude tmpl/*.go
+
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 exports_files(

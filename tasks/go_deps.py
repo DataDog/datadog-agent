@@ -176,7 +176,7 @@ def diff(
                                 "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
                             }
                             promise = ctx.run(
-                                f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}",
+                                f"{dep_cmd} -tags \"{','.join(build_tags)}\" > {depsfile}",
                                 env=env,
                                 asynchronous=True,
                             )
