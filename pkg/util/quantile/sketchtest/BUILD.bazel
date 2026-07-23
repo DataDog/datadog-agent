@@ -5,6 +5,8 @@ go_library(
     name = "sketchtest",
     srcs = ["quantile.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

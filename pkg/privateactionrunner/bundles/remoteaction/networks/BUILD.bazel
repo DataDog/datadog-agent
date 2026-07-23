@@ -7,6 +7,7 @@ go_library(
         "run_network_path.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/eventplatform/def",

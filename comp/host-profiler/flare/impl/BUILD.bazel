@@ -7,6 +7,7 @@ go_library(
     name = "impl",
     srcs = ["flare.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/flare/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

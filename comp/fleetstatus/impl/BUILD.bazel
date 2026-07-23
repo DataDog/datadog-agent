@@ -6,6 +6,7 @@ go_library(
     srcs = ["fleetstatus.go"],
     embedsrcs = ["status_templates/fleetstatus.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/comp/fleetstatus/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -4,5 +4,7 @@ go_library(
     name = "types",
     srcs = ["resource_types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/types",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

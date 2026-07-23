@@ -5,6 +5,7 @@ go_library(
     name = "aggregatingqueue",
     srcs = ["queue.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_benbjohnson_clock//:clock"],
 )

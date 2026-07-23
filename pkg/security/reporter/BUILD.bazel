@@ -4,6 +4,7 @@ go_library(
     name = "reporter",
     srcs = ["reporter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/reporter",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/secrets/def",

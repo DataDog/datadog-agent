@@ -7,6 +7,7 @@ go_library(
     name = "config",
     srcs = ["agent_config.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -4,6 +4,7 @@ go_library(
     name = "secrethelper",
     srcs = ["secret_helper.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/secrethelper",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secrethelper/providers",

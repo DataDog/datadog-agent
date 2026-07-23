@@ -11,6 +11,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",

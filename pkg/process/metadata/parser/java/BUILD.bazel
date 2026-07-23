@@ -8,6 +8,7 @@ go_library(
         "yaml.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",

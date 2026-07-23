@@ -5,6 +5,7 @@ go_library(
     name = "analyzer",
     srcs = ["analyzer.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/snmp/analyzer",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/corechecks/snmp",

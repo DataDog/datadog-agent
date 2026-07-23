@@ -5,6 +5,7 @@ go_library(
     srcs = ["status.go"],
     embedsrcs = ["status_templates/autodiscovery.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

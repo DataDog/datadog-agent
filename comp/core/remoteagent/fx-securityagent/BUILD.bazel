@@ -4,6 +4,7 @@ go_library(
     name = "fx-securityagent",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/remoteagent/def",

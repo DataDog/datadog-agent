@@ -19,6 +19,7 @@ go_library(
         "runtine_setting_profiling_goroutines.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/settings",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

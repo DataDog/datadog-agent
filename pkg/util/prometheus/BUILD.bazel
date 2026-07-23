@@ -5,6 +5,7 @@ go_library(
     name = "prometheus",
     srcs = ["parse.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/prometheus",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_prometheus_common//model",

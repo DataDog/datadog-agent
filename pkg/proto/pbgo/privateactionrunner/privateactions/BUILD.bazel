@@ -14,6 +14,7 @@ go_library(
     name = "privateactions",
     srcs = ["private_actions.pb.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",

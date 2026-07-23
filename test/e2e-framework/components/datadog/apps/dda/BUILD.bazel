@@ -4,6 +4,7 @@ go_library(
     name = "dda",
     srcs = ["datadogagent.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dda",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

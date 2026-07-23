@@ -4,6 +4,7 @@ go_library(
     name = "dcaflare",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaflare",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core",

@@ -7,6 +7,7 @@ go_library(
         "imds_helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal",
+    tags_independent = True,
     visibility = [
         "//pkg/util/aws/creds:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_util_aws_creds//:__subpackages__",

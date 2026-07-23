@@ -10,6 +10,7 @@ go_library(
         "helper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/jenkins",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",

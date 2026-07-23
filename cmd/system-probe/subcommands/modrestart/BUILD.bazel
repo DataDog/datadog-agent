@@ -7,6 +7,7 @@ go_library(
     name = "modrestart",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/modrestart",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/command",

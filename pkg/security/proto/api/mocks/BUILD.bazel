@@ -11,6 +11,7 @@ go_library(
         "security_module_event_server.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/api/mocks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/proto/api",

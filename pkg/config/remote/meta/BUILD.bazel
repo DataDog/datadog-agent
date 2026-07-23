@@ -13,6 +13,7 @@ go_library(
         "staging.director.json",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/meta",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",

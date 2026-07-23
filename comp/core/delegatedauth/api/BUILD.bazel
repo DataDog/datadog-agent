@@ -5,6 +5,7 @@ go_library(
     name = "api",
     srcs = ["delegated_auth.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

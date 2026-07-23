@@ -11,6 +11,7 @@ go_library(
         "transaction.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

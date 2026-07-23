@@ -11,5 +11,7 @@ go_library(
     name = "template",
     srcs = ["docs.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/template",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

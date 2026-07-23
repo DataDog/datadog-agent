@@ -4,5 +4,7 @@ go_library(
     name = "slice",
     srcs = ["chain.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/slice",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

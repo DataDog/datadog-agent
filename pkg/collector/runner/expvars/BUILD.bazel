@@ -9,6 +9,7 @@ go_library(
         "workers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner/expvars",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/haagent/def",

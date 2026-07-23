@@ -4,5 +4,7 @@ go_library(
     name = "usm",
     srcs = ["service_name_source.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/discovery/usm",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

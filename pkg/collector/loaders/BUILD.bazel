@@ -5,6 +5,7 @@ go_library(
     name = "loaders",
     srcs = ["loaders.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/loaders",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",

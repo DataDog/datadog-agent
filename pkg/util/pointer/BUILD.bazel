@@ -4,5 +4,7 @@ go_library(
     name = "pointer",
     srcs = ["pointer.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/pointer",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

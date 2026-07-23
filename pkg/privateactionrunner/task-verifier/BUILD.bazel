@@ -8,6 +8,7 @@ go_library(
         "verifier.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",

@@ -9,6 +9,7 @@ go_library(
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

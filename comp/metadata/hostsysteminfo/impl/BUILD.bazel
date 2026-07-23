@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["hostsysteminfo.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

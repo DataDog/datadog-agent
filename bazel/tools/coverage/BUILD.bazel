@@ -4,6 +4,7 @@ go_library(
     name = "coverage_lib",
     srcs = ["go_cover_report_generator.go"],
     importpath = "github.com/DataDog/datadog-agent/bazel/tools/coverage",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["@org_golang_x_tools//cover"],
 )

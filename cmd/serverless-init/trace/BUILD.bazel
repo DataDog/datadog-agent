@@ -10,6 +10,7 @@ go_library(
         "trace.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/trace",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace",

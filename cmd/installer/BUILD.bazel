@@ -6,6 +6,7 @@ go_library(
     name = "installer_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/installer",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/installer/command",

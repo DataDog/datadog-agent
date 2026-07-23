@@ -7,6 +7,7 @@ go_library(
         "test_connection.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",

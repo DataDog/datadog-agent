@@ -10,6 +10,7 @@ go_library(
         "secrets.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/kubernetes",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/backend/file",

@@ -7,6 +7,7 @@ go_library(
         "policy_monitor_easyjson.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",

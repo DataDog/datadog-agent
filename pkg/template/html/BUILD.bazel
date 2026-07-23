@@ -24,6 +24,8 @@ go_library(
         "urlpart_string.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/template/html",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/template/text"],
 )

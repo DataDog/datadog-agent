@@ -4,6 +4,7 @@ go_library(
     name = "config-stream-client_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/config-stream-client",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/proto/pbgo/core",

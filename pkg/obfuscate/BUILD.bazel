@@ -17,6 +17,7 @@ go_library(
         "sql_tokenizer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/obfuscate",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_datadog_go_v5//statsd",

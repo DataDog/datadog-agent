@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["offlinereporter.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/offlinereporter/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer/def",

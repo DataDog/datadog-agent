@@ -5,6 +5,7 @@ go_library(
     name = "remote-config",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/remote-config/rcclient/fx",

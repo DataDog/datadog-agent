@@ -10,6 +10,7 @@ go_library(
         "keepalive.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/sshtools",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@org_golang_x_crypto//ssh"],
 )

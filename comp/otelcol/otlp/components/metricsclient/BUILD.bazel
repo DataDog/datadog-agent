@@ -9,6 +9,7 @@ go_library(
         "metrics_client_wrapper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_datadog_go_v5//statsd",

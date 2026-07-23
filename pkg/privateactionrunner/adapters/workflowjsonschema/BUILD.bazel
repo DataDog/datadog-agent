@@ -4,6 +4,7 @@ go_library(
     name = "workflowjsonschema",
     srcs = ["validator.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema"],
 )

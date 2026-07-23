@@ -12,6 +12,8 @@ go_library(
         "memoize_noerror_unsafe.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/funcs",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

@@ -5,6 +5,7 @@ go_library(
     name = "impl-remote",
     srcs = ["traceroute.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/impl-remote",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname",

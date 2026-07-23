@@ -9,6 +9,7 @@ go_library(
         "values.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore",
+    tags_independent = True,
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//pkg/networkdevice/profile/profiledefinition",

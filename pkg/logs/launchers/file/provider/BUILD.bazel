@@ -5,6 +5,7 @@ go_library(
     name = "provider",
     srcs = ["file_provider.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",

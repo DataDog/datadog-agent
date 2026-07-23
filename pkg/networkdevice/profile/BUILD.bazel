@@ -4,5 +4,7 @@ go_library(
     name = "profile",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -52,6 +52,7 @@ go_library(
         "security_profile.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/seclwin/model",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/discovery/tracermetadata/model",

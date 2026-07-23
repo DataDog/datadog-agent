@@ -4,6 +4,7 @@ go_library(
     name = "backend_doc_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/security/events",

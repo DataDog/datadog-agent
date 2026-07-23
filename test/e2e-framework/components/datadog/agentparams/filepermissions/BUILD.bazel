@@ -8,6 +8,8 @@ go_library(
         "permissions_win.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/option",

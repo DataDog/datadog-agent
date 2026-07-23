@@ -5,6 +5,7 @@ go_library(
     name = "fx",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

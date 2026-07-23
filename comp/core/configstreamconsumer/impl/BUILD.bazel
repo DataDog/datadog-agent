@@ -8,6 +8,7 @@ go_library(
         "consumer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/configstreamconsumer/def",

@@ -4,6 +4,7 @@ go_library(
     name = "pipeline",
     srcs = ["pipeline.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_jonboulle_clockwork//:clockwork",

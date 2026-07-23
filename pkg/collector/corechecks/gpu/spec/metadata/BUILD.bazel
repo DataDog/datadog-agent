@@ -4,6 +4,7 @@ go_library(
     name = "metadata_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec/metadata",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["//pkg/collector/corechecks/gpu/spec"],
 )

@@ -11,5 +11,7 @@ go_library(
     name = "utils",
     srcs = ["uint128.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/utils",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

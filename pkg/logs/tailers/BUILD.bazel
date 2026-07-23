@@ -8,6 +8,7 @@ go_library(
         "tailer_tracker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/logs/status/utils"],
 )

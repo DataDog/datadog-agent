@@ -4,6 +4,7 @@ go_library(
     name = "logging",
     srcs = ["log_adapter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

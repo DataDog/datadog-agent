@@ -8,6 +8,8 @@ go_library(
         "policy.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/backoff",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

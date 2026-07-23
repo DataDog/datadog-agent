@@ -5,6 +5,7 @@ go_library(
     name = "cisco-sdwan",
     srcs = ["sdwan.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

@@ -4,6 +4,7 @@ go_library(
     name = "modparser_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/tools/modparser",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["@org_golang_x_mod//modfile"],
 )

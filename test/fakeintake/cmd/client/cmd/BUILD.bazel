@@ -50,6 +50,7 @@ go_library(
         "routestats.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/cmd/client/cmd",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/metrics/event",

@@ -7,6 +7,7 @@ go_library(
     name = "status",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/otel-agent/subcommands",

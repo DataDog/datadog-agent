@@ -4,6 +4,7 @@ go_library(
     name = "rcclient",
     srcs = ["rc_client_adapter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/remote-config/rcclient/def",

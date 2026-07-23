@@ -4,6 +4,8 @@ go_library(
     name = "gotls_client_lib",
     srcs = ["gotls_client.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil/gotls_client",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:private"],
 )
 

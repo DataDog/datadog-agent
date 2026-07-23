@@ -4,6 +4,7 @@ go_library(
     name = "fmapper_lib",
     srcs = ["fmapper.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil/fmapper",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["@org_golang_x_exp//mmap"],
 )

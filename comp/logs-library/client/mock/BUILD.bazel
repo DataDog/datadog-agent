@@ -4,5 +4,7 @@ go_library(
     name = "mock",
     srcs = ["mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/client/mock",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

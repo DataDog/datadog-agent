@@ -5,6 +5,7 @@ go_library(
     name = "portrollup",
     srcs = ["portrollup.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/portrollup",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/netflow/common"],
 )

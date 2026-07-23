@@ -4,6 +4,7 @@ go_library(
     name = "platforms",
     srcs = ["platforms.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//test/e2e-framework/components/os"],
 )

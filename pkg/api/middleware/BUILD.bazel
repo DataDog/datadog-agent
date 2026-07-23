@@ -4,5 +4,7 @@ go_library(
     name = "middleware",
     srcs = ["middleware.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/middleware",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

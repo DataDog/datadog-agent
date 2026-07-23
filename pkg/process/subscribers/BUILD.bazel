@@ -7,6 +7,7 @@ go_library(
     name = "subscribers",
     srcs = ["gpu_subscriber.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/subscribers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",

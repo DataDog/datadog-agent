@@ -15,6 +15,7 @@ go_library(
         "raw_blob_content.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/repositories",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/gitlab",

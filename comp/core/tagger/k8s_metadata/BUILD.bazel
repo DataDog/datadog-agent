@@ -5,6 +5,7 @@ go_library(
     name = "k8s_metadata",
     srcs = ["k8s_metadata.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/taglist",

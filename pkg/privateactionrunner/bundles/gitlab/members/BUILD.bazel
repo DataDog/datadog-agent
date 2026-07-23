@@ -7,6 +7,7 @@ go_library(
         "list_project_members.gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/members",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/gitlab",

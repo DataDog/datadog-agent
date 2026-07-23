@@ -4,6 +4,7 @@ go_library(
     name = "modformatter_lib",
     srcs = ["modformatter.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/tools/modformatter",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "@org_golang_x_mod//modfile",

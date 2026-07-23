@@ -5,6 +5,8 @@ go_library(
     name = "hostport",
     srcs = ["hostport.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/hostport",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

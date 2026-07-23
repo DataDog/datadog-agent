@@ -18,6 +18,7 @@ go_library(
         "workloadmeta_sbom_grpc.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@org_golang_google_grpc//:grpc",

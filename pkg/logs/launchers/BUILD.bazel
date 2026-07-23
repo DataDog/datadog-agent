@@ -8,6 +8,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/pipeline",

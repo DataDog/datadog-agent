@@ -5,6 +5,7 @@ go_library(
     name = "os",
     srcs = ["process_linux.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/os",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [

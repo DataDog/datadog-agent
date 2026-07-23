@@ -16,6 +16,7 @@ go_library(
         "processing_rules.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/utils/tls",

@@ -9,6 +9,7 @@ go_library(
         "marshaler_adapter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_json_iterator_go//:go"],
 )

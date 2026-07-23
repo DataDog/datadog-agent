@@ -8,6 +8,7 @@ go_library(
         "envvars.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/flare/common",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/flare/types",

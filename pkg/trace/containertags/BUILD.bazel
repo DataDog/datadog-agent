@@ -8,6 +8,7 @@ go_library(
         "noop_buffer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/containertags",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/env",

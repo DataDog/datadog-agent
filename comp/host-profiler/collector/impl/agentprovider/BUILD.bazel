@@ -9,6 +9,7 @@ go_library(
         "provider.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/agentprovider",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

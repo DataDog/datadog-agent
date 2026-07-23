@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["jmxlogger.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/jmxlogger/def",

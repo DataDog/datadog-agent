@@ -4,6 +4,7 @@ go_library(
     name = "syscall_table_generator_lib",
     srcs = ["syscall_table_generator.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "@org_golang_x_text//cases",

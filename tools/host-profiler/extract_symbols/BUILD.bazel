@@ -4,6 +4,7 @@ go_library(
     name = "extract_symbols_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/tools/host-profiler/extract_symbols",
+    tags_independent = True,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
     deps = [

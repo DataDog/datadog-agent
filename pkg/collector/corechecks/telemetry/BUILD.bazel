@@ -10,6 +10,7 @@ go_library(
         "merge.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

@@ -10,6 +10,7 @@ go_library(
         "list_tags.gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/tags",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/gitlab",

@@ -5,6 +5,7 @@ go_library(
     name = "structure",
     srcs = ["unmarshal.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/structure",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

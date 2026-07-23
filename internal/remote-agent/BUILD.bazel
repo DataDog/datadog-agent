@@ -4,6 +4,7 @@ go_library(
     name = "remote-agent_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/remote-agent",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/proto/pbgo/core",

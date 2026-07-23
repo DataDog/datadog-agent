@@ -4,6 +4,7 @@ go_library(
     name = "port",
     srcs = ["port.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/port",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/port/portlist"],
 )

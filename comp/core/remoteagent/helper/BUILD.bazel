@@ -5,6 +5,7 @@ go_library(
     name = "helper",
     srcs = ["serverhelper.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/helper",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/apiimpl/listener",

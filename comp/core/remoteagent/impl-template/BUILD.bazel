@@ -4,6 +4,7 @@ go_library(
     name = "impl-template",
     srcs = ["remoteagent.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl-template",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -10,6 +10,7 @@ go_library(
         "traces_exporter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

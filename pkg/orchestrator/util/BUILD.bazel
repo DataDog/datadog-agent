@@ -4,6 +4,8 @@ go_library(
     name = "util",
     srcs = ["chunking.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/util",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

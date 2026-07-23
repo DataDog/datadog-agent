@@ -8,6 +8,7 @@ go_library(
         "devicecheck.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck",
+    tags_independent = True,
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//comp/core/config",

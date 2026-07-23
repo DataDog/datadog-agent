@@ -4,6 +4,8 @@ go_library(
     name = "impl-noop",
     srcs = ["recorder.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl-noop",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/observer/def",

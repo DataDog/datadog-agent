@@ -4,6 +4,7 @@ go_library(
     name = "binversion",
     srcs = ["buildinfo.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/binversion",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/safeelf",

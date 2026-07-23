@@ -10,6 +10,7 @@ go_library(
         "vedge_interface.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",

@@ -11,6 +11,7 @@ go_library(
         "update_protected_branch.gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/protectedbranches",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/gitlab",

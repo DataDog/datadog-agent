@@ -5,6 +5,7 @@ go_library(
     name = "gpuenvironment",
     srcs = ["gpu_environment_issue.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_agent_payload_v5//healthplatform",

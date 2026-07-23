@@ -5,6 +5,8 @@ go_library(
     name = "image",
     srcs = ["image.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/image",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

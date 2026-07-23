@@ -21,6 +21,7 @@ go_library(
         "ttlcache.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",

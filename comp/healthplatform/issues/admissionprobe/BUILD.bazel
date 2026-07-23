@@ -8,6 +8,7 @@ go_library(
         "module.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/healthplatform/issues",

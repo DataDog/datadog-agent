@@ -10,6 +10,7 @@ go_library(
         "transmitter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/subscriptions",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@org_uber_go_fx//:fx"],
 )

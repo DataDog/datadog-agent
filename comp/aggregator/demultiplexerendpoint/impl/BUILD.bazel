@@ -4,6 +4,7 @@ go_library(
     name = "impl",
     srcs = ["endpoint.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer/def",

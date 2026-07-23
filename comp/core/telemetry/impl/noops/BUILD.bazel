@@ -12,6 +12,7 @@ go_library(
         "telemetry.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/telemetry/def"],
 )

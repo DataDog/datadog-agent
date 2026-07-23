@@ -9,6 +9,7 @@ go_library(
         "transform.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/transform",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/obfuscate",

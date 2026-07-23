@@ -8,6 +8,7 @@ go_library(
         "validate.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/hostname/validate",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

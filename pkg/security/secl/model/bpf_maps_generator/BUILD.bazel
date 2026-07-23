@@ -5,6 +5,8 @@ go_library(
     srcs = ["bpf_maps_generator.go"],
     embedsrcs = ["gen.go.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:private"],
 )
 

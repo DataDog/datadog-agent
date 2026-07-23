@@ -7,6 +7,7 @@ go_library(
         "params.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/host/windows",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/components/activedirectory",

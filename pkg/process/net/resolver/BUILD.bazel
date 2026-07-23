@@ -4,6 +4,7 @@ go_library(
     name = "resolver",
     srcs = ["resolver.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/net/resolver",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

@@ -5,6 +5,7 @@ go_library(
     name = "impl-zstd-nocgo",
     srcs = ["zstd_nocgo_strategy.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd-nocgo",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/compression",

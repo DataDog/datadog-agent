@@ -5,6 +5,7 @@ go_library(
     name = "reader",
     srcs = ["reader.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader",
+    tags_independent = True,
     visibility = ["//comp/dogstatsd/http/impl:__subpackages__"],
     deps = [
         "//pkg/metrics",

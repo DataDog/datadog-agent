@@ -4,6 +4,7 @@ go_library(
     name = "azure",
     srcs = ["azure.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",

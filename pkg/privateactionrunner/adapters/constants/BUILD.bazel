@@ -4,5 +4,7 @@ go_library(
     name = "constants",
     srcs = ["constants_adapter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

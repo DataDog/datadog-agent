@@ -9,6 +9,7 @@ go_library(
         "status.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/message",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/sources",

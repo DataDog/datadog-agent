@@ -7,5 +7,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

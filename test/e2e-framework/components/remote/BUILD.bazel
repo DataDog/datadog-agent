@@ -9,6 +9,7 @@ go_library(
         "os.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common",

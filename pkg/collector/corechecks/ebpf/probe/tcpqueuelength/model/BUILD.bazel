@@ -4,5 +4,7 @@ go_library(
     name = "model",
     srcs = ["tcp_queue_length_types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -5,6 +5,7 @@ go_library(
     name = "noop-impl",
     srcs = ["delegatedauth_noop.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/delegatedauth/def",

@@ -6,6 +6,7 @@ go_library(
     srcs = ["status.go"],
     embedsrcs = ["status_templates/processagent.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/comp/process/status/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

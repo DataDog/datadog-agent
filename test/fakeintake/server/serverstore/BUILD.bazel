@@ -8,6 +8,7 @@ go_library(
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/fakeintake/aggregator",

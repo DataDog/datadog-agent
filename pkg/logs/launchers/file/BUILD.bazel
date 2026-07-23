@@ -8,6 +8,7 @@ go_library(
         "position.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/file",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",

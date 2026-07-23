@@ -4,6 +4,8 @@ go_library(
     name = "par",
     srcs = ["opms_api.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/privateactionrunner/adapters/modes"],
 )

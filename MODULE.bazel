@@ -87,6 +87,7 @@ single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
+        "//bazel/patches:rules_go-tag-independent-libraries.patch",
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
 )

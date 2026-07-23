@@ -9,6 +9,7 @@ go_library(
         "types_generated.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/compliance/types",

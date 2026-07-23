@@ -4,5 +4,7 @@ go_library(
     name = "bundle-support",
     srcs = ["enrich_actions_types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

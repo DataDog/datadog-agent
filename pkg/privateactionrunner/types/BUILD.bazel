@@ -9,6 +9,7 @@ go_library(
         "task.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/libs/privateconnection",

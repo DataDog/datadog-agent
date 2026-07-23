@@ -9,6 +9,7 @@ go_library(
         "gce_tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",

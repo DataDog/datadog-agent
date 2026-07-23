@@ -4,6 +4,7 @@ go_library(
     name = "processchecks",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/process-agent/command",

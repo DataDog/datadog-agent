@@ -4,6 +4,7 @@ go_library(
     name = "taggerlist",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/taggerlist",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core",

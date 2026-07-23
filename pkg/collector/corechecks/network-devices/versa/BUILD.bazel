@@ -5,6 +5,7 @@ go_library(
     name = "versa",
     srcs = ["versa.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

@@ -5,6 +5,7 @@ go_library(
     name = "aptconfig",
     srcs = ["aptconfig.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/aptconfig",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/compliance/types",

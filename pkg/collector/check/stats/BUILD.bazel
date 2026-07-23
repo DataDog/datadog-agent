@@ -8,6 +8,7 @@ go_library(
         "util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/stats",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

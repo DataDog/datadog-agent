@@ -10,6 +10,7 @@ go_library(
     ],
     embedsrcs = ["nodes_versions.json"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/eks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

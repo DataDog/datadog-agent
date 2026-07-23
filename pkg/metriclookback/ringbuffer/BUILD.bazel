@@ -7,6 +7,7 @@ go_library(
         "sketch_buffer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",

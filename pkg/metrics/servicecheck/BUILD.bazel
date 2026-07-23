@@ -4,6 +4,8 @@ go_library(
     name = "servicecheck",
     srcs = ["service_check.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/metrics/servicecheck",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/tagger/types"],
 )

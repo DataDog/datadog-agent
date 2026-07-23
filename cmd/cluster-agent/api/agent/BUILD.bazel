@@ -5,6 +5,7 @@ go_library(
     name = "agent",
     srcs = ["agent.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common/signals",
