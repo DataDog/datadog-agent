@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "AGENT_TAGS", "COMMON_TAGS")
+load("//tasks:build_tags.bzl", "AGENT_TAGS", "COMMON_TAGS", "DARWIN_EXCLUDED_TAGS", "LINUX_ONLY_TAGS", "WINDOWS_EXCLUDED_TAGS")
 
 go_library(
     name = "agent_lib",
@@ -152,7 +152,16 @@ go_library(
 
 dd_agent_go_binary(
     name = "agent",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/agent/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     embed = [":agent_lib"],
-    gotags = sorted(COMMON_TAGS | AGENT_TAGS),
+    gotags = select({
+        "@platforms//os:macos": sorted((COMMON_TAGS | AGENT_TAGS) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
+        "@platforms//os:windows": sorted((COMMON_TAGS | AGENT_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+        "//conditions:default": sorted(COMMON_TAGS | AGENT_TAGS),
+    }),
     visibility = ["//visibility:public"],
 )
