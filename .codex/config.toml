@@ -1,0 +1,17 @@
+# dd-slack is omitted because, although recent versions of Codex now support
+# an `mcp_servers.<name>.oauth.client_id` field, the only published Slack apps
+# are for Claude and Cursor. Trying to reuse Claude's authorizes as the "Claude"
+# app and can't reach the target private workspace, so a Datadog-owned Slack app
+# is required.
+
+[mcp_servers.dd-api]
+url = "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=all"
+
+[mcp_servers.dd-ci]
+url = "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp"
+
+[mcp_servers.dd-google-workspace]
+url = "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp"
+
+[mcp_servers.dd-atlassian]
+url = "https://mcp.atlassian.com/v1/mcp/authv2"
