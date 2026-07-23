@@ -27,6 +27,7 @@ EOF
 }
 
 bootstrap_root=""
+dda_config=""
 
 cleanup() {
     if [[ -n $bootstrap_root ]]; then
@@ -145,14 +146,36 @@ bootstrap_dda() {
 
     ensure_bootstrap_root
     archive="$bootstrap_root/$asset"
-    echo "dda not found; downloading $asset" >&2
-    download "https://github.com/DataDog/datadog-agent-dev/releases/latest/download/$asset" "$archive"
+    if command -v gh >/dev/null 2>&1 && gh auth status --hostname github.com >/dev/null 2>&1; then
+        echo "dda not found; downloading $asset with authenticated GitHub CLI" >&2
+        gh release download \
+            --repo DataDog/datadog-agent-dev \
+            --pattern "$asset" \
+            --output "$archive"
+    else
+        echo "dda not found; downloading $asset" >&2
+        download "https://github.com/DataDog/datadog-agent-dev/releases/latest/download/$asset" "$archive"
+    fi
 
     # Release archives contain one top-level executable. Extract only that
     # member so an unexpected archive cannot place other files on the host.
     tar -xzf "$archive" -C "$bootstrap_root/bin" dda
     chmod 0755 "$bootstrap_root/bin/dda"
     dda_path="$bootstrap_root/bin/dda"
+}
+
+configure_dda() {
+    local source_config
+
+    ensure_bootstrap_root
+    # dda does not consume gh's stored credentials, and its unrelated
+    # self-update check can therefore hit the anonymous GitHub API rate limit.
+    # Disable only that check in a temporary copy of the user's configuration;
+    # the build still retains all of the user's other dda settings.
+    source_config=$(CI=1 "$dda_path" config find)
+    dda_config="$bootstrap_root/dda-config.toml"
+    install -m 0600 "$source_config" "$dda_config"
+    CI=1 DDA_CONFIG="$dda_config" "$dda_path" config set update.mode off >/dev/null 2>&1
 }
 
 dda_inv() {
@@ -163,7 +186,8 @@ dda_inv() {
     fi
     # Standalone dda resolves the invoke dependencies on first use. Explicitly
     # allow that even on hosts which inherited the build-image opt-out setting.
-    DDA_INTERACTIVE=false DDA_NO_DYNAMIC_DEPS=0 GOARCH="$target_goarch" GOOS=linux PATH="$command_path" \
+    DDA_CONFIG="$dda_config" DDA_INTERACTIVE=false DDA_NO_DYNAMIC_DEPS=0 \
+        GOARCH="$target_goarch" GOOS=linux PATH="$command_path" \
         "$dda_path" inv "$@"
 }
 
@@ -262,6 +286,7 @@ if command -v dda >/dev/null 2>&1; then
 else
     bootstrap_dda
 fi
+configure_dda
 
 # The default Agent build uses Bazel for rtloader. install-tools installs the
 # repository-pinned Bazelisk and creates its bazel alias; GOBIN keeps all of
