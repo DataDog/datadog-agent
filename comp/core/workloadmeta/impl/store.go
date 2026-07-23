@@ -422,6 +422,28 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 	return pod.cached.(*wmdef.KubernetesPod), nil
 }
 
+// GetKubernetesNode implements Store#GetKubernetesNode.
+func (w *workloadmeta) GetKubernetesNode(name string) (*wmdef.KubernetesNode, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesNode, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesNode), nil
+}
+
+// ListKubernetesNodes implements Store#ListKubernetesNodes.
+func (w *workloadmeta) ListKubernetesNodes() []*wmdef.KubernetesNode {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
+
+	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
+	for _, entity := range entities {
+		nodes = append(nodes, entity.(*wmdef.KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
 func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)

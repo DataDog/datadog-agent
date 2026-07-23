@@ -10,6 +10,7 @@ go_library(
         "kubeapiserver_nop.go",
         "kueue.go",
         "metadata.go",
+        "node.go",
         "pod.go",
         "reflector_store.go",
         "stub.go",
