@@ -7,6 +7,7 @@ package api
 
 import (
 	"fmt"
+	"io"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -62,8 +63,9 @@ func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
 // debugger data when logs are disabled at the agent level (logs_enabled: false).
 // It returns 200 OK so tracers do not retry or log errors.
 func debuggerLogsDisabledHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		log.Debug("Debugger proxy: dropping request because logs are disabled (logs_enabled: false)")
+		_, _ = io.Copy(io.Discard, req.Body)
 		w.WriteHeader(http.StatusOK)
 	})
 }

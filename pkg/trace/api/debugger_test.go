@@ -329,6 +329,21 @@ func TestDebuggerProxyLogsDisabled(t *testing.T) {
 		assert.False(t, called, "request should not be proxied when logs are disabled")
 		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
 	})
+
+	t.Run("drains_body_when_disabled", func(t *testing.T) {
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader(strings.Repeat("x", 1024)))
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.DebuggerLogsEnabled = false
+		receiver := newTestReceiverFromConfig(conf)
+		rec := httptest.NewRecorder()
+		receiver.debuggerV2IntakeProxyHandler().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		// Body must be fully consumed so large uploads get a clean 200 instead of a connection reset.
+		remaining, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		assert.Empty(t, remaining, "handler must drain the request body")
+	})
 }
 
 func getConf() *traceconfig.AgentConfig {
