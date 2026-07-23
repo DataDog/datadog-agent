@@ -49,11 +49,8 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":ecs"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",

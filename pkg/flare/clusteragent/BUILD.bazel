@@ -55,6 +55,7 @@ dd_agent_go_test(
         "rc_task_test.go",
     ],
     embed = [":clusteragent"],
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/diagnose/def",

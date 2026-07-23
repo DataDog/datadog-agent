@@ -1,4 +1,5 @@
 # Global build settings
+# gazelle:go_test_tag_sets cel+clusterchecks+kubeapiserver+kubelet+orchestrator
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")

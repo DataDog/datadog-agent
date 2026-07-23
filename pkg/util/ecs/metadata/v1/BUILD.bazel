@@ -27,11 +27,8 @@ dd_agent_go_test(
     srcs = ["client_test.go"],
     data = glob(["testdata/**"]),
     embed = [":metadata"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = [
         "//pkg/util/ecs/metadata/testutil",
         "@com_github_stretchr_testify//assert",

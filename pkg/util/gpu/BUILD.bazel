@@ -28,6 +28,7 @@ dd_agent_go_test(
         "nvml_test.go",
     ],
     embed = [":gpu"],
+    tag_sets = ["nvml"],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({

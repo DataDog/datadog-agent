@@ -29,11 +29,8 @@ dd_agent_go_test(
     name = "ffi_test",
     srcs = ["library_loader_test.go"],
     embed = [":ffi"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    include_default = False,
+    tag_sets = ["sharedlibrarycheck"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

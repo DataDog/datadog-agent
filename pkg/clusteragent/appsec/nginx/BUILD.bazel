@@ -46,10 +46,8 @@ dd_agent_go_test(
         "sidecar_test.go",
     ],
     embed = [":nginx"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/log/mock",
         "//pkg/clusteragent/appsec/config",

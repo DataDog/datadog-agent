@@ -40,11 +40,8 @@ dd_agent_go_test(
         "loader_test.go",
     ],
     embed = [":sharedlibraryimpl"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    include_default = False,
+    tag_sets = ["sharedlibrarycheck"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/impl-noop",

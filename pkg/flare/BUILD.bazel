@@ -84,6 +84,10 @@ dd_agent_go_test(
         "service_windows_test.go",
     ],
     embed = [":flare"],
+    tag_sets = [
+        "docker",
+        "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+    ],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",

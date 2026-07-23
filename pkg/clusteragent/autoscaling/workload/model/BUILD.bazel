@@ -43,10 +43,8 @@ dd_agent_go_test(
         "pod_autoscaler_validation_test.go",
     ],
     embed = [":model"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/autoscaling",
         "//pkg/util/pointer",

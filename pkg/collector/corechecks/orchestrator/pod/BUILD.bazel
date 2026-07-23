@@ -42,10 +42,8 @@ dd_agent_go_test(
     srcs = ["pod_test.go"],
     data = ["//pkg/collector/corechecks/orchestrator:testdata"],  # keep
     embed = [":pod"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

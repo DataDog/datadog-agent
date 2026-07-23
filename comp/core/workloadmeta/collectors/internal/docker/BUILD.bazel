@@ -44,11 +44,8 @@ dd_agent_go_test(
     name = "docker_test",
     srcs = ["docker_test.go"],
     embed = [":docker"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = [
         "//comp/core/workloadmeta/def",
         "@com_github_moby_moby_api//types/image",

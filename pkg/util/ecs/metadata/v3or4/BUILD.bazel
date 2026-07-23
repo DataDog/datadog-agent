@@ -23,11 +23,8 @@ dd_agent_go_test(
     srcs = ["client_test.go"],
     data = glob(["testdata/**"]),
     embed = [":v3or4"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = [
         "//pkg/util/ecs/metadata/testutil",
         "//pkg/util/pointer",

@@ -22,10 +22,8 @@ dd_agent_go_test(
     ],
     data = ["tags/payloads/security_cred.json"],
     embed = [":creds"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["ec2"],
     deps = [
         "//pkg/util/aws/creds/internal",
         "@com_github_stretchr_testify//assert",

@@ -43,6 +43,7 @@ dd_agent_go_test(
         "series_benchmark_test.go",
     ],
     embed = [":serializer"],
+    tag_sets = ["zlib+zstd"],
     deps = [
         "//comp/core/log/mock",
         "//comp/core/secrets/noop-impl/types",

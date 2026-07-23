@@ -26,11 +26,8 @@ dd_agent_go_test(
     name = "ecsmanagedinstances_test",
     srcs = ["collector_test.go"],
     embed = [":ecsmanagedinstances"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = [
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/ecs/metadata/v3or4",

@@ -105,7 +105,7 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
 
 # Project/Language configs --------------------------------------------------------------------------------------
-import %workspace%/bazel/configs/flavors.bazelrc
+import %workspace%/bazel/configs/go_tests.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------

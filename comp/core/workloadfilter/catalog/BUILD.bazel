@@ -39,6 +39,7 @@ dd_agent_go_test(
     name = "catalog_test",
     srcs = ["filter_config_test.go"],
     embed = [":catalog"],
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/workloadfilter/def",
         "//pkg/config/mock",

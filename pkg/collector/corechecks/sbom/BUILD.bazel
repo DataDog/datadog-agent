@@ -522,6 +522,7 @@ dd_agent_go_test(
         "processor_test.go",
     ],
     embed = [":sbom"],
+    tag_sets = ["trivy"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//comp/core",

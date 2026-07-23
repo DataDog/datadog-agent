@@ -27,10 +27,8 @@ dd_agent_go_test(
     name = "kubernetesadmissionevents_test",
     srcs = ["kubernetesadmissionevents_test.go"],
     embed = [":kubernetesadmissionevents"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//cmd/cluster-agent/admission",
         "//comp/aggregator/demultiplexer/def",

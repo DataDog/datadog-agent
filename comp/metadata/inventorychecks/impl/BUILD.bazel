@@ -45,6 +45,7 @@ dd_agent_go_test(
         "inventorychecks_test.go",
     ],
     embed = [":impl"],
+    tag_sets = ["jmx"],
     deps = [
         "//comp/collector/collector/def",
         "//comp/collector/collector/mock",

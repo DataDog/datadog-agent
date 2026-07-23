@@ -22,10 +22,8 @@ dd_agent_go_test(
         "writer_test.go",
     ],
     embed = [":metricsstore"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/aggregator/mocksender",
         "@com_github_stretchr_testify//assert",

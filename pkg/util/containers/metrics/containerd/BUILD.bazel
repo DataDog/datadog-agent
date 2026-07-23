@@ -74,11 +74,8 @@ dd_agent_go_test(
         "collector_windows_test.go",
     ],
     embed = [":containerd"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["containerd"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",

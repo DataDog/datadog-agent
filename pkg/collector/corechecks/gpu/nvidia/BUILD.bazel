@@ -87,6 +87,7 @@ dd_agent_go_test(
         "stateless_test.go",
     ],
     embed = [":nvidia"],
+    tag_sets = ["nvml"],
     deps = [
         "//comp/core/workloadmeta/def",
         "@com_github_stretchr_testify//require",

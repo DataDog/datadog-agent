@@ -42,10 +42,8 @@ dd_agent_go_test(
         "replica_calculator_test.go",
     ],
     embed = [":local"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/autoscaling/store",

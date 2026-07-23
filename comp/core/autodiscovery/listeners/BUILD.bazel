@@ -109,6 +109,10 @@ dd_agent_go_test(
         "workloadmeta_test.go",
     ],
     embed = [":listeners"],
+    tag_sets = [
+        "ec2",
+        "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+    ],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

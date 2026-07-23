@@ -60,6 +60,7 @@ dd_agent_go_test(
         "//pkg/network/usm/testdata/site-packages/ddtrace:testdata",
     ],
     embed = [":cuda"],
+    tag_sets = ["linux_bpf+nvml"],
     deps = [
         "//pkg/gpu/cuda/testutil",
         "//pkg/gpu/safenvml",

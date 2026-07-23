@@ -32,10 +32,8 @@ dd_agent_go_test(
         "logs_test.go",
     ],
     embed = [":handlers"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",

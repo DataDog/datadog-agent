@@ -38,6 +38,7 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":cloudfoundry"],
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/net",

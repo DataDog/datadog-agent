@@ -34,6 +34,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":legacy"],
+    tag_sets = ["docker"],
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

@@ -12,9 +12,7 @@ dd_agent_go_test(
     name = "autoscalinggate_test",
     srcs = ["gate_test.go"],
     embed = [":autoscalinggate"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -37,10 +37,8 @@ dd_agent_go_test(
     name = "cri_test",
     srcs = ["check_test.go"],
     embed = [":cri"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cri"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",

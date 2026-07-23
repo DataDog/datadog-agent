@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package dd_agent_go_test is a Gazelle extension that wraps the built-in Go language
-// extension and replaces go_test rules with dd_agent_go_test macro calls that encapsulate
-// per-flavor test generation. It must replace (not extend) the built-in Go extension
-// in the gazelle_binary languages list.
+// Package dd_agent_go_test wraps Gazelle's Go extension and generates
+// flavorless build-tag variants for Go tests.
 //
 // Add "# gazelle:dd_agent_go_test off" to a BUILD file to keep a plain go_test in
 // that package and its subpackages;
@@ -33,9 +31,14 @@ import (
 )
 
 const extName = "dd_agent_go_test"
+const tagSetsDirective = "go_test_tag_sets"
+
+// Stopping at 12 tags avoids combinatorial explosion and maintains readability.
+const maxEnumeratedAutoTestTags = 12
 
 type ddAgentGoTestConfig struct {
 	enabled bool
+	tagSets []string
 }
 
 type lang struct {
@@ -47,21 +50,21 @@ func NewLanguage() language.Language {
 	return &lang{Language: goLanguage.NewLanguage()}
 }
 
-// Kinds extends the Go extension's kinds with dd_agent_go_test. srcs, gotags,
-// and flavors are mergeable so each Gazelle run regenerates them from current
-// source analysis. deps is a ResolveAttr, matching the built-in go_test kind,
-// so Resolve (below) can update it while still respecting `# keep` on
-// individual entries. All other attrs (embed, data, ...) are preserved from
-// the existing rule.
+// Kinds extends the Go extension's kinds with dd_agent_go_test.
 func (l *lang) Kinds() map[string]rule.KindInfo {
 	kinds := make(map[string]rule.KindInfo, len(l.Language.Kinds())+1)
 	for k, v := range l.Language.Kinds() {
 		kinds[k] = v
 	}
 	kinds["dd_agent_go_test"] = rule.KindInfo{
-		NonEmptyAttrs:  map[string]bool{"embed": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "gotags": true, "flavors": true},
-		ResolveAttrs:   map[string]bool{"deps": true},
+		NonEmptyAttrs: map[string]bool{"embed": true},
+		MergeableAttrs: map[string]bool{
+			"gotags":          true,
+			"include_default": true,
+			"srcs":            true,
+			"tag_sets":        true,
+		},
+		ResolveAttrs: map[string]bool{"deps": true},
 	}
 	return kinds
 }
@@ -81,18 +84,12 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	})
 }
 
-// KnownDirectives registers dd_agent_go_test and dd_linux_bpf alongside the Go
-// extension's directives so Gazelle's -strict mode accepts them.
+// KnownDirectives registers this extension's directives alongside Go's.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, linuxBPFExtName)
+	return append(l.Language.KnownDirectives(), extName, tagSetsDirective, linuxBPFExtName)
 }
 
-// Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
-// "on" enables the go_test → dd_agent_go_test conversion; "off" disables it.
-// The setting is inheritable: it applies to this package and all subpackages
-// until a descendant overrides it, so a subtree can be toggled from one BUILD
-// file. We seed from the parent's config (cloned into c.Exts by Gazelle before
-// this runs).
+// Configure reads the inheritable test conversion and canonical tag-set directives.
 func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 	l.Language.Configure(c, rel, f)
 	// Disabled by default: the conversion is opt-in per subtree via
@@ -103,8 +100,11 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 	}
 	if f != nil {
 		for _, d := range f.Directives {
-			if d.Key == "dd_agent_go_test" {
+			switch d.Key {
+			case extName:
 				cfg.enabled = d.Value != "off"
+			case tagSetsDirective:
+				cfg.tagSets = parseTagSets(d.Value)
 			}
 		}
 	}
@@ -118,15 +118,13 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
 	if shouldReplace(args.Config) {
-		result = l.replaceGoTests(result, args.File, args.Dir)
+		result = l.replaceGoTests(result, args.File, args.Dir, configuredTagSets(args.Config))
 	} else {
 		// Preserve the go_build_tags extension's behaviour for non-opted packages:
-		// every go_test still needs gotags = ["test"] so that rules_go's
-		// configuration transition propagates the "test" build tag to transitive
-		// library deps that use //go:build test.
+		// every go_test still needs the minimal base test tags.
 		for _, r := range result.Gen {
 			if r.Kind() == "go_test" {
-				addStringToListIfMissing(r, "gotags", "test")
+				r.SetAttr("gotags", BaseTestTags)
 			}
 		}
 		result = l.revertDdAgentGoTests(result, args.File)
@@ -156,6 +154,14 @@ func shouldReplace(c *config.Config) bool {
 	return true
 }
 
+func configuredTagSets(c *config.Config) []string {
+	cfg, ok := c.Exts[extName].(ddAgentGoTestConfig)
+	if !ok {
+		return nil
+	}
+	return cfg.tagSets
+}
+
 // replaceGoTests converts all go_test rules in result to dd_agent_go_test rules.
 // file is the parsed existing BUILD file (may be nil for fresh packages); it
 // is consulted to carry over user-managed attrs from any pre-existing go_test
@@ -163,10 +169,9 @@ func shouldReplace(c *config.Config) bool {
 //
 // "User-managed" is derived from MergeableAttrs: attrs in the Go extension's
 // go_test MergeableAttrs are regenerated from source analysis, and attrs in
-// dd_agent_go_test's MergeableAttrs are owned by the macro (e.g. gotags is replaced
-// by flavor_gotags at expansion time). Everything else is hand-maintained and
+// dd_agent_go_test's MergeableAttrs are owned by the macro. Everything else is hand-maintained and
 // must be carried over.
-func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string) language.GenerateResult {
+func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string, configuredTagSets []string) language.GenerateResult {
 	managed := make(map[string]bool)
 	for attr := range l.Language.Kinds()["go_test"].MergeableAttrs {
 		managed[attr] = true
@@ -187,6 +192,12 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 	var gen []*rule.Rule
 	var empty []*rule.Rule
 	var imports []interface{}
+	librarySrcs := make(map[string][]string)
+	for _, r := range result.Gen {
+		if r.Kind() == "go_library" {
+			librarySrcs[r.Name()] = r.AttrStrings("srcs")
+		}
+	}
 
 	for i, r := range result.Gen {
 		imp := result.Imports[i]
@@ -218,25 +229,23 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 		// entirely.
 		empty = append(empty, rule.NewRule("go_test", r.Name()))
 
-		// dd_agent_go_test's macro emits one go_test per flavor unconditionally;
-		// Starlark can't read source files, so it has no way to tell that a
-		// //go:build constraint will filter every src out for a given flavor.
-		// Without applicableFlavors here, a package with tests gated by e.g.
-		// linux_bpf or e2ecoverage (neither in any flavor's gotags) would
-		// compile to five empty test binaries that all report "no tests to
-		// run". We do the cross-source analysis at Gazelle time and either
-		// drop the rule entirely (no flavor applies) or restrict the macro
-		// to the applicable subset.
+		var embeddedSrcs []string
+		for _, embed := range nr.AttrStrings("embed") {
+			embeddedSrcs = append(embeddedSrcs, librarySrcs[strings.TrimPrefix(embed, ":")]...)
+		}
 		if srcs := nr.AttrStrings("srcs"); len(srcs) > 0 {
-			fl := applicableFlavors(srcs, pkgDir)
-			if len(fl) == 0 {
+			includeDefault, tagSets := applicableTagSets(srcs, embeddedSrcs, pkgDir, configuredTagSets)
+			if !includeDefault && len(tagSets) == 0 {
 				if existingDd, ok := findRule(file, "dd_agent_go_test", r.Name()); ok {
 					existingDd.Delete()
 				}
 				continue
 			}
-			if len(fl) < len(FlavorUnitTestTags) {
-				nr.SetAttr("flavors", fl)
+			if !includeDefault {
+				nr.SetAttr("include_default", false)
+			}
+			if len(tagSets) > 0 {
+				nr.SetAttr("tag_sets", tagSets)
 			}
 		}
 		gen = append(gen, nr)
@@ -258,9 +267,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 //
 // So instead of deleting, change the existing rule's kind to "go_test" in
 // place: the rule stays put with everything on it, and the ordinary go_test
-// merge path (kind now matches) takes over as if the package had never been
-// converted. "flavors" has no go_test equivalent and is dropped; everything
-// else carries over untouched.
+// merge path takes over.
 //
 // A whole-rule `# keep` is left as dd_agent_go_test, so the go_test candidate
 // fails to match it (different kind) and is dropped rather than duplicated.
@@ -272,7 +279,8 @@ func (l *lang) revertDdAgentGoTests(result language.GenerateResult, file *rule.F
 		if r.Kind() != "dd_agent_go_test" || r.ShouldKeep() {
 			continue
 		}
-		r.DelAttr("flavors")
+		r.DelAttr("include_default")
+		r.DelAttr("tag_sets")
 		r.SetKind("go_test")
 	}
 	return result
@@ -321,24 +329,48 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 	return nil, false
 }
 
-// allFlavors returns the canonical flavor list (sorted by name) used by the
-// dd_agent_go_test macro. Like ALL_FLAVORS in bazel/flavors/defs.bzl, it is
-// derived from FlavorUnitTestTags to keep a single source of truth.
-func allFlavors() []string {
-	out := make([]string, 0, len(FlavorUnitTestTags))
-	for f := range FlavorUnitTestTags {
-		out = append(out, f)
+func parseTagSets(value string) []string {
+	return mergeTagSets(strings.Split(value, ","))
+}
+
+func mergeTagSets(groups ...[]string) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, group := range groups {
+		for _, tagSet := range group {
+			tagSet = normalizeTagSet(tagSet)
+			if tagSet == "" || seen[tagSet] {
+				continue
+			}
+			seen[tagSet] = true
+			out = append(out, tagSet)
+		}
 	}
 	sort.Strings(out)
 	return out
 }
 
+func normalizeTagSet(tagSet string) string {
+	seen := make(map[string]bool)
+	var tags []string
+	for _, tag := range strings.Split(tagSet, "+") {
+		tag = strings.TrimSpace(tag)
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+	return strings.Join(tags, "+")
+}
+
 // platformTokens are GOOS/GOARCH/toolchain identifiers that //go:build expressions
 // may reference. We can't resolve them at Gazelle generation time — the target
 // platform is chosen later by Bazel via select() — so we treat them as free
-// variables and existentially quantify: a flavor matches if there's any
-// platform-token assignment that makes the constraint true under the flavor's
-// tag set. (A simple "platform tokens are always true" rule misclassifies
+// variables and existentially quantify: a tag set matches if there's any
+// platform-token assignment that makes the constraint true. (A simple
+// "platform tokens are always true" rule misclassifies
 // negations like //go:build !windows, which should match on every non-Windows
 // target.)
 var platformTokens = map[string]bool{
@@ -369,14 +401,23 @@ var goReleaseTags = func() map[string]bool {
 	return m
 }()
 
-// applicableFlavors returns the subset of flavor names whose tag set makes at
-// least one src file's //go:build constraint evaluate to true. A src with no
-// //go:build line is universally applicable. Platform/arch identifiers are
-// treated as free variables (existentially quantified, since Bazel resolves
-// them per-configuration at build time); go1.N tokens are resolved against the
-// Gazelle binary's release tags.
-func applicableFlavors(srcs []string, pkgDir string) []string {
-	exprs := make([]constraint.Expr, 0, len(srcs))
+// applicableTagSets reports whether the default test has sources and returns
+// tag combinations that enable additional test or embedded library sources.
+func applicableTagSets(testSrcs, librarySrcs []string, pkgDir string, configuredTagSets []string) (bool, []string) {
+	includeDefault, testTagSets := sourceTagSets(testSrcs, pkgDir, configuredTagSets, true)
+	_, libraryTagSets := sourceTagSets(librarySrcs, pkgDir, configuredTagSets, false)
+	return includeDefault, mergeTagSets(testTagSets, libraryTagSets)
+}
+
+func sourceTagSets(srcs []string, pkgDir string, configuredTagSets []string, deriveTagSets bool) (bool, []string) {
+	baseTags := make(map[string]bool, len(BaseTestTags))
+	for _, tag := range BaseTestTags {
+		baseTags[tag] = true
+	}
+
+	includeDefault := false
+	var tagSets []string
+	var expressions []constraint.Expr
 	for _, s := range srcs {
 		path := s
 		if !filepath.IsAbs(path) {
@@ -384,44 +425,273 @@ func applicableFlavors(srcs []string, pkgDir string) []string {
 		}
 		e, hasConstraint, err := readBuildConstraint(path)
 		if err != nil {
-			// Be conservative: a file we can't read might match anything,
-			// so don't restrict the flavor set on its behalf.
-			return allFlavors()
+			includeDefault = true
+			continue
 		}
 		if !hasConstraint {
-			return allFlavors()
+			includeDefault = true
+			continue
 		}
-		exprs = append(exprs, e)
+		expressions = append(expressions, e)
+		baseSatisfied := canSatisfy(e, baseTags)
+		if baseSatisfied {
+			includeDefault = true
+		}
+		if deriveTagSets {
+			tagSets = append(tagSets, tagSetsForExpression(e, baseTags, configuredTagSets, true)...)
+		} else if !baseSatisfied {
+			tagSets = append(tagSets, tagSetsForExpression(e, baseTags, configuredTagSets, false)...)
+		}
+	}
+	tagSets = pruneRedundantTagSets(mergeTagSets(tagSets), expressions, baseTags)
+	return includeDefault, coalesceRelatedTagSets(tagSets, expressions, baseTags)
+}
+
+func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, configuredTagSets []string, deriveTagSets bool) []string {
+	var matches []string
+	configuredTags := make(map[string]bool)
+	for _, tagSet := range configuredTagSets {
+		tags := strings.Split(tagSet, "+")
+		tagSetTags := make(map[string]bool, len(tags))
+		for _, tag := range tags {
+			configuredTags[tag] = true
+			tagSetTags[tag] = true
+		}
+		if referencesAnyTag(expr, tagSetTags) && canSatisfy(expr, activeTagSet(baseTags, tags)) {
+			matches = append(matches, tagSet)
+		}
+	}
+	if len(matches) > 0 || referencesAnyTag(expr, configuredTags) || !deriveTagSets {
+		return mergeTagSets(matches)
+	}
+	return minimalTagSets(expr, baseTags)
+}
+
+func referencesAnyTag(expr constraint.Expr, tags map[string]bool) bool {
+	switch e := expr.(type) {
+	case *constraint.TagExpr:
+		return tags[e.Tag]
+	case *constraint.NotExpr:
+		return referencesAnyTag(e.X, tags)
+	case *constraint.AndExpr:
+		return referencesAnyTag(e.X, tags) || referencesAnyTag(e.Y, tags)
+	case *constraint.OrExpr:
+		return referencesAnyTag(e.X, tags) || referencesAnyTag(e.Y, tags)
+	default:
+		return false
+	}
+}
+
+func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
+	var referenced []string
+	collectAutoTestTags(expr, make(map[string]bool), &referenced)
+	sort.Strings(referenced)
+
+	if len(referenced) > maxEnumeratedAutoTestTags {
+		var positive []string
+		collectPositiveAutoTestTags(expr, false, make(map[string]bool), &positive)
+		sort.Strings(positive)
+		active := activeTagSet(baseTags, positive)
+		if canSatisfy(expr, active) {
+			return []string{strings.Join(positive, "+")}
+		}
+		if canSatisfy(expr, activeTagSet(baseTags, referenced)) {
+			return []string{strings.Join(referenced, "+")}
+		}
+		return nil
+	}
+
+	var candidates [][]string
+	for mask := 1; mask < (1 << len(referenced)); mask++ {
+		active := make(map[string]bool, len(baseTags)+len(referenced))
+		for tag := range baseTags {
+			active[tag] = true
+		}
+		var selected []string
+		for i, tag := range referenced {
+			if mask&(1<<i) != 0 {
+				active[tag] = true
+				selected = append(selected, tag)
+			}
+		}
+		if canSatisfy(expr, active) {
+			candidates = append(candidates, selected)
+		}
 	}
 
 	var out []string
-	for _, flavor := range allFlavors() {
-		tagSet := make(map[string]bool, len(FlavorUnitTestTags[flavor]))
-		for _, t := range FlavorUnitTestTags[flavor] {
-			tagSet[t] = true
-		}
-		for _, e := range exprs {
-			if canSatisfy(e, tagSet) {
-				out = append(out, flavor)
+	for i, candidate := range candidates {
+		minimal := true
+		for j, other := range candidates {
+			if i != j && len(other) < len(candidate) && stringSetContains(candidate, other) {
+				minimal = false
 				break
 			}
+		}
+		if minimal {
+			out = append(out, strings.Join(candidate, "+"))
+		}
+	}
+	return mergeTagSets(out)
+}
+
+func collectPositiveAutoTestTags(expr constraint.Expr, negated bool, seen map[string]bool, out *[]string) {
+	switch e := expr.(type) {
+	case *constraint.TagExpr:
+		if !negated && AutoTestTags[e.Tag] && !seen[e.Tag] {
+			seen[e.Tag] = true
+			*out = append(*out, e.Tag)
+		}
+	case *constraint.NotExpr:
+		collectPositiveAutoTestTags(e.X, !negated, seen, out)
+	case *constraint.AndExpr:
+		collectPositiveAutoTestTags(e.X, negated, seen, out)
+		collectPositiveAutoTestTags(e.Y, negated, seen, out)
+	case *constraint.OrExpr:
+		collectPositiveAutoTestTags(e.X, negated, seen, out)
+		collectPositiveAutoTestTags(e.Y, negated, seen, out)
+	}
+}
+
+func collectAutoTestTags(expr constraint.Expr, seen map[string]bool, out *[]string) {
+	switch e := expr.(type) {
+	case *constraint.TagExpr:
+		if AutoTestTags[e.Tag] && !seen[e.Tag] {
+			seen[e.Tag] = true
+			*out = append(*out, e.Tag)
+		}
+	case *constraint.NotExpr:
+		collectAutoTestTags(e.X, seen, out)
+	case *constraint.AndExpr:
+		collectAutoTestTags(e.X, seen, out)
+		collectAutoTestTags(e.Y, seen, out)
+	case *constraint.OrExpr:
+		collectAutoTestTags(e.X, seen, out)
+		collectAutoTestTags(e.Y, seen, out)
+	}
+}
+
+func stringSetContains(superset, subset []string) bool {
+	values := make(map[string]bool, len(superset))
+	for _, value := range superset {
+		values[value] = true
+	}
+	for _, value := range subset {
+		if !values[value] {
+			return false
+		}
+	}
+	return true
+}
+
+func pruneRedundantTagSets(tagSets []string, expressions []constraint.Expr, baseTags map[string]bool) []string {
+	var out []string
+	for i, candidate := range tagSets {
+		candidateTags := strings.Split(candidate, "+")
+		candidateActive := activeTagSet(baseTags, candidateTags)
+		redundant := false
+		for j, other := range tagSets {
+			if i == j {
+				continue
+			}
+			otherTags := strings.Split(other, "+")
+			if len(otherTags) <= len(candidateTags) || !stringSetContains(otherTags, candidateTags) {
+				continue
+			}
+			otherActive := activeTagSet(baseTags, otherTags)
+			coversSameSources := true
+			for _, expr := range expressions {
+				if canSatisfy(expr, candidateActive) && !canSatisfy(expr, otherActive) {
+					coversSameSources = false
+					break
+				}
+			}
+			if coversSameSources {
+				redundant = true
+				break
+			}
+		}
+		if !redundant {
+			out = append(out, candidate)
 		}
 	}
 	return out
 }
 
-// canSatisfy reports whether expr can evaluate to true given the flavor's
-// tag set, treating each platform/arch token as a free variable: if any
+func activeTagSet(baseTags map[string]bool, tags []string) map[string]bool {
+	active := make(map[string]bool, len(baseTags)+len(tags))
+	for tag := range baseTags {
+		active[tag] = true
+	}
+	for _, tag := range tags {
+		active[tag] = true
+	}
+	return active
+}
+
+func coalesceRelatedTagSets(tagSets []string, expressions []constraint.Expr, baseTags map[string]bool) []string {
+	tagSets = append([]string(nil), tagSets...)
+	for {
+		merged := false
+		for i := 0; i < len(tagSets) && !merged; i++ {
+			left := strings.Split(tagSets[i], "+")
+			for j := i + 1; j < len(tagSets); j++ {
+				right := strings.Split(tagSets[j], "+")
+				if !stringSetsIntersect(left, right) {
+					continue
+				}
+				union := normalizeTagSet(tagSets[i] + "+" + tagSets[j])
+				unionActive := activeTagSet(baseTags, strings.Split(union, "+"))
+				leftActive := activeTagSet(baseTags, left)
+				rightActive := activeTagSet(baseTags, right)
+				preservesCoverage := true
+				for _, expr := range expressions {
+					wasCovered := canSatisfy(expr, leftActive) || canSatisfy(expr, rightActive)
+					if wasCovered && !canSatisfy(expr, unionActive) {
+						preservesCoverage = false
+						break
+					}
+				}
+				if !preservesCoverage {
+					continue
+				}
+				tagSets[i] = union
+				tagSets = append(tagSets[:j], tagSets[j+1:]...)
+				merged = true
+				break
+			}
+		}
+		if !merged {
+			return mergeTagSets(tagSets)
+		}
+	}
+}
+
+func stringSetsIntersect(left, right []string) bool {
+	values := make(map[string]bool, len(left))
+	for _, value := range left {
+		values[value] = true
+	}
+	for _, value := range right {
+		if values[value] {
+			return true
+		}
+	}
+	return false
+}
+
+// canSatisfy reports whether expr can evaluate to true given active tags,
+// treating each platform/arch token as a free variable: if any
 // assignment of true/false to those tokens makes the expression true, return
 // true. go1.N tokens are resolved against the Gazelle binary's release tags.
 //
 // In practice constraints reference at most a handful of platform tokens, so
 // enumerating 2^N assignments is fast.
-func canSatisfy(expr constraint.Expr, flavorTags map[string]bool) bool {
+func canSatisfy(expr constraint.Expr, activeTags map[string]bool) bool {
 	platforms := collectPlatformTokens(expr)
 	if len(platforms) == 0 {
 		return expr.Eval(func(t string) bool {
-			return flavorTags[t] || goReleaseTags[t]
+			return activeTags[t] || goReleaseTags[t]
 		})
 	}
 	for mask := 0; mask < (1 << len(platforms)); mask++ {
@@ -435,7 +705,7 @@ func canSatisfy(expr constraint.Expr, flavorTags map[string]bool) bool {
 			if v, present := assign[t]; present {
 				return v
 			}
-			return flavorTags[t] || goReleaseTags[t]
+			return activeTags[t] || goReleaseTags[t]
 		})
 		if ok {
 			return true

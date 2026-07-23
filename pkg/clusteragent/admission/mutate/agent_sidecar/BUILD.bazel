@@ -49,10 +49,8 @@ dd_agent_go_test(
         "providers_test.go",
     ],
     embed = [":agent_sidecar"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/config/mock",

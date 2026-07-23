@@ -28,10 +28,8 @@ dd_agent_go_test(
     name = "cri_test",
     srcs = ["util_test.go"],
     embed = [":cri"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cri"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",

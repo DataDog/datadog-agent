@@ -80,6 +80,7 @@ dd_agent_go_test(
         "types_linux_test.go",
     ],
     embed = [":http2"],
+    tag_sets = ["linux_bpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network/config",

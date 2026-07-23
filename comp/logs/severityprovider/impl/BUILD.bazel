@@ -25,11 +25,8 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = ["severityprovider_test.go"],
     embed = [":impl"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    include_default = False,
+    tag_sets = ["python"],
     deps = [
         "//comp/anomalydetection/config",
         "//comp/anomalydetection/observer/def",

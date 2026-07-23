@@ -33,6 +33,7 @@ dd_agent_go_test(
         "compressor_test.go",
     ],
     embed = [":stream"],
+    tag_sets = ["zlib+zstd"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",

@@ -34,6 +34,7 @@ dd_agent_go_test(
         "resolve_credentials_test.go",
     ],
     embed = [":aws"],
+    tag_sets = ["ec2"],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/aws/creds",

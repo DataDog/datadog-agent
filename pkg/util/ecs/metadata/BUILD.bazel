@@ -32,11 +32,8 @@ dd_agent_go_test(
     srcs = ["detection_test.go"],
     data = ["//pkg/util/ecs/metadata/v1:testdata"],
     embed = [":metadata"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["docker"],
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",

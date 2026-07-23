@@ -65,6 +65,7 @@ dd_agent_go_test(
     # keep: split from oomkill_types_test; see comment above.
     srcs = ["oom_kill_test.go"],
     embed = [":oomkill"],
+    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [

@@ -38,10 +38,8 @@ dd_agent_go_test(
         "status_test.go",
     ],
     embed = [":instrumentation"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@com_github_stretchr_testify//assert",

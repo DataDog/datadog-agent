@@ -45,10 +45,8 @@ dd_agent_go_test(
     name = "cluster_test",
     srcs = ["controller_test.go"],
     embed = [":cluster"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/autoscaling/cluster/model",
         "@com_github_stretchr_testify//assert",

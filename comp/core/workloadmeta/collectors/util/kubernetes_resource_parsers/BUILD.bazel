@@ -41,10 +41,8 @@ dd_agent_go_test(
         "utils_test.go",
     ],
     embed = [":kubernetes_resource_parsers"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/collectors/util",

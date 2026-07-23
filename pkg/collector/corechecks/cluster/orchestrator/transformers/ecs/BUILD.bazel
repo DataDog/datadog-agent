@@ -21,10 +21,8 @@ dd_agent_go_test(
     name = "ecs_test",
     srcs = ["task_test.go"],
     embed = [":ecs"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
