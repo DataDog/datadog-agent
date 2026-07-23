@@ -14,6 +14,8 @@ pub trait ScanEngine: Sync {
     /// Engine name, matched against the sub task platform.
     fn name(&self) -> &'static str;
     /// Runs the sub task's query and returns its columns.
+    // TODO(dsec-173): return an `Event` (dd-sensitive-data-scanner) per backend
+    // instead of a `Value`, to avoid the intermediate JSON map and its copies.
     fn fetch_data(&self, sub_task: &SubTask) -> Result<Value>;
 }
 
@@ -25,6 +27,7 @@ fn engines() -> &'static [&'static dyn ScanEngine] {
     ]
 }
 
+// TODO(dsec-174): use map lookup instead of linear scan.
 fn engine_for(platform: &str) -> Result<&'static dyn ScanEngine> {
     engines()
         .iter()
@@ -45,6 +48,6 @@ mod tests {
     #[test]
     fn resolves_postgres_engine() {
         assert_eq!(engine_for("postgres").unwrap().name(), "postgres");
-        assert!(engine_for("mysql").is_err());
+        assert!(engine_for("another_engine_not_register").is_err());
     }
 }

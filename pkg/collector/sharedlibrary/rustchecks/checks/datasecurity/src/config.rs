@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use core::AgentCheck;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::scanning::ScanningRule;
 
@@ -35,29 +37,35 @@ pub struct CheckConfig {
 #[derive(Debug, Default, Deserialize)]
 pub struct SubTask {
     pub sub_task_id: String,
-    #[serde(default)]
     pub connection: Connection,
-    #[serde(default)]
     pub entity: Entity,
     /// SQL query whose result columns are scanned.
-    #[serde(default)]
     pub query: String,
-    /// Connect and query timeout in seconds. `0` disables the timeout.
-    #[serde(default = "default_timeout_seconds")]
-    pub timeout_seconds: u64,
+    /// Per-request connect/query timeout (`timeout_seconds`), must be > 0.
+    #[serde(rename = "timeout_seconds", deserialize_with = "deserialize_timeout")]
+    pub timeout: Duration,
 }
 
 /// TODO(dsec-140): add the other entity values (scan location) when needed,
 /// e.g. database_cluster_name, database_instance_name, database, schema, table.
 #[derive(Debug, Default, Deserialize)]
 pub struct Entity {
-    /// Data-source platform, used to select the backend engine (e.g. `postgres`).
-    #[serde(default)]
     pub platform: String,
 }
 
-fn default_timeout_seconds() -> u64 {
-    30
+/// Deserializes a timeout given in seconds into a `Duration`, rejecting zero so
+/// we never issue a request without a timeout.
+fn deserialize_timeout<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let seconds = u64::deserialize(deserializer)?;
+    if seconds == 0 {
+        return Err(serde::de::Error::custom(
+            "timeout_seconds must be greater than 0",
+        ));
+    }
+    Ok(Duration::from_secs(seconds))
 }
 
 /// Database connection parameters for a sub task.
@@ -86,3 +94,5 @@ fn default_port() -> u16 {
 fn default_application_name() -> String {
     "datadog-agent".to_string()
 }
+
+// TODO(dsec-163): add tests for the config deserialization.

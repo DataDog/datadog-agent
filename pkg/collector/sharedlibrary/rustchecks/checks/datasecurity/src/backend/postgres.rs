@@ -1,8 +1,6 @@
 //! Postgres scan engine.
 
-use std::time::Duration;
-
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use postgres::types::Type;
 use postgres::{Client, Config, NoTls, Row};
 use serde_json::{Map, Value};
@@ -34,10 +32,17 @@ impl ScanEngine for PostgresEngine {
 /// Opens a postgres connection for the sub task using its connection settings.
 fn connect(sub_task: &SubTask) -> Result<Client> {
     let conn = &sub_task.connection;
-    let timeout = sub_task.timeout_seconds;
+    if conn.host.is_empty() {
+        bail!("postgres connection host is required");
+    }
+    let timeout = sub_task.timeout;
     println!(
         "datasecurity: connecting to postgres host={} port={} dbname={} user={} timeout={}s",
-        conn.host, conn.port, conn.dbname, conn.username, timeout
+        conn.host,
+        conn.port,
+        conn.dbname,
+        conn.username,
+        timeout.as_secs()
     );
 
     let mut config = Config::new();
@@ -47,16 +52,13 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .user(&conn.username)
         .password(&conn.password)
         .application_name(&conn.application_name)
-        // `0` means no statement timeout in postgres.
-        .options(&format!("-c statement_timeout={}", timeout * 1000));
+        .connect_timeout(timeout)
+        .options(&format!("-c statement_timeout={}", timeout.as_millis()));
     // A host starting with `/` is a Unix socket directory, otherwise a TCP host.
     if conn.host.starts_with('/') {
         config.host_path(&conn.host);
-    } else if !conn.host.is_empty() {
+    } else {
         config.host(&conn.host);
-    }
-    if timeout > 0 {
-        config.connect_timeout(Duration::from_secs(timeout));
     }
 
     // TODO(dsec-156): add TLS support; connections are unencrypted for now.
