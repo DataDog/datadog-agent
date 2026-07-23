@@ -150,6 +150,37 @@ func TestBaseTraceTagsComputedFromTagConfigTags(t *testing.T) {
 	assert.NotEmpty(t, baseTraceTags)
 }
 
+// TestUsageMetricTagProvider_MicroVMSatisfiesInterface verifies that
+// *cloudservice.MicroVM implements usageMetricTagProvider — the interface
+// setup() type-asserts cloudService against to wire the enhanced-metrics
+// collector's dynamic per-instance usage tag. If CurrentUsageMetricTags'
+// signature ever drifts, the assertion in setup() would silently stop
+// matching (no compile error) instead of failing loudly; this test is what
+// would catch that.
+func TestUsageMetricTagProvider_MicroVMSatisfiesInterface(t *testing.T) {
+	var cloudService cloudservice.CloudService = &cloudservice.MicroVM{}
+	_, ok := cloudService.(usageMetricTagProvider)
+	assert.True(t, ok, "*MicroVM must satisfy usageMetricTagProvider so setup() wires its dynamic usage-metric tags")
+}
+
+// TestUsageMetricTagProvider_OtherServicesDoNotSatisfy documents that cloud
+// services with no dynamic usage-metric tag are intentionally left out of
+// usageMetricTagProvider; setup()'s type assertion falls through to a nil
+// usageMetricTagsFunc for them, and NewCollector treats nil as "no extra tags".
+func TestUsageMetricTagProvider_OtherServicesDoNotSatisfy(t *testing.T) {
+	services := []cloudservice.CloudService{
+		&cloudservice.LocalService{},
+		&cloudservice.AppService{},
+		&cloudservice.CloudRun{},
+		&cloudservice.CloudRunJobs{},
+		&cloudservice.ContainerApp{},
+	}
+	for _, svc := range services {
+		_, ok := svc.(usageMetricTagProvider)
+		assert.False(t, ok, "%T must not satisfy usageMetricTagProvider — it has no dynamic usage-metric tag", svc)
+	}
+}
+
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
 func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")
