@@ -84,11 +84,17 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			opts = append(opts, pulumi.RetainOnDelete(true))
 
 			// Import the existing pool member instead of creating a new instance,
-			// and pin HostID/Tenancy to what it's actually running on. Instance
-			// creation is owned by an external provisioning job, never by NewVM.
+			// and pin HostID/Tenancy/SubnetID to what it's actually running on.
+			// SubnetID must be pinned: the instance's AZ is fixed by its Dedicated
+			// Host, and AWS doesn't support moving an existing instance to a subnet
+			// in a different AZ, so leaving it on the environment's random subnet
+			// pick would make this resource non-importable or replace-triggering.
+			// Instance creation is owned by an external provisioning job, never by
+			// NewVM.
 			opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
 			instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
 			instanceArgs.Tenancy = "host"
+			instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
 		}
 
 		// Create the EC2 instance

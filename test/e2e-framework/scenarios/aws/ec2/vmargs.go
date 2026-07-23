@@ -53,23 +53,6 @@ func buildArgs(options ...VMOption) (*vmArgs, error) {
 	return common.ApplyOption(vmArgs, options)
 }
 
-// InstanceOSFamily reports the OS family requested by opts (as passed to
-// WithEC2InstanceOptions), without defaulting an unset OS to any particular family.
-// Callers outside this package (host.go's Provisioner, deciding whether to route to the
-// non-Pulumi macOS pool provisioner) need this distinction: unlike ResolveMacOSPoolArgs,
-// which always defaults osInfo to os.MacOSDefault, an unset OS here means "unspecified",
-// reported as the zero os.Family.
-func InstanceOSFamily(opts ...VMOption) (os.Family, error) {
-	args, err := buildArgs(opts...)
-	if err != nil {
-		return 0, err
-	}
-	if args.osInfo == nil {
-		return 0, nil
-	}
-	return args.osInfo.Family(), nil
-}
-
 // WithOS sets the OS
 // Version defaults to latest
 func WithOS(osDesc os.Descriptor) VMOption {

@@ -49,10 +49,13 @@ type leaseRecord struct {
 }
 
 // PoolInstance is one EC2 instance discovered by ListPoolInstances, with the
-// Dedicated Host it currently sits on.
+// Dedicated Host and subnet it currently sits on. SubnetId must be preserved on
+// import: the instance's AZ is fixed by its Dedicated Host, so a subnet picked in a
+// different AZ makes the EC2 instance resource non-importable/replace-triggering.
 type PoolInstance struct {
 	InstanceID string
 	HostID     string
+	SubnetID   string
 }
 
 // ListPoolInstances returns every running or stopped EC2 instance carrying
@@ -80,6 +83,9 @@ func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagVa
 			pi := PoolInstance{InstanceID: *instance.InstanceId}
 			if instance.Placement != nil && instance.Placement.HostId != nil {
 				pi.HostID = *instance.Placement.HostId
+			}
+			if instance.SubnetId != nil {
+				pi.SubnetID = *instance.SubnetId
 			}
 			instances = append(instances, pi)
 		}
@@ -185,11 +191,12 @@ func ReleaseInstance(ctx context.Context, region, profile string, instanceID str
 	return nil
 }
 
-// AcquireResult is a successfully claimed pool member: InstanceID/HostID to import it,
-// LeaseToken to release it, and ImageID to revert it to baseline on release.
+// AcquireResult is a successfully claimed pool member: InstanceID/HostID/SubnetID to
+// import it, LeaseToken to release it, and ImageID to revert it to baseline on release.
 type AcquireResult struct {
 	InstanceID string
 	HostID     string
+	SubnetID   string
 	LeaseToken string
 	ImageID    string
 }
@@ -219,6 +226,7 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 	return AcquireResult{
 		InstanceID: instanceID,
 		HostID:     byID[instanceID].HostID,
+		SubnetID:   byID[instanceID].SubnetID,
 		LeaseToken: leaseToken,
 		ImageID:    imageID,
 	}, nil

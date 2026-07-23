@@ -3,7 +3,6 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "ec2",
     srcs = [
-        "macos_pool_args.go",
         "os_resolver.go",
         "os_win.go",
         "run.go",

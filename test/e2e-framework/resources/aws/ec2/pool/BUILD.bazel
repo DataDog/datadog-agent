@@ -2,10 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "pool",
-    srcs = [
-        "macos_host.go",
-        "pool.go",
-    ],
+    srcs = ["pool.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool",
     visibility = ["//visibility:public"],
     deps = [

@@ -43,28 +43,6 @@ func newParams() *Params {
 	}
 }
 
-// InstanceOptions returns the instance-level VMOptions accumulated via
-// WithEC2InstanceOptions, for callers outside this package (the macOS pool
-// provisioner) that need to resolve them without going through NewVM/aws.Environment.
-func (p *Params) InstanceOptions() []VMOption {
-	return p.instanceOptions
-}
-
-// HasAgent reports whether an Agent was requested (i.e. WithoutAgent was not used).
-func (p *Params) HasAgent() bool {
-	return p.agentOptions != nil
-}
-
-// HasFakeIntake reports whether a FakeIntake was requested (i.e. WithoutFakeIntake was not used).
-func (p *Params) HasFakeIntake() bool {
-	return p.fakeintakeOptions != nil
-}
-
-// InstallsUpdater reports whether the Datadog Updater was requested via WithUpdater.
-func (p *Params) InstallsUpdater() bool {
-	return p.installUpdater
-}
-
 // GetParams return Params from options opts setup
 func GetParams(opts ...Option) *Params {
 	params := newParams()
