@@ -63,13 +63,15 @@ type MicroVM struct {
 	flushTimeout time.Duration
 }
 
-// GetTags returns MicroVM-specific tags parsed from the image ARN env var.
+// GetTags returns MicroVM-specific tags parsed from the image ARN env var,
+// plus the image version read directly from its own env var.
 func (m *MicroVM) GetTags() map[string]string {
 	tags := map[string]string{
-		"origin":            MicroVMOrigin,
-		"_dd.origin":        MicroVMOrigin,
-		"resource_type":     MicroVMResourceType,
-		"resource_provider": MicroVMResourceProvider,
+		"origin":                       MicroVMOrigin,
+		"_dd.origin":                   MicroVMOrigin,
+		"resource_type":                MicroVMResourceType,
+		"resource_provider":            MicroVMResourceProvider,
+		"lambda_microvm_image_version": tagValueOrUnknown(os.Getenv(serverlessenv.MicroVMImageVersionEnvVar)),
 	}
 
 	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
