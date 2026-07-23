@@ -112,11 +112,6 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 	return d.collected
 }
 
-// UsesTokens reports that this aggregator only transports tokens to the sampler.
-func (d *detectingAggregator) UsesTokens() bool {
-	return false
-}
-
 // Flush returns any pending message (called on handler flush).
 func (d *detectingAggregator) Flush() []AggregatedMessageWithTokens {
 	d.collected = d.collected[:0]

@@ -42,11 +42,6 @@ func (s *NoopSampler) Process(msg *message.Message, _ []Token) *message.Message 
 	return msg
 }
 
-// UsesTokens reports that NoopSampler does not inspect tokenizer output.
-func (s *NoopSampler) UsesTokens() bool {
-	return false
-}
-
 // Flush is a no-op since NoopSampler has no buffered state.
 func (s *NoopSampler) Flush() *message.Message {
 	return nil
@@ -319,11 +314,6 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, 
 	})
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
-}
-
-// UsesTokens reports that AdaptiveSampler uses tokens for pattern matching.
-func (s *AdaptiveSampler) UsesTokens() bool {
-	return true
 }
 
 // Flush is a no-op — the adaptive sampler does not buffer messages.

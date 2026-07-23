@@ -262,11 +262,6 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	return a.collected
 }
 
-// UsesTokens reports that this aggregator only transports tokens to the sampler.
-func (a *combiningAggregator) UsesTokens() bool {
-	return false
-}
-
 // Flush flushes the aggregator and returns any pending messages.
 func (a *combiningAggregator) Flush() []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]

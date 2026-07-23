@@ -128,11 +128,6 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token)
 	return a.collected
 }
 
-// UsesTokens reports that this aggregator only transports tokens to the sampler.
-func (a *RegexAggregator) UsesTokens() bool {
-	return false
-}
-
 // Flush returns any buffered content as a completed message and resets state.
 func (a *RegexAggregator) Flush() []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]

@@ -82,11 +82,6 @@ func (l *labeler) Label(content []byte, tokens []Token, tokenIndices []int) Labe
 	return context.label
 }
 
-// UsesTokens reports that heuristic labelers inspect tokenizer output.
-func (l *labeler) UsesTokens() bool {
-	return true
-}
-
 // NoopLabeler is a Labeler that always returns noAggregate without any processing.
 // Use this for pipeline paths that don't need auto-multiline detection
 // (e.g. pass-through, regex multiline).
@@ -100,11 +95,6 @@ func NewNoopLabeler() *NoopLabeler {
 // Label always returns noAggregate without inspecting content or tokens.
 func (l *NoopLabeler) Label(_ []byte, _ []Token, _ []int) Label {
 	return noAggregate
-}
-
-// UsesTokens reports that NoopLabeler does not inspect tokenizer output.
-func (l *NoopLabeler) UsesTokens() bool {
-	return false
 }
 
 func labelToString(label Label) string {
