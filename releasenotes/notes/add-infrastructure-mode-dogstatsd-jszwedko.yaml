@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not differ between releases and is easy to understand.
+---
+features:
+  - |
+    Added a new ``infrastructure_mode`` value, ``dogstatsd``, which constrains
+    the regular Agent to run only the DogStatsD intake pipeline (served by Agent
+    Data Plane) with all checks/integrations and other subsystems disabled. This
+    provides an in-place migration target for users of the standalone DogStatsD
+    Agent flavor.

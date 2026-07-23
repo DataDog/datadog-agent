@@ -1401,6 +1401,27 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
 		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "dogstatsd" {
+		// Mirror the standalone DogStatsD flavor: run only the DogStatsD intake
+		// pipeline, nothing else. Disable all checks/integrations and every
+		// subsystem the standalone dogstatsd build omits, and route DogStatsD
+		// through Agent Data Plane (ADP) so the Go DogStatsD server is not needed.
+		//
+		// As with the other modes these use SourceInfraMode, so an explicit user
+		// config file or environment variable still takes precedence.
+		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("apm_config.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("logs_enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_image.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_lifecycle.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("orchestrator_explorer.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("sbom.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Serve DogStatsD via ADP rather than the Go DogStatsD server.
+		config.Set("data_plane.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("data_plane.dogstatsd.enabled", true, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
