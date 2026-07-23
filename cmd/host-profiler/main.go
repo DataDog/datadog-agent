@@ -33,13 +33,14 @@ var capsForAmbient = []uintptr{
 	unix.CAP_IPC_LOCK,
 }
 
+
 func main() {
-	// When running as non-root, file capabilities populate the permitted set at exec time but not the ambient set.
-	// Raise each cap to ambient so that it lands in the effective set for this process. Must happen before
-	// PR_SET_NO_NEW_PRIVS locks ambient raising.
+	// When running as non-root, file capabilities populate the permitted set at exec time but not
+	// the ambient set. Raise each cap to ambient so that it lands in the effective set for this
+	// process. Must happen before PR_SET_NO_NEW_PRIVS locks ambient raising.
 	for _, cap := range capsForAmbient {
 		if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_RAISE, cap, 0, 0); err != nil {
-			// Running as root or cap not in permitted set — not fatal, skip silently.
+			// Running as root or cap not in permitted set -- not fatal, skip silently.
 			break
 		}
 	}
@@ -51,11 +52,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Clear the ambient set so forked children (e.g. objcopy) don't inherit our caps.
-	// PR_SET_NO_NEW_PRIVS does not clear ambient; we must do it explicitly.
-	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to clear ambient capabilities: %v\n", err)
-		os.Exit(1)
+	// Drop from ambient all caps except CAP_SYS_PTRACE, which child processes (e.g. objcopy)
+	// need to access target binaries via /proc/<pid>/fd/<n>.
+	for _, cap := range capsForAmbient {
+		if cap == unix.CAP_SYS_PTRACE {
+			continue
+		}
+		if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_LOWER, cap, 0, 0); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to lower ambient capability %d: %v\n", cap, err)
+			os.Exit(1)
+		}
 	}
 
 	flavor.SetFlavor(flavor.HostProfiler)
