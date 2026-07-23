@@ -24,6 +24,16 @@ const RevisionAnnotationKey = "deployment.kubernetes.io/revision"
 // creation time. If older, we assume it's a rollback (reusing existing RS/CR) and use time.Now().
 const RecentCreationThreshold = 5 * time.Minute
 
+// maxPlausibleRolloutDuration bounds how far in the past a Progressing condition's LastTransitionTime
+// may be before we treat it as a stale anchor rather than the current rollout's start time.
+const maxPlausibleRolloutDuration = 24 * time.Hour
+
+// isInProgressRolloutReason reports whether a Deployment Progressing condition Reason (observed with
+// Status=True) indicates an actively in-progress rollout for duration-tracking purposes.
+func isInProgressRolloutReason(reason string) bool {
+	return reason == "ReplicaSetUpdated" || reason == "NewReplicaSetCreated"
+}
+
 // ReplicaSetInfo holds information about a ReplicaSet for Deployment rollout tracking
 type ReplicaSetInfo struct {
 	Name         string
@@ -193,12 +203,18 @@ func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
 
 // getProgressingConditionTime extracts the LastTransitionTime from the Progressing condition
 // when it indicates an active rollout. This provides restart resilience.
+//
+// The LastTransitionTime is only trusted when it is recent enough to plausibly belong to the current
+// rollout (see maxPlausibleRolloutDuration): the Deployment controller preserves it across successive
+// rollouts while Status stays True, so a stale value can otherwise be pinned at the deployment's
+// creation and yield absurd durations. When it is missing or stale, we fall back instead.
 func getProgressingConditionTime(dep *appsv1.Deployment, fallback time.Time) time.Time {
 	for _, cond := range dep.Status.Conditions {
 		if cond.Type == appsv1.DeploymentProgressing {
-			if cond.Status == corev1.ConditionTrue && cond.Reason == "ReplicaSetUpdated" {
-				if !cond.LastTransitionTime.IsZero() {
-					return cond.LastTransitionTime.Time
+			if cond.Status == corev1.ConditionTrue && isInProgressRolloutReason(cond.Reason) {
+				lastTransition := cond.LastTransitionTime.Time
+				if !lastTransition.IsZero() && time.Since(lastTransition) <= maxPlausibleRolloutDuration {
+					return lastTransition
 				}
 			}
 		}
@@ -290,12 +306,14 @@ func (rt *RolloutTracker) HasActiveRollout(d *appsv1.Deployment) bool {
 	return exists
 }
 
-// HasRolloutCondition checks if Kubernetes reports the deployment as progressing
+// HasRolloutCondition checks if Kubernetes reports the deployment as progressing.
+// See isInProgressRolloutReason for which Progressing reasons count as an active rollout (and why
+// "FoundNewReplicaSet" and "NewReplicaSetAvailable" are deliberately excluded).
 func (rt *RolloutTracker) HasRolloutCondition(d *appsv1.Deployment) bool {
 	for _, condition := range d.Status.Conditions {
 		if condition.Type == appsv1.DeploymentProgressing {
 			return condition.Status == corev1.ConditionTrue &&
-				condition.Reason == "ReplicaSetUpdated"
+				isInProgressRolloutReason(condition.Reason)
 		}
 	}
 	return false
