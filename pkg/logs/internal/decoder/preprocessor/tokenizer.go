@@ -109,8 +109,15 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	}
 }
 
-// Tokenize tokenizes the input bytes and returns caller-owned tokens and start
-// indices. The returned slices remain valid across subsequent Tokenize calls.
+// Tokenize returns caller-owned tokens and start indices: the returned slices
+// are freshly allocated copies, so callers may retain them indefinitely and
+// across future calls. This is the public API for callers that store tokens
+// (e.g. config-time samples in user_samples.go, timestamp formats in
+// timestamp_detector.go, adaptive-sampler rules in decoder.go).
+//
+// The per-log-line preprocessing pipeline does NOT use this method: it calls
+// tokenizeBorrowed to avoid the two allocations below. Do not "unify" the two —
+// the copy here is exactly what lets external callers own their tokens.
 func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 	tokens, indices := t.tokenizeBorrowed(input)
 	if len(tokens) == 0 {
@@ -124,9 +131,16 @@ func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 	return result, resultIndices
 }
 
-// tokenizeBorrowed tokenizes input without allocating result slices. The
-// returned slices alias the Tokenizer's scratch buffers and remain valid only
-// until the next call on t.
+// tokenizeBorrowed tokenizes input without allocating result slices: the
+// returned slices ALIAS the Tokenizer's reusable scratch buffers (tsBuf/idxBuf)
+// and are overwritten by the next call on t. This is the hot path, run once per
+// decoded log line by the preprocessing pipeline, and is why the tokenizer is
+// not thread-safe.
+//
+// Any consumer that keeps the tokens past the current call MUST clone them
+// first (see cloneTokens). The pipeline stages that retain first-line tokens do
+// exactly that: the aggregators, the adaptive sampler, and the auto-multiline
+// pattern table. The labeler only reads them synchronously, so it borrows.
 func (t *Tokenizer) tokenizeBorrowed(input []byte) ([]Token, []int) {
 	maxBytes := len(input)
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
@@ -136,11 +150,16 @@ func (t *Tokenizer) tokenizeBorrowed(input []byte) ([]Token, []int) {
 }
 
 // emitToken appends one token (and its start index) to the reusable buffers,
-// checking for special tokens first. It writes through the tokenizer's buffer
-// fields rather than taking and returning the slices: emitToken is called once
-// per token, so threading two slice headers in and out is pure marshalling
-// overhead, and keeping them out of the scan loop's signature also frees
-// registers for the hot per-byte path.
+// checking for special-token promotion first.
+//
+// Performance-sensitive — two deliberate choices, do not "clean up":
+//   - It writes through the t.tsBuf/t.idxBuf fields instead of taking and
+//     returning the two slices. emitToken runs once per token; threading two
+//     slice headers in and out is pure per-token marshalling, and keeping them
+//     out of the signature frees registers for the hot per-byte scan loop.
+//   - It stays a separate, non-inlined call. Manually inlining the body into
+//     the scan loop was measured to regress homogeneous-run inputs (long word/
+//     number runs) by ~2.5x, because the larger loop body spills registers.
 func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 	runLen := end - start
 
@@ -166,15 +185,19 @@ func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 	}
 }
 
-// tokenizeIntoBuffers converts a byte slice to borrowed tokens and start indices.
+// tokenizeIntoBuffers scans input a single time and emits tokens into the
+// reusable buffers. The returned slices alias those buffers (see
+// tokenizeBorrowed for the lifetime contract).
 func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	inputLen := len(input)
 	if inputLen == 0 {
 		return nil, nil
 	}
 
-	// Use internal buffers for working storage, grow if needed.
-	// Most logs produce ~inputLen/4 tokens, but we start smaller.
+	// Reuse the scratch buffers across calls; only reallocate when the estimate
+	// outgrows capacity. Most logs produce ~inputLen/4 tokens. Reusing the
+	// buffers is what makes tokenizeBorrowed allocation-free (and what makes its
+	// output borrowed — see there).
 	estTokens := inputLen/4 + 8
 	if cap(t.tsBuf) < estTokens {
 		t.tsBuf = make([]Token, 0, estTokens)
@@ -187,6 +210,12 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	start := 0
 	lastToken := tokenLookup[input[0]]
 
+	// Hot loop: keep it minimal — one table lookup, one compare, one branch per
+	// byte — so its few variables stay register-resident. A byte only ends a run
+	// when its class differs from the previous one; all real work (special-token
+	// promotion, run-length encoding, appends) happens at run boundaries in
+	// emitToken, which runs far less often than once per byte. Adding per-byte
+	// work here (extra branches, tracking, etc.) regresses long homogeneous runs.
 	for i := 1; i < inputLen; i++ {
 		currentToken := tokenLookup[input[i]]
 
@@ -197,17 +226,26 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 		}
 	}
 
-	// Flush final token
+	// Flush the final run.
 	t.emitToken(input, lastToken, start, inputLen)
 
 	return t.tsBuf, t.idxBuf
 }
 
-// getSpecialToken returns a case-insensitive special token.
-// It folds 2-8 bytes at a time into an integer key rather than uppercasing
-// individual bytes into a scratch buffer. encoding/binary makes the unaligned
-// loads portable; clearing asciiCaseBit cannot turn a non-letter into a letter.
-// NOTE: This set of tokens is non-exhaustive and can be expanded.
+// getSpecialToken returns a case-insensitive special token, or End if the run
+// is not a recognized keyword.
+//
+// This is a SWAR (SIMD-within-a-register) match: it loads 2-8 bytes at once and
+// case-folds them with a mask, comparing whole machine words against constants
+// instead of uppercasing byte-by-byte into a scratch buffer or allocating a
+// string. Keep it allocation-free and operating directly on the input slice —
+// converting to string() or building a buffer here would undo the win, since
+// this runs for every letter run up to maxSpecialTokenLen. encoding/binary
+// keeps the unaligned loads portable; clearing asciiCaseBit can only fold
+// letters (it never turns a non-letter into one). The case constants are
+// little-endian byte packings, e.g. 'J'|'A'<<8|'N'<<16 == "JAN".
+// NOTE: This set of tokens is non-exhaustive and can be expanded; keep it in
+// sync with tokenToString.
 func getSpecialToken(input []byte) Token {
 	// Length-based dispatch for faster rejection
 	switch len(input) {
