@@ -210,7 +210,47 @@ build do
             delete "#{install_dir}/etc/conf.d/docker.d"
 
             # Edit rpath from a true path to relative path for each binary
-            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            #command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+
+            # Debugging aid for scoping the remaining non-Bazel rpath patching:
+            # list Mach-O files that still contain absolute references to the
+            # install dir after Bazel-built artifacts have had their rpaths rewritten.
+            command <<-SH.gsub(/^ {14}/, ""), cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
+              bash <<'RPATH_DEBUG_SH'
+              set -euo pipefail
+              echo "macOS rpath debug: scanning Mach-O files for absolute references to #{install_dir}"
+              scanned=0
+              matches=0
+              while IFS= read -r -d '' file; do
+                  mime=$(file --mime-type "$file" | awk -F': ' '{print $2}')
+                  if [ "$mime" != "application/x-mach-binary" ]; then
+                      continue
+                  fi
+                  scanned=$((scanned + 1))
+                  refs=$(otool -l "$file" 2>/dev/null | awk -v install_dir="#{install_dir}" '
+                      $1 == "cmd" {
+                          cmd = $2
+                          next
+                      }
+                      cmd == "LC_RPATH" && $1 == "path" && index($2, install_dir) {
+                          print "LC_RPATH " $0
+                      }
+                      cmd == "LC_LOAD_DYLIB" && $1 == "name" && index($2, install_dir) {
+                          print "LC_LOAD_DYLIB " $0
+                      }
+                      cmd == "LC_ID_DYLIB" && $1 == "name" && index($2, install_dir) {
+                          print "LC_ID_DYLIB " $0
+                      }
+                  ' || true)
+                  if [ -n "$refs" ]; then
+                      matches=$((matches + 1))
+                      echo "macOS rpath debug: $file"
+                      echo "$refs" | sed 's/^/  /'
+                  fi
+              done < <(find #{install_dir} -type f -print0)
+              echo "macOS rpath debug: scanned $scanned Mach-O files; $matches still reference #{install_dir}"
+              RPATH_DEBUG_SH
+            SH
 
             if code_signing_identity
                 # Re-unlock the keychain right before signing.  The keychain
