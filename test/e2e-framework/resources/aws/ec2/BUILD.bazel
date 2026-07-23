@@ -6,7 +6,6 @@ go_library(
         "ami.go",
         "asg.go",
         "pool_release.go",
-        "root_volume.go",
         "vm.go",
         "vmtemplate.go",
     ],
