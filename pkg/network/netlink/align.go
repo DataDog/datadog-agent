@@ -28,7 +28,7 @@ func nlmsgAlign(len int) int {
 
 // #define NLMSG_LENGTH(len) ((len) + NLMSG_HDRLEN)
 //
-//nolint:unused,deadcode
+//nolint:unused
 func nlmsgLength(len int) int {
 	return len + nlmsgHeaderLen
 }

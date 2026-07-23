@@ -53,7 +53,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Container image configuration
   input_chan_size:
     node_type: setting
     type: integer

@@ -204,6 +204,10 @@ func (x *TracerPayload) CompactStrings() {
 	markRef(x.HostnameRef)
 	markRef(x.AppVersionRef)
 	markAttributeRefs(x.Attributes, markRef)
+	if x.ContainerDebug != nil {
+		markRef(x.ContainerDebug.ErrorRef)
+		markRef(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Collect refs from chunks and spans
 	for _, chunk := range x.Chunks {
@@ -274,6 +278,10 @@ func (x *TracerPayload) CompactStrings() {
 	x.HostnameRef = remap(x.HostnameRef)
 	x.AppVersionRef = remap(x.AppVersionRef)
 	remapAttributes(x.Attributes, remap)
+	if x.ContainerDebug != nil {
+		x.ContainerDebug.ErrorRef = remap(x.ContainerDebug.ErrorRef)
+		x.ContainerDebug.BufferEvictionReasonRef = remap(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Remap chunks
 	for _, chunk := range x.Chunks {

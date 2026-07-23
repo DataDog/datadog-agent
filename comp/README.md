@@ -412,6 +412,12 @@ send logs.
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
+### [comp/logs/severityprovider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/severityprovider)
+
+*Datadog Team*: agent-log-pipelines q-branch
+
+Package severityprovider defines the severity provider component.
+
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
 Package streamlogs is metadata provider for streamlogs
