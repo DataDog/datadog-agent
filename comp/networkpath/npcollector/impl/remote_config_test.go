@@ -1,0 +1,316 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build test
+
+package npcollectorimpl
+
+import (
+	"fmt"
+	"net/netip"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+)
+
+func TestDynamicRemoteConfigLifecycle(t *testing.T) {
+	collector := newRemoteConfigTestCollector(t, []connfilter.Config{{
+		Type:        connfilter.FilterTypeExclude,
+		MatchDomain: "*.local.example",
+	}})
+	statuses := make(map[string]state.ApplyStatus)
+	callback := func(path string, status state.ApplyStatus) { statuses[path] = status }
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"scheduled": {Config: []byte(`{"type":"scheduled","test_config_id":"scheduled","config":{"tests":[]}}`)},
+		"dynamic":   {Config: dynamicConfig("dynamic", `[{"type":"include","match_domain":"api.local.example"}]`)},
+	}, callback)
+
+	assert.NotContains(t, statuses, "scheduled")
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["dynamic"].State)
+	assert.False(t, collector.filter.IsIncluded("other.local.example", netip.Addr{}))
+	assert.True(t, collector.filter.IsIncluded("api.local.example", netip.Addr{}), "RC must override a matching local filter")
+	included, testConfigID := collector.filter.Evaluate("api.local.example", netip.Addr{})
+	assert.True(t, included)
+	assert.Equal(t, "dynamic", testConfigID)
+
+	// An invalid replacement is rejected atomically and preserves the last valid
+	// config for the same RC path.
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"dynamic": {Config: dynamicConfig("dynamic", `[{"type":"exclude","match_domain":"[","match_domain_strategy":"regex"}]`)},
+	}, callback)
+	assert.Equal(t, state.ApplyStateError, statuses["dynamic"].State)
+	assert.True(t, collector.filter.IsIncluded("api.local.example", netip.Addr{}))
+	_, testConfigID = collector.filter.Evaluate("api.local.example", netip.Addr{})
+	assert.Equal(t, "dynamic", testConfigID, "an invalid replacement must preserve attribution from the last valid config")
+
+	// Deletion removes the RC layer while preserving local filters.
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{}, callback)
+	assert.False(t, collector.filter.IsIncluded("api.local.example", netip.Addr{}))
+	_, testConfigID = collector.filter.Evaluate("api.local.example", netip.Addr{})
+	assert.Empty(t, testConfigID)
+}
+
+func TestDynamicRemoteConfigUnclassifiedReplacementPreservesLastValid(t *testing.T) {
+	for name, replacement := range map[string][]byte{
+		"malformed": []byte(`{`),
+		"unknown":   []byte(`{"type":"unknown"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			collector := newRemoteConfigTestCollector(t, nil)
+			scheduledProvider := networkpathprovider.NewProvider()
+			statuses := make(map[string]state.ApplyStatus)
+			writes := make(map[string]int)
+			callback := func(path string, status state.ApplyStatus) {
+				statuses[path] = status
+				writes[path]++
+			}
+
+			collector.UpdateRemoteConfig(map[string]state.RawConfig{
+				"path/a": {Config: dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com"}]`)},
+			}, callback)
+			require.Equal(t, state.ApplyStateAcknowledged, statuses["path/a"].State)
+
+			writes["path/a"] = 0
+			updates := map[string]state.RawConfig{"path/a": {Config: replacement}}
+			collector.UpdateRemoteConfig(updates, callback)
+			scheduledProvider.Update(updates, callback)
+
+			assert.Equal(t, 1, writes["path/a"], "only the scheduled listener owns the apply status")
+			assert.Equal(t, state.ApplyStateError, statuses["path/a"].State)
+			included, testConfigID := collector.filter.Evaluate("api.example.com", netip.Addr{})
+			assert.True(t, included)
+			assert.Equal(t, "dynamic-a", testConfigID)
+			assert.Contains(t, collector.remoteConfigState, "path/a")
+		})
+	}
+}
+
+func TestDynamicRemoteConfigScheduledReplacementTransfersOwnership(t *testing.T) {
+	collector := newRemoteConfigTestCollector(t, nil)
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"path/a": {Config: dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com"}]`)},
+	}, func(string, state.ApplyStatus) {})
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"scheduled-a","config":{"tests":[{"hostname":"api.example.com"}]}}`)},
+	}, func(string, state.ApplyStatus) {})
+
+	assert.NotContains(t, collector.remoteConfigState, "path/a")
+	_, testConfigID := collector.filter.Evaluate("api.example.com", netip.Addr{})
+	assert.Empty(t, testConfigID)
+}
+
+func TestDynamicRemoteConfigConflictFallsBackToLocal(t *testing.T) {
+	collector := newRemoteConfigTestCollector(t, nil)
+	statuses := make(map[string]state.ApplyStatus)
+	callback := func(path string, status state.ApplyStatus) { statuses[path] = status }
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"a": {Config: dynamicConfig("a", `[{"type":"exclude","match_domain":"api.example.com"}]`)},
+		"b": {Config: dynamicConfig("b", `[{"type":"include","match_domain":"api.example.com"}]`)},
+	}, callback)
+
+	assert.Equal(t, state.ApplyStateError, statuses["a"].State)
+	assert.Equal(t, state.ApplyStateError, statuses["b"].State)
+	assert.Contains(t, statuses["a"].Error, "multiple dynamic NETWORK_PATH configs")
+	assert.True(t, collector.filter.IsIncluded("api.example.com", netip.Addr{}), "conflicts must remove the entire RC layer")
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"a": {Config: dynamicConfig("a", `[{"type":"exclude","match_domain":"api.example.com"}]`)},
+	}, callback)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["a"].State)
+	assert.False(t, collector.filter.IsIncluded("api.example.com", netip.Addr{}))
+}
+
+func TestDynamicRemoteConfigDeletionLetsAdmittedPathsExpireByTTL(t *testing.T) {
+	collector := newRemoteConfigTestCollector(t, nil)
+	now := time.Date(2026, time.July, 17, 0, 0, 0, 0, time.UTC)
+	collector.pathtestStore = pathteststore.NewPathtestStore(pathteststore.Config{
+		ContextsLimit: 1,
+		TTL:           10 * time.Minute,
+		Interval:      time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"dynamic": {Config: dynamicConfig("dynamic", `[{"type":"include","match_domain":"api.example.com"}]`)},
+	}, func(string, state.ApplyStatus) {})
+	collector.pathtestStore.Add(&common.Pathtest{
+		Hostname:         "api.example.com",
+		Port:             443,
+		Protocol:         payload.ProtocolTCP,
+		TestConfigID:     "dynamic",
+		TestConfigSource: payload.TestConfigSourceRemote,
+	})
+
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+	assert.Empty(t, collector.remoteConfigState)
+	assert.Equal(t, 1, collector.pathtestStore.GetContextsCount())
+
+	now = now.Add(time.Minute)
+	flushed := collector.pathtestStore.Flush()
+	require.Len(t, flushed, 1)
+	assert.Equal(t, "dynamic", flushed[0].Pathtest.TestConfigID)
+
+	now = now.Add(10 * time.Minute)
+	assert.Empty(t, collector.pathtestStore.Flush())
+	assert.Zero(t, collector.pathtestStore.GetContextsCount())
+}
+
+func TestDynamicRemoteConfigAcknowledgedWhenCollectorDisabled(t *testing.T) {
+	collector := newNoopNpCollectorImpl()
+	statuses := make(map[string]state.ApplyStatus)
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"dynamic": {Config: dynamicConfig("dynamic", `[{"type":"exclude","match_ip":"10.0.0.0/8"}]`)},
+	}, func(path string, status state.ApplyStatus) { statuses[path] = status })
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["dynamic"].State)
+	assert.Len(t, collector.remoteConfigState, 1)
+}
+
+func TestDynamicRemoteConfigListener(t *testing.T) {
+	collector := newNoopNpCollectorImpl()
+	for _, enabled := range []bool{false, true} {
+		cfg := config.NewMockWithOverrides(t, map[string]any{
+			"network_path.remote_config.enabled": enabled,
+		})
+		listener := newRCListener(cfg, collector)
+		callback, subscribed := listener.ListenerProvider[data.ProductNetworkPath]
+		assert.Equal(t, enabled, subscribed)
+		if enabled {
+			require.NotNil(t, callback)
+		}
+	}
+}
+
+func TestIndependentNetworkPathListenersOwnOneApplyStatusEach(t *testing.T) {
+	updates := map[string]state.RawConfig{
+		"scheduled": {Config: []byte(`{"type":"scheduled","test_config_id":"scheduled","config":{"tests":[{"hostname":"api.example.com"}]}}`)},
+		"dynamic":   {Config: dynamicConfig("dynamic", `[{"type":"include","match_domain":"api.example.com"}]`)},
+		"unknown":   {Config: []byte(`{"type":"unknown"}`)},
+		"malformed": {Config: []byte(`{`)},
+	}
+	for _, dynamicFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dynamic first=%t", dynamicFirst), func(t *testing.T) {
+			collector := newRemoteConfigTestCollector(t, nil)
+			scheduledProvider := networkpathprovider.NewProvider()
+			writes := make(map[string]int)
+			callback := func(path string, _ state.ApplyStatus) { writes[path]++ }
+
+			if dynamicFirst {
+				collector.UpdateRemoteConfig(updates, callback)
+				scheduledProvider.Update(updates, callback)
+			} else {
+				scheduledProvider.Update(updates, callback)
+				collector.UpdateRemoteConfig(updates, callback)
+			}
+
+			assert.Equal(t, map[string]int{
+				"scheduled": 1,
+				"dynamic":   1,
+				"unknown":   1,
+				"malformed": 1,
+			}, writes)
+		})
+	}
+}
+
+func TestParseRemoteDynamicConfigValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  []byte
+		err  string
+	}{
+		{name: "missing id", raw: dynamicConfig("", `[{"type":"exclude","match_ip":"10.0.0.1"}]`), err: "test_config_id is required"},
+		{name: "empty filters", raw: dynamicConfig("id", `[]`), err: "must contain at least one item"},
+		{name: "empty matcher", raw: dynamicConfig("id", `[{"type":"exclude"}]`), err: "match_domain or match_ip is required"},
+		{name: "invalid type", raw: dynamicConfig("id", `[{"type":"drop","match_ip":"10.0.0.1"}]`), err: "invalid filter type"},
+		{name: "invalid cidr", raw: dynamicConfig("id", `[{"type":"exclude","match_ip":"10.0.0.0/99"}]`), err: "failed to parsing match_ip"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, documentType, err := parseRemoteDynamicConfig(tt.raw)
+			assert.Equal(t, remoteConfigDocumentDynamic, documentType)
+			require.ErrorContains(t, err, tt.err)
+		})
+	}
+}
+
+func TestParseRemoteDynamicConfigLeavesNonDynamicOwnershipToScheduledListener(t *testing.T) {
+	for name, raw := range map[string][]byte{
+		"scheduled": []byte(`{"type":"scheduled"}`),
+		"unknown":   []byte(`{"type":"unknown"}`),
+		"malformed": []byte(`{`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			filters, documentType, err := parseRemoteDynamicConfig(raw)
+			require.NoError(t, err)
+			if name == "scheduled" {
+				assert.Equal(t, remoteConfigDocumentScheduled, documentType)
+			} else {
+				assert.Equal(t, remoteConfigDocumentUnknown, documentType)
+			}
+			assert.Nil(t, filters)
+		})
+	}
+}
+
+func TestParseRemoteDynamicConfigTranslatesFilters(t *testing.T) {
+	filters, documentType, err := parseRemoteDynamicConfig(dynamicConfig("dynamic-a", `[{"type":"include","match_domain":"api.example.com","match_domain_strategy":"regex","match_ip":"10.0.0.1"}]`))
+	require.NoError(t, err)
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
+	require.Len(t, filters, 1)
+	assert.Equal(t, connfilter.Config{
+		Type:                connfilter.FilterTypeInclude,
+		MatchDomain:         "api.example.com",
+		MatchDomainStrategy: connfilter.MatchDomainStrategyRegex,
+		MatchIP:             "10.0.0.1",
+		TestConfigID:        "dynamic-a",
+	}, filters[0])
+}
+
+func TestParseRemoteDynamicConfigFilterLimit(t *testing.T) {
+	filters, documentType, err := parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters)))
+	require.NoError(t, err)
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
+	assert.Len(t, filters, maxRemoteFilters)
+
+	_, documentType, err = parseRemoteDynamicConfig(dynamicConfig("dynamic", dynamicFilters(maxRemoteFilters+1)))
+	assert.Equal(t, remoteConfigDocumentDynamic, documentType)
+	require.ErrorContains(t, err, fmt.Sprintf("config.filters must contain at most %d items", maxRemoteFilters))
+}
+
+func newRemoteConfigTestCollector(t *testing.T, local []connfilter.Config) *npCollectorImpl {
+	t.Helper()
+	filter, errs := connfilter.NewConnFilter(local, "", false)
+	require.Empty(t, errs)
+	return &npCollectorImpl{
+		collectorConfigs: &collectorConfigs{filterConfig: local},
+		filter:           filter,
+	}
+}
+
+func dynamicConfig(id, filters string) []byte {
+	return []byte(`{"type":"dynamic","test_config_id":"` + id + `","config":{"filters":` + filters + `}}`)
+}
+
+func dynamicFilters(count int) string {
+	filter := `{"type":"include","match_domain":"api.example.com"}`
+	return "[" + strings.TrimSuffix(strings.Repeat(filter+",", count), ",") + "]"
+}
