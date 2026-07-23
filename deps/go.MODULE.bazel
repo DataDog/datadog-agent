@@ -375,7 +375,6 @@ use_repo(
     "com_github_safchain_baloum",
     "com_github_safchain_ethtool",
     "com_github_samber_lo",
-    "com_github_santhosh_tekuri_jsonschema_v5",
     "com_github_santhosh_tekuri_jsonschema_v6",
     "com_github_sassoftware_go_rpmutils",
     "com_github_secure_systems_lab_go_securesystemslib",
