@@ -53,11 +53,11 @@ type RollbackConfigInputs struct {
 
 // RollbackConfigOutputs is the output of a rollbackConfig action.
 type RollbackConfigOutputs struct {
-	Success        bool `json:"success,omitempty"`
-	CommandResults *ncmremote.PushResult
-	Error          string `json:"error,omitempty"`
-	ErrorCode      string
-	FinishedAt     *time.Time `json:"finished_at,omitempty"`
+	Success        bool                  `json:"success,omitempty"`
+	CommandResults *ncmremote.PushResult `json:"command_results"`
+	Error          string                `json:"error,omitempty"`
+	ErrorCode      string                `json:"error_code"`
+	FinishedAt     *time.Time            `json:"finished_at,omitempty"`
 }
 
 // Run executes the rollbackConfig action
