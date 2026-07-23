@@ -12,6 +12,11 @@ import (
 )
 
 const (
+	// observerTelemetryMetricPrefix is the Agent metric prefix used when observer
+	// telemetry is emitted through the metric pipeline. Keep this separate from
+	// the Prometheus subsystem/name used below so the ingestion loop guard stays
+	// correct if the emitted name changes.
+	observerTelemetryMetricPrefix            = "datadog.agent.observer."
 	telemetryObsChannelDropped               = "observer.channel.dropped"                     // Observations dropped when the observer channel is full.
 	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
 	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
