@@ -7,9 +7,9 @@
 package preprocessor
 
 import (
+	"encoding/binary"
 	"math"
 	"strings"
-	"unsafe"
 )
 
 // maxRun is the maximum run of a char or digit before it is capped.
@@ -20,23 +20,17 @@ const maxRun = 10
 // promotion. Longest critical keyword: "EMERGENCY" / "EXCEPTION" = 9 chars.
 const maxSpecialTokenLen = 9
 
+// Clearing the ASCII case bit uppercases letters. The wider masks apply the
+// same operation to several packed bytes at once.
+const (
+	asciiCaseBit     = byte(0x20)
+	asciiUpperMask16 = uint16(0xdfdf)
+	asciiUpperMask32 = uint32(0xdfdfdfdf)
+	asciiUpperMask64 = uint64(0xdfdfdfdfdfdfdfdf)
+)
+
 // tokenLookup is a 256-byte lookup table for single-byte token classification.
-// Initialized via function call to ensure it happens before other package vars use it.
 var tokenLookup = makeTokenLookup()
-
-// toUpperLookup converts lowercase to uppercase via lookup, identity otherwise
-var toUpperLookup = makeToUpperLookup()
-
-func makeToUpperLookup() [256]byte {
-	var lookup [256]byte
-	for i := range lookup {
-		lookup[i] = byte(i)
-	}
-	for c := byte('a'); c <= 'z'; c++ {
-		lookup[c] = c - 32
-	}
-	return lookup
-}
 
 func makeTokenLookup() [256]Token {
 	var lookup [256]Token
@@ -97,10 +91,8 @@ func makeTokenLookup() [256]Token {
 // as buffers are reused to avoid allocations.
 type Tokenizer struct {
 	maxEvalBytes int
-	strBuf       [maxRun]byte // Fixed-size buffer for special token matching
-	strLen       int          // Current length of content in strBuf
-	tsBuf        []Token      // Reusable token buffer
-	idxBuf       []int        // Reusable index buffer
+	tsBuf        []Token // Reusable token buffer
+	idxBuf       []int   // Reusable index buffer
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
@@ -129,31 +121,26 @@ func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 
 // emitToken appends a token to the output slices, checking for special tokens first.
 // Returns the updated slices.
-func (t *Tokenizer) emitToken(ts []Token, indicies []int, lastToken Token, run, idx int) ([]Token, []int) {
+func (t *Tokenizer) emitToken(input []byte, ts []Token, indicies []int, token Token, start, end int) ([]Token, []int) {
+	runLen := end - start
+
 	// Check for special tokens (only for C1/letter runs, length 1-maxSpecialTokenLen)
-	if lastToken == C1 && t.strLen > 0 && t.strLen <= maxSpecialTokenLen {
-		if t.strLen == 1 {
-			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != End {
-				return append(ts, specialToken), append(indicies, idx)
-			}
-		} else {
-			str := unsafe.String(&t.strBuf[0], t.strLen)
-			if specialToken := getSpecialLongToken(str); specialToken != End {
-				return append(ts, specialToken), append(indicies, idx-run)
-			}
+	if token == C1 && runLen <= maxSpecialTokenLen {
+		if specialToken := getSpecialToken(input[start:end]); specialToken != End {
+			return append(ts, specialToken), append(indicies, start)
 		}
 	}
 
 	// Regular token - encode run length for C1/D1
-	indicies = append(indicies, idx-run)
-	if lastToken == C1 || lastToken == D1 {
-		r := run
+	indicies = append(indicies, start)
+	if token == C1 || token == D1 {
+		r := runLen - 1
 		if r >= maxRun {
 			r = maxRun - 1
 		}
-		ts = append(ts, lastToken+Token(r))
+		ts = append(ts, token+Token(r))
 	} else {
-		ts = append(ts, lastToken)
+		ts = append(ts, token)
 	}
 	return ts, indicies
 }
@@ -176,40 +163,21 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	ts := t.tsBuf[:0]
 	indicies := t.idxBuf[:0]
 
-	run := 0
-	firstChar := input[0]
-	lastToken := tokenLookup[firstChar]
-
-	// Reset string buffer - only track for C1 tokens
-	t.strLen = 0
-	if lastToken == C1 {
-		t.strBuf[0] = toUpperLookup[firstChar]
-		t.strLen = 1
-	}
+	start := 0
+	lastToken := tokenLookup[input[0]]
 
 	for i := 1; i < inputLen; i++ {
-		char := input[i]
-		currentToken := tokenLookup[char]
+		currentToken := tokenLookup[input[i]]
 
 		if currentToken != lastToken {
-			ts, indicies = t.emitToken(ts, indicies, lastToken, run, i-1)
-			run = 0
-			t.strLen = 0
-		} else {
-			run++
+			ts, indicies = t.emitToken(input, ts, indicies, lastToken, start, i)
+			start = i
+			lastToken = currentToken
 		}
-
-		// Only buffer C1 (letter) tokens for special token matching
-		if currentToken == C1 && t.strLen < maxRun {
-			t.strBuf[t.strLen] = toUpperLookup[char]
-			t.strLen++
-		}
-
-		lastToken = currentToken
 	}
 
 	// Flush final token
-	ts, indicies = t.emitToken(ts, indicies, lastToken, run, inputLen-1)
+	ts, indicies = t.emitToken(input, ts, indicies, lastToken, start, inputLen)
 
 	// Store working buffers back for reuse
 	t.tsBuf = ts
@@ -224,96 +192,155 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	return result, resultIdx
 }
 
-func getSpecialShortToken(char byte) Token {
-	// Only T and Z are special single-char tokens
-	if char == 'T' {
-		return T
-	}
-	if char == 'Z' {
-		return Zone
-	}
-	return End
-}
-
-// getSpecialLongToken returns a special token that is > 1 character.
+// getSpecialToken returns a case-insensitive special token.
+// It folds 2-8 bytes at a time into an integer key rather than uppercasing
+// individual bytes into a scratch buffer. encoding/binary makes the unaligned
+// loads portable; clearing asciiCaseBit cannot turn a non-letter into a letter.
 // NOTE: This set of tokens is non-exhaustive and can be expanded.
-func getSpecialLongToken(input string) Token {
+func getSpecialToken(input []byte) Token {
 	// Length-based dispatch for faster rejection
 	switch len(input) {
+	case 1:
+		folded := input[0] &^ asciiCaseBit
+		switch folded {
+		case 'T':
+			return T
+		case 'Z':
+			return Zone
+		}
 	case 2:
-		if input == "AM" || input == "PM" {
+		folded := uint64(binary.LittleEndian.Uint16(input) & asciiUpperMask16)
+		if folded == 'A'|'M'<<8 || folded == 'P'|'M'<<8 {
 			return Apm
 		}
 	case 3:
-		switch input {
-		case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-			"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
+		folded := uint64(binary.LittleEndian.Uint16(input)&asciiUpperMask16) |
+			uint64(input[2]&^asciiCaseBit)<<16
+		switch folded {
+		case 'J' | 'A'<<8 | 'N'<<16,
+			'F' | 'E'<<8 | 'B'<<16,
+			'M' | 'A'<<8 | 'R'<<16,
+			'A' | 'P'<<8 | 'R'<<16,
+			'M' | 'A'<<8 | 'Y'<<16,
+			'J' | 'U'<<8 | 'N'<<16,
+			'J' | 'U'<<8 | 'L'<<16,
+			'A' | 'U'<<8 | 'G'<<16,
+			'S' | 'E'<<8 | 'P'<<16,
+			'O' | 'C'<<8 | 'T'<<16,
+			'N' | 'O'<<8 | 'V'<<16,
+			'D' | 'E'<<8 | 'C'<<16:
 			return Month
-		case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
+		case 'M' | 'O'<<8 | 'N'<<16,
+			'T' | 'U'<<8 | 'E'<<16,
+			'W' | 'E'<<8 | 'D'<<16,
+			'T' | 'H'<<8 | 'U'<<16,
+			'F' | 'R'<<8 | 'I'<<16,
+			'S' | 'A'<<8 | 'T'<<16,
+			'S' | 'U'<<8 | 'N'<<16:
 			return Day
-		case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-			"MST", "MDT", "PST", "PDT", "JST", "KST",
-			"IST", "MSK", "CET", "BST", "HST", "HDT",
-			"NST", "NDT":
+		case 'U' | 'T'<<8 | 'C'<<16,
+			'G' | 'M'<<8 | 'T'<<16,
+			'E' | 'S'<<8 | 'T'<<16,
+			'E' | 'D'<<8 | 'T'<<16,
+			'C' | 'S'<<8 | 'T'<<16,
+			'C' | 'D'<<8 | 'T'<<16,
+			'M' | 'S'<<8 | 'T'<<16,
+			'M' | 'D'<<8 | 'T'<<16,
+			'P' | 'S'<<8 | 'T'<<16,
+			'P' | 'D'<<8 | 'T'<<16,
+			'J' | 'S'<<8 | 'T'<<16,
+			'K' | 'S'<<8 | 'T'<<16,
+			'I' | 'S'<<8 | 'T'<<16,
+			'M' | 'S'<<8 | 'K'<<16,
+			'C' | 'E'<<8 | 'T'<<16,
+			'B' | 'S'<<8 | 'T'<<16,
+			'H' | 'S'<<8 | 'T'<<16,
+			'H' | 'D'<<8 | 'T'<<16,
+			'N' | 'S'<<8 | 'T'<<16,
+			'N' | 'D'<<8 | 'T'<<16:
 			return Zone
 		}
 	case 4:
-		switch input {
-		case "WARN":
+		folded := uint64(binary.LittleEndian.Uint32(input) & asciiUpperMask32)
+		switch folded {
+		case 'W' | 'A'<<8 | 'R'<<16 | 'N'<<24:
 			return Warn
-		case "CRIT":
+		case 'C' | 'R'<<8 | 'I'<<16 | 'T'<<24:
 			return Critical
-		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
-			"AEST", "AEDT", "AWST", "AWDT", "AKST",
-			"AKDT", "CHST", "CHDT":
+		case 'C' | 'E'<<8 | 'S'<<16 | 'T'<<24,
+			'N' | 'Z'<<8 | 'S'<<16 | 'T'<<24,
+			'N' | 'Z'<<8 | 'D'<<16 | 'T'<<24,
+			'A' | 'C'<<8 | 'S'<<16 | 'T'<<24,
+			'A' | 'C'<<8 | 'D'<<16 | 'T'<<24,
+			'A' | 'E'<<8 | 'S'<<16 | 'T'<<24,
+			'A' | 'E'<<8 | 'D'<<16 | 'T'<<24,
+			'A' | 'W'<<8 | 'S'<<16 | 'T'<<24,
+			'A' | 'W'<<8 | 'D'<<16 | 'T'<<24,
+			'A' | 'K'<<8 | 'S'<<16 | 'T'<<24,
+			'A' | 'K'<<8 | 'D'<<16 | 'T'<<24,
+			'C' | 'H'<<8 | 'S'<<16 | 'T'<<24,
+			'C' | 'H'<<8 | 'D'<<16 | 'T'<<24:
 			return Zone
 		}
 	case 5:
-		switch input {
-		case "FATAL":
+		folded := uint64(binary.LittleEndian.Uint32(input)&asciiUpperMask32) |
+			uint64(input[4]&^asciiCaseBit)<<32
+		switch folded {
+		case 'F' | 'A'<<8 | 'T'<<16 | 'A'<<24 | 'L'<<32:
 			return Fatal
-		case "ERROR":
+		case 'E' | 'R'<<8 | 'R'<<16 | 'O'<<24 | 'R'<<32:
 			return Error
-		case "PANIC":
+		case 'P' | 'A'<<8 | 'N'<<16 | 'I'<<24 | 'C'<<32:
 			return Panic
-		case "ALERT":
+		case 'A' | 'L'<<8 | 'E'<<16 | 'R'<<24 | 'T'<<32:
 			return Alert
-		case "EMERG":
+		case 'E' | 'M'<<8 | 'E'<<16 | 'R'<<24 | 'G'<<32:
 			return Emergency
-		case "CRASH":
+		case 'C' | 'R'<<8 | 'A'<<16 | 'S'<<24 | 'H'<<32:
 			return Crash
 		}
 	case 6:
-		switch input {
-		case "SEVERE":
+		folded := uint64(binary.LittleEndian.Uint32(input)&asciiUpperMask32) |
+			uint64(binary.LittleEndian.Uint16(input[4:])&asciiUpperMask16)<<32
+		switch folded {
+		case 'S' | 'E'<<8 | 'V'<<16 | 'E'<<24 | 'R'<<32 | 'E'<<40:
 			return Severe
-		case "FAILED":
+		case 'F' | 'A'<<8 | 'I'<<16 | 'L'<<24 | 'E'<<32 | 'D'<<40:
 			return Failure
 		}
 	case 7:
-		switch input {
-		case "WARNING":
+		folded := uint64(binary.LittleEndian.Uint32(input)&asciiUpperMask32) |
+			uint64(binary.LittleEndian.Uint16(input[4:])&asciiUpperMask16)<<32 |
+			uint64(input[6]&^asciiCaseBit)<<48
+		switch folded {
+		case 'W' | 'A'<<8 | 'R'<<16 | 'N'<<24 | 'I'<<32 | 'N'<<40 | 'G'<<48:
 			return Warn
-		case "CRASHED":
+		case 'C' | 'R'<<8 | 'A'<<16 | 'S'<<24 | 'H'<<32 | 'E'<<40 | 'D'<<48:
 			return Crash
-		case "FAILURE":
+		case 'F' | 'A'<<8 | 'I'<<16 | 'L'<<24 | 'U'<<32 | 'R'<<40 | 'E'<<48:
 			return Failure
-		case "TIMEOUT":
+		case 'T' | 'I'<<8 | 'M'<<16 | 'E'<<24 | 'O'<<32 | 'U'<<40 | 'T'<<48:
 			return Timeout
 		}
 	case 8:
-		switch input {
-		case "CRITICAL":
+		folded := binary.LittleEndian.Uint64(input) & asciiUpperMask64
+		switch folded {
+		case 'C' | 'R'<<8 | 'I'<<16 | 'T'<<24 | 'I'<<32 | 'C'<<40 | 'A'<<48 | 'L'<<56:
 			return Critical
-		case "DEADLOCK":
+		case 'D' | 'E'<<8 | 'A'<<16 | 'D'<<24 | 'L'<<32 | 'O'<<40 | 'C'<<48 | 'K'<<56:
 			return Deadlock
 		}
 	case 9:
-		switch input {
-		case "EMERGENCY":
-			return Emergency
-		case "EXCEPTION":
-			return Exception
+		folded := binary.LittleEndian.Uint64(input) & asciiUpperMask64
+		switch folded {
+		case 'E' | 'M'<<8 | 'E'<<16 | 'R'<<24 | 'G'<<32 | 'E'<<40 | 'N'<<48 | 'C'<<56:
+			if input[8]&^asciiCaseBit == 'Y' {
+				return Emergency
+			}
+		case 'E' | 'X'<<8 | 'C'<<16 | 'E'<<24 | 'P'<<32 | 'T'<<40 | 'I'<<48 | 'O'<<56:
+			if input[8]&^asciiCaseBit == 'N' {
+				return Exception
+			}
 		}
 	}
 	return End

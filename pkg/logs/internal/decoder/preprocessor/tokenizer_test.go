@@ -355,6 +355,16 @@ func FuzzTokenizerCorrectness(f *testing.F) {
 	f.Add([]byte("abc!📀🐶📊123"))
 	f.Add([]byte("Sun Mar 2PM EST JAN FEB MAR"))
 	f.Add([]byte("12-12-12T12:12:12.12T12:12Z123"))
+	f.Add([]byte("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC MON TUE WED THU FRI SAT SUN " +
+		"AM PM UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST IST MSK CET BST HST HDT NST NDT " +
+		"CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT AKST AKDT CHST CHDT WARN CRIT FATAL ERROR " +
+		"PANIC ALERT EMERG CRASH SEVERE FAILED WARNING CRASHED FAILURE TIMEOUT CRITICAL DEADLOCK " +
+		"EMERGENCY EXCEPTION T Z"))
+	f.Add([]byte("jan feb mar apr may jun jul aug sep oct nov dec mon tue wed thu fri sat sun " +
+		"am pm utc gmt est edt cst cdt mst mdt pst pdt jst kst ist msk cet bst hst hdt nst ndt " +
+		"cest nzst nzdt acst acdt aest aedt awst awdt akst akdt chst chdt warn crit fatal error " +
+		"panic alert emerg crash severe failed warning crashed failure timeout critical deadlock " +
+		"emergency exception t z"))
 	f.Fuzz(func(t *testing.T, input []byte) {
 		tok := NewTokenizer(0)
 		actual, _ := tok.Tokenize(input)
