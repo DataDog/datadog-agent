@@ -214,6 +214,8 @@ new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
 new-e2e-agent-health                    @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
+# --- AppSec ---
+new-e2e-appsec-injection                @DataDog/asm-go
 # --- Containers / orchestration / SSI ---
 new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform

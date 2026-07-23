@@ -1016,6 +1016,17 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_e2e_or_appsec_injection_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/clusteragent/appsec/**/*
+        - pkg/clusteragent/admission/mutate/appsec/**/*
+        - test/new-e2e/tests/appsec-injection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_container_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:

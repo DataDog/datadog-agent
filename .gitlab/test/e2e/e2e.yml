@@ -387,6 +387,16 @@ new-e2e-containers-openshift:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-appsec-injection:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_e2e_or_appsec_injection_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/appsec-injection
+    TEAM: asm-go
+    EXTRA_PARAMS: --run TestEnvoyGatewaySidecarUDS
+
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
