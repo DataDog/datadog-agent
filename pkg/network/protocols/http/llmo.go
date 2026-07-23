@@ -709,6 +709,13 @@ func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 // so the agent is closed once it has been idle this long.
 const llmConvTTL = 20 * time.Second
 
+// llmConvMapCap bounds the number of simultaneously-open conversation agents.
+// The idle reaper keeps steady state small, but a burst of many distinct
+// conversations within one TTL window would otherwise hold one open agent span
+// each (~tens of KB), scaling memory linearly with the burst. When the cap is
+// hit, the least-recently-active agent is finished early to make room.
+const llmConvMapCap = 1024
+
 // llmConvAgent is a long-lived agent span grouping every turn of one multi-turn
 // conversation: each turn is emitted as a child span (a workflow for a tool
 // round-trip, or an llm span for a plain turn), so multiple LLM requests appear
@@ -777,6 +784,21 @@ func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
 	defer h.llmConvMu.Unlock()
 	sa := h.llmConvAgents[key]
 	if sa == nil {
+		// Bound peak memory against a burst of distinct conversations: if at
+		// capacity, finish the least-recently-active agent early to make room.
+		if len(h.llmConvAgents) >= llmConvMapCap {
+			var oldKey string
+			var oldest time.Time
+			for k, a := range h.llmConvAgents {
+				if oldKey == "" || a.lastActivity.Before(oldest) {
+					oldKey, oldest = k, a.lastActivity
+				}
+			}
+			if e := h.llmConvAgents[oldKey]; e != nil {
+				e.span.Finish(llmobs.WithFinishTime(e.lastActivity))
+				delete(h.llmConvAgents, oldKey)
+			}
+		}
 		agent, actx := llmobs.StartAgentSpan(context.Background(), "llm.conversation",
 			llmobs.WithMLApp(info.service),
 			llmobs.WithSessionID(info.sessionID),
