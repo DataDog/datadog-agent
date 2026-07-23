@@ -211,19 +211,40 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 	}
 }
 
-func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {
+// canonicalMetricLabelsAndKey returns canonical labels and an order-independent, length-prefixed key.
+func canonicalMetricLabelsAndKey(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string, string) {
 	labelNames := make([]string, 0, len(incoming)+1)
 	labelValues := make([]string, 0, len(incoming)+1)
-	labelNames = append(labelNames, emitterMetricTagName)
-	labelValues = append(labelValues, registeredEmitter)
+	labels := make([]canonicalLabel, 0, len(incoming)+1)
+	appendLabel := func(name, value string) {
+		labelNames = append(labelNames, name)
+		labelValues = append(labelValues, value)
+		labels = append(labels, canonicalLabel{name: name, value: value})
+	}
+
+	appendLabel(emitterMetricTagName, registeredEmitter)
 	for _, label := range incoming {
 		if label.GetName() == emitterMetricTagName {
 			continue
 		}
-		labelNames = append(labelNames, label.GetName())
-		labelValues = append(labelValues, label.GetValue())
+		appendLabel(label.GetName(), label.GetValue())
 	}
-	return labelNames, labelValues
+
+	sort.Slice(labels, func(i, j int) bool {
+		return labels[i].name < labels[j].name ||
+			(labels[i].name == labels[j].name && labels[i].value < labels[j].value)
+	})
+
+	var key strings.Builder
+	for _, label := range labels {
+		key.WriteString(strconv.Itoa(len(label.name)))
+		key.WriteByte(':')
+		key.WriteString(label.name)
+		key.WriteString(strconv.Itoa(len(label.value)))
+		key.WriteByte(':')
+		key.WriteString(label.value)
+	}
+	return labelNames, labelValues, key.String()
 }
 
 type canonicalMetricAggregate struct {
@@ -241,29 +262,6 @@ type canonicalLabel struct {
 	value string
 }
 
-// canonicalMetricLabelKey returns an order-independent, length-prefixed encoding of labels.
-func canonicalMetricLabelKey(labelNames, labelValues []string) string {
-	labels := make([]canonicalLabel, len(labelNames))
-	for i := range labelNames {
-		labels[i] = canonicalLabel{name: labelNames[i], value: labelValues[i]}
-	}
-	sort.Slice(labels, func(i, j int) bool {
-		return labels[i].name < labels[j].name ||
-			(labels[i].name == labels[j].name && labels[i].value < labels[j].value)
-	})
-
-	var key strings.Builder
-	for _, label := range labels {
-		key.WriteString(strconv.Itoa(len(label.name)))
-		key.WriteByte(':')
-		key.WriteString(label.name)
-		key.WriteString(strconv.Itoa(len(label.value)))
-		key.WriteByte(':')
-		key.WriteString(label.value)
-	}
-	return key.String()
-}
-
 func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, metricName, registeredEmitter string) []*canonicalMetricAggregate {
 	aggregatesByLabels := make(map[string]*canonicalMetricAggregate, len(metrics))
 	aggregates := make([]*canonicalMetricAggregate, 0, len(metrics))
@@ -272,8 +270,7 @@ func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, 
 			continue
 		}
 
-		labelNames, labelValues := canonicalMetricLabels(metric.Label, registeredEmitter)
-		key := canonicalMetricLabelKey(labelNames, labelValues)
+		labelNames, labelValues, key := canonicalMetricLabelsAndKey(metric.Label, registeredEmitter)
 		aggregate, found := aggregatesByLabels[key]
 		if !found {
 			aggregate = &canonicalMetricAggregate{
