@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Cisco SD-WAN: application-aware routing (tunnel) metrics fetched before a
+    paginated API request fails are now submitted, instead of the whole
+    collection cycle being dropped. Previously a single ``429 Too Many Requests``
+    response or reaching the ``max_pages`` limit while paginating discarded all
+    data already retrieved, causing ``cisco_sdwan.tunnel.*`` metrics to be
+    missing for that cycle.
