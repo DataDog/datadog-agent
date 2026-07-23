@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/tagger/tags",
         "//pkg/util/kubernetes/clustername",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )

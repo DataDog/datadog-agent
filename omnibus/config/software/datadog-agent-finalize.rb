@@ -94,6 +94,15 @@ build do
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
+            # Move the built-in shared-library checks into the package's checks.d,
+            # strip them to reduce size, then re-assert owner-only (0500) perms.
+            Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
+              dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
+              move lib, dest, :force => true
+              command "strip --strip-unneeded #{dest}"
+              command "chmod 0500 #{dest}"
+            end
+
             # Process manager config directory (read-only, under install dir)
             mkdir "#{install_dir}/processes.d"
 

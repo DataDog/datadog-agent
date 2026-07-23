@@ -151,9 +151,6 @@ properties:
         visibility: public
         description: Toggles the `process_discovery` check. If enabled, this check
           gathers information about running integrations.
-        comment: |-
-          Process Discovery Check
-          We also bind old environment variables for this setting
       interval:
         node_type: setting
         type: string
@@ -395,10 +392,8 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL
     - DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL
-    comment: |-
-      Service discovery configuration
-      Orchestrator Explorer - process agent
-      DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
+    comment: DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting.
+      If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
   process_dd_url:
     node_type: setting
     type: string
