@@ -59,14 +59,17 @@ func (f *SyncForwarder) Stop() {
 }
 
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
+	// delegatedAuth is nil here: SyncForwarder is used for the serverless/lambda path, where WIF
+	// dual-shipping isn't a realistic concern - internalProcess's 403 handling already tolerates a
+	// nil delegatedAuth (falls through to the existing drop behavior).
 	for _, t := range transactions {
-		if err := t.Process(context.Background(), f.config, f.log, f.secrets, f.client, nil); err != nil {
+		if err := t.Process(context.Background(), f.config, f.log, f.secrets, nil, f.client, nil); err != nil {
 			f.log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
 			// Retry once after error
 			// The intake may have closed the connection between Lambda invocations.
 			// If so, the first attempt will fail because the closed connection will still be cached.
 			f.log.Debug("Retrying transaction")
-			if err := t.Process(context.Background(), f.config, f.log, f.secrets, f.client, nil); err != nil {
+			if err := t.Process(context.Background(), f.config, f.log, f.secrets, nil, f.client, nil); err != nil {
 				f.log.Warnf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
 			}
 		}

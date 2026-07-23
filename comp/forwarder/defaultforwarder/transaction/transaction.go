@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -237,6 +238,16 @@ type Authorizer interface {
 	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
 }
 
+// PendingDelegatedAuthChecker is implemented by resolvers that can report whether their domain is
+// managed by delegated auth (WIF) - i.e. whether a 403 for this domain is likely transient (the key
+// hasn't resolved/rotated yet) rather than a genuinely bad static key. Kept separate from
+// Authorizer rather than added to it, so resolver types that don't implement it (and thus aren't
+// delegated-auth-aware) safely fall back to the existing drop-on-403 behavior via a failed type
+// assertion.
+type PendingDelegatedAuthChecker interface {
+	HasPendingDelegatedAuth() bool
+}
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -283,7 +294,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error
+	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, delegatedAuth delegatedauth.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -368,10 +379,10 @@ func (t *HTTPTransaction) GetDestination() Destination {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, delegatedAuth delegatedauth.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client, pointCountTelemetry)
+	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, delegatedAuth, client, pointCountTelemetry)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -388,7 +399,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, delegatedAuth delegatedauth.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) (int, []byte, error) {
 	payload := t.Payload.GetContent()
 	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
@@ -466,6 +477,21 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 			transactionsErrors.Add(1)
 			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "403")
 			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
+		}
+
+		// A domain managed by delegated auth (WIF) may just not have resolved its first key yet,
+		// or be between retries after a transient auth-proof failure - that's not a permanently bad
+		// key like an unrecognized static one, so retry instead of dropping. Nudge delegated auth to
+		// retry sooner than its normal backoff would; best-effort, its return value doesn't gate the
+		// retry decision here since the domain is already known to be WIF-managed regardless.
+		if checker, ok := t.Resolver.(PendingDelegatedAuthChecker); ok && checker.HasPendingDelegatedAuth() {
+			if delegatedAuth != nil {
+				delegatedAuth.Refresh()
+			}
+			t.ErrorCount++
+			transactionsErrors.Add(1)
+			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "403")
+			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q (delegated auth pending), rescheduling it", resp.Status, logURL)
 		}
 
 		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)

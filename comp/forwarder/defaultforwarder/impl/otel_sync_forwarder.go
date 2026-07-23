@@ -124,7 +124,9 @@ func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactio
 			}
 			origHandler(tx, statusCode, body, err)
 		}
-		if err := txn.Process(ctx, f.config, f.log, f.secrets, f.client, nil); err != nil {
+		// delegatedAuth is nil here for the same reason as SyncForwarder (see its comment) - the
+		// OTel serializer path doesn't need WIF dual-shipping 403 handling.
+		if err := txn.Process(ctx, f.config, f.log, f.secrets, nil, f.client, nil); err != nil {
 			errs = multierr.Append(errs, err)
 		} else if permanentErr != nil {
 			errs = multierr.Append(errs, permanentErr)

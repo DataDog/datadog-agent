@@ -82,7 +82,23 @@ type authInstance struct {
 
 	// done is closed when the background refresh goroutine exits
 	done chan struct{}
+
+	// triggerRefresh is a non-blocking, buffered(1) channel used by Refresh() to wake up
+	// startBackgroundRefresh's select loop for an early fetch attempt instead of waiting for the
+	// next scheduled tick. Mirrors comp/core/secrets's own refreshTrigger channel pattern - never
+	// call refreshAndGetAPIKey directly from Refresh() itself, that would block the caller (e.g.
+	// the forwarder's transaction worker) on a real network round-trip.
+	triggerRefresh chan struct{}
+	// lastTriggeredRefresh is when Refresh() last actually sent on triggerRefresh for this
+	// instance, protected by delegatedAuthComponent.mu like the instance's other mutable fields.
+	// Used to throttle repeated triggers so a burst of 403s can't cause repeated real fetch
+	// attempts against the auth-proof exchange endpoint.
+	lastTriggeredRefresh time.Time
 }
+
+// minTriggerRefreshInterval is the minimum time between Refresh()-triggered early fetch attempts
+// for a single instance.
+const minTriggerRefreshInterval = 30 * time.Second
 
 // delegatedAuthComponent implements the delegatedauth.Component interface.
 //
@@ -301,6 +317,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		refreshCtx:                       refreshCtx,
 		refreshCancel:                    refreshCancel,
 		done:                             make(chan struct{}),
+		triggerRefresh:                   make(chan struct{}, 1),
 	}
 
 	// Check if we're replacing an existing instance.
@@ -417,58 +434,106 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 			case <-instance.refreshCtx.Done():
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
-			case <-ticker.C:
-				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
-
-				// Variables to capture state updates
-				var shouldUpdateConfig bool
-				var apiKeyToUpdate string
-
-				d.mu.Lock()
-				if lErr != nil {
-					// Check if the error is due to context cancellation
-					if instance.refreshCtx.Err() != nil {
-						d.mu.Unlock()
-						log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
-						return
-					}
-
-					// Track failures for status reporting
-					instance.consecutiveFailures++
-
-					// Get next backoff interval (exponentially increasing with jitter)
-					nextInterval := instance.backoff.NextBackOff()
-					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
-						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
-					ticker.Reset(nextInterval)
-				} else {
-					// Success - reset backoff and failure counter
-					if instance.consecutiveFailures > 0 {
-						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
-							instance.apiKeyConfigKey, instance.consecutiveFailures)
-					}
-					instance.consecutiveFailures = 0
-					instance.backoff.Reset()
-					nextInterval := instance.backoff.NextBackOff()
-
-					// Capture the API key to update config outside the lock
-					if updated && lCreds != nil {
-						shouldUpdateConfig = true
-						apiKeyToUpdate = *lCreds
-					}
-
-					ticker.Reset(nextInterval)
+			case <-instance.triggerRefresh:
+				// A Refresh() nudge (e.g. the forwarder saw a 403) - do the same forced attempt as
+				// a normal tick, just earlier. Runs in this same select loop as the ticker case
+				// below, so the two can never race each other for this instance.
+				if d.performRefreshAttempt(instance, ticker) {
+					return
 				}
-				d.mu.Unlock()
-
-				// Update the config OUTSIDE the lock to avoid potential deadlocks
-				// with config callbacks that might try to acquire locks
-				if shouldUpdateConfig {
-					d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
+			case <-ticker.C:
+				if d.performRefreshAttempt(instance, ticker) {
+					return
 				}
 			}
 		}
 	}()
+}
+
+// performRefreshAttempt does one forced refresh attempt and updates backoff/config exactly as
+// startBackgroundRefresh's ticker case always has. Returns true if the goroutine should exit
+// (context canceled).
+func (d *delegatedAuthComponent) performRefreshAttempt(instance *authInstance, ticker *time.Ticker) bool {
+	lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
+
+	// Variables to capture state updates
+	var shouldUpdateConfig bool
+	var apiKeyToUpdate string
+
+	d.mu.Lock()
+	if lErr != nil {
+		// Check if the error is due to context cancellation
+		if instance.refreshCtx.Err() != nil {
+			d.mu.Unlock()
+			log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
+			return true
+		}
+
+		// Track failures for status reporting
+		instance.consecutiveFailures++
+
+		// Get next backoff interval (exponentially increasing with jitter)
+		nextInterval := instance.backoff.NextBackOff()
+		log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
+			instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
+		ticker.Reset(nextInterval)
+	} else {
+		// Success - reset backoff and failure counter
+		if instance.consecutiveFailures > 0 {
+			log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
+				instance.apiKeyConfigKey, instance.consecutiveFailures)
+		}
+		instance.consecutiveFailures = 0
+		instance.backoff.Reset()
+		nextInterval := instance.backoff.NextBackOff()
+
+		// Capture the API key to update config outside the lock
+		if updated && lCreds != nil {
+			shouldUpdateConfig = true
+			apiKeyToUpdate = *lCreds
+		}
+
+		ticker.Reset(nextInterval)
+	}
+	d.mu.Unlock()
+
+	// Update the config OUTSIDE the lock to avoid potential deadlocks
+	// with config callbacks that might try to acquire locks
+	if shouldUpdateConfig {
+		d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
+	}
+	return false
+}
+
+// Refresh nudges any not-yet-resolved instances to retry sooner than their normal backoff,
+// throttled per-instance (minTriggerRefreshInterval) so a burst of calls can't cause repeated real
+// fetch attempts. Never performs the fetch itself - only wakes up the existing background refresh
+// goroutine (see startBackgroundRefresh's triggerRefresh case) - so this never blocks the caller
+// on network I/O. Mirrors comp/core/secrets.Component.Refresh()'s contract.
+func (d *delegatedAuthComponent) Refresh() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	nudged := false
+	now := time.Now()
+	for _, instance := range d.instances {
+		if instance.apiKey != nil {
+			// Already resolved - don't force a healthy instance to re-authenticate just because
+			// some unrelated domain's transaction got a 403.
+			continue
+		}
+		nudged = true
+		if now.Sub(instance.lastTriggeredRefresh) < minTriggerRefreshInterval {
+			continue
+		}
+		select {
+		case instance.triggerRefresh <- struct{}{}:
+			instance.lastTriggeredRefresh = now
+		default:
+			// A trigger is already pending for this instance; nothing more to do.
+		}
+	}
+	return nudged
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key
