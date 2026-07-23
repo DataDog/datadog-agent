@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strings"
 
+	"google.golang.org/protobuf/types/known/structpb"
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
@@ -41,8 +42,9 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
-	OperatorAllowedPaths    []string
-	OperatorAllowedCommands []string
+	OperatorAllowedPaths          []string
+	OperatorAllowedCommands       []string
+	OperatorAllowedSystemServices map[string][]string
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -52,10 +54,8 @@ type RunCommandHandlerConfig struct {
 // - runRemediationCommand runs it in remediation mode (interp.ModeRemediation)
 // both still confined to the effective AllowedPaths sandbox.
 //
-// Both allow-lists are intersected unconditionally with the per-task backend
-// list before being passed to rshell. They use different equivalence
-// notions, and each axis has a sentinel value that means "allow whatever
-// the backend allowed":
+// The operator allowlists narrow the per-task backend lists before being passed
+// to rshell. They use different equivalence notions:
 //
 //   - commands compare by exact string equality, with one special case:
 //     the literal "rshell:*" admits every backend entry in the "rshell:"
@@ -63,12 +63,16 @@ type RunCommandHandlerConfig struct {
 //     form to match.
 //   - paths compare by containment with the narrower side winning; the
 //     sentinel "/" admits every POSIX or Windows drive-rooted absolute path.
+//   - system services compare exact service and action strings. An unset local
+//     map admits all backend grants, while a configured map intersects them.
 //
-// On either axis, an explicit empty operator list is the kill-switch.
+// An explicitly configured empty operator list or service map is the
+// kill-switch for that axis.
 type RunCommandHandler struct {
-	operatorAllowedPaths    []string
-	operatorAllowedCommands []string
-	mode                    interp.Mode
+	operatorAllowedPaths          []string
+	operatorAllowedCommands       []string
+	operatorAllowedSystemServices map[string][]string
+	mode                          interp.Mode
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -77,27 +81,32 @@ type RunCommandHandler struct {
 //  1. Paths are normalized, reduced to the broadest entries per access group,
 //     and deduplicated so same-path read-write entries replace read-only ones.
 //  2. Commands are deduplicated.
-func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
+//  3. System-service actions are deduplicated without collapsing the nil-map
+//     distinction used for an unset operator policy.
+func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCommandHandler {
 	// remove duplicates
-	commands := slices.Clone(operatorAllowedCommands)
+	commands := slices.Clone(cfg.OperatorAllowedCommands)
 	slices.Sort(commands)
 	commands = slices.Compact(commands)
+
+	services := cloneSystemServiceAllowlist(cfg.OperatorAllowedSystemServices)
 	return &RunCommandHandler{
-		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
-		operatorAllowedCommands: commands,
-		mode:                    mode,
+		operatorAllowedPaths:          reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
+		operatorAllowedCommands:       commands,
+		operatorAllowedSystemServices: services,
+		mode:                          mode,
 	}
 }
 
 func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly)
+	return newRunCommandHandler(cfg, interp.ModeReadOnly)
 }
 
 // NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
 // handler. It shares all sandboxing with runCommand and only switches rshell into
 // remediation mode.
 func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation)
+	return newRunCommandHandler(cfg, interp.ModeRemediation)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
@@ -119,6 +128,116 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	backendPaths := cleanPathList(backend)
 	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, backendPaths)
+}
+
+// backendSystemServiceGrants converts the backend policy into a deterministic
+// list of exact service/action grants. Non-string action values are ignored
+// with a warning; duplicate actions are collapsed.
+func backendSystemServiceGrants(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
+	if len(backend) == 0 {
+		return []interp.SystemServiceControlGrant{}
+	}
+
+	services := make([]string, 0, len(backend))
+	for service := range backend {
+		services = append(services, service)
+	}
+	slices.Sort(services)
+
+	grants := make([]interp.SystemServiceControlGrant, 0, len(services))
+	for _, service := range services {
+		backendActions := backend[service]
+		if backendActions == nil {
+			continue
+		}
+
+		actionSet := make(map[string]struct{}, len(backendActions.Values))
+		for i, value := range backendActions.Values {
+			if value == nil {
+				log.Warnf("ignoring non-string system service action at index %d for %q", i, service)
+				continue
+			}
+			stringValue, ok := value.Kind.(*structpb.Value_StringValue)
+			if !ok {
+				log.Warnf("ignoring non-string system service action at index %d for %q", i, service)
+				continue
+			}
+			actionSet[stringValue.StringValue] = struct{}{}
+		}
+
+		if len(actionSet) == 0 {
+			continue
+		}
+
+		actions := make([]interp.SystemServiceAction, 0, len(actionSet))
+		for action := range actionSet {
+			actions = append(actions, interp.SystemServiceAction(action))
+		}
+		slices.Sort(actions)
+		grants = append(grants, interp.SystemServiceControlGrant{
+			Service: service,
+			Actions: actions,
+		})
+	}
+	return grants
+}
+
+// filterSystemServiceGrants narrows normalized backend grants with the local
+// operator policy. A nil operator policy leaves the backend grants unchanged,
+// while a configured empty policy denies every service.
+func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemServiceControlGrant) []interp.SystemServiceControlGrant {
+	if h.operatorAllowedSystemServices == nil {
+		return backend
+	}
+
+	grants := make([]interp.SystemServiceControlGrant, 0, len(backend))
+	for _, grant := range backend {
+		allowed, ok := h.operatorAllowedSystemServices[grant.Service]
+		if !ok {
+			continue
+		}
+
+		operatorActions := make(map[string]struct{}, len(allowed))
+		for _, action := range allowed {
+			operatorActions[action] = struct{}{}
+		}
+
+		actions := make([]interp.SystemServiceAction, 0, len(grant.Actions))
+		for _, action := range grant.Actions {
+			if _, ok := operatorActions[string(action)]; ok {
+				actions = append(actions, action)
+			}
+		}
+		if len(actions) == 0 {
+			continue
+		}
+
+		grants = append(grants, interp.SystemServiceControlGrant{
+			Service: grant.Service,
+			Actions: actions,
+		})
+	}
+	return grants
+}
+
+// filterAllowedSystemServices returns the exact service/action pairs granted by
+// the signed task and permitted by the local operator policy.
+func (h *RunCommandHandler) filterAllowedSystemServices(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
+	return h.filterSystemServiceGrants(backendSystemServiceGrants(backend))
+}
+
+func cloneSystemServiceAllowlist(services map[string][]string) map[string][]string {
+	if services == nil {
+		return nil
+	}
+
+	cloned := make(map[string][]string, len(services))
+	for service, actions := range services {
+		clonedActions := slices.Clone(actions)
+		slices.Sort(clonedActions)
+		cloned[service] = slices.Compact(clonedActions)
+	}
+	return cloned
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
@@ -161,11 +280,13 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
-	backendCommands, backendPaths := backendAllowlistsFromTask(task, inputs)
+	backendCommands, backendPaths, backendSystemServices := backendAllowlistsFromTask(task, inputs)
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
-	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
+	backendAllowedSystemServices := backendSystemServiceGrants(backendSystemServices)
+	effectiveAllowedSystemServices := h.filterSystemServiceGrants(backendAllowedSystemServices)
+	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v",
+		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
@@ -188,6 +309,7 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
+		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
 	)
 	if err != nil {
@@ -215,14 +337,14 @@ func (h *RunCommandHandler) Run(
 	}, nil
 }
 
-func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string) {
+func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string, systemServices map[string]*structpb.ListValue) {
 	// The signed system inputs are authoritative for new tasks. A present but
 	// empty remote_action allowlist intentionally blocks that axis.
 	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
-		return remoteAction.AllowedCommands, remoteAction.AllowedPaths
+		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.SystemServices
 	}
 
-	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths)
+	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths), nil
 }
 
 // resolveProcPath returns the proc filesystem path appropriate for the current
