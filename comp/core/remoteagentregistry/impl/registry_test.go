@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -86,6 +87,62 @@ func TestReportRemoteAgentEvent(t *testing.T) {
 
 	// An unknown session returns an error.
 	require.Error(t, component.ReportRemoteAgentEvent("does-not-exist", events))
+}
+
+func TestReportRemoteAgentEventBroadcast(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("remote_agent.registry.enabled", true)
+
+	lc := compdef.NewTestLifecycle(t)
+	tel := telemetryimpl.NewMock(t)
+	ipcComp := ipcmock.New(t)
+
+	var mu sync.Mutex
+	var gotAgent remoteagent.RegisteredAgent
+	var gotEvents []remoteagent.RemoteAgentEvent
+	recorderCalls := 0
+
+	// A panicking subscriber must not fail the RPC or starve the recorder, and a nil entry must be
+	// skipped, so the recorder (registered last) still receives the events exactly once.
+	panicker := &remoteagent.EventSubscriber{
+		Name:     "panicker",
+		Callback: func(remoteagent.RegisteredAgent, []remoteagent.RemoteAgentEvent) { panic("boom") },
+	}
+	recorder := &remoteagent.EventSubscriber{
+		Name: "recorder",
+		Callback: func(agent remoteagent.RegisteredAgent, events []remoteagent.RemoteAgentEvent) {
+			mu.Lock()
+			defer mu.Unlock()
+			recorderCalls++
+			gotAgent = agent
+			gotEvents = events
+		},
+	}
+
+	reqs := Requires{
+		Config:      cfg,
+		Ipc:         ipcComp,
+		Lifecycle:   lc,
+		Telemetry:   tel,
+		EventSubscribers: []*remoteagent.EventSubscriber{panicker, nil, recorder},
+	}
+	component := NewComponent(reqs).Comp.(*remoteAgentRegistry)
+
+	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "1234")
+
+	events := []remoteagent.RemoteAgentEvent{
+		{Message: "invalid API key detected", Details: &remoteagent.InvalidAPIKey{}},
+	}
+
+	// The panicking subscriber is recovered and the nil subscriber skipped, so the call still succeeds.
+	require.NoError(t, component.ReportRemoteAgentEvent(remoteAgent.registeredSessionID, events))
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, recorderCalls)
+	require.Equal(t, "Test Agent", gotAgent.DisplayName)
+	require.Len(t, gotEvents, 1)
+	require.Equal(t, "invalid_api_key", gotEvents[0].Details.EventType())
 }
 
 func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
