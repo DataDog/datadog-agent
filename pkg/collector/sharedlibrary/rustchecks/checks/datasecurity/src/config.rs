@@ -73,11 +73,9 @@ where
 #[derive(Debug, Default, Deserialize)]
 pub struct Connection {
     /// Hostname, or a directory path for a Unix socket (e.g. `/var/run/postgresql`).
-    #[serde(default)]
     pub host: String,
     #[serde(default = "default_port")]
     pub port: u16,
-    #[serde(default)]
     pub dbname: String,
     #[serde(default)]
     pub username: String,
