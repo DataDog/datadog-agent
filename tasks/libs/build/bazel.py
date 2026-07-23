@@ -149,5 +149,6 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
         flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
     if not flags:
         return args
-    index = next((i for i, a in enumerate(args) if not a.startswith("-")), len(args) - 1) + 1
+    # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
+    index = next((i for i, a in enumerate(args, 1) if not a.startswith("-")), len(args))
     return (*args[:index], *flags, *args[index:])
