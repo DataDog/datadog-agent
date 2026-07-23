@@ -23,7 +23,7 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message, _ []Token) *message.Message {
+func (s *captureSampler) Process(msg *message.Message, _ BorrowedTokens) *message.Message {
 	s.emitted = append(s.emitted, msg)
 	return msg
 }
@@ -32,13 +32,11 @@ func (s *captureSampler) Flush() *message.Message { return nil }
 // captureAggregator wraps an aggregator and exposes the received slice.
 // Used to verify that the aggregator received the right messages from processOne.
 type captureAggregator struct {
-	received       []*message.Message
-	receivedTokens [][]Token
+	received []*message.Message
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label, tokens []Token) []AggregatedMessageWithTokens {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, _ BorrowedTokens) []AggregatedMessageWithTokens {
 	a.received = append(a.received, msg)
-	a.receivedTokens = append(a.receivedTokens, tokens)
 	return []AggregatedMessageWithTokens{{Msg: msg}}
 }
 func (a *captureAggregator) Flush() []AggregatedMessageWithTokens { return nil }
@@ -50,7 +48,7 @@ type flushCaptureAggregator struct {
 	pending *message.Message
 }
 
-func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
+func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ BorrowedTokens) []AggregatedMessageWithTokens {
 	a.pending = msg
 	return nil // buffer the message
 }

@@ -17,11 +17,11 @@ import (
 
 func makeContext(str string, label Label) *messageContext {
 	tokenizer := NewTokenizer(0)
-	ts, _ := tokenizer.Tokenize([]byte(str))
+	ts, idx := tokenizer.Tokenize([]byte(str))
 
 	return &messageContext{
 		rawMessage: []byte(str),
-		tokens:     ts,
+		tokens:     newBorrowedTokens(ts, idx),
 		label:      label,
 	}
 }
@@ -113,8 +113,8 @@ func TestPatternTableClonesBorrowedTokens(t *testing.T) {
 	tokenizer := NewTokenizer(0)
 
 	// First line: insert using borrowed tokens (aliasing the scratch buffer).
-	tokens, indices := tokenizer.tokenizeBorrowed([]byte("abc 123 !"))
-	pt.insert(&messageContext{tokens: tokens, tokenIndicies: indices, label: aggregate})
+	borrowed := tokenizer.tokenizeBorrowed([]byte("abc 123 !"))
+	pt.insert(&messageContext{tokens: borrowed, label: aggregate})
 
 	// A structurally different line reuses the same scratch buffer, overwriting
 	// the bytes the first line's tokens pointed at.

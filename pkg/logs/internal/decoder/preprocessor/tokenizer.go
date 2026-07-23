@@ -109,21 +109,17 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	}
 }
 
-// Tokenize returns caller-owned tokens and start indices: the returned slices
-// are freshly allocated copies, so callers may retain them indefinitely and
-// across future calls. This is the public API for callers that store tokens
-// (e.g. config-time samples in user_samples.go, timestamp formats in
-// timestamp_detector.go, adaptive-sampler rules in decoder.go).
-//
-// The per-log-line preprocessing pipeline does NOT use this method: it calls
-// tokenizeBorrowed to avoid the two allocations below. Do not "unify" the two —
-// the copy here is exactly what lets external callers own their tokens.
+// Tokenize returns freshly-allocated, caller-owned tokens and start indices,
+// safe to retain. It is the public API for callers that store tokens (config
+// samples, timestamp formats, sampler rules). The per-line preprocessing
+// pipeline uses tokenizeBorrowed instead to avoid these allocations.
 func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
-	tokens, indices := t.tokenizeBorrowed(input)
+	tokens, indices := t.tokenizeCapped(input)
 	if len(tokens) == 0 {
 		return nil, nil
 	}
-
+	// Copy out of the scratch buffers so the caller owns the result. make+copy,
+	// not slices.Clone, so the result is sized exactly.
 	result := make([]Token, len(tokens))
 	copy(result, tokens)
 	resultIndices := make([]int, len(indices))
@@ -131,17 +127,10 @@ func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 	return result, resultIndices
 }
 
-// tokenizeBorrowed tokenizes input without allocating result slices: the
-// returned slices ALIAS the Tokenizer's reusable scratch buffers (tsBuf/idxBuf)
-// and are overwritten by the next call on t. This is the hot path, run once per
-// decoded log line by the preprocessing pipeline, and is why the tokenizer is
-// not thread-safe.
-//
-// Any consumer that keeps the tokens past the current call MUST clone them
-// first (see cloneTokens). The pipeline stages that retain first-line tokens do
-// exactly that: the aggregators, the adaptive sampler, and the auto-multiline
-// pattern table. The labeler only reads them synchronously, so it borrows.
-func (t *Tokenizer) tokenizeBorrowed(input []byte) ([]Token, []int) {
+// tokenizeCapped applies the maxEvalBytes limit and tokenizes into the scratch
+// buffers, returning the borrowed slices. Shared by Tokenize (which copies them)
+// and tokenizeBorrowed (which wraps them).
+func (t *Tokenizer) tokenizeCapped(input []byte) ([]Token, []int) {
 	maxBytes := len(input)
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
 		maxBytes = t.maxEvalBytes
@@ -149,17 +138,18 @@ func (t *Tokenizer) tokenizeBorrowed(input []byte) ([]Token, []int) {
 	return t.tokenizeIntoBuffers(input[:maxBytes])
 }
 
+// tokenizeBorrowed returns a BorrowedTokens view aliasing the reusable scratch
+// buffers, valid only until the next call on t (hence not thread-safe). This is
+// the per-line hot path; consumers that retain the tokens must Clone them.
+func (t *Tokenizer) tokenizeBorrowed(input []byte) BorrowedTokens {
+	return newBorrowedTokens(t.tokenizeCapped(input))
+}
+
 // emitToken appends one token (and its start index) to the reusable buffers,
-// checking for special-token promotion first.
-//
-// Performance-sensitive — two deliberate choices, do not "clean up":
-//   - It writes through the t.tsBuf/t.idxBuf fields instead of taking and
-//     returning the two slices. emitToken runs once per token; threading two
-//     slice headers in and out is pure per-token marshalling, and keeping them
-//     out of the signature frees registers for the hot per-byte scan loop.
-//   - It stays a separate, non-inlined call. Manually inlining the body into
-//     the scan loop was measured to regress homogeneous-run inputs (long word/
-//     number runs) by ~2.5x, because the larger loop body spills registers.
+// promoting C1 letter runs to special tokens first. It writes through the
+// t.tsBuf/t.idxBuf fields and is deliberately a separate, non-inlined call:
+// both keep the per-byte scan loop small and register-resident. Do not inline
+// it into the loop or make it take/return the slices.
 func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 	runLen := end - start
 
@@ -194,10 +184,9 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 		return nil, nil
 	}
 
-	// Reuse the scratch buffers across calls; only reallocate when the estimate
-	// outgrows capacity. Most logs produce ~inputLen/4 tokens. Reusing the
-	// buffers is what makes tokenizeBorrowed allocation-free (and what makes its
-	// output borrowed — see there).
+	// Reuse the scratch buffers across calls; only grow when the estimate
+	// (~inputLen/4 tokens) exceeds capacity. This makes the borrowed path
+	// allocation-free.
 	estTokens := inputLen/4 + 8
 	if cap(t.tsBuf) < estTokens {
 		t.tsBuf = make([]Token, 0, estTokens)
@@ -210,12 +199,9 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	start := 0
 	lastToken := tokenLookup[input[0]]
 
-	// Hot loop: keep it minimal — one table lookup, one compare, one branch per
-	// byte — so its few variables stay register-resident. A byte only ends a run
-	// when its class differs from the previous one; all real work (special-token
-	// promotion, run-length encoding, appends) happens at run boundaries in
-	// emitToken, which runs far less often than once per byte. Adding per-byte
-	// work here (extra branches, tracking, etc.) regresses long homogeneous runs.
+	// Hot loop: one table lookup, one compare, one branch per byte, so its state
+	// stays register-resident. All token emission happens at run boundaries via
+	// emitToken. Avoid adding per-byte work here.
 	for i := 1; i < inputLen; i++ {
 		currentToken := tokenLookup[input[i]]
 
@@ -232,20 +218,13 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	return t.tsBuf, t.idxBuf
 }
 
-// getSpecialToken returns a case-insensitive special token, or End if the run
-// is not a recognized keyword.
-//
-// This is a SWAR (SIMD-within-a-register) match: it loads 2-8 bytes at once and
-// case-folds them with a mask, comparing whole machine words against constants
-// instead of uppercasing byte-by-byte into a scratch buffer or allocating a
-// string. Keep it allocation-free and operating directly on the input slice —
-// converting to string() or building a buffer here would undo the win, since
-// this runs for every letter run up to maxSpecialTokenLen. encoding/binary
-// keeps the unaligned loads portable; clearing asciiCaseBit can only fold
-// letters (it never turns a non-letter into one). The case constants are
-// little-endian byte packings, e.g. 'J'|'A'<<8|'N'<<16 == "JAN".
-// NOTE: This set of tokens is non-exhaustive and can be expanded; keep it in
-// sync with tokenToString.
+// getSpecialToken returns a case-insensitive special token, or End if the run is
+// not a recognized keyword. It matches a machine word at a time (SWAR):
+// binary.LittleEndian loads 2-8 bytes and an asciiCaseBit mask folds case,
+// avoiding a scratch buffer or string allocation, so it must stay
+// allocation-free. Constants are little-endian byte packings, e.g.
+// 'J'|'A'<<8|'N'<<16 == "JAN". The set is non-exhaustive; keep it in sync with
+// tokenToString.
 func getSpecialToken(input []byte) Token {
 	// Length-based dispatch for faster rejection
 	switch len(input) {

@@ -20,9 +20,10 @@ import (
 // message and returns it unchanged or nil if the message should be dropped.
 // tokens are the tokenized first line of the message, used to identify its pattern.
 type Sampler interface {
-	// Process handles a completed log message and returns it, or nil to drop it. tokens
-	// are borrowed for the duration of the call and must be cloned before retention.
-	Process(msg *message.Message, tokens []Token) *message.Message
+	// Process handles a completed log message and returns it, or nil to drop it.
+	// tokens are a borrowed view (see BorrowedTokens), valid only for the duration
+	// of the call; a sampler that retains them must Clone first.
+	Process(msg *message.Message, tokens BorrowedTokens) *message.Message
 
 	// Flush flushes any buffered state and returns a pending message, or nil if empty.
 	Flush() *message.Message
@@ -38,7 +39,7 @@ func NewNoopSampler() *NoopSampler {
 }
 
 // Process returns the message unchanged.
-func (s *NoopSampler) Process(msg *message.Message, _ []Token) *message.Message {
+func (s *NoopSampler) Process(msg *message.Message, _ BorrowedTokens) *message.Message {
 	return msg
 }
 
@@ -222,7 +223,7 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
-func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+func (s *AdaptiveSampler) Process(msg *message.Message, tokens BorrowedTokens) *message.Message {
 	// tailers skip no-content messages via HasContent() before the processor, don't use
 	// space in the pattern table for them.
 	if !msg.HasContent() {
@@ -231,11 +232,14 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
 		return msg
 	}
-	if !s.shouldSample(msg, tokens) {
+	// raw is borrowed: used only for synchronous reads below. trackNewPattern
+	// clones before storing.
+	raw := tokens.Borrow()
+	if !s.shouldSample(msg, raw) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		return msg
 	}
-	if s.config.ProtectImportantLogs && isImportant(tokens) {
+	if s.config.ProtectImportantLogs && isImportant(raw) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)
 		return msg
@@ -244,7 +248,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	detectionOnly := s.config.DetectionOnly
 
 	for i := range s.entries {
-		if IsMatch(s.entries[i].tokens, tokens, s.config.MatchThreshold) {
+		if IsMatch(s.entries[i].tokens, raw, s.config.MatchThreshold) {
 			return s.processMatchedEntry(i, msg, now, detectionOnly)
 		}
 	}
@@ -298,15 +302,16 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 
 // trackNewPattern records a never-before-seen pattern, evicting the
 // least-frequently-matched entry when the table is full, and emits the message.
-func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time) *message.Message {
+func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens BorrowedTokens, now time.Time) *message.Message {
 	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(s.source)
 		s.entries = s.entries[:len(s.entries)-1]
 	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
+	// The entry outlives this call, so it must own the tokens.
 	s.entries = append(s.entries, samplerEntry{
-		tokens:     cloneTokens(tokens),
+		tokens:     tokens.Clone(),
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,

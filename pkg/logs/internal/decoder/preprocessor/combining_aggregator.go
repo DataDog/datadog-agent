@@ -27,13 +27,14 @@ type bucket struct {
 	shouldTruncate bool
 }
 
-func (b *bucket) add(msg *message.Message, tokens []Token, retainTokens bool) {
+func (b *bucket) add(msg *message.Message, tokens BorrowedTokens, retainTokens bool) {
 	if b.originalDataLen > 0 {
 		b.contentLen += len(message.EscapedLineFeed)
 	}
 	b.contentLen += len(msg.GetContent())
 	if retainTokens {
-		tokens = cloneTokens(tokens)
+		// The bucket buffers this line across Process calls, so it must own the tokens.
+		tokens = tokens.retained()
 	}
 	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 	b.originalDataLen += msg.RawDataLen
@@ -130,7 +131,7 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 	return AggregatedMessageWithTokens{Msg: msg, Tokens: b.lines[0].Tokens}
 }
 
-func (b *bucket) emitSingle(msg *message.Message, tokens []Token) AggregatedMessageWithTokens {
+func (b *bucket) emitSingle(msg *message.Message, tokens BorrowedTokens) AggregatedMessageWithTokens {
 	content := bytes.TrimSpace(msg.GetContent())
 
 	// Once a bucket is exploded, each emitted event follows the normal single-line
@@ -202,7 +203,7 @@ func (a *combiningAggregator) flushToCollected() {
 	a.collected = append(a.collected, a.bucket.flush())
 }
 
-func (a *combiningAggregator) emitSingleToCollected(msg *message.Message, tokens []Token) {
+func (a *combiningAggregator) emitSingleToCollected(msg *message.Message, tokens BorrowedTokens) {
 	a.collected = append(a.collected, a.bucket.emitSingle(msg, tokens))
 }
 
@@ -215,7 +216,7 @@ func (a *combiningAggregator) explodeBucketToCollected() {
 }
 
 // Process processes a multiline log using a label and returns any completed messages.
-func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens {
+func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens BorrowedTokens) []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
