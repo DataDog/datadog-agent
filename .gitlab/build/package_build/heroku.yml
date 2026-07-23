@@ -33,3 +33,6 @@ agent_heroku_deb-x64-a7:
   extends: .heroku_build_base
   variables:
     DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
+    # Size-probe: bundle Agent Data Plane into the Heroku build to measure the
+    # "package ADP alongside the Heroku Agent" alternative.
+    HEROKU_INCLUDE_ADP: "true"

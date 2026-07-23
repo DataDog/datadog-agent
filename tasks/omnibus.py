@@ -196,6 +196,13 @@ def get_omnibus_env(
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
 
+    # Size-probe (Heroku + ADP): forward the opt-in flag to the Omnibus process
+    # so datadog-agent-dependencies can conditionally bundle ADP into the Heroku
+    # build. Forwarded explicitly (not via the passthrough allowlist) to avoid a
+    # "missing env var" warning on every build that doesn't set it.
+    if os.environ.get('HEROKU_INCLUDE_ADP'):
+        env['HEROKU_INCLUDE_ADP'] = os.environ['HEROKU_INCLUDE_ADP']
+
     env_to_forward = _passthrough_env_for_os(os.environ, sys.platform)
     env.update(env_to_forward)
 
