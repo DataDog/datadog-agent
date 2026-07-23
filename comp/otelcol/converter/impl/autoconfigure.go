@@ -98,12 +98,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 
 	// infra attributes processor (all pipeline types)
 	if slices.Contains(enabledFeatures, "infraattributes") {
-		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor, "")
+		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor, pipelineAll)
 	}
 	// cumulativetodelta processor (metrics pipelines only — the processor only
 	// implements CreateMetrics, so it must never land in a traces/logs pipeline).
 	if slices.Contains(enabledFeatures, "cumulativetodelta") {
-		addProcessorToPipelinesWithDDExporter(conf, cumulativeToDeltaProcessor, "metrics")
+		addProcessorToPipelinesWithDDExporter(conf, cumulativeToDeltaProcessor, pipelineMetrics)
 	}
 	// prometheus receiver
 	if slices.Contains(enabledFeatures, "prometheus") {
@@ -141,95 +141,89 @@ func componentName(fullName string) string {
 	return parts[0]
 }
 
+// pipelineType selects which service pipelines a processor is injected into.
+// Note: Go does not fully prevent an out-of-set value (an untyped string constant
+// still converts), but the named type + constants document intent and keep call
+// sites free of magic strings.
+type pipelineType string
+
+const (
+	// pipelineAll injects into every pipeline type (traces, metrics, logs).
+	pipelineAll pipelineType = ""
+	// pipelineMetrics injects into metrics pipelines only.
+	pipelineMetrics pipelineType = "metrics"
+)
+
+// pipelineExportsToDatadog reports whether the pipeline exports to the datadog
+// exporter. Matching is by base component name, so datadog/<name> counts too.
+func pipelineExportsToDatadog(componentsMap map[string]any) bool {
+	exporters, ok := componentsMap["exporters"].([]any)
+	if !ok {
+		return false
+	}
+	for _, exporter := range exporters {
+		if s, ok := exporter.(string); ok && componentName(s) == "datadog" {
+			return true
+		}
+	}
+	return false
+}
+
+// pipelineHasProcessor reports whether the pipeline already lists a processor with
+// the given base component name (so a user-defined processor is not duplicated).
+func pipelineHasProcessor(componentsMap map[string]any, name string) bool {
+	processors, ok := componentsMap["processors"].([]any)
+	if !ok {
+		return false
+	}
+	for _, processor := range processors {
+		if s, ok := processor.(string); ok && componentName(s) == name {
+			return true
+		}
+	}
+	return false
+}
+
 // addProcessorToPipelinesWithDDExporter injects comp (a processor) into every
 // pipeline that exports to the datadog exporter, appending it to the end of the
-// pipeline's processors list. When pipelineType is non-empty (e.g. "metrics"),
-// only pipelines of that type are considered ("" means all pipeline types). It is
-// a no-op for a pipeline that already defines a processor with the same base name,
-// so a user-configured processor is never duplicated.
-func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component, pipelineType string) {
-	var componentAddedToConfig bool
+// pipeline's processors list. pt restricts the eligible pipeline types
+// (pipelineAll = every type, pipelineMetrics = metrics only). It is a no-op for a
+// pipeline that already defines a processor with the same base name.
+func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component, pt pipelineType) {
 	stringMapConf := conf.ToStringMap()
-	service, ok := stringMapConf["service"]
+	service, ok := stringMapConf["service"].(map[string]any)
 	if !ok {
 		return
 	}
-	serviceMap, ok := service.(map[string]any)
+	pipelinesMap, ok := service["pipelines"].(map[string]any)
 	if !ok {
 		return
 	}
-	pipelines, ok := serviceMap["pipelines"]
-	if !ok {
-		return
-	}
-	pipelinesMap, ok := pipelines.(map[string]any)
-	if !ok {
-		return
-	}
+
+	componentAddedToConfig := false
 	for pipelineName, components := range pipelinesMap {
-		// Restrict to the requested pipeline type when one is given. componentName
+		// Restrict to the requested pipeline type when one is set. componentName
 		// strips any "/<name>" suffix so both "metrics" and "metrics/foo" match.
-		if pipelineType != "" && componentName(pipelineName) != pipelineType {
+		// A malformed single pipeline is skipped, not fatal to the whole pass —
+		// otherwise map-iteration order would nondeterministically drop injection
+		// into the remaining (valid) pipelines.
+		if pt != pipelineAll && componentName(pipelineName) != string(pt) {
 			continue
 		}
 		componentsMap, ok := components.(map[string]any)
 		if !ok {
-			return
-		}
-		exporters, ok := componentsMap["exporters"]
-		if !ok {
 			continue
 		}
-		exportersSlice, ok := exporters.([]any)
-		if !ok {
-			return
+		if !pipelineExportsToDatadog(componentsMap) || pipelineHasProcessor(componentsMap, comp.Name) {
+			continue
 		}
-		processorInPipeline := false
-		ddExporterInPipeline := false
-		for _, exporter := range exportersSlice {
-			exporterString, ok := exporter.(string)
-			if !ok {
-				return
-			}
-			if processorInPipeline {
-				break
-			}
-			if componentName(exporterString) != "datadog" {
-				continue
-			}
-			ddExporterInPipeline = true
-			// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
-			_, ok = componentsMap[comp.Type]
-			if !ok {
-				componentsMap[comp.Type] = []any{}
-			}
-
-			processorsSlice, ok := componentsMap[comp.Type].([]any)
-			if !ok {
-				return
-			}
-			for _, processor := range processorsSlice {
-				processorString, ok := processor.(string)
-				if !ok {
-					return
-				}
-				if componentName(processorString) == comp.Name {
-					processorInPipeline = true
-				}
-
-			}
-
+		// The datadog exporter is present but this processor is not yet in the
+		// pipeline: add it once to the top-level config, then to this pipeline.
+		if !componentAddedToConfig {
+			addComponentToConfig(conf, comp)
+			componentAddedToConfig = true
 		}
-
-		if !processorInPipeline && ddExporterInPipeline {
-			// no processors are defined
-			if !componentAddedToConfig {
-				addComponentToConfig(conf, comp)
-				componentAddedToConfig = true
-			}
-			addComponentToPipeline(conf, comp, pipelineName)
-		}
-
+		addComponentToPipeline(conf, comp, pipelineName)
 	}
 }
 
