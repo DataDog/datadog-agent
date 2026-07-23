@@ -218,7 +218,7 @@ func Test_Optimizer_OnSuccess(t *testing.T) {
 }
 
 func Test_Optimizer_BatchSize(t *testing.T) {
-	o := NewOptimizer(5)
+	o := NewOptimizer(5, "test")
 	assert.Equal(t, 5, o.BatchSize())
 	o.OnFailure()
 	assert.Equal(t, 2, o.BatchSize())

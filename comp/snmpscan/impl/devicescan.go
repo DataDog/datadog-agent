@@ -22,9 +22,8 @@ import (
 )
 
 // defaultBulkMaxRepetitions is the starting max-repetitions value for GetBulk
-// during a device scan when none is configured. Matches net-snmp's
-// `snmpbulkwalk -Cr` default.
-const defaultBulkMaxRepetitions = 10
+// during a device scan when none is configured.
+const defaultBulkMaxRepetitions = 20
 
 // defaultFlushInterval reports partial scan results at least this often, so
 // slow or large devices surface data before the whole scan completes.
@@ -153,6 +152,15 @@ func (s snmpScannerImpl) runDeviceScan(
 ) error {
 	flusher := newOIDFlusher(deviceNamespace, flushEveryNOIDs, flushInterval, s.sendPayload)
 
+	// Always report whatever has been buffered, even when the walk errors out
+	// partway through, so partial results collected before the failure are not
+	// lost.
+	defer func() {
+		if err := flusher.flush(); err != nil {
+			s.log.Warnf("unable to flush remaining scan results for device %s: %v", deviceID, err)
+		}
+	}()
+
 	// emit is called for every OID the walk keeps, and reports partial results
 	// as thresholds are reached so results stream out before the scan finishes.
 	emit := func(pdu *gosnmp.SnmpPDU) error {
@@ -161,21 +169,19 @@ func (s snmpScannerImpl) runDeviceScan(
 			s.log.Warnf("PDU parsing error: %v", err)
 			return nil
 		}
-		return flusher.add(record)
+		// A failed partial-result send should not abort an otherwise healthy
+		// scan; log it and keep walking so the rest of the device is still
+		// collected.
+		if err := flusher.add(record); err != nil {
+			s.log.Warnf("unable to send partial scan results for device %s: %v", deviceID, err)
+		}
+		return nil
 	}
 
-	var err error
 	if useBulk {
-		err = gatherPDUsWithBulk(ctx, snmpConnection, emit, callInterval, maxCallCount, bulkMaxRep)
-	} else {
-		err = gatherPDUs(ctx, snmpConnection, emit, callInterval, maxCallCount)
+		return gatherPDUsWithBulk(ctx, snmpConnection, emit, callInterval, maxCallCount, bulkMaxRep)
 	}
-	if err != nil {
-		return err
-	}
-
-	// Report whatever is left after the walk completes.
-	return flusher.flush()
+	return gatherPDUs(ctx, snmpConnection, emit, callInterval, maxCallCount)
 }
 
 // oidFlusher accumulates scanned OIDs and reports them as partial scan results
@@ -239,7 +245,6 @@ func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, emit func(*gosnmp.Snmp
 		ctx,
 		snmp,
 		"",
-		false,
 		callInterval,
 		maxCallCount,
 		func(dataUnit gosnmp.SnmpPDU) (string, error) {
@@ -261,7 +266,8 @@ type bulkGetter interface {
 //
 // Key safety properties:
 //   - Never sends fabricated OIDs to the device - only OIDs the device has returned
-//   - Cannot cause infinite loops - tracks visited OIDs
+//   - Cannot cause infinite loops - every returned OID must be strictly after the
+//     previous one, otherwise the walk stops
 //   - Cannot crash devices - never sends malformed table indices
 //
 // Adaptive max-repetitions: on GetBulk error the value is halved and the same
@@ -272,12 +278,19 @@ type bulkGetter interface {
 // because it retrieves all rows before filtering.
 func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, emit func(*gosnmp.SnmpPDU) error, callInterval time.Duration, maxCallCount int, bulkMaxRep int) error {
 	seenColumns := make(map[string]bool)
-	visitedOIDs := make(map[string]bool)
 
-	// Start from the beginning of the MIB tree
+	// Start from the beginning of the MIB tree.
 	oid := ".0.0"
+	// prevInts is the parsed form of the last OID we accepted. SNMP walks are
+	// strictly increasing, so comparing each returned OID against it detects
+	// loops and non-advancing devices in O(1) memory - no need to remember
+	// every OID we have seen.
+	prevInts, err := gosnmplib.OIDToInts(oid)
+	if err != nil {
+		return err
+	}
 	requests := 0
-	maxRepOpt := batchsize.NewOptimizer(bulkMaxRep)
+	maxRepOpt := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk")
 
 	for {
 		select {
@@ -295,63 +308,61 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, emit func(*gosnmp.
 			return fmt.Errorf("exceeded maximum request limit (%d)", maxCallCount)
 		}
 
-		// Use GetBulk with REAL OIDs only (never fabricated)
+		// Use GetBulk with REAL OIDs only (never fabricated).
 		maxRep := uint32(maxRepOpt.BatchSize())
 		response, err := snmp.GetBulk([]string{oid}, 0, maxRep)
-		if err != nil {
-			shouldRetry := maxRepOpt.OnFailure()
-			log.Debugf("SNMP scan GetBulk at OID %s with max-rep %d failed, new max-rep is %d",
-				oid, maxRep, maxRepOpt.BatchSize())
-			if shouldRetry {
-				// Retry against the same OID at a smaller max-repetitions.
+		if err != nil || response.Error != gosnmp.NoError {
+			// Both a transport error and a non-NoError SNMP status mean this
+			// request failed; back the batch size off and retry the same OID.
+			if maxRepOpt.OnFailure() {
 				continue
 			}
-			return fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err)
+			if err != nil {
+				return fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err)
+			}
+			return fmt.Errorf("GetBulk returned SNMP error %s at OID %s (max-rep=%d)", response.Error, oid, maxRep)
 		}
-		oldMaxRep := maxRepOpt.BatchSize()
 		maxRepOpt.OnSuccess()
-		if newMaxRep := maxRepOpt.BatchSize(); newMaxRep != oldMaxRep {
-			log.Debugf("SNMP scan GetBulk at OID %s with max-rep %d success, new max-rep is %d",
-				oid, oldMaxRep, newMaxRep)
-		}
 
 		if len(response.Variables) == 0 {
-			// No more data
+			// No more data.
 			break
 		}
 
-		var lastOID string
+		lastOID := oid
 
 		for _, pdu := range response.Variables {
-			// End conditions
+			// End conditions.
 			if pdu.Type == gosnmp.EndOfMibView ||
 				pdu.Type == gosnmp.NoSuchObject ||
 				pdu.Type == gosnmp.NoSuchInstance {
+				log.Debugf("SNMP scan walk reached end of MIB view at OID %s after %d requests", lastOID, requests)
 				return nil
 			}
 
-			// Cycle detection - if we've seen this OID before, we're in a loop
-			if visitedOIDs[pdu.Name] {
-				return fmt.Errorf("cycle detected: OID %s already visited", pdu.Name)
+			// Loop/stuck detection: each returned OID must be strictly after
+			// the previous one. If it isn't, the device is looping or not
+			// advancing, so stop.
+			cur, err := gosnmplib.OIDToInts(pdu.Name)
+			if err != nil {
+				return err
 			}
-			visitedOIDs[pdu.Name] = true
-
+			if !gosnmplib.CmpOIDs(cur, prevInts).IsAfter() {
+				log.Debugf("SNMP scan walk stopped: OID %s did not advance past %s", pdu.Name, lastOID)
+				return fmt.Errorf("walk stuck: OID %s did not advance past %s", pdu.Name, lastOID)
+			}
+			prevInts = cur
 			lastOID = pdu.Name
 
-			// Column filtering - keep first row of each "column"
+			// Column filtering - keep first row of each "column".
 			columnSig := gosnmplib.ExtractColumnSignature(pdu.Name)
 			if !seenColumns[columnSig] {
 				seenColumns[columnSig] = true
-				pduCopy := pdu // Copy to avoid aliasing issues
+				pduCopy := pdu // Copy to avoid aliasing issues.
 				if err := emit(&pduCopy); err != nil {
 					return err
 				}
 			}
-		}
-
-		// Stuck detection - if we didn't advance, something is wrong
-		if lastOID == "" || lastOID == oid {
-			return fmt.Errorf("walk stuck at OID %s", oid)
 		}
 
 		// Use the last OID from the batch as the starting point for the next request.
