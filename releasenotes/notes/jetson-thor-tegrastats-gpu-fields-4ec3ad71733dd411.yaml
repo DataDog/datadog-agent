@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix the NVIDIA Jetson check so missing or frequency-only GPU fields in
+    ``tegrastats`` output do not prevent other Jetson metrics from being
+    collected.
