@@ -50,7 +50,7 @@ func llmRespEventBytes(t *testing.T, conn llmConnKey, stream, endStream uint32, 
 func newLLMTestStatKeeper(emit func(llmSpanInfo)) *StatKeeper {
 	h := &StatKeeper{
 		llmReqByStream: make(map[llmStreamKey]llmReqParsed),
-		llmRespReasm:   make(map[llmStreamKey]*llmRespReasm),
+		llmRespReasm:   make(map[llmConnKey]*llmRespReasm),
 		llmGenUsage:    make(map[llmConnKey]llmUsage),
 	}
 	h.llmEmit = func(_ string, _ Method, _ uint16, _ types.ConnectionKey, _ float64, info llmSpanInfo) {
@@ -139,6 +139,6 @@ func TestLLMResponseEndStreamFinalizes(t *testing.T) {
 	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 7, 1, ""))
 	require.Len(t, emitted, 1)
 	assert.Equal(t, "partial", emitted[0].response)
-	_, stillReassembling := h.llmRespReasm[llmStreamKey{conn: conn, stream: 7}]
+	_, stillReassembling := h.llmRespReasm[conn]
 	assert.False(t, stillReassembling, "reassembly buffer must be dropped after finalize")
 }

@@ -66,6 +66,27 @@ func storeReqOnStream(h *StatKeeper, key llmConnKey, stream uint32, prompt strin
 	})
 }
 
+// dataFrame wraps payload in an HTTP/2 DATA frame header (type 0x0) for stream.
+func dataFrame(stream uint32, payload []byte) []byte {
+	n := len(payload)
+	hdr := []byte{
+		byte(n >> 16), byte(n >> 8), byte(n), 0x00, 0x00,
+		byte(stream >> 24), byte(stream >> 16), byte(stream >> 8), byte(stream),
+	}
+	return append(hdr, payload...)
+}
+
+// headersFrame builds a minimal HTTP/2 HEADERS frame (type 0x1) for stream; its
+// payload content is irrelevant since de-framing skips non-DATA frames.
+func headersFrame(stream uint32) []byte {
+	payload := []byte{0x88} // one indexed HPACK byte, content ignored
+	n := len(payload)
+	return append([]byte{
+		byte(n >> 16), byte(n >> 8), byte(n), 0x01, 0x04,
+		byte(stream >> 24), byte(stream >> 16), byte(stream >> 8), byte(stream),
+	}, payload...)
+}
+
 // TestResponseReassemblyLargeAnswer: a large answer that arrives across many
 // reads is reassembled in full (not truncated to the first read) before it is
 // paired and emitted.
@@ -161,6 +182,43 @@ func TestResponseReassemblyToolCallGen(t *testing.T) {
 	assert.Equal(t, int64(58), u.total)
 	require.Len(t, emitted, 1)
 	assert.True(t, emitted[0].suppressFlat, "a tool-call generation suppresses its flat span")
+}
+
+// TestResponseReassemblyMultiDataFrame reproduces the large-answer truncation
+// bug: the body is split across MANY HTTP/2 DATA frames (after a HEADERS frame)
+// and delivered across MULTIPLE reads — the first read frame-aligned (stream 1),
+// the continuation reads mid-frame (no valid stream id). Per-connection reassembly
+// + de-framing must recover the full JSON without truncation.
+func TestResponseReassemblyMultiDataFrame(t *testing.T) {
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
+	conn := llmConnKey{SrcPort: 5252, DstPort: 443}
+	storeReqOnStream(h, conn, 1, "tell me a long story")
+
+	answer := strings.Repeat("the quick brown fox jumps over the lazy dog. ", 60) + "END_MARKER"
+	body := `{"choices":[{"message":{"role":"assistant","content":"` + answer + `"}}],` +
+		`"usage":{"prompt_tokens":3,"completion_tokens":90,"total_tokens":93}}`
+
+	// A HEADERS frame, then the body chopped into many small DATA frames.
+	framed := headersFrame(1)
+	for _, part := range splitBytes([]byte(body), 40) {
+		framed = append(framed, dataFrame(1, part)...)
+	}
+
+	// Deliver across several reads: only the first is frame-aligned (stream 1);
+	// continuation reads carry stream id 0 (mid-frame, no usable id).
+	for i, rc := range splitBytes(framed, 1000) {
+		stream := uint32(0)
+		if i == 0 {
+			stream = 1
+		}
+		h.processLLMResponseEvent(llmRespEventBytes(t, conn, stream, 0, string(rc)))
+	}
+
+	require.Len(t, emitted, 1, "multi-frame response should emit exactly once, when complete")
+	assert.Equal(t, answer, emitted[0].response, "the full answer must survive multi-DATA-frame de-framing")
+	assert.True(t, strings.HasSuffix(emitted[0].response, "END_MARKER"), "not truncated")
+	assert.Equal(t, int64(93), emitted[0].totalTokens)
 }
 
 // TestParseLargeRequestPrompt: a large user prompt in a request body (behind a

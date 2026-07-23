@@ -1016,7 +1016,46 @@ const llmRespReasmCap = 64 * 1024
 // connection, touched only by the ring-buffer consumer goroutine.
 type llmRespReasm struct {
 	buf      []byte
+	streamID uint32 // HTTP/2 stream of this response (from its first, frame-aligned read)
 	complete bool
+}
+
+// deframeHTTP2Data reconstructs a response body from a captured HTTP/2 byte
+// stream by concatenating the payloads of DATA frames (type 0x0), skipping
+// frame headers and non-DATA frames (HEADERS/HPACK, control). A large response
+// the server splits across several DATA frames would otherwise be invalid JSON
+// because of the interleaved 9-byte frame headers. The buffer must be
+// frame-aligned at offset 0 — true for a response reassembled from its first
+// read, which starts at the HEADERS frame. If streamID != 0, only that stream's
+// DATA frames are included (demux); streamID 0 includes all. Falls back to the
+// raw buffer when it doesn't parse as frames (a raw-JSON capture with no header),
+// so single-frame/legacy inputs are unchanged.
+func deframeHTTP2Data(buf []byte, streamID uint32) []byte {
+	var out []byte
+	pos, walked := 0, false
+	for pos+9 <= len(buf) {
+		flen := int(buf[pos])<<16 | int(buf[pos+1])<<8 | int(buf[pos+2])
+		ftype := buf[pos+3]
+		fstream := (uint32(buf[pos+5])&0x7f)<<24 | uint32(buf[pos+6])<<16 | uint32(buf[pos+7])<<8 | uint32(buf[pos+8])
+		// A frame length longer than the whole buffer means we're not (or no
+		// longer) frame-aligned — stop rather than emit garbage.
+		if flen > len(buf) {
+			break
+		}
+		end := pos + 9 + flen
+		if end > len(buf) {
+			end = len(buf) // truncated final frame: take what we have
+		}
+		if ftype == 0x0 && (streamID == 0 || fstream == streamID) { // DATA
+			out = append(out, buf[pos+9:end]...)
+		}
+		walked = true
+		pos += 9 + flen
+	}
+	if !walked || len(out) == 0 {
+		return buf // not framed / nothing extracted: use the raw bytes
+	}
+	return out
 }
 
 // llmRespEvent mirrors the eBPF llm_resp_event_t: a connection key plus a large
@@ -1130,19 +1169,14 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 	}
 	chunk := ev.Data[:n]
 
-	key := llmStreamKey{conn: ev.Key, stream: ev.StreamID}
-
 	// A response larger than one read arrives across several read events (the
-	// server streams it in multiple TLS records). Reassemble per stream by
-	// appending each read until the response is complete.
-	//
-	// NOTE: when the server splits the body across multiple HTTP/2 DATA frames,
-	// the interleaved 9-byte frame headers make the concatenation invalid JSON,
-	// so parsing falls back to regex and the answer can be truncated. Cleanly
-	// stitching multi-frame bodies needs USM's HTTP/2 frame reassembly (the
-	// naive tap here starts mid-stream after warm-up, so it can't frame-align).
+	// server streams it in multiple TLS records, possibly split across several
+	// HTTP/2 DATA frames). Reassemble per CONNECTION: a continuation read starts
+	// mid-frame and carries no usable stream id, so it can't be keyed per-stream
+	// — only the first, frame-aligned read (which starts at the HEADERS frame)
+	// yields the stream id, which we store for pairing.
 	if h.llmRespReasm == nil {
-		h.llmRespReasm = make(map[llmStreamKey]*llmRespReasm)
+		h.llmRespReasm = make(map[llmConnKey]*llmRespReasm)
 	}
 	// Bound the reassembly map against responses that never complete.
 	if len(h.llmRespReasm) >= llmStreamMapCap {
@@ -1151,10 +1185,15 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 			break
 		}
 	}
-	r := h.llmRespReasm[key]
+	r := h.llmRespReasm[ev.Key]
 	if r == nil || r.complete {
 		r = &llmRespReasm{}
-		h.llmRespReasm[key] = r
+		h.llmRespReasm[ev.Key] = r
+	}
+	// The first read of a response is frame-aligned at its HEADERS frame, so its
+	// stream id is valid; keep it to pair with the request on the same stream.
+	if len(r.buf) == 0 && ev.StreamID != 0 {
+		r.streamID = ev.StreamID
 	}
 	if room := llmRespReasmCap - len(r.buf); room > 0 {
 		if len(chunk) > room {
@@ -1163,6 +1202,10 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 		r.buf = append(r.buf, chunk...)
 	}
 
+	// Strip the HTTP/2 framing to recover the JSON body (concatenate DATA-frame
+	// payloads), so a body split across multiple DATA frames parses cleanly.
+	body := deframeHTTP2Data(r.buf, r.streamID)
+
 	// The response is complete when token usage is present (it sits at the very
 	// end of the response JSON, so seeing it means the whole body — content
 	// included — has been accumulated). END_STREAM is an early-finalize/drop
@@ -1170,19 +1213,21 @@ func (h *StatKeeper) processLLMResponseEvent(sample []byte) {
 	// so a response that carries none (an error, a streamed body) can't wedge the
 	// buffer open and grow memory. Best-effort — seeing END_STREAM depends on a
 	// read starting at the terminating frame.
-	provider := responseProvider(r.buf)
-	_, _, tot := parseLLMUsage(r.buf, provider)
+	provider := responseProvider(body)
+	_, _, tot := parseLLMUsage(body, provider)
 	if tot == 0 && ev.EndStream == 0 {
 		return
 	}
 	r.complete = true
-	delete(h.llmRespReasm, key)
+	delete(h.llmRespReasm, ev.Key)
 
-	// Pair with the request captured on this exact stream and emit. Without a
-	// stored request (warm-up, or the request event was lost) there's no prompt
-	// or model to build a span from, so drop it.
+	// Pair with the request captured on the response's stream (request and
+	// response share the HTTP/2 stream id) and emit. Without a stored request
+	// (warm-up, or the request event was lost) there's no prompt or model to
+	// build a span from, so drop it.
+	key := llmStreamKey{conn: ev.Key, stream: r.streamID}
 	if req, ok := h.takeReq(key); ok {
-		h.pairAndEmit(key, req, r.buf)
+		h.pairAndEmit(key, req, body)
 	}
 }
 
