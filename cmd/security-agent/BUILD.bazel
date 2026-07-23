@@ -143,6 +143,7 @@ go_library(
             "//pkg/config/utils",
             "//pkg/security/agent",
             "//pkg/util/defaultpaths",
+            "//pkg/util/flavor",
             "//pkg/util/fxutil",
             "//pkg/util/option",
             "//pkg/util/startstop",

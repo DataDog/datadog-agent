@@ -57,6 +57,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -192,6 +193,9 @@ func (s *service) Run(svcctx context.Context) error {
 }
 
 func main() {
+	// set the Agent flavor
+	flavor.SetFlavor(flavor.SecurityAgent)
+
 	// if command line arguments are supplied, even in a non-interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
