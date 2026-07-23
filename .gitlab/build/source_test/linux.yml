@@ -159,7 +159,7 @@ tests_serverless-init:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./cmd/serverless-init/.
+    - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
   extends: .linux_x64
@@ -171,7 +171,7 @@ tests_serverless-init-logs:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./comp/logs/agent/impl/.
+    - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:

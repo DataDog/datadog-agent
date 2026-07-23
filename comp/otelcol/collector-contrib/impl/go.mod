@@ -6,11 +6,13 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.156.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.156.0
@@ -32,6 +34,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.156.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.156.0
@@ -329,7 +332,6 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.32.0 // indirect
 	github.com/onsi/gomega v1.42.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.156.0 // indirect
@@ -508,7 +510,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
+	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 // indirect
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

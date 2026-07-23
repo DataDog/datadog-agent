@@ -56,6 +56,7 @@ dd_agent_go_test(
         "//comp/core/telemetry/mock",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
+        "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/jsonquery",
         "//pkg/util/log/errortracking",

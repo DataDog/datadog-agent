@@ -9374,7 +9374,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer
@@ -9560,15 +9559,15 @@ properties:
         env_parser: json
         items:
           type: object
-        comment: List of HTTP SD endpoints to poll. Each entry must specify url and
-          check_template.
+        comment: |-
+          List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
       url:
         node_type: setting
         type: string
         default: ''
-        comment: |-
-          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
-          [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+        comment: '[DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs
+          instead.'
     tags:
     - full-agent-only:true
   provider_kind:
