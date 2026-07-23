@@ -52,6 +52,9 @@ const otelScrapeErrorMessage = "Error scraping metrics"
 // errorTrackingOTelCollectorConfig generates the actual ERROR log
 // independent of this config.
 const errorTrackingOTelAgentEnabledHelmValues = `
+datadog:
+  otelCollector:
+    useStandaloneImage: false
 agents:
   containers:
     otelAgent:
@@ -67,6 +70,9 @@ agents:
 // omits errortracking.enabled, which defaults to false, while still forcing
 // the kubeletstats scrape error so the negative assertion is meaningful.
 const errorTrackingOTelAgentDisabledHelmValues = `
+datadog:
+  otelCollector:
+    useStandaloneImage: false
 agents:
   containers:
     otelAgent:
