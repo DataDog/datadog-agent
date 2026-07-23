@@ -6,11 +6,13 @@
 package checkconfig
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,12 +30,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func setupHostname(t *testing.T) {
 	mockConfig := configmock.New(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	mockConfig.SetInTest("hostname", "my-hostname")
+}
+
+func setupLogCapture(t *testing.T) *bytes.Buffer {
+	var buffer bytes.Buffer
+	// This helper comes from pkg/util/log test utilities and is available under the test build tag.
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(&buffer, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), "info")
+	})
+	return &buffer
 }
 
 func TestConfigurations(t *testing.T) {
@@ -440,6 +455,166 @@ community_string: abc
 	metrics := []profiledefinition.MetricsConfig{{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
 	assert.Equal(t, metrics, profile.Metrics)
 	assert.Empty(t, profile.MetricTags)
+}
+
+func TestPythonParityOptionsConfiguration(t *testing.T) {
+	setupHostname(t)
+	profile.SetConfdPathAndCleanProfiles()
+
+	tests := []struct {
+		name                         string
+		rawInstanceConfig            []byte
+		rawInitConfig                []byte
+		expectedIgnoreNonincreasing  bool
+		expectedRefreshCacheInterval int
+	}{
+		{
+			name: "defaults",
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`),
+			rawInitConfig:                []byte(``),
+			expectedIgnoreNonincreasing:  false,
+			expectedRefreshCacheInterval: 0,
+		},
+		{
+			name: "init config",
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`),
+			rawInitConfig: []byte(`
+ignore_nonincreasing_oid: true
+refresh_oids_cache_interval: 300
+`),
+			expectedIgnoreNonincreasing:  true,
+			expectedRefreshCacheInterval: 300,
+		},
+		{
+			name: "instance config overrides init config",
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+ignore_nonincreasing_oid: false
+refresh_oids_cache_interval: 0
+`),
+			rawInitConfig: []byte(`
+ignore_nonincreasing_oid: true
+refresh_oids_cache_interval: 300
+`),
+			expectedIgnoreNonincreasing:  false,
+			expectedRefreshCacheInterval: 0,
+		},
+		{
+			name: "instance config",
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+ignore_nonincreasing_oid: true
+refresh_oids_cache_interval: 60
+`),
+			rawInitConfig:                []byte(``),
+			expectedIgnoreNonincreasing:  true,
+			expectedRefreshCacheInterval: 60,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedIgnoreNonincreasing, config.IgnoreNonincreasingOid)
+			assert.Equal(t, tt.expectedRefreshCacheInterval, config.RefreshOidsCacheInterval)
+		})
+	}
+}
+
+func TestRefreshOidsCacheIntervalInvalid(t *testing.T) {
+	setupHostname(t)
+	profile.SetConfdPathAndCleanProfiles()
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+refresh_oids_cache_interval: -1
+`)
+	_, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	assert.EqualError(t, err, "refresh OIDs cache interval must be >= 0, but got: -1")
+}
+
+func TestUnsupportedPythonSNMPOptionsWarn(t *testing.T) {
+	setupHostname(t)
+	profile.SetConfdPathAndCleanProfiles()
+
+	tests := []struct {
+		name        string
+		rawInstance []byte
+		rawInit     []byte
+		assertLogs  func(t *testing.T, logs string)
+	}{
+		{
+			name: "unset options do not warn",
+			rawInstance: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`),
+			rawInit: []byte(``),
+			assertLogs: func(t *testing.T, logs string) {
+				assert.NotContains(t, logs, "config parameter")
+			},
+		},
+		{
+			name: "instance options warn",
+			rawInstance: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+mibs_folder: /etc/snmp/mibs
+enforce_mib_constraints: false
+bulk_threshold: 0
+`),
+			rawInit: []byte(``),
+			assertLogs: func(t *testing.T, logs string) {
+				assert.Equal(t, 1, strings.Count(logs, "config parameter mibs_folder"), logs)
+				assert.Contains(t, logs, "Custom OIDs are supported via SNMP profile YAMLs")
+				assert.Equal(t, 1, strings.Count(logs, "config parameter enforce_mib_constraints"), logs)
+				assert.Contains(t, logs, "does not enforce MIB constraints by default")
+				assert.Equal(t, 1, strings.Count(logs, "config parameter bulk_threshold"), logs)
+				assert.Contains(t, logs, "Use `bulk_max_repetitions` and `oid_batch_size`")
+			},
+		},
+		{
+			name: "init and instance options warn once",
+			rawInstance: []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+mibs_folder: /etc/snmp/mibs
+enforce_mib_constraints: false
+bulk_threshold: 0
+`),
+			rawInit: []byte(`
+mibs_folder: /opt/datadog-agent/mibs
+bulk_threshold: 25
+`),
+			assertLogs: func(t *testing.T, logs string) {
+				assert.Equal(t, 1, strings.Count(logs, "config parameter mibs_folder"), logs)
+				assert.Equal(t, 1, strings.Count(logs, "config parameter enforce_mib_constraints"), logs)
+				assert.Equal(t, 1, strings.Count(logs, "config parameter bulk_threshold"), logs)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logBuffer := setupLogCapture(t)
+
+			_, err := NewCheckConfig(tt.rawInstance, tt.rawInit, nil)
+			require.NoError(t, err)
+
+			tt.assertLogs(t, logBuffer.String())
+		})
+	}
 }
 
 func TestPortConfiguration(t *testing.T) {

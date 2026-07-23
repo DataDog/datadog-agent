@@ -49,6 +49,7 @@ const defaultWorkers = 5
 const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
+const snmpProfilesDocsURL = "https://docs.datadoghq.com/network_monitoring/devices/profiles/"
 
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
@@ -80,52 +81,65 @@ const ProfileNameInline = "<inline>"
 
 var uptimeMetricConfig = profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 
+func warnUnsupportedOption(name, guidance string) {
+	log.Warnf("The config parameter %s is accepted for compatibility with the Python SNMP check but is ignored by the Go SNMP corecheck. %s", name, guidance)
+}
+
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
-	UseRCProfiles         Boolean                           `yaml:"use_remote_config_profiles"`
-	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
-	OidBatchSize          Number                            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
-	CollectTopology       Boolean                           `yaml:"collect_topology"`
-	CollectVPN            Boolean                           `yaml:"collect_vpn"`
-	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval int                               `yaml:"min_collection_interval"`
-	Namespace             string                            `yaml:"namespace"`
-	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
-	Loader                string                            `yaml:"loader"`
+	Profiles                 profile.ProfileConfigMap          `yaml:"profiles"`
+	UseRCProfiles            Boolean                           `yaml:"use_remote_config_profiles"`
+	GlobalMetrics            []profiledefinition.MetricsConfig `yaml:"global_metrics"`
+	OidBatchSize             Number                            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions       Number                            `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata    Boolean                           `yaml:"collect_device_metadata"`
+	CollectTopology          Boolean                           `yaml:"collect_topology"`
+	CollectVPN               Boolean                           `yaml:"collect_vpn"`
+	UseDeviceIDAsHostname    Boolean                           `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval    int                               `yaml:"min_collection_interval"`
+	Namespace                string                            `yaml:"namespace"`
+	PingConfig               snmpintegration.PackedPingConfig  `yaml:"ping"`
+	Loader                   string                            `yaml:"loader"`
+	MibsFolder               string                            `yaml:"mibs_folder"`
+	IgnoreNonincreasingOid   *Boolean                          `yaml:"ignore_nonincreasing_oid"`
+	BulkThreshold            *Number                           `yaml:"bulk_threshold"`
+	RefreshOidsCacheInterval *Number                           `yaml:"refresh_oids_cache_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	Name                  string                              `yaml:"name"`
-	IPAddress             string                              `yaml:"ip_address"`
-	Port                  Number                              `yaml:"port"`
-	CommunityString       string                              `yaml:"community_string"`
-	SnmpVersion           string                              `yaml:"snmp_version"`
-	Timeout               Number                              `yaml:"timeout"`
-	Retries               Number                              `yaml:"retries"`
-	User                  string                              `yaml:"user"`
-	AuthProtocol          string                              `yaml:"authProtocol"`
-	AuthKey               string                              `yaml:"authKey"`
-	PrivProtocol          string                              `yaml:"privProtocol"`
-	PrivKey               string                              `yaml:"privKey"`
-	ContextName           string                              `yaml:"context_name"`
-	Metrics               []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
-	MetricTags            []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
-	Profile               string                              `yaml:"profile"`
-	UseGlobalMetrics      bool                                `yaml:"use_global_metrics"`
-	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
-	CollectTopology       *Boolean                            `yaml:"collect_topology"`
-	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
-	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
-	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
-	Loader                string                              `yaml:"loader"`
-	UseRCProfiles         *Boolean                            `yaml:"use_remote_config_profiles"`
+	Name                     string                              `yaml:"name"`
+	IPAddress                string                              `yaml:"ip_address"`
+	Port                     Number                              `yaml:"port"`
+	CommunityString          string                              `yaml:"community_string"`
+	SnmpVersion              string                              `yaml:"snmp_version"`
+	Timeout                  Number                              `yaml:"timeout"`
+	Retries                  Number                              `yaml:"retries"`
+	User                     string                              `yaml:"user"`
+	AuthProtocol             string                              `yaml:"authProtocol"`
+	AuthKey                  string                              `yaml:"authKey"`
+	PrivProtocol             string                              `yaml:"privProtocol"`
+	PrivKey                  string                              `yaml:"privKey"`
+	ContextName              string                              `yaml:"context_name"`
+	Metrics                  []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags               []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
+	Profile                  string                              `yaml:"profile"`
+	UseGlobalMetrics         bool                                `yaml:"use_global_metrics"`
+	CollectDeviceMetadata    *Boolean                            `yaml:"collect_device_metadata"`
+	CollectTopology          *Boolean                            `yaml:"collect_topology"`
+	CollectVPN               *Boolean                            `yaml:"collect_vpn"`
+	UseDeviceIDAsHostname    *Boolean                            `yaml:"use_device_id_as_hostname"`
+	PingConfig               snmpintegration.PackedPingConfig    `yaml:"ping"`
+	Loader                   string                              `yaml:"loader"`
+	UseRCProfiles            *Boolean                            `yaml:"use_remote_config_profiles"`
+	MibsFolder               string                              `yaml:"mibs_folder"`
+	EnforceMibConstraints    *Boolean                            `yaml:"enforce_mib_constraints"`
+	IgnoreNonincreasingOid   *Boolean                            `yaml:"ignore_nonincreasing_oid"`
+	BulkThreshold            *Number                             `yaml:"bulk_threshold"`
+	RefreshOidsCacheInterval *Number                             `yaml:"refresh_oids_cache_interval"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -179,22 +193,24 @@ type CheckConfig struct {
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
-	RequestedMetricTags   []profiledefinition.MetricTagConfig
-	OidBatchSize          int
-	BulkMaxRepetitions    uint32
-	ProfileProvider       profile.Provider
-	ProfileName           string
-	ExtraTags             []string
-	InstanceTags          []string
-	CollectDeviceMetadata bool
-	CollectTopology       bool
-	CollectVPN            bool
-	UseDeviceIDAsHostname bool
-	DeviceID              string
-	DeviceIDTags          []string
-	ResolvedSubnetName    string
-	Namespace             string
-	MinCollectionInterval time.Duration
+	RequestedMetricTags      []profiledefinition.MetricTagConfig
+	OidBatchSize             int
+	BulkMaxRepetitions       uint32
+	IgnoreNonincreasingOid   bool
+	RefreshOidsCacheInterval int
+	ProfileProvider          profile.Provider
+	ProfileName              string
+	ExtraTags                []string
+	InstanceTags             []string
+	CollectDeviceMetadata    bool
+	CollectTopology          bool
+	CollectVPN               bool
+	UseDeviceIDAsHostname    bool
+	DeviceID                 string
+	DeviceIDTags             []string
+	ResolvedSubnetName       string
+	Namespace                string
+	MinCollectionInterval    time.Duration
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -297,6 +313,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	c := &CheckConfig{}
+
+	if instance.MibsFolder != "" || initConfig.MibsFolder != "" {
+		warnUnsupportedOption("mibs_folder", fmt.Sprintf("Custom OIDs are supported via SNMP profile YAMLs. See %s.", snmpProfilesDocsURL))
+	}
+	if instance.EnforceMibConstraints != nil {
+		warnUnsupportedOption("enforce_mib_constraints", "The Go corecheck does not enforce MIB constraints by default.")
+	}
+	if instance.BulkThreshold != nil || initConfig.BulkThreshold != nil {
+		warnUnsupportedOption("bulk_threshold", "Use `bulk_max_repetitions` and `oid_batch_size` to tune bulk behavior.")
+	}
 
 	c.Name = instance.Name
 	c.SnmpVersion = instance.SnmpVersion
@@ -433,6 +459,21 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
 	}
 	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
+
+	if instance.IgnoreNonincreasingOid != nil {
+		c.IgnoreNonincreasingOid = bool(*instance.IgnoreNonincreasingOid)
+	} else if initConfig.IgnoreNonincreasingOid != nil {
+		c.IgnoreNonincreasingOid = bool(*initConfig.IgnoreNonincreasingOid)
+	}
+
+	if instance.RefreshOidsCacheInterval != nil {
+		c.RefreshOidsCacheInterval = int(*instance.RefreshOidsCacheInterval)
+	} else if initConfig.RefreshOidsCacheInterval != nil {
+		c.RefreshOidsCacheInterval = int(*initConfig.RefreshOidsCacheInterval)
+	}
+	if c.RefreshOidsCacheInterval < 0 {
+		return nil, fmt.Errorf("refresh OIDs cache interval must be >= 0, but got: %d", c.RefreshOidsCacheInterval)
+	}
 
 	if instance.Namespace != "" {
 		c.Namespace = instance.Namespace
@@ -630,6 +671,8 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
+	newConfig.IgnoreNonincreasingOid = c.IgnoreNonincreasingOid
+	newConfig.RefreshOidsCacheInterval = c.RefreshOidsCacheInterval
 	newConfig.ProfileProvider = c.ProfileProvider
 	newConfig.ProfileName = c.ProfileName
 	newConfig.ExtraTags = netutils.CopyStrings(c.ExtraTags)
