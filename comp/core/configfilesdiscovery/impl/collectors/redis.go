@@ -27,13 +27,19 @@ func NewRedis() configfilesdiscoveryimpl.ConfigCollector {
 	return redisConfigCollector{}
 }
 
-func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	commandline, err := reader.ReadCommandline(ctx)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read redis command line: %w", err)
-	}
+// MatchesCommandline returns whether the command line contains an explicit
+// Redis config argument. Path resolution is deferred until collection because
+// workloadmeta process events may not include the working directory.
+func (redisConfigCollector) MatchesCommandline(args []string) bool {
+	_, ok := redisGetConfigArgFromCommandline(args)
+	return ok
+}
 
-	configPath, ok := redisGetConfigPath(commandline)
+func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
+	configPath, ok, err := findConfigPath(ctx, reader, redisGetConfigArgFromCommandline)
+	if err != nil {
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read redis command lines: %w", err)
+	}
 	if !ok {
 		log.Debugf("config files discovery skipped redis config collection: no explicit config file path detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
@@ -50,21 +56,16 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdis
 	}, nil
 }
 
-// redisGetConfigPath returns the explicit config file path passed to
-// redis-server. Redis also accepts command-line options as temporary config,
+// redisGetConfigArgFromCommandline returns the explicit config argument passed
+// to redis-server. Redis also accepts command-line options as temporary config,
 // but those options do not identify a file this collector can read.
-func redisGetConfigPath(commandline configfilesdiscoveryimpl.TargetCommandline) (string, bool) {
-	args := commandlineArgs(commandline)
+func redisGetConfigArgFromCommandline(args []string) (string, bool) {
+	args = unwrapShellCommandline(args)
 	redisArgs, ok := redisGetArgs(args)
 	if !ok {
 		return "", false
 	}
-
-	configPath, ok := redisGetConfigArg(redisArgs)
-	if !ok {
-		return "", false
-	}
-	return resolveConfigPath(configPath, commandline.WorkingDir)
+	return redisGetConfigArg(redisArgs)
 }
 
 func redisGetArgs(args []string) ([]string, bool) {

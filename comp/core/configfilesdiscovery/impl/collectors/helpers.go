@@ -6,15 +6,12 @@
 package collectors
 
 import (
+	"context"
 	"path"
 	"strings"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 )
-
-func commandlineArgs(commandline configfilesdiscoveryimpl.TargetCommandline) []string {
-	return unwrapShellCommandline(commandline.Args)
-}
 
 func unwrapShellCommandline(args []string) []string {
 	if len(args) < 3 || !isShellExecutable(args[0]) || args[1] != "-c" {
@@ -43,4 +40,35 @@ func resolveConfigPath(configPath string, workingDir string) (string, bool) {
 		return "", false
 	}
 	return path.Clean(path.Join(workingDir, configPath)), true
+}
+
+// findConfigPath tries the runtime-native command first, then falls back to
+// command lines discovered from live processes.
+func findConfigPath(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader, findConfigArg func([]string) (string, bool)) (string, bool, error) {
+	commandline, err := reader.ReadRuntimeCommandline(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	if configArg, matched := findConfigArg(commandline.Args); matched {
+		if configPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
+			return configPath, true, nil
+		}
+	}
+
+	var configPath string
+	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
+		configArg, matched := findConfigArg(commandline.Args)
+		if !matched {
+			continue
+		}
+		resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+		if !resolved {
+			return "", false, nil
+		}
+		if configPath != "" && configPath != resolvedPath {
+			return "", false, nil
+		}
+		configPath = resolvedPath
+	}
+	return configPath, configPath != "", nil
 }

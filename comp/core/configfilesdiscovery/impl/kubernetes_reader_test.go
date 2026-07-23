@@ -53,7 +53,7 @@ func TestNewKubernetesConfigReaderRejectsInvalidTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader, err := newKubernetesConfigReader(tt.target)
+			reader, err := newKubernetesConfigReader(tt.target, nil)
 
 			require.Error(t, err)
 			assert.Nil(t, reader)
@@ -71,7 +71,7 @@ func TestNewKubernetesConfigReaderSurfacesClientErrors(t *testing.T) {
 		newKubernetesConfigClient = oldNewKubernetesConfigClient
 	})
 
-	reader, err := newKubernetesConfigReader(target{runtime: RuntimeKubernetes, entityID: "container-id"})
+	reader, err := newKubernetesConfigReader(target{runtime: RuntimeKubernetes, entityID: "container-id"}, nil)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, reader)
@@ -264,7 +264,7 @@ func TestKubernetesReaderReadEnvVarsSurfacesSpecErrors(t *testing.T) {
 	assert.Equal(t, []string{"container-id"}, client.specCalls)
 }
 
-func TestKubernetesReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
+func TestKubernetesReaderReadRuntimeCommandlineReturnsTargetCommandline(t *testing.T) {
 	client := &fakeKubernetesClient{
 		spec: &containerdoci.Spec{
 			Process: &specs.Process{
@@ -280,7 +280,7 @@ func TestKubernetesReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
 	}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, TargetCommandline{
@@ -295,7 +295,7 @@ func TestKubernetesReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
 	assert.Equal(t, []string{"container-id"}, client.specCalls)
 }
 
-func TestKubernetesReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
+func TestKubernetesReaderReadRuntimeCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
 	client := &fakeKubernetesClient{
 		spec: &containerdoci.Spec{
 			Process: &specs.Process{
@@ -305,7 +305,7 @@ func TestKubernetesReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing
 	}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, TargetCommandline{
@@ -314,22 +314,22 @@ func TestKubernetesReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing
 	}, commandline)
 }
 
-func TestKubernetesReaderReadCommandlineHandlesMissingProcess(t *testing.T) {
+func TestKubernetesReaderReadRuntimeCommandlineHandlesMissingProcess(t *testing.T) {
 	client := &fakeKubernetesClient{spec: &containerdoci.Spec{}}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, TargetCommandline{WorkingDir: "/"}, commandline)
 }
 
-func TestKubernetesReaderReadCommandlineSurfacesSpecErrors(t *testing.T) {
+func TestKubernetesReaderReadRuntimeCommandlineSurfacesSpecErrors(t *testing.T) {
 	expectedErr := errors.New("command line unavailable")
 	client := &fakeKubernetesClient{specErr: expectedErr}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Empty(t, commandline)

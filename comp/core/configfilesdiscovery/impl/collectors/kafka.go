@@ -26,13 +26,20 @@ func NewKafka() configfilesdiscoveryimpl.ConfigCollector {
 	return kafkaConfigCollector{}
 }
 
-func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	commandline, err := reader.ReadCommandline(ctx)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka command line: %w", err)
-	}
+// MatchesCommandline returns whether the command line contains an explicit
+// Kafka broker properties argument. Path resolution is deferred until
+// collection because workloadmeta process events may not include the working
+// directory.
+func (kafkaConfigCollector) MatchesCommandline(args []string) bool {
+	_, ok := kafkaGetConfigArgFromCommandline(args)
+	return ok
+}
 
-	configPath, ok := kafkaGetConfigPath(commandline)
+func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
+	configPath, ok, err := findConfigPath(ctx, reader, kafkaGetConfigArgFromCommandline)
+	if err != nil {
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka command lines: %w", err)
+	}
 	if !ok {
 		log.Debugf("config files discovery skipped kafka config collection: no explicit broker properties file path detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
@@ -49,21 +56,17 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 	}, nil
 }
 
-// kafkaGetConfigPath returns the broker properties file passed to the Kafka
-// server launcher. It intentionally ignores command-line --override values:
-// those mutate runtime config but do not identify an additional file to read.
-func kafkaGetConfigPath(commandline configfilesdiscoveryimpl.TargetCommandline) (string, bool) {
-	args := commandlineArgs(commandline)
+// kafkaGetConfigArgFromCommandline returns the broker properties argument
+// passed to the Kafka server launcher. It intentionally ignores command-line
+// --override values: those mutate runtime config but do not identify an
+// additional file to read.
+func kafkaGetConfigArgFromCommandline(args []string) (string, bool) {
+	args = unwrapShellCommandline(args)
 	kafkaArgs, ok := kafkaGetArgs(args)
 	if !ok {
 		return "", false
 	}
-
-	configPath, ok := kafkaGetConfigArg(kafkaArgs)
-	if !ok {
-		return "", false
-	}
-	return resolveConfigPath(configPath, commandline.WorkingDir)
+	return kafkaGetConfigArg(kafkaArgs)
 }
 
 func kafkaGetArgs(args []string) ([]string, bool) {

@@ -10,7 +10,6 @@ import (
 	"context"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -38,8 +37,10 @@ type Provides struct {
 }
 
 type component struct {
-	ad        autodiscovery.Component
-	scheduler scheduler.Scheduler
+	ad            autodiscovery.Component
+	scheduler     *adScheduler
+	store         workloadmeta.Component
+	processEvents chan workloadmeta.EventBundle
 }
 
 func newComponent(
@@ -49,8 +50,12 @@ func newComponent(
 	configCollectors map[string]ConfigCollector,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
-		RuntimeDocker:     newDockerConfigReader,
-		RuntimeKubernetes: newKubernetesConfigReader,
+		RuntimeDocker: func(t target) (ConfigReader, error) {
+			return newDockerConfigReader(t, resolver.store)
+		},
+		RuntimeKubernetes: func(t target) (ConfigReader, error) {
+			return newKubernetesConfigReader(t, resolver.store)
+		},
 	}
 	if configCollectors == nil {
 		configCollectors = map[string]ConfigCollector{}
@@ -58,6 +63,7 @@ func newComponent(
 	return &component{
 		ad:        ad,
 		scheduler: newADScheduler(resolver, readers, configCollectors, sender),
+		store:     resolver.store,
 	}
 }
 
@@ -74,12 +80,24 @@ func NewComponent(reqs Requires) Provides {
 }
 
 func (c *component) start(context.Context) error {
+	if c.store != nil {
+		filter := workloadmeta.NewFilterBuilder().
+			SetEventType(workloadmeta.EventTypeSet).
+			AddKind(workloadmeta.KindProcess).
+			Build()
+		c.processEvents = c.store.Subscribe(schedulerName, workloadmeta.NormalPriority, filter)
+		c.scheduler.startProcessEventListener(c.processEvents)
+	}
 	c.ad.AddScheduler(schedulerName, c.scheduler, true)
 	return nil
 }
 
 func (c *component) stop(context.Context) error {
 	c.ad.RemoveScheduler(schedulerName)
+	if c.processEvents != nil {
+		c.store.Unsubscribe(c.processEvents)
+		c.processEvents = nil
+	}
 	c.scheduler.Stop()
 	return nil
 }

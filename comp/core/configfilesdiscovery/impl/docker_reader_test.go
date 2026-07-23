@@ -42,7 +42,7 @@ func TestNewDockerConfigReaderRejectsInvalidTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader, err := newDockerConfigReader(tt.target)
+			reader, err := newDockerConfigReader(tt.target, nil)
 
 			require.Error(t, err)
 			assert.Nil(t, reader)
@@ -56,7 +56,7 @@ func TestNewDockerConfigReaderSurfacesDockerClientErrors(t *testing.T) {
 		return nil, expectedErr
 	}
 
-	reader, err := newDockerConfigReaderWithClientFactory(target{runtime: RuntimeDocker, entityID: "container-id"}, newClient)
+	reader, err := newDockerConfigReaderWithClientFactory(target{runtime: RuntimeDocker, entityID: "container-id"}, nil, newClient)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, reader)
@@ -313,7 +313,7 @@ func TestDockerReaderReadEnvVarsSurfacesGetEnvErrors(t *testing.T) {
 	assert.Equal(t, []string{"container-id"}, client.getEnvCalls)
 }
 
-func TestDockerReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
+func TestDockerReaderReadRuntimeCommandlineReturnsTargetCommandline(t *testing.T) {
 	client := &fakeDockerClient{
 		commandPath: "/usr/local/bin/redis-server",
 		commandArgs: []string{
@@ -325,7 +325,7 @@ func TestDockerReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
 	}
 	reader := newDockerConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, TargetCommandline{
@@ -340,19 +340,19 @@ func TestDockerReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
 	assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
 }
 
-func TestDockerReaderReadCommandlineAllowsEmptyCommandPath(t *testing.T) {
+func TestDockerReaderReadRuntimeCommandlineAllowsEmptyCommandPath(t *testing.T) {
 	client := &fakeDockerClient{
 		commandArgs: []string{"redis-server"},
 	}
 	reader := newDockerConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, TargetCommandline{Args: []string{"redis-server"}, WorkingDir: "/"}, commandline)
 }
 
-func TestDockerReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
+func TestDockerReaderReadRuntimeCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
 	client := &fakeDockerClient{
 		commandPath: "redis-server",
 		commandArgs: []string{
@@ -361,7 +361,7 @@ func TestDockerReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) 
 	}
 	reader := newDockerConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, TargetCommandline{
@@ -370,12 +370,12 @@ func TestDockerReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) 
 	}, commandline)
 }
 
-func TestDockerReaderReadCommandlineSurfacesGetCommandlineErrors(t *testing.T) {
+func TestDockerReaderReadRuntimeCommandlineSurfacesGetCommandlineErrors(t *testing.T) {
 	expectedErr := errors.New("command line unavailable")
 	client := &fakeDockerClient{getCommandlineErr: expectedErr}
 	reader := newDockerConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Empty(t, commandline)
