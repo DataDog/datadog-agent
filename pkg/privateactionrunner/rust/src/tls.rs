@@ -71,7 +71,11 @@ mod tests {
     fn splits_combined_pem() {
         let pem = b"prefix\n-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\nmiddle\n-----BEGIN EC PRIVATE KEY-----\nBBBB\n-----END EC PRIVATE KEY-----\ntrailing\n";
         let (cert, key) = split_cert_and_key(pem).unwrap();
-        assert!(String::from_utf8(cert).unwrap().starts_with("-----BEGIN CERTIFICATE-----"));
+        assert!(
+            String::from_utf8(cert)
+                .unwrap()
+                .starts_with("-----BEGIN CERTIFICATE-----")
+        );
         let key = String::from_utf8(key).unwrap();
         assert!(key.starts_with("-----BEGIN EC PRIVATE KEY-----"));
         assert!(key.ends_with("-----END EC PRIVATE KEY-----"));

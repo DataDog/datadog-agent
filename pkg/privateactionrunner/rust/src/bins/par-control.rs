@@ -22,7 +22,6 @@ use std::sync::Arc;
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    /// Path to the agent datadog.yaml.
     #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
     config: PathBuf,
 
@@ -39,8 +38,6 @@ async fn main() -> Result<()> {
     // NOTE: a logger implementation (e.g. dd-agent-log) should be initialized
     // here so the `log` macros emit; left unwired in this first cut.
     let cli = Cli::parse();
-
-    // Ensure the runner has an identity, triggering the Go one-shot enroll if not.
     let config = bootstrap::load_config_with_bootstrap(&cli.config, &cli.enroll_command)?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
@@ -71,7 +68,10 @@ async fn main() -> Result<()> {
             None
         }
     };
-    let dispatcher = Arc::new(ExecutorDispatcher::new(&config.executor_socket, executor_tls));
+    let dispatcher = Arc::new(ExecutorDispatcher::new(
+        &config.executor_socket,
+        executor_tls,
+    ));
 
     let params = Params::from_config(&config);
     let orchestrator = Orchestrator::new(opms, lifecycle, dispatcher, params);

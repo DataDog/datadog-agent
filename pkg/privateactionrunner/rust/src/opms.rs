@@ -29,7 +29,6 @@ const MAX_RETRY_AFTER: Duration = Duration::from_secs(120);
 /// routing fields it needs for heartbeat/publish addressing.
 #[derive(Debug, Clone)]
 pub struct Task {
-    /// Raw task envelope exactly as returned by OPMS; forwarded to the executor.
     pub raw: Vec<u8>,
     pub task_id: String,
     pub job_id: String,
@@ -278,7 +277,10 @@ impl HttpOpms {
     /// a non-2xx status as an error, so callers can decide (matching Go).
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<HttpResponse> {
         let url = format!("{}{}", self.base_url, path);
-        let jwt = self.signer.sign().context("failed to sign OPMS request JWT")?;
+        let jwt = self
+            .signer
+            .sign()
+            .context("failed to sign OPMS request JWT")?;
         let headers = self.headers(jwt);
         let timeout = self.timeout;
 
@@ -384,15 +386,25 @@ mod tests {
             serde_json::from_slice(&dequeue_body("2026-01-01T00:00:00Z", None)).unwrap();
         assert_eq!(v["data"]["type"], "dequeue");
         assert!(v["data"].get("id").is_none());
-        assert_eq!(v["data"]["attributes"]["runner_started_at"], "2026-01-01T00:00:00Z");
-        assert!(v["data"]["attributes"].get("last_task_received_at").is_none());
+        assert_eq!(
+            v["data"]["attributes"]["runner_started_at"],
+            "2026-01-01T00:00:00Z"
+        );
+        assert!(
+            v["data"]["attributes"]
+                .get("last_task_received_at")
+                .is_none()
+        );
     }
 
     #[test]
     fn publish_success_body_matches_contract() {
-        let body = publish_body(&sample_task(), &Outcome::Success {
-            output_json: b"{\"k\":1}".to_vec(),
-        })
+        let body = publish_body(
+            &sample_task(),
+            &Outcome::Success {
+                output_json: b"{\"k\":1}".to_vec(),
+            },
+        )
         .unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["data"]["type"], "taskUpdate");
@@ -405,16 +417,22 @@ mod tests {
 
     #[test]
     fn publish_failure_body_carries_error_code() {
-        let body = publish_body(&sample_task(), &Outcome::Failure {
-            error_code: 5,
-            message: "bad sig".into(),
-            external_message: "nope".into(),
-        })
+        let body = publish_body(
+            &sample_task(),
+            &Outcome::Failure {
+                error_code: 5,
+                message: "bad sig".into(),
+                external_message: "nope".into(),
+            },
+        )
         .unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["data"]["id"], "fail_task");
         assert_eq!(v["data"]["attributes"]["payload"]["error_code"], 5);
-        assert_eq!(v["data"]["attributes"]["payload"]["error_details"], "bad sig");
+        assert_eq!(
+            v["data"]["attributes"]["payload"]["error_details"],
+            "bad sig"
+        );
         assert_eq!(v["data"]["attributes"]["payload"]["api_error"], "nope");
     }
 
@@ -422,8 +440,7 @@ mod tests {
     fn client_zero_is_omitted() {
         let mut task = sample_task();
         task.client = 0;
-        let v: serde_json::Value =
-            serde_json::from_slice(&heartbeat_body(&task)).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&heartbeat_body(&task)).unwrap();
         assert!(v["data"]["attributes"].get("client").is_none());
         assert_eq!(v["data"]["type"], "heartbeat");
         assert_eq!(v["data"]["id"], "t1");

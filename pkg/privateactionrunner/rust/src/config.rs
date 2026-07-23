@@ -25,41 +25,28 @@ pub const FLAVOR: &str = "private_action_runner";
 /// Runner version reported to OPMS. Set at build time; falls back to the crate version.
 pub const RUNNER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Fully-resolved control-plane configuration.
 #[derive(Clone)]
 pub struct Config {
-    /// Base URL for OPMS, e.g. `https://api.datadoghq.com`.
     pub opms_base_url: String,
-    /// Max concurrent in-flight actions (the runner pool size).
     pub runner_pool_size: usize,
-    /// Local socket the executor listens on.
     pub executor_socket: PathBuf,
-    /// Local socket the process manager listens on.
     pub procmgr_socket: PathBuf,
-    /// Process-definition name of the executor in the process manager.
     pub executor_process_name: String,
-    /// How often to poll OPMS when idle.
     pub loop_interval: Duration,
-    /// OPMS heartbeat cadence while an action's result stream is open.
+    /// Only while an action's result stream is open.
     pub heartbeat_interval: Duration,
-    /// Idle period with no in-flight work after which the executor is stopped.
     pub idle_timeout: Duration,
-    /// How long to wait for the executor to report ready after starting it.
     pub ready_timeout: Duration,
-    /// Per-request timeout for OPMS calls.
     pub opms_request_timeout: Duration,
-    /// Dequeue retry backoff (mirrors the Go circuit breaker).
+    /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
     pub wait_before_retry: Duration,
     pub max_attempts: u32,
-    /// Runner version reported to OPMS.
     pub runner_version: String,
-    /// Runner modes reported to OPMS (comma-joined in the header).
+    /// Comma-joined in the OPMS header.
     pub modes: Vec<String>,
-    /// Agent IPC certificate file used for mTLS to the executor (if configured).
     pub ipc_cert_file: Option<PathBuf>,
-    /// The resolved runner identity.
     pub identity: Identity,
 }
 
@@ -68,9 +55,8 @@ pub struct Config {
 #[derive(serde::Deserialize, Default, Clone)]
 struct RawConfig {
     site: Option<String>,
-    /// Optional full DD URL override (used by e2e against a plaintext fake OPMS).
+    /// Full DD URL override, used by e2e against a plaintext fake OPMS.
     dd_url: Option<String>,
-    /// Agent IPC certificate file path (top-level agent config key).
     ipc_cert_file_path: Option<String>,
     private_action_runner: Option<RawPar>,
 }
@@ -105,7 +91,8 @@ impl Config {
     pub fn try_from_yaml_file(path: &std::path::Path) -> Result<Option<Self>> {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read config file: {}", path.display()))?;
-        let raw: RawConfig = serde_yaml::from_str(&contents).context("failed to parse datadog.yaml")?;
+        let raw: RawConfig =
+            serde_yaml::from_str(&contents).context("failed to parse datadog.yaml")?;
 
         // Resolve identity from inline config keys, else the persisted identity
         // file (explicit path, else next to datadog.yaml) that Go enrollment writes.
@@ -170,10 +157,10 @@ impl Config {
 /// starting with `http://` is honored verbatim so e2e tests can point at a
 /// plaintext fake OPMS (mirrors the Go client's endpointURL behavior).
 fn resolve_opms_base_url(site: Option<&str>, dd_url: Option<&str>) -> Result<String> {
-    if let Some(url) = dd_url {
-        if let Some(host) = url.strip_prefix("http://") {
-            return Ok(format!("http://{}", host.trim_end_matches('/')));
-        }
+    if let Some(url) = dd_url
+        && let Some(host) = url.strip_prefix("http://")
+    {
+        return Ok(format!("http://{}", host.trim_end_matches('/')));
     }
     let site = site.unwrap_or("datadoghq.com");
     if site.is_empty() {
@@ -248,7 +235,11 @@ private_action_runner:
     fn resolves_identity_from_sibling_file_when_not_inline() {
         let dir = tempfile::tempdir().unwrap();
         let cfg_path = dir.path().join("datadog.yaml");
-        std::fs::write(&cfg_path, "site: datadoghq.com\nprivate_action_runner:\n  enabled: true\n").unwrap();
+        std::fs::write(
+            &cfg_path,
+            "site: datadoghq.com\nprivate_action_runner:\n  enabled: true\n",
+        )
+        .unwrap();
         std::fs::write(
             dir.path().join(crate::identity::DEFAULT_IDENTITY_FILE_NAME),
             r#"{"private_key":"enc","urn":"urn:dd:apps:on-prem-runner:us1:7:r7"}"#,

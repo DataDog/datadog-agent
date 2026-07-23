@@ -2,6 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -92,11 +93,19 @@ rust_test(
     ],
 )
 
+# Sets rpath to embedded/lib so par-control finds the packaged OpenSSL instead
+# of falling back to the host's, which the omnibus health check rejects.
+rewrite_rpath(
+    name = "par-control_linux",
+    inputs = [":par-control"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 # Packaging: install par-control into the agent distribution (see
 # //pkg/procmgr/rust for the same Linux embedded/bin vs Windows bin/agent split).
 pkg_files(
     name = "all_files_linux",
-    srcs = [":par-control"],
+    srcs = [":par-control_linux"],
     attributes = pkg_attributes(mode = "0755"),
     prefix = "embedded/bin",
     target_compatible_with = ["@platforms//os:linux"],
