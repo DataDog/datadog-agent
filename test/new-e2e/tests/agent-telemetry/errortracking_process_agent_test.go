@@ -65,18 +65,11 @@ func TestErrorTrackingProcessAgentSuite(t *testing.T) {
 // submission-error log reaches FakeIntake with the expected wire shape,
 // tagged agent.flavor:process_agent rather than agent.
 func (s *errorTrackingProcessAgentSuite) TestPayloadShape() {
-	// testify's suite.Run executes test methods in alphabetical order
-	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
-	// re-provisions the same host in place rather than a fresh one. Re-assert
-	// the enabled config here so this test doesn't depend on run order.
-	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(
-			ec2.WithAgentOptions(
-				agentparams.WithAgentConfig(errorTrackingProcessAgentEnabledConfig),
-				agentparams.WithSystemProbeConfig(errorTrackingProcessAgentNPMConfig),
-			),
-		),
-	))
+	// BeforeTest already reset the environment to the suite's original
+	// (enabled) provisioner regardless of run order, and the connections
+	// check's submission error recurs on every check run rather than firing
+	// once at construction time, so no re-provisioning is needed here to
+	// observe a fresh occurrence after the flush below.
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	var logs []*aggregator.AgentTelemetryLog
