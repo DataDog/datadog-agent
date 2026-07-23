@@ -7,6 +7,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
+from tasks.schema.codegen_init_settings import as_go_value
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -43,6 +44,56 @@ class TestCodegenInitSettings(unittest.TestCase):
             schema = yaml.safe_load(f)
         codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
+
+    def test_as_go_value(self):
+        cases = [
+            {
+                "describe": "list conversion",
+                "split_lines": False,
+                "input":  "['a', 'b', 'c']",
+                "expect": "{\"a\", \"b\", \"c\"}"
+            },
+            {
+                "describe": "quoted string",
+                "split_lines": False,
+                "input":  "['datadoghq.com']",
+                "expect": "{\"datadoghq.com\"}",
+            },
+            {
+                "describe": "map with bool values",
+                "split_lines": False,
+                "input": "{'linux': True, 'other': False}",
+                "expect": "{\"linux\": true, \"other\": false}",
+            },
+            {
+                "describe": "string containing comma",
+                "split_lines": False,
+                "input":  "['a,b']",
+                "expect": "{\"a,b\"}"
+            },
+            {
+                "describe": "map conversion",
+                "split_lines": False,
+                "input":  "{'a': 'apple', 'b': 'banana'}",
+                "expect": "{\"a\": \"apple\", \"b\": \"banana\"}"
+            },
+            {
+                "describe": "regex",
+                "split_lines": False,
+                "input": "['^ad\\.datadoghq\\.com\\/([[:alnum:]]+\\.)$']",
+                "expect": "{`^ad\\.datadoghq\\.com\\/([[:alnum:]]+\\.)$`}",
+            },
+            {
+                "describe": "map with split lines",
+                "split_lines": True,
+                "input":  "{'a': 'apple', 'b': 'banana'}",
+                "expect": "{\n\"a\": \"apple\",\n \"b\": \"banana\",\n}"
+            },
+        ]
+        for c in cases:
+            with self.subTest(service=c['describe']):
+                actual = as_go_value(c['input'], split_lines=c['split_lines'])
+                self.assertEqual(c['expect'], actual, c['describe'])
 
 
 if __name__ == "__main__":
