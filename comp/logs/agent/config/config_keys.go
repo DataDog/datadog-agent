@@ -214,7 +214,7 @@ func (l *LogsConfigKeys) batchWait() time.Duration {
 	// Valid range: 0.1 seconds (100ms) to 10 seconds
 	if batchWaitFloat < 0.1 || 10 < batchWaitFloat {
 		log.Warnf("Invalid %s: %v should be in [0.1, 10], fallback on %v", key, batchWaitFloat, pkgconfigsetup.DefaultBatchWait)
-		return pkgconfigsetup.DefaultBatchWait * time.Second
+		return time.Duration(pkgconfigsetup.DefaultBatchWait * float64(time.Second))
 	}
 	return time.Duration(batchWaitFloat * float64(time.Second))
 }
@@ -293,8 +293,8 @@ func (l *LogsConfigKeys) senderRecoveryInterval() int {
 	key := l.getConfigKey("sender_recovery_interval")
 	recoveryInterval := l.getConfig().GetInt(key)
 	if recoveryInterval <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, recoveryInterval, pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval)
-		return pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, recoveryInterval, pkgconfigsetup.DefaultForwarderRecoveryInterval)
+		return pkgconfigsetup.DefaultForwarderRecoveryInterval
 	}
 	return recoveryInterval
 }

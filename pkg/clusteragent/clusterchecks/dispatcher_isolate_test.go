@@ -16,7 +16,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -58,9 +58,9 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
-	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["A"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "B")
-	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["B"].workers = constants.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkA0": {
@@ -140,9 +140,9 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
-	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["A"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "B")
-	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["B"].workers = constants.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkA0": {
@@ -220,7 +220,7 @@ func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
-	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["A"].workers = constants.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkA0": {

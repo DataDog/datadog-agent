@@ -41,6 +41,7 @@ properties:
       Set to 'ap1.datadoghq.com' to send data to the AP1 site.
       Set to 'ddog-gov.com' to send data to the US1-FED site.
     tags:
+    - generate_const:DefaultSite
     - template_section:Common
   infrastructure_mode:
     node_type: setting
@@ -1745,12 +1746,16 @@ properties:
             default: 1000
             visibility: public
             description: The timeout in milliseconds for a network path test.
+            tags:
+            - generate_const:DefaultNetworkPathTimeout
           max_ttl:
             node_type: setting
             type: integer
             default: 30
             visibility: public
             description: The maximum TTL (Time To Live) for traceroute tests.
+            tags:
+            - generate_const:DefaultNetworkPathMaxTTL
           pathtest_ttl:
             node_type: setting
             type: string
@@ -1818,12 +1823,16 @@ properties:
             default: 3
             visibility: public
             description: The number of traceroute queries for static path tests.
+            tags:
+            - generate_const:DefaultNetworkPathStaticPathTracerouteQueries
           e2e_queries:
             node_type: setting
             type: integer
             default: 50
             visibility: public
             description: The number of end-to-end queries for static path tests.
+            tags:
+            - generate_const:DefaultNetworkPathStaticPathE2eQueries
           input_chan_size:
             node_type: setting
             type: integer
@@ -8417,6 +8426,8 @@ properties:
     node_type: setting
     type: integer
     default: 60
+    tags:
+    - generate_const:DefaultAPIKeyValidationInterval
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
@@ -8437,6 +8448,8 @@ properties:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - generate_const:DefaultForwarderRecoveryInterval
   forwarder_recovery_reset:
     node_type: setting
     type: boolean
@@ -9686,6 +9699,8 @@ properties:
         node_type: setting
         type: integer
         default: 5010
+        tags:
+        - generate_const:DefaultSecurityAgentCmdPort
       disable_thp:
         node_type: setting
         type: boolean
@@ -9780,6 +9795,8 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE
             - DD_SITE
+            tags:
+            - generate_const:DefaultSite
           unix_socket:
             node_type: setting
             type: string
@@ -9794,6 +9811,8 @@ properties:
     node_type: setting
     type: string
     default: zstd
+    tags:
+    - generate_const:DefaultCompressorKind
   serializer_experimental_use_v3_api:
     node_type: section
     type: object
@@ -9877,6 +9896,8 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    tags:
+    - generate_const:DefaultZstdCompressionLevel
   serverless:
     node_type: section
     type: object
