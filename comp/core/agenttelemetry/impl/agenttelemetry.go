@@ -49,13 +49,8 @@ type atel struct {
 	runner  runner
 	atelCfg *Config
 
-	// diagnosticEnabled gates "diagnostic" profiles (see Profile.Diagnostic).
-	// It is keyed by profile name and populated at construction from the
-	// diagnostic profiles found in the config; entries default to false. A
-	// remote flag toggles the value at runtime via setDiagnosticEnabled, and
-	// run() skips any diagnostic profile whose gate is off. The map itself is
-	// never mutated after construction, so concurrent reads are safe; only the
-	// atomic.Bool values change.
+	// diagnosticEnabled gates "diagnostic" profiles (see Profile.Diagnostic),
+	// keyed by profile name. Toggled at runtime via setDiagnosticEnabled.
 	diagnosticEnabled map[string]*atomic.Bool
 	// lastRunOK reflects whether the most recent run() that included a
 	// diagnostic profile succeeded. It backs the remote-flag IsHealthy check.
@@ -692,9 +687,7 @@ func (a *atel) setDiagnosticEnabled(name string, on bool) {
 }
 
 // diagnosticCollectionHealthy reports whether the last diagnostic collection
-// succeeded. It backs the remote-flag IsHealthy check: enabling data-loss
-// metrics is read-only and low-risk, so this only guards against the COAT
-// collection itself erroring out.
+// succeeded.
 func (a *atel) diagnosticCollectionHealthy() bool {
 	return a.lastRunOK == nil || a.lastRunOK.Load()
 }
@@ -734,6 +727,7 @@ func (a *atel) run(profiles []*Profile) {
 	if len(profiles) == 0 {
 		// Every profile in this schedule is a disabled diagnostic profile;
 		// nothing to gather or ship this tick.
+		a.logComp.Debug("Skipping agent telemetry run: no enabled profiles")
 		return
 	}
 
