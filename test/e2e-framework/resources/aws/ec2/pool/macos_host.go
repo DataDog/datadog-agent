@@ -21,14 +21,20 @@ import (
 type LaunchConfig struct {
 	Region  string
 	Profile string
+	// EnvName is the short aws.Environment name (e.g. "agent-sandbox") whose hardcoded
+	// ECS/network defaults (resources/aws/environmentDefaults.go) the FakeIntake ECS
+	// provisioner falls back to, since it has no live *pulumi.Context to read stack
+	// config overrides from.
+	EnvName string
 }
 
 // LoadLaunchConfigFromEnv reads LaunchConfig from E2E_MACOS_POOL_* env vars, defaulting
-// the region to us-east-1 if unset.
+// the region to us-east-1 and the environment name to agent-sandbox if unset.
 func LoadLaunchConfigFromEnv() (*LaunchConfig, error) {
 	return &LaunchConfig{
 		Region:  getEnvDefault("E2E_MACOS_POOL_REGION", "us-east-1"),
 		Profile: os.Getenv("E2E_MACOS_POOL_PROFILE"),
+		EnvName: getEnvDefault("E2E_MACOS_POOL_AWS_ENV", "agent-sandbox"),
 	}, nil
 }
 
