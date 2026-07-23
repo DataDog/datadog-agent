@@ -131,9 +131,13 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 // into our list before deduping.
 func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
 	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
-	endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
+	// Look up by GetConfigName() (the domain as configured), not GetBaseDomain() - NewDefaultForwarder
+	// rewrites the base domain via AddAgentVersionToDomain (e.g. app.datadoghq.com ->
+	// 7-65-0.agent.datadoghq.com) for well-known Datadog domains, but the additional_endpoints
+	// config map stays keyed by the original, unrewritten URL.
+	endpoints, ok := additionalEndpoints[resolver.GetConfigName()]
 	if !ok {
-		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
+		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
 		return
 	}
 

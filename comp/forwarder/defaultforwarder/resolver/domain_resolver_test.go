@@ -86,6 +86,38 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
 }
 
+func TestSingleDomainResolverUpdateAdditionalEndpointsAfterBaseDomainRewrite(t *testing.T) {
+	// Regression test: NewDefaultForwarder rewrites a resolver's base domain via SetBaseDomain
+	// (AddAgentVersionToDomain, e.g. "https://app.datadoghq.com" -> a version-prefixed host) for
+	// well-known Datadog domains, including additional_endpoints ones - but the additional_endpoints
+	// config map stays keyed by the original, unrewritten URL. updateAdditionalEndpoints must look
+	// up by GetConfigName() (unchanged by the rewrite), not GetBaseDomain(), or it silently discards
+	// every additional_endpoints update - including a key resolved by delegated auth - for any such
+	// domain.
+	apiKeys := []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "key1"),
+	}
+	resolver, err := NewSingleDomainResolver("https://app.datadoghq.com", apiKeys)
+	require.NoError(t, err)
+
+	// Simulate NewDefaultForwarder's AddAgentVersionToDomain rewrite: the base domain used for
+	// network requests diverges from the domain as configured.
+	resolver.SetBaseDomain("https://7-65-0.agent.datadoghq.com")
+	require.Equal(t, "https://app.datadoghq.com", resolver.GetConfigName())
+	require.Equal(t, "https://7-65-0.agent.datadoghq.com", resolver.GetBaseDomain())
+
+	log := logmock.New(t)
+	mockConfig := configmock.New(t)
+	// Keyed by the original configured URL, exactly as the user wrote it / as delegated auth
+	// would write a resolved key back into it - never by the rewritten base domain.
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://app.datadoghq.com": {"key2"},
+	})
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
+
+	assertKeys(t, []string{"key2"}, resolver)
+}
+
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),

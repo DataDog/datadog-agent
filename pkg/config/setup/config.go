@@ -911,56 +911,90 @@ var listShapeAdditionalEndpointsConfigKeys = []string{
 // counterpart to configureAdditionalEndpointsDelegatedAuth.
 func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
 	for _, configKey := range listShapeAdditionalEndpointsConfigKeys {
-		rawEntries, ok := config.Get(configKey).([]any)
-		if !ok {
-			continue
-		}
+		entries := normalizeListShapeEntries(config.Get(configKey))
 
-		for index, rawEntry := range rawEntries {
-			entry, ok := rawEntry.(map[string]any)
-			if !ok {
+		for index, entry := range entries {
+			valStr, ok := caseInsensitiveStringField(entry, "api_key")
+			if !ok || !strings.HasPrefix(strings.TrimSpace(valStr), "DELA(") {
 				continue
 			}
 
-			for entryKey, entryVal := range entry {
-				if !strings.EqualFold(entryKey, "api_key") {
-					continue
-				}
-				valStr, ok := entryVal.(string)
-				if !ok || !strings.HasPrefix(strings.TrimSpace(valStr), "DELA(") {
-					continue
-				}
+			directive, ok := parseDelaDirective(valStr)
+			if !ok {
+				log.Warnf("Could not parse delegated auth directive %q for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", valStr, index, configKey)
+				continue
+			}
 
-				directive, ok := parseDelaDirective(valStr)
-				if !ok {
-					log.Warnf("Could not parse delegated auth directive %q for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", valStr, index, configKey)
-					continue
-				}
+			instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
+			if err != nil {
+				log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
+				continue
+			}
 
-				instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
-				if err != nil {
-					log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
-					continue
-				}
+			log.Infof("Configuring delegated authentication for additional endpoint entry %d at '%s'", index, configKey)
 
-				log.Infof("Configuring delegated authentication for additional endpoint entry %d at '%s'", index, configKey)
-
-				err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
-					Config:                           config,
-					ProviderConfig:                   instanceProviderConfig,
-					OrgUUID:                           directive.orgUUID,
-					RefreshInterval:                  config.GetInt("delegated_auth.refresh_interval_mins"),
-					APIKeyConfigKey:                   fmt.Sprintf("%s[%d][%s]", configKey, index, directive.orgUUID),
-					AdditionalEndpointsListConfigKey:  configKey,
-					AdditionalEndpointDirective:       valStr,
-					FallbackAPIKey:                    directive.params["fallback"],
-				})
-				if err != nil {
-					log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
-				}
+			err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+				Config:                           config,
+				ProviderConfig:                   instanceProviderConfig,
+				OrgUUID:                          directive.orgUUID,
+				RefreshInterval:                  config.GetInt("delegated_auth.refresh_interval_mins"),
+				APIKeyConfigKey:                  fmt.Sprintf("%s[%d][%s]", configKey, index, directive.orgUUID),
+				AdditionalEndpointsListConfigKey: configKey,
+				AdditionalEndpointDirective:      valStr,
+				FallbackAPIKey:                   directive.params["fallback"],
+			})
+			if err != nil {
+				log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
 			}
 		}
 	}
+}
+
+// normalizeListShapeEntries converts a list-shape `additional_endpoints`-style config value into a
+// slice of string-keyed maps, regardless of which underlying shape config.Get() returns:
+//   - []interface{} of map[interface{}]interface{} entries - what a real YAML-sourced value
+//     decodes to (the config loader's YAML decoding produces yaml.v2-style nested maps for nested
+//     mappings, not map[string]interface{})
+//   - []map[string]interface{} - what an unset key's registered empty/typed default looks like
+//
+// Mirrors the same two-shape handling in
+// comp/api/api/apiimpl/internal/config/endpoint.go's encodeInterfaceSliceToStringMap.
+func normalizeListShapeEntries(raw any) []map[string]any {
+	switch typed := raw.(type) {
+	case []any:
+		entries := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			switch m := item.(type) {
+			case map[string]any:
+				entries = append(entries, m)
+			case map[any]any:
+				converted := make(map[string]any, len(m))
+				for k, v := range m {
+					converted[fmt.Sprintf("%v", k)] = v
+				}
+				entries = append(entries, converted)
+			}
+		}
+		return entries
+	case []map[string]any:
+		return typed
+	default:
+		return nil
+	}
+}
+
+// caseInsensitiveStringField looks up a string-valued field in entry, matching the field name
+// case-insensitively (list-shape additional_endpoints entries mix casing across products, e.g.
+// "api_key" but "Host").
+func caseInsensitiveStringField(entry map[string]any, field string) (string, bool) {
+	for k, v := range entry {
+		if !strings.EqualFold(k, field) {
+			continue
+		}
+		s, ok := v.(string)
+		return s, ok
+	}
+	return "", false
 }
 
 // bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.

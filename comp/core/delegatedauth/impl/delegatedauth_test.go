@@ -728,6 +728,36 @@ func TestMergeIntoAdditionalEndpointsListReplacesDirectiveOnFirstWrite(t *testin
 	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
 }
 
+func TestMergeIntoAdditionalEndpointsListHandlesYAMLDecodedEntries(t *testing.T) {
+	// Regression test: a real YAML-sourced additional_endpoints value decodes each entry as
+	// map[any]any, not map[string]any - config.Get's shape for a raw config-file value differs
+	// from the map[string]any shape used in other tests here (which matches a directly-constructed
+	// or SetInTest value, not what real YAML parsing produces). Confirmed via pkg/config/setup's
+	// equivalent TestConfigureListShapeAdditionalEndpointsDelegatedAuth failing against a real
+	// confFromYAML-loaded config before this shape was handled.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[any]any{"api_key": "DELA(logs-org-uuid, aws)", "Host": "agent-http-intake.logs.datadoghq.com"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
+
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	entry, ok := got[0].(map[string]any)
+	require.True(t, ok, "the merged entry must be normalized to map[string]any regardless of the source shape")
+	assert.Equal(t, "real-api-key-1", entry["api_key"])
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com", entry["Host"])
+	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+}
+
 func TestMergeIntoAdditionalEndpointsListRotatesWithoutClobberingOtherEntries(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("logs_config.additional_endpoints", []any{

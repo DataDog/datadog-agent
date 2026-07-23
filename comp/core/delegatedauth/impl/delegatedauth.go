@@ -576,6 +576,54 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	}
 }
 
+// normalizeListShapeEntries converts a list-shape `additional_endpoints`-style config value into a
+// slice of string-keyed maps, regardless of which underlying shape config.Get() returns:
+//   - []any of map[any]any entries - what a real YAML-sourced value decodes to (the config
+//     loader's YAML decoding produces yaml.v2-style nested maps for nested mappings, not
+//     map[string]any)
+//   - []map[string]any - what an unset key's registered empty/typed default looks like
+//
+// Duplicated from the identical helper in pkg/config/setup/config.go rather than shared: this
+// package can't depend on pkg/config/setup or pkg/config/utils without risking a cycle back
+// through comp/core/delegatedauth/def, which pkg/config/setup already imports.
+func normalizeListShapeEntries(raw any) ([]map[string]any, bool) {
+	switch typed := raw.(type) {
+	case []any:
+		entries := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			switch m := item.(type) {
+			case map[string]any:
+				entries = append(entries, m)
+			case map[any]any:
+				converted := make(map[string]any, len(m))
+				for k, v := range m {
+					converted[fmt.Sprintf("%v", k)] = v
+				}
+				entries = append(entries, converted)
+			}
+		}
+		return entries, true
+	case []map[string]any:
+		return typed, true
+	default:
+		return nil, false
+	}
+}
+
+// caseInsensitiveStringField looks up a string-valued field in entry, matching the field name
+// case-insensitively (list-shape additional_endpoints entries mix casing across products, e.g.
+// "api_key" but "Host").
+func caseInsensitiveStringField(entry map[string]any, field string) (string, bool) {
+	for k, v := range entry {
+		if !strings.EqualFold(k, field) {
+			continue
+		}
+		s, ok := v.(string)
+		return s, ok
+	}
+	return "", false
+}
+
 // mergeIntoAdditionalEndpointsList writes apiKey into the list-shape config value at
 // instance.additionalEndpointsListConfigKey (a list of {api_key, Host, Port, ...} entries),
 // replacing the entry whose api_key still holds this instance's lastWrittenValue - matching by
@@ -587,39 +635,26 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 	defer d.additionalEndpointsMu.Unlock()
 
 	configKey := instance.additionalEndpointsListConfigKey
-	raw, ok := d.config.Get(configKey).([]any)
+	entries, ok := normalizeListShapeEntries(d.config.Get(configKey))
 	if !ok {
 		log.Warnf("Could not read list-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
 		return
 	}
 
-	merged := make([]any, len(raw))
-	copy(merged, raw)
-
+	merged := make([]any, len(entries))
 	replaced := false
-	for i, item := range merged {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		for k, v := range entry {
-			if !strings.EqualFold(k, "api_key") {
+	for i, entry := range entries {
+		if !replaced {
+			if valStr, ok := caseInsensitiveStringField(entry, "api_key"); ok && valStr == instance.lastWrittenValue {
+				newEntry := make(map[string]any, len(entry))
+				maps.Copy(newEntry, entry)
+				newEntry["api_key"] = apiKey
+				merged[i] = newEntry
+				replaced = true
 				continue
 			}
-			valStr, ok := v.(string)
-			if !ok || valStr != instance.lastWrittenValue {
-				continue
-			}
-			newEntry := make(map[string]any, len(entry))
-			maps.Copy(newEntry, entry)
-			newEntry[k] = apiKey
-			merged[i] = newEntry
-			replaced = true
-			break
 		}
-		if replaced {
-			break
-		}
+		merged[i] = entry
 	}
 
 	if !replaced {
