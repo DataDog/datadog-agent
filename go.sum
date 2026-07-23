@@ -2828,8 +2828,6 @@ github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xW
 github.com/basgys/goxml2json v1.1.1-0.20231018121955-e66ee54ceaad h1:3swAvbzgfaI6nKuDDU7BiKfZRdF+h2ZwKgMHd8Ha4t8=
 github.com/basgys/goxml2json v1.1.1-0.20231018121955-e66ee54ceaad/go.mod h1:9+nBLYNWkvPcq9ep0owWUsPTLgL9ZXTsZWcCSVGGLJ0=
 github.com/bazelbuild/rules_go v0.49.0/go.mod h1:Dhcz716Kqg1RHNWos+N6MlXNkjNP2EwZQ0LukRKJfMs=
-github.com/bazelbuild/rules_go v0.61.1 h1:F7jqdw0Zp/RtWFDbLFuVa2DaPjUQkqZOLCns8vCxSWg=
-github.com/bazelbuild/rules_go v0.61.1/go.mod h1:6YghDRf6l3FSiAwncK+Ww9jE1naoQzNq28gaKJeB67I=
 github.com/bazelbuild/rules_go v0.62.0 h1:FpVmU5mfoqSiY6dLquUAtldkcKOMLrmNaWrSnXuGPF4=
 github.com/bazelbuild/rules_go v0.62.0/go.mod h1:6YghDRf6l3FSiAwncK+Ww9jE1naoQzNq28gaKJeB67I=
 github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 h1:6df1vn4bBlDDo4tARvBm7l6KA9iVMnE3NWizDeWSrps=
