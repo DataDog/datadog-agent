@@ -24,6 +24,9 @@ exporters:
 processors:
   infraattributes:
     cardinality: 2
+  # Converts cumulative metrics to delta. 
+  # types (sum + histogram + exponentialhistogram). Injection dedups by base name.
+  cumulativetodelta:
 connectors:
   datadog/connector:
     traces:
@@ -38,7 +41,7 @@ service:
       exporters: [datadog, datadog/connector]
     metrics:
       receivers: [otlp, datadog/connector, prometheus]
-      processors: [infraattributes]
+      processors: [infraattributes, cumulativetodelta]
       exporters: [datadog]
     logs:
       receivers: [otlp]
