@@ -27,19 +27,16 @@ type bucket struct {
 	shouldTruncate bool
 }
 
-// add appends msg and its first-line tokens to the bucket. Pass retainTokens
-// when the line stays buffered and is emitted by a later Process call: tokens
-// borrow the tokenizer's scratch buffer, which the next line overwrites, so a
-// buffered line must own a copy. Lines that are added and flushed within the
-// same call (the immediate-flush callers in Process) keep borrowing: false.
-func (b *bucket) add(msg *message.Message, tokens BorrowedTokens, retainTokens bool) {
+// add appends msg and its first-line tokens to the bucket. The caller chooses
+// the token lifetime: pass the borrowed tokens as-is when the line is flushed
+// within the current Process call, or tokens.retained() when the line stays
+// buffered for a later call (the tokenizer's scratch buffer is reused between
+// lines, so a buffered line must own a copy).
+func (b *bucket) add(msg *message.Message, tokens BorrowedTokens) {
 	if b.originalDataLen > 0 {
 		b.contentLen += len(message.EscapedLineFeed)
 	}
 	b.contentLen += len(msg.GetContent())
-	if retainTokens {
-		tokens = tokens.retained()
-	}
 	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 	b.originalDataLen += msg.RawDataLen
 }
@@ -227,14 +224,14 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == noAggregate {
 		a.flushToCollected()
 		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
-		a.bucket.add(msg, tokens, false)
+		a.bucket.add(msg, tokens)       // flushed immediately below; tokens stay borrowed
 		a.flushToCollected()
 		return a.collected
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
-		a.bucket.add(msg, tokens, false)
+		a.bucket.add(msg, tokens) // flushed immediately below; tokens stay borrowed
 		a.flushToCollected()
 		return a.collected
 	}
@@ -243,14 +240,17 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == startGroup {
 		a.flushToCollected()
 		a.multiLineMatchInfo.Add(1)
-		// A start line under the size limit stays buffered until its continuation
-		// lines arrive (retain); an oversized one is flushed immediately below.
-		a.bucket.add(msg, tokens, msg.RawDataLen < a.maxContentSize)
 		if msg.RawDataLen >= a.maxContentSize {
-			// A startGroup can still truncate, but only because this individual line is
-			// already at the limit on its own. That's the remaining single-line truncation
-			// case in this codepath; it is not caused by multiline aggregation.
+			// The start line is already at the size limit on its own, so it is
+			// emitted immediately (the remaining single-line truncation case in this
+			// codepath, not caused by multiline aggregation). Its tokens are consumed
+			// now, so they stay borrowed.
+			a.bucket.add(msg, tokens)
 			a.flushToCollected()
+		} else {
+			// Under the limit: buffered until its continuation lines arrive, so it
+			// must own its tokens.
+			a.bucket.add(msg, tokens.retained())
 		}
 		return a.collected
 	}
@@ -264,8 +264,9 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 		return a.collected
 	}
 
-	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
-	a.bucket.add(msg, tokens, true)
+	// We're an aggregate label within a startGroup and within the maxContentSize.
+	// Append new multiline; the line stays buffered, so it must own its tokens.
+	a.bucket.add(msg, tokens.retained())
 	return a.collected
 }
 
