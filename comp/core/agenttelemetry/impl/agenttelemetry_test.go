@@ -1146,17 +1146,59 @@ func TestAggregateTotalHistogramPerEmitterHasIndependentOutputs(t *testing.T) {
 }
 
 func TestAggregateTotalRejectsReservedTotalPreserveTag(t *testing.T) {
+	const wantErr = "profile 'foo' metric 'bar.zoo' cannot preserve reserved tag 'total' when aggregate_total is enabled"
+
 	for _, tt := range []struct {
-		name           string
-		aggregateTotal bool
-		wantErr        string
+		name                string
+		aggregateTotal      bool
+		tags                string
+		wantErr             bool
+		wantPreservedTags   []string
+		wantUnpreservedTags []string
 	}{
 		{
-			name:           "aggregate total enabled",
+			name:           "preserve_tags with aggregate total enabled",
 			aggregateTotal: true,
-			wantErr:        "profile 'foo' metric 'bar.zoo' cannot preserve reserved tag 'total' when aggregate_total is enabled",
+			tags: `
+            preserve_tags:
+              - total`,
+			wantErr: true,
 		},
-		{name: "aggregate total disabled"},
+		{
+			name: "preserve_tags with aggregate total disabled",
+			tags: `
+            preserve_tags:
+              - total`,
+			wantPreservedTags: []string{"total"},
+		},
+		{
+			name:           "deprecated aggregate_tags with aggregate total enabled",
+			aggregateTotal: true,
+			tags: `
+            aggregate_tags:
+              - total`,
+			wantErr: true,
+		},
+		{
+			name:           "preserve_tags takes precedence over deprecated alias",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags:
+              - tag1
+            aggregate_tags:
+              - total`,
+			wantPreservedTags:   []string{"tag1"},
+			wantUnpreservedTags: []string{"total"},
+		},
+		{
+			name:           "empty preserve_tags falls back to deprecated alias",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags: []
+            aggregate_tags:
+              - total`,
+			wantErr: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
@@ -1167,20 +1209,23 @@ agent_telemetry:
       metric:
         metrics:
           - name: bar.zoo
-            aggregate_total: %t
-            preserve_tags:
-              - total
-`, tt.aggregateTotal))
+            aggregate_total: %t%s
+`, tt.aggregateTotal, tt.tags))
 
 			atelCfg, err := parseConfig(cfg)
-			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
+			if tt.wantErr {
+				require.EqualError(t, err, wantErr)
 				return
 			}
 
 			require.NoError(t, err)
 			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
-			require.Contains(t, mCfg.preserveTagsMap, "total")
+			for _, tag := range tt.wantPreservedTags {
+				require.Contains(t, mCfg.preserveTagsMap, tag)
+			}
+			for _, tag := range tt.wantUnpreservedTags {
+				require.NotContains(t, mCfg.preserveTagsMap, tag)
+			}
 		})
 	}
 }
@@ -1331,9 +1376,11 @@ func TestSerializedAgentMetricPayloadsAlwaysIncludeEmitter(t *testing.T) {
 	require.Empty(t, totalValues)
 }
 
-// TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that aggregate_total
-// counter deltas use stable source-series cache keys even when the "total" label changes with
-// the filtered source-series count between collection cycles.
+// TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that the
+// aggregate_total counter delta remains correct when the number of timeseries
+// changes between collection cycles. This is a regression test for a bug where
+// the "total" tag value encoded the timeseries count (e.g., total="2" then
+// total="3"), causing unstable delta cache keys and inflated/incorrect totals.
 func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
 	var c = `
     agent_telemetry:
