@@ -436,6 +436,12 @@ func TestCreateShardedKSMConfigs_WithAggregate(t *testing.T) {
 				aggregateCount++
 				assert.Equal(t, true, inst["skip_leader_election"], "aggregate must skip leader election on a runner")
 			}
+			if inst["pod_collection_mode"] == "cluster_unassigned" {
+				// Every cluster_unassigned shard must keep suppressing its own
+				// .total, else it collides with the aggregate instance.
+				assert.Equal(t, "cluster_unassigned", inst["pod_collection_mode"], "shards must preserve pod_collection_mode")
+				assert.Equal(t, true, inst["cluster_aggregates_enabled"], "shards must preserve cluster_aggregates_enabled")
+			}
 			if cols, ok := inst["collectors"].([]interface{}); ok && len(cols) == 1 && cols[0] == "pods" {
 				podsShard = &configs[i]
 			}
@@ -466,6 +472,45 @@ func TestCreateShardedKSMConfigs_AggregateFallbackNoPods(t *testing.T) {
 		}
 	}
 	assert.True(t, standaloneAggregate, "aggregate dispatched standalone when there is no pods shard")
+}
+
+// TestCreateShardedKSMConfigs_AggregateFirstOrdering guards order-independence:
+// the shardable instance must be used as the shard base even when the
+// cluster_aggregates_only instance is listed first. If the sharder regressed to
+// baseConfig.Instances[0], it would shard the aggregate (which has no collectors)
+// and this would fail.
+func TestCreateShardedKSMConfigs_AggregateFirstOrdering(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	aggregate := map[string]interface{}{"pod_collection_mode": "cluster_aggregates_only"}
+	shardable := map[string]interface{}{
+		"collectors":                 []string{"pods", "nodes", "deployments"},
+		"pod_collection_mode":        "cluster_unassigned",
+		"cluster_aggregates_enabled": true,
+	}
+	cfg := integration.Config{
+		Name:         "kubernetes_state_core",
+		ClusterCheck: true,
+		Instances:    []integration.Data{mustYAML(aggregate), mustYAML(shardable)}, // aggregate FIRST
+	}
+
+	configs, err := manager.createShardedKSMConfigs(cfg)
+	require.NoError(t, err)
+	require.Len(t, configs, 3, "must shard the cluster_unassigned instance, not the aggregate")
+
+	// Every shard's shardable instance must carry cluster_unassigned collectors,
+	// proving Instances[0] (the aggregate) was not used as the shard base.
+	sawUnassigned := false
+	for _, c := range configs {
+		for _, raw := range c.Instances {
+			var inst map[string]interface{}
+			require.NoError(t, yaml.Unmarshal(raw, &inst))
+			if inst["pod_collection_mode"] == "cluster_unassigned" {
+				sawUnassigned = true
+				assert.Contains(t, inst, "collectors")
+			}
+		}
+	}
+	assert.True(t, sawUnassigned, "shards must be built from the cluster_unassigned instance")
 }
 
 // Helper functions
@@ -501,8 +546,9 @@ func mustYAML(m map[string]interface{}) integration.Data {
 // instance — the "one config, both features" shape.
 func createKSMConfigWithAggregate(shardableCollectors []string) integration.Config {
 	shardable := map[string]interface{}{
-		"collectors":          shardableCollectors,
-		"pod_collection_mode": "cluster_unassigned",
+		"collectors":                 shardableCollectors,
+		"pod_collection_mode":        "cluster_unassigned",
+		"cluster_aggregates_enabled": true,
 	}
 	aggregate := map[string]interface{}{
 		"pod_collection_mode": "cluster_aggregates_only",

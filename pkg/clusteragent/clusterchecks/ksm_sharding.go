@@ -239,6 +239,26 @@ func (m *ksmShardingManager) createShardedKSMConfigs(
 		return nil, errors.New("no resource groups to shard")
 	}
 
+	// Fail loud on configs that would double-count the .total family. These are
+	// dispatched anyway (we don't drop metrics), but the misconfiguration is
+	// otherwise silent, so surface it in the DCA logs.
+	if len(passthrough) > 0 {
+		if len(passthrough) > 1 {
+			log.Warnf("KSM sharding: %d %s instances configured; each does a full-pod watch and emits the .total family, which double-counts. Configure exactly one.", len(passthrough), clusterAggregatesOnlyMode)
+		}
+		// The shardable instance must suppress its own .total (cluster_unassigned
+		// with cluster_aggregates_enabled: true) when a cluster_aggregates_only
+		// instance is present, otherwise both emit .total.
+		var s struct {
+			PodCollectionMode        string `yaml:"pod_collection_mode"`
+			ClusterAggregatesEnabled bool   `yaml:"cluster_aggregates_enabled"`
+		}
+		_ = yaml.Unmarshal(shardable, &s)
+		if s.PodCollectionMode != "cluster_unassigned" || !s.ClusterAggregatesEnabled {
+			log.Warnf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q, cluster_aggregates_enabled=%v) will not suppress its own .total — this double-counts the .total family. Set pod_collection_mode: cluster_unassigned and cluster_aggregates_enabled: true on the shardable instance.", clusterAggregatesOnlyMode, s.PodCollectionMode, s.ClusterAggregatesEnabled)
+		}
+	}
+
 	// Pass-through instances (cluster_aggregates_only) are not sharded — each does
 	// a full-pod watch and must stay a single instance. Force skip_leader_election
 	// since they run on a CLC runner, same as the shards.
