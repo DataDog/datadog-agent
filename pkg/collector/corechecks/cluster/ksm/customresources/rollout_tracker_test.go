@@ -2468,3 +2468,85 @@ func TestDetermineDeploymentStartTime_StaleProgressingCondition(t *testing.T) {
 	assert.True(t, !startTime.Before(before) && !startTime.After(after),
 		"Stale condition time should fall back to now()")
 }
+
+// TestDetermineDeploymentStartTime_LongRunningRolloutPreserved verifies that a genuinely long-running
+// rollout (progressing for well over maxPlausibleRolloutDuration) is NOT truncated when its Progressing
+// LastTransitionTime is consistent with its ReplicaSet's creation time. The RS-based staleness bound
+// must accept it rather than capping to now.
+func TestDetermineDeploymentStartTime_LongRunningRolloutPreserved(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	deploymentName := "long-running-deploy"
+
+	// A rollout that has genuinely been progressing for 30h: its ReplicaSet is 30h old (outside
+	// RecentCreationThreshold) and the Progressing condition transitioned at (approximately) the same
+	// time - i.e. the condition time is NOT older than the ReplicaSet, so it is not stale.
+	rsCreation := time.Now().Add(-30 * time.Hour)
+	progressingTime := rsCreation.Add(time.Second)
+
+	tracker.deploymentMutex.Lock()
+	tracker.replicaSetMap[namespace+"/long-rs"] = &ReplicaSetInfo{
+		Name:         "long-rs",
+		Namespace:    namespace,
+		OwnerName:    deploymentName,
+		OwnerUID:     "dep-long",
+		CreationTime: rsCreation,
+	}
+	tracker.deploymentMutex.Unlock()
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: deploymentName, Namespace: namespace},
+		Status: appsv1.DeploymentStatus{
+			Conditions: []appsv1.DeploymentCondition{
+				{
+					Type:               appsv1.DeploymentProgressing,
+					Status:             corev1.ConditionTrue,
+					Reason:             "ReplicaSetUpdated",
+					LastTransitionTime: metav1.Time{Time: progressingTime},
+				},
+			},
+		},
+	}
+
+	tracker.deploymentMutex.Lock()
+	startTime := tracker.determineDeploymentStartTime(deployment)
+	tracker.deploymentMutex.Unlock()
+
+	assert.Equal(t, progressingTime, startTime,
+		"A long-running rollout whose condition time is consistent with its ReplicaSet must be preserved, not capped to now")
+	assert.Greater(t, time.Since(startTime), maxPlausibleRolloutDuration,
+		"Duration should reflect the real >24h rollout age, not a truncated value")
+}
+
+// TestDetermineDeploymentStartTime_NoReplicaSetFallsBackToBackstop verifies that when no ReplicaSet is
+// known to validate staleness against (e.g. the informer has not synced right after a restart), an
+// implausibly old Progressing LastTransitionTime is rejected by the coarse age backstop.
+func TestDetermineDeploymentStartTime_NoReplicaSetFallsBackToBackstop(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	// No ReplicaSet stored for this deployment - forces the notBefore==zero backstop path.
+	staleTime := time.Now().Add(-300 * 24 * time.Hour)
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "no-rs-deploy", Namespace: "default"},
+		Status: appsv1.DeploymentStatus{
+			Conditions: []appsv1.DeploymentCondition{
+				{
+					Type:               appsv1.DeploymentProgressing,
+					Status:             corev1.ConditionTrue,
+					Reason:             "ReplicaSetUpdated",
+					LastTransitionTime: metav1.Time{Time: staleTime},
+				},
+			},
+		},
+	}
+
+	before := time.Now()
+	tracker.deploymentMutex.Lock()
+	startTime := tracker.determineDeploymentStartTime(deployment)
+	tracker.deploymentMutex.Unlock()
+	after := time.Now()
+
+	assert.True(t, !startTime.Before(before) && !startTime.After(after),
+		"With no ReplicaSet to bound against, an implausibly old condition time should fall back to now()")
+}

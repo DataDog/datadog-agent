@@ -24,8 +24,11 @@ const RevisionAnnotationKey = "deployment.kubernetes.io/revision"
 // creation time. If older, we assume it's a rollback (reusing existing RS/CR) and use time.Now().
 const RecentCreationThreshold = 5 * time.Minute
 
-// maxPlausibleRolloutDuration bounds how far in the past a Progressing condition's LastTransitionTime
-// may be before we treat it as a stale anchor rather than the current rollout's start time.
+// maxPlausibleRolloutDuration is the backstop bound on how far in the past a Progressing condition's
+// LastTransitionTime may be, used only when no ReplicaSet is known to validate staleness against (see
+// getProgressingConditionTime). The Deployment controller preserves LastTransitionTime across
+// successive rollouts while Status stays True, so an unbounded value can be pinned at the deployment's
+// creation and yield absurd (multi-hundred-day) durations after an Agent restart.
 const maxPlausibleRolloutDuration = 24 * time.Hour
 
 // isInProgressRolloutReason reports whether a Deployment Progressing condition Reason (observed with
@@ -204,20 +207,40 @@ func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
 // getProgressingConditionTime extracts the LastTransitionTime from the Progressing condition
 // when it indicates an active rollout. This provides restart resilience.
 //
-// The LastTransitionTime is only trusted when it is recent enough to plausibly belong to the current
-// rollout (see maxPlausibleRolloutDuration): the Deployment controller preserves it across successive
-// rollouts while Status stays True, so a stale value can otherwise be pinned at the deployment's
-// creation and yield absurd durations. When it is missing or stale, we fall back instead.
-func getProgressingConditionTime(dep *appsv1.Deployment, fallback time.Time) time.Time {
+// The Deployment controller preserves LastTransitionTime across successive rollouts while the
+// Progressing Status stays True, so a stale value can be pinned at the deployment's creation and yield
+// absurd durations. We therefore only trust it when it is not stale:
+//   - When notBefore is set (the newest ReplicaSet's creation time is known), the current rollout
+//     cannot have started before its ReplicaSet existed, so a LastTransitionTime earlier than
+//     notBefore is treated as stale. This still surfaces genuinely long-running rollouts whose
+//     condition time is consistent with their ReplicaSet.
+//   - When notBefore is zero (no ReplicaSet is known yet, e.g. the informer has not synced right after
+//     a restart), fall back to the coarse maxPlausibleRolloutDuration age backstop.
+//
+// When the Progressing condition is missing, not in-progress, zero, or stale, we return fallback.
+func getProgressingConditionTime(dep *appsv1.Deployment, notBefore, fallback time.Time) time.Time {
 	for _, cond := range dep.Status.Conditions {
-		if cond.Type == appsv1.DeploymentProgressing {
-			if cond.Status == corev1.ConditionTrue && isInProgressRolloutReason(cond.Reason) {
-				lastTransition := cond.LastTransitionTime.Time
-				if !lastTransition.IsZero() && time.Since(lastTransition) <= maxPlausibleRolloutDuration {
-					return lastTransition
-				}
-			}
+		if cond.Type != appsv1.DeploymentProgressing {
+			continue
 		}
+		// There is at most one Progressing condition; once found, evaluate it and stop.
+		if cond.Status != corev1.ConditionTrue || !isInProgressRolloutReason(cond.Reason) {
+			break
+		}
+		lastTransition := cond.LastTransitionTime.Time
+		if lastTransition.IsZero() {
+			break
+		}
+		if !notBefore.IsZero() {
+			// The rollout cannot have started before its newest ReplicaSet was created.
+			if lastTransition.Before(notBefore) {
+				break
+			}
+		} else if time.Since(lastTransition) > maxPlausibleRolloutDuration {
+			// No ReplicaSet to bound against - reject an implausibly old anchor.
+			break
+		}
+		return lastTransition
 	}
 	return fallback
 }
@@ -259,8 +282,14 @@ func (rt *RolloutTracker) determineDeploymentStartTime(dep *appsv1.Deployment) t
 		}
 	}
 
-	// RS is old or not found - try Progressing condition, fall back to now
-	return getProgressingConditionTime(dep, now)
+	// RS is old or not found - try the Progressing condition, rejecting a stale anchor, then fall
+	// back to now. When the newest ReplicaSet's creation time is known, use it as the staleness
+	// bound: the current rollout cannot have started before its ReplicaSet existed.
+	var notBefore time.Time
+	if hasRS {
+		notBefore = rsCreationTime
+	}
+	return getProgressingConditionTime(dep, notBefore, now)
 }
 
 // CleanupDeployment removes a deployment from active rollout tracking.
