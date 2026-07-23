@@ -55,6 +55,14 @@
     "xz_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_src_deps dict alongside the base xz. Will be tracked together with xz (Phase 2a).",
     "zlib_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_src_deps dict alongside the base zlib. Will be tracked together with zlib (Phase 2a).",
     "libffi_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_bin_deps dict. Note: pinned to 3.4.4 (cpython-bin-deps), independent of the base libffi version — must be tracked separately.",
-    "tcltk_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_bin_deps dict. No upstream `tcltk` dep — needs its own customManager (cpython-bin-deps tags)."
+    "tcltk_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_bin_deps dict. No upstream `tcltk` dep — needs its own customManager (cpython-bin-deps tags).",
+    "agent_data_plane_linux-amd64": "Pending tracking. New dep from the ADP Bazel migration; releases are published at github.com/DataDog/saluki. All 8 platform variants share VERSION and will be tracked together.",
+    "agent_data_plane_linux-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_fips-linux-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_fips-linux-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_darwin-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_fips-windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
   }
 }

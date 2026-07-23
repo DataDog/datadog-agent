@@ -54,17 +54,17 @@ for f in *; do
 done
 """]
 
-# (os, hash key); the repo name suffix is the hash key with "-" replaced by "_"
-_ARTIFACTS = [
-    ("linux", "linux-amd64"),
-    ("linux", "linux-arm64"),
-    ("linux", "fips-linux-amd64"),
-    ("linux", "fips-linux-arm64"),
-    ("darwin", "darwin-amd64"),
-    ("darwin", "darwin-arm64"),
-    ("windows", "windows-amd64"),
-    ("windows", "fips-windows-amd64"),
-]
+# hash key -> os; the repo name suffix is the hash key with "-" replaced by "_"
+_ARTIFACTS = {
+    "linux-amd64": "linux",
+    "linux-arm64": "linux",
+    "fips-linux-amd64": "linux",
+    "fips-linux-arm64": "linux",
+    "darwin-amd64": "darwin",
+    "darwin-arm64": "darwin",
+    "windows-amd64": "windows",
+    "fips-windows-amd64": "windows",
+}
 
 [
     http_archive(
@@ -83,5 +83,5 @@ _ARTIFACTS = [
             version = VERSION,
         ),
     )
-    for os, hash_key in _ARTIFACTS
+    for hash_key, os in _ARTIFACTS.items()
 ]
