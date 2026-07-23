@@ -447,6 +447,7 @@ use_repo(
     "io_opentelemetry_go_collector_component",
     "io_opentelemetry_go_collector_component_componentstatus",
     "io_opentelemetry_go_collector_component_componenttest",
+    "io_opentelemetry_go_collector_config_configauth",
     "io_opentelemetry_go_collector_config_confighttp",
     "io_opentelemetry_go_collector_config_confignet",
     "io_opentelemetry_go_collector_config_configopaque",
