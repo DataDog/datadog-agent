@@ -2274,3 +2274,85 @@ func TestRCConflict(t *testing.T) {
 	_, err = config.BuildProfile("1.2.3.4.5.6")
 	require.ErrorContains(t, err, "has the same sysObjectID (1.2.3.4.*)")
 }
+
+func TestNamedCredentials(t *testing.T) {
+	setupHostname(t)
+	profile.SetConfdPathAndCleanProfiles()
+
+	t.Run("credential_ref applies named credential", func(t *testing.T) {
+		// language=yaml
+		rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+credential_ref: creds_v3
+`)
+		// language=yaml
+		rawInitConfig := []byte(`
+named_credentials:
+  creds_v3:
+    snmp_version: "3"
+    user: admin
+    authProtocol: SHA
+    authKey: authsecret
+    privProtocol: AES
+    privKey: privsecret
+    context_name: myctx
+`)
+		config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "3", config.SnmpVersion)
+		assert.Equal(t, "admin", config.User)
+		assert.Equal(t, "SHA", config.AuthProtocol)
+		assert.Equal(t, "authsecret", config.AuthKey)
+		assert.Equal(t, "AES", config.PrivProtocol)
+		assert.Equal(t, "privsecret", config.PrivKey)
+		assert.Equal(t, "myctx", config.ContextName)
+	})
+
+	t.Run("instance fields take precedence over credential_ref", func(t *testing.T) {
+		// language=yaml
+		rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+credential_ref: creds_v2
+community_string: override
+`)
+		// language=yaml
+		rawInitConfig := []byte(`
+named_credentials:
+  creds_v2:
+    community_string: default
+`)
+		config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "override", config.CommunityString)
+	})
+
+	t.Run("unknown credential_ref returns error", func(t *testing.T) {
+		// language=yaml
+		rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+credential_ref: nonexistent
+`)
+		// language=yaml
+		rawInitConfig := []byte(`
+named_credentials:
+  creds_v2:
+    community_string: public
+`)
+		_, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `credential_ref "nonexistent" not found in init_config.named_credentials`)
+	})
+
+	t.Run("no credential_ref behaves as before", func(t *testing.T) {
+		// language=yaml
+		rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+`)
+		// language=yaml
+		rawInitConfig := []byte(``)
+		config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "public", config.CommunityString)
+	})
+}
