@@ -1,0 +1,138 @@
+{
+  "comparison": {
+    "match_threshold": 0.5,
+    "minimum_emit_count": 5,
+    "attribution_scenarios": 7,
+    "attribution_logs": 474362,
+    "feedback_logs_excluded_from_primary_rates": true
+  },
+  "cluster_mapping": [
+    {
+      "scenario": "block-building-outage",
+      "logs": 28356,
+      "semantic_clusters": 159,
+      "logs_clusters": 182,
+      "semantic_fragmentation_rate": 0.29601001968151724,
+      "logs_overmerge_rate": 0.10259438182143496
+    },
+    {
+      "scenario": "cassandra-repair-degradation",
+      "logs": 87343,
+      "semantic_clusters": 206,
+      "logs_clusters": 298,
+      "semantic_fragmentation_rate": 0.8059493670886076,
+      "logs_overmerge_rate": 0.30456846950517835
+    },
+    {
+      "scenario": "kafka-partition-saturation",
+      "logs": 57646,
+      "semantic_clusters": 178,
+      "logs_clusters": 204,
+      "semantic_fragmentation_rate": 0.02891914478724145,
+      "logs_overmerge_rate": 0.06186015739257608
+    },
+    {
+      "scenario": "lock-contention",
+      "logs": 29347,
+      "semantic_clusters": 221,
+      "logs_clusters": 230,
+      "semantic_fragmentation_rate": 0.0298109466343031,
+      "logs_overmerge_rate": 0.055485282554442586
+    },
+    {
+      "scenario": "memcached-saturation",
+      "logs": 178819,
+      "semantic_clusters": 182,
+      "logs_clusters": 270,
+      "semantic_fragmentation_rate": 0.15924879977407513,
+      "logs_overmerge_rate": 0.04069471900593053
+    },
+    {
+      "scenario": "pool-saturation",
+      "logs": 62611,
+      "semantic_clusters": 139,
+      "logs_clusters": 143,
+      "semantic_fragmentation_rate": 0.08814443715287226,
+      "logs_overmerge_rate": 0.023880788130031853
+    },
+    {
+      "scenario": "redis-cascade-billing",
+      "logs": 30240,
+      "semantic_clusters": 205,
+      "logs_clusters": 345,
+      "semantic_fragmentation_rate": 0.2596568940275536,
+      "logs_overmerge_rate": 0.17744660084838018
+    }
+  ],
+  "predeclared_case_studies": [
+    {
+      "scenario": "cassandra-repair-degradation",
+      "detector": "scanmw",
+      "semantic_f1": 0.9867774576447456,
+      "logs_fuzzy_f1": 3.2843260037098554e-9,
+      "mechanism": "uuid_fragmentation"
+    },
+    {
+      "scenario": "pool-saturation",
+      "detector": "bocpd",
+      "semantic_f1": 0.8325658168321677,
+      "logs_fuzzy_f1": 0.3728649536677461,
+      "mechanism": "broader_cluster_reduced_false_positives"
+    },
+    {
+      "scenario": "block-building-outage",
+      "detector": "holt_residual",
+      "semantic_f1": 0.9450664540678799,
+      "logs_fuzzy_f1": 0.18562663581194797,
+      "mechanism": "access_log_fragmentation_and_false_positives"
+    },
+    {
+      "scenario": "kafka-partition-saturation",
+      "detector": "scanmw",
+      "semantic_f1": 0,
+      "logs_fuzzy_f1": 0.9867774576447456,
+      "mechanism": "accidental_overmerge"
+    },
+    {
+      "scenario": "memcached-saturation",
+      "detector": "holt_residual",
+      "semantic_f1": 1.225974202786394e-31,
+      "logs_fuzzy_f1": 0.9138249289658615,
+      "mechanism": "broad_access_log_aggregation"
+    },
+    {
+      "scenario": "block-building-outage",
+      "detector": "scanwelch",
+      "semantic_f1": 0,
+      "logs_fuzzy_f1": 0.5382816116131431,
+      "mechanism": "broad_access_log_aggregation"
+    }
+  ],
+  "uuid_ablation": {
+    "scenario": "cassandra-repair-degradation",
+    "detector": "scanmw",
+    "before_f1": 3.2843260037098554e-9,
+    "after_f1": 0.9867774576447456,
+    "after_precision": 1,
+    "after_recall": 0.9739000233363968,
+    "logs_clusters_before": 298,
+    "logs_clusters_after": 254,
+    "semantic_fragmentation_before": 0.8059493670886076,
+    "semantic_fragmentation_after": 0.18868814729574224,
+    "semantic_only_emitted_logs_before": 455,
+    "semantic_only_emitted_logs_after": 286,
+    "non_cassandra_control_scores_changed": false
+  },
+  "performance": {
+    "tokenizer_before_ns_per_log": 302.6,
+    "tokenizer_after_ns_per_log": 336.0,
+    "tokenizer_before_bytes_per_log": 272,
+    "tokenizer_after_bytes_per_log": 272,
+    "full_fuzzy_before_ns_per_log": 1648,
+    "full_fuzzy_after_ns_per_log": 1697,
+    "full_fuzzy_before_bytes_per_log": 1275,
+    "full_fuzzy_after_bytes_per_log": 1275,
+    "semantic_type_aware_ns_per_log": 2548,
+    "semantic_type_aware_bytes_per_log": 2305
+  }
+}

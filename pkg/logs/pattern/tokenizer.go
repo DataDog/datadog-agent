@@ -180,6 +180,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	run := 0
 	firstChar := input[0]
 	lastToken := tokenLookup[firstChar]
+	haveRun := true
 
 	// Reset string buffer - only track for C1 tokens
 	t.strLen = 0
@@ -188,8 +189,40 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 		t.strLen = 1
 	}
 
-	for i := 1; i < inputLen; i++ {
+	for i := 1; i < inputLen; {
 		char := input[i]
+
+		// A UUID's first dash is at offset 8. Detect it there, remove the
+		// already-emitted pieces of its first group, and replace the full value
+		// with one token. This keeps UUID recognition in the tokenizer's
+		// existing single pass.
+		if char == '-' {
+			candidateStart := i - 8
+			if isUUIDFirstDash(input, candidateStart) && uuidLenAt(input, candidateStart) > 0 {
+				for len(indicies) > 0 && indicies[len(indicies)-1] >= candidateStart {
+					indicies = indicies[:len(indicies)-1]
+					ts = ts[:len(ts)-1]
+				}
+				ts = append(ts, UUID)
+				indicies = append(indicies, candidateStart)
+
+				next := candidateStart + 36
+				if next >= inputLen {
+					haveRun = false
+					break
+				}
+				lastToken = tokenLookup[input[next]]
+				run = 0
+				t.strLen = 0
+				if lastToken == C1 {
+					t.strBuf[0] = toUpperLookup[input[next]]
+					t.strLen = 1
+				}
+				i = next + 1
+				continue
+			}
+		}
+
 		currentToken := tokenLookup[char]
 
 		if currentToken != lastToken {
@@ -207,10 +240,13 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 		}
 
 		lastToken = currentToken
+		i++
 	}
 
 	// Flush final token
-	ts, indicies = t.emitToken(ts, indicies, lastToken, run, inputLen-1)
+	if haveRun {
+		ts, indicies = t.emitToken(ts, indicies, lastToken, run, inputLen-1)
+	}
 
 	// Store working buffers back for reuse
 	t.tsBuf = ts
@@ -223,6 +259,54 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	resultIdx := make([]int, n)
 	copy(resultIdx, indicies)
 	return result, resultIdx
+}
+
+func isUUIDFirstDash(input []byte, start int) bool {
+	const uuidLen = 36
+	return start >= 0 &&
+		start+uuidLen <= len(input) &&
+		input[start+13] == '-' &&
+		input[start+18] == '-' &&
+		input[start+23] == '-'
+}
+
+func uuidLenAt(input []byte, start int) int {
+	const uuidLen = 36
+	if start < 0 || start+uuidLen > len(input) {
+		return 0
+	}
+	if start > 0 && isUUIDWordByte(input[start-1]) {
+		return 0
+	}
+	if start+uuidLen < len(input) && isUUIDWordByte(input[start+uuidLen]) {
+		return 0
+	}
+	for i := 0; i < uuidLen; i++ {
+		switch i {
+		case 8, 13, 18, 23:
+			if input[start+i] != '-' {
+				return 0
+			}
+		default:
+			if !isHexByte(input[start+i]) {
+				return 0
+			}
+		}
+	}
+	return uuidLen
+}
+
+func isHexByte(value byte) bool {
+	return value >= '0' && value <= '9' ||
+		value >= 'a' && value <= 'f' ||
+		value >= 'A' && value <= 'F'
+}
+
+func isUUIDWordByte(value byte) bool {
+	return value >= '0' && value <= '9' ||
+		value >= 'a' && value <= 'z' ||
+		value >= 'A' && value <= 'Z' ||
+		value == '_'
 }
 
 func getSpecialShortToken(char byte) Token {
@@ -423,6 +507,8 @@ func TokenString(token Token) string {
 		return "DEADLOCK"
 	case Timeout:
 		return "TIMEOUT"
+	case UUID:
+		return "UUID"
 	}
 	return ""
 }

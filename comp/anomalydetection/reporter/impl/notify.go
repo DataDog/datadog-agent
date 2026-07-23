@@ -38,8 +38,11 @@ const (
 	logRateChangeAbsThreshold = 2
 
 	// Canonical namespace names matching the extractor implementations in observer/impl.
-	logPatternExtractorNamespace = "log_pattern_extractor"
-	logMetricsExtractorNamespace = "log_metrics_extractor"
+	logPatternExtractorNamespace          = "log_pattern_extractor"
+	logMetricsExtractorNamespace          = "log_metrics_extractor"
+	logTokenizerExtractorNamespace        = "log_tokenizer_extractor"
+	logTokenizerFuzzyExtractorNamespace   = "log_tokenizer_fuzzy_extractor"
+	logSemanticAblationExtractorNamespace = "log_semantic_tokenizer_ablation_extractor"
 
 	// changeEventMessageMaxLen caps the rendered change-event message below the
 	// v2 Events API 4 KiB limit (4096 bytes).
@@ -633,7 +636,10 @@ func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
 		return false
 	}
 	switch a.Source.Namespace {
-	case logPatternExtractorNamespace:
+	case logPatternExtractorNamespace,
+		logTokenizerExtractorNamespace,
+		logTokenizerFuzzyExtractorNamespace,
+		logSemanticAblationExtractorNamespace:
 		return strings.TrimSpace(a.Context.Pattern) != ""
 	case logMetricsExtractorNamespace:
 		return strings.TrimSpace(a.Context.Pattern) != "" || strings.TrimSpace(a.Context.Example) != ""

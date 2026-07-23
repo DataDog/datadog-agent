@@ -76,9 +76,24 @@ func main() {
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
+	attributionScenario := flag.String("pattern-attribution", "", "Analyze semantic-vs-Logs tokenizer cluster mappings for one scenario and exit")
+	attributionOutput := flag.String("pattern-attribution-output", "", "Path for pattern-attribution JSON output")
+	attributionThreshold := flag.Float64("pattern-attribution-threshold", 0.5, "Positional token-match threshold for pattern attribution")
 	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
+
+	if *attributionScenario != "" {
+		if *attributionOutput == "" {
+			fmt.Fprintln(os.Stderr, "--pattern-attribution-output is required with --pattern-attribution")
+			os.Exit(2)
+		}
+		if err := bench.RunPatternAttribution(*scenariosDir, *attributionScenario, *attributionOutput, *attributionThreshold); err != nil {
+			fmt.Fprintf(os.Stderr, "Pattern attribution failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// --config takes full precedence over --enable/--disable/--only.
 	var componentSettings observerimpl.ComponentSettings

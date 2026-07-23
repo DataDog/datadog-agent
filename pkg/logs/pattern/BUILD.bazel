@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "pattern",
@@ -9,4 +9,12 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/pattern",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "pattern_test",
+    srcs = ["tokenizer_test.go"],
+    embed = [":pattern"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

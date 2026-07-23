@@ -91,6 +91,11 @@ const (
 	Deadlock  // DEADLOCK
 	Timeout   // TIMEOUT
 
+	// Structured dynamic values. These collapse volatile multi-token values to
+	// one structural token so positional matching does not depend on their
+	// internal letter/digit composition.
+	UUID
+
 	End // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
 
