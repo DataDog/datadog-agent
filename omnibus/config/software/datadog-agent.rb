@@ -110,9 +110,10 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  # Stage Rust shared-library checks (Linux only).
+  # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
+  # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
   if linux_target?
-    command "dda inv -- -e rust-shared-checks.build --checks-d-dir=\"#{conf_dir}/checks.d\"",
+    command "bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=\"#{conf_dir}\"",
       env: env,
       :live_stream => Omnibus.logger.live_stream(:info)
   end

@@ -351,6 +351,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -420,6 +430,17 @@ name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
+
+[[package]]
+name = "datasecurity"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "core",
+ "libc",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "dd-agent-log"
@@ -534,6 +555,15 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "example"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "core",
+ "libc",
 ]
 
 [[package]]
