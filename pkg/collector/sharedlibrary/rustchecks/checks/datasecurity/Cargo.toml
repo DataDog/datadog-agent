@@ -8,6 +8,9 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 core = { path = "../../core" }
+# Keep only the `dd-sds` feature and disable default features so we pull in just
+# the necessary dependencies and avoid shipping the third-party checkers.
+dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260715-fcd8f9716b61", default-features = false, features = ["dd-sds"] }
 libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true

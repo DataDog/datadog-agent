@@ -1734,6 +1734,8 @@ core,github.com/open-policy-agent/opa/v1/types,Apache-2.0,Copyright 2016 The OPA
 core,github.com/open-policy-agent/opa/v1/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/util/decoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1775,6 +1777,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil/endpoints,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/docker,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/maps,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/sanitize,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/aggregateutil,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2099,6 +2102,29 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerre
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver/thriftudp,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/clusterresourcequota,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/collection,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/constants,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/container,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/cronjob,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/daemonset,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/deployment,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/endpointslice,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/gvk,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/hpa,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/jobs,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/namespace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/node,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/persistentvolume,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/persistentvolumeclaim,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/pod,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/replicaset,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/replicationcontroller,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/resourcequota,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/service,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver/internal/statefulset,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2131,6 +2157,11 @@ core,github.com/openshift/client-go/quota/applyconfigurations/quota/v1,Apache-2.
 core,github.com/openshift/client-go/quota/clientset/versioned,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/clientset/versioned/scheme,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/clientset/versioned/typed/quota/v1,Apache-2.0,"Copyright 2014 Red Hat, Inc"
+core,github.com/openshift/client-go/quota/informers/externalversions,Apache-2.0,"Copyright 2014 Red Hat, Inc"
+core,github.com/openshift/client-go/quota/informers/externalversions/internalinterfaces,Apache-2.0,"Copyright 2014 Red Hat, Inc"
+core,github.com/openshift/client-go/quota/informers/externalversions/quota,Apache-2.0,"Copyright 2014 Red Hat, Inc"
+core,github.com/openshift/client-go/quota/informers/externalversions/quota/v1,Apache-2.0,"Copyright 2014 Red Hat, Inc"
+core,github.com/openshift/client-go/quota/listers/quota/v1,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openzipkin/zipkin-go/idgenerator,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/model,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/proto/zipkin_proto3,Apache-2.0,Copyright 2017 The OpenZipkin Authors

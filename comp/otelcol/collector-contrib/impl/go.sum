@@ -576,6 +576,8 @@ github.com/onsi/ginkgo/v2 v2.32.0 h1:Hw7s2pVrQo/8Yz5N77qdnpHaoc+c6cC9WIV1Jce+J6E
 github.com/onsi/ginkgo/v2 v2.32.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.42.1 h1:iN1rCUX+44NZ1Dc97MPoeFYbFR0vh8zxoxMFwKdyZ6I=
 github.com/onsi/gomega v1.42.1/go.mod h1:REff/hsDsodHoKlWsP2mAPhu1+5/6hVYNf9rIEBpeSg=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.157.0 h1:FEVY1kK3ufqwZBGu+QEX0gpsz/ZVU+gOBbfR2oZy1hs=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.157.0/go.mod h1:VNET4qcxZhMS3CkhRwWd5IgN3H13IZahFfNWplrouA8=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.157.0 h1:dY8PtaXo44y/xHDGYWsSuzBvaLuIJu/2XLbTttxoWys=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.157.0/go.mod h1:ttgvkdHSi/igF983ucRoMzSX8DZZv77+sSMAcCEC+Zo=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.157.0 h1:j7gMJlIhBn8hg1OiC6G57ZRfeQC2DmvmMsP0alxKqt4=
@@ -706,6 +708,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsre
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.157.0/go.mod h1:kucwVuS3P7jkWvaiHlCjXGoqoo22RIWK0yPvgIpm1CE=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.157.0 h1:wlWTDsc4DPCPjwQSFUcSmfOSIWzLAUlNJfUDjlxiLT0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.157.0/go.mod h1:96C9h4WlocYtKO4eWBfJAPdYsDAJOYG/2nB0FG6DraA=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.157.0 h1:nkVW/E0QtubSQZg0VP6/NX0Qca2Od6jI09EpJDtfJ0U=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.157.0/go.mod h1:iaVXbdZzjx3p9lxR5xW5MPcfqCFvfn9effphaKG6gCs=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.157.0 h1:vbu7m5DIOIiAK3a0uC7uvfjaVfYdwHSuHc5yv+yOfdI=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.157.0/go.mod h1:BW6PwxTQ01kyD9omEN/ksi822kSbcN0Z13Lx2k214cY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.157.0 h1:KygM7mQeMBhXuWwLNemnl/D49z4GdoaB6BT8nlcLiDo=
@@ -1185,8 +1189,8 @@ golang.org/x/crypto v0.23.0/go.mod h1:CKFgDieR+mRhux2Lsu27y0fO304Db0wZe70UKqHu0v
 golang.org/x/crypto v0.31.0/go.mod h1:kDsLvtWBEx7MV9tJOj9bnXsPbxwJQ6csT/x4KIN4Ssk=
 golang.org/x/crypto v0.54.0 h1:YLIA59K4fiNzHzjnZt2tUJQjQtUWfWbeHBqKtk3eScw=
 golang.org/x/crypto v0.54.0/go.mod h1:KWL8ny2AZdGR2cWmzeHrp2azQPGogOv+HeQaVEXC2dk=
-golang.org/x/exp v0.0.0-20260611194520-c48552f49976 h1:X8Hz2ImujgbmetVuW+w2YkyZChE3cBpZi2P158rTG9M=
-golang.org/x/exp v0.0.0-20260611194520-c48552f49976/go.mod h1:vnf4pv9iKZXY58sQE1L86zmNWJ4159e1RkcWiLCkeEY=
+golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 h1:qLvzZeaANDgyVOA8pyHCOStGlXn0rseXma+GQjeuv2g=
+golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597/go.mod h1:EdfpwwqSu+0Li0mzskwHU6FWDV3t9Q+RZDo3QMUtL3Q=
 golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.3.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=
