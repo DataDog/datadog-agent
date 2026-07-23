@@ -10,7 +10,6 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
-	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 )
 
 func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
@@ -494,12 +493,7 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*5) // 5 MB
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_rate", 500)
-	defaultHashAlgorithms := []string{"sha1", "sha256", "ssdeep"}
-	if pkgfips.BuiltForFIPS() {
-		// sha1 is not a FIPS-approved hash algorithm
-		defaultHashAlgorithms = []string{"sha256", "ssdeep"}
-	}
-	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", defaultHashAlgorithms)
+	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 

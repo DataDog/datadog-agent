@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -22,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 )
 
-// TestNewResolver_FIPSRejectsSHA1 asserts that the hash resolver refuses to start with sha1
-// configured when the agent is built for FIPS, since sha1 is not a FIPS-approved algorithm.
-func TestNewResolver_FIPSRejectsSHA1(t *testing.T) {
+// TestNewResolver_FIPSExcludesSHA1 asserts that the hash resolver silently drops sha1 from its
+// configured algorithms when the agent is built for FIPS, since sha1 is not a FIPS-approved algorithm.
+func TestNewResolver_FIPSExcludesSHA1(t *testing.T) {
 	client := statsdclient.NewStatsdClient()
 	cfg := &config.RuntimeSecurityConfig{
 		HashResolverEnabled:        true,
@@ -34,11 +35,13 @@ func TestNewResolver_FIPSRejectsSHA1(t *testing.T) {
 		HashResolverMaxFileSize:    1 << 20,
 	}
 
-	_, err := NewResolver(cfg, client, nil)
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
 	if fips.BuiltForFIPS() {
-		assert.Error(t, err, "sha1 should be rejected when built for FIPS")
+		assert.NotContains(t, resolver.opts.HashAlgorithms, model.SHA1, "sha1 should be excluded when built for FIPS")
 	} else {
-		assert.NoError(t, err)
+		assert.Contains(t, resolver.opts.HashAlgorithms, model.SHA1)
 	}
 }
 

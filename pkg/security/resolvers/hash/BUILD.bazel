@@ -52,6 +52,7 @@ go_test(
             "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fips",
@@ -59,6 +60,7 @@ go_test(
             "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

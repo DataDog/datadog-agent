@@ -129,8 +129,12 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		return &Resolver{}, nil
 	}
 
-	if fips.BuiltForFIPS() && slices.Contains(c.HashResolverHashAlgorithms, model.SHA1) {
-		return nil, errors.New("sha1 is not a FIPS-approved hash algorithm")
+	hashAlgorithms := slices.Clone(c.HashResolverHashAlgorithms)
+	if fips.BuiltForFIPS() {
+		// sha1 is removed from the list because it's not a FIPS-approved hash algorithm
+		hashAlgorithms = slices.DeleteFunc(hashAlgorithms, func(algorithm model.HashAlgorithm) bool {
+			return algorithm == model.SHA1
+		})
 	}
 
 	var cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
@@ -142,7 +146,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 			return nil, fmt.Errorf("couldn't create hash resolver cache: %w", err)
 		}
 		// Create a separate cache for ssdeep hashes only if ssdeep algorithm is enabled
-		if slices.Contains(c.HashResolverHashAlgorithms, model.SSDEEP) {
+		if slices.Contains(hashAlgorithms, model.SSDEEP) {
 			ssdeepCache, err = lru.New[SSDeepCacheKey, *SSDeepCacheEntry](c.HashResolverCacheSize)
 			if err != nil {
 				return nil, fmt.Errorf("couldn't create ssdeep cache: %w", err)
@@ -163,7 +167,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		opts: ResolverOpts{
 			Enabled:        true,
 			MaxFileSize:    c.HashResolverMaxFileSize,
-			HashAlgorithms: sortAlgorithmsByCost(c.HashResolverHashAlgorithms),
+			HashAlgorithms: sortAlgorithmsByCost(hashAlgorithms),
 			EventTypes:     c.HashResolverEventTypes,
 		},
 		cgroupResolver: cgroupResolver,
