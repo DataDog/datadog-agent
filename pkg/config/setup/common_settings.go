@@ -1157,7 +1157,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+	// The possible values are: full, basic, end_user_device, cloud_cost_only, iot, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)
@@ -1168,8 +1168,34 @@ func agent(config pkgconfigmodel.Setup) {
 	// integration.end_user_device.allowed: empty means all checks are allowed
 	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
 
+	// Infrastructure cloud_cost_only mode section
 	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
+
+	// Infrastructure iot mode section
+	// Mirrors the check set of the legacy IoT Agent flavor. Only the listed
+	// check names are permitted by IsCheckAllowed; any check name not in the
+	// list (or integration.additional) is skipped at schedule time.
+	//
+	// Limitation: enforcement is name-only. Checks whose names start with
+	// "custom_" are always allowed (consistent with other modes), and a Python
+	// implementation of an allowed name (e.g. a custom disk.py) would still
+	// run on a full Agent binary since the allowlist does not gate the loader.
+	// True Python exclusion requires the IoT Agent build (which omits the
+	// python build tag); this mode provides runtime-functional parity only.
+	config.BindEnvAndSetDefault("integration.iot.allowed", []string{
+		"cpu",
+		"disk",
+		"io",
+		"load",
+		"memory",
+		"network",
+		"ntp",
+		"uptime",
+		"system_swap",
+		"systemd",
+		"jetson",
+	})
 
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.

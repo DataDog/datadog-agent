@@ -70,13 +70,23 @@ func SetFlavor(flavor string) {
 }
 
 // GetFlavor gets the running Agent flavor.
-// It returns IotAgent if either the flavor was set to IotAgent at startup or
-// the iot_host config key is true (which allows a non-IoT binary to report as IoT).
+// It returns IotAgent if any of the following hold: the flavor was set to
+// IotAgent at startup, the iot_host config key is true (any binary), or
+// infrastructure_mode is set to "iot" on the DefaultAgent binary only.
+// The infrastructure_mode promotion is restricted to DefaultAgent because the
+// shared datadog.yaml is read by process-agent, trace-agent, system-probe, etc.
+// and those binaries must retain their own flavor.
 // It MUST NOT be called before the main package is initialized;
 // e.g. in init functions or to initialize package constants or variables.
 func GetFlavor() string {
-	if agentFlavor != IotAgent && pkgconfigsetup.Datadog().GetBool("iot_host") {
-		return IotAgent
+	if agentFlavor != IotAgent {
+		cfg := pkgconfigsetup.Datadog()
+		if cfg.GetBool("iot_host") {
+			return IotAgent
+		}
+		if agentFlavor == DefaultAgent && cfg.GetString("infrastructure_mode") == "iot" {
+			return IotAgent
+		}
 	}
 	return agentFlavor
 }

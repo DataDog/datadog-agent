@@ -47,6 +47,37 @@ func TestIotHostOverridePromotesDefaultAgent(t *testing.T) {
 	assert.Equal(t, IotAgent, GetFlavor(), "iot_host=true must promote a default agent to report as iot_agent")
 }
 
+// TestInfrastructureModeIotPromotesToIotAgent verifies that setting
+// infrastructure_mode=iot on a default agent binary makes GetFlavor return IotAgent.
+func TestInfrastructureModeIotPromotesToIotAgent(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	originalFlavor := agentFlavor
+	t.Cleanup(func() { agentFlavor = originalFlavor })
+
+	agentFlavor = DefaultAgent
+	mockConfig.SetInTest("infrastructure_mode", "iot")
+
+	assert.Equal(t, IotAgent, GetFlavor(), "infrastructure_mode=iot must promote a default agent to report as iot_agent")
+}
+
+// TestInfrastructureModeIotDoesNotPromoteNonAgentBinaries verifies that
+// infrastructure_mode=iot in shared config does not misclassify non-agent
+// binaries (process-agent, trace-agent, etc.) as IoT.
+func TestInfrastructureModeIotDoesNotPromoteNonAgentBinaries(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	originalFlavor := agentFlavor
+	t.Cleanup(func() { agentFlavor = originalFlavor })
+
+	mockConfig.SetInTest("infrastructure_mode", "iot")
+
+	for _, nonAgentFlavor := range []string{ProcessAgent, TraceAgent, ClusterAgent, Dogstatsd} {
+		agentFlavor = nonAgentFlavor
+		assert.Equal(t, nonAgentFlavor, GetFlavor(), "infrastructure_mode=iot must not promote %q to iot_agent", nonAgentFlavor)
+	}
+}
+
 func TestGetHumanReadableFlavor(t *testing.T) {
 	// NOTE: This constructor is required to setup the global config as
 	// a "mock" config that is using the "dynamic schema". Otherwise the function

@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add ``infrastructure_mode: "iot"`` to support a lightweight host-monitoring mode that mirrors the legacy IoT Agent flavor. When running in IoT mode, only core system checks (cpu, disk, io, load, memory, network, ntp, uptime, system_swap, systemd, jetson) are allowed to execute, and features omitted from the IoT Agent build (APM, container collection, and Kubernetes orchestration) are disabled. This mode provides a path to consolidate the IoT Agent flavor into the main Agent with mode-based runtime restrictions.
+

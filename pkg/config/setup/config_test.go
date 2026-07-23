@@ -772,6 +772,28 @@ func TestHealthPlatformDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
 }
 
+func TestInfrastructureModeIoTDisablesUnsupportedFeatures(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: iot
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// Host checks remain enabled (gated by the iot allowlist, not disabled).
+	assert.True(t, config.GetBool("integration.enabled"))
+
+	// Features omitted from the IoT Agent build are disabled at runtime.
+	assert.False(t, config.GetBool("apm_config.enabled"))
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+	assert.False(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.False(t, config.GetBool("process_config.container_collection.enabled"))
+	assert.False(t, config.GetBool("container_image.enabled"))
+	assert.False(t, config.GetBool("container_lifecycle.enabled"))
+	assert.False(t, config.GetBool("orchestrator_explorer.enabled"))
+	assert.False(t, config.GetBool("sbom.enabled"))
+}
+
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none
