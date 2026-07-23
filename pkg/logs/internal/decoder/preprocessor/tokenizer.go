@@ -135,30 +135,35 @@ func (t *Tokenizer) tokenizeBorrowed(input []byte) ([]Token, []int) {
 	return t.tokenizeIntoBuffers(input[:maxBytes])
 }
 
-// emitToken appends a token to the output slices, checking for special tokens first.
-// Returns the updated slices.
-func (t *Tokenizer) emitToken(input []byte, ts []Token, indicies []int, token Token, start, end int) ([]Token, []int) {
+// emitToken appends one token (and its start index) to the reusable buffers,
+// checking for special tokens first. It writes through the tokenizer's buffer
+// fields rather than taking and returning the slices: emitToken is called once
+// per token, so threading two slice headers in and out is pure marshalling
+// overhead, and keeping them out of the scan loop's signature also frees
+// registers for the hot per-byte path.
+func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 	runLen := end - start
 
 	// Check for special tokens (only for C1/letter runs, length 1-maxSpecialTokenLen)
 	if token == C1 && runLen <= maxSpecialTokenLen {
 		if specialToken := getSpecialToken(input[start:end]); specialToken != End {
-			return append(ts, specialToken), append(indicies, start)
+			t.tsBuf = append(t.tsBuf, specialToken)
+			t.idxBuf = append(t.idxBuf, start)
+			return
 		}
 	}
 
 	// Regular token - encode run length for C1/D1
-	indicies = append(indicies, start)
+	t.idxBuf = append(t.idxBuf, start)
 	if token == C1 || token == D1 {
 		r := runLen - 1
 		if r >= maxRun {
 			r = maxRun - 1
 		}
-		ts = append(ts, token+Token(r))
+		t.tsBuf = append(t.tsBuf, token+Token(r))
 	} else {
-		ts = append(ts, token)
+		t.tsBuf = append(t.tsBuf, token)
 	}
-	return ts, indicies
 }
 
 // tokenizeIntoBuffers converts a byte slice to borrowed tokens and start indices.
@@ -174,9 +179,10 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	if cap(t.tsBuf) < estTokens {
 		t.tsBuf = make([]Token, 0, estTokens)
 		t.idxBuf = make([]int, 0, estTokens)
+	} else {
+		t.tsBuf = t.tsBuf[:0]
+		t.idxBuf = t.idxBuf[:0]
 	}
-	ts := t.tsBuf[:0]
-	indicies := t.idxBuf[:0]
 
 	start := 0
 	lastToken := tokenLookup[input[0]]
@@ -185,19 +191,16 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 		currentToken := tokenLookup[input[i]]
 
 		if currentToken != lastToken {
-			ts, indicies = t.emitToken(input, ts, indicies, lastToken, start, i)
+			t.emitToken(input, lastToken, start, i)
 			start = i
 			lastToken = currentToken
 		}
 	}
 
 	// Flush final token
-	ts, indicies = t.emitToken(input, ts, indicies, lastToken, start, inputLen)
+	t.emitToken(input, lastToken, start, inputLen)
 
-	// Store working buffers back for reuse
-	t.tsBuf = ts
-	t.idxBuf = indicies
-	return ts, indicies
+	return t.tsBuf, t.idxBuf
 }
 
 // getSpecialToken returns a case-insensitive special token.
