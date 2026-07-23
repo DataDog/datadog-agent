@@ -163,16 +163,18 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
-	require.Len(t, files, 1)
+	require.Len(t, collected.ConfigFiles, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
-		Path:      "/etc/kafka/server.properties",
-		Content:   []byte("broker.id=1\n"),
-		Truncated: true,
-	}, files[0])
+		Path:          "/etc/kafka/server.properties",
+		Content:       []byte("broker.id=1\n"),
+		Truncated:     true,
+		PayloadFormat: kafkaConfigPayloadFormat,
+	}, collected.ConfigFiles[0])
+	assert.Empty(t, collected.EnvVars)
 }
 
 func TestKafkaCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
@@ -183,11 +185,12 @@ func TestKafkaCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
-	assert.Empty(t, files)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Empty(t, collected.EnvVars)
 }
 
 func TestKafkaCollectorReturnsCommandlineErrors(t *testing.T) {
@@ -195,10 +198,10 @@ func TestKafkaCollectorReturnsCommandlineErrors(t *testing.T) {
 	reader := &kafkaCollectorTestReader{commandlineErr: expectedErr}
 	collector := NewKafka()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
-	assert.Nil(t, files)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 func TestKafkaCollectorReturnsReadFileErrors(t *testing.T) {
@@ -211,11 +214,11 @@ func TestKafkaCollectorReturnsReadFileErrors(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
-	assert.Nil(t, files)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 type kafkaCollectorTestReader struct {

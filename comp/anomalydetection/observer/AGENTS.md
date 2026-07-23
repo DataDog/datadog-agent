@@ -72,16 +72,19 @@ anomaly_detection:
   anomaly_scorer:
     enabled: true
     alpha: 0.3
-    window_secs: 30
+    window: 30s
     low_threshold: 0.030
     high_threshold: 0.060
     output:
       logs: true
       correlation_events: false
-      cooldown_secs: 300
+      correlation_event_threshold: high # medium or high
+      cooldown: 300s
 ```
 
-The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.
+The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
+Observer replay enables the scorer's internal transition watcher so configured
+correlation episodes are emitted through the normal correlator event path.
 
 ### Severity event subscriptions
 

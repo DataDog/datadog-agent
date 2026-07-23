@@ -15,7 +15,8 @@ services:
             "port": 10515,
             "format": "syslog",
             "source": "syslog-e2e",
-            "service": "syslog-e2e"
+            "service": "syslog-e2e",
+            "debug_attr_parsing": true
           }
         ]
 

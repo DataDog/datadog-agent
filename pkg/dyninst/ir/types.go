@@ -159,6 +159,20 @@ const (
 	GoContextNoOffset int32 = -1
 )
 
+// HasChainData reports whether the type is a link in a walkable context chain:
+// it carries the layout the BPF chain walk needs to step to the next context,
+// namely an embedded parent Context or (for valueCtx) a key/value payload. A
+// concrete context.Context implementation with none of these is not a chain
+// link (it implements the interface without holding a context of its own, e.g.
+// a request type whose methods forward to another context, or one of the
+// terminal roots like context.Background); it must be captured as an ordinary
+// struct rather than chain-walked.
+func (a GoContextAttributes) HasChainData() bool {
+	return a.ContextOffset != GoContextNoOffset ||
+		a.KeyOffset != GoContextNoOffset ||
+		a.ValueOffset != GoContextNoOffset
+}
+
 // DDTraceSpanKind identifies the dd-trace-go span layout carried by a type.
 type DDTraceSpanKind uint8
 

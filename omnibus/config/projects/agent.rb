@@ -239,6 +239,7 @@ elsif do_package
   dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
+    dependency "systemd" if linux_target?
     dependency "datadog-agent"
   else
     dependency "package-artifact"
@@ -342,7 +343,6 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
-  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -370,14 +370,7 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
       "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
-      "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe",
     ]
-
-    if fips_mode?
-      Dir.glob(File.join(install_dir, "bin", "agent", "aws_lc_fips_*_crypto.dll")).each do |bin|
-        sign_file bin
-      end
-    end
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin

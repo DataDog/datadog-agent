@@ -26,6 +26,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
@@ -187,6 +188,11 @@ func TestErrorLogToLog_WireShape(t *testing.T) {
 	// Git source integration tags.
 	assert.Contains(t, out.Tags, "git.repository_url:https://github.com/DataDog/datadog-agent",
 		"Tags must carry git.repository_url for Source Code Integration")
+
+	// Origin tag: identifies which agent binary emitted the log, since this
+	// pipeline is shared across core agent, cluster-agent, process-agent, etc.
+	assert.Contains(t, out.Tags, "agent.flavor:"+flavor.GetFlavor(),
+		"Tags must carry agent.flavor so COAT can attribute errors to the emitting binary")
 
 	// Wire schema fields that are intentionally not populated.
 	assert.Empty(t, out.Message, "Message must NOT be on the wire")
@@ -406,39 +412,95 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	}
 }
 
-// TestFlushErrortracking_DrainIsBoundedToSnapshot: a producer that keeps
-// writing into the channel during a flush must not extend the current
-// batch beyond the items that were already queued at flush start. Only the
-// snapshot-at-start items are dispatched; the new arrivals wait for the
-// next tick.
+// TestFlushErrortracking_DrainIsBoundedToSnapshot: a flush must dispatch
+// only what was queued at start. Retries until a refill is confirmed
+// mid-drain, so a slow CI schedule can't pass without exercising it.
 func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 	sm := &senderMock{}
 	const bufSize = 10
 	a := newTestAtelMinimal(t, sm, bufSize)
 	defer a.cancel()
 
-	// Pre-fill half the buffer before the flush.
+	var refills atomic.Int64
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				a.SubmitErrorLog(errorLog("hot"))
+				refills.Add(1)
+			}
+		}
+	})
+	t.Cleanup(func() {
+		close(stop)
+		wg.Wait()
+	})
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		require.False(t, time.Now().After(deadline),
+			"producer never landed a refill while a flush was draining, across repeated attempts")
+
+		for len(a.errLogsCh) < bufSize {
+			runtime.Gosched()
+		}
+
+		before := refills.Load()
+		logsBefore := len(sm.capturedLogs())
+		callsBefore := sm.sendLogsCalls()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			a.flushErrortracking(context.Background())
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("flush did not return while a producer kept refilling the channel; the drain is not bounded to a fixed snapshot")
+		}
+
+		require.Equal(t, bufSize, len(sm.capturedLogs())-logsBefore,
+			"flush must dispatch exactly the snapshot count (channel capacity, %d), not chase concurrent refills", bufSize)
+		assert.Equal(t, callsBefore+1, sm.sendLogsCalls(),
+			"snapshot-bounded flush must dispatch in exactly one sendLogsBatch call")
+
+		if refills.Load() > before {
+			return // this attempt proved the producer actually raced the drain
+		}
+	}
+}
+
+// TestFlushErrortracking_LateArrivalsWaitForNextTick: records enqueued
+// after a flush has already returned must not be lost — they are picked
+// up by the following flush rather than requiring the batch that already
+// shipped to somehow retroactively include them.
+func TestFlushErrortracking_LateArrivalsWaitForNextTick(t *testing.T) {
+	sm := &senderMock{}
+	const bufSize = 10
+	a := newTestAtelMinimal(t, sm, bufSize)
+	defer a.cancel()
+
 	const preFilled = 5
 	for i := range preFilled {
 		a.SubmitErrorLog(errorLog(fmt.Sprintf("pre-%d", i)))
 	}
-
-	// Inject 3 more items concurrently while the flush runs. Because the
-	// flush is bounded to len(ch) at start (= preFilled), these arrivals
-	// must not be included in this batch.
-	go func() {
-		for i := range 3 {
-			a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
-		}
-	}()
-
 	a.flushErrortracking(context.Background())
 
-	got := sm.capturedLogs()
-	assert.LessOrEqual(t, len(got), preFilled,
-		"flush must not dispatch more than the snapshot count (%d)", preFilled)
-	assert.Equal(t, 1, sm.sendLogsCalls(),
-		"snapshot-bounded flush must still dispatch in exactly one sendLogsBatch call")
+	const late = 3
+	for i := range late {
+		a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
+	}
+	a.flushErrortracking(context.Background())
+
+	assert.Len(t, sm.capturedLogs(), preFilled+late,
+		"items enqueued after the first flush must be picked up by the next one")
+	assert.Equal(t, 2, sm.sendLogsCalls(),
+		"the late arrivals must be dispatched in their own batch")
 }
 
 // TestFlushErrortracking_FinalDrain: records enqueued shortly before

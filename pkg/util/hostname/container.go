@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	k8shostname "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +24,7 @@ var (
 	configIsContainerized  = env.IsContainerized
 	configIsFeaturePresent = env.IsFeaturePresent
 
-	kubernetesGetKubeAPIServerHostname = kubernetes.GetKubeAPIServerHostname
+	kubernetesGetKubeAPIServerHostname = k8shostname.GetKubeAPIServerHostname
 	dockerGetHostname                  = docker.GetHostname
 	kubeletGetHostname                 = kubelet.GetHostname
 )

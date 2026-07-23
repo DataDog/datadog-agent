@@ -117,6 +117,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		ClusterID:             runCfg.ClusterID,
 		Config:                runCfg.Config,
 		MsgGroupRef:           runCfg.MsgGroupRef,
+		AgentVersion:          runCfg.AgentVersion,
 		TerminatedResources:   true,
 	}
 
@@ -438,7 +439,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 }
 
 func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
-	if groupVersion == "v1" && (resource == "secrets" || resource == "configmaps") {
+	if groupVersion == "v1" && resource == "secrets" {
 		cb.check.Warnf("Skipping collector: %s/%s, we don't support collecting it for now as it can contain sensitive data", groupVersion, resource)
 		return true
 	}

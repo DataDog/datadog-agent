@@ -76,12 +76,12 @@
   review:
     name: '#agent-discovery'
     id: 'C089ER2M7MZ'
-'@datadog/agent-health':
+'@datadog/fleet-remediation':
   notification:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
 '@datadog/agent-integrations':
   notification:
@@ -183,8 +183,8 @@
     id: 'C02HVGRLQ8Z'
 '@datadog/cloud-network-monitoring':
   notification:
-    name: '#cloud-network-monitoring'
-    id: 'CFB4213BJ'
+    name: '#cnm-agent'
+    id: 'C07FNUP1M3N'
   review:
     name: '#cnm-agent'
     id: 'C07FNUP1M3N'
@@ -377,6 +377,13 @@
   review:
     name: '#sdlc-security'
     id: 'C027P1CK07N'
+'@datadog/sensitive-data-scanner':
+  notification:
+    name: '#sensitive-data-scanner'
+    id: 'C035A167T0S'
+  review:
+    name: '#sensitive-data-scanner'
+    id: 'C035A167T0S'
 '@datadog/serverless':
   notification:
     name: '#serverless-agent'
