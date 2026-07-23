@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -3612,6 +3613,17 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePIDLinkStructPID, "struct pid_link", "pid")
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
+	}
+
+	// Thread pointer offsets for reading the TLS base (used by the Go pprof
+	// label reader to locate the goroutine).
+	// x86_64: reads task_struct->thread.fsbase
+	// ARM64:  reads task_struct->thread.uw.tp_value (tp_value is at offset 0 within uw)
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+	if runtime.GOARCH == "amd64" {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameThreadStructFsbase, "struct thread_struct", "fsbase")
+	} else if runtime.GOARCH == "arm64" {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameThreadStructUw, "struct thread_struct", "uw")
 	}
 
 	// splice event

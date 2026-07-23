@@ -371,7 +371,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
 
         send_event(ctx, EVENT_EXIT, event);
 
-        unregister_span_memory();
+        unregister_go_labels();
 
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
@@ -774,25 +774,25 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
-    struct proc_cache_t pc = {
-        .entry = {
-            .executable = {
-                .path_key = {
-                    .ino = syscall->exec.file.path_key.ino,
-                    .mount_id = syscall->exec.file.path_key.mount_id,
-                    .path_id = syscall->exec.file.path_key.path_id,
-                },
-                .flags = syscall->exec.file.flags,
-                .metadata = {
-                    .nlink = syscall->exec.file.metadata.nlink
-                },
-            },
-            .exec_timestamp = now,
-        },
-        .cgroup = {},
-    };
-    fill_file(syscall->exec.dentry, &pc.entry.executable);
-    bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
+    // proc_cache_t (~200b) lives in a per-CPU scratch map rather than on the
+    // stack — combined with send_exec_event's other locals, keeping it on the
+    // stack would leave no room for the bpf-to-bpf call into
+    // fill_span_context_go reachable via the tail_call_flush_network_stats_exec
+    // wrapper (pre-6.17 verifiers enforce a 512-byte combined budget).
+    u32 pc_key = 0;
+    struct proc_cache_t *pc = bpf_map_lookup_elem(&exec_proc_cache_gen, &pc_key);
+    if (!pc) {
+        return 0;
+    }
+    __builtin_memset(pc, 0, sizeof(*pc));
+    pc->entry.executable.path_key.ino = syscall->exec.file.path_key.ino;
+    pc->entry.executable.path_key.mount_id = syscall->exec.file.path_key.mount_id;
+    pc->entry.executable.path_key.path_id = syscall->exec.file.path_key.path_id;
+    pc->entry.executable.flags = syscall->exec.file.flags;
+    pc->entry.executable.metadata.nlink = syscall->exec.file.metadata.nlink;
+    pc->entry.exec_timestamp = now;
+    fill_file(syscall->exec.dentry, &pc->entry.executable);
+    bpf_get_current_comm(&pc->entry.comm, sizeof(pc->entry.comm));
 
     // store the process path key (copy to stack for older kernel verifiers)
     struct path_key_t on_stack_exec_path_key = syscall->exec.file.path_key;
@@ -812,11 +812,11 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
             // inherit the parent cgroup context
             if ((fork_entry->fork_flags & CLONE_INTO_CGROUP) == 0) {
-                fill_cgroup_context(parent_pc, &pc.cgroup);
+                fill_cgroup_context(parent_pc, &pc->cgroup);
             } else {
                 u64 cgroup_id = get_current_cgroup_id();
                 if (cgroup_id) {
-                    pc.cgroup.path_key.ino = cgroup_id;
+                    pc->cgroup.path_key.ino = cgroup_id;
                 }
             }
         }
@@ -825,7 +825,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
     // the cgroup before saving the entry in proc_cache. Modifying entry after insertion won't work.)
     u64 cookie = rand64();
-    bpf_map_update_elem(&proc_cache, &cookie, &pc, BPF_ANY);
+    bpf_map_update_elem(&proc_cache, &cookie, pc, BPF_ANY);
 
     // update pid <-> cookie mapping
     if (fork_entry) {
@@ -848,8 +848,8 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     }
 
     // copy proc_cache data
-    fill_cgroup_context(&pc, &event->cgroup);
-    copy_proc_entry(&pc.entry, &event->proc_entry);
+    fill_cgroup_context(pc, &event->cgroup);
+    copy_proc_entry(&pc->entry, &event->proc_entry);
 
     // copy pid_cache entry data
     copy_pid_cache_except_exit_ts(fork_entry, &event->pid_entry);
@@ -883,8 +883,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
-    // as previously registered memory will become unreachable, we'll have to unregister the TLS
-    unregister_span_memory();
+    unregister_go_labels();
 
     return 0;
 }

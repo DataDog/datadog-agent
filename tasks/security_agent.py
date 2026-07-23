@@ -221,7 +221,9 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     return syscall_tester_exe_file
 
 
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
+def ninja_c_syscall_tester_common(
+    nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang', output_name=None
+):
     if flags is None:
         flags = []
     if libs is None:
@@ -229,7 +231,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
 
     syscall_tester_c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
-    syscall_tester_exe_file = os.path.join(build_dir, file_name)
+    syscall_tester_exe_file = os.path.join(build_dir, output_name or file_name)
     uname_m = os.uname().machine
 
     if static:

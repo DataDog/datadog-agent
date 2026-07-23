@@ -317,6 +317,12 @@ func (r *EBPFResolvers) snapshot() error {
 	for _, proc := range processes {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
+		// If the process is running a Datadog tracer, populate the user-space
+		// metadata and the kernel-side go_labels_procs offset map
+		// — these otherwise only get populated by the runtime
+		// tracer_memfd_seal event, which has already fired and been missed for
+		// processes that started before the agent.
+		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))
 	}
 
 	return nil
