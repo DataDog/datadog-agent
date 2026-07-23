@@ -15,6 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
+// BenchmarkGetClass measures the cost of get_class / _findSubclassOf for a
+// realistic check module containing ~50 symbols in its dir() output.
+// Run with:
+//
+//	go test -bench=BenchmarkGetClass -benchtime=5s ./rtloader/test/rtloader/
+func BenchmarkGetClass(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		getClassBench("fake_check")
+	}
+}
+
 func TestMain(m *testing.M) {
 	err := setUp()
 	if err != nil {
