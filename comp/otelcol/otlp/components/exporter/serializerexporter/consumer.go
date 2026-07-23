@@ -137,6 +137,10 @@ func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
+	log.Warnf(
+		"OTLP serializer consumer received sketch: debug_path=otlp_serializer.consume_sketch metric_name=%s timestamp_ns=%d timestamp_s=%d interval=%d host=%s tags=%v sketch_nil=%t",
+		dimensions.Name(), ts, ts/1e9, interval, dimensions.Host(), enrichTags(c.extraTags, dimensions), qsketch == nil,
+	)
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -169,6 +173,10 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
+	log.Warnf(
+		"OTLP serializer consumer received time series: debug_path=otlp_serializer.consume_timeseries metric_name=%s type=%v timestamp_ns=%d timestamp_s=%d interval=%d value=%f host=%s tags=%v",
+		dimensions.Name(), typ, ts, ts/1e9, interval, value, dimensions.Host(), enrichTags(c.extraTags, dimensions),
+	)
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -281,6 +289,26 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
+	log.Warnf(
+		"OTLP serializer consumer sending metrics: debug_path=otlp_serializer.send_start series_count=%d sketch_count=%d apm_stats_count=%d",
+		len(c.series), len(c.sketches), len(c.apmstats),
+	)
+	for _, serie := range c.series {
+		if strings.HasPrefix(serie.Name, "sum_cumulative_") || strings.Contains(serie.Name, ".count") || strings.Contains(serie.Name, ".sum") {
+			log.Warnf(
+				"OTLP serializer queued series: debug_path=otlp_serializer.queued_series metric_name=%s points=%v type=%v host=%s tags=%v interval=%d source=%v",
+				serie.Name, serie.Points, serie.MType, serie.Host, serie.Tags, serie.Interval, serie.Source,
+			)
+		}
+	}
+	for _, sketch := range c.sketches {
+		if strings.HasPrefix(sketch.Name, "histogram_cumulative_") {
+			log.Warnf(
+				"OTLP serializer queued sketch: debug_path=otlp_serializer.queued_sketch metric_name=%s point_count=%d points=%v host=%s tags=%v interval=%d source=%v",
+				sketch.Name, len(sketch.Points), sketch.Points, sketch.Host, sketch.Tags, sketch.Interval, sketch.Source,
+			)
+		}
+	}
 	var serieErr, sketchesErr error
 	metrics.Serialize(
 		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),

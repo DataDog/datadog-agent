@@ -57,6 +57,16 @@ func (t *ttlCache) MonotonicRate(dimensions *Dimensions, startTs, ts uint64, val
 	return t.putAndGetMonotonic(dimensions, startTs, ts, val, true)
 }
 
+func (t *ttlCache) previousNumberCounter(dimensions *Dimensions) (numberCounter, bool) {
+	key := t.cache.computeKey(dimensions.String())
+	c, found := t.cache.get(key)
+	if !found {
+		return numberCounter{}, false
+	}
+	cnt, ok := c.(numberCounter)
+	return cnt, ok
+}
+
 // isNotFirstPoint determines if this is NOT the first point on a cumulative series:
 // https://github.com/open-telemetry/opentelemetry-specification/blob/v1.19.0/specification/metrics/data-model.md#resets-and-gaps
 func isNotFirstPoint(startTs, ts, oldStartTs uint64) (isNotFirst bool) {

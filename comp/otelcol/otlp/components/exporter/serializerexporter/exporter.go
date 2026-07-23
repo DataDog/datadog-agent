@@ -267,6 +267,11 @@ func NewExporter(
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+	e.params.Logger.Warn("OTLP metrics export request received",
+		zap.String("debug_path", "otlp_exporter.consume_metrics.start"),
+		zap.Int("resource_metric_count", ld.ResourceMetrics().Len()),
+		zap.Int("metric_count", ld.MetricCount()),
+	)
 
 	// Track requests based on ingestion path
 	switch e.ipath {
@@ -284,6 +289,11 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	}
 	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
+	e.params.Logger.Warn("OTLP metrics export request translated",
+		zap.String("debug_path", "otlp_exporter.consume_metrics.translated"),
+		zap.Int("metric_count", ld.MetricCount()),
+		zap.Error(err),
+	)
 	if err != nil {
 		return err
 	}
