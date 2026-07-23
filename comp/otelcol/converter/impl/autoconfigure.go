@@ -35,7 +35,7 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
-		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"}
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog", "cumulativetodelta"}
 	}
 
 	// extensions (pprof, zpages, health_check, ddflare, datadog)
@@ -96,9 +96,14 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		}
 	}
 
-	// infra attributes processor
+	// infra attributes processor (all pipeline types)
 	if slices.Contains(enabledFeatures, "infraattributes") {
-		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor, "")
+	}
+	// cumulativetodelta processor (metrics pipelines only — the processor only
+	// implements CreateMetrics, so it must never land in a traces/logs pipeline).
+	if slices.Contains(enabledFeatures, "cumulativetodelta") {
+		addProcessorToPipelinesWithDDExporter(conf, cumulativeToDeltaProcessor, "metrics")
 	}
 	// prometheus receiver
 	if slices.Contains(enabledFeatures, "prometheus") {
@@ -134,6 +139,98 @@ func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
 func componentName(fullName string) string {
 	parts := strings.SplitN(fullName, "/", 2)
 	return parts[0]
+}
+
+// addProcessorToPipelinesWithDDExporter injects comp (a processor) into every
+// pipeline that exports to the datadog exporter, appending it to the end of the
+// pipeline's processors list. When pipelineType is non-empty (e.g. "metrics"),
+// only pipelines of that type are considered ("" means all pipeline types). It is
+// a no-op for a pipeline that already defines a processor with the same base name,
+// so a user-configured processor is never duplicated.
+func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component, pipelineType string) {
+	var componentAddedToConfig bool
+	stringMapConf := conf.ToStringMap()
+	service, ok := stringMapConf["service"]
+	if !ok {
+		return
+	}
+	serviceMap, ok := service.(map[string]any)
+	if !ok {
+		return
+	}
+	pipelines, ok := serviceMap["pipelines"]
+	if !ok {
+		return
+	}
+	pipelinesMap, ok := pipelines.(map[string]any)
+	if !ok {
+		return
+	}
+	for pipelineName, components := range pipelinesMap {
+		// Restrict to the requested pipeline type when one is given. componentName
+		// strips any "/<name>" suffix so both "metrics" and "metrics/foo" match.
+		if pipelineType != "" && componentName(pipelineName) != pipelineType {
+			continue
+		}
+		componentsMap, ok := components.(map[string]any)
+		if !ok {
+			return
+		}
+		exporters, ok := componentsMap["exporters"]
+		if !ok {
+			continue
+		}
+		exportersSlice, ok := exporters.([]any)
+		if !ok {
+			return
+		}
+		processorInPipeline := false
+		ddExporterInPipeline := false
+		for _, exporter := range exportersSlice {
+			exporterString, ok := exporter.(string)
+			if !ok {
+				return
+			}
+			if processorInPipeline {
+				break
+			}
+			if componentName(exporterString) != "datadog" {
+				continue
+			}
+			ddExporterInPipeline = true
+			// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
+			_, ok = componentsMap[comp.Type]
+			if !ok {
+				componentsMap[comp.Type] = []any{}
+			}
+
+			processorsSlice, ok := componentsMap[comp.Type].([]any)
+			if !ok {
+				return
+			}
+			for _, processor := range processorsSlice {
+				processorString, ok := processor.(string)
+				if !ok {
+					return
+				}
+				if componentName(processorString) == comp.Name {
+					processorInPipeline = true
+				}
+
+			}
+
+		}
+
+		if !processorInPipeline && ddExporterInPipeline {
+			// no processors are defined
+			if !componentAddedToConfig {
+				addComponentToConfig(conf, comp)
+				componentAddedToConfig = true
+			}
+			addComponentToPipeline(conf, comp, pipelineName)
+		}
+
+	}
 }
 
 // addComponentToConfig adds comp to the collector config. It supports receivers,
