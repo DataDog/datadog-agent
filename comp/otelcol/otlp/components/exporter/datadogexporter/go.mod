@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/da
 go 1.25.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs-library v0.80.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3
@@ -12,6 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.80.2
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.78.1
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.82.0-devel.0.20260617134427-74e6d071eaae
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-devel.0.20260617134427-74e6d071eaae
@@ -47,7 +49,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.80.2 // indirect
@@ -74,7 +75,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.80.2 // indirect

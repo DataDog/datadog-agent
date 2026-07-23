@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -339,11 +340,33 @@ func (f *factory) createLogsExporter(
 	}
 
 	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
+
+	// Orchestrator Explorer (Kubernetes Resources) collection via the
+	// k8sobjectsreceiver is only enabled in standalone mode. In connected mode
+	// the core/cluster agent already collects and ships orchestrator data, so
+	// enabling it here as well would duplicate manifests.
+	standalone := pkgconfigsetup.Datadog().GetBool("otel_standalone")
+	if cfg.OrchestratorExplorer.Enabled && !standalone {
+		set.Logger.Warn("orchestrator_explorer is enabled on the datadog exporter but will be ignored: it is only supported in standalone mode (DD_OTEL_STANDALONE=true); in connected mode the Datadog cluster agent collects orchestrator data")
+	}
+
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
 		QueueSettings: cfg.QueueSettings,
 		HostMetadata:  cfg.HostMetadata,
+		// OrchestratorConfig routes logs from the k8sobjectsreceiver to the
+		// orchestrator intake (Orchestrator Explorer / Kubernetes Resources).
+		// It only takes effect when orchestrator_explorer.enabled is set, the
+		// otel-agent runs standalone, AND a k8sobjects receiver feeds this
+		// exporter's logs pipeline.
+		OrchestratorConfig: logsagentexporter.OrchestratorConfig{
+			Hostname: newHostnameService(f.h),
+			Key:      string(cfg.API.Key),
+			Site:     cfg.API.Site,
+			Endpoint: cfg.OrchestratorExplorer.Endpoint,
+			Enabled:  standalone && cfg.OrchestratorExplorer.Enabled,
+		},
 	}
 	return lf.CreateLogs(ctx, set, lc)
 }
