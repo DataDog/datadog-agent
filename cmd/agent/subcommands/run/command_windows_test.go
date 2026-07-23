@@ -33,7 +33,7 @@ func TestWindowsServiceRejectsPreparedRolloutBeforeStart(t *testing.T) {
 	})
 	started := false
 	app := fx.New(
-		fx.Supply(cfg),
+		fx.Provide(func() coreconfig.Component { return cfg }),
 		fx.Invoke(validateWindowsPreparedRollout),
 		fx.Invoke(func(lifecycle fx.Lifecycle) {
 			lifecycle.Append(fx.Hook{OnStart: func(context.Context) error {
