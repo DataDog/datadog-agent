@@ -73,16 +73,16 @@ else
   # Datadog agent
   dependency 'datadog-iot-agent'
 
-  # Agent Data Plane (ADP): prebuilt binary, mirrors the guard used in
-  # datadog-agent-dependencies.rb for the regular Agent. Included here to
-  # measure the package-size impact of shipping ADP with the IoT Agent
-  # (DogStatsD-on-ADP for the IoT flavor). See the "Freezing the IoT Agent"
-  # proposal for context.
+  # Agent Data Plane (ADP): prebuilt binary, included to measure the
+  # package-size impact of shipping ADP with the IoT Agent (DogStatsD-on-ADP
+  # for the IoT flavor). See the "Freezing the IoT Agent" proposal.
   #
-  # ADP only ships amd64/arm64 artifacts and the recipe maps any arm target to
-  # arm64, so the armhf/armv7l IoT build is explicitly excluded to avoid
-  # packaging an aarch64 binary into a 32-bit ARM package.
-  dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target? && !arm7l_target?
+  # Gated behind an explicit IOT_INCLUDE_ADP env flag rather than arch helpers:
+  # ADP only ships amd64/arm64 artifacts, and the armhf IoT build cross-compiles
+  # on an arm64 host with an LD_PRELOAD armv7l shim that does not reach ohai, so
+  # arm7l_target?/arm_target? are unreliable here. The flag is set only on the
+  # amd64/arm64 IoT build jobs, so the armhf build never pulls ADP.
+  dependency 'datadog-agent-data-plane' if ENV['IOT_INCLUDE_ADP'] == 'true' && (linux_target? || osx_target? || windows_target?) && !heroku_target?
 
   if windows_target?
     dependency 'datadog-agent-finalize'
