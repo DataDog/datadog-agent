@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -33,12 +34,21 @@ const (
 	// DB configurations
 	ownerRWFileMode     = 0600 // only the owner can read/write
 	databaseLockTimeout = 1 * time.Second
+
+	// Store config defaults (must match config.defaultMin/Max/MaxBytes)
+	defaultMinConfigsPerDevice    = 5
+	defaultMaxConfigsPerDevice    = 10
+	defaultMaxRawConfigStoreBytes = int64(500 * 10 * 5000000 / 5)
 )
 
 type configStore struct {
 	db         *bbolt.DB
 	lock       sync.RWMutex
 	compressor compression.Compressor
+
+	minConfigsPerDevice    int
+	maxConfigsPerDevice    int
+	maxRawConfigStoreBytes int64
 }
 
 var _ ConfigStore = (*configStore)(nil)
@@ -53,8 +63,11 @@ func Open(path string) (ConfigStore, error) {
 	}
 
 	cs := &configStore{
-		db:         db,
-		compressor: selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
+		db:                     db,
+		compressor:             selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
+		minConfigsPerDevice:    defaultMinConfigsPerDevice,
+		maxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+		maxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
 	}
 
 	// Create the buckets when we first open
@@ -273,6 +286,40 @@ func (cs *configStore) DeleteConfig(key string) error {
 	})
 }
 
+// validateStoreConfigValues sanitises the three eviction-policy knobs.
+// Zero/negative values fall back to defaults; min > max resets both to defaults.
+func validateStoreConfigValues(minPerDevice, maxPerDevice int, maxBytes int64) (int, int, int64) {
+	if minPerDevice <= 0 {
+		log.Debugf("NCM config store: invalid min_configs_per_device (%d), using default %d", minPerDevice, defaultMinConfigsPerDevice)
+		minPerDevice = defaultMinConfigsPerDevice
+	}
+	if maxPerDevice <= 0 {
+		log.Debugf("NCM config store: invalid max_configs_per_device (%d), using default %d", maxPerDevice, defaultMaxConfigsPerDevice)
+		maxPerDevice = defaultMaxConfigsPerDevice
+	}
+	if minPerDevice > maxPerDevice {
+		log.Warnf("NCM config store: min_configs_per_device (%d) exceeds max_configs_per_device (%d), resetting both to defaults", minPerDevice, maxPerDevice)
+		minPerDevice = defaultMinConfigsPerDevice
+		maxPerDevice = defaultMaxConfigsPerDevice
+	}
+	if maxBytes <= 0 {
+		log.Debugf("NCM config store: invalid max_raw_config_store_bytes (%d), using default %d", maxBytes, defaultMaxRawConfigStoreBytes)
+		maxBytes = defaultMaxRawConfigStoreBytes
+	}
+	return minPerDevice, maxPerDevice, maxBytes
+}
+
+// UpdateStoreConfig validates and applies new eviction-policy knobs
+func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes = validateStoreConfigValues(minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
+
+	cs.lock.Lock()
+	defer cs.lock.Unlock()
+	cs.minConfigsPerDevice = minConfigsPerDevice
+	cs.maxConfigsPerDevice = maxConfigsPerDevice
+	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
+}
+
 // HashConfig returns a SHA-256 hash of the config content as a string
 func HashConfig(raw string) string {
 	hash := sha256.Sum256([]byte(raw))
@@ -307,7 +354,7 @@ func (cs *configStore) buildEvictionIndex() (configsPerDevice map[string]int, en
 }
 
 // getEvictableExceedingMax returns UUIDs of configs to evict for devices that exceed maxRetainedConfigs.
-func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, maxRetainedConfigs int) []string {
+func (cs *configStore) getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata) []string {
 	var evictable []string
 	pendingEvictions := make(map[string]int)
 
@@ -315,7 +362,7 @@ func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*
 		if entry.IsPinned {
 			continue
 		}
-		if configsPerDevice[entry.DeviceID]-pendingEvictions[entry.DeviceID] <= maxRetainedConfigs {
+		if configsPerDevice[entry.DeviceID]-pendingEvictions[entry.DeviceID] <= cs.maxConfigsPerDevice {
 			continue
 		}
 		evictable = append(evictable, entry.ConfigUUID)
@@ -325,12 +372,12 @@ func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*
 }
 
 // getGlobalLRUCandidate returns the UUID of the globally oldest evictable config, or empty if none exists.
-func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, minRetainedConfigs int) string {
+func (cs *configStore) getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata) string {
 	for _, entry := range sortedEntries {
 		if entry.IsPinned {
 			continue
 		}
-		if configsPerDevice[entry.DeviceID] > minRetainedConfigs {
+		if configsPerDevice[entry.DeviceID] > cs.minConfigsPerDevice {
 			return entry.ConfigUUID
 		}
 	}
@@ -354,9 +401,9 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types
 	return configsPerDevice, remaining
 }
 
-// EvictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxSize.
-// Returns the UUIDs of all evicted configs; returns an error if the DB size still exceeds maxSize after eviction.
-func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+// EvictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxRawConfigStoreBytes.
+// Returns the UUIDs of all evicted configs; returns an error if the DB size still exceeds the limit after eviction.
+func (cs *configStore) EvictConfigs() ([]string, error) {
 	evicted := make([]string, 0)
 
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
@@ -364,7 +411,7 @@ func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 		return nil, err
 	}
 
-	candidates := getEvictableExceedingMax(configsPerDevice, sortedEntries, maxRetainedConfigs)
+	candidates := cs.getEvictableExceedingMax(configsPerDevice, sortedEntries)
 	for _, uuid := range candidates {
 		if err := cs.DeleteConfig(uuid); err != nil {
 			return evicted, err
@@ -378,8 +425,8 @@ func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 		return evicted, err
 	}
 
-	for size > maxSize {
-		candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, minRetainedConfigs)
+	for size > cs.maxRawConfigStoreBytes {
+		candidate := cs.getGlobalLRUCandidate(configsPerDevice, sortedEntries)
 		if candidate == "" {
 			break
 		}
@@ -395,7 +442,7 @@ func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 		}
 	}
 
-	if size > maxSize {
+	if size > cs.maxRawConfigStoreBytes {
 		return evicted, errors.New("failed to evict configs: DB size still exceeds the limit")
 	}
 	return evicted, nil

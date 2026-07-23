@@ -5,8 +5,7 @@
 
 //go:build !ncm
 
-// Package networkconfigmanagement defines the agent core check for retrieving
-// network device configurations (stub implementation)
+// Package networkconfigmanagement defines the agent core check for retrieving network device configurations (stub im
 package networkconfigmanagement
 
 import (
