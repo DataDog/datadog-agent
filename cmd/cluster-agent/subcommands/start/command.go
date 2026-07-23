@@ -640,6 +640,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
+		log.Infof("[PAR-DEBUG] private_action_runner.enabled=true, kubeactions.enabled=%t — starting embedded private action runner in the cluster agent", config.GetBool("kubeactions.enabled"))
 		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
@@ -818,6 +819,7 @@ func startPrivateActionRunner(
 		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
 	}
 	le.StartLeaderElectionRun()
+	log.Infof("[PAR-DEBUG] startPrivateActionRunner: prerequisites OK (rc client present, leader election on); kubeactions component present=%t", ka != nil)
 
 	// The Cluster Agent has no local DogStatsD server, so submit PAR metrics
 	// in-process directly to the demultiplexer.
@@ -833,6 +835,7 @@ func startPrivateActionRunner(
 	}
 	// Start the private action runner asynchronously
 	errChan := app.StartAsync(ctx)
+	log.Info("[PAR-DEBUG] private action runner start kicked off asynchronously")
 
 	go func() {
 		// We could ignore this error but it's better to log it for debugging purposes

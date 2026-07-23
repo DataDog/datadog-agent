@@ -23,6 +23,15 @@ type ResourceRef struct {
 	Namespace  string `json:"namespace"`
 	ResourceID string `json:"resourceId"`
 	APIVersion string `json:"apiVersion,omitempty"`
+
+	// ActionID and RequestedBy are action-lifecycle metadata (not resource
+	// fields). When the action is dispatched by the kubernetes-actions backend
+	// via wf-actions-server, they carry that service's DB action_id and the
+	// requester so the EVP action_received/action_executed events correlate back
+	// to the kube-actions row. Empty when the action is driven some other way
+	// (the handler then falls back to the PAR job id for ActionID).
+	ActionID    string `json:"actionId,omitempty"`
+	RequestedBy string `json:"requestedBy,omitempty"`
 }
 
 // DeletePodInputs are the inputs for the delete_pod action.

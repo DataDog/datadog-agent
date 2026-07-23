@@ -72,4 +72,19 @@ func TestNewReport(t *testing.T) {
 		assert.Zero(t, r.OrgID)
 		assert.Empty(t, r.ActionID)
 	})
+
+	t.Run("resource ActionID overrides the task job id", func(t *testing.T) {
+		refWithID := ref
+		refWithID.ActionID = "kubeactions-db-id-123"
+		refWithID.RequestedBy = "alice@datadoghq.com"
+		task := &types.Task{}
+		task.Data.Attributes = &types.Attributes{OrgId: 7, JobId: "job-9"}
+
+		r := newReport(kubeactions.ActionTypeDeletePod, refWithID, task)
+		// The threaded kube-actions DB action_id wins over the PAR job id so EVP
+		// events correlate back to the kube-actions row.
+		assert.Equal(t, "kubeactions-db-id-123", r.ActionID)
+		assert.Equal(t, "alice@datadoghq.com", r.RequestedBy)
+		assert.Equal(t, int64(7), r.OrgID)
+	})
 }

@@ -121,6 +121,13 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		}
 	}
 
+	// When the kubeactions subsystem is enabled, auto-allow its bundle so the
+	// kubernetes-actions backend (dispatching via wf-actions-server) works
+	// without operators having to set actions_allowlist manually.
+	if config.GetBool("kubeactions.enabled") {
+		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
+	}
+
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]

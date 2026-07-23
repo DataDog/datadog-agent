@@ -56,6 +56,7 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 	defer timer.Stop()
 
 	healthCheckLogLimit := ddlog.NewLogLimit(1, 10*time.Minute)
+	firstHealthCheckSuccess := true
 
 	for {
 		select {
@@ -70,10 +71,16 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			}
 			if err != nil {
 				logger.Error("health check failed", log.ErrorField(err))
-			} else if healthCheckLogLimit.ShouldLog() {
-				logger.Info("health check succeeded")
 			} else {
-				logger.Debug("health check succeeded")
+				if firstHealthCheckSuccess {
+					logger.Info("[PAR-DEBUG] PAR backend connection ESTABLISHED — first OPMS health check succeeded")
+					firstHealthCheckSuccess = false
+				}
+				if healthCheckLogLimit.ShouldLog() {
+					logger.Info("health check succeeded")
+				} else {
+					logger.Debug("health check succeeded")
+				}
 			}
 
 			nextInterval := defaultInterval

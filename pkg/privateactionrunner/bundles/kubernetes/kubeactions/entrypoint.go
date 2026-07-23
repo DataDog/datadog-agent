@@ -42,11 +42,19 @@ func (h *KubernetesKubeActions) GetAction(actionName string) types.Action {
 
 // newReport builds an ActionReport from the action type, resource reference and
 // task metadata (org ID and job ID).
+//
+// ActionID prefers the caller-supplied resource.ActionID (the kubernetes-actions
+// DB action_id, threaded through wf-actions-server) so the EVP events correlate
+// back to that row; it falls back to the PAR job id when not provided.
 func newReport(actionType string, r kubeactions.ResourceRef, task *types.Task) kubeactions.ActionReport {
 	report := kubeactions.ReportFromResource(actionType, r)
+	report.RequestedBy = r.RequestedBy
 	if task != nil && task.Data.Attributes != nil {
 		report.OrgID = task.Data.Attributes.OrgId
 		report.ActionID = task.Data.Attributes.JobId
+	}
+	if r.ActionID != "" {
+		report.ActionID = r.ActionID
 	}
 	return report
 }

@@ -50,6 +50,7 @@ import (
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Registry struct {
@@ -57,6 +58,7 @@ type Registry struct {
 }
 
 func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, ka kubeactions.Component) *Registry {
+	ddlog.Infof("[PAR-DEBUG] kubeapiserver bundle registry: registering kubeactions bundle (kubeactions component present=%t)", ka != nil)
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),

@@ -93,8 +93,10 @@ func (n *WorkflowRunner) RunTask(
 ) (output interface{}, err error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
+	log.FromContext(ctx).Infof("[PAR-DEBUG] RunTask: resolving fqn=%s (bundle=%q, action=%q)", fqn, bundleName, actionName)
 	bundle := n.registry.GetBundle(bundleName)
 	if bundle == nil {
+		log.FromContext(ctx).Infof("[PAR-DEBUG] RunTask: no bundle registered for %q (fqn=%s)", bundleName, fqn)
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
 			fmt.Errorf("could not find bundle for %s", bundleName),
@@ -102,6 +104,7 @@ func (n *WorkflowRunner) RunTask(
 	}
 	action := bundle.GetAction(actionName)
 	if action == nil {
+		log.FromContext(ctx).Infof("[PAR-DEBUG] RunTask: bundle %q has no action %q (fqn=%s)", bundleName, actionName, fqn)
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
 			fmt.Errorf("could not find action for %s", actionName),
@@ -123,6 +126,7 @@ func (n *WorkflowRunner) RunTask(
 	span.SetTag("task_id", task.Data.ID)
 	defer func() { span.Finish(err) }()
 
+	logger.Infof("[PAR-DEBUG] RunTask: invoking handler for %s", fqn)
 	startTime := observability.ReportExecutionStart(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err = action.Run(ctx, task, credential)
 	observability.ReportExecutionCompleted(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)

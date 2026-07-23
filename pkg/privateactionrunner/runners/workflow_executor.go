@@ -91,6 +91,8 @@ func (l *Loop) Run(parentCtx context.Context) {
 			continue
 		}
 
+		logger.Infof("[PAR-DEBUG] dequeued task from backend: fqn=%s task_id=%s job_id=%s", task.GetFQN(), task.Data.ID, task.Data.Attributes.JobId)
+
 		if err := task.Validate(); err != nil {
 			logger.Error("could not validate workflow task", log.ErrorField(err))
 			l.publishFailure(ctx, task, err)
@@ -144,14 +146,17 @@ func (l *Loop) handleTask(
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
 	defer timeoutCancel()
 
+	logger.Info("[PAR-DEBUG] executing action")
 	output, err := l.runner.RunTask(timeoutCtx, task, credential)
 
 	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+		logger.Warn("[PAR-DEBUG] action execution timed out")
 		l.publishFailure(ctx, task, timeoutErr)
 		return
 	}
 
 	if err == nil {
+		logger.Info("[PAR-DEBUG] action executed successfully")
 		l.publishSuccess(ctx, task, output)
 	} else {
 		logger.Warn("task execution failed", log.ErrorField(err))

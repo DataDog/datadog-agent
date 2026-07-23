@@ -220,6 +220,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// but allow Stop() to cancel as well.
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
+	p.logger.Infof("[PAR-DEBUG] PAR start(): resolving config + enrollment (kubeactions component present=%t)", p.ka != nil)
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
 		p.logger.Errorf("Private action runner failed to start: %v", err)
@@ -254,6 +255,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
+	p.logger.Infof("[PAR-DEBUG] building workflow runner and bundle registry (kubeactions component present=%t)", p.ka != nil)
 	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ka)
 	if err != nil {
 		return err
@@ -263,6 +265,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	p.logger.Info("[PAR-DEBUG] workflow runner started; starting common runner (backend health-check loop)")
 	return p.commonRunner.Start(ctx)
 }
 

@@ -182,17 +182,25 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		Data: data,
 	}
 
-	_, err = client.CoreV1().Secrets(ns).Create(ctx, newSecret, metav1.CreateOptions{})
+	// Bound the apiserver calls so a stalled admission webhook, missing RBAC, or
+	// unresponsive apiserver surfaces as an error instead of hanging PAR startup
+	// forever on the long-lived parent context.
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	log.Infof("[PAR-DEBUG] writeIdentitySecret: calling kube-apiserver Create for secret %s/%s", ns, secretName)
+	_, err = client.CoreV1().Secrets(ns).Create(opCtx, newSecret, metav1.CreateOptions{})
 	if err == nil {
 		log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
 		return nil
 	}
 	if !k8serrors.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create secret: %w", err)
+		return fmt.Errorf("failed to create secret %s/%s: %w", ns, secretName, err)
 	}
 
+	log.Infof("[PAR-DEBUG] writeIdentitySecret: secret %s/%s already exists, calling Get+Update", ns, secretName)
 	// Fetch the live object so Update carries its ResourceVersion.
-	existing, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+	existing, err := client.CoreV1().Secrets(ns).Get(opCtx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get existing secret: %w", err)
 	}
@@ -204,7 +212,7 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 	for k, v := range labels {
 		existing.Labels[k] = v
 	}
-	if _, err = client.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
+	if _, err = client.CoreV1().Secrets(ns).Update(opCtx, existing, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("failed to update existing secret: %w", err)
 	}
 	log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
