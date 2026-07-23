@@ -101,6 +101,7 @@ type serializerConsumer struct {
 	hosts           map[string]struct{}
 	ecsFargateTags  map[string]struct{}
 	filterList      filterlist.Component
+	filterTagCache  *filterTagCache
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -139,7 +140,10 @@ func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
 // filterTags strips tags configured via metric_tag_filterlist (remote-config
-// driven, see comp/filterlist) for the given metric name.
+// driven, see comp/filterlist) for the given metric name. Results are cached
+// per (name, tag set) so that a series recurring across export batches (e.g.
+// the same host/pod emitting the same series every collection interval)
+// doesn't re-scan its tags every time.
 func (c *serializerConsumer) filterTags(name string, tags []string) []string {
 	if c.filterList == nil {
 		return tags
@@ -148,12 +152,26 @@ func (c *serializerConsumer) filterTags(name string, tags []string) []string {
 	if !filter {
 		return tags
 	}
+
+	var cacheKey filterTagCacheKey
+	if c.filterTagCache != nil {
+		cacheKey = filterTagCacheKey{name: name, hash: hashTags(tags)}
+		if cached, ok := c.filterTagCache.get(cacheKey); ok {
+			return cached
+		}
+	}
+
 	filtered := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		if keepTag(tag) {
 			filtered = append(filtered, tag)
 		}
 	}
+
+	if c.filterTagCache != nil {
+		c.filterTagCache.add(cacheKey, filtered)
+	}
+
 	return filtered
 }
 

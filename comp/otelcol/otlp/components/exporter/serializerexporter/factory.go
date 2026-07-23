@@ -110,6 +110,14 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
+	var tagCache *filterTagCache
+	if filterList != nil {
+		tagCache = newFilterTagCache(defaultFilterTagCacheCapacity)
+		filterList.OnUpdateTagFilterList(func(filterlist.TagMatcher) {
+			tagCache.clear()
+		})
+	}
+
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
@@ -122,6 +130,7 @@ func newFactoryForAgentWithType(
 				hosts:           make(map[string]struct{}),
 				ecsFargateTags:  make(map[string]struct{}),
 				filterList:      filterList,
+				filterTagCache:  tagCache,
 			}
 		},
 		options:      options,
