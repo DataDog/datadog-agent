@@ -535,7 +535,7 @@ def graph(
 
     cmd = f"goda graph {stdarg} {clusterarg} \"{expr}\""
 
-    env = {"GOOS": os, "GOARCH": arch}
+    env = {"GOOS": os, "GOARCH": arch, "CGO_ENABLED": "1"}
     res = ctx.run(cmd, env=env, hide='out')
     assert res
 
