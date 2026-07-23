@@ -3,7 +3,7 @@ exporters:
   datadog:
     api:
       fail_on_invalid_key: false
-      key: "[REDACTED]"
+      key: '[REDACTED]'
       site: datadoghq.com
     force_attempt_http2: true
     host_metadata:
@@ -13,7 +13,7 @@ exporters:
       tags: []
     hostname: ""
     hostname_detection_timeout: 25s
-    idle_conn_timeout: "1m30s"
+    idle_conn_timeout: 1m30s
     logs:
       batch_wait: 5
       compression_level: 6
@@ -45,7 +45,7 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
-      batch:
+      batch: null
       block_on_overflow: false
       num_consumers: 10
       queue_size: 1000
@@ -105,6 +105,19 @@ extensions:
     transport: tcp
     write_timeout: 30s
 processors:
+  cumulativetodelta/dd-autoconfigured:
+    exclude:
+      match_type: ""
+      metric_types: []
+      metrics: []
+      regexp: null
+    include:
+      match_type: ""
+      metric_types: []
+      metrics: []
+      regexp: null
+    initial_value: 0
+    max_staleness: 1h0m0s
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
@@ -144,28 +157,28 @@ receivers:
       runtime:
         gogc: 75
       scrape_configs:
-        - always_scrape_classic_histograms: false
-          convert_classic_histograms_to_nhcb: false
-          enable_compression: true
-          enable_http2: true
-          extra_scrape_metrics: false
-          fallback_scrape_protocol: PrometheusText0.0.4
-          follow_redirects: true
-          honor_timestamps: true
-          job_name: datadog-agent
-          metric_name_validation_scheme: legacy
-          metric_name_escaping_scheme: underscores
-          metrics_path: /metrics
-          scheme: http
-          scrape_interval: 5s
-          scrape_native_histograms: false
-          scrape_protocols:
-            - PrometheusText0.0.4
-          scrape_timeout: 5s
-          static_configs:
-            - targets:
-                - 0.0.0.0:8888
-          track_timestamps_staleness: false
+      - always_scrape_classic_histograms: false
+        convert_classic_histograms_to_nhcb: false
+        enable_compression: true
+        enable_http2: true
+        extra_scrape_metrics: false
+        fallback_scrape_protocol: PrometheusText0.0.4
+        follow_redirects: true
+        honor_timestamps: true
+        job_name: datadog-agent
+        metric_name_escaping_scheme: underscores
+        metric_name_validation_scheme: legacy
+        metrics_path: /metrics
+        scheme: http
+        scrape_interval: 5s
+        scrape_native_histograms: false
+        scrape_protocols:
+        - PrometheusText0.0.4
+        scrape_timeout: 5s
+        static_configs:
+        - targets:
+          - 0.0.0.0:8888
+        track_timestamps_staleness: false
       storage:
         tsdb:
           outofordertimewindow: 0
@@ -177,41 +190,42 @@ receivers:
     trim_metric_suffixes: false
 service:
   extensions:
-    - pprof/dd-autoconfigured
-    - zpages/dd-autoconfigured
-    - health_check/dd-autoconfigured
-    - ddflare/dd-autoconfigured
+  - pprof/dd-autoconfigured
+  - zpages/dd-autoconfigured
+  - health_check/dd-autoconfigured
+  - ddflare/dd-autoconfigured
   pipelines:
     logs:
       exporters:
-        - datadog
+      - datadog
       processors:
-        - infraattributes/dd-autoconfigured
+      - infraattributes/dd-autoconfigured
       receivers:
-        - otlp
+      - otlp
     metrics:
       exporters:
-        - datadog
+      - datadog
       processors:
-        - infraattributes/dd-autoconfigured
+      - infraattributes/dd-autoconfigured
+      - cumulativetodelta/dd-autoconfigured
       receivers:
-        - otlp
-        - prometheus
+      - otlp
+      - prometheus
     traces:
       exporters:
-        - datadog
+      - datadog
       processors:
-        - infraattributes/dd-autoconfigured
+      - infraattributes/dd-autoconfigured
       receivers:
-        - otlp
+      - otlp
   telemetry:
     logs:
       encoding: console
       error_output_paths:
-        - stderr
+      - stderr
       level: info
       output_paths:
-        - stderr
+      - stderr
       sampling:
         enabled: true
         initial: 10
@@ -220,13 +234,13 @@ service:
     metrics:
       level: Normal
       readers:
-        - pull:
-            exporter:
-              prometheus:
-                host: localhost
-                port: 8888
-                without_scope_info: true
-                without_type_suffix: true
-                without_units: true
+      - pull:
+          exporter:
+            prometheus:
+              host: localhost
+              port: 8888
+              without_scope_info: true
+              without_type_suffix: true
+              without_units: true
     resource:
       schema_url: https://opentelemetry.io/schemas/1.40.0
