@@ -3,12 +3,13 @@
 macro_rules! generate_ffi {
     ($check_function:ident, $version:ident) => {
         /// Entrypoint of the check
+        #[allow(clippy::not_unsafe_ptr_arg_deref)]
         #[unsafe(no_mangle)]
         pub extern "C" fn Run(
             check_id_cstr: *const std::ffi::c_char,
             init_config_cstr: *const std::ffi::c_char,
             instance_config_cstr: *const std::ffi::c_char,
-            aggregator_ptr: *const core::Aggregator,
+            aggregator_ptr: *const $crate::Aggregator,
             error_handler: *mut *mut std::ffi::c_char,
         ) {
             if let Err(e) = create_and_run_check(
@@ -30,22 +31,22 @@ macro_rules! generate_ffi {
             check_id_cstr: *const std::ffi::c_char,
             init_config_cstr: *const std::ffi::c_char,
             instance_config_cstr: *const std::ffi::c_char,
-            aggregator_ptr: *const core::Aggregator,
+            aggregator_ptr: *const $crate::Aggregator,
         ) -> Result<(), Box<dyn std::error::Error>> {
             // convert C args to Rust structs
-            let check_id = core::to_rust_string(check_id_cstr)?;
+            let check_id = $crate::to_rust_string(check_id_cstr)?;
 
-            let init_config_str = core::to_rust_string(init_config_cstr)?;
-            let init_config = core::Config::from_str(&init_config_str)?;
+            let init_config_str = $crate::to_rust_string(init_config_cstr)?;
+            let init_config = $crate::Config::from_str(&init_config_str)?;
 
-            let instance_config_str = core::to_rust_string(instance_config_cstr)?;
-            let instance_config = core::Config::from_str(&instance_config_str)?;
+            let instance_config_str = $crate::to_rust_string(instance_config_cstr)?;
+            let instance_config = $crate::Config::from_str(&instance_config_str)?;
 
-            let aggregator = core::Aggregator::from_ptr(aggregator_ptr);
+            let aggregator = $crate::Aggregator::from_ptr(aggregator_ptr);
 
             // create the check instance
             let agent_check =
-                core::AgentCheck::new(check_id, init_config, instance_config, aggregator);
+                $crate::AgentCheck::new(check_id, init_config, instance_config, aggregator);
 
             // run the custom implementation
             $check_function(&agent_check)?;
