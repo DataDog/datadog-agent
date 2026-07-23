@@ -13,7 +13,9 @@ exports_files(
 # keep
 service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-action-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-action-exp.yaml",
     "tmpl/gen/debrpm/datadog-agent-action.service",
+    "tmpl/gen/debrpm/datadog-agent-action.yaml",
     "tmpl/gen/debrpm/datadog-agent-data-plane-exp.service",
     "tmpl/gen/debrpm/datadog-agent-data-plane.service",
     "tmpl/gen/debrpm/datadog-agent-ddot-exp.service",
@@ -38,7 +40,9 @@ service_srcs = [
     "tmpl/gen/windows/datadog-agent-data-plane.yaml",
     "tmpl/gen/windows/datadog-agent-ddot.yaml",
     "tmpl/gen/oci/datadog-agent-action-exp.service",
+    "tmpl/gen/oci/datadog-agent-action-exp.yaml",
     "tmpl/gen/oci/datadog-agent-action.service",
+    "tmpl/gen/oci/datadog-agent-action.yaml",
     "tmpl/gen/oci/datadog-agent-data-plane-exp.service",
     "tmpl/gen/oci/datadog-agent-data-plane.service",
     "tmpl/gen/oci/datadog-agent-ddot-exp.service",
@@ -79,6 +83,7 @@ go_library(
     srcs = ["tmpl/main.go"],
     embedsrcs = [
         "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-action.yaml.tmpl",
         "tmpl/datadog-agent-action-windows.yaml.tmpl",
         "tmpl/datadog-agent-data-plane.service.tmpl",
         "tmpl/datadog-agent-data-plane-windows.yaml.tmpl",

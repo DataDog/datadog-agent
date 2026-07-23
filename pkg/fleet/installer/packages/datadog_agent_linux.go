@@ -336,6 +336,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to write DDOT process manager config: %v", err)
 	}
+	if err := writePARProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR process manager config: %v", err)
+	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}

@@ -138,8 +138,10 @@ func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilities
 
 func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
+		"datadog-agent-ddot.yaml":       mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
+		"datadog-agent-ddot-exp.yaml":   mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
+		"datadog-agent-action.yaml":     mustRenderYAMLConfig("datadog-agent-action.yaml", stableData),
+		"datadog-agent-action-exp.yaml": mustRenderYAMLConfig("datadog-agent-action.yaml", expData),
 	}
 }
 

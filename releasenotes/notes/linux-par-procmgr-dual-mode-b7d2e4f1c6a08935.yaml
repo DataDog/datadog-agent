@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    On Linux, when the fleet installer writes ``processes.d/datadog-agent-action.yaml``, the
+    Private Action Runner is supervised by dd-procmgr instead of the legacy
+    ``datadog-agent-action`` systemd service. The systemd unit is inhibited by a
+    ``ConditionPathExists`` gate while the processes.d definition is present, and continues to
+    start PAR when the definition is absent.
