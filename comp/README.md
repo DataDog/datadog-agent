@@ -99,6 +99,10 @@ Package collector defines the collector component.
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
 
+### [comp/core/agentlifecycle](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agentlifecycle)
+
+Package agentlifecycle defines the experimental prepared/active Agent lifecycle component.
+
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
 Package agenttelemetry implements a component to generate Agent telemetry
