@@ -189,6 +189,13 @@ func httpSender(
 		workersPerQueue = sender.DefaultWorkersPerQueue
 		minSenderConcurrency = numberOfPipelines
 		maxSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
+		if !cfg.GetBool("logs_config.enable_rtt_fairness") {
+			// RTT fairness is retired by default: pin the concurrency at the cap so the
+			// destination sends at a static concurrency rather than scaling dynamically with
+			// latency (the worker pool short-circuits all latency math when min == max).
+			// Set logs_config.enable_rtt_fairness=true to restore the dynamic scaling behavior.
+			minSenderConcurrency = maxSenderConcurrency
+		}
 		if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
 			// If the BatchMaxConcurrentSend parameter is set, we use it to control the concurrency of the destination.
 			// Legacy behavior ran numberOfPipelines senders, each with a concurrency of BatchMaxConcurrentSend, so
