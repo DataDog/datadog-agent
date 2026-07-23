@@ -752,6 +752,34 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			},
 		},
 		{
+			name: "explicit otel.scope.name attribute takes precedence over library alias and scope metadata",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("hello world")
+					l.SetSeverityNumber(5)
+					l.Attributes().PutStr(otelScopeName, "explicit-scope-name")
+					l.Attributes().PutStr(otelLibraryName, "library-alias-name")
+					return l
+				}(),
+				res: pcommon.NewResource(),
+				scope: func() pcommon.InstrumentationScope {
+					s := pcommon.NewInstrumentationScope()
+					s.SetName("scope-metadata-name")
+					return s
+				}(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("hello world"),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					otelScopeName:      "explicit-scope-name",
+				},
+			},
+		},
+		{
 			name: "array attribute with strings",
 			args: args{
 				lr: func() plog.LogRecord {
