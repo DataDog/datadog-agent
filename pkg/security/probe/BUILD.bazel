@@ -351,7 +351,7 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/config/setup",
+            "//pkg/config/mock",
             "//pkg/security/config",
             "//pkg/security/events",
             "//pkg/security/probe/config",
@@ -385,7 +385,7 @@ go_test(
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/config/setup",
+            "//pkg/config/mock",
             "//pkg/security/config",
             "//pkg/security/events",
             "//pkg/security/probe/config",
@@ -419,7 +419,7 @@ go_test(
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/config/setup",
+            "//pkg/config/mock",
             "//pkg/ebpf/ebpftest",
             "//pkg/security/config",
             "//pkg/security/events",

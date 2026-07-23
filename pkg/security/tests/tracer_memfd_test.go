@@ -161,6 +161,31 @@ func TestTracerMemfd(t *testing.T) {
 		assert.Contains(t, tmeta.ProcessTags, "custom.tag:value", "ProcessTags should contain custom.tag")
 	})
 
+	test.RunMultiMode(t, "validate-threadlocal-attribute-keys", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
+		consumer.eventReceived.Store(false)
+		consumer.capturedPid.Store(0)
+		consumer.capturedFd.Store(0)
+
+		cmdExec := cmd(syscallTester, []string{"tracer-memfd-with-keys"}, nil)
+		_ = cmdExec.Run()
+
+		require.Eventually(t, consumer.eventReceived.Load, 2*time.Second, 200*time.Millisecond, "tracer-memfd event should be received")
+
+		consumer.capturedMutex.Lock()
+		tmeta := consumer.capturedMetadata
+		consumer.capturedMutex.Unlock()
+
+		require.NotEmpty(t, tmeta.ServiceName, "ServiceName should not be empty")
+		assert.Equal(t, "test-service", tmeta.ServiceName, "ServiceName mismatch")
+		assert.Equal(t, "cpp", tmeta.TracerLanguage, "TracerLanguage mismatch")
+
+		// Verify threadlocal_attribute_keys are parsed from the memfd
+		require.Len(t, tmeta.ThreadlocalAttributeKeys, 3, "should have 3 threadlocal attribute keys")
+		assert.Equal(t, "http.method", tmeta.ThreadlocalAttributeKeys[0])
+		assert.Equal(t, "http.target", tmeta.ThreadlocalAttributeKeys[1])
+		assert.Equal(t, "http.user", tmeta.ThreadlocalAttributeKeys[2])
+	})
+
 	test.RunMultiMode(t, "validate-tracer-serialization", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
 		consumer.eventReceived.Store(false)
 		consumer.capturedPid.Store(0)
@@ -188,9 +213,12 @@ func TestTracerMemfd(t *testing.T) {
 		tracerData, ok := processData["tracer"].(map[string]interface{})
 		require.True(t, ok, "tracer field should be present in serialized process, got: %v", processData)
 
-		assert.Equal(t, "test-service", tracerData["service_name"], "service_name mismatch")
-		assert.Equal(t, "test-env", tracerData["service_env"], "service_env mismatch")
-		assert.Equal(t, "1.0.0", tracerData["service_version"], "service_version mismatch")
-		assert.Contains(t, tracerData["process_tags"], "custom.tag:value", "process_tags should contain custom.tag:value")
+		metadataData, ok := tracerData["metadata"].(map[string]interface{})
+		require.True(t, ok, "metadata field should be present in serialized tracer, got: %v", tracerData)
+
+		assert.Equal(t, "test-service", metadataData["service_name"], "service_name mismatch")
+		assert.Equal(t, "test-env", metadataData["service_env"], "service_env mismatch")
+		assert.Equal(t, "1.0.0", metadataData["service_version"], "service_version mismatch")
+		assert.Contains(t, metadataData["process_tags"], "custom.tag:value", "process_tags should contain custom.tag:value")
 	})
 }

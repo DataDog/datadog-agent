@@ -99,6 +99,9 @@ var dogtelParams = utils.IAParams{
 	InfraAttributes: true,
 	EKS:             false,
 	Cardinality:     types.LowCardinality,
+	// The standalone otel-agent DaemonSet has no Helm chart / Cluster Agent,
+	// so kubernetesResourcesLabelsAsTags is never configured here.
+	SkipCustomLabelTag: true,
 }
 
 func (s *dogtelStandaloneTestSuite) SetupSuite() {

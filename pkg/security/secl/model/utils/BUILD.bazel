@@ -1,4 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:dd_agent_go_test off
 
 # Source-level export so the //pkg/security/secl/model:event_deep_copy_*
 # Bazel codegens can resolve types defined here (e.g. utils.TraceID).
@@ -12,4 +14,11 @@ go_library(
     srcs = ["uint128.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/utils",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["uint128_test.go"],
+    embed = [":utils"],
+    gotags = ["test"],
 )
