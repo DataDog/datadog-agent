@@ -264,11 +264,10 @@ func (client *Client) GetApplicationAwareRoutingMetrics() ([]AppRouteStatistics,
 	}
 
 	appRoutes, err := getAllEntries[AppRouteStatistics](client, "/dataservice/data/device/statistics/approutestatsstatistics", params)
-	if err != nil {
+	if appRoutes == nil {
 		return nil, err
 	}
-
-	return appRoutes.Data, nil
+	return appRoutes.Data, err
 }
 
 // GetControlConnectionsState gets control connection states
