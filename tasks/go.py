@@ -27,7 +27,6 @@ from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
-from tasks.libs.types.arch import Arch
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
 
@@ -57,8 +56,6 @@ def run_golangci_lint(
     golangci_lint_kwargs="",
     headless_mode: bool = False,
     recursive: bool = True,
-    goos=None,
-    goarch=None,
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -78,49 +75,6 @@ def run_golangci_lint(
         headless_mode=headless_mode,
         include_python="python" in tags,
     )
-
-    # Cross-OS linting setup: configure cross-compilation environment
-    if goos:
-        native_goos = GOOS_MAPPING.get(sys.platform, sys.platform)
-        if goos != native_goos:
-            goarch = goarch or "amd64"
-            arch = Arch.from_str(goarch)
-
-            env["GOOS"] = goos
-            env["GOARCH"] = goarch
-            env["CGO_ENABLED"] = "1"
-
-            prefix = arch.gcc_prefix(platform=goos)
-            cc = f"{prefix}-gcc"
-            cxx = f"{prefix}-g++"
-
-            # Fall back to clang/clang++ (e.g. osxcross provides clang, not gcc)
-            if not shutil.which(cc):
-                cc_clang = f"{prefix}-clang"
-                cxx_clang = f"{prefix}-clang++"
-                if shutil.which(cc_clang):
-                    cc = cc_clang
-                    cxx = cxx_clang
-                else:
-                    if goos == "darwin":
-                        instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
-                    elif goos == "windows":
-                        instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
-                    elif goos == "aix":
-                        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
-                    else:
-                        instr = "the appropriate cross-compilation toolchain"
-                    print(
-                        color_message(
-                            f"Error: Cross-compiler '{prefix}-gcc' (or '{prefix}-clang') not found. "
-                            f"Cross-linting for GOOS={goos} requires {instr}.",
-                            "red",
-                        )
-                    )
-                    raise Exit(code=1)
-
-            env["CC"] = cc
-            env["CXX"] = cxx
 
     verbosity = "-v" if verbose else ""
     concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"

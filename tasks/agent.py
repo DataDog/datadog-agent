@@ -24,6 +24,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -459,7 +460,7 @@ def hacky_dev_image_build(
         # of truth: ENABLED_CHECKS in the rustchecks BUILD.bazel). The `:install`
         # target lays each cdylib into <destdir>/checks.d with 0500 perms.
         checks_d_staging = "bin/agent/dist/checks.d"
-        ctx.run("bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=bin/agent/dist")
+        bazel(ctx, "run", "//pkg/collector/sharedlibrary/rustchecks:install", "--", "--destdir=bin/agent/dist")
         if os.path.isdir(checks_d_staging) and any(
             f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
         ):
