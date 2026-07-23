@@ -372,9 +372,100 @@ func TestShouldShardKSMCheck_MultipleInstances(t *testing.T) {
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithMultipleInstances()
 
-	// Should return false and log warning about multiple instances
+	// Two shardable instances is still unsupported -> should not shard
 	result := manager.shouldShardKSMCheck(config)
-	assert.False(t, result, "Should not shard when multiple instances configured")
+	assert.False(t, result, "Should not shard when multiple shardable instances configured")
+}
+
+func TestClassifyKSMInstances(t *testing.T) {
+	t.Run("single shardable, no aggregate", func(t *testing.T) {
+		shardable, passthrough, err := classifyKSMInstances(createKSMConfig([]string{"pods", "nodes"}))
+		require.NoError(t, err)
+		assert.NotNil(t, shardable)
+		assert.Empty(t, passthrough)
+	})
+
+	t.Run("shardable + aggregate", func(t *testing.T) {
+		shardable, passthrough, err := classifyKSMInstances(createKSMConfigWithAggregate([]string{"pods", "nodes", "deployments"}))
+		require.NoError(t, err)
+		assert.NotNil(t, shardable)
+		require.Len(t, passthrough, 1)
+	})
+
+	t.Run("aggregate only -> no shardable instance", func(t *testing.T) {
+		cfg := integration.Config{
+			Name:         "kubernetes_state_core",
+			ClusterCheck: true,
+			Instances:    []integration.Data{mustYAML(map[string]interface{}{"pod_collection_mode": "cluster_aggregates_only"})},
+		}
+		_, _, err := classifyKSMInstances(cfg)
+		assert.Error(t, err)
+	})
+
+	t.Run("two shardable -> error", func(t *testing.T) {
+		_, _, err := classifyKSMInstances(createKSMConfigWithMultipleInstances())
+		assert.Error(t, err)
+	})
+}
+
+func TestShouldShardKSMCheck_WithAggregate(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	cfg := createKSMConfigWithAggregate([]string{"pods", "nodes", "deployments"})
+	assert.True(t, manager.shouldShardKSMCheck(cfg), "combined instance + cluster_aggregates_only should still shard")
+}
+
+// TestCreateShardedKSMConfigs_WithAggregate: a combined cluster_unassigned instance
+// plus a cluster_aggregates_only instance shards into pods/nodes/others (3 configs),
+// with the aggregate instance riding on the pods shard (not a separate 4th config).
+func TestCreateShardedKSMConfigs_WithAggregate(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	cfg := createKSMConfigWithAggregate([]string{"pods", "nodes", "deployments", "services"})
+
+	configs, err := manager.createShardedKSMConfigs(cfg)
+	require.NoError(t, err)
+	require.Len(t, configs, 3, "pods/nodes/others; aggregate rides the pods shard")
+
+	aggregateCount := 0
+	var podsShard *integration.Config
+	for i := range configs {
+		assert.Equal(t, "kubernetes_state_core", configs[i].Name)
+		for _, raw := range configs[i].Instances {
+			var inst map[string]interface{}
+			require.NoError(t, yaml.Unmarshal(raw, &inst))
+			if inst["pod_collection_mode"] == "cluster_aggregates_only" {
+				aggregateCount++
+				assert.Equal(t, true, inst["skip_leader_election"], "aggregate must skip leader election on a runner")
+			}
+			if cols, ok := inst["collectors"].([]interface{}); ok && len(cols) == 1 && cols[0] == "pods" {
+				podsShard = &configs[i]
+			}
+		}
+	}
+
+	assert.Equal(t, 1, aggregateCount, "aggregate instance must appear exactly once")
+	require.NotNil(t, podsShard, "a pods shard must exist")
+	assert.Len(t, podsShard.Instances, 2, "pods shard carries cluster_unassigned pods + cluster_aggregates_only")
+}
+
+// TestCreateShardedKSMConfigs_AggregateFallbackNoPods: if the shardable instance has
+// no pods collector, the aggregate is dispatched as its own config (not dropped).
+func TestCreateShardedKSMConfigs_AggregateFallbackNoPods(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	configs, err := manager.createShardedKSMConfigs(createKSMConfigWithAggregate([]string{"nodes", "deployments"}))
+	require.NoError(t, err)
+	require.Len(t, configs, 3, "nodes shard + others shard + standalone aggregate")
+
+	standaloneAggregate := false
+	for _, c := range configs {
+		if len(c.Instances) == 1 {
+			var inst map[string]interface{}
+			_ = yaml.Unmarshal(c.Instances[0], &inst)
+			if inst["pod_collection_mode"] == "cluster_aggregates_only" {
+				standaloneAggregate = true
+			}
+		}
+	}
+	assert.True(t, standaloneAggregate, "aggregate dispatched standalone when there is no pods shard")
 }
 
 // Helper functions
@@ -397,6 +488,29 @@ func createKSMConfigWithTags(collectors []string, tags []string) integration.Con
 		Name:         "kubernetes_state_core",
 		Instances:    []integration.Data{integration.Data(data)},
 		ClusterCheck: true,
+	}
+}
+
+func mustYAML(m map[string]interface{}) integration.Data {
+	data, _ := yaml.Marshal(m)
+	return integration.Data(data)
+}
+
+// createKSMConfigWithAggregate builds a single config with a shardable
+// cluster_unassigned instance (given collectors) plus a cluster_aggregates_only
+// instance — the "one config, both features" shape.
+func createKSMConfigWithAggregate(shardableCollectors []string) integration.Config {
+	shardable := map[string]interface{}{
+		"collectors":          shardableCollectors,
+		"pod_collection_mode": "cluster_unassigned",
+	}
+	aggregate := map[string]interface{}{
+		"pod_collection_mode": "cluster_aggregates_only",
+	}
+	return integration.Config{
+		Name:         "kubernetes_state_core",
+		ClusterCheck: true,
+		Instances:    []integration.Data{mustYAML(shardable), mustYAML(aggregate)},
 	}
 }
 

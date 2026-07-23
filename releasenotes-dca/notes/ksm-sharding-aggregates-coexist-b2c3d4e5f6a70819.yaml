@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    The cluster-agent KSM auto-sharding dispatcher
+    (``cluster_checks.ksm_sharding_enabled``) now supports a single
+    ``kubernetes_state_core`` config that combines a shardable
+    ``cluster_unassigned`` instance with a ``cluster_aggregates_only`` instance.
+    The ``cluster_unassigned`` instance is sharded by resource type
+    (pods/nodes/others) as before, and the ``cluster_aggregates_only`` instance
+    (which does a full-pod watch and cannot be sharded) is dispatched alongside
+    the pods shard. Previously such a multi-instance config disabled sharding.
+    This lets KSM auto-sharding and the cluster-aggregate ``.total`` fix be
+    enabled together from one config.
