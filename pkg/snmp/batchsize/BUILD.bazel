@@ -5,6 +5,7 @@ go_library(
     srcs = ["optimizer.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/snmp/batchsize",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
 )
 
 go_test(
