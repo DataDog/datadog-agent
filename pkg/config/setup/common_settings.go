@@ -77,8 +77,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// to flatten the startup memory spike. When disabled, all startup work runs
 	// at once as before.
 	config.BindEnvAndSetDefault("staged_start.enabled", true)
-	// Delay inserted between staged startup stages.
-	config.BindEnvAndSetDefault("staged_start.stage_interval", 5*time.Second)
+	// Delay inserted between staged startup stages. Chosen so the ramp extends
+	// past the startup warmup window and across the post-warmup memory peak,
+	// rather than finishing before steady-state measurement begins.
+	config.BindEnvAndSetDefault("staged_start.stage_interval", 30*time.Second)
 	// If true, transient memory is returned to the OS between staged startup stages.
 	config.BindEnvAndSetDefault("staged_start.free_os_memory", true)
 
