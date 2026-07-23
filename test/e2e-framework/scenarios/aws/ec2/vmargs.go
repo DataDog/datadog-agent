@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -43,6 +44,12 @@ type vmArgs struct {
 	httpTokensRequired    bool
 	volumeThroughput      int // GP3 volume throughput in MiB/s (125-1000, default 125)
 	pulumiResourceOptions []pulumi.ResourceOption
+
+	// preAcquiredPool, when set, is a pool.AcquireResult already claimed by the
+	// caller (see WithPreAcquiredPoolResult) before NewVM ran -- e.g. by
+	// awshost.Provisioner's pre-Up hook, ahead of the Pulumi stack lock. NewVM
+	// then skips its own pool.NewEC2Client/pool.Acquire call and reuses this one.
+	preAcquiredPool *PreAcquiredPoolResult
 }
 
 type VMOption = func(*vmArgs) error
@@ -146,4 +153,40 @@ func WithVolumeThroughput(throughput int) VMOption {
 		p.volumeThroughput = throughput
 		return nil
 	}
+}
+
+// PreAcquiredPoolResult carries a pool.AcquireResult claimed by a caller ahead
+// of NewVM -- e.g. by awshost.Provisioner's pre-Up hook, before the Pulumi
+// stack lock is taken -- together with a flag NewVM flips to true right after
+// it successfully hands ownership of releasing the lease over to
+// ec2.ScheduleReleaseOnDestroy. The caller's own cleanup (e.g. releasing the
+// lease if Up never got that far) must check this flag to avoid double-release.
+type PreAcquiredPoolResult struct {
+	Result  pool.AcquireResult
+	Claimed *bool
+}
+
+// WithPreAcquiredPoolResult supplies a pool.AcquireResult already claimed by
+// the caller, so NewVM reuses it instead of calling pool.NewEC2Client/pool.Acquire
+// itself. Only meaningful for macOS pool members (see IsMacOSPoolCandidate);
+// ignored otherwise.
+func WithPreAcquiredPoolResult(r *PreAcquiredPoolResult) VMOption {
+	return func(p *vmArgs) error {
+		p.preAcquiredPool = r
+		return nil
+	}
+}
+
+// IsMacOSPoolCandidate reports whether the given VM options describe a macOS
+// pool member (a macOS VM with no explicit dedicated HostID), the same
+// condition NewVM uses to decide whether to draw from the pool. It only
+// inspects pure option state via buildArgs -- no AMI-resolution network calls
+// -- so it's safe to call before a *pulumi.Context exists, e.g. from a
+// provisioner's pre-Up hook.
+func IsMacOSPoolCandidate(opts ...VMOption) (bool, error) {
+	vmArgs, err := buildArgs(opts...)
+	if err != nil {
+		return false, err
+	}
+	return vmArgs.osInfo != nil && vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "", nil
 }

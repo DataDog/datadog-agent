@@ -68,13 +68,19 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		var poolAcquired pool.AcquireResult
 
 		if isMacOSPoolMember {
-			poolClient, err := pool.NewEC2Client(e.Ctx().Context(), e.Region(), e.Profile())
-			if err != nil {
-				return err
-			}
-			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID())
-			if err != nil {
-				return err
+			if vmArgs.preAcquiredPool != nil {
+				// Already claimed by the caller (e.g. awshost.Provisioner's pre-Up
+				// hook) before this Pulumi program ran, ahead of the stack lock.
+				poolAcquired = vmArgs.preAcquiredPool.Result
+			} else {
+				poolClient, err := pool.NewEC2Client(e.Ctx().Context(), e.Region(), e.Profile())
+				if err != nil {
+					return err
+				}
+				poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID())
+				if err != nil {
+					return err
+				}
 			}
 
 			// Deleting a Dedicated Host requires it to have lived for at least 24
@@ -115,6 +121,13 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 
 			if _, err := ec2.ScheduleReleaseOnDestroy(e, name, poolAcquired.InstanceID, poolAcquired.LeaseToken, poolAcquired.ImageID, releaseOpts...); err != nil {
 				return err
+			}
+
+			// Ownership of releasing the lease is now transferred to the
+			// scheduled release-on-destroy script. Tell the caller that claimed
+			// it (if any) so its own cleanup doesn't also try to release it.
+			if vmArgs.preAcquiredPool != nil && vmArgs.preAcquiredPool.Claimed != nil {
+				*vmArgs.preAcquiredPool.Claimed = true
 			}
 		}
 

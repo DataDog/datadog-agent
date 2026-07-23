@@ -159,10 +159,31 @@ type getStackParams struct {
 	UpTimeout          time.Duration
 	DestroyTimeout     time.Duration
 	CancelTimeout      time.Duration
+	PreUpHook          PreUpHookFunc
 }
 
 // GetStackOption is a function that sets a parameter for GetStack function
 type GetStackOption func(*getStackParams)
+
+// PreUpHookFunc runs once per getStack call, after the stack's config has been
+// set and before the first stack.Up attempt -- i.e. before the Pulumi stack
+// lock is taken, unlike anything done from inside deployFunc. It receives
+// region/profile/pipelineID as plain strings (no *pulumi.Context is available
+// yet at this point in getStack). The returned cleanup func, if non-nil, is
+// invoked exactly once after the whole Up-retry loop finishes (success or
+// giving up), with the final error. getStack has no knowledge of what the hook
+// or its cleanup actually do -- e.g. claiming/releasing a resource pool lease
+// lives entirely in the caller (see awshost.Provisioner).
+type PreUpHookFunc func(ctx context.Context, region, profile, pipelineID string) (cleanup func(err error), err error)
+
+// WithPreUpHook registers a PreUpHookFunc for this GetStack/GetStackNoDeleteOnFailure
+// call. Leave unset for pool-agnostic/non-macOS provisioners: behavior is
+// unchanged when no hook is registered.
+func WithPreUpHook(hook PreUpHookFunc) GetStackOption {
+	return func(p *getStackParams) {
+		p.PreUpHook = hook
+	}
+}
 
 // WithConfigMap sets the configuration map for the stack
 func WithConfigMap(config runner.ConfigMap) GetStackOption {
@@ -485,6 +506,38 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		return nil, auto.UpResult{}, err
 	}
 
+	// Run the pool-agnostic pre-Up hook (if any) exactly once per getStack call,
+	// after config is set and before the first stack.Up attempt below -- not
+	// re-invoked by the Up-retry loop inside runUpLoop. region/profile are read
+	// back from the persisted stack config as plain strings; if a scenario never
+	// sets "aws:region"/"aws:profile" explicitly (relying instead on in-program
+	// defaults resolved from a *pulumi.Context, e.g. aws.Environment.Region()),
+	// GetConfig returns them empty and it's up to the hook to apply its own
+	// fallback -- see awshost.Provisioner's hook for the documented gap.
+	var preUpCleanup func(error)
+	if params.PreUpHook != nil {
+		region, _ := stack.GetConfig(ctx, "aws:region")
+		awsProfile, _ := stack.GetConfig(ctx, "aws:profile")
+		pipelineID, _ := profile.ParamStore().Get(parameters.PipelineID)
+
+		preUpCleanup, err = params.PreUpHook(ctx, region.Value, awsProfile.Value, pipelineID)
+		if err != nil {
+			return nil, auto.UpResult{}, err
+		}
+	}
+
+	retStack, retUpResult, retErr := sm.runUpLoop(ctx, stack, name, profile, cm, &params)
+	if preUpCleanup != nil {
+		preUpCleanup(retErr)
+	}
+	return retStack, retUpResult, retErr
+}
+
+// runUpLoop runs stack.Up, retrying per sm.GetRetryStrategyFrom, until success or
+// a non-retryable outcome. Extracted from getStack so the pre-Up hook's cleanup
+// (see getStack) can wrap the whole retry loop and fire exactly once regardless
+// of which of the loop's several return paths is taken.
+func (sm *StackManager) runUpLoop(ctx context.Context, stack *auto.Stack, name string, profile runner.Profile, cm runner.ConfigMap, params *getStackParams) (*auto.Stack, auto.UpResult, error) {
 	loggingOptions, err := sm.getLoggingOptions()
 	if err != nil {
 		return nil, auto.UpResult{}, err
@@ -547,7 +600,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		if len(changedOpts) > 0 {
 			// apply changed options from retry strategy
 			for _, opt := range changedOpts {
-				opt(&params)
+				opt(params)
 			}
 
 			cm, err = runner.BuildStackParameters(profile, params.Config)

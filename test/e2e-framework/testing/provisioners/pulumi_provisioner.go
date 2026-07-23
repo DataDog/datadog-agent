@@ -28,10 +28,11 @@ type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
 
 // PulumiProvisioner is a provisioner based on Pulumi with binding to an environment.
 type PulumiProvisioner[Env any] struct {
-	id           string
-	runFunc      PulumiEnvRunFunc[Env]
-	configMap    runner.ConfigMap
-	diagnoseFunc func(ctx context.Context, stackName string) (string, error)
+	id              string
+	runFunc         PulumiEnvRunFunc[Env]
+	configMap       runner.ConfigMap
+	diagnoseFunc    func(ctx context.Context, stackName string) (string, error)
+	getStackOptions []infra.GetStackOption
 }
 
 var (
@@ -64,6 +65,14 @@ func (pp *PulumiProvisioner[Env]) ID() string {
 	return pp.id
 }
 
+// SetGetStackOptions registers additional infra.GetStackOption values applied
+// on every ProvisionEnv/Provision call by this provisioner -- e.g. a pool-agnostic
+// infra.WithPreUpHook. Optional; unset by default, so provisioners that never
+// call this see no behavior change.
+func (pp *PulumiProvisioner[Env]) SetGetStackOptions(opts ...infra.GetStackOption) {
+	pp.getStackOptions = opts
+}
+
 // Provision runs the Pulumi program and returns the raw resources.
 func (pp *PulumiProvisioner[Env]) Provision(ctx context.Context, stackName string, logger io.Writer) (RawResources, error) {
 	return pp.ProvisionEnv(ctx, stackName, logger, nil)
@@ -71,14 +80,18 @@ func (pp *PulumiProvisioner[Env]) Provision(ctx context.Context, stackName strin
 
 // ProvisionEnv runs the Pulumi program with a given environment and returns the raw resources.
 func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName string, logger io.Writer, env *Env) (RawResources, error) {
+	getStackOptions := append([]infra.GetStackOption{
+		infra.WithConfigMap(pp.configMap),
+		infra.WithLogWriter(logger),
+	}, pp.getStackOptions...)
+
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		stackName,
 		func(ctx *pulumi.Context) error {
 			return pp.runFunc(ctx, env)
 		},
-		infra.WithConfigMap(pp.configMap),
-		infra.WithLogWriter(logger),
+		getStackOptions...,
 	)
 
 	if err != nil {
