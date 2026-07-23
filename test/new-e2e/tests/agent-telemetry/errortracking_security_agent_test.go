@@ -32,14 +32,9 @@ var errorTrackingSecurityAgentDisabledConfig string
 //go:embed testdata/errortracking-security-agent-runtime-security.yaml
 var errorTrackingSecurityAgentRuntimeSecurityConfig string
 
-// securityAgentCWSConnectionErrorMessage is the text logged by
-// startEventStreamListener (pkg/security/agent/agent.go) whenever the
-// security-agent's CWS event-stream client fails to reach the runtime
-// security module over its unix socket. Both testdata configs enable
-// runtime_security_config without enabling the corresponding system-probe
-// module, so nothing ever listens on that socket and this fires
-// deterministically on a backoff ticker, without needing any live network
-// connection to trigger it.
+// securityAgentCWSConnectionErrorMessage is logged by startEventStreamListener
+// (pkg/security/agent/agent.go) whenever the CWS event-stream client fails to
+// reach the runtime security module, which the testdata configs never enable.
 const securityAgentCWSConnectionErrorMessage = "error while connecting to the runtime security module"
 
 type errorTrackingSecurityAgentSuite struct {
@@ -65,14 +60,9 @@ func TestErrorTrackingSecurityAgentSuite(t *testing.T) {
 	)
 }
 
-// TestPayloadShape verifies the happy path: the security-agent's own CWS
-// connection-error ERROR log reaches FakeIntake with the expected wire
-// shape, and — critically for a pipeline shared across many binaries — an
-// agent.flavor tag identifying the emitter as security_agent rather than
-// agent. Records are filtered by stack trace rather than assumed exclusive,
-// since the core agent on the same host shares the same errortracking
-// config and could in principle forward its own, unrelated errors during
-// the same window.
+// TestPayloadShape verifies the security-agent's CWS connection-error log
+// reaches FakeIntake with the expected wire shape, tagged
+// agent.flavor:security_agent rather than agent.
 func (s *errorTrackingSecurityAgentSuite) TestPayloadShape() {
 	// testify's suite.Run executes test methods in alphabetical order
 	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv

@@ -197,11 +197,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(configstreamconsumer.NewParams("security-agent", params.ConfigFilePaths[0])),
 				configstreamconsumerfx.Module(),
 				agenttelemetryfx.Module(),
-				// Forces construction of the agenttelemetry component: fx only builds a
-				// provided type if something depends on it, and nothing else in this
-				// graph does. Without this invoke, agenttelemetryimpl.NewComponent's
-				// OnStart hook (buffer/flush runner, errortracking submitter wiring)
-				// would never run for security-agent.
+				// Forces construction of the agenttelemetry component, since fx
+				// only builds a provided type if something depends on it, and
+				// nothing else in this graph does.
 				fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 			)
 		},
