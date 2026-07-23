@@ -307,9 +307,13 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
         return 0;
     }
 
-    // Clear both the forward and reverse mappings since this connection is closed
-    bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
+    // Look up the composite key from the reverse map
     conn_tuple_t copy = *t;
+    go_tls_conn_key_t *key = bpf_map_lookup_elem(&go_tls_conn_by_tuple, &copy);
+    if (key != NULL) {
+        go_tls_conn_key_t key_copy = *key;
+        bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &key_copy);
+    }
     bpf_map_delete_elem(&go_tls_conn_by_tuple, &copy);
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
