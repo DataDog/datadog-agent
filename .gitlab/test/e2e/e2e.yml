@@ -138,6 +138,15 @@
       annotations:
         - $EXTERNAL_LINKS_PATH
 
+# Wait for the fakeintake image to publish (v<sha> on PRs, pinned tag on main).
+# Both optional: absent on non-fakeintake pipelines. Reference from every e2e
+# needs block (directly or via .needs_new_e2e_template) so no job races the image.
+.needs_fakeintake_publish:
+  - job: publish_fakeintake
+    optional: true
+  - job: publish_fakeintake_pinned
+    optional: true
+
 .needs_new_e2e_template:
   - go_e2e_deps
   - job: go_e2e_test_binaries
@@ -145,6 +154,7 @@
   - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
+  - !reference [.needs_fakeintake_publish]
 
 new-e2e-base-coverage:
   extends: .new_e2e_template
@@ -289,6 +299,7 @@ new-e2e-containers-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -326,6 +337,7 @@ new-e2e-containers-openshift-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
@@ -445,14 +457,11 @@ new-e2e-privateactionrunner:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - job: publish_fakeintake
-      optional: true
     - qa_agent_linux
     - qa_dca
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.except_mergequeue]
-    - !reference [.on_fakeintake_changes_with_image_override]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -525,6 +534,7 @@ new-e2e-npm-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
@@ -1023,6 +1033,7 @@ new-e2e-otel-eks-init:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
@@ -1089,6 +1100,7 @@ new-e2e-otel:
   needs:
     - go_e2e_deps
     - go_tools_deps
+    - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
