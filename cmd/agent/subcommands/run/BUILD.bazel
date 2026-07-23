@@ -178,7 +178,6 @@ go_library(
         "//pkg/commonchecks",
         "//pkg/config/remote/data",
         "//pkg/config/settings",
-        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/diagnose/connectivity",
         "//pkg/diagnose/firewallscanner",
@@ -289,6 +288,7 @@ go_library(
             "//comp/trace/etwtracer/def",
             "//comp/trace/etwtracer/fx",
             "//pkg/config/model",
+            "//pkg/config/setup",
             "//pkg/util/winutil",
         ],
         "//conditions:default": [],
@@ -305,11 +305,15 @@ dd_agent_go_test(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
-        "//comp/core/config",
         "//comp/core/pid/impl",
-        "//pkg/config/setup",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//pkg/config/setup",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
 )
