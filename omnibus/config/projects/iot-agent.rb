@@ -4,6 +4,9 @@
 # Copyright 2016-present Datadog, Inc.
 
 require "./lib/ostools.rb"
+# Needed for the do_repackage? helper referenced by the datadog-agent-data-plane
+# software definition (ADP dependency below).
+require "./lib/project_helpers.rb"
 
 name 'iot-agent'
 package_name 'datadog-iot-agent'
@@ -69,6 +72,17 @@ else
 
   # Datadog agent
   dependency 'datadog-iot-agent'
+
+  # Agent Data Plane (ADP): prebuilt binary, included to measure the
+  # package-size impact of shipping ADP with the IoT Agent (DogStatsD-on-ADP
+  # for the IoT flavor). See the "Freezing the IoT Agent" proposal.
+  #
+  # Gated behind an explicit IOT_INCLUDE_ADP env flag rather than arch helpers:
+  # ADP only ships amd64/arm64 artifacts, and the armhf IoT build cross-compiles
+  # on an arm64 host with an LD_PRELOAD armv7l shim that does not reach ohai, so
+  # arm7l_target?/arm_target? are unreliable here. The flag is set only on the
+  # amd64/arm64 IoT build jobs, so the armhf build never pulls ADP.
+  dependency 'datadog-agent-data-plane' if ENV['IOT_INCLUDE_ADP'] == 'true' && (linux_target? || osx_target? || windows_target?) && !heroku_target?
 
   if windows_target?
     dependency 'datadog-agent-finalize'

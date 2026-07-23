@@ -117,11 +117,17 @@ iot-agent-x64:
   extends: [.iot-agent-common, .toolchain-common-x64]
   rules:
     - when: on_success
+  variables:
+    # Size-probe: bundle Agent Data Plane into the amd64 IoT build only.
+    IOT_INCLUDE_ADP: "true"
 
 iot-agent-arm64:
   extends: [.iot-agent-common, .toolchain-common-arm64]
   rules:
     - when: on_success
+  variables:
+    # Size-probe: bundle Agent Data Plane into the arm64 IoT build only.
+    IOT_INCLUDE_ADP: "true"
 
 iot-agent-armhf:
   extends: .iot-agent-common
