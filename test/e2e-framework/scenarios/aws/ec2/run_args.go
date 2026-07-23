@@ -120,6 +120,14 @@ func WithEC2InstanceOptions(opts ...VMOption) Option {
 	}
 }
 
+// IsMacOSPoolCandidate reports whether p's instance options describe a macOS
+// pool member -- see the package-level IsMacOSPoolCandidate for the underlying
+// check. Lets callers outside this package (e.g. awshost.Provisioner's pre-Up
+// hook) peek at the unexported instanceOptions field.
+func (p *Params) IsMacOSPoolCandidate() (bool, error) {
+	return IsMacOSPoolCandidate(p.instanceOptions...)
+}
+
 // WithAgentOptions adds options to the Agent.
 func WithAgentOptions(opts ...agentparams.Option) Option {
 	return func(params *Params) error {
