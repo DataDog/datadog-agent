@@ -1,0 +1,27 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The ``wlan`` integration now emits ``system.wlan.scan.rssi``, a per-access-point
+    signal-strength metric covering every visible access point (the connected one and
+    nearby ones whose RSSI is measurable). Each series is tagged with ``ssid``, ``bssid``,
+    and ``connected`` (``1`` for the currently connected access point, ``0`` otherwise).
+    This is supported on Windows and macOS. Collection is enabled by default and can be
+    disabled by setting ``ap_scan: false`` in the integration ``init_config``.
+
+    The nearby access point scan can be bounded with ``ap_scan_limit`` (report only the
+    N strongest nearby access points) and ``ap_scan_rssi_cutoff`` (drop nearby access
+    points weaker than a given RSSI in dBm); the connected access point is always reported.
+
+    Two glob-pattern include/exclude filters, matched against the currently connected
+    network, are also available: ``ssid_include``/``ssid_exclude``/``bssid_include``/
+    ``bssid_exclude`` gate the connected access point metrics, and ``scan_ssid_include``/
+    ``scan_ssid_exclude``/``scan_bssid_include``/``scan_bssid_exclude`` gate whether the
+    nearby access point scan runs at all (for example, to scan only when connected to a
+    work network).
