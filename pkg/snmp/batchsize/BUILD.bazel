@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "batchsize",
+    srcs = ["optimizer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp/batchsize",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "batchsize_test",
+    srcs = ["optimizer_test.go"],
+    embed = [":batchsize"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
