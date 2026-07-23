@@ -186,10 +186,9 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
 		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace:  m.GetNamespace(),
-			ConfigID:   m.ConfigUUID,
-			DeviceID:   m.DeviceID,
-			ReportedAt: m.CapturedAt,
+			Namespace: m.GetNamespace(),
+			ConfigID:  m.ConfigUUID,
+			DeviceID:  m.DeviceID,
 		})
 	}
 	return entries, nil
