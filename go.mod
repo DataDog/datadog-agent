@@ -1158,9 +1158,6 @@ require (
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
-// use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
-replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
-
 // hashicorp/vault@v1.21.3+ ships an inconsistent module graph: its source uses
 // the 2-arg ActivationFunc from sdk's in-tree code, but its go.mod requires
 // vault/sdk@v0.21.0 from the proxy, which has a 3-arg signature. Upstream's
