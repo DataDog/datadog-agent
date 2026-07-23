@@ -30,6 +30,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	startupsequencernoopfx "github.com/DataDog/datadog-agent/comp/core/startupsequencer/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -537,6 +538,7 @@ func (suite *AgentTestSuite) createDeps() Requires {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),
 		secretsnoopfx.Module(),
+		startupsequencernoopfx.Module(),
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
