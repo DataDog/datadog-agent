@@ -1797,45 +1797,47 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 	}
 }
 
-// parseStringBytes reads the next type in the msgpack payload and
-// converts the BinType or the StrType in a valid string returning the index of the string in the string table
+// parseStringBytesRef reads the next string or byte slice in the msgpack payload
+// and returns its index in the string table.
 func parseStringBytesRef(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
-	ref, bts, err := parseStringBytes(bts)
+	value, bts, err := parseStringBytesZC(bts)
 	if err != nil {
 		return 0, bts, err
 	}
-	return stringTable.Add(ref), bts, nil
+	if utf8.Valid(value) {
+		return stringTable.AddBytes(value), bts, nil
+	}
+	return stringTable.Add(repairUTF8(msgp.UnsafeString(value))), bts, nil
 }
 
-// parseStringBytesRef reads the next type in the msgpack payload and
-// converts the BinType or the StrType in a valid string returning the string itself
+// parseStringBytes reads the next string or byte slice in the msgpack payload
+// and returns it as valid UTF-8.
 func parseStringBytes(bts []byte) (string, []byte, error) {
-	if msgp.IsNil(bts) {
-		bts, err := msgp.ReadNilBytes(bts)
-		return "", bts, err
-	}
-	// read the generic representation type without decoding
-	t := msgp.NextType(bts)
-
-	var (
-		err error
-		i   []byte
-	)
-	switch t {
-	case msgp.BinType:
-		i, bts, err = msgp.ReadBytesZC(bts)
-	case msgp.StrType:
-		i, bts, err = msgp.ReadStringZC(bts)
-	default:
-		return "", bts, msgp.TypeError{Encoded: t, Method: msgp.StrType}
-	}
+	value, bts, err := parseStringBytesZC(bts)
 	if err != nil {
 		return "", bts, err
 	}
-	if utf8.Valid(i) {
-		return string(i), bts, nil
+	if utf8.Valid(value) {
+		return string(value), bts, nil
 	}
-	return repairUTF8(msgp.UnsafeString(i)), bts, nil
+	return repairUTF8(msgp.UnsafeString(value)), bts, nil
+}
+
+// parseStringBytesZC reads the next string or byte slice in the msgpack payload
+// without copying it. The returned value aliases the payload.
+func parseStringBytesZC(bts []byte) ([]byte, []byte, error) {
+	typ := msgp.NextType(bts)
+	switch typ {
+	case msgp.NilType:
+		bts, err := msgp.ReadNilBytes(bts)
+		return nil, bts, err
+	case msgp.BinType:
+		return msgp.ReadBytesZC(bts)
+	case msgp.StrType:
+		return msgp.ReadStringZC(bts)
+	default:
+		return nil, bts, msgp.TypeError{Encoded: typ, Method: msgp.StrType}
+	}
 }
 
 // repairUTF8 ensures all characters in s are UTF-8 by replacing non-UTF-8 characters

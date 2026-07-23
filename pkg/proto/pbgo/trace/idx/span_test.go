@@ -13,6 +13,37 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+var benchmarkStringRef uint32
+
+func BenchmarkParseRepeatedStringBytesRef(b *testing.B) {
+	const stringCount = 1000
+	values := []string{
+		"service", "resource", "env:staging", "http.method", "GET",
+		"span.kind", "server", "component", "net/http", "version:1.2.3",
+	}
+	payload := make([]byte, 0, stringCount*16)
+	for i := 0; i < stringCount; i++ {
+		payload = msgp.AppendString(payload, values[i%len(values)])
+	}
+
+	b.ReportAllocs()
+	b.SetBytes(int64(len(payload)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		table := NewStringTableWithCapacity(len(values) + 1)
+		remaining := payload
+		var ref uint32
+		for len(remaining) > 0 {
+			var err error
+			ref, remaining, err = parseStringBytesRef(table, remaining)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+		benchmarkStringRef = ref
+	}
+}
+
 // TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric documents a
 // regression: ReconcileSamplingPriorityAfterChunkSpan treats every parent_id==0 span as authoritative,
 // including when the root never set _sampling_priority_v1 (SpanConvertedFields still at initial
