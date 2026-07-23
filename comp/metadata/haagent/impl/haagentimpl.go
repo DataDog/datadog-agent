@@ -86,10 +86,15 @@ func (i *haagentimpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request)
 	w.Write(scrubbed)
 }
 
-// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
+// Get returns a copy of the agent metadata, refreshed live. Useful to be incorporated in the status page.
+//
+// It recomputes the metadata on every call rather than returning the value cached by the periodic
+// inventory collector (which can be up to MaxInterval stale), since the status page is expected to
+// reflect the agent's current HA state, not a snapshot from the last metadata submission.
 func (i *haagentimpl) Get() *haAgentMetadata {
 	i.m.Lock()
 	defer i.m.Unlock()
+	i.refreshMetadata()
 	return i.getDataCopy()
 }
 

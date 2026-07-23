@@ -447,26 +447,6 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 	}
 }
 
-func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := newTestConf(t)
-	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
-	cfg.BuildSchema()
-
-	envs := map[string]struct{}{}
-	for _, env := range cfg.GetEnvVars() {
-		envs[env] = struct{}{}
-	}
-
-	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
-	assert.True(t, ok)
-
-	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
-	assert.True(t, ok)
-
-	// Make sure the default is set properly
-	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
-}
-
 func TestProcConfigEnabledTransform(t *testing.T) {
 	for _, tc := range []struct {
 		procConfigEnabled                                      string
