@@ -881,6 +881,41 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
 	assert.Equal(t, float64(30), m2.Counter.GetValue())
 }
 
+func TestAggregationPreservedTagKeyDoesNotCollideOnDelimiters(t *testing.T) {
+	labelPair := func(name, value string) *dto.LabelPair {
+		return &dto.LabelPair{Name: &name, Value: &value}
+	}
+	gaugeMetric := func(value float64, labels ...*dto.LabelPair) *dto.Metric {
+		return &dto.Metric{Label: labels, Gauge: &dto.Gauge{Value: &value}}
+	}
+	mCfg := &MetricConfig{
+		preserveTagsExists: true,
+		preserveTagsMap: map[string]any{
+			"a": struct{}{},
+			"c": struct{}{},
+			"d": struct{}{},
+		},
+	}
+	metrics := []*dto.Metric{
+		gaugeMetric(10, labelPair("a", "b:c"), labelPair("d", "e")),
+		gaugeMetric(20, labelPair("a", "b"), labelPair("c", "d:e")),
+	}
+
+	results := (&atel{}).aggregateMetricTags(mCfg, dto.MetricType_GAUGE, metrics)
+
+	require.Len(t, results, 2)
+	labelsByValue := make(map[float64][]string, len(results))
+	for _, result := range results {
+		labels := make([]string, len(result.GetLabel()))
+		for i, label := range result.GetLabel() {
+			labels[i] = label.GetName() + "=" + label.GetValue()
+		}
+		labelsByValue[result.Gauge.GetValue()] = labels
+	}
+	require.Equal(t, []string{"a=b:c", "d=e"}, labelsByValue[10])
+	require.Equal(t, []string{"a=b", "c=d:e"}, labelsByValue[20])
+}
+
 func TestTagAggregateTotalCounter(t *testing.T) {
 	var c = `
     agent_telemetry:

@@ -292,6 +292,22 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
+// encodeSortedAggregationLabels returns an unambiguous length-prefixed encoding for aggregation keys.
+func encodeSortedAggregationLabels(labels []*dto.LabelPair) string {
+	var key strings.Builder
+	for _, label := range labels {
+		name := label.GetName()
+		value := label.GetValue()
+		key.WriteString(strconv.Itoa(len(name)))
+		key.WriteByte(':')
+		key.WriteString(name)
+		key.WriteString(strconv.Itoa(len(value)))
+		key.WriteByte(':')
+		key.WriteString(value)
+	}
+	return key.String()
+}
+
 func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
 	// Nothing to aggregate?
 	if len(ms) == 0 {
@@ -331,14 +347,12 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 			// create a key from the tags (and drop not specified in the configuration tags)
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
-			var sb strings.Builder
 			for _, t := range tags {
 				if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
-					sb.WriteString(makeLabelPairKey(t))
 				}
 			}
-			tagsKey = sb.String()
+			tagsKey = encodeSortedAggregationLabels(specTags)
 
 			if mCfg.AggregateTotal {
 				aggregateMetric(mt, totalm, m)
