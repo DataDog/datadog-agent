@@ -69,6 +69,7 @@ def install_with_helm(
     cluster_agent_image: str = "",
     helm_values: str | None = None,
     image_pull_policy: str = "IfNotPresent",
+    fakeintake_url: str | None = None,
 ) -> None:
     """Install Datadog Agent using Helm."""
     app.display_info("Installing Datadog Agent via Helm...")
@@ -100,6 +101,22 @@ def install_with_helm(
         "--set",
         "clusterAgent.metricsProvider.enabled=true",
     ]
+
+    # Configure fakeintake endpoints if enabled
+    if fakeintake_url:
+        app.display_info(f"Configuring agent to use fakeintake at {fakeintake_url}")
+        # Set the main intake URL to fakeintake
+        # This will redirect metrics, traces, and other data to fakeintake
+        helm_cmd.extend(
+            [
+                "--set",
+                f"datadog.dd_url={fakeintake_url}",
+                "--set",
+                "datadog.logs.enabled=true",
+                "--set",
+                "datadog.logs.containerCollectAll=true",
+            ]
+        )
 
     if app_key:
         helm_cmd.extend(["--set", f"datadog.appKey={app_key}"])
