@@ -74,6 +74,22 @@ selects.config_setting_group(
     ],
 )
 
+selects.config_setting_group(
+    name = "macos_x86_64_base",
+    match_all = [
+        ":base_flavor",
+        "//:macos_x86_64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "macos_arm64_base",
+    match_all = [
+        ":base_flavor",
+        "//:macos_arm64",
+    ],
+)
+
 config_setting(
     name = "linux_x86_64_fips",
     constraint_values = [

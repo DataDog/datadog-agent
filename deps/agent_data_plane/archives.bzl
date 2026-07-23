@@ -6,8 +6,8 @@ _ARCHIVE_BY_CONDITION = {
     "//packages/agent:windows_x86_64_fips": "agent_data_plane_fips_windows_amd64",
     "//:linux_x86_64": "agent_data_plane_linux_amd64",
     "//:linux_arm64": "agent_data_plane_linux_arm64",
-    "//:macos_x86_64": "agent_data_plane_darwin_amd64",
-    "//:macos_arm64": "agent_data_plane_darwin_arm64",
+    "//packages/agent:macos_x86_64_base": "agent_data_plane_darwin_amd64",
+    "//packages/agent:macos_arm64_base": "agent_data_plane_darwin_arm64",
     "//:windows_x86_64": "agent_data_plane_windows_amd64",
 }
 
