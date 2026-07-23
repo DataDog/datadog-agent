@@ -32,7 +32,10 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["agent_config_test.go"],
+    srcs = [
+        "agent_config_test.go",
+        "compression_consistency_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":config"],
     deps = [
