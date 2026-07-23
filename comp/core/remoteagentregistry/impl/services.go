@@ -9,7 +9,6 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,7 +27,7 @@ import (
 
 const (
 	// emitterMetricTagName is the label added to all metrics forwarded from a remote agent
-	// to identify which agent produced them. Value is the agent display name (e.g. "adp", "system-probe").
+	// to identify which agent produced them. Its value is the registered sanitized display name.
 	emitterMetricTagName = "emitter"
 )
 
@@ -167,24 +166,7 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				continue
 			}
 
-			// Check if the metric already has an emitter label.
-			// With explicit agent identity, metrics should already have the correct value.
-			// We only add the label if it's missing (for backward compatibility).
-			hasEmitterLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
-				return *label.Name == emitterMetricTagName
-			})
-
-			labelNames := make([]string, 0, len(metric.Label)+1)
-			labelValues := make([]string, 0, len(metric.Label)+1)
-			// Only add emitter label if the metric doesn't already have one
-			if !hasEmitterLabel {
-				labelNames = append(labelNames, emitterMetricTagName)
-				labelValues = append(labelValues, remoteAgentName)
-			}
-			for _, label := range metric.Label {
-				labelNames = append(labelNames, *label.Name)
-				labelValues = append(labelValues, *label.Value)
-			}
+			labelNames, labelValues := canonicalMetricLabels(metric.Label, remoteAgentName)
 
 			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
 
@@ -232,4 +214,19 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			}
 		}
 	}
+}
+
+func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {
+	labelNames := make([]string, 0, len(incoming)+1)
+	labelValues := make([]string, 0, len(incoming)+1)
+	labelNames = append(labelNames, emitterMetricTagName)
+	labelValues = append(labelValues, registeredEmitter)
+	for _, label := range incoming {
+		if label.GetName() == emitterMetricTagName {
+			continue
+		}
+		labelNames = append(labelNames, label.GetName())
+		labelValues = append(labelValues, label.GetValue())
+	}
+	return labelNames, labelValues
 }

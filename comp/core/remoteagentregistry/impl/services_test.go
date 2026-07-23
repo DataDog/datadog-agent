@@ -220,16 +220,120 @@ func TestGetTelemetry(t *testing.T) {
 	}, protocmp.Transform()))
 }
 
-// TestGetTelemetryPreservesExistingEmitterLabel verifies that when a metric already
-// has an emitter label (set by the remote agent itself via metrics.SetAgentIdentity),
-// the registry collector preserves it and does NOT add a duplicate.
-func TestGetTelemetryPreservesExistingEmitterLabel(t *testing.T) {
+func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
+	testCases := []struct {
+		name               string
+		labels             string
+		expectedNonEmitter map[string]string
+	}{
+		{
+			name:               "missing incoming emitter label",
+			labels:             `source="missing",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "missing", "status": "ok"},
+		},
+		{
+			name:               "empty incoming emitter label",
+			labels:             `emitter="",source="empty",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "empty", "status": "ok"},
+		},
+		{
+			name:               "matching incoming emitter label",
+			labels:             `emitter="registered-agent",source="matching",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "matching", "status": "ok"},
+		},
+		{
+			name:               "mismatched incoming emitter label",
+			labels:             `emitter="spoofed-agent",source="mismatched",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "mismatched", "status": "ok"},
+		},
+	}
+
+	t.Run("duplicate incoming emitter labels", func(t *testing.T) {
+		incoming := []*io_prometheus_client.LabelPair{
+			{Name: proto.String(emitterMetricTagName), Value: proto.String("spoofed-agent-one")},
+			{Name: proto.String("source"), Value: proto.String("remote")},
+			{Name: proto.String(emitterMetricTagName), Value: proto.String("spoofed-agent-two")},
+			{Name: proto.String("status"), Value: proto.String("ok")},
+		}
+
+		labelNames, labelValues := canonicalMetricLabels(incoming, "registered-agent")
+		require.Equal(t, []string{emitterMetricTagName, "source", "status"}, labelNames)
+		require.Equal(t, []string{"registered-agent", "remote", "ok"}, labelValues)
+	})
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+			require.NoError(t, lc.Start(context.Background()))
+			t.Cleanup(func() {
+				require.NoError(t, lc.Stop(context.Background()))
+			})
+
+			promText := `# HELP authoritative_emitter_metric A remotely emitted metric
+# TYPE authoritative_emitter_metric gauge
+authoritative_emitter_metric{` + testCase.labels + `} 1
+`
+			_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
+				withTelemetryProvider(promText),
+			)
+
+			metrics, err := telemetryComp.Gather(false)
+			require.NoError(t, err)
+			metricFamily := metricsToMap(metrics)["authoritative_emitter_metric"]
+			require.NotNil(t, metricFamily)
+			require.Len(t, metricFamily.GetMetric(), 1)
+
+			actualNonEmitter := make(map[string]string, len(testCase.expectedNonEmitter))
+			emitterCount := 0
+			for _, label := range metricFamily.GetMetric()[0].GetLabel() {
+				if label.GetName() == emitterMetricTagName {
+					emitterCount++
+					require.Equal(t, "registered-agent", label.GetValue())
+					continue
+				}
+				actualNonEmitter[label.GetName()] = label.GetValue()
+			}
+			require.Equal(t, 1, emitterCount)
+			require.Equal(t, testCase.expectedNonEmitter, actualNonEmitter)
+		})
+	}
+}
+
+func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
+	testCases := []struct {
+		name        string
+		displayName string
+	}{
+		{name: "empty", displayName: ""},
+		{name: "spaces only", displayName: "   "},
+		{name: "other whitespace only", displayName: "\t\n\r"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provides, _, _, _, _ := buildComponent(t)
+			component := provides.Comp.(*remoteAgentRegistry)
+			registration := remoteagent.RegistrationData{
+				AgentDisplayName: testCase.displayName,
+				APIEndpointURI:   "127.0.0.1:1",
+			}
+
+			_, _, err := component.RegisterRemoteAgent(&registration)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "display name")
+			require.Empty(t, component.GetRegisteredAgents())
+		})
+	}
+}
+
+// TestGetTelemetryDoesNotDuplicateMatchingEmitterLabel verifies that a metric whose
+// incoming emitter matches its registered identity still has exactly one canonical emitter.
+func TestGetTelemetryDoesNotDuplicateMatchingEmitterLabel(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
 	component := provides.Comp
 
-	// Simulate system-probe forwarding a metric that already has emitter="system-probe"
-	// set via metrics.SetAgentIdentity("system-probe").
+	// Simulate system-probe forwarding a metric whose emitter matches its registered identity.
 	promText := `
 		# HELP logs__bytes_sent Total number of bytes sent
 		# TYPE logs__bytes_sent counter
@@ -262,8 +366,8 @@ func TestGetTelemetryPreservesExistingEmitterLabel(t *testing.T) {
 				emitterValue = label.GetValue()
 			}
 		}
-		assert.Equal(t, 1, emitterCount, "Should have exactly one emitter label, not a duplicate")
-		assert.Equal(t, "system-probe", emitterValue, "emitter value should be preserved from the metric, not overwritten by the registry")
+		assert.Equal(t, 1, emitterCount, "should have exactly one emitter label")
+		assert.Equal(t, "system-probe", emitterValue, "emitter should use the registered sanitized display name")
 
 		// Also verify the source label is preserved
 		assert.Empty(t, cmp.Diff(mf, &io_prometheus_client.MetricFamily{
@@ -291,16 +395,14 @@ func TestGetTelemetryPreservesExistingEmitterLabel(t *testing.T) {
 	}
 }
 
-// TestGetTelemetryMixedLabels verifies the registry handles a mix of metrics:
-// some with pre-existing emitter labels and some without.
+// TestGetTelemetryMixedLabels verifies the registry applies the registered identity
+// to a mix of metrics with and without incoming emitter labels.
 func TestGetTelemetryMixedLabels(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
 	component := provides.Comp
 
-	// Simulate an agent sending two metrics:
-	// - logs__bytes_sent already has emitter (should be preserved)
-	// - some_other_metric does NOT have emitter (should be injected by registry)
+	// Simulate an agent sending one metric with a matching emitter and one without an emitter.
 	promText := `
 		# HELP logs__bytes_sent Total number of bytes sent
 		# TYPE logs__bytes_sent counter
@@ -319,27 +421,27 @@ func TestGetTelemetryMixedLabels(t *testing.T) {
 
 	metricsMap := metricsToMap(metrics)
 
-	// logs__bytes_sent: emitter should be "system-probe" (from the metric itself)
+	// logs__bytes_sent should use the registered sanitized display name.
 	require.Contains(t, metricsMap, "logs__bytes_sent")
 	for _, m := range metricsMap["logs__bytes_sent"].GetMetric() {
 		for _, label := range m.GetLabel() {
 			if label.GetName() == emitterMetricTagName {
-				assert.Equal(t, "system-probe", label.GetValue(), "Pre-existing emitter should be preserved")
+				assert.Equal(t, "system-probe", label.GetValue(), "emitter should use the registered sanitized display name")
 			}
 		}
 	}
 
-	// some_other_metric: emitter should be "system-probe" (injected by registry from display name)
+	// some_other_metric should receive the same registered identity.
 	require.Contains(t, metricsMap, "some_other_metric")
 	for _, m := range metricsMap["some_other_metric"].GetMetric() {
 		foundEmitter := false
 		for _, label := range m.GetLabel() {
 			if label.GetName() == emitterMetricTagName {
 				foundEmitter = true
-				assert.Equal(t, "system-probe", label.GetValue(), "Registry should inject emitter for metrics without it")
+				assert.Equal(t, "system-probe", label.GetValue(), "registry should inject emitter for metrics without it")
 			}
 		}
-		assert.True(t, foundEmitter, "Registry should add emitter label when missing")
+		assert.True(t, foundEmitter, "registry should add emitter label when missing")
 	}
 }
 
