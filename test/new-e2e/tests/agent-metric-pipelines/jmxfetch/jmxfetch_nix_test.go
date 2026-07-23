@@ -170,6 +170,26 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 				}
 			}
 		}
+
+		// DADP-72: ADP diagnostics — dump inside-container state to root-cause why
+		// JMX metrics don't reach fakeintake when FIPS ADP is the DSD handler.
+		containerName := j.Env().Agent.ContainerName
+		dockerClient := j.Env().Docker.Client
+		for _, cmd := range []struct {
+			label string
+			args  []string
+		}{
+			{"adp process", []string{"sh", "-c", "ps aux | grep agent-data-plane | grep -v grep || echo 'ADP not running'"}},
+			{"dsd socket", []string{"sh", "-c", "ls -la /var/run/datadog/dsd.socket 2>&1 || echo 'dsd.socket not present'"}},
+			{"adp log (last 50 lines)", []string{"sh", "-c", "tail -50 /var/log/datadog/agent-data-plane.log 2>/dev/null || echo 'no ADP log'"}},
+			{"data_plane config", []string{"agent", "config", "get", "data_plane.enabled"}},
+			{"data_plane.dogstatsd config", []string{"agent", "config", "get", "data_plane.dogstatsd.enabled"}},
+			{"dogstatsd_socket config", []string{"agent", "config", "get", "dogstatsd_socket"}},
+			{"env DD_SKIP_SSL_VALIDATION", []string{"sh", "-c", "echo DD_SKIP_SSL_VALIDATION=$DD_SKIP_SSL_VALIDATION"}},
+		} {
+			out, cmdErr := dockerClient.ExecuteCommandWithErr(containerName, cmd.args...)
+			j.T().Logf("[ADP diag] %s: %s (err=%v)", cmd.label, out, cmdErr)
+		}
 	}
 }
 

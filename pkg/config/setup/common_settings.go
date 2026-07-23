@@ -1063,7 +1063,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
-	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	// Data Plane
+	// NOTE: default temporarily flipped to true to run the full e2e suite with
+	// ADP enabled (DADP-72). Do NOT merge — throwaway CI exploration only.
+	config.BindEnvAndSetDefault("data_plane.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
 	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
 	// Listen addresses must include a URL scheme (e.g. "tcp://").
