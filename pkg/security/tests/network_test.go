@@ -421,13 +421,11 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 		}, ruleID)
 	}
 
-	runPings := func(wrapper *dockerCmdWrapper, host string, count int) {
+	emitPackets := func(wrapper *dockerCmdWrapper, host string, count int) {
 		t.Helper()
-		cmd := wrapper.Command("ping", []string{
-			"-c", strconv.Itoa(count),
-			"-i", "1",
-			"-W", "1",
-			host,
+		cmd := wrapper.Command("sh", []string{
+			"-c",
+			fmt.Sprintf(`i=1; while [ $i -le %d ]; do echo test | nc -u -w1 %s 53; if [ $i -lt %d ]; then sleep 1; fi; i=$((i+1)); done`, count, host, count),
 		}, []string{})
 		_, _ = cmd.CombinedOutput()
 	}
@@ -512,17 +510,17 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// 4) 3 pings in container A async
-	go runPings(cmdWrapperA, pingHost, pingCount)
+	go emitPackets(cmdWrapperA, pingHost, pingCount)
 
 	// 5) reload with a second rule on another container (free trigger, different filter)
 	reloadPolicy([]*rules.RuleDefinition{rule2, rule1})
 	triggerIsolation(cmdWrapperB, ruleID2)
 
 	// 6) add some pings in container B
-	go runPings(cmdWrapperB, "1.1.1.1", 2)
+	go emitPackets(cmdWrapperB, "1.1.1.1", 2)
 
 	// 7) 3 more pings in container A
-	runPings(cmdWrapperA, pingHost, pingCount)
+	emitPackets(cmdWrapperA, pingHost, pingCount)
 	// wait until they have all been processed
 	time.Sleep(2 * time.Second)
 
