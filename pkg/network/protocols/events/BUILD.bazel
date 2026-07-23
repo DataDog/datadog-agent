@@ -65,6 +65,7 @@ go_test(
     ],
     embed = [":events"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network/config",

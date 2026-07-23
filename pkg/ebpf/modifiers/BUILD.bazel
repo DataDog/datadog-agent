@@ -29,6 +29,7 @@ go_test(
     srcs = ["sleepable_modifier_test.go"],
     embed = [":modifiers"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",

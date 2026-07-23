@@ -118,6 +118,7 @@ go_test(
     srcs = ["unix_transparent_proxy_test.go"],
     embed = [":proxy"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//require",

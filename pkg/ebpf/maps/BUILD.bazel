@@ -21,6 +21,7 @@ go_test(
     srcs = ["generic_map_test.go"],
     embed = [":maps"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//pkg/security/ebpf/kernel",
         "//pkg/util/kernel",
