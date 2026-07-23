@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,48 +23,20 @@ import (
 
 // writeFakeInstaller writes an executable stand-in for the installer binary that
 // consumes stdin (the secrets payload), writes the given stderr output, and exits
-// with the given code.
+// with the given code. The stderr payload is passed via a file to avoid any shell
+// quoting concerns.
 func writeFakeInstaller(t *testing.T, stderr string, exitCode int) string {
 	t.Helper()
 	dir := t.TempDir()
+	stderrPath := filepath.Join(dir, "stderr.txt")
+	require.NoError(t, os.WriteFile(stderrPath, []byte(stderr), 0o644))
 	path := filepath.Join(dir, "fake-installer.sh")
 	script := "#!/bin/sh\n" +
 		"cat >/dev/null\n" + // drain stdin so the parent's write doesn't get EPIPE
-		"printf '%s' " + shellQuote(stderr) + " 1>&2\n" +
-		"exit " + itoa(exitCode) + "\n"
+		"cat " + stderrPath + " 1>&2\n" +
+		"exit " + strconv.Itoa(exitCode) + "\n"
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 	return path
-}
-
-func shellQuote(s string) string {
-	out := "'"
-	for _, r := range s {
-		if r == '\'' {
-			out += `'\''`
-			continue
-		}
-		out += string(r)
-	}
-	return out + "'"
-}
-
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-	var b []byte
-	for i > 0 {
-		b = append([]byte{byte('0' + i%10)}, b...)
-		i /= 10
-	}
-	if neg {
-		b = append([]byte{'-'}, b...)
-	}
-	return string(b)
 }
 
 // TestInstallConfigExperiment_PropagatesInstallerError guarantees the fix for the
