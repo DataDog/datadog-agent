@@ -238,12 +238,9 @@ type Authorizer interface {
 	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
 }
 
-// PendingDelegatedAuthChecker is implemented by resolvers that can report whether their domain is
-// managed by delegated auth (WIF) - i.e. whether a 403 for this domain is likely transient (the key
-// hasn't resolved/rotated yet) rather than a genuinely bad static key. Kept separate from
-// Authorizer rather than added to it, so resolver types that don't implement it (and thus aren't
-// delegated-auth-aware) safely fall back to the existing drop-on-403 behavior via a failed type
-// assertion.
+// PendingDelegatedAuthChecker reports whether a resolver's domain is managed by delegated auth
+// (WIF), so a 403 can be treated as transient rather than a bad static key. Kept separate from
+// Authorizer so resolvers that don't implement it safely fall back to a failed type assertion.
 type PendingDelegatedAuthChecker interface {
 	HasPendingDelegatedAuth() bool
 }
@@ -479,11 +476,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
 		}
 
-		// A domain managed by delegated auth (WIF) may just not have resolved its first key yet,
-		// or be between retries after a transient auth-proof failure - that's not a permanently bad
-		// key like an unrecognized static one, so retry instead of dropping. Nudge delegated auth to
-		// retry sooner than its normal backoff would; best-effort, its return value doesn't gate the
-		// retry decision here since the domain is already known to be WIF-managed regardless.
+		// A WIF-managed domain may just not have a key resolved yet - not permanently bad like an
+		// unrecognized static key - so retry and nudge delegated auth to refresh sooner.
 		if checker, ok := t.Resolver.(PendingDelegatedAuthChecker); ok && checker.HasPendingDelegatedAuth() {
 			if delegatedAuth != nil {
 				delegatedAuth.Refresh()

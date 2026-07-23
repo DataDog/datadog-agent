@@ -83,16 +83,11 @@ type authInstance struct {
 	// done is closed when the background refresh goroutine exits
 	done chan struct{}
 
-	// triggerRefresh is a non-blocking, buffered(1) channel used by Refresh() to wake up
-	// startBackgroundRefresh's select loop for an early fetch attempt instead of waiting for the
-	// next scheduled tick. Mirrors comp/core/secrets's own refreshTrigger channel pattern - never
-	// call refreshAndGetAPIKey directly from Refresh() itself, that would block the caller (e.g.
-	// the forwarder's transaction worker) on a real network round-trip.
+	// triggerRefresh wakes up startBackgroundRefresh for an early fetch; buffered(1) and
+	// non-blocking so Refresh() never blocks the caller on network I/O.
 	triggerRefresh chan struct{}
-	// lastTriggeredRefresh is when Refresh() last actually sent on triggerRefresh for this
-	// instance, protected by delegatedAuthComponent.mu like the instance's other mutable fields.
-	// Used to throttle repeated triggers so a burst of 403s can't cause repeated real fetch
-	// attempts against the auth-proof exchange endpoint.
+	// lastTriggeredRefresh throttles repeated Refresh() triggers; protected by
+	// delegatedAuthComponent.mu.
 	lastTriggeredRefresh time.Time
 }
 
@@ -113,11 +108,9 @@ type delegatedAuthComponent struct {
 	providerConfig   common.ProviderConfig    // Resolved provider configuration
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
 
-	// additionalEndpointsMu serializes read-modify-write access to the `additional_endpoints`
-	// config value across concurrent instances (e.g. two DELA(...) entries refreshing at once).
-	// Deliberately separate from mu: config writes happen outside mu to avoid deadlocking with
-	// OnUpdate callbacks (see startBackgroundRefresh), but concurrent additional_endpoints merges
-	// still need to be serialized against each other.
+	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
+	// values across concurrent instances. Separate from mu since config writes happen outside mu
+	// to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
 }
 
@@ -435,15 +428,11 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
 			case <-instance.triggerRefresh:
-				// A Refresh() nudge (e.g. the forwarder saw a 403) - do the same forced attempt as
-				// a normal tick, just earlier. Runs in this same select loop as the ticker case
-				// below, so the two can never race each other for this instance.
+				// A Refresh() nudge - same forced attempt as a tick, just earlier.
 				if d.performRefreshAttempt(instance, ticker) {
 					return
 				}
-				// ticker.Reset (inside performRefreshAttempt) doesn't drain an already-buffered
-				// tick, so if one landed at ~the same instant as this trigger, the next loop
-				// iteration would otherwise immediately fire a second, redundant fetch attempt.
+				// Drain a tick that may have landed at the same instant, since Reset() doesn't.
 				select {
 				case <-ticker.C:
 				default:
@@ -512,19 +501,14 @@ func (d *delegatedAuthComponent) performRefreshAttempt(instance *authInstance, t
 	return false
 }
 
-// Refresh nudges every instance to retry sooner than its normal backoff, throttled per-instance
-// (minTriggerRefreshInterval) so a burst of calls can't cause repeated real fetch attempts. Never
-// performs the fetch itself - only wakes up the existing background refresh goroutine (see
-// startBackgroundRefresh's triggerRefresh case) - so this never blocks the caller on network I/O.
-// Mirrors comp/core/secrets.Component.Refresh()'s contract.
+// Refresh nudges every instance to retry sooner than its normal backoff, throttled per-instance so
+// a burst of calls can't cause repeated real fetch attempts. Mirrors
+// comp/core/secrets.Component.Refresh()'s contract; only sends on triggerRefresh, never fetches
+// inline, so this can't block the caller on network I/O.
 //
-// Deliberately does NOT skip instances that already have a resolved key: the caller (the
-// forwarder, on a 403) has no way to know which specific instance's key just went bad - and the
-// most common real-world 403 on a running system is exactly a previously-good key that's now
-// expired or been revoked, not a cold-start instance. Skipping resolved instances would make the
-// nudge a no-op for that case. This also matches the ticker path (startBackgroundRefresh already
-// force-refreshes resolved instances on every tick for rotation), so Refresh() isn't introducing a
-// new "resolved instances don't need refreshing" assumption the rest of the component doesn't share.
+// Doesn't skip already-resolved instances: the caller has no way to know which instance's key just
+// went bad, and the common case is a previously-good key expiring, not a cold start. Matches the
+// ticker, which already force-refreshes resolved instances every tick for rotation.
 func (d *delegatedAuthComponent) Refresh() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -580,12 +564,8 @@ func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 	}
 }
 
-// updateConfigWithAPIKey updates the config with a newly-fetched, real (non-fallback) API key.
-// Only called on a successful fetch - either the initial one in AddInstance, or a later one from
-// startBackgroundRefresh. The fallback API key (see writeAPIKeyToTarget's isFallback param) is
-// only ever written from AddInstance's two failure branches, both of which run before this is ever
-// reached for a given instance - so a real key, once obtained, is never reverted back to a
-// fallback by a later transient refresh failure.
+// updateConfigWithAPIKey writes a newly-fetched, real (non-fallback) API key. Only called on
+// success, so a resolved key is never reverted to a fallback by a later transient failure.
 func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, apiKey string) {
 	d.writeAPIKeyToTarget(instance, apiKey, false)
 }
@@ -612,11 +592,9 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 }
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config value at
-// instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing the
-// value this instance previously wrote there (starting with the original DELA(...) directive text)
-// without disturbing any other entry for that domain, static or otherwise. Serialized via
-// additionalEndpointsMu since multiple instances (one per DELA(...) entry, possibly across
-// different config keys) can refresh concurrently.
+// instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing only the
+// value this instance previously wrote there. Serialized via additionalEndpointsMu since multiple
+// instances can refresh concurrently.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
@@ -653,16 +631,10 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	}
 }
 
-// normalizeListShapeEntries converts a list-shape `additional_endpoints`-style config value into a
-// slice of string-keyed maps, regardless of which underlying shape config.Get() returns:
-//   - []any of map[any]any entries - what a real YAML-sourced value decodes to (the config
-//     loader's YAML decoding produces yaml.v2-style nested maps for nested mappings, not
-//     map[string]any)
-//   - []map[string]any - what an unset key's registered empty/typed default looks like
-//
-// Duplicated from the identical helper in pkg/config/setup/config.go rather than shared: this
-// package can't depend on pkg/config/setup or pkg/config/utils without risking a cycle back
-// through comp/core/delegatedauth/def, which pkg/config/setup already imports.
+// normalizeListShapeEntries normalizes a list-shape `additional_endpoints` config value to
+// []map[string]any: config.Get() returns []any of map[any]any for real YAML values (yaml.v2-style
+// decoding) but []map[string]any for an unset key's typed default. Duplicated from the identical
+// helper in pkg/config/setup/config.go - this package can't import that without a cycle.
 func normalizeListShapeEntries(raw any) ([]map[string]any, bool) {
 	switch typed := raw.(type) {
 	case []any:
@@ -702,11 +674,8 @@ func caseInsensitiveStringField(entry map[string]any, field string) (string, boo
 }
 
 // mergeIntoAdditionalEndpointsList writes apiKey into the list-shape config value at
-// instance.additionalEndpointsListConfigKey (a list of {api_key, Host, Port, ...} entries),
-// replacing the entry whose api_key still holds this instance's lastWrittenValue - matching by
-// value rather than list index/position, so a reordered or resized list doesn't silently drop the
-// resolved key. Serialized via additionalEndpointsMu for the same reason as
-// mergeIntoAdditionalEndpoints.
+// instance.additionalEndpointsListConfigKey, replacing the entry whose api_key still holds
+// lastWrittenValue - matched by value, not index, so a reordered list doesn't drop the key.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()

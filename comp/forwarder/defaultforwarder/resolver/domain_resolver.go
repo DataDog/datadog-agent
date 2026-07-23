@@ -410,11 +410,8 @@ func (r *domainResolver) IsUsable() bool {
 	return r.IsLocal() || len(r.dedupedAPIKeys) > 0 || r.hasPendingDelegatedAuth
 }
 
-// HasPendingDelegatedAuth reports whether this domain was configured with a delegated-auth
-// (DELA(...)) directive - i.e. it's WIF-managed. Despite the name, this never clears once set (see
-// the field's own doc comment): it's used here as "is this domain delegated-auth-managed at all,"
-// not literally "still pending," so a transaction sender can tell a transient WIF auth failure
-// apart from a genuinely bad static key.
+// HasPendingDelegatedAuth reports whether this domain is WIF-managed (configured with a
+// DELA(...) directive), so callers can tell a transient auth failure apart from a bad static key.
 func (r *domainResolver) HasPendingDelegatedAuth() bool {
 	return r.hasPendingDelegatedAuth
 }
