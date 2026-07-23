@@ -126,17 +126,17 @@ func (s *SelfIdent) ClusterID() string {
 
 // resolveDeploymentID makes one resolution attempt. The second return value
 // reports whether the result is definitive: true means the caller can cache
-// it permanently (no workloadmeta, no pod name env var, or the pod was found
-// and its owners inspected); false means the agent's own pod wasn't found in
-// workloadmeta yet, which may just mean the initial sync hasn't happened —
-// the caller should retry rather than cache a false negative.
+// it permanently (no workloadmeta, no resolvable pod name, or the pod was
+// found and its owners inspected); false means the agent's own pod wasn't
+// found in workloadmeta yet, which may just mean the initial sync hasn't
+// happened — the caller should retry rather than cache a false negative.
 func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definitive bool) {
 	wmeta, ok := s.wmeta.Get()
 	if !ok {
 		return "", true
 	}
-	podName := os.Getenv(podNameEnvVar)
-	if podName == "" {
+	podName, ok := selfPodName()
+	if !ok {
 		return "", true
 	}
 	pod, err := wmeta.GetKubernetesPodByName(podName, podNamespace)
@@ -150,4 +150,21 @@ func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definit
 		}
 	}
 	return "", true
+}
+
+// selfPodName returns this container's own pod name: DD_POD_NAME when set
+// (the Helm chart injects it via the downward API), else the container
+// hostname, which kubelet defaults to the pod's name unless the pod uses
+// hostNetwork or a custom hostname/subdomain. The hostname fallback is
+// needed because, unlike the Helm chart, the Datadog Operator does not
+// inject DD_POD_NAME into the node agent (only into the cluster agent).
+func selfPodName() (string, bool) {
+	if podName, ok := os.LookupEnv(podNameEnvVar); ok {
+		return podName, true
+	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", false
+	}
+	return hostname, true
 }
