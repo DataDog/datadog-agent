@@ -41,9 +41,10 @@ const leaderElectionErrorMessage = "Leader Election not enabled"
 // generate a repeating ERROR log) and enables the errortracking pipeline
 // with a fast flush so the wire-shape assertions below run quickly.
 const clusterAgentErrorTrackingEnabledHelmValues = `
+datadog:
+  leaderElection: false
 clusterAgent:
   envDict:
-    DD_LEADER_ELECTION: "false"
     DD_AGENT_TELEMETRY_ENABLED: "true"
     DD_AGENT_TELEMETRY_ERRORTRACKING_ENABLED: "true"
     DD_AGENT_TELEMETRY_ERRORTRACKING_FLUSH_INTERVAL_SECONDS: "1"
@@ -55,9 +56,10 @@ clusterAgent:
 // omits errortracking.enabled, which defaults to false, while still forcing
 // the leader-election error so the negative assertion is meaningful.
 const clusterAgentErrorTrackingDisabledHelmValues = `
+datadog:
+  leaderElection: false
 clusterAgent:
   envDict:
-    DD_LEADER_ELECTION: "false"
     DD_AGENT_TELEMETRY_ENABLED: "true"
     DD_AGENT_TELEMETRY_ERRORTRACKING_FLUSH_INTERVAL_SECONDS: "1"
     DD_AGENT_TELEMETRY_ERRORTRACKING_BOUNCER_WINDOW_SECONDS: "0"
