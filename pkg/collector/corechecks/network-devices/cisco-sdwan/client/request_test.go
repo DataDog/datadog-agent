@@ -297,10 +297,113 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 	}
 
 	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
-	require.ErrorContains(t, err, "max number of page reached")
+	require.ErrorIs(t, err, errMaxPagesReached)
 
 	// Ensure endpoint has been called 20 times
 	require.Equal(t, 20, handler.numberOfCalls())
+}
+
+func TestGetMoreEntriesMaxPagesReturnsPartialData(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`
+			{
+				"data": [{"deviceId": "d"}],
+				"pageInfo": {"startId": "1", "endId": "2", "moreEntries": true}
+			}
+		`))
+	})
+	mux.Handle("/dataservice/device", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.maxPages = 3
+
+	entries, err := getMoreEntries[Device](client, "/dataservice/device", PageInfo{MoreEntries: true})
+	require.ErrorIs(t, err, errMaxPagesReached)
+	require.Len(t, entries, 3)
+}
+
+func TestGetMoreEntriesReturnsPartialDataOnError(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, calls int32) {
+		if calls > 2 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`
+			{
+				"data": [{"deviceId": "d"}],
+				"pageInfo": {"startId": "1", "endId": "2", "moreEntries": true}
+			}
+		`))
+	})
+	mux.Handle("/dataservice/device", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	entries, err := getMoreEntries[Device](client, "/dataservice/device", PageInfo{MoreEntries: true})
+	require.Error(t, err)
+	require.Len(t, entries, 2)
+}
+
+func TestGetAllEntriesReturnsFirstPageOnPaginationError(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, calls int32) {
+		if calls > 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`
+			{
+				"data": [{"deviceId": "d"}],
+				"pageInfo": {"startId": "1", "endId": "2", "moreEntries": true}
+			}
+		`))
+	})
+	mux.Handle("/dataservice/device", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	resp, err := getAllEntries[Device](client, "/dataservice/device", nil)
+	require.Error(t, err)
+	require.Len(t, resp.Data, 1)
+}
+
+func TestGetAllEntriesFirstPageErrorReturnsNil(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	mux.Handle("/dataservice/device", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	resp, err := getAllEntries[Device](client, "/dataservice/device", nil)
+	require.Error(t, err)
+	require.Nil(t, resp)
 }
 
 func TestGetMoreEntriesIndexPagination(t *testing.T) {

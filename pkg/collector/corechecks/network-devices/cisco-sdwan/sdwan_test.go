@@ -440,3 +440,52 @@ collect_cloud_applications_metrics: false
 
 	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }
+
+func TestCiscoSDWANCheckSubmitsPartialTunnelMetricsOnPaginationError(t *testing.T) {
+	payload.TimeNow = mockTimeNow
+	report.TimeNow = mockTimeNow
+
+	// App-route endpoint serves page 1 then 429s on pagination
+	apiMockServer := client.SetupMockAPIServerWithAppRoutePaginationError()
+	defer apiMockServer.Close()
+
+	deps := createDeps(t)
+	chk := newCheck()
+	senderManager := deps.Demultiplexer
+
+	url := strings.TrimPrefix(apiMockServer.URL, "http://")
+
+	rawInstanceConfig := []byte(`
+vmanage_endpoint: ` + url + `
+username: admin
+password: 'test-password'
+use_http: true
+namespace: test
+`)
+
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("CountWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+	require.NoError(t, err)
+
+	err = chk.Run()
+	require.NoError(t, err)
+
+	// Despite the pagination 429, the first page of tunnel metrics is still submitted
+	ts := float64(1709050725125) / 1000
+	tags := []string{
+		"system_ip:10.10.1.13",
+		"remote_system_ip:10.10.1.11",
+		"local_color:mpls",
+		"remote_color:public-internet",
+		"state:Up",
+	}
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.status", 1, "", tags, ts)
+}

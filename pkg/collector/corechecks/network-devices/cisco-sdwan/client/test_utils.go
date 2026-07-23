@@ -112,3 +112,35 @@ func SetupMockAPIServer() *httptest.Server {
 
 	return httptest.NewServer(mux)
 }
+
+// SetupMockAPIServerWithAppRoutePaginationError is like SetupMockAPIServer, but the
+// application-aware routing endpoint serves a first page indicating more pages exist and then
+// fails every pagination follow-up with a 429. Used to verify partial tunnel metrics are still submitted.
+func SetupMockAPIServerWithAppRoutePaginationError() *httptest.Server {
+	mux := setupCommonServerMux()
+
+	mux.HandleFunc("/dataservice/device", fixtureHandler(fixtures.GetDevices))
+	mux.HandleFunc("/dataservice/device/counters", fixtureHandler(fixtures.GetDevicesCounters))
+	mux.HandleFunc("/dataservice/data/device/state/Interface", fixtureHandler(fixtures.GetVEdgeInterfaces))
+	mux.HandleFunc("/dataservice/data/device/state/CEdgeInterface", fixtureHandler(fixtures.GetCEdgeInterfaces))
+	mux.HandleFunc("/dataservice/data/device/statistics/interfacestatistics", fixtureHandler(fixtures.GetInterfacesMetrics))
+	mux.HandleFunc("/dataservice/data/device/statistics/devicesystemstatusstatistics", fixtureHandler(fixtures.GetDeviceHardwareStatistics))
+	mux.HandleFunc("/dataservice/data/device/state/ControlConnection", fixtureHandler(fixtures.GetControlConnectionsState))
+	mux.HandleFunc("/dataservice/data/device/state/OMPPeer", fixtureHandler(fixtures.GetOMPPeersState))
+	mux.HandleFunc("/dataservice/data/device/state/BFDSessions", fixtureHandler(fixtures.GetBFDSessionsState))
+	mux.HandleFunc("/dataservice/data/device/state/HardwareEnvironment", fixtureHandler(fixtures.GetHardwareStates))
+	mux.HandleFunc("/dataservice/data/device/statistics/cloudxstatistics", fixtureHandler(fixtures.GetCloudExpressMetrics))
+	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", fixtureHandler(fixtures.GetBGPNeighbors))
+
+	appRouteCalls := atomic.NewInt32(0)
+	mux.HandleFunc("/dataservice/data/device/statistics/approutestatsstatistics", func(w http.ResponseWriter, _ *http.Request) {
+		if appRouteCalls.Inc() > 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"data": ` + fixtures.GetApplicationAwareRoutingMetrics + `, "pageInfo": {"moreEntries": true, "startId": "1", "endId": "2"}}`))
+	})
+
+	return httptest.NewServer(mux)
+}

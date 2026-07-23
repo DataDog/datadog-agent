@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// errMaxPagesReached is returned when pagination hits the max_pages limit.
+var errMaxPagesReached = errors.New("reached max pagination limit; increase max_pages or max_count")
+
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
 	return http.NewRequest(method, client.endpoint+uri, body)
@@ -107,6 +110,7 @@ func isValidStatusCode(code int) bool {
 }
 
 // getMoreEntries gets all results from paginated endpoints
+// On error, any successfully fetched entries are still returned so callers can submit partial data
 func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInfo) ([]T, error) {
 	var responses []T
 	currentPageInfo := pageInfo
@@ -115,7 +119,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 	for page := 0; currentPageInfo.MoreEntries || currentPageInfo.HasMoreData; page++ {
 		// Error if max number of pages is reached
 		if page >= client.maxPages {
-			return nil, errors.New("max number of page reached, increase API count or max number of pages")
+			return responses, fmt.Errorf("%w (limit %d)", errMaxPagesReached, client.maxPages)
 		}
 
 		log.Tracef("Getting page %d from endpoint %s", page+1+1, endpoint)
@@ -129,7 +133,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 		// Call the endpoint with the new params
 		data, err := get[T](client, endpoint, nextParams)
 		if err != nil {
-			return nil, err
+			return responses, fmt.Errorf("pagination failed at page %d: %w", page, err)
 		}
 
 		responses = append(responses, data.Data...)
@@ -155,7 +159,8 @@ func getNextPaginationParams(info PageInfo, count string) (map[string]string, er
 	return nil, errors.New("could not build next page params")
 }
 
-// getAllEntries gets all entries from paginated endpoints
+// getAllEntries gets all entries from paginated endpoints.
+// On error, entries fetched before the failure are still returned (see getMoreEntries).
 func getAllEntries[T Content](client *Client, endpoint string, params map[string]string) (*Response[T], error) {
 	data, err := get[T](client, endpoint, params)
 	if err != nil {
@@ -164,11 +169,7 @@ func getAllEntries[T Content](client *Client, endpoint string, params map[string
 
 	// If API response is paginated, get the rest
 	entries, err := getMoreEntries[T](client, endpoint, data.PageInfo)
-	if err != nil {
-		return nil, err
-	}
-
 	data.Data = append(data.Data, entries...)
 
-	return data, nil
+	return data, err
 }
