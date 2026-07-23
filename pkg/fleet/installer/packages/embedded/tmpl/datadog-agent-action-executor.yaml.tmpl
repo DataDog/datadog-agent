@@ -1,0 +1,11 @@
+description: Datadog Private Action Runner - On-Demand Executor
+command: {{.InstallDir}}/embedded/bin/privateactionrunner
+args:
+  - run-executor
+  - --cfgpath
+  - ${DD_CONF_DIR}/datadog.yaml
+auto_start: false
+condition_path_exists: {{.InstallDir}}/embedded/bin/privateactionrunner
+restart: never
+stdout: inherit
+stderr: inherit
