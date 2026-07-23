@@ -165,7 +165,7 @@ func buildBenchExporter(t testing.TB, cfg *ExporterConfig) component.Component {
 		injectedSerializer = ser
 	}
 
-	f := NewFactoryForOTelAgent(injectedSerializer, hostGetter, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+	f := NewFactoryForOTelAgent(injectedSerializer, hostGetter, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, nil)
 
 	exp, err := f.CreateMetrics(
 		context.Background(),

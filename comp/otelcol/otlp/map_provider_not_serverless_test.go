@@ -1519,7 +1519,7 @@ func TestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil, nil)
 	require.NoError(t, err)
 
 	svccfg, err := provider.Get(context.Background(), components)

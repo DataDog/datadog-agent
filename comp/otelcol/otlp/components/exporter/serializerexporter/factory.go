@@ -22,6 +22,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
@@ -68,9 +69,9 @@ type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildIn
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
 // Serializer exporter should never receive APM stats in Agent OTLP ingestion.
-func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, store TelemetryStore) exp.Factory {
+func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, store TelemetryStore, filterList filterlist.Component) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest)
+	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest, filterList)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
@@ -81,9 +82,10 @@ func NewFactoryForOTelAgent(
 	gatewayusage otel.GatewayUsage,
 	store TelemetryStore,
 	reporter *inframetadata.Reporter,
+	filterList filterlist.Component,
 ) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
-	return newFactoryForAgentWithType(s, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot)
+	return newFactoryForAgentWithType(s, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot, filterList)
 }
 
 func newFactoryForAgentWithType(
@@ -95,6 +97,7 @@ func newFactoryForAgentWithType(
 	store TelemetryStore,
 	reporter *inframetadata.Reporter,
 	ipath ingestionPath,
+	filterList filterlist.Component,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
@@ -118,6 +121,7 @@ func newFactoryForAgentWithType(
 				ipath:           ipath,
 				hosts:           make(map[string]struct{}),
 				ecsFargateTags:  make(map[string]struct{}),
+				filterList:      filterList,
 			}
 		},
 		options:      options,

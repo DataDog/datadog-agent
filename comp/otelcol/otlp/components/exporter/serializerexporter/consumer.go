@@ -22,6 +22,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -99,6 +100,7 @@ type serializerConsumer struct {
 	ipath           ingestionPath
 	hosts           map[string]struct{}
 	ecsFargateTags  map[string]struct{}
+	filterList      filterlist.Component
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -136,6 +138,25 @@ func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 	return enrichedTags
 }
 
+// filterTags strips tags configured via metric_tag_filterlist (remote-config
+// driven, see comp/filterlist) for the given metric name.
+func (c *serializerConsumer) filterTags(name string, tags []string) []string {
+	if c.filterList == nil {
+		return tags
+	}
+	keepTag, filter := c.filterList.GetTagFilterList().ShouldStripTags(name)
+	if !filter {
+		return tags
+	}
+	filtered := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if keepTag(tag) {
+			filtered = append(filtered, tag)
+		}
+	}
+	return filtered
+}
+
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
@@ -144,7 +165,7 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     dimensions.Name(),
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+			Tags:     tagset.CompositeTagsFromSlice(c.filterTags(dimensions.Name(), enrichTags(c.extraTags, dimensions))),
 			Host:     dimensions.Host(),
 			Interval: interval,
 			Source:   msrc,
@@ -177,7 +198,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 		&metrics.Serie{
 			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+			Tags:     tagset.CompositeTagsFromSlice(c.filterTags(dimensions.Name(), enrichTags(c.extraTags, dimensions))),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: interval,
