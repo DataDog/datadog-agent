@@ -469,9 +469,9 @@ require (
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
-	golang.org/x/arch v0.28.0
+	golang.org/x/arch v0.29.0
 	golang.org/x/crypto v0.54.0
-	golang.org/x/exp v0.0.0-20260611194520-c48552f49976
+	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597
 	golang.org/x/mod v0.38.0
 	golang.org/x/net v0.57.0
 	golang.org/x/oauth2 v0.36.0
@@ -898,6 +898,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/okta/okta-sdk-golang/v5 v5.0.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.32.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.156.0 // indirect
@@ -947,6 +948,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.156.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.156.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.156.0 // indirect
