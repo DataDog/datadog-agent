@@ -58,6 +58,21 @@ type Config struct {
 	// and profiles processors always behave as if this were "off",
 	// regardless of the configured value.
 	TraceContainerTagPromotion ContainerTagPromotionMode `mapstructure:"trace_container_tag_promotion"`
+
+	// LogsTagsAsDDTags controls whether custom tags emitted by the tagger
+	// (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are
+	// written as a `ddtags` log record attribute -- which the Datadog logs
+	// intake turns into real log tags -- instead of as resource attributes,
+	// which surface as log attributes.
+	//
+	// When false (default), behavior is unchanged: these tags remain
+	// resource attributes and appear as log attributes. Known DD / OTel
+	// semantic conventions and unified service tagging keys are unaffected
+	// either way -- they are always kept as resource attributes, since the
+	// Datadog logs intake already promotes them into tags on its own.
+	//
+	// This only affects the logs pipeline.
+	LogsTagsAsDDTags bool `mapstructure:"logs_tags_as_ddtags"`
 }
 
 var _ component.Config = (*Config)(nil)

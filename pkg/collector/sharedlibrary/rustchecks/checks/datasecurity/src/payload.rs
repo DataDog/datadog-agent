@@ -10,7 +10,7 @@ pub struct ScanEventPayload {
     pub matches: Vec<Match>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct Match {
     pub rule_id: String,

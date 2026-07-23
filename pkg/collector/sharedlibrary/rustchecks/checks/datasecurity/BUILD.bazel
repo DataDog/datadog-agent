@@ -7,6 +7,10 @@ _LINUX = ["@platforms//os:linux"]
 rust_shared_library(
     name = "datasecurity",
     srcs = glob(["src/**/*.rs"]),
+    # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`
+    aliases = {
+        "@crates//:dd-sensitive-data-scanner": "dd_sds",
+    },
     crate_name = "datasecurity",
     edition = "2024",
     target_compatible_with = _LINUX,
@@ -14,6 +18,7 @@ rust_shared_library(
     deps = [
         "//pkg/collector/sharedlibrary/rustchecks/core",
         "@crates//:anyhow",
+        "@crates//:dd-sensitive-data-scanner",
         "@crates//:libc",
         "@crates//:serde",
         "@crates//:serde_json",

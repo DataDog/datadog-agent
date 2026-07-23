@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .tests_macos_gitlab:
   stage: source_test
   extends:
