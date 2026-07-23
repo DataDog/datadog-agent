@@ -202,9 +202,9 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-changes-multiple-dd/config-result.yaml",
 		},
 		{
-			name:           "receivers/no-changes-multiple-dd-same-pipeline",
-			provided:       "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
-			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config-result.yaml",
+			name:           "receivers/multi-dd-same-pipeline",
+			provided:       "receivers/multi-dd-same-pipeline/config.yaml",
+			expectedResult: "receivers/multi-dd-same-pipeline/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-prometheus-receiver",
@@ -486,10 +486,10 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "cumulativetodelta/no-dd-exporter/acfg.yaml",
 		},
 		{
-			name:           "cumulativetodelta/multiple-metrics-pipelines",
-			provided:       "cumulativetodelta/multiple-metrics-pipelines/config.yaml",
-			expectedResult: "cumulativetodelta/multiple-metrics-pipelines/config-result.yaml",
-			agentConfig:    "cumulativetodelta/multiple-metrics-pipelines/acfg.yaml",
+			name:           "cumulativetodelta/multi-metrics",
+			provided:       "cumulativetodelta/multi-metrics/config.yaml",
+			expectedResult: "cumulativetodelta/multi-metrics/config-result.yaml",
+			agentConfig:    "cumulativetodelta/multi-metrics/acfg.yaml",
 		},
 		{
 			name:           "cumulativetodelta/feature-disabled",
