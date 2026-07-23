@@ -25,6 +25,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteflagscomp "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	rftypes "github.com/DataDog/datadog-agent/comp/core/remoteflags/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -98,6 +99,7 @@ type Requires struct {
 	Log       log.Component
 	Config    config.Component
 	Telemetry telemetry.Component
+	RemoteFlags remoteflagscomp.Component
 
 	Lc compdef.Lifecycle
 }
