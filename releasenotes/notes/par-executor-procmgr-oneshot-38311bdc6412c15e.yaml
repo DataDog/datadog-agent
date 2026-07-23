@@ -1,15 +1,7 @@
 ---
 enhancements:
   - |
-    On Windows, when ``process_manager.enabled`` is true, the fleet installer now also registers
-    the Private Action Runner's on-demand executor with ``dd-procmgr`` via a
-    ``processes.d/datadog-agent-action-executor.yaml`` definition. The executor is configured with
-    ``auto_start: false`` and ``restart: never``, so ``dd-procmgrd`` never starts or restarts it on
-    its own; it only runs, once, when explicitly started through ``dd-procmgr``.
-  - |
-    On Linux, the fleet installer now also registers the Private Action Runner's on-demand
-    executor with ``dd-procmgr`` via a ``processes.d/datadog-agent-action-executor.yaml``
-    definition, alongside the existing systemd-managed Private Action Runner service. The executor
-    is configured with ``auto_start: false`` and ``restart: never``, so ``dd-procmgrd`` never
-    starts or restarts it on its own; it only runs, once, when explicitly started through
-    ``dd-procmgr``.
+    On Windows and Linux, the fleet installer now also registers the Private Action Runner's
+    on-demand executor with ``dd-procmgr`` via a ``processes.d/datadog-agent-action-executor.yaml``
+    definition, configured with ``auto_start: false`` and ``restart: never`` so it only runs, once,
+    when explicitly started through ``dd-procmgr``.
