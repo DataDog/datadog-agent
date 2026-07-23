@@ -64,7 +64,7 @@ RUN apt-get update && \
 # cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_resource,cap_dac_read_search,cap_syslog,cap_checkpoint_restore,cap_ipc_lock=pe
 # sets them in the permitted+effective sets on exec, giving the process a populated permitted set
 # from which it can then raise ambient caps (and immediately clear them for child processes).
-RUN setcap cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_resource,cap_dac_read_search,cap_syslog,cap_checkpoint_restore,cap_ipc_lock=pe \
+RUN setcap cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_resource,cap_dac_read_search,cap_syslog,cap_checkpoint_restore,cap_ipc_lock=pie \
     /opt/datadog-agent/embedded/bin/host-profiler
 # backward-compatibility symlink as some existing Helm charts / operator may reference the old binary name
 RUN ln -s /opt/datadog-agent/embedded/bin/host-profiler /opt/datadog-agent/embedded/bin/full-host-profiler
