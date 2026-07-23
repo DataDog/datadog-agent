@@ -11,7 +11,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/privateactionrunner/types",
@@ -19,7 +18,6 @@ go_library(
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//pkg/remoteconfig/state",
-        "//pkg/util/log",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -30,11 +28,9 @@ go_test(
     embed = [":task-verifier"],
     gotags = ["test"],
     deps = [
-        "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
