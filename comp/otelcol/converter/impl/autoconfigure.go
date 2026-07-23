@@ -137,8 +137,8 @@ func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
 }
 
 func componentName(fullName string) string {
-	parts := strings.SplitN(fullName, "/", 2)
-	return parts[0]
+	base, _, _ := strings.Cut(fullName, "/")
+	return base
 }
 
 // pipelineType selects which service pipelines a processor is injected into.

@@ -464,6 +464,8 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "cumulativetodelta/injected/acfg.yaml",
 		},
 		{
+			// No-op expected: a user-defined cumulativetodelta is already present, so
+			// the provided config doubles as the expected result (no injection).
 			name:           "cumulativetodelta/dedup",
 			provided:       "cumulativetodelta/dedup/config.yaml",
 			expectedResult: "cumulativetodelta/dedup/config.yaml",
@@ -476,6 +478,8 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "cumulativetodelta/metrics-only/acfg.yaml",
 		},
 		{
+			// No-op expected: the metrics pipeline has no datadog exporter, so the
+			// provided config doubles as the expected result (no injection).
 			name:           "cumulativetodelta/no-dd-exporter",
 			provided:       "cumulativetodelta/no-dd-exporter/config.yaml",
 			expectedResult: "cumulativetodelta/no-dd-exporter/config.yaml",
@@ -516,19 +520,19 @@ func TestConvert(t *testing.T) {
 				}
 			}
 			converter, err := NewComponent(r)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			conf, err := resolver.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			converter.Convert(context.Background(), conf)
 
 			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			confResult, err := resolverResult.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 		})
@@ -544,16 +548,16 @@ func TestConvert(t *testing.T) {
 			converter := newConverter(confmap.ConverterSettings{Logger: nopLogger})
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			conf, err := resolver.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			converter.Convert(context.Background(), conf)
 
 			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			confResult, err := resolverResult.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 		})
