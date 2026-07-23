@@ -296,7 +296,7 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo, nil)
 	require.ErrorContains(t, err, "max number of page reached")
 
 	// Ensure endpoint has been called 20 times
@@ -355,7 +355,7 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo, nil)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times
@@ -418,7 +418,69 @@ func TestGetMoreEntriesScrollPagination(t *testing.T) {
 		HasMoreData: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo, make(map[string]string))
+	require.NoError(t, err)
+
+	// Ensure endpoint has been called 2 times
+	require.Equal(t, 2, handler.numberOfCalls())
+}
+
+func TestGetMoreEntriesPreserveParams(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		otherParam := r.URL.Query().Get("otherParam")
+		startID := r.URL.Query().Get("startId")
+		if calls == 1 {
+			// First call, expect startId to be 15
+
+			require.Equal(t, "15", startID, "startId should be correct")
+			require.Equal(t, "other value", otherParam, "otherParam should be preserved")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`
+				{
+  					"pageInfo": {
+        				"startId": "15",
+						"endId": "30",
+        				"moreEntries": true,
+        				"count": 14
+					}
+				}
+			`))
+			return
+		}
+
+		// Second call, expect startId to be 31
+		require.Equal(t, "30", startID, "startId should be correct")
+		require.Equal(t, "other value", otherParam, "otherParam should be preserved")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`
+			{
+  				"pageInfo": {
+       	 			"startId": "30",
+        			"endId": "35",
+        			"moreEntries": false,
+        			"count": 4
+    			}
+			}
+		`))
+	})
+
+	mux.Handle("/dataservice/device", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	pageInfo := PageInfo{
+		StartID:     "1",
+		EndID:       "15",
+		MoreEntries: true,
+	}
+
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo, map[string]string{"otherParam": "other value"})
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times

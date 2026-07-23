@@ -181,7 +181,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectBGPNeighborStates {
-		bgpNeighbors, err := client.GetBGPNeighbors()
+		bgpNeighbors, err := client.GetBGPNeighbors(devices)
 		if err != nil {
 			log.Warnf("Error getting BGP neighbors from Cisco SD-WAN API: %s", err)
 		}

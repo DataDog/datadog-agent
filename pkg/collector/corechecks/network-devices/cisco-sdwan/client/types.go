@@ -470,7 +470,7 @@ type CloudXStatistics struct {
 	ID               string      `json:"id"`
 }
 
-// BGPNeighbor /dataservice/data/device/state/BGPNeighbor
+// BGPNeighbor /dataservice/device/bgp/neighbors
 type BGPNeighbor struct {
 	RecordID        string  `json:"recordId"`
 	VdeviceName     string  `json:"vdevice-name"`

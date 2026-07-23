@@ -596,15 +596,15 @@ func TestGetBGPNeighbors(t *testing.T) {
 
 	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
-		count := query.Get("count")
+		deviceID := query.Get("deviceId")
 
-		require.Equal(t, "2000", count)
+		require.Equal(t, "10.10.1.1", deviceID)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(fixtures.GetBGPNeighbors)))
 	})
 
-	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", handler.Func)
+	mux.HandleFunc("/dataservice/device/bgp/neighbors", handler.Func)
 
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -612,18 +612,88 @@ func TestGetBGPNeighbors(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetBGPNeighbors()
+	testDevices := []Device{{SystemIP: "10.10.1.1"}}
+	neighbors, err := client.GetBGPNeighbors(testDevices)
 	require.NoError(t, err)
 
-	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
-	require.Equal(t, "ipv4-unicast", devices[0].Afi)
-	require.Equal(t, float64(1), devices[0].VpnID)
-	require.Equal(t, "10.60.1.1", devices[0].PeerAddr)
-	require.Equal(t, float64(2024), devices[0].AS)
-	require.Equal(t, "established", devices[0].State)
+	require.Equal(t, "10.10.1.11", neighbors[0].VmanageSystemIP)
+	require.Equal(t, "ipv4-unicast", neighbors[0].Afi)
+	require.Equal(t, float64(1), neighbors[0].VpnID)
+	require.Equal(t, "10.60.1.1", neighbors[0].PeerAddr)
+	require.Equal(t, float64(2024), neighbors[0].AS)
+	require.Equal(t, "established", neighbors[0].State)
 
-	// Ensure endpoint has been called 1 times
+	// Ensure endpoint has been called once per device
 	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetBGPNeighborsAllDevicesFail(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	mux.HandleFunc("/dataservice/device/bgp/neighbors", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	testDevices := []Device{{SystemIP: "10.10.1.1"}, {SystemIP: "10.10.1.2"}}
+	neighbors, err := client.GetBGPNeighbors(testDevices)
+
+	// When every device query fails we surface an error instead of an empty result
+	require.Error(t, err)
+	require.Nil(t, neighbors)
+}
+
+func TestGetBGPNeighborsPartialFailureAndBackfill(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	// Payload with an empty vmanage-system-ip to exercise the backfill path
+	const bgpNeighborNoSystemIP = `
+[
+	{
+		"afi": "ipv4-unicast",
+		"vpn-id": 1,
+		"peer-addr": "10.60.1.1",
+		"as": 2024,
+		"vmanage-system-ip": "",
+		"state": "established"
+	}
+]
+`
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
+		// One device succeeds, the other returns an error
+		if r.URL.Query().Get("deviceId") == "10.10.1.2" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(bgpNeighborNoSystemIP)))
+	})
+
+	mux.HandleFunc("/dataservice/device/bgp/neighbors", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	testDevices := []Device{{SystemIP: "10.10.1.1"}, {SystemIP: "10.10.1.2"}}
+	neighbors, err := client.GetBGPNeighbors(testDevices)
+
+	// A partial failure is not fatal: we keep the neighbors we could retrieve
+	require.NoError(t, err)
+	require.Len(t, neighbors, 1)
+	// The empty vmanage-system-ip is backfilled with the device's system IP
+	require.Equal(t, "10.10.1.1", neighbors[0].VmanageSystemIP)
+	require.Equal(t, "10.60.1.1", neighbors[0].PeerAddr)
 }
 
 func TestFlexFloat64UnmarshalJSON(t *testing.T) {
