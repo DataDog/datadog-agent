@@ -292,8 +292,9 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-// Prometheus preserves ':' in label values, so delimiter-only concatenation can encode distinct sorted label sets identically.
-// Length prefixes make each name/value boundary unambiguous.
+// Prometheus preserves ':' in label values, so delimiter-only concatenation
+// can encode distinct sorted label sets identically. Length prefixes make each
+// name/value boundary unambiguous.
 func encodeSortedAggregationLabels(labels []*dto.LabelPair) string {
 	var key strings.Builder
 	for _, label := range labels {
