@@ -142,33 +142,33 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		previous := make(map[string]any)
 		err = yaml.Unmarshal(previousYAMLBytes, &previous)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", a.FilePath, err)
 		}
 		previousJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
-			return err
+			return fmt.Errorf("could not serialize config file %q: %w", a.FilePath, err)
 		}
 		var newJSONBytes []byte
 		switch a.FileOperationType {
 		case FileOperationPatch:
 			patch, err := patch.DecodePatch(a.Patch)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not decode patch for config file %q: %w", a.FilePath, err)
 			}
 			newJSONBytes, err = patch.Apply(previousJSONBytes)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not apply patch to config file %q: %w", a.FilePath, err)
 			}
 		case FileOperationMergePatch:
 			newJSONBytes, err = patch.MergePatch(previousJSONBytes, a.Patch)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not apply merge patch to config file %q: %w", a.FilePath, err)
 			}
 		}
 		var current map[string]any
 		err = yaml.Unmarshal(newJSONBytes, &current)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not parse patched config for file %q: %w", a.FilePath, err)
 		}
 		currentYAMLBytes, err := yaml.Marshal(current)
 		if err != nil {
@@ -419,11 +419,11 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	var stableDatadogJSON map[string]any
 	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
 	if err != nil {
-		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
+		return FileOperation{}, fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", fullFilePath, err)
 	}
 	stableDatadogJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(stableDatadogJSON))
 	if err != nil {
-		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
+		return FileOperation{}, fmt.Errorf("could not serialize config file %q: %w", fullFilePath, err)
 	}
 
 	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)

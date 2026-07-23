@@ -57,6 +57,33 @@ func TestOperationApply_Patch(t *testing.T) {
 	}
 }
 
+func TestOperationApply_MalformedYAMLNamesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "application_monitoring.yaml")
+	// A root-level mapping followed by a root-level sequence item is invalid YAML
+	// and makes go-yaml return "did not find expected key" with only a line number.
+	malformed := "apm_configuration_default:\n  DD_LOGS_INJECTION: true\n\n- selectors:\n  - origin: language\n"
+	err := os.WriteFile(filePath, []byte(malformed), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationMergePatch,
+		FilePath:          "/application_monitoring.yaml",
+		Patch:             []byte(`{"config_id": "abc"}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
+	// The error must name the offending file so customers can pinpoint it...
+	assert.ErrorContains(t, err, `"/application_monitoring.yaml"`)
+	// ...while preserving the underlying parser error (line number + reason).
+	assert.ErrorContains(t, err, "did not find expected key")
+}
+
 func TestOperationApply_MergePatch(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
