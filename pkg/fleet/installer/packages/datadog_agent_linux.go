@@ -464,6 +464,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR executor process manager config: %v", err)
+	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
@@ -510,6 +513,9 @@ func prePromoteExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
+	}
+	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR executor process manager config: %v", err)
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx

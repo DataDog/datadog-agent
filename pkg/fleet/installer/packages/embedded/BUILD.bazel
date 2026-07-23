@@ -12,6 +12,7 @@ exports_files(
 
 # keep
 service_srcs = [
+    "tmpl/gen/debrpm/datadog-agent-action-executor.yaml",
     "tmpl/gen/debrpm/datadog-agent-action-exp.service",
     "tmpl/gen/debrpm/datadog-agent-action.service",
     "tmpl/gen/debrpm/datadog-agent-data-plane-exp.service",
@@ -34,6 +35,7 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-trace-exp.service",
     "tmpl/gen/debrpm/datadog-agent-trace.service",
     "tmpl/gen/debrpm/datadog-agent.service",
+    "tmpl/gen/windows/datadog-agent-action-executor.yaml",
     "tmpl/gen/windows/datadog-agent-action.yaml",
     "tmpl/gen/windows/datadog-agent-data-plane.yaml",
     "tmpl/gen/windows/datadog-agent-ddot.yaml",
