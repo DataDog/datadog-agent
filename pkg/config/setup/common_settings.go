@@ -76,7 +76,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Staged startup spreads expensive subsystem startup across ordered stages
 	// to flatten the startup memory spike. When disabled, all startup work runs
 	// at once as before.
-	config.BindEnvAndSetDefault("staged_start.enabled", false)
+	config.BindEnvAndSetDefault("staged_start.enabled", true)
 	// Delay inserted between staged startup stages.
 	config.BindEnvAndSetDefault("staged_start.stage_interval", 5*time.Second)
 	// If true, transient memory is returned to the OS between staged startup stages.
