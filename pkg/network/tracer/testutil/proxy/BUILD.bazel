@@ -117,8 +117,12 @@ go_test(
     name = "proxy_test",
     srcs = ["unix_transparent_proxy_test.go"],
     embed = [":proxy"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//require",

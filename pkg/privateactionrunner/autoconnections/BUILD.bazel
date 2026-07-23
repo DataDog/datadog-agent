@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "autoconnections",
@@ -30,7 +31,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "autoconnections_test",
     srcs = [
         "allowed_connections_test.go",
@@ -39,7 +40,6 @@ go_test(
         "tags_provider_test.go",
     ],
     embed = [":autoconnections"],
-    gotags = ["test"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//pkg/config/mock",

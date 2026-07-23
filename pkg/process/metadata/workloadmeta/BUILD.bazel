@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "workloadmeta",
@@ -25,14 +26,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "workloadmeta_test",
     srcs = [
         "extractor_test.go",
         "grpc_test.go",
     ],
     embed = [":workloadmeta"],
-    gotags = ["test"],
     deps = [
         "//comp/core/ipc/mock",
         "//comp/core/telemetry/def",

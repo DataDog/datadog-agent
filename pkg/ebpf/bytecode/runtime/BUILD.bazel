@@ -71,6 +71,7 @@ go_library(
         "//pkg/ebpf/bytecode:usm_gen",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime",
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
     deps = [
@@ -97,6 +98,7 @@ go_test(
     embed = [":runtime"],
     gotags = ["linux_bpf"],  # keep
     tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/kernel",

@@ -1,8 +1,6 @@
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
 # gazelle:dd_agent_go_test on
 
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "modules",
@@ -247,7 +245,7 @@ go_library(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "modules_test",
     srcs = [
         "compliance_test.go",
@@ -258,6 +256,10 @@ dd_agent_go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({

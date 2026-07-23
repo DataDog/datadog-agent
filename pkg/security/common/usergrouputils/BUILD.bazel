@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "usergrouputils",
@@ -7,7 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "usergrouputils_test",
     srcs = ["parser_test.go"],
     embed = [":usergrouputils"],
@@ -15,5 +16,4 @@ go_test(
         "group.sample",
         "passwd.sample",
     ],
-    gotags = ["test"],
 )

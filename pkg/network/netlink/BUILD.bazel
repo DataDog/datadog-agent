@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "netlink",
@@ -66,7 +67,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "netlink_test",
     srcs = [
         "attribute_scanner_test.go",
@@ -79,7 +80,6 @@ go_test(
         "encoding_test.go",
     ],
     embed = [":netlink"],
-    gotags = ["test"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network",

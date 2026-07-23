@@ -1,5 +1,6 @@
 # gazelle:write_pb_go //pkg/proto/datadog/trace:trace_go_proto //pkg/proto/datadog/trace:trace_go_proto_tagged
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
@@ -106,7 +107,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "trace_test",
     srcs = [
         "agent_payload_gen_test.go",
@@ -125,7 +126,6 @@ go_test(
         "utils_test.go",
     ],
     embed = [":trace"],
-    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace/idx",
         "@com_github_google_gofuzz//:gofuzz",

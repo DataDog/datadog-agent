@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aggregator",
@@ -89,7 +90,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
         "aggregator_test.go",
@@ -110,7 +111,6 @@ go_test(
         "time_sampler_test.go",
     ],
     embed = [":aggregator"],
-    gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/severityevents/def",

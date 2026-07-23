@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "serializers",
@@ -137,11 +138,21 @@ go_library(
     }),
 )
 
-go_test(
+# Expose all .go sources so //pkg/security/generators/backend_doc can read
+# them via AddGoComments when running as a Bazel run_binary tool.
+filegroup(
+    name = "serializers_sources",
+    srcs = glob(["*.go"]),
+    visibility = [
+        "//docs/cloud-workload-security:__pkg__",
+        "//pkg/security/generators/backend_doc:__pkg__",
+    ],
+)
+
+dd_agent_go_test(
     name = "serializers_test",
     srcs = ["serializers_linux_test.go"],
     embed = [":serializers"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/events",
@@ -165,15 +176,4 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-)
-
-# Expose all .go sources so //pkg/security/generators/backend_doc can read
-# them via AddGoComments when running as a Bazel run_binary tool.
-filegroup(
-    name = "serializers_sources",
-    srcs = glob(["*.go"]),
-    visibility = [
-        "//docs/cloud-workload-security:__pkg__",
-        "//pkg/security/generators/backend_doc:__pkg__",
-    ],
 )

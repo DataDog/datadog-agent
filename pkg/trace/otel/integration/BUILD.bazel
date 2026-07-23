@@ -1,9 +1,8 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "integration_test",
     srcs = ["container_tags_v2_test.go"],
-    gotags = ["test"],
     deps = [
         "//comp/core/tagger/origindetection",
         "//comp/core/tagger/types",

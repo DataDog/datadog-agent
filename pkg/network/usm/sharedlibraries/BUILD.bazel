@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_linux_bpf on
 
@@ -26,6 +25,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf",
@@ -53,11 +53,12 @@ go_library(
 # Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 # and cannot coexist in the same rule's deps.
 
-dd_agent_go_test(
+go_test(
     name = "sharedlibraries_types_test",
     # keep: split from sharedlibraries_test; see comment above.
     srcs = ["types_linux_test.go"],
     embed = [":sharedlibraries"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
     deps = select({
@@ -68,12 +69,17 @@ dd_agent_go_test(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "sharedlibraries_test",
     # keep: split from sharedlibraries_types_test; see comment above.
     srcs = ["ebpf_test.go"],
     embed = [":sharedlibraries"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     # keep: needs TestBuildMode from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/ebpf",

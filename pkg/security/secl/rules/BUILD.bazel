@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # The `pcap`-tagged files are intentionally omitted: the default Bazel build does
 # not enable the `pcap` build tag.
@@ -53,7 +54,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "rules_test",
     srcs = [
         "approvers_test.go",
@@ -67,7 +68,6 @@ go_test(
         "ruleset_test.go",
     ],
     embed = [":rules"],
-    gotags = ["test"],
     deps = [
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model",
