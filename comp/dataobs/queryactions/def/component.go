@@ -11,6 +11,6 @@ package queryactions
 // Component is the Data Observability query actions component interface.
 // This component subscribes to RC DO_QUERY_ACTIONS product to receive declarative query configs,
 // each containing the full set of active monitor queries for a DB instance.
-// It injects data_observability config into matching supported DB check instances (postgres, sqlserver).
+// It injects data_observability config into matching supported database check instances.
 // Activates when a supported integration instance with data_observability.enabled: true is detected.
 type Component interface{}

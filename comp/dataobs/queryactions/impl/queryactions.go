@@ -184,6 +184,9 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 // data_observability.enabled: true is configured in autodiscovery.
 func (c *component) hasSupportedIntegration() bool {
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
+		if !isSupportedIntegration(cfg.Name) {
+			continue
+		}
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
