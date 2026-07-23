@@ -676,6 +676,10 @@ func startAgent(
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 
+		networkPathRCProvider := providers.NewNetworkPathRemoteConfigProvider()
+		rcclient.Subscribe(providers.NetworkPathRemoteConfigProduct, networkPathRCProvider.ScheduleCallback)
+		ac.AddConfigProvider(networkPathRCProvider, true, 10*time.Second)
+
 		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
