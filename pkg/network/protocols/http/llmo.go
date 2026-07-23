@@ -789,11 +789,10 @@ func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
 	sa.lastActivity = time.Now()
 
 	if isWorkflow {
-		wf, wfctx := llmobs.StartWorkflowSpan(sa.ctx, "llm.conversation",
-			llmobs.WithMLApp(info.service), llmobs.WithStartTime(start))
-		buildToolConversation(wfctx, info, start, end, tags)
-		wf.AnnotateTextIO(info.prompt, info.response)
-		wf.Finish(llmobs.WithFinishTime(end))
+		// Emit llm -> tool -> llm directly under the conversation agent (no extra
+		// workflow layer), matching how the SDK presents an agent with tool use.
+		buildToolConversation(sa.ctx, info, start, end, tags)
+		sa.span.AnnotateTextIO(info.prompt, info.response)
 		return
 	}
 
