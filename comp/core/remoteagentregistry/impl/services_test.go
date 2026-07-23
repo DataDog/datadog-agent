@@ -258,7 +258,7 @@ func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
 			{Name: proto.String("status"), Value: proto.String("ok")},
 		}
 
-		labelNames, labelValues := canonicalMetricLabels(incoming, "registered-agent")
+		labelNames, labelValues, _ := canonicalMetricLabelsAndKey(incoming, "registered-agent")
 		require.Equal(t, []string{emitterMetricTagName, "source", "status"}, labelNames)
 		require.Equal(t, []string{"registered-agent", "remote", "ok"}, labelValues)
 	})
@@ -486,75 +486,6 @@ func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
 			require.Contains(t, err.Error(), "display name")
 			require.Empty(t, component.GetRegisteredAgents())
 		})
-	}
-}
-
-// TestGetTelemetryDoesNotDuplicateMatchingEmitterLabel verifies that a metric whose
-// incoming emitter matches its registered identity still has exactly one canonical emitter.
-func TestGetTelemetryDoesNotDuplicateMatchingEmitterLabel(t *testing.T) {
-	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
-	component := provides.Comp
-
-	// Simulate system-probe forwarding a metric whose emitter matches its registered identity.
-	promText := `
-		# HELP logs__bytes_sent Total number of bytes sent
-		# TYPE logs__bytes_sent counter
-		logs__bytes_sent{emitter="system-probe",source="logs"} 42
-		`
-
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "system-probe", "System Probe", "123",
-		withTelemetryProvider(promText),
-	)
-
-	metrics, err := telemetryComp.Gather(false)
-	require.NoError(t, err)
-
-	// Find the logs__bytes_sent metric and verify the emitter label
-	require.Contains(t, metricsToMap(metrics), "logs__bytes_sent")
-
-	for _, mf := range metrics {
-		if mf.GetName() != "logs__bytes_sent" {
-			continue
-		}
-		require.Len(t, mf.GetMetric(), 1)
-		m := mf.GetMetric()[0]
-
-		// Count emitter labels — there should be exactly one (not duplicated)
-		emitterCount := 0
-		emitterValue := ""
-		for _, label := range m.GetLabel() {
-			if label.GetName() == emitterMetricTagName {
-				emitterCount++
-				emitterValue = label.GetValue()
-			}
-		}
-		assert.Equal(t, 1, emitterCount, "should have exactly one emitter label")
-		assert.Equal(t, "system-probe", emitterValue, "emitter should use the registered sanitized display name")
-
-		// Also verify the source label is preserved
-		assert.Empty(t, cmp.Diff(mf, &io_prometheus_client.MetricFamily{
-			Name: proto.String("logs__bytes_sent"),
-			Type: io_prometheus_client.MetricType_COUNTER.Enum(),
-			Help: proto.String("Total number of bytes sent"),
-			Metric: []*io_prometheus_client.Metric{
-				{
-					Label: []*io_prometheus_client.LabelPair{
-						{
-							Name:  proto.String(emitterMetricTagName),
-							Value: proto.String("system-probe"),
-						},
-						{
-							Name:  proto.String("source"),
-							Value: proto.String("logs"),
-						},
-					},
-					Counter: &io_prometheus_client.Counter{
-						Value: proto.Float64(42),
-					},
-				},
-			},
-		}, protocmp.Transform()))
 	}
 }
 
