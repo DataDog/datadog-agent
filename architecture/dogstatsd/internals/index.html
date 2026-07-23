@@ -4001,7 +4001,7 @@
   
 
 
-<h1 id="dogstatsd-internals">DogStatsD internals<a class="headerlink" href="#dogstatsd-internals" title="Permanent link">&para;</a></h1>
+<h1 id="dogstatsd-internals">DogStatsD internals</h1>
 <figure>
 <p><a class="glightbox" data-type="image" href="../internals_schema.png"><img alt="DogStatsD internals schema" loading="lazy" role="img" src="../internals_schema.png" /></a></p>
 <figcaption>
@@ -4009,9 +4009,9 @@
 </figcaption>
 </figure>
 <p>Information on DogStatsD, configuration and troubleshooting is available in the <a href="https://docs.datadoghq.com/developers/dogstatsd/">Datadog documentation</a>.</p>
-<h2 id="packet">Packet<a class="headerlink" href="#packet" title="Permanent link">&para;</a></h2>
+<h2 id="packet">Packet</h2>
 <p>In DogStatsD, a Packet is a bytes array containing one or multiple metrics in the DogStatsD format (separated by a <code>\n</code> when there are several). Its maximum size is <code>dogstatsd_buffer_size</code>.</p>
-<h2 id="packetassembler">PacketAssembler<a class="headerlink" href="#packetassembler" title="Permanent link">&para;</a></h2>
+<h2 id="packetassembler">PacketAssembler</h2>
 <ul>
 <li>Input: a datagram from a UDP socket</li>
 <li>Output: a Packet containing multiple metrics packed together, separated by a <code>\n</code></li>
@@ -4022,7 +4022,7 @@
 <p>The UDS pipeline does not use the PacketAssembler because each UDS packet also contains metadata (origin tags) which are used to enrich the metrics tags, making them impossible to be packed together by the PacketAssembler.</p>
 </div>
 <p>The PacketAssembler does not allocate a bytes array every time it has to use one. It retrieves one from a pool containing pre-allocated arrays and this pool never empties. The PacketAssembler allocates a new bytes array when it’s needed. Once fully assembled by the PacketAssembler, the bytes array is sent through the rest of the DogStatsD pipeline and ownership is allocated to each part using it (PacketsBuffer, Worker). Eventually, the Worker takes care of returning it to the pool when the part has processed its content.</p>
-<h2 id="packetbuffer">PacketBuffer<a class="headerlink" href="#packetbuffer" title="Permanent link">&para;</a></h2>
+<h2 id="packetbuffer">PacketBuffer</h2>
 <ul>
 <li>Input: a Packet containing one or several metrics in the DogStatsD format (separated by a <code>\n</code>)</li>
 <li>Output: multiple Packets send in a row to the Worker</li>
@@ -4039,7 +4039,7 @@
 <li>32 * 8192 * 1024 =  256MB</li>
 </ul>
 <p>To this we can add per-listener buffers: <code>dogstatsd_packer_buffer_size</code> * <code>dogstatsd_buffer_size</code> * <code>connections</code>. <code>connections</code> will be 1 for <code>uds</code> and <code>udp</code> and one per client for <code>uds-stream</code>.</p>
-<h2 id="worker">Worker<a class="headerlink" href="#worker" title="Permanent link">&para;</a></h2>
+<h2 id="worker">Worker</h2>
 <ul>
 <li>Input: slice of Packets</li>
 <li>Output: MetricSample sent</li>
@@ -4052,14 +4052,14 @@
 </ul>
 <p>The Worker is using a system called StringInterner to not allocate memory every time a string is needed. Note that this StringInterner is caching a finite number of strings and when it is full it is emptied to start caching strings again. Its size is configurable with <code>dogstatsd_string_interner_size</code>.</p>
 <p>The MetricSamples created are not directly sent to the Agent Demultiplexer but first to a part called the Batcher.</p>
-<h2 id="batcher">Batcher<a class="headerlink" href="#batcher" title="Permanent link">&para;</a></h2>
+<h2 id="batcher">Batcher</h2>
 <ul>
 <li>Input: MetricSample from the Worker</li>
 <li>Output: slices of MetricSample sent to the Agent Demultiplexer (which is distributing them to the TimeSamplerWorkers)</li>
 </ul>
 <p>The role of the Batcher is to accumulate multiple MetricSamples before sending them to the Agent Demultiplexer. Every time it accumulates 32 MetricSamples, the Batcher sends them to the Demultiplexer. The Batcher sends 32 MetricSamples in a channel buffering 100 sets. There is one channel per TimeSampler.</p>
 <p>The size of a MetricSample depends on the size of the host's hostname, its metric name, and its number of tags. An example MetricSample with a 20 character hostname, 40 character metric name, and 200 characters of tags has a size of approximately 264 bytes. A Batcher can use a maximum of 844kb of memory.</p>
-<h2 id="timesamplerworker">TimeSamplerWorker<a class="headerlink" href="#timesamplerworker" title="Permanent link">&para;</a></h2>
+<h2 id="timesamplerworker">TimeSamplerWorker</h2>
 <ul>
 <li>Input: slice of MetricSamples</li>
 </ul>
@@ -4082,7 +4082,7 @@
         and the number of TimeSampler pipelines is equal <code>dogstatsd_pipeline_count</code> or twice the number of cores. This strategy will provide a better compression
         ratio in shared environments and improve resource allocation fairness within the agent.</li>
 </ul>
-<h2 id="noaggregationstreamworker">NoAggregationStreamWorker<a class="headerlink" href="#noaggregationstreamworker" title="Permanent link">&para;</a></h2>
+<h2 id="noaggregationstreamworker">NoAggregationStreamWorker</h2>
 <ul>
 <li>Input: slice of MetricSamples</li>
 </ul>
