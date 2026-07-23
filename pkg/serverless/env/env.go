@@ -19,6 +19,9 @@ const (
 
 	// MicroVMImageARNEnvVar is injected by the AWS Lambda MicroVM platform at runtime.
 	MicroVMImageARNEnvVar = "AWS_LAMBDA_MICROVM_IMAGE_ARN"
+
+	// MicroVMImageVersionEnvVar is injected by the AWS Lambda MicroVM platform at runtime.
+	MicroVMImageVersionEnvVar = "AWS_LAMBDA_MICROVM_IMAGE_VERSION"
 )
 
 // IsAzureAppServicesExtension returns true if running in Datadog Azure App
