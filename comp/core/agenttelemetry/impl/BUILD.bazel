@@ -21,6 +21,7 @@ go_library(
         "//comp/core/agenttelemetry/def",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/remoteflags/def",
         "//comp/core/remoteflags/types",
         "//comp/core/telemetry/def",
         "//comp/def",
