@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/pipeline",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/delegatedauth/def",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
         "//comp/logs-library/client",
@@ -42,6 +43,8 @@ go_test(
     embed = [":pipeline"],
     gotags = ["test"],
     deps = [
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",

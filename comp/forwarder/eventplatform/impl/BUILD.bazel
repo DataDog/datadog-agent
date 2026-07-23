@@ -23,6 +23,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/core/diagnose/def",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
@@ -59,6 +61,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/core/secrets/noop-impl",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",

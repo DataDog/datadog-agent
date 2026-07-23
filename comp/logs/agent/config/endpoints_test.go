@@ -783,6 +783,31 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 	compareEndpoint(suite.T(), expected2, endpoints[1])
 }
 
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsHasPendingDelegatedAuth() {
+	jsonString := `[{
+			"api_key": "DELA(org-uuid, aws)",
+			"Host":    "localhost1",
+			"Port":    1234
+		},
+		{
+			"api_key": "apiKey2",
+			"Host":    "localhost2",
+			"Port":    5678
+		}]`
+	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true)
+	suite.Suite.Require().Len(tcpEndpoints, 2)
+	suite.True(tcpEndpoints[0].HasPendingDelegatedAuth())
+	suite.False(tcpEndpoints[1].HasPendingDelegatedAuth())
+
+	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true)
+	suite.Suite.Require().Len(httpEndpoints, 2)
+	suite.True(httpEndpoints[0].HasPendingDelegatedAuth())
+	suite.False(httpEndpoints[1].HasPendingDelegatedAuth())
+}
+
 func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 	tests := []struct {
 		name                string

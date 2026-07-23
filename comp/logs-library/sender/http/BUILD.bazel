@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/sender/http",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/delegatedauth/def",
         "//comp/core/secrets/def",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
@@ -23,6 +24,7 @@ go_test(
     embed = [":http"],
     gotags = ["test"],
     deps = [
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",

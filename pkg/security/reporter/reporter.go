@@ -9,6 +9,7 @@ package reporter
 import (
 	"time"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -47,11 +48,11 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, hostname str
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake.
 // secretsComp enables API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
-func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component, secretsComp secrets.Component) (seccommon.RawReporter, error) {
-	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context, compression, secretsComp)
+func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) (seccommon.RawReporter, error) {
+	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context, compression, secretsComp, delegatedAuthComp)
 }
 
-func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component, secretsComp secrets.Component) (seccommon.RawReporter, error) {
+func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) (seccommon.RawReporter, error) {
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()
 	pipelineProvider := pipeline.NewProvider(
@@ -68,6 +69,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsComp,
+		delegatedAuthComp,
 	)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)

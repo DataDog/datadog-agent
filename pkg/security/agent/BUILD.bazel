@@ -48,6 +48,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/noop-impl",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -98,6 +99,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/noop-impl",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -148,6 +150,7 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/noop-impl",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",

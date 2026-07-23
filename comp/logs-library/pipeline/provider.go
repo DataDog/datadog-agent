@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
@@ -82,6 +83,7 @@ type provider struct {
 // NewProvider returns a new Provider.
 // When secretsComp is backed by a real secrets backend, HTTP destinations will trigger an async API key refresh
 // on 403 responses and retry the payload instead of dropping it. Pass a SecretNoop when no secrets backend is available.
+// delegatedAuthComp does the same for a delegated-auth (WIF) managed endpoint. Pass a DelegatedAuthNoop when WIF isn't in use.
 func NewProvider(
 	numberOfPipelines int,
 	sink sender.Sink,
@@ -96,12 +98,13 @@ func NewProvider(
 	legacyMode bool,
 	serverless bool,
 	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
 	if endpoints.UseHTTP {
-		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode, secretsComp)
+		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode, secretsComp, delegatedAuthComp)
 	} else {
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
@@ -168,6 +171,7 @@ func httpSender(
 	serverlessMeta sender.ServerlessMeta,
 	legacyMode bool,
 	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) *sender.Sender {
 	var queueCount, workersPerQueue, minSenderConcurrency, maxSenderConcurrency int
 	if legacyMode {
@@ -213,6 +217,7 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
+		delegatedAuthComp,
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }

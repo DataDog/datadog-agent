@@ -13,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/telemetry/impl",
@@ -30,6 +31,7 @@ go_test(
     embed = [":transaction"],
     gotags = ["test"],
     deps = [
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/mock",

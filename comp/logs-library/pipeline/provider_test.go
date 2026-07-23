@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
@@ -78,6 +80,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 	_ secrets.Component,
+	_ delegatedauth.Component,
 	_ metrics.PipelineMonitor,
 ) *sender.Sender {
 	f.queueCount = queueCount
@@ -240,6 +243,7 @@ func TestProviderConfigurations(t *testing.T) {
 				tc.legacyMode,
 				tc.serverless,
 				secretsnoopimpl.NewComponent().Comp,
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 			require.NotNil(t, providerImpl)
 
@@ -309,6 +313,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				false, // legacy mode
 				false, // serverless
 				secretsnoopimpl.NewComponent().Comp,
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 
 			require.NotNil(t, providerImpl)
