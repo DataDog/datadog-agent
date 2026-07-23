@@ -76,7 +76,7 @@
 
 .macos_gitlab:
   extends: [".bazel:defs:cache:macos"]
-  needs: []
+  needs: ["setup_agent_version"]
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities

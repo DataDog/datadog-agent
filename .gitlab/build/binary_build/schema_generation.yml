@@ -54,7 +54,6 @@ generate_config_schema-macos:
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output
   tags: ["macos:sonoma-amd64", "specific:true"]
-  needs: []
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
