@@ -78,10 +78,15 @@ type Collector struct {
 	usageMetricSuffix  string
 	// Previous stats for rate calculation
 	previousRateStats ServerlessRateStats
+	// usageMetricTagsFunc, when non-nil, is called on every collection tick to
+	// obtain extra tags for the enhanced usage metric — e.g. MicroVM's
+	// per-instance tag, which is only known once the /run lifecycle hook
+	// fires. nil for every cloud service that has no such dynamic tag.
+	usageMetricTagsFunc func() []string
 }
 
-// NewCollector creates a new Collector
-func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, usageMetricSuffix string, collectionInterval time.Duration) (*Collector, error) {
+// NewCollector creates a new Collector. usageMetricTagsFunc may be nil.
+func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, usageMetricSuffix string, collectionInterval time.Duration, usageMetricTagsFunc func() []string) (*Collector, error) {
 	if metricAgent == nil || reflect.ValueOf(metricAgent).IsNil() {
 		return nil, errors.New("metricAgent cannot be nil")
 	}
@@ -92,13 +97,14 @@ func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricS
 	}
 
 	return &Collector{
-		metricAgent:        metricAgent,
-		metricSource:       metricSource,
-		cgroupReader:       cgroupReader,
-		collectionInterval: collectionInterval,
-		metricPrefix:       metricPrefix + "enhanced.",
-		usageMetricSuffix:  usageMetricSuffix,
-		previousRateStats:  NullServerlessRateStats,
+		metricAgent:         metricAgent,
+		metricSource:        metricSource,
+		cgroupReader:        cgroupReader,
+		collectionInterval:  collectionInterval,
+		metricPrefix:        metricPrefix + "enhanced.",
+		usageMetricSuffix:   usageMetricSuffix,
+		previousRateStats:   NullServerlessRateStats,
+		usageMetricTagsFunc: usageMetricTagsFunc,
 	}, nil
 }
 
@@ -151,7 +157,11 @@ func (c *Collector) collect() {
 
 	// Always send the usage metric, regardless of cgroup collection success.
 	if c.usageMetricSuffix != "" {
-		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricSuffix, 1, c.metricSource, timestamp)
+		var extraTags []string
+		if c.usageMetricTagsFunc != nil {
+			extraTags = c.usageMetricTagsFunc()
+		}
+		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricSuffix, 1, c.metricSource, timestamp, extraTags...)
 	}
 
 	if err := c.cgroupReader.RefreshCgroups(0); err != nil {

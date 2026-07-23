@@ -27,10 +27,24 @@ import (
 const defaultMaxResponseBodyBytes int64 = 1 << 20
 
 const (
+	// Per AWS, Run/Resume/Suspend/Terminate: 1 second
+	// Ready/Validate: 30 seconds
 	defaultForwardTimeout  = 1 * time.Second
-	defaultReadyTimeout    = 60 * time.Second
-	defaultValidateTimeout = 1 * time.Second
+	defaultReadyTimeout    = 30 * time.Second
+	defaultValidateTimeout = 30 * time.Second
 )
+
+// dialCheckTimeout bounds the single TCP dial attempt PassThroughWaiting uses
+// to check user-app reachability for /ready and /validate. Per the hook
+// contract, the platform — not the hook — owns the retry loop for these two
+// hooks, so the check must answer fast rather than block until the app is up.
+// A refused loopback connection fails in microseconds (the kernel sends RST
+// immediately), so this timeout only matters for a slow/hung connect (e.g.
+// host scheduling jitter on an oversubscribed MicroVM host). 200ms is
+// generous enough to absorb that jitter while staying well inside the "answer
+// fast" contract, and costs at most one extra platform retry (a 503) on the
+// rare call where it's hit.
+const dialCheckTimeout = 200 * time.Millisecond
 
 // Forwarder POSTs lifecycle hooks to the user app. It is constructed only
 // when DD_AWS_MICROVM_USER_APP_PORT is set and we're in init-container
@@ -39,8 +53,8 @@ type Forwarder struct {
 	target               string        // e.g. "http://127.0.0.1:8080"
 	client               *http.Client  // shared; no client-level Timeout (per-call deadlines via ctx)
 	forwardTimeout       time.Duration // default 1s, used for suspend/terminate/run/resume
-	readyTimeout         time.Duration // default 60s, used for /ready
-	validateTimeout      time.Duration // default 1s, used for /validate
+	readyTimeout         time.Duration // default 30s, used for /ready
+	validateTimeout      time.Duration // default 30s, used for /validate
 	maxResponseBodyBytes int64         // default defaultMaxResponseBodyBytes; cap on user-app body surfaced to platform
 }
 
@@ -83,63 +97,58 @@ func NewForwarder(port int, forwardTimeout, readyTimeout, validateTimeout time.D
 	}
 }
 
-// PassThroughWaiting waits for the user app to accept TCP connections bounded
-// by timeout, then forwards the request and mirrors the response. Used for:
+// PassThroughWaiting checks user-app reachability with a single fast TCP dial
+// (bounded by dialCheckTimeout), then forwards the request bounded by timeout
+// and mirrors the response. Used for:
 //   - /ready    ("I am booted and ready to be snapshotted"): the platform
-//     retries on non-200, so the TCP wait absorbs the startup race.
+//     retries on non-200 until its own configured timeout, so the hook
+//     answers fast rather than blocking on the startup race.
 //   - /validate ("I was resumed from a snapshot and everything is good"): the
-//     TCP wait handles a crash-then-restart between resume and this
-//     call.
+//     same fast-answer contract applies to the crash-then-restart window
+//     between resume and this call.
 //
-// Body is buffered before the TCP wait so the bytes survive waitForUserApp.
-// Deadline exceeded maps to 504. Body Close contract documented on PassThrough.
+// Per the /ready and /validate hook contract, only 200 and 503 are meaningful
+// responses — the platform retries on 503 until its own configured timeout,
+// while any other non-200 (including 504) fails the build. So unlike
+// PassThrough, an unreachable app or a deadline exceeded here always maps to
+// 503, never 504. Body Close contract documented on PassThrough.
 func (f *Forwarder) PassThroughWaiting(timeout time.Duration, path string, headers http.Header, body io.Reader) *http.Response {
 	var bodyBytes []byte
 	if body != nil {
 		var err error
-		// Read the full inbound body before the TCP wait. A read error is a
-		// server-side failure (network, OS, memory) — not a client mistake —
-		// so return 500 rather than 400. We still forward nothing to the user
-		// app to avoid passing a partial body (which could make it answer
-		// /validate "healthy" off incomplete data).
+		// Read the full inbound body before the reachability check. A read
+		// error is a server-side failure (network, OS, memory) — not a client
+		// mistake — so return 500 rather than 400. We still forward nothing to
+		// the user app to avoid passing a partial body (which could make it
+		// answer /validate "healthy" off incomplete data).
 		if bodyBytes, err = io.ReadAll(body); err != nil {
 			return statusOnlyResponse(http.StatusInternalServerError)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	if err := f.waitForUserApp(ctx); err != nil {
-		cancel()
-		return statusOnlyResponse(mapErrToStatus(err))
+	if !f.reachable(dialCheckTimeout) {
+		return statusOnlyResponse(http.StatusServiceUnavailable)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	resp, err := f.do(ctx, path, headers, bytes.NewReader(bodyBytes))
 	if err != nil {
 		cancel()
-		return statusOnlyResponse(mapErrToStatus(err))
+		return statusOnlyResponse(http.StatusServiceUnavailable)
 	}
 	resp.Body = wrapResponseBody(resp.Body, f.maxResponseBodyBytes, cancel)
 	return resp
 }
 
-// waitForUserApp polls the user app's TCP port until a connection succeeds or
-// ctx is cancelled. Returns nil when the port is reachable, ctx.Err() when
-// the deadline is exceeded. Polls every 50ms.
-func (f *Forwarder) waitForUserApp(ctx context.Context) error {
+// reachable performs a single TCP dial attempt to the user app, bounded by
+// timeout. No polling/retrying: per the hook contract, the platform (not the
+// hook) owns the retry loop for /ready and /validate.
+func (f *Forwarder) reachable(timeout time.Duration) bool {
 	addr := strings.TrimPrefix(f.target, "http://")
-	dialer := &net.Dialer{}
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
-		if err == nil {
-			_ = conn.Close()
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return false
 	}
+	_ = conn.Close()
+	return true
 }
 
 // PassThrough forwards a per-MicroVM lifecycle hook (/run, /resume,

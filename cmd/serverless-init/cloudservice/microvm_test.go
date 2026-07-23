@@ -128,6 +128,82 @@ func TestMicroVMGetEnhancedMetricTagsMissingARN(t *testing.T) {
 	assert.Equal(t, result.Base["resource_id"], result.Usage["resource_id"])
 }
 
+// TestMicroVM_CurrentUsageMetricTags_NilServer_ReturnsNil verifies that
+// CurrentUsageMetricTags is safe to call before Init (m.server is nil) — the
+// enhanced-metrics collector may call it before the lifecycle server exists.
+func TestMicroVM_CurrentUsageMetricTags_NilServer_ReturnsNil(t *testing.T) {
+	m := &MicroVM{}
+	assert.Nil(t, m.CurrentUsageMetricTags())
+}
+
+// TestMicroVM_CurrentUsageMetricTags_BeforeRun_ReturnsNil verifies that no
+// instance tag is produced before /run fires, matching GetEnhancedMetricTags'
+// documented behavior that instance_id is unknown until then.
+func TestMicroVM_CurrentUsageMetricTags_BeforeRun_ReturnsNil(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	srv := lifecycle.NewServer(
+		0,
+		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
+		metricAgent, nil,
+		(&MicroVM{}).GetSource(),
+		time.Second,
+		lifecycle.NewNoopChildHandle(),
+		nil, // no forwarder
+		nil, // no heartbeat
+	)
+	m := &MicroVM{server: srv}
+	assert.Nil(t, m.CurrentUsageMetricTags())
+}
+
+// TestMicroVM_CurrentUsageMetricTags_AfterRun_ReturnsInstanceTag verifies the
+// end-to-end path: once /run has captured the MicroVM instance ID,
+// CurrentUsageMetricTags returns the "instance:<id>" tag the enhanced-metrics
+// collector attaches to the usage metric on every subsequent tick.
+func TestMicroVM_CurrentUsageMetricTags_AfterRun_ReturnsInstanceTag(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	srv := lifecycle.NewServer(
+		0,
+		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
+		metricAgent, nil,
+		(&MicroVM{}).GetSource(),
+		time.Second,
+		lifecycle.NewNoopChildHandle(),
+		nil, // no forwarder
+		nil, // no heartbeat
+	)
+	l, err := srv.Listen()
+	require.NoError(t, err)
+	go srv.Serve(l)
+	t.Cleanup(func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = srv.Stop(shutCtx)
+	})
+
+	port := l.Addr().(*net.TCPAddr).Port
+	runPath := "/aws/lambda-microvms/runtime/v1/run"
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	resp, err := http.Post("http://127.0.0.1:"+strconv.Itoa(port)+runPath, "application/json", body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	m := &MicroVM{server: srv}
+	assert.Equal(t, []string{"instance:vm-abc123"}, m.CurrentUsageMetricTags())
+}
+
+// TestMicroVM_SatisfiesUsageMetricTagProvider is a compile-time guard: main.go
+// duck-types cloudService against an unexported usageMetricTagProvider
+// interface with this exact method set to wire the enhanced-metrics
+// collector's dynamic tag hook. If CurrentUsageMetricTags' signature ever
+// drifts, that type assertion silently stops matching instead of failing to
+// compile — this pins the method set so such drift shows up here instead.
+func TestMicroVM_SatisfiesUsageMetricTagProvider(t *testing.T) {
+	var m any = &MicroVM{}
+	provider, ok := m.(interface{ CurrentUsageMetricTags() []string })
+	require.True(t, ok, "*MicroVM must implement CurrentUsageMetricTags() []string")
+	assert.NotPanics(t, func() { provider.CurrentUsageMetricTags() })
+}
+
 // Compile-time guard: *MicroVM must satisfy the CloudService interface,
 // including the new Run method.
 var _ CloudService = (*MicroVM)(nil)

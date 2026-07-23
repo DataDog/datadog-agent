@@ -74,6 +74,10 @@ type neverDrainer struct{}
 
 func (n *neverDrainer) WaitForPendingSamples() { select {} }
 
+type serverErrReader struct{}
+
+func (serverErrReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
 func newTestServer() (*Server, *mockFlusher, *mockFlusher, *mockLogsAgent, *mockMetricEmitter, *mockSampleDrainer) {
 	metric := &mockFlusher{}
 	trace := &mockFlusher{}
@@ -158,6 +162,26 @@ func TestHandleRun_OversizedBody_Returns500(t *testing.T) {
 	assert.NotContains(t, emitter.getEmitted(), runMetricName, "run metric must not be emitted when the body exceeds the cap")
 }
 
+// TestInstanceID_EmptyBeforeRun verifies that InstanceID returns "" before
+// /run fires, and the captured ID afterward — the accessor the enhanced
+// metrics collector uses to attach a per-instance tag to the usage metric.
+func TestInstanceID_EmptyBeforeRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	assert.Empty(t, srv.InstanceID(), "InstanceID must be empty before /run fires")
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, "vm-abc123", srv.InstanceID())
+}
+
+// TestInstanceID_NilServer verifies InstanceID is safe to call on a nil
+// *Server, mirroring the existing nil-safety of Child().
+func TestInstanceID_NilServer(t *testing.T) {
+	var srv *Server
+	assert.Empty(t, srv.InstanceID())
+}
+
 // TestHandleRunWithForwarderParsesInstanceID verifies that when a forwarder is
 // configured, /run still decodes the MicroVM instance ID from the request body
 // before delegating to handleWithForwarder. Without the decode-then-restore fix, the
@@ -194,6 +218,44 @@ func TestHandleRunEmptyBodyDoesNotSetInstanceID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	id := srv.instanceID.Load()
 	assert.Empty(t, id, "empty body must not set instance ID")
+}
+
+func TestHandleRunBodyReadErrorReturns500(t *testing.T) {
+	srv, _, _, _, emitter, _ := newTestServer()
+
+	req := httptest.NewRequest(http.MethodPost, pathRun, serverErrReader{})
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Empty(t, srv.InstanceID(), "failed body read must not set instance ID")
+	assert.NotContains(t, emitter.getEmitted(), runMetricName, "failed body read must not emit run metric")
+}
+
+func TestHandleRunWithForwarderBodyReadErrorDoesNotForward(t *testing.T) {
+	var reached atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, emitter, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+
+	req := httptest.NewRequest(http.MethodPost, pathRun, serverErrReader{})
+	rec := httptest.NewRecorder()
+	srv.handleRun(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, int32(0), reached.Load(), "user app must not receive a partial runHookPayload")
+	assert.Empty(t, srv.InstanceID(), "failed body read must not set instance ID")
+	assert.NotContains(t, emitter.getEmitted(), runMetricName, "failed body read must not emit run metric")
 }
 
 func TestHandleSuspendFlushesBeforeResponding(t *testing.T) {
@@ -389,6 +451,32 @@ func TestHandleReady_WithForwarder_PassesThrough(t *testing.T) {
 	// hide that.
 	assert.Equal(t, "application/x-ready", rec.Header().Get("Content-Type"))
 	assert.Equal(t, `{"ready":false,"reason":"warming"}`, rec.Body.String())
+}
+
+// /validate shares passThroughReady's PassThroughWaiting code path (same
+// reachability-check-then-forward shape, just bounded by validateTimeout
+// instead of readyTimeout) but had no server-level pass-through coverage of
+// its own — this pins the mirror contract for /validate specifically.
+func TestHandleValidate_WithForwarder_PassesThrough(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-validate")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"valid":false,"reason":"warming"}`))
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		validateTimeout:      200 * time.Millisecond,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	rec := httptest.NewRecorder()
+	srv.handleValidate(rec, httptest.NewRequest(http.MethodPost, pathValidate, nil))
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Equal(t, "application/x-validate", rec.Header().Get("Content-Type"))
+	assert.Equal(t, `{"valid":false,"reason":"warming"}`, rec.Body.String())
 }
 
 // /run with a forwarder configured mirrors the user-app's status code,
@@ -923,6 +1011,24 @@ func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, nil)
 	assert.Equal(t, fwd.forwardTimeout+flushTimeout+writeTimeoutHeadroom, srv.httpServer.WriteTimeout,
 		"WriteTimeout must cover forwardTimeout+flushTimeout (terminate sequential-flush path)")
+}
+
+// TestNewServerWithForwarderWriteTimeoutCoversReadinessBudgets verifies that
+// WriteTimeout covers the fast reachability dial plus the forwarded /ready or
+// /validate request. Without the dial budget, the HTTP server can close the
+// platform-facing connection just before the handler mirrors a valid response.
+func TestNewServerWithForwarderWriteTimeoutCoversReadinessBudgets(t *testing.T) {
+	flushTimeout := 5 * time.Second
+	fwd := &Forwarder{
+		forwardTimeout:       time.Second,
+		readyTimeout:         2 * time.Second,
+		validateTimeout:      30 * time.Second,
+		client:               &http.Client{},
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, nil)
+	assert.Equal(t, dialCheckTimeout+fwd.validateTimeout+writeTimeoutHeadroom, srv.httpServer.WriteTimeout,
+		"WriteTimeout must cover dialCheckTimeout+validateTimeout for /validate")
 }
 
 // TestInstanceIDTagAppearsInMetricsAfterRun verifies that once /run stores a
