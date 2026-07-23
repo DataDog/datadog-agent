@@ -7,6 +7,8 @@ package agenttelemetry
 
 import (
 	_ "embed"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +93,19 @@ func (s *errorTrackingSystemProbeSuite) TestPayloadShape() {
 		out, _ := s.Env().RemoteHost.Execute(
 			"sudo grep -n -i 'errortracking\\|Error unmarshalling network_path' /var/log/datadog/system-probe.log || true")
 		s.T().Logf("system-probe.log errortracking/filter lines:\n%s", out)
+
+		// TEMPORARY diagnostic for investigating CI failure; remove before merge.
+		// Dump the raw, unparsed payloads FakeIntake stored for this endpoint,
+		// bypassing the typed AgentTelemetryLog aggregator entirely, to rule out
+		// a parsing/shape mismatch hiding a successfully-received payload.
+		resp, httpErr := http.Get(s.Env().FakeIntake.Client().URL() + "/fakeintake/payloads?endpoint=/api/v2/apmtelemetry")
+		if httpErr != nil {
+			s.T().Logf("raw apmtelemetry payload dump failed: %v", httpErr)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			s.T().Logf("raw /api/v2/apmtelemetry payloads (diagnostic):\n%s", body)
+		}
 	})
 
 	// testify's suite.Run executes test methods in alphabetical order
