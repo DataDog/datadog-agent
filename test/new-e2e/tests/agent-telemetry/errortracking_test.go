@@ -153,6 +153,60 @@ func assertCommonLogShape(t *testing.T, l *aggregator.AgentTelemetryLog, expecte
 		"tags must carry agent.flavor identifying the emitting binary; got: %q", l.Tags)
 }
 
+// assertErrorTrackingLogReceived polls FakeIntake until at least one agent-logs
+// record whose stack trace contains stackSubstr arrives, asserts each match
+// has the expected common wire shape and agent.flavor tag, and returns the
+// matches. Shared by the single-origin, Host-based binary variants of this
+// suite (process-agent, security-agent, ...); the core agent's own
+// TestPayloadShape above has two origins (Python and Go-core) and doesn't fit
+// this single-substring shape.
+func assertErrorTrackingLogReceived(t *testing.T, env *environments.Host, stackSubstr, expectedFlavor, notFoundMsg string) []*aggregator.AgentTelemetryLog {
+	t.Helper()
+	var logs []*aggregator.AgentTelemetryLog
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		all, err := env.FakeIntake.Client().GetAgentTelemetryLogs()
+		require.NoError(c, err)
+
+		logs = nil
+		for _, l := range all {
+			if strings.Contains(l.StackTrace, stackSubstr) {
+				logs = append(logs, l)
+			}
+		}
+		assert.NotEmpty(c, logs, notFoundMsg)
+	}, 2*time.Minute, 5*time.Second, notFoundMsg)
+
+	for _, l := range logs {
+		assertCommonLogShape(t, l, expectedFlavor)
+	}
+	return logs
+}
+
+// assertNoErrorTrackingWhenDisabled truncates logPath, waits for grepPattern
+// to appear in it (confirming the error still fires locally even though
+// errortracking is disabled), then asserts no agent-logs record reaches
+// FakeIntake for a window covering several flush cycles. Shared by the
+// Host-based binary variants' TestDisabledByDefault.
+func assertNoErrorTrackingWhenDisabled(t *testing.T, env *environments.Host, logPath, grepPattern, waitTimeoutMsg string) {
+	t.Helper()
+	env.RemoteHost.MustExecute("sudo truncate -s 0 " + logPath)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, execErr := env.RemoteHost.Execute("sudo grep -cF -- '" + grepPattern + "' " + logPath + " || true")
+		assert.NoError(c, execErr)
+		assert.NotEqual(c, "0", strings.TrimSpace(out))
+	}, 2*time.Minute, 5*time.Second, waitTimeoutMsg)
+
+	// The config sets flush_interval_seconds: 1, so 5 s covers five flush
+	// cycles: if a regression enabled the forwarder, it would flush within
+	// this window and the assertion would catch it.
+	assert.Never(t, func() bool {
+		logs, err := env.FakeIntake.Client().GetAgentTelemetryLogs()
+		require.NoError(t, err)
+		return len(logs) > 0
+	}, 5*time.Second, 500*time.Millisecond, "agent telemetry logs must not arrive when errortracking is disabled")
+}
+
 // TestDisabledByDefault verifies that when the errortracking stanza is absent,
 // no agent-logs records reach FakeIntake even when errors occur.
 func (s *errorTrackingSuite) TestDisabledByDefault() {
