@@ -292,24 +292,6 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-// Prometheus preserves ':' in label values, so delimiter-only concatenation
-// can encode distinct sorted label sets identically. Length prefixes make each
-// name/value boundary unambiguous.
-func encodeSortedAggregationLabels(labels []*dto.LabelPair) string {
-	var key strings.Builder
-	for _, label := range labels {
-		name := label.GetName()
-		value := label.GetValue()
-		key.WriteString(strconv.Itoa(len(name)))
-		key.WriteByte(':')
-		key.WriteString(name)
-		key.WriteString(strconv.Itoa(len(value)))
-		key.WriteByte(':')
-		key.WriteString(value)
-	}
-	return key.String()
-}
-
 func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
 	// Nothing to aggregate?
 	if len(ms) == 0 {
@@ -354,7 +336,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 					specTags = append(specTags, t)
 				}
 			}
-			tagsKey = encodeSortedAggregationLabels(specTags)
+			tagsKey = convertLabelsToKey(specTags)
 
 			if mCfg.AggregateTotal {
 				aggregateMetric(mt, totalm, m)
