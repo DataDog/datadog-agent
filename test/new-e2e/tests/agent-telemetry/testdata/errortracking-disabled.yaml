@@ -8,3 +8,9 @@ agent_telemetry:
     flush_interval_seconds: 1
     bouncer_window_seconds: 0
     startup_jitter_seconds: 0
+process_config:
+  additional_endpoints:
+    "https://127.0.0.1:1":
+      - "00000000000000000000000000000000"
+  process_discovery:
+    enabled: false
