@@ -50,7 +50,7 @@ func (iapp *infraAttributesProfileProcessor) processProfiles(_ context.Context, 
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which profiles never go
 		// through. Always pass "off" here regardless of the configured mode.
-		iapp.infraTags.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, nil)
+		iapp.infraTags.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, false, nil)
 	}
 	return pd, nil
 }

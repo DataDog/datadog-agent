@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -44,20 +45,17 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 		resourceAttributes := rl.Resource().Attributes()
 
 		var ddtags []string
-		var ddtagsSink *[]string
-		if ialp.cfg.LogsTagsAsDDTags {
-			ddtagsSink = &ddtags
-		}
 
 		// trace_container_tag_promotion only makes sense for traces: it exists to
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which logs never go through.
 		// Always pass "off" here regardless of the configured mode.
-		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, ddtagsSink)
+		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, ialp.cfg.LogsTagsAsDDTags, &ddtags)
 
 		if len(ddtags) == 0 {
 			continue
 		}
+		slices.Sort(ddtags)
 		newTags := strings.Join(ddtags, ",")
 		writeDdtagsToLogRecords(rl, newTags)
 	}

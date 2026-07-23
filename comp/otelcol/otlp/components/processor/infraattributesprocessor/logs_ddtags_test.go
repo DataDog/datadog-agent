@@ -102,6 +102,17 @@ var logsDDTagsTests = []logsDDTagsTest{
 		outLogRecordDdtags: "user_set:tag,team:platform",
 	},
 	{
+		// Regression guard: ddtags is built by ranging over a map, so without
+		// sorting, the join order would be randomized across runs.
+		name:             "enabled, multiple custom tags produce deterministically sorted ddtags",
+		logsTagsAsDDTags: true,
+		taggerTags:       []string{"zeta:1", "alpha:2", "mid:3"},
+		outResourceAttributes: map[string]any{
+			"container.id": "test",
+		},
+		outLogRecordDdtags: "alpha:2,mid:3,zeta:1",
+	},
+	{
 		name:                    "enabled, no custom tags leaves pre-existing ddtags untouched",
 		logsTagsAsDDTags:        true,
 		taggerTags:              []string{"pod_name:foo"},

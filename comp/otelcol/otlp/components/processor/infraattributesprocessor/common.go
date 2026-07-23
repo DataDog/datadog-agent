@@ -72,22 +72,27 @@ func newInfraTagsProcessor(
 // conventions are surfaced for downstream `_dd.tags.container` promotion. Known
 // DD / OTel conventions (knownConventionKeys), USM keys, and the
 // `datadog.host.name` host attribute are exempt and always written under their
-// canonical key.
+// canonical key. promote is ignored when divertToDDTags is true.
 //
-// If ddtags is non-nil, custom tags (i.e. those NOT covered by the exemptions
-// above) are appended to *ddtags as "key:value" pairs instead of being written
-// to resourceAttributes. This is used by the logs pipeline to turn tagger tags
-// into real Datadog log tags rather than log attributes. Exempted keys are
-// always written to resourceAttributes regardless of ddtags, since the
-// Datadog logs intake already promotes them into tags on its own.
+// If divertToDDTags is true, custom tags (i.e. those NOT covered by the
+// exemptions above) are appended to *ddtags as "key:value" pairs instead of
+// being written to resourceAttributes; ddtags must be non-nil in that case.
+// This is used by the logs pipeline to turn tagger tags into real Datadog log
+// tags rather than log attributes. Exempted keys are always written to
+// resourceAttributes regardless of divertToDDTags, since the Datadog logs
+// intake already promotes them into tags on its own.
 func (p infraTagsProcessor) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
 	allowHostnameOverride bool,
 	promote ContainerTagPromotionMode,
+	divertToDDTags bool,
 	ddtags *[]string,
 ) {
+	if divertToDDTags && ddtags == nil {
+		panic("infraattributesprocessor: divertToDDTags is true but ddtags is nil")
+	}
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
 		if containerID, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
@@ -129,7 +134,7 @@ func (p infraTagsProcessor) ProcessTags(
 	for k, v := range tagMap {
 		otelAttrs, ust := unifiedServiceTagMap[k]
 		if !ust {
-			writeTagAttribute(resourceAttributes, k, v, promote, ddtags)
+			writeTagAttribute(resourceAttributes, k, v, promote, divertToDDTags, ddtags)
 			continue
 		}
 
@@ -159,14 +164,14 @@ func (p infraTagsProcessor) ProcessTags(
 // written as-is (idempotency / convention exemption); only truly custom keys
 // are subject to duplication / renaming.
 //
-// If ddtags is non-nil, a truly custom key is instead appended to *ddtags as
-// "k:v" and NOT written to resourceAttributes (the promote mode is ignored in
-// this case, since it only makes sense for the resource-attribute path).
+// If divertToDDTags is true, a truly custom key is instead appended to
+// *ddtags as "k:v" and NOT written to resourceAttributes (promote is ignored
+// in this case, since it only makes sense for the resource-attribute path).
 // Keys in attributes.KubernetesDDTags are exempted from this diversion: the
 // OTLP logs translator (attributes.TagsFromAttributes) already promotes them
 // from resource attributes into tags downstream, so they must stay on
 // resourceAttributes rather than being moved into ddtags.
-func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode, ddtags *[]string) {
+func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode, divertToDDTags bool, ddtags *[]string) {
 	if strings.HasPrefix(k, attributes.CustomContainerTagPrefix) {
 		resourceAttributes.PutStr(k, v)
 		return
@@ -175,7 +180,7 @@ func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote Cont
 		resourceAttributes.PutStr(k, v)
 		return
 	}
-	if ddtags != nil {
+	if divertToDDTags {
 		if _, isKnownDDTag := attributes.KubernetesDDTags[k]; isKnownDDTag {
 			resourceAttributes.PutStr(k, v)
 			return
