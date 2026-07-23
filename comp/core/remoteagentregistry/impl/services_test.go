@@ -7,6 +7,7 @@
 package remoteagentregistryimpl
 
 import (
+	"bytes"
 	"context"
 	"math"
 	"testing"
@@ -21,6 +22,7 @@ import (
 
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
@@ -220,87 +222,281 @@ func TestGetTelemetry(t *testing.T) {
 	}, protocmp.Transform()))
 }
 
-// TestGetTelemetryPreservesExistingEmitterLabel verifies that when a metric already
-// has an emitter label (set by the remote agent itself via metrics.SetAgentIdentity),
-// the registry collector preserves it and does NOT add a duplicate.
-func TestGetTelemetryPreservesExistingEmitterLabel(t *testing.T) {
+func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
+	testCases := []struct {
+		name               string
+		labels             string
+		expectedNonEmitter map[string]string
+	}{
+		{
+			name:               "missing incoming emitter label",
+			labels:             `source="missing",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "missing", "status": "ok"},
+		},
+		{
+			name:               "empty incoming emitter label",
+			labels:             `emitter="",source="empty",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "empty", "status": "ok"},
+		},
+		{
+			name:               "matching incoming emitter label",
+			labels:             `emitter="registered-agent",source="matching",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "matching", "status": "ok"},
+		},
+		{
+			name:               "mismatched incoming emitter label",
+			labels:             `emitter="spoofed-agent",source="mismatched",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "mismatched", "status": "ok"},
+		},
+	}
+
+	t.Run("duplicate incoming emitter labels", func(t *testing.T) {
+		incoming := []*io_prometheus_client.LabelPair{
+			{Name: proto.String(emitterMetricTagName), Value: proto.String("spoofed-agent-one")},
+			{Name: proto.String("source"), Value: proto.String("remote")},
+			{Name: proto.String(emitterMetricTagName), Value: proto.String("spoofed-agent-two")},
+			{Name: proto.String("status"), Value: proto.String("ok")},
+		}
+
+		labelNames, labelValues, _ := canonicalMetricLabelsAndKey(incoming, "registered-agent")
+		require.Equal(t, []string{emitterMetricTagName, "source", "status"}, labelNames)
+		require.Equal(t, []string{"registered-agent", "remote", "ok"}, labelValues)
+	})
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+			require.NoError(t, lc.Start(context.Background()))
+			t.Cleanup(func() {
+				require.NoError(t, lc.Stop(context.Background()))
+			})
+
+			promText := `# HELP authoritative_emitter_metric A remotely emitted metric
+# TYPE authoritative_emitter_metric gauge
+authoritative_emitter_metric{` + testCase.labels + `} 1
+`
+			_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
+				withTelemetryProvider(promText),
+			)
+
+			metrics, err := telemetryComp.Gather(false)
+			require.NoError(t, err)
+			metricFamily := metricsToMap(metrics)["authoritative_emitter_metric"]
+			require.NotNil(t, metricFamily)
+			require.Len(t, metricFamily.GetMetric(), 1)
+
+			actualNonEmitter := make(map[string]string, len(testCase.expectedNonEmitter))
+			emitterCount := 0
+			for _, label := range metricFamily.GetMetric()[0].GetLabel() {
+				if label.GetName() == emitterMetricTagName {
+					emitterCount++
+					require.Equal(t, "registered-agent", label.GetValue())
+					continue
+				}
+				actualNonEmitter[label.GetName()] = label.GetValue()
+			}
+			require.Equal(t, 1, emitterCount)
+			require.Equal(t, testCase.expectedNonEmitter, actualNonEmitter)
+		})
+	}
+}
+
+func TestGetTelemetryCoalescesCanonicalEmitterCollisions(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
-	component := provides.Comp
+	require.NoError(t, lc.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, lc.Stop(context.Background()))
+	})
 
-	// Simulate system-probe forwarding a metric that already has emitter="system-probe"
-	// set via metrics.SetAgentIdentity("system-probe").
 	promText := `
-		# HELP logs__bytes_sent Total number of bytes sent
-		# TYPE logs__bytes_sent counter
-		logs__bytes_sent{emitter="system-probe",source="logs"} 42
-		`
-
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "system-probe", "System Probe", "123",
+# HELP collision_counter Counter samples that collide after emitter canonicalization
+# TYPE collision_counter counter
+collision_counter{emitter="spoofed-one",source="same"} 2
+collision_counter{source="same",emitter="spoofed-two"} 3
+collision_counter{emitter="spoofed-three",source="different"} 7
+# HELP collision_gauge Gauge samples that collide after emitter canonicalization
+# TYPE collision_gauge gauge
+collision_gauge{emitter="spoofed-one",region="us",status="ok"} 11
+collision_gauge{status="ok",emitter="spoofed-two",region="us"} 13
+# HELP collision_histogram Histogram samples that collide after emitter canonicalization
+# TYPE collision_histogram histogram
+collision_histogram_bucket{emitter="spoofed-one",source="same",le="0.5"} 1
+collision_histogram_bucket{emitter="spoofed-one",source="same",le="1"} 2
+collision_histogram_bucket{emitter="spoofed-one",source="same",le="+Inf"} 3
+collision_histogram_sum{emitter="spoofed-one",source="same"} 2.5
+collision_histogram_count{emitter="spoofed-one",source="same"} 3
+collision_histogram_bucket{source="same",emitter="spoofed-two",le="0.5"} 4
+collision_histogram_bucket{source="same",emitter="spoofed-two",le="1"} 5
+collision_histogram_bucket{source="same",emitter="spoofed-two",le="+Inf"} 6
+collision_histogram_sum{source="same",emitter="spoofed-two"} 8.5
+collision_histogram_count{source="same",emitter="spoofed-two"} 6
+# HELP collision_key_gauge Distinct samples with delimiter-sensitive label layouts
+# TYPE collision_key_gauge gauge
+collision_key_gauge{emitter="spoofed-one",a="b:c",d="e"} 10
+collision_key_gauge{emitter="spoofed-two",a="b",c="d:e"} 20
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
 		withTelemetryProvider(promText),
 	)
 
 	metrics, err := telemetryComp.Gather(false)
 	require.NoError(t, err)
+	metricsMap := metricsToMap(metrics)
 
-	// Find the logs__bytes_sent metric and verify the emitter label
-	require.Contains(t, metricsToMap(metrics), "logs__bytes_sent")
+	counterFamily := metricsMap["collision_counter"]
+	require.NotNil(t, counterFamily)
+	require.Len(t, counterFamily.GetMetric(), 2)
+	counterValues := make(map[string]float64, 2)
+	for _, metric := range counterFamily.GetMetric() {
+		requireRegisteredEmitter(t, metric, "registered-agent")
+		counterValues[metricLabelValue(metric, "source")] = metric.GetCounter().GetValue()
+	}
+	require.Equal(t, map[string]float64{"same": 5, "different": 7}, counterValues)
 
-	for _, mf := range metrics {
-		if mf.GetName() != "logs__bytes_sent" {
-			continue
+	gaugeFamily := metricsMap["collision_gauge"]
+	require.NotNil(t, gaugeFamily)
+	require.Len(t, gaugeFamily.GetMetric(), 1)
+	requireRegisteredEmitter(t, gaugeFamily.GetMetric()[0], "registered-agent")
+	require.Equal(t, float64(24), gaugeFamily.GetMetric()[0].GetGauge().GetValue())
+
+	histogramFamily := metricsMap["collision_histogram"]
+	require.NotNil(t, histogramFamily)
+	require.Len(t, histogramFamily.GetMetric(), 1)
+	histogramMetric := histogramFamily.GetMetric()[0]
+	requireRegisteredEmitter(t, histogramMetric, "registered-agent")
+	require.Equal(t, "same", metricLabelValue(histogramMetric, "source"))
+	require.Equal(t, uint64(9), histogramMetric.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(11), histogramMetric.GetHistogram().GetSampleSum())
+	bucketCounts := make(map[float64]uint64)
+	for _, bucket := range histogramMetric.GetHistogram().GetBucket() {
+		bucketCounts[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+	}
+	require.Equal(t, map[float64]uint64{0.5: 5, 1: 7, math.Inf(1): 9}, bucketCounts)
+
+	keyFamily := metricsMap["collision_key_gauge"]
+	require.NotNil(t, keyFamily)
+	require.Len(t, keyFamily.GetMetric(), 2)
+	labelsByValue := make(map[float64]map[string]string, 2)
+	for _, metric := range keyFamily.GetMetric() {
+		requireRegisteredEmitter(t, metric, "registered-agent")
+		labels := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			labels[label.GetName()] = label.GetValue()
 		}
-		require.Len(t, mf.GetMetric(), 1)
-		m := mf.GetMetric()[0]
+		labelsByValue[metric.GetGauge().GetValue()] = labels
+	}
+	require.Equal(t, map[string]string{"a": "b:c", "d": "e", emitterMetricTagName: "registered-agent"}, labelsByValue[10])
+	require.Equal(t, map[string]string{"a": "b", "c": "d:e", emitterMetricTagName: "registered-agent"}, labelsByValue[20])
+}
 
-		// Count emitter labels — there should be exactly one (not duplicated)
-		emitterCount := 0
-		emitterValue := ""
-		for _, label := range m.GetLabel() {
-			if label.GetName() == emitterMetricTagName {
-				emitterCount++
-				emitterValue = label.GetValue()
+func TestGetTelemetryKeepsFirstIncompatibleHistogramCollision(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	require.NoError(t, lc.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, lc.Stop(context.Background()))
+	})
+
+	promText := `
+# HELP incompatible_collision_histogram Histogram samples with incompatible layouts
+# TYPE incompatible_collision_histogram histogram
+incompatible_collision_histogram_bucket{emitter="first",source="same",le="0.5"} 100
+incompatible_collision_histogram_bucket{emitter="first",source="same",le="+Inf"} 100
+incompatible_collision_histogram_sum{emitter="first",source="same"} 50
+incompatible_collision_histogram_count{emitter="first",source="same"} 100
+incompatible_collision_histogram_bucket{emitter="second",source="same",le="1"} 1
+incompatible_collision_histogram_bucket{emitter="second",source="same",le="+Inf"} 1
+incompatible_collision_histogram_sum{emitter="second",source="same"} 1
+incompatible_collision_histogram_count{emitter="second",source="same"} 1
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
+		withTelemetryProvider(promText),
+	)
+
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), "debug")
+	})
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricFamily := metricsToMap(metrics)["incompatible_collision_histogram"]
+	require.NotNil(t, metricFamily)
+	require.Len(t, metricFamily.GetMetric(), 1)
+
+	metric := metricFamily.GetMetric()[0]
+	requireRegisteredEmitter(t, metric, "registered-agent")
+	require.Equal(t, "same", metricLabelValue(metric, "source"))
+	require.Empty(t, cmp.Diff(&io_prometheus_client.Histogram{
+		SampleCount: proto.Uint64(100),
+		SampleSum:   proto.Float64(50),
+		Bucket: []*io_prometheus_client.Bucket{
+			{CumulativeCount: proto.Uint64(100), UpperBound: proto.Float64(0.5)},
+			{CumulativeCount: proto.Uint64(100), UpperBound: proto.Float64(math.Inf(1))},
+		},
+	}, metric.GetHistogram(), protocmp.Transform()))
+	require.Equal(t, `[WARN] Dropping colliding histogram metric "incompatible_collision_histogram" from remote agent "registered-agent" with incompatible bucket layout [1 +Inf]; keeping first layout [0.5 +Inf]
+`, logBuffer.String())
+}
+
+func requireRegisteredEmitter(t *testing.T, metric *io_prometheus_client.Metric, expected string) {
+	t.Helper()
+	emitterCount := 0
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == emitterMetricTagName {
+			emitterCount++
+			require.Equal(t, expected, label.GetValue())
+		}
+	}
+	require.Equal(t, 1, emitterCount)
+}
+
+func metricLabelValue(metric *io_prometheus_client.Metric, name string) string {
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
+}
+
+func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
+	testCases := []struct {
+		name        string
+		displayName string
+	}{
+		{name: "empty", displayName: ""},
+		{name: "spaces only", displayName: "   "},
+		{name: "other whitespace only", displayName: "\t\n\r"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provides, _, _, _, _ := buildComponent(t)
+			component := provides.Comp.(*remoteAgentRegistry)
+			registration := remoteagent.RegistrationData{
+				AgentDisplayName: testCase.displayName,
+				APIEndpointURI:   "127.0.0.1:1",
 			}
-		}
-		assert.Equal(t, 1, emitterCount, "Should have exactly one emitter label, not a duplicate")
-		assert.Equal(t, "system-probe", emitterValue, "emitter value should be preserved from the metric, not overwritten by the registry")
 
-		// Also verify the source label is preserved
-		assert.Empty(t, cmp.Diff(mf, &io_prometheus_client.MetricFamily{
-			Name: proto.String("logs__bytes_sent"),
-			Type: io_prometheus_client.MetricType_COUNTER.Enum(),
-			Help: proto.String("Total number of bytes sent"),
-			Metric: []*io_prometheus_client.Metric{
-				{
-					Label: []*io_prometheus_client.LabelPair{
-						{
-							Name:  proto.String(emitterMetricTagName),
-							Value: proto.String("system-probe"),
-						},
-						{
-							Name:  proto.String("source"),
-							Value: proto.String("logs"),
-						},
-					},
-					Counter: &io_prometheus_client.Counter{
-						Value: proto.Float64(42),
-					},
-				},
-			},
-		}, protocmp.Transform()))
+			_, _, err := component.RegisterRemoteAgent(&registration)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "display name")
+			require.Empty(t, component.GetRegisteredAgents())
+		})
 	}
 }
 
-// TestGetTelemetryMixedLabels verifies the registry handles a mix of metrics:
-// some with pre-existing emitter labels and some without.
+// TestGetTelemetryMixedLabels verifies the registry applies the registered identity
+// to a mix of metrics with and without incoming emitter labels.
 func TestGetTelemetryMixedLabels(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
 	component := provides.Comp
 
-	// Simulate an agent sending two metrics:
-	// - logs__bytes_sent already has emitter (should be preserved)
-	// - some_other_metric does NOT have emitter (should be injected by registry)
+	// Simulate an agent sending one metric with a matching emitter and one without an emitter.
 	promText := `
 		# HELP logs__bytes_sent Total number of bytes sent
 		# TYPE logs__bytes_sent counter
@@ -319,27 +515,27 @@ func TestGetTelemetryMixedLabels(t *testing.T) {
 
 	metricsMap := metricsToMap(metrics)
 
-	// logs__bytes_sent: emitter should be "system-probe" (from the metric itself)
+	// logs__bytes_sent should use the registered sanitized display name.
 	require.Contains(t, metricsMap, "logs__bytes_sent")
 	for _, m := range metricsMap["logs__bytes_sent"].GetMetric() {
 		for _, label := range m.GetLabel() {
 			if label.GetName() == emitterMetricTagName {
-				assert.Equal(t, "system-probe", label.GetValue(), "Pre-existing emitter should be preserved")
+				assert.Equal(t, "system-probe", label.GetValue(), "emitter should use the registered sanitized display name")
 			}
 		}
 	}
 
-	// some_other_metric: emitter should be "system-probe" (injected by registry from display name)
+	// some_other_metric should receive the same registered identity.
 	require.Contains(t, metricsMap, "some_other_metric")
 	for _, m := range metricsMap["some_other_metric"].GetMetric() {
 		foundEmitter := false
 		for _, label := range m.GetLabel() {
 			if label.GetName() == emitterMetricTagName {
 				foundEmitter = true
-				assert.Equal(t, "system-probe", label.GetValue(), "Registry should inject emitter for metrics without it")
+				assert.Equal(t, "system-probe", label.GetValue(), "registry should inject emitter for metrics without it")
 			}
 		}
-		assert.True(t, foundEmitter, "Registry should add emitter label when missing")
+		assert.True(t, foundEmitter, "registry should add emitter label when missing")
 	}
 }
 

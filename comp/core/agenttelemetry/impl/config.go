@@ -116,11 +116,13 @@ type Event struct {
 //
 // profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
-// metric will be aggregated without any tags. If specified, only these tags are kept; all
-// others are dropped and their timeseries values are summed. In case none of the tags match
-// any timeseries, those timeseries are removed from the metric's JSON object.
-// The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
+// Every COAT metric carries a non-empty emitter label as mandatory system metadata. Emitter does
+// not need to be listed in preserve_tags; listing it is accepted as a compatibility no-op.
+// preserve_tags only allowlists additional user labels. When omitted or empty, metrics are
+// aggregated by emitter and all user labels are dropped. Otherwise, only metrics containing at
+// least one allowlisted user label are retained, and only allowlisted labels plus emitter are
+// emitted. Missing or empty source emitter labels use the local component identity.
+// The primary goal is to prevent accidental privacy leaks by requiring explicit user-label allowlists.
 //
 // profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
 // ---------------------------------------------------------------------------------
@@ -130,9 +132,9 @@ type Event struct {
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
-// When included, specifies whether the metric should be aggregated as a total. A
-// special tag "total" will be added to the metric's JSON object (accordingly "total" is a
-// reserved tag). Only meaningful when preserve_tags is also specified.
+// When true, emits one total per emitter whether preserve_tags is configured or not. Each total
+// has the mandatory non-empty emitter label and a reserved "total" label containing the raw
+// filtered source-series count for that emitter.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -183,7 +185,8 @@ type Event struct {
 // The value is required and used in the corresponding payload
 
 // Default agent telemetry profiles config if not specified in the agent config file.
-// Note: If "preserve_tags" are not specified, metric will be aggregated without any tags.
+// Emitter is implicit mandatory metadata for every default-profile metric. If preserve_tags is not
+// specified, metrics are aggregated by emitter and all user labels are dropped.
 //
 //go:embed defaultProfiles.yaml
 var defaultProfiles string
@@ -256,15 +259,22 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	if len(tags) == 0 {
 		tags = m.AggregateTags
 	}
-	if len(tags) == 0 {
-		m.preserveTagsExists = false
-	} else {
-		m.preserveTagsExists = true
-		m.preserveTagsMap = make(map[string]any)
-		for _, t := range tags {
+	// AggregateTotal synthesizes total=<timeseries count>; preserving a source
+	// total tag could emit two series with the same metric name and tags.
+	if m.AggregateTotal {
+		for _, tag := range tags {
+			if tag == "total" {
+				return fmt.Errorf("profile '%s' metric '%s' cannot preserve reserved tag 'total' when aggregate_total is enabled", p.Name, m.Name)
+			}
+		}
+	}
+	m.preserveTagsMap = make(map[string]any, len(tags))
+	for _, t := range tags {
+		if t != "emitter" {
 			m.preserveTagsMap[t] = struct{}{}
 		}
 	}
+	m.preserveTagsExists = len(m.preserveTagsMap) > 0
 
 	return nil
 }

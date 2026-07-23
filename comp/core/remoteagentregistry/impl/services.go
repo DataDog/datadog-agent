@@ -9,7 +9,8 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
-	"slices"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,7 +29,7 @@ import (
 
 const (
 	// emitterMetricTagName is the label added to all metrics forwarded from a remote agent
-	// to identify which agent produced them. Value is the agent display name (e.g. "adp", "system-probe").
+	// to identify which agent produced them. Its value is the registered sanitized display name.
 	emitterMetricTagName = "emitter"
 )
 
@@ -162,74 +163,166 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			help = *mf.Help
 		}
 
-		for _, metric := range mf.Metric {
-			if metric == nil {
-				continue
+		metricType := mf.GetType()
+		if metricType == dto.MetricType_SUMMARY {
+			for _, metric := range mf.Metric {
+				if metric != nil {
+					log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
+				}
 			}
-
-			// Check if the metric already has an emitter label.
-			// With explicit agent identity, metrics should already have the correct value.
-			// We only add the label if it's missing (for backward compatibility).
-			hasEmitterLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
-				return *label.Name == emitterMetricTagName
-			})
-
-			labelNames := make([]string, 0, len(metric.Label)+1)
-			labelValues := make([]string, 0, len(metric.Label)+1)
-			// Only add emitter label if the metric doesn't already have one
-			if !hasEmitterLabel {
-				labelNames = append(labelNames, emitterMetricTagName)
-				labelValues = append(labelValues, remoteAgentName)
+			continue
+		}
+		if metricType != dto.MetricType_COUNTER && metricType != dto.MetricType_GAUGE && metricType != dto.MetricType_HISTOGRAM {
+			for _, metric := range mf.Metric {
+				if metric != nil {
+					log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, metricType)
+				}
 			}
-			for _, label := range metric.Label {
-				labelNames = append(labelNames, *label.Name)
-				labelValues = append(labelValues, *label.Value)
-			}
+			continue
+		}
 
-			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
+		for _, aggregate := range coalesceCanonicalMetrics(mf.Metric, metricType, mf.GetName(), remoteAgentName) {
+			desc := prometheus.NewDesc(*mf.Name, help, aggregate.labelNames, nil)
 
-			switch *mf.Type {
+			switch metricType {
 			case dto.MetricType_COUNTER:
-				value := *metric.Counter.Value
-
-				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...)
+				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, aggregate.value, aggregate.labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
 			case dto.MetricType_GAUGE:
-				value := *metric.Gauge.Value
-
-				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, value, labelValues...)
+				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, aggregate.value, aggregate.labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
-
-			case dto.MetricType_SUMMARY:
-				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
-				continue
-
 			case dto.MetricType_HISTOGRAM:
-				count := metric.Histogram.GetSampleCount()
-				sum := metric.Histogram.GetSampleSum()
-				buckets := make(map[float64]uint64)
-				for _, bucket := range metric.Histogram.GetBucket() {
-					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
-				}
-
-				metric, err := prometheus.NewConstHistogram(desc, count, sum, buckets, labelValues...)
+				metric, err := prometheus.NewConstHistogram(desc, aggregate.sampleCount, aggregate.sampleSum, aggregate.buckets, aggregate.labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
-
-			default:
-				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())
 			}
 		}
 	}
+}
+
+// canonicalMetricLabelsAndKey returns canonical labels and an order-independent, length-prefixed key.
+func canonicalMetricLabelsAndKey(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string, string) {
+	labelNames := make([]string, 0, len(incoming)+1)
+	labelValues := make([]string, 0, len(incoming)+1)
+	labels := make([]canonicalLabel, 0, len(incoming)+1)
+	appendLabel := func(name, value string) {
+		labelNames = append(labelNames, name)
+		labelValues = append(labelValues, value)
+		labels = append(labels, canonicalLabel{name: name, value: value})
+	}
+
+	appendLabel(emitterMetricTagName, registeredEmitter)
+	for _, label := range incoming {
+		if label.GetName() == emitterMetricTagName {
+			continue
+		}
+		appendLabel(label.GetName(), label.GetValue())
+	}
+
+	sort.Slice(labels, func(i, j int) bool {
+		return labels[i].name < labels[j].name ||
+			(labels[i].name == labels[j].name && labels[i].value < labels[j].value)
+	})
+
+	var key strings.Builder
+	for _, label := range labels {
+		key.WriteString(strconv.Itoa(len(label.name)))
+		key.WriteByte(':')
+		key.WriteString(label.name)
+		key.WriteString(strconv.Itoa(len(label.value)))
+		key.WriteByte(':')
+		key.WriteString(label.value)
+	}
+	return labelNames, labelValues, key.String()
+}
+
+type canonicalMetricAggregate struct {
+	labelNames   []string
+	labelValues  []string
+	value        float64
+	sampleCount  uint64
+	sampleSum    float64
+	bucketBounds []float64
+	buckets      map[float64]uint64
+}
+
+type canonicalLabel struct {
+	name  string
+	value string
+}
+
+func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, metricName, registeredEmitter string) []*canonicalMetricAggregate {
+	aggregatesByLabels := make(map[string]*canonicalMetricAggregate, len(metrics))
+	aggregates := make([]*canonicalMetricAggregate, 0, len(metrics))
+	for _, metric := range metrics {
+		if metric == nil {
+			continue
+		}
+
+		labelNames, labelValues, key := canonicalMetricLabelsAndKey(metric.Label, registeredEmitter)
+		aggregate, found := aggregatesByLabels[key]
+		if !found {
+			aggregate = &canonicalMetricAggregate{
+				labelNames:  labelNames,
+				labelValues: labelValues,
+			}
+			if metricType == dto.MetricType_HISTOGRAM {
+				aggregate.bucketBounds = histogramBucketBounds(metric.GetHistogram())
+				aggregate.buckets = make(map[float64]uint64)
+			}
+			aggregatesByLabels[key] = aggregate
+			aggregates = append(aggregates, aggregate)
+		}
+
+		switch metricType {
+		case dto.MetricType_COUNTER:
+			aggregate.value += metric.GetCounter().GetValue()
+		case dto.MetricType_GAUGE:
+			aggregate.value += metric.GetGauge().GetValue()
+		case dto.MetricType_HISTOGRAM:
+			histogram := metric.GetHistogram()
+			bucketBounds := histogramBucketBounds(histogram)
+			if found && !equalHistogramBucketBounds(aggregate.bucketBounds, bucketBounds) {
+				log.Warnf("Dropping colliding histogram metric %q from remote agent %q with incompatible bucket layout %v; keeping first layout %v", metricName, registeredEmitter, bucketBounds, aggregate.bucketBounds)
+				continue
+			}
+			aggregate.sampleCount += histogram.GetSampleCount()
+			aggregate.sampleSum += histogram.GetSampleSum()
+			for _, bucket := range histogram.GetBucket() {
+				aggregate.buckets[bucket.GetUpperBound()] += bucket.GetCumulativeCount()
+			}
+		}
+	}
+	return aggregates
+}
+
+func histogramBucketBounds(histogram *dto.Histogram) []float64 {
+	bounds := make([]float64, 0, len(histogram.GetBucket()))
+	for _, bucket := range histogram.GetBucket() {
+		bounds = append(bounds, bucket.GetUpperBound())
+	}
+	return bounds
+}
+
+func equalHistogramBucketBounds(first, second []float64) bool {
+	if len(first) != len(second) {
+		return false
+	}
+	for i := range first {
+		if first[i] != second[i] {
+			return false
+		}
+	}
+	return true
 }
