@@ -95,6 +95,13 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
 			instanceArgs.Tenancy = "host"
 			instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
+
+			// Tags (e.g. the pool-membership tag pool.PoolTagKey) are also owned
+			// externally: NewInstance's Tags only ever declares "Name", so without
+			// this, importing the pool member would make Pulumi reconcile the
+			// instance's real tags down to just that, stripping the pool tag and
+			// making the instance invisible to future Acquire calls.
+			opts = append(opts, pulumi.IgnoreChanges([]string{"tags"}))
 		}
 
 		// Create the EC2 instance
