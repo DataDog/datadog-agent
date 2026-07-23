@@ -406,7 +406,7 @@ func (a *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.
 	var version gosnmp.SnmpVersion
 	if a.Version == "1" {
 		version = gosnmp.Version1
-	} else if a.Version == "2" || (a.Version == "" && a.Community != "") {
+	} else if a.Version == "2" || a.Version == "2c" || a.Version == "2C" || (a.Version == "" && a.Community != "") {
 		version = gosnmp.Version2c
 	} else if a.Version == "3" || (a.Version == "" && a.User != "") {
 		version = gosnmp.Version3
