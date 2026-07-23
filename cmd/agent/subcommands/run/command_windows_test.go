@@ -11,8 +11,11 @@ import (
 	"context"
 	"testing"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 )
 
 func TestStartAgentWithDefaults(t *testing.T) {
@@ -22,4 +25,23 @@ func TestStartAgentWithDefaults(t *testing.T) {
 			_, err := StartAgentWithDefaults(ctxChan)
 			require.NoError(t, err)
 		})
+}
+
+func TestWindowsServiceRejectsPreparedRolloutBeforeStart(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		configsetup.ExperimentalNodeAgentRolloutEnabled: true,
+	})
+	started := false
+	app := fx.New(
+		fx.Supply(cfg),
+		fx.Invoke(validateWindowsPreparedRollout),
+		fx.Invoke(func(lifecycle fx.Lifecycle) {
+			lifecycle.Append(fx.Hook{OnStart: func(context.Context) error {
+				started = true
+				return nil
+			}})
+		}),
+	)
+	require.ErrorContains(t, app.Err(), "not supported")
+	require.False(t, started)
 }

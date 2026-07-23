@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/stretchr/testify/require"
 
 	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
@@ -99,31 +100,31 @@ func TestLifecycleWaitCancellation(t *testing.T) {
 
 func TestRealFileLockHandsOwnershipToPreparedReplacement(t *testing.T) {
 	dir := t.TempDir()
-	lockPath := filepath.Join(dir, "locks", "agent.lock")
-	newProcess := func(componentName, stateFile string) agentlifecycle.Component {
+	lockPath := filepath.Join(dir, "locks", "{component}.lock")
+	newProcess := func(componentName string) agentlifecycle.Component {
 		t.Helper()
 		deps := dependencies{
 			Config: config.NewMockWithOverrides(t, map[string]interface{}{
 				rolloutEnabledKey:   true,
 				rolloutLockPathKey:  lockPath,
-				rolloutStatePathKey: filepath.Join(dir, "state", stateFile),
+				rolloutStatePathKey: filepath.Join(dir, "state", "{component}.state"),
 			}),
 			Log:    logmock.New(t),
 			Params: agentlifecycle.Params{ComponentName: componentName},
 		}
-		comp, err := NewComponent(deps)
+		comp, err := newComponentForPlatform(deps, func(path string) fileLocker { return flock.New(path) }, "linux")
 		require.NoError(t, err)
 		return comp
 	}
 
-	oldProcess := newProcess("old-agent", "old.state")
-	replacement := newProcess("replacement-agent", "replacement.state")
+	oldProcess := newProcess("agent")
+	replacement := newProcess("agent")
 	require.NoError(t, oldProcess.Wait(context.Background()))
 
 	replacementResult := make(chan error, 1)
 	go func() { replacementResult <- replacement.Wait(context.Background()) }()
 	require.Eventually(t, func() bool {
-		contents, err := os.ReadFile(filepath.Join(dir, "state", "replacement.state"))
+		contents, err := os.ReadFile(filepath.Join(dir, "state", "agent.state"))
 		return err == nil && strings.TrimSpace(string(contents)) == agentlifecycle.StatePrepared
 	}, time.Second, 10*time.Millisecond)
 	select {
@@ -139,23 +140,31 @@ func TestRealFileLockHandsOwnershipToPreparedReplacement(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("replacement did not acquire ownership after the old process stopped")
 	}
-	require.Equal(t, agentlifecycle.StateActivating, readState(t, filepath.Join(dir, "state", "replacement.state")))
+	require.Equal(t, agentlifecycle.StateActivating, readState(t, filepath.Join(dir, "state", "agent.state")))
 	require.NoError(t, replacement.Close())
 }
 
 func TestLifecycleRequiresValidPaths(t *testing.T) {
 	tests := map[string]map[string]interface{}{
 		"relative lock": {
-			rolloutLockPathKey:  "lock",
-			rolloutStatePathKey: filepath.Join(t.TempDir(), "state"),
+			rolloutLockPathKey:  "test-agent.lock",
+			rolloutStatePathKey: filepath.Join(t.TempDir(), "test-agent.state"),
 		},
 		"relative state": {
-			rolloutLockPathKey:  filepath.Join(t.TempDir(), "lock"),
-			rolloutStatePathKey: "state",
+			rolloutLockPathKey:  filepath.Join(t.TempDir(), "test-agent.lock"),
+			rolloutStatePathKey: "test-agent.state",
 		},
 		"same path": {
-			rolloutLockPathKey:  filepath.Join(t.TempDir(), "same"),
+			rolloutLockPathKey:  filepath.Join(t.TempDir(), "test-agent.lock"),
 			rolloutStatePathKey: "",
+		},
+		"shared lock path": {
+			rolloutLockPathKey:  filepath.Join(t.TempDir(), "agent.lock"),
+			rolloutStatePathKey: filepath.Join(t.TempDir(), "test-agent.state"),
+		},
+		"shared state path": {
+			rolloutLockPathKey:  filepath.Join(t.TempDir(), "test-agent.lock"),
+			rolloutStatePathKey: filepath.Join(t.TempDir(), "agent.state"),
 		},
 	}
 	for name, overrides := range tests {
@@ -169,10 +178,55 @@ func TestLifecycleRequiresValidPaths(t *testing.T) {
 				Log:    logmock.New(t),
 				Params: agentlifecycle.Params{ComponentName: "test-agent"},
 			}
-			_, err := newComponent(deps, func(string) fileLocker { return newFakeLocker() })
+			_, err := newComponentForPlatform(deps, func(string) fileLocker { return newFakeLocker() }, "linux")
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestComponentPathResolution(t *testing.T) {
+	tests := map[string]struct {
+		configured string
+		component  string
+		suffix     string
+		expected   string
+	}{
+		"template": {
+			configured: "/var/run/datadog/{component}.lock",
+			component:  "core-agent",
+			suffix:     ".lock",
+			expected:   "/var/run/datadog/core-agent.lock",
+		},
+		"operator expanded path": {
+			configured: "/var/run/datadog/trace-agent.state",
+			component:  "trace-agent",
+			suffix:     ".state",
+			expected:   "/var/run/datadog/trace-agent.state",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			resolved, err := resolveComponentPath(test.configured, test.component, test.suffix, "test.path")
+			require.NoError(t, err)
+			require.Equal(t, test.expected, resolved)
+		})
+	}
+}
+
+func TestComponentPathRejectsSharedLiteral(t *testing.T) {
+	_, err := resolveComponentPath("/var/run/datadog/agent.lock", "core-agent", ".lock", "test.path")
+	require.ErrorContains(t, err, "must contain {component}")
+}
+
+func TestPreparedRolloutRejectsWindows(t *testing.T) {
+	require.ErrorContains(t, validatePlatform("windows"), "Linux-only")
+	require.ErrorContains(t, validatePlatform("darwin"), "Linux-only")
+	require.NoError(t, validatePlatform("linux"))
+}
+
+func TestComponentPathRejectsTraversalName(t *testing.T) {
+	_, err := resolveComponentPath("/var/run/datadog/{component}.lock", "..", ".lock", "test.path")
+	require.ErrorContains(t, err, "path-safe")
 }
 
 func TestMarkActiveRequiresOwnership(t *testing.T) {
@@ -198,18 +252,18 @@ func (errorLocker) Unlock() error { return nil }
 func newEnabledComponent(t *testing.T) (agentlifecycle.Component, *fakeLocker, string) {
 	t.Helper()
 	dir := t.TempDir()
-	statePath := filepath.Join(dir, "state", "agent.state")
+	statePath := filepath.Join(dir, "state", "test-agent.state")
 	locker := newFakeLocker()
 	deps := dependencies{
 		Config: config.NewMockWithOverrides(t, map[string]interface{}{
 			rolloutEnabledKey:   true,
-			rolloutLockPathKey:  filepath.Join(dir, "lock", "agent.lock"),
+			rolloutLockPathKey:  filepath.Join(dir, "lock", "test-agent.lock"),
 			rolloutStatePathKey: statePath,
 		}),
 		Log:    logmock.New(t),
 		Params: agentlifecycle.Params{ComponentName: "test-agent"},
 	}
-	comp, err := newComponent(deps, func(string) fileLocker { return locker })
+	comp, err := newComponentForPlatform(deps, func(string) fileLocker { return locker }, "linux")
 	require.NoError(t, err)
 	return comp, locker, statePath
 }

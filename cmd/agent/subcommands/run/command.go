@@ -247,7 +247,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-			fx.Supply(agentlifecycle.Params{ComponentName: "core-agent"}),
+			fx.Supply(agentlifecycle.Params{ComponentName: "agent"}),
 			agentlifecyclefx.Module(),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),

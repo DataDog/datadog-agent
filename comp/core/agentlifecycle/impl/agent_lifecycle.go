@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,14 +66,27 @@ func NewComponent(deps dependencies) (agentlifecycle.Component, error) {
 }
 
 func newComponent(deps dependencies, newLocker func(string) fileLocker) (agentlifecycle.Component, error) {
+	return newComponentForPlatform(deps, newLocker, runtime.GOOS)
+}
+
+func newComponentForPlatform(deps dependencies, newLocker func(string) fileLocker, goos string) (agentlifecycle.Component, error) {
 	if !deps.Config.GetBool(rolloutEnabledKey) {
 		return &component{}, nil
 	}
+	if err := validatePlatform(goos); err != nil {
+		return nil, err
+	}
 
-	lockPath := deps.Config.GetString(rolloutLockPathKey)
-	statePath := deps.Config.GetString(rolloutStatePathKey)
 	if deps.Params.ComponentName == "" {
 		return nil, errors.New("experimental node Agent rollout requires a component name")
+	}
+	lockPath, err := resolveComponentPath(deps.Config.GetString(rolloutLockPathKey), deps.Params.ComponentName, ".lock", rolloutLockPathKey)
+	if err != nil {
+		return nil, err
+	}
+	statePath, err := resolveComponentPath(deps.Config.GetString(rolloutStatePathKey), deps.Params.ComponentName, ".state", rolloutStatePathKey)
+	if err != nil {
+		return nil, err
 	}
 	if !filepath.IsAbs(lockPath) {
 		return nil, fmt.Errorf("%s must be an absolute path", rolloutLockPathKey)
@@ -97,6 +112,32 @@ func newComponent(deps dependencies, newLocker func(string) fileLocker) (agentli
 		log:           deps.Log,
 		locker:        newLocker(lockPath),
 	}, nil
+}
+
+func validatePlatform(goos string) error {
+	if goos != "linux" {
+		return fmt.Errorf("experimental node Agent rollout is Linux-only (running on %s)", goos)
+	}
+	return nil
+}
+
+// resolveComponentPath makes the process identity part of every coordination
+// path. A shared datadog.yaml can use the {component} token, while callers such
+// as the Operator can continue supplying an already-expanded process path.
+func resolveComponentPath(configuredPath, componentName, suffix, configKey string) (string, error) {
+	if filepath.Base(componentName) != componentName || componentName == "." || componentName == ".." {
+		return "", errors.New("experimental node Agent rollout component name must be a path-safe base name")
+	}
+
+	if strings.Contains(configuredPath, "{component}") {
+		return strings.ReplaceAll(configuredPath, "{component}", componentName), nil
+	}
+
+	expectedBase := componentName + suffix
+	if filepath.Base(configuredPath) != expectedBase {
+		return "", fmt.Errorf("%s must contain {component} or end in %q", configKey, expectedBase)
+	}
+	return configuredPath, nil
 }
 
 func (c *component) Wait(ctx context.Context) error {

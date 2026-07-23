@@ -178,6 +178,7 @@ go_library(
         "//pkg/commonchecks",
         "//pkg/config/remote/data",
         "//pkg/config/settings",
+        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/diagnose/connectivity",
         "//pkg/diagnose/firewallscanner",
@@ -304,8 +305,11 @@ dd_agent_go_test(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
+        "//comp/core/config",
         "//comp/core/pid/impl",
+        "//pkg/config/setup",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -23,6 +23,7 @@ dd_agent_go_test(
         "//comp/core/agentlifecycle/def",
         "//comp/core/config",
         "//comp/core/log/mock",
+        "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//require",
     ],
 )
