@@ -1292,7 +1292,7 @@ func TestAggregateTotalWithoutPreserveTags(t *testing.T) {
 		{name: "empty", yaml: "            preserve_tags: []\n"},
 	} {
 		t.Run(preserveTags.name, func(t *testing.T) {
-			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+			cfg := configmock.NewFromYAML(t, `
 agent_telemetry:
   enabled: true
   profiles:
@@ -1301,7 +1301,7 @@ agent_telemetry:
         metrics:
           - name: bar.zoo
             aggregate_total: true
-%s`, preserveTags.yaml))
+`+preserveTags.yaml)
 			atelCfg, err := parseConfig(cfg)
 			require.NoError(t, err)
 			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
