@@ -126,10 +126,9 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 // Prometheus preserves ':' in label values, so delimiter-only concatenation
 // can encode distinct sorted label sets identically. Length prefixes make each
 // name/value boundary unambiguous.
-func convertLabelsToKey(labels []*dto.LabelPair) string {
-	sortedLabels := cloneLabelsSorted(labels)
+func encodeSortedLabels(labels []*dto.LabelPair) string {
 	var key strings.Builder
-	for _, label := range sortedLabels {
+	for _, label := range labels {
 		name := label.GetName()
 		value := label.GetValue()
 		key.WriteString(strconv.Itoa(len(name)))
