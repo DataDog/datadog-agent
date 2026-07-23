@@ -14,6 +14,7 @@ go_library(
         "map.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/ebpf",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf/bytecode",
@@ -39,8 +40,12 @@ go_test(
     name = "ebpf_test",
     srcs = ["compile_test.go"],
     embed = [":ebpf"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf/ebpftest",
         "//pkg/security/probe/config",

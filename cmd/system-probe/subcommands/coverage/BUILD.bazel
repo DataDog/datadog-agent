@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 # gazelle:dd_agent_go_test on
 
@@ -21,5 +21,16 @@ go_library(
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "coverage_test",
+    srcs = ["command_test.go"],
+    embed = [":coverage"],
+    gotags = ["test"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//pkg/util/fxutil",
     ],
 )

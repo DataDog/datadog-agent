@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_linux_bpf on
 
@@ -25,6 +24,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
@@ -47,11 +47,12 @@ go_library(
 # Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 # and cannot coexist in the same rule's deps.
 
-dd_agent_go_test(
+go_test(
     name = "tcpqueuelength_types_test",
     # keep: split from tcpqueuelength_test; see comment above.
     srcs = ["tcp_queue_length_kern_types_linux_test.go"],
     embed = [":tcpqueuelength"],
+    gotags = ["test"],
     # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
     deps = select({
         "@rules_go//go/platform:linux": ["//pkg/ebpf/ebpftest:cgo_align"],
@@ -59,12 +60,17 @@ dd_agent_go_test(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "tcpqueuelength_test",
     # keep: split from tcpqueuelength_types_test; see comment above.
     srcs = ["tcp_queue_length_test.go"],
     embed = [":tcpqueuelength"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",

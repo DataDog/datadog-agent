@@ -9,6 +9,7 @@ go_library(
         "sleepable_modifier.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/modifiers",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf",
@@ -28,8 +29,12 @@ go_test(
     name = "modifiers_test",
     srcs = ["sleepable_modifier_test.go"],
     embed = [":modifiers"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
