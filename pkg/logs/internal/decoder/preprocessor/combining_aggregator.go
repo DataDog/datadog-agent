@@ -27,13 +27,17 @@ type bucket struct {
 	shouldTruncate bool
 }
 
+// add appends msg and its first-line tokens to the bucket. Pass retainTokens
+// when the line stays buffered and is emitted by a later Process call: tokens
+// borrow the tokenizer's scratch buffer, which the next line overwrites, so a
+// buffered line must own a copy. Lines that are added and flushed within the
+// same call (the immediate-flush callers in Process) keep borrowing: false.
 func (b *bucket) add(msg *message.Message, tokens BorrowedTokens, retainTokens bool) {
 	if b.originalDataLen > 0 {
 		b.contentLen += len(message.EscapedLineFeed)
 	}
 	b.contentLen += len(msg.GetContent())
 	if retainTokens {
-		// The bucket buffers this line across Process calls, so it must own the tokens.
 		tokens = tokens.retained()
 	}
 	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
@@ -239,6 +243,8 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == startGroup {
 		a.flushToCollected()
 		a.multiLineMatchInfo.Add(1)
+		// A start line under the size limit stays buffered until its continuation
+		// lines arrive (retain); an oversized one is flushed immediately below.
 		a.bucket.add(msg, tokens, msg.RawDataLen < a.maxContentSize)
 		if msg.RawDataLen >= a.maxContentSize {
 			// A startGroup can still truncate, but only because this individual line is
