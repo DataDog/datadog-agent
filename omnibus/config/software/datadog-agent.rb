@@ -98,6 +98,64 @@ build do
 
   command "bazel run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
 
+  # exp-0001: parallelize the independent leaf Go binary builds.
+  #
+  # The leaf component builds (trace-agent, installer, loader, process-agent,
+  # privateactionrunner, system-probe, security-agent, cws-instrumentation,
+  # secret-generic-connector) each write a distinct bin/<name>/ output, share the
+  # warm GOCACHE seeded by agent.build above, and have no data dependency on each
+  # other. On Linux (non-heroku) we run them concurrently bounded to nproc to fill
+  # idle cores and collapse the serial compile/link tail. The per-binary copy/move
+  # steps below stay serial and run after every build has completed.
+  if linux_target? && !heroku_target?
+    block "build leaf go binaries in parallel" do
+      # Bound concurrency to omnibus' configured worker count (Config.workers,
+      # normally set to nproc) so we fill cores without oversubscribing CPU+RAM.
+      pool_size = workers
+      pool_size = 1 if pool_size.nil? || pool_size < 1
+
+      parallel_builds = []
+      parallel_builds << "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}"
+      parallel_builds << "dda inv -- -e installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}"
+      parallel_builds << "dda inv -- -e loader.build --install-path=#{install_dir}"
+      parallel_builds << "dda inv -- -e process-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}"
+      parallel_builds << "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}" unless fips_mode?
+      if sysprobe_enabled?
+        parallel_builds << "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}"
+      end
+      parallel_builds << "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}"
+      parallel_builds << "dda inv -- -e cws-instrumentation.build #{fips_args}"
+      parallel_builds << "dda inv -- -e secret-generic-connector.build #{fips_args}"
+
+      queue = Queue.new
+      parallel_builds.each { |cmd| queue << cmd }
+
+      errors = Queue.new
+      worker_count = [pool_size, parallel_builds.length].min
+      threads = (1..worker_count).map do
+        Thread.new do
+          loop do
+            cmd = begin
+              queue.pop(true)
+            rescue ThreadError
+              break
+            end
+            log.info(log_key) { "parallel build: #{cmd}" }
+            ok = system(env, "bash", "-c", cmd, chdir: project_dir)
+            errors << cmd unless ok
+          end
+        end
+      end
+      threads.each(&:join)
+
+      unless errors.empty?
+        failed = []
+        failed << errors.pop until errors.empty?
+        raise "parallel leaf go builds failed: #{failed.join(', ')}"
+      end
+    end
+  end
+
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
   # then we drop it. If so, then we can switch the build from go run building the
@@ -147,12 +205,15 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  # On Linux (non-heroku) trace-agent is built in the parallel pool above.
+  unless linux_target? && !heroku_target?
+    command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
 
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-    command "dda inv -- -e installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # installer built in the parallel pool above.
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -167,7 +228,7 @@ build do
       copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
       command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
     else
-      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      # loader built in the parallel pool above.
       copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
     end
   end
@@ -180,7 +241,8 @@ build do
   end
 
   # Process agent
-  if not heroku_target?
+  # On Linux (non-heroku) process-agent is built in the parallel pool above.
+  if not heroku_target? and not (linux_target? and not heroku_target?)
     command "dda inv -- -e process-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -193,7 +255,10 @@ build do
 
   # Private action runner
   if not heroku_target? and not fips_mode?
-    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    # On Linux (non-heroku) privateactionrunner is built in the parallel pool above.
+    unless linux_target?
+      command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    end
 
     if windows_target?
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
@@ -206,7 +271,8 @@ build do
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
-      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+      # system-probe is built in the parallel pool above; the GLIBC symbol check
+      # still runs serially here on the produced binary.
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     else
       command "dda inv -- -e system-probe.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -263,7 +329,10 @@ build do
 
   # Security agent
   unless heroku_target?
-    command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    # On Linux (non-heroku) security-agent is built in the parallel pool above.
+    unless linux_target?
+      command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    end
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
       copy 'bin/security-agent/security-agent.exe.pdb', "#{install_dir}/bin/agent"
@@ -276,13 +345,16 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "dda inv -- -e cws-instrumentation.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    # cws-instrumentation is built in the parallel pool above (Linux-only).
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
 # Secret Generic Connector
   if !heroku_target?
-    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    # On Linux (non-heroku) secret-generic-connector is built in the parallel pool above.
+    unless linux_target?
+      command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    end
     if windows_target?
       copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
     else
