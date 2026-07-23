@@ -95,6 +95,27 @@ func runString(code string) (string, error) {
 	return string(output), err
 }
 
+// The helpers below isolate the two patterns compared in BenchmarkRunCheckResult.
+// benchEmptyCStr is allocated once and reused across benchmark iterations to
+// match the real scenario where C.run_check returns a pre-allocated string.
+var benchEmptyCStr *C.char
+
+func initBenchRunCheckResult() {
+	benchEmptyCStr = (*C.char)(helpers.TrackedCString(""))
+}
+
+// runCheckResult_GoString models the old runCheckImpl: unconditionally calls
+// C.GoString, which scans for the NUL terminator and builds a Go string.
+func runCheckResult_GoString() string {
+	return C.GoString(benchEmptyCStr)
+}
+
+// runCheckResult_ByteCheck models the new fast path: a single byte dereference
+// that short-circuits on the common empty-result case.
+func runCheckResult_ByteCheck() bool {
+	return *(*byte)(unsafe.Pointer(benchEmptyCStr)) == 0
+}
+
 func fetchError() error {
 	if C.has_error(rtloader) == 1 {
 		return errors.New(C.GoString(C.get_error(rtloader)))
