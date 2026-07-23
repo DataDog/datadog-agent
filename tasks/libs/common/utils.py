@@ -267,8 +267,9 @@ def _find_cross_compiler(target_platform: str, *compilers) -> str:
     compilers = list(filter(lambda cc: cc, compilers))
 
     # find the first compiler that is available on PATH
-    if cc := next(filter(lambda cc: shutil.which(cc), compilers), None):
-        return cc
+    for cc in compilers:
+        if shutil.which(cc):
+            return cc
 
     # fail with a clear error message
     if target_platform == "darwin":
