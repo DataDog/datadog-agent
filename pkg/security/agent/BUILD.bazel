@@ -41,6 +41,7 @@ go_library(
     ] + select({
         "@rules_go//go/platform:aix": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -48,6 +49,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -56,6 +58,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -63,6 +66,7 @@ go_library(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -70,6 +74,7 @@ go_library(
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -77,6 +82,7 @@ go_library(
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -84,6 +90,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -91,6 +98,7 @@ go_library(
         ],
         "@rules_go//go/platform:js": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -98,6 +106,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -106,6 +115,7 @@ go_library(
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -113,6 +123,7 @@ go_library(
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -120,6 +131,7 @@ go_library(
         ],
         "@rules_go//go/platform:osx": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -127,6 +139,7 @@ go_library(
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -134,6 +147,7 @@ go_library(
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -141,6 +155,7 @@ go_library(
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",
@@ -148,6 +163,7 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/log/def",
             "//comp/core/secrets/def",
             "//comp/serializer/logscompression/def",

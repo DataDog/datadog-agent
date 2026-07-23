@@ -82,7 +82,18 @@ type authInstance struct {
 
 	// done is closed when the background refresh goroutine exits
 	done chan struct{}
+
+	// triggerRefresh wakes up startBackgroundRefresh for an early fetch; buffered(1) and
+	// non-blocking so Refresh() never blocks the caller on network I/O.
+	triggerRefresh chan struct{}
+	// lastTriggeredRefresh throttles repeated Refresh() triggers; protected by
+	// delegatedAuthComponent.mu.
+	lastTriggeredRefresh time.Time
 }
+
+// minTriggerRefreshInterval is the minimum time between Refresh()-triggered early fetch attempts
+// for a single instance.
+const minTriggerRefreshInterval = 30 * time.Second
 
 // delegatedAuthComponent implements the delegatedauth.Component interface.
 //
@@ -97,11 +108,9 @@ type delegatedAuthComponent struct {
 	providerConfig   common.ProviderConfig    // Resolved provider configuration
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
 
-	// additionalEndpointsMu serializes read-modify-write access to the `additional_endpoints`
-	// config value across concurrent instances (e.g. two DELA(...) entries refreshing at once).
-	// Deliberately separate from mu: config writes happen outside mu to avoid deadlocking with
-	// OnUpdate callbacks (see startBackgroundRefresh), but concurrent additional_endpoints merges
-	// still need to be serialized against each other.
+	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
+	// values across concurrent instances. Separate from mu since config writes happen outside mu
+	// to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
 }
 
@@ -301,6 +310,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		refreshCtx:                       refreshCtx,
 		refreshCancel:                    refreshCancel,
 		done:                             make(chan struct{}),
+		triggerRefresh:                   make(chan struct{}, 1),
 	}
 
 	// Check if we're replacing an existing instance.
@@ -417,58 +427,109 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 			case <-instance.refreshCtx.Done():
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
-			case <-ticker.C:
-				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
-
-				// Variables to capture state updates
-				var shouldUpdateConfig bool
-				var apiKeyToUpdate string
-
-				d.mu.Lock()
-				if lErr != nil {
-					// Check if the error is due to context cancellation
-					if instance.refreshCtx.Err() != nil {
-						d.mu.Unlock()
-						log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
-						return
-					}
-
-					// Track failures for status reporting
-					instance.consecutiveFailures++
-
-					// Get next backoff interval (exponentially increasing with jitter)
-					nextInterval := instance.backoff.NextBackOff()
-					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
-						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
-					ticker.Reset(nextInterval)
-				} else {
-					// Success - reset backoff and failure counter
-					if instance.consecutiveFailures > 0 {
-						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
-							instance.apiKeyConfigKey, instance.consecutiveFailures)
-					}
-					instance.consecutiveFailures = 0
-					instance.backoff.Reset()
-					nextInterval := instance.backoff.NextBackOff()
-
-					// Capture the API key to update config outside the lock
-					if updated && lCreds != nil {
-						shouldUpdateConfig = true
-						apiKeyToUpdate = *lCreds
-					}
-
-					ticker.Reset(nextInterval)
+			case <-instance.triggerRefresh:
+				// A Refresh() nudge - same forced attempt as a tick, just earlier.
+				if d.performRefreshAttempt(instance, ticker) {
+					return
 				}
-				d.mu.Unlock()
-
-				// Update the config OUTSIDE the lock to avoid potential deadlocks
-				// with config callbacks that might try to acquire locks
-				if shouldUpdateConfig {
-					d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
+				// Drain a tick that may have landed at the same instant, since Reset() doesn't.
+				select {
+				case <-ticker.C:
+				default:
+				}
+			case <-ticker.C:
+				if d.performRefreshAttempt(instance, ticker) {
+					return
 				}
 			}
 		}
 	}()
+}
+
+// performRefreshAttempt does one forced refresh attempt and updates backoff/config exactly as
+// startBackgroundRefresh's ticker case always has. Returns true if the goroutine should exit
+// (context canceled).
+func (d *delegatedAuthComponent) performRefreshAttempt(instance *authInstance, ticker *time.Ticker) bool {
+	lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
+
+	// Variables to capture state updates
+	var shouldUpdateConfig bool
+	var apiKeyToUpdate string
+
+	d.mu.Lock()
+	if lErr != nil {
+		// Check if the error is due to context cancellation
+		if instance.refreshCtx.Err() != nil {
+			d.mu.Unlock()
+			log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
+			return true
+		}
+
+		// Track failures for status reporting
+		instance.consecutiveFailures++
+
+		// Get next backoff interval (exponentially increasing with jitter)
+		nextInterval := instance.backoff.NextBackOff()
+		log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
+			instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
+		ticker.Reset(nextInterval)
+	} else {
+		// Success - reset backoff and failure counter
+		if instance.consecutiveFailures > 0 {
+			log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
+				instance.apiKeyConfigKey, instance.consecutiveFailures)
+		}
+		instance.consecutiveFailures = 0
+		instance.backoff.Reset()
+		nextInterval := instance.backoff.NextBackOff()
+
+		// Capture the API key to update config outside the lock
+		if updated && lCreds != nil {
+			shouldUpdateConfig = true
+			apiKeyToUpdate = *lCreds
+		}
+
+		ticker.Reset(nextInterval)
+	}
+	d.mu.Unlock()
+
+	// Update the config OUTSIDE the lock to avoid potential deadlocks
+	// with config callbacks that might try to acquire locks
+	if shouldUpdateConfig {
+		d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
+	}
+	return false
+}
+
+// Refresh nudges every instance to retry sooner than its normal backoff, throttled per-instance so
+// a burst of calls can't cause repeated real fetch attempts. Mirrors
+// comp/core/secrets.Component.Refresh()'s contract; only sends on triggerRefresh, never fetches
+// inline, so this can't block the caller on network I/O.
+//
+// Doesn't skip already-resolved instances: the caller has no way to know which instance's key just
+// went bad, and the common case is a previously-good key expiring, not a cold start. Matches the
+// ticker, which already force-refreshes resolved instances every tick for rotation.
+func (d *delegatedAuthComponent) Refresh() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if len(d.instances) == 0 {
+		return false
+	}
+
+	now := time.Now()
+	for _, instance := range d.instances {
+		if now.Sub(instance.lastTriggeredRefresh) < minTriggerRefreshInterval {
+			continue
+		}
+		select {
+		case instance.triggerRefresh <- struct{}{}:
+			instance.lastTriggeredRefresh = now
+		default:
+			// A trigger is already pending for this instance; nothing more to do.
+		}
+	}
+	return true
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key
@@ -503,12 +564,8 @@ func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 	}
 }
 
-// updateConfigWithAPIKey updates the config with a newly-fetched, real (non-fallback) API key.
-// Only called on a successful fetch - either the initial one in AddInstance, or a later one from
-// startBackgroundRefresh. The fallback API key (see writeAPIKeyToTarget's isFallback param) is
-// only ever written from AddInstance's two failure branches, both of which run before this is ever
-// reached for a given instance - so a real key, once obtained, is never reverted back to a
-// fallback by a later transient refresh failure.
+// updateConfigWithAPIKey writes a newly-fetched, real (non-fallback) API key. Only called on
+// success, so a resolved key is never reverted to a fallback by a later transient failure.
 func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, apiKey string) {
 	d.writeAPIKeyToTarget(instance, apiKey, false)
 }
@@ -535,11 +592,9 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 }
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config value at
-// instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing the
-// value this instance previously wrote there (starting with the original DELA(...) directive text)
-// without disturbing any other entry for that domain, static or otherwise. Serialized via
-// additionalEndpointsMu since multiple instances (one per DELA(...) entry, possibly across
-// different config keys) can refresh concurrently.
+// instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing only the
+// value this instance previously wrote there. Serialized via additionalEndpointsMu since multiple
+// instances can refresh concurrently.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
@@ -576,16 +631,10 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	}
 }
 
-// normalizeListShapeEntries converts a list-shape `additional_endpoints`-style config value into a
-// slice of string-keyed maps, regardless of which underlying shape config.Get() returns:
-//   - []any of map[any]any entries - what a real YAML-sourced value decodes to (the config
-//     loader's YAML decoding produces yaml.v2-style nested maps for nested mappings, not
-//     map[string]any)
-//   - []map[string]any - what an unset key's registered empty/typed default looks like
-//
-// Duplicated from the identical helper in pkg/config/setup/config.go rather than shared: this
-// package can't depend on pkg/config/setup or pkg/config/utils without risking a cycle back
-// through comp/core/delegatedauth/def, which pkg/config/setup already imports.
+// normalizeListShapeEntries normalizes a list-shape `additional_endpoints` config value to
+// []map[string]any: config.Get() returns []any of map[any]any for real YAML values (yaml.v2-style
+// decoding) but []map[string]any for an unset key's typed default. Duplicated from the identical
+// helper in pkg/config/setup/config.go - this package can't import that without a cycle.
 func normalizeListShapeEntries(raw any) ([]map[string]any, bool) {
 	switch typed := raw.(type) {
 	case []any:
@@ -625,11 +674,8 @@ func caseInsensitiveStringField(entry map[string]any, field string) (string, boo
 }
 
 // mergeIntoAdditionalEndpointsList writes apiKey into the list-shape config value at
-// instance.additionalEndpointsListConfigKey (a list of {api_key, Host, Port, ...} entries),
-// replacing the entry whose api_key still holds this instance's lastWrittenValue - matching by
-// value rather than list index/position, so a reordered or resized list doesn't silently drop the
-// resolved key. Serialized via additionalEndpointsMu for the same reason as
-// mergeIntoAdditionalEndpoints.
+// instance.additionalEndpointsListConfigKey, replacing the entry whose api_key still holds
+// lastWrittenValue - matched by value, not index, so a reordered list doesn't drop the key.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()

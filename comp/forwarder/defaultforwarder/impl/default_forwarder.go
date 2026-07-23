@@ -22,6 +22,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -109,6 +111,7 @@ type Options struct {
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	Secrets                        secrets.Component
+	DelegatedAuth                  delegatedauth.Component
 	transport                      http.RoundTripper // for testing
 }
 
@@ -209,7 +212,8 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		DomainResolvers:                domainResolvers,
 		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
-		Secrets:                        &secretnooptypes.SecretNoop{}, // will get overwritten with actual secrets if needed
+		Secrets:                        &secretnooptypes.SecretNoop{},               // will get overwritten with actual secrets if needed
+		DelegatedAuth:                  &delegatedauthnooptypes.DelegatedAuthNoop{}, // will get overwritten with the real component if needed
 	}
 
 	if config.IsConfigured(forwarderRetryQueueMaxSizeKey) {
@@ -365,6 +369,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				config,
 				log,
 				options.Secrets,
+				options.DelegatedAuth,
 				domain,
 				resolver.IsMRF(),
 				resolver.IsLocal(),

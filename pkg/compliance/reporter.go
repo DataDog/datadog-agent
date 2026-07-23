@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -54,6 +55,9 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsComp,
+		// Not wired to a real delegatedauth.Component: compliance-agent runs in a separate
+		// Fx graph from the logs agent this feature primarily targets.
+		delegatedauthnoopimpl.NewComponent().Comp,
 	)
 	pipelineProvider.Start()
 

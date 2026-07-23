@@ -410,6 +410,12 @@ func (r *domainResolver) IsUsable() bool {
 	return r.IsLocal() || len(r.dedupedAPIKeys) > 0 || r.hasPendingDelegatedAuth
 }
 
+// HasPendingDelegatedAuth reports whether this domain is WIF-managed (configured with a
+// DELA(...) directive), so callers can tell a transient auth failure apart from a bad static key.
+func (r *domainResolver) HasPendingDelegatedAuth() bool {
+	return r.hasPendingDelegatedAuth
+}
+
 // IsLocal returns true if the domain corresponds to another agent.
 func (r *domainResolver) IsLocal() bool {
 	return r.destinationType == Local

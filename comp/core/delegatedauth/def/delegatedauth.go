@@ -99,4 +99,13 @@ type Component interface {
 	// background refresh goroutines use their own cancellable context.
 	// Returns an error if Config or OrgUUID is empty.
 	AddInstance(ctx context.Context, params InstanceParams) error
+
+	// Refresh nudges any managed instances that haven't yet resolved a real API key to retry
+	// sooner than their normal backoff interval, throttled so repeated calls (e.g. a burst of
+	// 403s from the forwarder) don't hammer the auth-proof exchange. Mirrors
+	// comp/core/secrets.Component.Refresh()'s contract: returns true if at least one instance
+	// exists to nudge (regardless of whether that nudge actually fires due to throttling), false
+	// if there are no delegated-auth instances at all (e.g. the noop implementation, or delegated
+	// auth isn't configured). Non-blocking - never performs the fetch itself.
+	Refresh() bool
 }

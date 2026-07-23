@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
@@ -66,7 +68,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
+func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, _ delegatedauth.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
 	defer func() { t.processed <- true }()
 
 	var ret error
@@ -251,7 +253,7 @@ func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
 func NewTestForwarder(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
-	opts, err := createOptions(params, config, log, secrets)
+	opts, err := createOptions(params, config, log, secrets, &delegatedauthnooptypes.DelegatedAuthNoop{})
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
@@ -221,6 +222,7 @@ func (a *Agent) SetupPipeline(
 		a.config.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsnoopimpl.NewComponent().Comp,
+		delegatedauthnoopimpl.NewComponent().Comp,
 	)
 
 	a.destinationsCtx = destinationsCtx

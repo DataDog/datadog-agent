@@ -17,11 +17,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+// stubPendingDelegatedAuthResolver is a minimal Authorizer + PendingDelegatedAuthChecker used to
+// simulate a domain resolver that's WIF-managed, without pulling in the full resolver package.
+type stubPendingDelegatedAuthResolver struct {
+	pending bool
+}
+
+func (s *stubPendingDelegatedAuthResolver) Authorize(uint, http.Header, log.Component) {}
+func (s *stubPendingDelegatedAuthResolver) HasPendingDelegatedAuth() bool              { return s.pending }
 
 func TestNewHTTPTransaction(t *testing.T) {
 	before := time.Now()
@@ -58,7 +68,7 @@ func TestProcess(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -74,7 +84,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -90,7 +100,7 @@ func TestProcessNetworkError(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NotNil(t, err)
 }
 
@@ -116,21 +126,21 @@ func TestProcessHTTPError(t *testing.T) {
 	secrets.SetRefreshHook(func() bool {
 		return true
 	})
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "API Key invalid")
 
@@ -151,7 +161,7 @@ func TestProcessCancel(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(ctx, mockConfig, log, secrets, client, nil)
+	err := transaction.Process(ctx, mockConfig, log, secrets, nil, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -224,7 +234,7 @@ func TestProcessDoesNotMutateHeaders(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, headersBefore, transaction.Headers, "t.Headers must not be mutated by Process")
@@ -255,7 +265,7 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 	assert.NotNil(t, err)
 
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
@@ -289,7 +299,7 @@ func TestTransaction403DropsWhenNoSecrets(t *testing.T) {
 		droppedByEndpointBefore = v.(*expvar.Int).Value()
 	}
 
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, nil, client, nil)
 
 	assert.NoError(t, err, "a 403 with no secrets backend should drop the transaction, not reschedule it")
 	assert.Equal(t, 0, transaction.ErrorCount, "ErrorCount should not be incremented when the transaction is dropped")
@@ -318,14 +328,16 @@ func newTransactionForStatusTest(domain string, pointCount int) *HTTPTransaction
 
 func TestProcessPointCountTelemetry(t *testing.T) {
 	cases := []struct {
-		name            string
-		status          int
-		pointCount      int
-		setRefreshHook  bool
-		refreshSucceeds bool
-		wantErr         bool
-		wantSent        int
-		wantDropped     int
+		name                           string
+		status                         int
+		pointCount                     int
+		setRefreshHook                 bool
+		refreshSucceeds                bool
+		pendingDelegatedAuth           bool
+		wantErr                        bool
+		wantSent                       int
+		wantDropped                    int
+		wantDelegatedAuthRefreshCalled bool
 	}{
 		{
 			name:       "2xx credits point.sent",
@@ -367,6 +379,25 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 			pointCount: 6,
 			wantErr:    true,
 		},
+		{
+			// A WIF-managed domain that hasn't resolved its first key yet (or is between
+			// retries) must retry a 403 rather than drop it, and nudge delegated auth to try
+			// sooner - see PendingDelegatedAuthChecker in transaction.go.
+			name:                           "403 with delegated auth pending is retryable",
+			status:                         http.StatusForbidden,
+			pointCount:                     5,
+			pendingDelegatedAuth:           true,
+			wantErr:                        true,
+			wantDelegatedAuthRefreshCalled: true,
+		},
+		{
+			// A plain 403 with no secrets refresh hook and no delegated-auth-managed domain
+			// still drops permanently, exactly as before this feature existed.
+			name:        "403 without delegated auth pending still drops",
+			status:      http.StatusForbidden,
+			pointCount:  2,
+			wantDropped: 2,
+		},
 	}
 
 	for _, tc := range cases {
@@ -377,6 +408,9 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 			defer ts.Close()
 
 			tr := newTransactionForStatusTest(ts.URL, tc.pointCount)
+			if tc.pendingDelegatedAuth {
+				tr.Resolver = &stubPendingDelegatedAuthResolver{pending: true}
+			}
 			rec := &pointCountTelemetryRecorder{}
 
 			secrets := secretsmock.New(t)
@@ -384,8 +418,16 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 				secrets.SetRefreshHook(func() bool { return tc.refreshSucceeds })
 			}
 
+			var delegatedAuthRefreshCalled bool
+			delegatedAuth := &delegatedauthmock.Mock{
+				RefreshFunc: func() bool {
+					delegatedAuthRefreshCalled = true
+					return true
+				},
+			}
+
 			err := tr.Process(context.Background(), configmock.New(t), logmock.New(t),
-				secrets, &http.Client{}, rec)
+				secrets, delegatedAuth, &http.Client{}, rec)
 
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -394,6 +436,7 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 			}
 			assert.Equal(t, tc.wantSent, rec.sent, "point.sent")
 			assert.Equal(t, tc.wantDropped, rec.dropped, "point.dropped")
+			assert.Equal(t, tc.wantDelegatedAuthRefreshCalled, delegatedAuthRefreshCalled, "delegated auth Refresh() called")
 		})
 	}
 }

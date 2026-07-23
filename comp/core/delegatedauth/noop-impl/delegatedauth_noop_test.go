@@ -17,7 +17,7 @@ import (
 )
 
 func TestNoopAddInstance(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &DelegatedAuthNoop{}
 	err := noop.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		OrgUUID:         "test-org-uuid",
 		RefreshInterval: 60,
@@ -27,17 +27,17 @@ func TestNoopAddInstance(t *testing.T) {
 }
 
 func TestNoopStatusProviderName(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &DelegatedAuthNoop{}
 	assert.Equal(t, "Delegated Auth", noop.Name())
 }
 
 func TestNoopStatusProviderSection(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &DelegatedAuthNoop{}
 	assert.Equal(t, "delegatedauth", noop.Section())
 }
 
 func TestNoopStatusJSON(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &DelegatedAuthNoop{}
 	stats := make(map[string]interface{})
 	err := noop.JSON(false, stats)
 
@@ -46,7 +46,7 @@ func TestNoopStatusJSON(t *testing.T) {
 }
 
 func TestNoopStatusText(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &DelegatedAuthNoop{}
 	var buffer bytes.Buffer
 	err := noop.Text(false, &buffer)
 
@@ -56,7 +56,7 @@ func TestNoopStatusText(t *testing.T) {
 }
 
 func TestNoopStatusHTML(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &DelegatedAuthNoop{}
 	var buffer bytes.Buffer
 	err := noop.HTML(false, &buffer)
 
@@ -77,7 +77,7 @@ func TestNewComponent(t *testing.T) {
 
 	// Verify status provider works
 	stats := make(map[string]interface{})
-	err := provides.Comp.(*delegatedAuthNoop).JSON(false, stats)
+	err := provides.Comp.(*DelegatedAuthNoop).JSON(false, stats)
 	require.NoError(t, err)
 	assert.Equal(t, false, stats["enabled"])
 }

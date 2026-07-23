@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -85,7 +86,7 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp)
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

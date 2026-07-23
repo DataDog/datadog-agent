@@ -66,6 +66,11 @@ type Endpoint struct {
 	// the index of this endpoint config within "additional_endpoints" settings. This is needed to not
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
 	additionalEndpointsIdx int
+	// hasPendingDelegatedAuth is true when this endpoint's api_key was a DELA(...) directive at
+	// construction, i.e. this endpoint is WIF-managed for its entire lifetime - mirrors
+	// domainResolver.hasPendingDelegatedAuth in comp/forwarder/defaultforwarder/resolver, letting
+	// a sender tell a transient WIF auth failure apart from a genuinely bad static key.
+	hasPendingDelegatedAuth bool
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
@@ -200,6 +205,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
+		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey)
 
 		newE.UseCompression = e.UseCompression
 		newE.CompressionLevel = e.CompressionLevel
@@ -245,6 +251,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
+		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey)
 		newE.UseCompression = main.UseCompression
 		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
@@ -291,6 +298,13 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
 func (e *Endpoint) GetAPIKey() string {
 	return e.apiKey.Load()
+}
+
+// HasPendingDelegatedAuth reports whether this endpoint is WIF-managed (its api_key was a
+// DELA(...) directive at construction), so a sender can tell a transient auth failure apart from
+// a bad static key.
+func (e *Endpoint) HasPendingDelegatedAuth() bool {
+	return e.hasPendingDelegatedAuth
 }
 
 // UseSSL returns the useSSL config setting

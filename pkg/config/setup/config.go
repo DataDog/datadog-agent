@@ -848,7 +848,11 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 
 				directive, ok := parseDelaDirective(key)
 				if !ok {
-					log.Warnf("Could not parse delegated auth directive %q for additional endpoint '%s' at '%s'; leaving it as-is (it will not be sent as an API key)", key, domain, configKey)
+					// Deliberately don't log the directive value itself: it may carry a
+					// fallback=<api_key> param, and a malformed directive (e.g. a stray
+					// trailing param) can still contain a well-formed fallback value even
+					// though the directive as a whole fails to parse.
+					log.Warnf("Could not parse delegated auth directive for additional endpoint '%s' at '%s'; leaving it as-is (it will not be sent as an API key)", domain, configKey)
 					continue
 				}
 
@@ -921,7 +925,8 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 
 			directive, ok := parseDelaDirective(valStr)
 			if !ok {
-				log.Warnf("Could not parse delegated auth directive %q for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", valStr, index, configKey)
+				// See the map-shape scan above for why the directive value itself isn't logged.
+				log.Warnf("Could not parse delegated auth directive for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", index, configKey)
 				continue
 			}
 

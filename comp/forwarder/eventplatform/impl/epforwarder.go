@@ -15,6 +15,8 @@ import (
 	"sync"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -53,6 +55,7 @@ type Requires struct {
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
 	Secrets               secrets.Component
+	DelegatedAuth         delegatedauth.Component
 }
 
 // Provides defines the component's output.
@@ -292,6 +295,7 @@ func newHTTPPassthroughPipeline(
 	pipelineID int,
 	hostname string,
 	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
 	compressionOptions := config.EndpointCompressionOptions{
@@ -361,6 +365,7 @@ func newHTTPPassthroughPipeline(
 		endpoints.BatchMaxConcurrentSend,
 		endpoints.BatchMaxConcurrentSend,
 		secretsComp,
+		delegatedAuthComp,
 		// Noop: passthrough pipelines don't surface on the logs status page, so they skip
 		// utilization sampling and own no snapshot registry.
 		pipelineMonitor,
@@ -450,12 +455,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp, delegatedAuthComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -475,7 +480,7 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression)
 	} else if reqs.Params.UseEventPlatformForwarder {
 		hostnameStr := reqs.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets)
+		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets, reqs.DelegatedAuth)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -501,7 +506,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil
