@@ -751,8 +751,6 @@ func TestNoUserLabelSpecifiedAggregationCounter(t *testing.T) {
 	// aggregated to 10 + 20 + 30 = 60
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Counter.GetValue())
-
-	// Emitter remains mandatory when no user labels are preserved.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
@@ -790,8 +788,6 @@ func TestNoUserLabelSpecifiedExplicitAggregationGauge(t *testing.T) {
 	// aggregated to 10 + 20 + 30 = 60
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Gauge.GetValue())
-
-	// An empty preserve_tags list still aggregates by emitter.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
@@ -828,8 +824,6 @@ func TestNoUserLabelSpecifiedImplicitAggregationGauge(t *testing.T) {
 	// aggregated to 10 + 20 + 30 = 60
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, float64(60), m.Gauge.GetValue())
-
-	// An omitted preserve_tags list still aggregates by emitter.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
@@ -869,8 +863,6 @@ func TestNoUserLabelSpecifiedAggregationHistogram(t *testing.T) {
 	// aggregated to 10 + 20 + 30 = 60
 	m := s.sentMetrics[0].metrics[0]
 	assert.Equal(t, uint64(3), m.Histogram.GetBucket()[3].GetCumulativeCount())
-
-	// Emitter remains mandatory when no user labels are preserved.
 	assert.Equal(t, []string{"emitter=agent"}, metricLabelStrings(m))
 }
 
@@ -3154,7 +3146,7 @@ func TestEmitterCanonicalization(t *testing.T) {
 		labels       []*dto.LabelPair
 		wantEmitter  string
 	}{
-		{name: "missing falls back to agent in legacy construction", wantEmitter: "agent"},
+		{name: "missing uses default identity when local emitter is empty", wantEmitter: "agent"},
 		{name: "empty uses configured local emitter", localEmitter: "trace-agent", labels: []*dto.LabelPair{newLabelPair("emitter", "")}, wantEmitter: "trace-agent"},
 		{
 			name:         "first non-empty duplicate wins",
@@ -3171,13 +3163,7 @@ func TestEmitterCanonicalization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mCfg := &MetricConfig{
-				preserveTagsExists: true,
-				preserveTagsMap: map[string]any{
-					"emitter": struct{}{},
-					"allowed": struct{}{},
-				},
-			}
+			mCfg := &MetricConfig{preserveTagsMap: map[string]any{"allowed": struct{}{}}}
 			results := (&atel{localEmitter: tt.localEmitter}).aggregateMetricTags(mCfg, dto.MetricType_GAUGE, []*dto.Metric{newGaugeMetric(1, tt.labels...)})
 
 			require.Len(t, results, 1)
