@@ -7,22 +7,34 @@
 package run
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"time"
+
+	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+const (
+	processProcmgrDefinitionFile = "datadog-agent-process.yaml"
+	parProcmgrDefinitionFile     = "datadog-agent-action.yaml"
+	ddotProcmgrDefinitionFile    = "datadog-agent-ddot.yaml"
+)
+
 type serviceInitFunc func() (err error)
 
 // Servicedef defines a service
 type Servicedef struct {
-	name           string
-	configKeys     map[string]model.Reader
-	suppressIf     func() bool
-	shouldShutdown bool
+	name       string
+	configKeys map[string]model.Reader
+	// procmgrDefinitionFile, when set, is the processes.d YAML basename used to decide
+	// whether the legacy SCM service is suppressed in favor of dd-procmgr.
+	procmgrDefinitionFile string
+	shouldShutdown        bool
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -49,9 +61,10 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"network_config.enabled":                      sysprobeConf,
 				"system_probe_config.enabled":                 sysprobeConf,
 			},
-			serviceName:    "datadog-process-agent",
-			serviceInit:    processInit,
-			shouldShutdown: false,
+			procmgrDefinitionFile: processProcmgrDefinitionFile,
+			serviceName:           "datadog-process-agent",
+			serviceInit:           processInit,
+			shouldShutdown:        false,
 		},
 		{
 			name: "sysprobe",
@@ -90,24 +103,20 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"private_action_runner.enabled": coreConf,
 			},
-			suppressIf: func() bool {
-				return parProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
-			},
-			serviceName:    "datadog-agent-action",
-			serviceInit:    parInit,
-			shouldShutdown: true,
+			procmgrDefinitionFile: parProcmgrDefinitionFile,
+			serviceName:           "datadog-agent-action",
+			serviceInit:           parInit,
+			shouldShutdown:        true,
 		},
 		{
 			name: "otel",
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
 			},
-			suppressIf: func() bool {
-				return ddotProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
-			},
-			serviceName:    "datadog-otel-agent",
-			serviceInit:    otelInit,
-			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
+			procmgrDefinitionFile: ddotProcmgrDefinitionFile,
+			serviceName:           "datadog-otel-agent",
+			serviceInit:           otelInit,
+			shouldShutdown:        true, // NOTE: not really necessary with SCM dependency in place
 		},
 		{
 			name: "procmgr",
@@ -179,12 +188,23 @@ func (s *Servicedef) Stop() error {
 
 // start various subservices (apm, logs, process, system-probe) based on the config file settings
 
-// IsEnabled checks to see if a given service should be started
-func (s *Servicedef) IsEnabled() bool {
-	if s.suppressIf != nil && s.suppressIf() {
-		log.Infof("Service %s suppressed (install policy)", s.name)
-		return false
+// IsEnabled checks whether a dependent service should be started. When install policy
+// would suppress a legacy SCM service in favor of procmgr, suppression applies only if
+// dd-procmgr-service started successfully; otherwise the legacy service is used.
+func (s *Servicedef) IsEnabled(procmgrStartedSuccessfully bool, coreConf model.Reader) bool {
+	if s.procmgrDefinitionFile != "" &&
+		coreConf.GetBool("process_manager.enabled") &&
+		procmgrProcessDefinitionExists(s.procmgrDefinitionFile) {
+		if procmgrStartedSuccessfully {
+			log.Infof("Service %s suppressed (install policy)", s.name)
+			return false
+		}
+		log.Warnf("Service %s not suppressed: dd-procmgr-service unavailable, using legacy Windows service", s.name)
 	}
+	return s.isEnabledByConfig()
+}
+
+func (s *Servicedef) isEnabledByConfig() bool {
 	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
 			return true
@@ -193,72 +213,130 @@ func (s *Servicedef) IsEnabled() bool {
 	return false
 }
 
-// ShouldStop checks to see if a service should be stopped
+// ShouldStop reports whether the dependent service should be stopped on agent shutdown.
 func (s *Servicedef) ShouldStop() bool {
-	// Note: we do not check if the service is enabled as service like DDOT have a could be brought up individually and should still be shutdown
-
-	if !s.shouldShutdown {
-		log.Infof("Service %s is not configured to stop, not stopping", s.name)
-		return false
-	}
-	return true
+	// Services like DDOT can be started individually and should still be shut down.
+	return s.shouldShutdown
 }
 
 func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
-	for _, svc := range subservices(coreConf, sysprobeConf) {
-		if svc.IsEnabled() {
-			log.Debugf("Attempting to start service: %s", svc.name)
-			err := svc.Start()
-			if err != nil {
-				log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
-			} else {
-				log.Debugf("Started service %s", svc.name)
-			}
-		} else {
+	svcs := subservices(coreConf, sysprobeConf)
+	procmgrStarted := startProcmgrIfEnabled(findService(svcs, "procmgr"))
+
+	for _, svc := range svcs {
+		if svc.name == "procmgr" {
+			continue
+		}
+		if !svc.IsEnabled(procmgrStarted, coreConf) {
 			log.Infof("Service %s is disabled, not starting", svc.name)
+			continue
+		}
+		log.Debugf("Attempting to start service: %s", svc.name)
+		err := svc.Start()
+		if err != nil {
+			log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
+		} else {
+			log.Debugf("Started service %s", svc.name)
 		}
 	}
+}
+
+func findService(svcs []Servicedef, name string) (Servicedef, bool) {
+	for _, svc := range svcs {
+		if svc.name == name {
+			return svc, true
+		}
+	}
+	return Servicedef{}, false
+}
+
+func startProcmgrIfEnabled(procmgr Servicedef, ok bool) bool {
+	if !ok {
+		return false
+	}
+	if !procmgr.isEnabledByConfig() {
+		log.Infof("Service %s is disabled, not starting", procmgr.name)
+		return false
+	}
+	log.Debugf("Attempting to start service: %s", procmgr.name)
+	if err := procmgr.Start(); err != nil {
+		log.Warnf("Failed to start services %s: %s", procmgr.name, err.Error())
+		return false
+	}
+	if waitForServiceRunning(procmgr.serviceName) {
+		log.Debugf("Started service %s", procmgr.name)
+		return true
+	}
+	if procmgrStartSucceededAfterWait(procmgr.serviceName) {
+		log.Debugf("Started service %s", procmgr.name)
+		return true
+	}
+	log.Warnf("Failed to start services %s: service did not reach running state", procmgr.name)
+	return false
+}
+
+// procmgrStartSucceededAfterWait handles the case where StartService returned while SCM
+// was still in StartPending. Wait for that transition to finish; only suppress legacy
+// services if procmgr reaches Running. If the start fails (e.g. transitions to Stopped),
+// return false so the agent can fall back to legacy SCM services.
+func procmgrStartSucceededAfterWait(serviceName string) bool {
+	state, err := winutil.GetServiceState(serviceName)
+	if err != nil {
+		log.Warnf("Failed to query service %s after start wait: %v", serviceName, err)
+		return false
+	}
+	if state == svc.Running {
+		return true
+	}
+	if state != svc.StartPending {
+		return false
+	}
+
+	log.Warnf("Service %s is still in StartPending after initial wait; waiting for SCM transition", serviceName)
+	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	defer cancel()
+	finalState, err := winutil.WaitForPendingStateChange(ctx, serviceName, svc.StartPending)
+	if err != nil {
+		log.Warnf("Service %s did not finish starting: %v", serviceName, err)
+		return false
+	}
+	return finalState == svc.Running
+}
+
+func waitForServiceRunning(serviceName string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	defer cancel()
+	return winutil.WaitForState(ctx, serviceName, svc.Running) == nil
 }
 
 func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 	for _, svc := range subservices(coreConf, sysprobeConf) {
-		if svc.ShouldStop() {
-			log.Debugf("Attempting to stop service: %s", svc.name)
-			err := svc.Stop()
-			if err != nil {
-				log.Warnf("Failed to stop services %s: %s", svc.name, err.Error())
-			} else {
-				log.Debugf("Stopped service %s", svc.name)
-			}
-		} else {
+		if !svc.ShouldStop() {
 			log.Infof("Service %s is not configured to stop, not stopping", svc.name)
+			continue
+		}
+		log.Debugf("Attempting to stop service: %s", svc.name)
+		err := svc.Stop()
+		if err != nil {
+			log.Warnf("Failed to stop services %s: %s", svc.name, err.Error())
+		} else {
+			log.Debugf("Stopped service %s", svc.name)
 		}
 	}
 }
 
-const (
-	ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
-	parProcmgrProcessDefinitionFile  = "datadog-agent-action.yaml"
-)
-
-// True if the fleet DDOT processes.d definition exists (dd-procmgr supervises DDOT). With
-// process_manager.enabled, the Agent skips starting the datadog-otel-agent Windows service.
-func ddotProcmgrProcessDefinitionExists() bool {
-	return procmgrProcessDefinitionExists(ddotProcmgrProcessDefinitionFile)
-}
-
-// True if the fleet PAR processes.d definition exists (dd-procmgr supervises PAR). With
-// process_manager.enabled, the Agent skips starting the datadog-agent-action Windows service.
-func parProcmgrProcessDefinitionExists() bool {
-	return procmgrProcessDefinitionExists(parProcmgrProcessDefinitionFile)
-}
-
 func procmgrProcessDefinitionExists(fileName string) bool {
-	installPath, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	installPath, err := procmgrInstallRootForDefinitionCheck()
 	if err != nil || installPath == "" {
 		return false
 	}
 	p := filepath.Join(installPath, "processes.d", fileName)
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// procmgrInstallRootForDefinitionCheck resolves the Agent install root used when
+// checking for processes.d definitions. Tests may override it to use a temp dir.
+var procmgrInstallRootForDefinitionCheck = func() (string, error) {
+	return winutil.GetProgramFilesDirForProduct("Datadog Agent")
 }

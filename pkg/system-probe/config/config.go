@@ -229,6 +229,9 @@ func load() (*types.Config, error) {
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
+	// Keep module enablement above in sync with pkg/procmgr/rust/src/config_gate/system_probe.rs
+	// (Windows process-manager config gates derive system_probe_config.enabled from these modules).
+	// Non-default env bindings for those knobs are in pkg/procmgr/rust/src/config_gate/env_bindings.rs.
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
 

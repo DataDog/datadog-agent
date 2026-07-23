@@ -148,6 +148,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := ensurePARProcmgrConfig(); err != nil {
 		return fmt.Errorf("failed to write PAR process manager config: %w", err)
 	}
+	if err := ensureProcessProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write process-agent process manager config: %w", err)
+	}
 
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
@@ -199,34 +202,47 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	return installRoot, nil
 }
 
-func ensureADPProcmgrConfig() error {
+func ensureInstallRootProcmgrConfig(
+	logLabel string,
+	write func(string) error,
+	remove func(string) error,
+) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
 	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WriteADPProcmgrConfig(installRoot)
+		return write(installRoot)
 	}
-	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
-		log.Warnf("ADP: could not remove stale process manager config: %v", err)
+	if err := remove(installRoot); err != nil {
+		log.Warnf("%s: could not remove stale process manager config: %v", logLabel, err)
 	}
 	return nil
 }
 
-func ensurePARProcmgrConfig() error {
-	installRoot, err := resolveDatadogProgramFilesInstallRoot()
-	if err != nil {
-		return err
-	}
+func ensureADPProcmgrConfig() error {
+	return ensureInstallRootProcmgrConfig(
+		"ADP",
+		processmanager.WriteADPProcmgrConfig,
+		processmanager.RemoveADPProcmgrConfig,
+	)
+}
 
-	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WritePARProcmgrConfig(installRoot)
-	}
-	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
-		log.Warnf("PAR: could not remove stale process manager config: %v", err)
-	}
-	return nil
+func ensurePARProcmgrConfig() error {
+	return ensureInstallRootProcmgrConfig(
+		"PAR",
+		processmanager.WritePARProcmgrConfig,
+		processmanager.RemovePARProcmgrConfig,
+	)
+}
+
+func ensureProcessProcmgrConfig() error {
+	return ensureInstallRootProcmgrConfig(
+		"process-agent",
+		processmanager.WriteProcessProcmgrConfig,
+		processmanager.RemoveProcessProcmgrConfig,
+	)
 }
 
 // preStartExperimentDatadogAgent checks prerequisites before starting the experiment

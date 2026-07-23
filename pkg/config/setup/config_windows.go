@@ -6,14 +6,19 @@
 package setup
 
 import (
+	"path/filepath"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// FleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
+// FleetConfigOverride sets fleet_policies_dir from the Windows registry when present,
+// otherwise from the stable managed fleet policies directory under ProgramData.
 //
-// This value tells the agent to load a config experiment from Fleet Automation.
+// Prioritize the value set in the config file / env var (mirrored by dd-procmgr config gates
+// in pkg/procmgr/rust/src/config_gate.rs `fleet_policies_dir`).
 //
+// This value tells the agent to load fleet policy YAML (experiments or stable config).
 // Linux sets this option with an environment variable in the experiment's systemd unit file,
 // so we need a different approach for Windows. After the viper migration is complete, we can
 // consider replacing this override with a Windows Registry config source.
@@ -25,8 +30,21 @@ func FleetConfigOverride(config pkgconfigmodel.Config) {
 
 	val := winutil.ReadFleetPoliciesDirFromRegistry()
 	if val == "" {
+		val = defaultStableFleetPoliciesDir()
+	}
+	if val == "" {
 		return
 	}
 
 	config.Set("fleet_policies_dir", val, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// defaultStableFleetPoliciesDir matches pkg/fleet/installer/paths.FleetPoliciesDirForManagedProcess
+// stable fallback without importing fleet/installer (circular dependency with config/setup).
+func defaultStableFleetPoliciesDir() string {
+	dataDir, err := winutil.GetProgramDataDirForProduct("Datadog Agent")
+	if err != nil || dataDir == "" {
+		return ""
+	}
+	return filepath.Join(dataDir, "Installer", "managed", "datadog-agent", "stable")
 }

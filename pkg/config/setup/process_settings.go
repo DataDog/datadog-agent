@@ -13,6 +13,8 @@ import (
 )
 
 func setupProcesses(config pkgconfigmodel.Setup) {
+	// Non-default env bindings for keys used by procmgr config gates are mirrored in
+	// pkg/procmgr/rust/src/config_gate/env_bindings.rs (see also procBindEnvAndSetDefault in process.go).
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	//
