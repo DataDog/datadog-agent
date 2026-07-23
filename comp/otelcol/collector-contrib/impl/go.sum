@@ -576,6 +576,8 @@ github.com/onsi/ginkgo/v2 v2.32.0 h1:Hw7s2pVrQo/8Yz5N77qdnpHaoc+c6cC9WIV1Jce+J6E
 github.com/onsi/ginkgo/v2 v2.32.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.42.1 h1:iN1rCUX+44NZ1Dc97MPoeFYbFR0vh8zxoxMFwKdyZ6I=
 github.com/onsi/gomega v1.42.1/go.mod h1:REff/hsDsodHoKlWsP2mAPhu1+5/6hVYNf9rIEBpeSg=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.156.0 h1:s6T2R6Ps62P2gViG/OpLl+c5jI5eIZvCs9MmHLOKv6U=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.156.0/go.mod h1:CCPM2DBA3VjoijAaZvzGc3cYR+55bALPYGfJZHs33tk=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.156.0 h1:+weE9yshMICajs1RudqjZw6jNQ+4/rUihDWJKLYbyRQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.156.0/go.mod h1:H69kqBgHRr8EshthyNlxVIcWGlKp5P+QnEiDula/wTQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.156.0 h1:VJwTrjc2a/zLj74QHhjjne9qrsBG0HNLvKudTcYH86M=
@@ -706,6 +708,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsre
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.156.0/go.mod h1:64D+zxsj1hopqJb4P+pgxK9PIsLBL59W/ywhjjd/nmY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.156.0 h1:5wRMROYkAyZCUVqguu7573pBTWq++/AK0GaEZzC+ncg=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.156.0/go.mod h1:/ZBVGaLPGS0jCIM66dF8/en1akVe7pN/K0oqnUFyXU0=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.156.0 h1:sZ3ZJliT1gGqk/GFpkCS+/3Fj1p9az9VVx9An+jhh8E=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.156.0/go.mod h1:aPREHrYhMdQf2RovFA208rLLjhFvmSNGEk1pXx/9498=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.156.0 h1:ISSyLL7fvZg3NWyQeFICm+jZIxetLnIKpbAL4himBkM=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.156.0/go.mod h1:T0kuE3UjvsChxDpZUVQaLcAdYsVC8hpDY0tZmwdsIho=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.156.0 h1:wDvVyJFWVtURhNic0mU3QANizFZ47wOc9HhQYoMB71g=
