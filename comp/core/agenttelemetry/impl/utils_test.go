@@ -16,13 +16,25 @@ import (
 
 func TestAggregateMetricHistogramDoesNotAliasSources(t *testing.T) {
 	newHistogramMetric := func(sampleCount, cumulativeCount uint64, exemplarValue float64, timestampSeconds int64) *dto.Metric {
+		sampleCountFloat := float64(sampleCount) + 0.5
+		sampleSum := float64(sampleCount * 2)
+		schema := int32(1)
+		spanOffset := int32(0)
+		spanLength := uint32(1)
 		upperBound := 10.0
 		labelName := "trace_id"
 		labelValue := "abc123"
 
 		return &dto.Metric{
 			Histogram: &dto.Histogram{
-				SampleCount: &sampleCount,
+				SampleCount:      &sampleCount,
+				SampleCountFloat: &sampleCountFloat,
+				SampleSum:        &sampleSum,
+				Schema:           &schema,
+				PositiveSpan: []*dto.BucketSpan{
+					{Offset: &spanOffset, Length: &spanLength},
+				},
+				PositiveDelta: []int64{int64(cumulativeCount)},
 				Bucket: []*dto.Bucket{
 					{
 						CumulativeCount: &cumulativeCount,
@@ -59,6 +71,8 @@ func TestAggregateMetricHistogramDoesNotAliasSources(t *testing.T) {
 	require.Empty(t, group.GetHistogram().GetBucket()[0].GetExemplar().GetLabel())
 	require.Equal(t, 1.5, total.GetHistogram().GetBucket()[0].GetExemplar().GetValue())
 	require.Equal(t, int64(100), total.GetHistogram().GetBucket()[0].GetExemplar().GetTimestamp().GetSeconds())
+	requireUnsupportedHistogramFieldsAbsent(t, total.GetHistogram())
+	requireUnsupportedHistogramFieldsAbsent(t, group.GetHistogram())
 	require.True(t, proto.Equal(src1Snapshot, src1), "first source histogram was mutated")
 	require.True(t, proto.Equal(src2Snapshot, src2), "second source histogram was mutated")
 
@@ -77,6 +91,15 @@ func TestAggregateMetricHistogramDoesNotAliasSources(t *testing.T) {
 	require.True(t, proto.Equal(src1Snapshot, src1), "mutating aggregate changed first source histogram")
 	require.True(t, proto.Equal(src2Snapshot, src2), "mutating aggregate changed second source histogram")
 	require.True(t, proto.Equal(groupSnapshot, group), "mutating total aggregate changed group aggregate")
+}
+
+func requireUnsupportedHistogramFieldsAbsent(t *testing.T, histogram *dto.Histogram) {
+	t.Helper()
+	require.Nil(t, histogram.SampleCountFloat)
+	require.Nil(t, histogram.SampleSum)
+	require.Nil(t, histogram.Schema)
+	require.Nil(t, histogram.PositiveSpan)
+	require.Nil(t, histogram.PositiveDelta)
 }
 
 func requireHistogramPointersIndependent(t *testing.T, left, right *dto.Histogram) {
