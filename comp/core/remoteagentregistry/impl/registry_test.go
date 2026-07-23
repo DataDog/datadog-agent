@@ -120,10 +120,10 @@ func TestReportRemoteAgentEventBroadcast(t *testing.T) {
 	}
 
 	reqs := Requires{
-		Config:      cfg,
-		Ipc:         ipcComp,
-		Lifecycle:   lc,
-		Telemetry:   tel,
+		Config:           cfg,
+		Ipc:              ipcComp,
+		Lifecycle:        lc,
+		Telemetry:        tel,
 		EventSubscribers: []*remoteagent.EventSubscriber{panicker, nil, recorder},
 	}
 	component := NewComponent(reqs).Comp.(*remoteAgentRegistry)

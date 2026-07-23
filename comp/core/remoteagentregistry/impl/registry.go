@@ -29,10 +29,10 @@ import (
 
 // Requires defines the dependencies for the remoteagentregistry component
 type Requires struct {
-	Config    config.Component
-	Ipc       ipc.Component
-	Lifecycle compdef.Lifecycle
-	Telemetry telemetry.Component
+	Config           config.Component
+	Ipc              ipc.Component
+	Lifecycle        compdef.Lifecycle
+	Telemetry        telemetry.Component
 	EventSubscribers []*remoteagentregistry.EventSubscriber `group:"remoteAgentEventSubscriber"`
 }
 
