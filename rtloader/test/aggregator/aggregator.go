@@ -146,6 +146,18 @@ except Exception as e:
 	return strings.TrimSpace(string(output)), err
 }
 
+// runBench runs a Python expression without temp-file output capture. Intended
+// for BenchmarkXxx functions where file I/O overhead would dwarf the signal.
+func runBench(call string) {
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf("import aggregator\n%s", call)))
+	defer C.call_free(unsafe.Pointer(code))
+	runtime.LockOSThread()
+	state := C.ensure_gil(rtloader)
+	C.run_simple_string(rtloader, code)
+	C.release_gil(rtloader, state)
+	runtime.UnlockOSThread()
+}
+
 func charArrayToSlice(array **C.char) (res []string) {
 	pTags := uintptr(unsafe.Pointer(array))
 	ptrSize := unsafe.Sizeof(*array)
