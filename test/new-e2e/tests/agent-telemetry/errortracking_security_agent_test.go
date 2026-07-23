@@ -7,11 +7,8 @@ package agenttelemetry
 
 import (
 	_ "embed"
-	"strings"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -20,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
 //go:embed testdata/errortracking-security-agent-enabled.yaml
@@ -78,23 +74,8 @@ func (s *errorTrackingSecurityAgentSuite) TestPayloadShape() {
 	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	var logs []*aggregator.AgentTelemetryLog
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		all, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-		require.NoError(c, err)
-
-		logs = nil
-		for _, l := range all {
-			if strings.Contains(l.StackTrace, "pkg/security/agent/agent.go") {
-				logs = append(logs, l)
-			}
-		}
-		assert.NotEmpty(c, logs, "no security-agent CWS connection error logs received yet")
-	}, 2*time.Minute, 5*time.Second, "timed out waiting for security-agent error logs")
-
-	for _, l := range logs {
-		assertCommonLogShape(s.T(), l, flavor.SecurityAgent)
-	}
+	assertErrorTrackingLogReceived(s.T(), s.Env(), "pkg/security/agent/agent.go", flavor.SecurityAgent,
+		"no security-agent CWS connection error logs received yet")
 }
 
 // TestDisabledByDefault verifies that when the errortracking stanza omits
@@ -111,29 +92,6 @@ func (s *errorTrackingSecurityAgentSuite) TestDisabledByDefault() {
 	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	// Clear the log file after resetting FakeIntake so the wait below only
-	// matches an occurrence generated after the reset, not a stale one from
-	// before it.
-	s.Env().RemoteHost.MustExecute("sudo truncate -s 0 /var/log/datadog/security-agent.log")
-
-	// Wait until the connection error appears in the security-agent's own log
-	// file, confirming the error is generated locally before asserting it is
-	// not forwarded to telemetry.
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		out, execErr := s.Env().RemoteHost.Execute(
-			"sudo grep -cF -- '" + securityAgentCWSConnectionErrorMessage + "' /var/log/datadog/security-agent.log || true")
-		assert.NoError(c, execErr)
-		assert.NotEqual(c, "0", strings.TrimSpace(out))
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for connection error to appear in security-agent log")
-
-	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
-	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would
-	// flush within this window and the assertion would catch it. errortracking is
-	// disabled for both the core agent and security-agent here (shared datadog.yaml),
-	// so no agent-logs records should arrive from either binary.
-	assert.Never(s.T(), func() bool {
-		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-		require.NoError(s.T(), err)
-		return len(logs) > 0
-	}, 5*time.Second, 500*time.Millisecond, "agent telemetry logs must not arrive when errortracking is disabled")
+	assertNoErrorTrackingWhenDisabled(s.T(), s.Env(), "/var/log/datadog/security-agent.log", securityAgentCWSConnectionErrorMessage,
+		"timed out waiting for connection error to appear in security-agent log")
 }
