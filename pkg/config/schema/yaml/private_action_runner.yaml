@@ -1,0 +1,172 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/private_action_runner.yaml.schema.json
+node_type: section
+title: Private Action Runner Configuration
+type: object
+visibility: public
+description: |-
+  Configuration for the Private Action Runner.
+  The Private Action Runner allows executing actions within your infrastructure.
+  See https://docs.datadoghq.com/actions/private_actions/ for more information.
+tags:
+- template_section:PrivateActionRunner
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Set to true to enable the Private Action Runner.
+    example: 'true'
+  self_enroll:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Automatically enroll the Private Action Runner on startup.
+      Requires an app_key with Actions API Enable and the following permissions:
+        - Connection Write
+        - Private Action Write
+  task_concurrency:
+    node_type: setting
+    type: integer
+    default: 5
+    visibility: public
+    description: Maximum number of actions that can be executed concurrently.
+  task_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
+    visibility: public
+    description: Maximum time in seconds an action is allowed to run before being
+      terminated. Must be > 1.
+  actions_allowlist:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: comma_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      List of actions that the Private Action Runner is allowed to execute.
+      See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
+      for the list of available actions.
+    example: |2-
+
+        - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
+        - com.datadoghq.script.runPredefinedScript             # on Linux and Darwin
+  default_actions_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      When true, a set of default actions are automatically
+      allowed without needing to be listed in actions_allowlist.
+      Set to false to disable these default actions.
+  http_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 30
+    visibility: public
+    description: Maximum time in seconds for HTTP actions before timing out. Must
+      be > 1.
+  http_allowlist:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: comma_separated
+    items:
+      type: string
+    visibility: public
+    description: 'List of allowed domains for HTTP actions. Supports glob pattern.
+      Example : ["datadoghq.com", "*.datadoghq.com"]'
+  http_allow_imds_endpoint:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
+      endpoints.
+  api_key_only_enrollment:
+    node_type: setting
+    type: boolean
+    default: false
+  executor:
+    node_type: section
+    type: object
+    properties:
+      socket_path:
+        node_type: setting
+        type: string
+        platform_default:
+          windows: \\.\pipe\dd-par-executor
+          other: ${run_path}/par-executor.sock
+  identity_file_path:
+    node_type: setting
+    type: string
+    default: ''
+  identity_secret_name:
+    node_type: setting
+    type: string
+    default: private-action-runner-identity
+  identity_use_k8s_secret:
+    node_type: setting
+    type: boolean
+    default: true
+  log_file:
+    node_type: setting
+    type: string
+    default: ${log_path}/private-action-runner.log
+  opms_extra_headers:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      type: string
+  private_key:
+    node_type: setting
+    type: string
+    default: ''
+  restricted_shell:
+    node_type: section
+    type: object
+    properties:
+      allowed_commands:
+        node_type: setting
+        type: array
+        default:
+        - rshell:*
+        items:
+          type: string
+      allowed_paths:
+        node_type: setting
+        type: array
+        default:
+        - /
+        items:
+          type: string
+        comment: |-
+          Restricted shell allow-lists are opt-in restrictions layered on top of
+          the backend-injected lists. By default, they act as a no-op, allowing
+          everything: the backend is the only filter.
+
+          To allow none, use an explicit empty list.
+          Env vars support both CSV and JSON-array forms; the JSON form gives
+          env/YAML parity, including the explicit kill-switch via "[]".
+
+          - allowed_paths defaults to ["/"].
+          - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+          handled as a special case in the operator-side intersection: when
+          it appears in the operator list, every backend command in the
+          "rshell:" namespace is admitted.
+  skip_connection_creation:
+    node_type: setting
+    type: boolean
+    default: false
+  urn:
+    node_type: setting
+    type: string
+    default: ''

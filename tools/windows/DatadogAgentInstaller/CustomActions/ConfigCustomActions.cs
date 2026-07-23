@@ -20,12 +20,21 @@ namespace Datadog.CustomActions
         /// Subset of the Datadog config file that we are going to read.
         /// </summary>
         // ReSharper disable once ArrangeTypeMemberModifiers
+        class ApmConfig
+        {
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
+            public int? ReceiverPort { get; set; }
+        }
+
+        // ReSharper disable once ArrangeTypeMemberModifiers
         class DatadogConfig
         {
             // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public string ApiKey { get; set; }
             // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public string Site { get; set; }
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
+            public ApmConfig ApmConfig { get; set; }
         }
 
         private static ActionResult ReadConfig(ISession session)
@@ -396,7 +405,6 @@ namespace Datadog.CustomActions
                     {
                         session.Log($"{configPath}.example doesn't exists.");
                     }
-
                 }
             }
             catch (Exception e)

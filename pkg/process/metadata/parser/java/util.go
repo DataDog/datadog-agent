@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/rickar/props"
@@ -40,6 +41,16 @@ func (y *mapSource) GetDefault(key string, defVal string) string {
 		return defVal
 	}
 	return val
+}
+
+// Names returns the keys for all properties in the source.
+func (y *mapSource) Names() []string {
+	names := make([]string, 0, len(y.m))
+	for k := range y.m {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // newArgumentSource a PropertyGetter that is taking key=value from the list of arguments provided

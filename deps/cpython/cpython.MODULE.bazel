@@ -1,6 +1,21 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-PYTHON_VERSION = "3.13.13"
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+PYTHON_VERSION = "3.13.14"
+
+PYTHON_MAJOR_MINOR = ".".join(PYTHON_VERSION.split(".")[:2])
+
+PYTHON_MAJOR_MINOR_FLAT = PYTHON_MAJOR_MINOR.replace(".", "")
+
+constants_repo(
+    name = "cpython_versions",
+    items = {
+        "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
+        "PYTHON_MAJOR_MINOR_FLAT": PYTHON_MAJOR_MINOR_FLAT,
+        "PYTHON_VERSION": PYTHON_VERSION,
+    },
+)
 
 http_archive(
     name = "cpython",
@@ -14,9 +29,9 @@ http_archive(
         "//deps/cpython:0001-customize-windows-build-script.patch",
         "//deps/cpython:0002-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
-        "//deps/cpython:0004-Drop-hardcoded-d-LIBDEST-from-libinstall-compileall.patch",
+        "//deps/cpython:0004-Skip-bytecode-compilation-during-install.patch",
     ],
-    sha256 = "f9cde7b0e2ec8165d7326e2a0f59ea2686ce9d0c617dbbb3d66a7e54d31b74b9",
+    sha256 = "5ae535a36af0ebca6fca176ecb8197f5db9c1cb8c8f0cd12cdf1787046db1f41",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
 )
@@ -30,15 +45,15 @@ python_src_deps = {
     "zlib": ("1.3.1", "a8f166f0f819ff084042554f39d763c41de5f19f8e9cdc68bc3e7f373cfba036"),
 }
 
-# TODO: Move back into python_src_deps once cpython-source-deps has sqlite-3.53.0.0.
+# TODO: Move back into python_src_deps once cpython-source-deps has sqlite-3.53.2.0.
 # As of 2026-04-13, neither CPython 3.13 nor main have bumped past 3.50.4.
 # Fetched directly from sqlite.org; the amalgamation contents are identical.
 http_archive(
     name = "sqlite_win",
     build_file_content = "filegroup(name = 'sqlite_win', srcs = glob(['**']), visibility = ['//visibility:public'])",
-    sha256 = "bf3733d7c71b3ab0f6fd8a9ea0052ad87fa037d94333e14ce09878ba3492c3b0",
-    strip_prefix = "sqlite-amalgamation-3530000",
-    url = "https://www.sqlite.org/2026/sqlite-amalgamation-3530000.zip",
+    sha256 = "8a310d0a16c7a90cacd4c884e70faa51c902afed2a89f63aaa0126ab83558a32",
+    strip_prefix = "sqlite-amalgamation-3530200",
+    url = "https://www.sqlite.org/2026/sqlite-amalgamation-3530200.zip",
 )
 
 [

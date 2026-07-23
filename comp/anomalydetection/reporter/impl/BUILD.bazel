@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -12,22 +13,24 @@ go_library(
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/reporter/def",
+        "//comp/anomalydetection/severityevents/def",
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
-        "//comp/forwarder/eventplatform",
+        "//comp/core/telemetry/def",
+        "//comp/forwarder/eventplatform/def",
         "//pkg/logs/message",
         "//pkg/util/strings",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "notify_test.go",
         "payload_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",
         "@com_github_stretchr_testify//assert",

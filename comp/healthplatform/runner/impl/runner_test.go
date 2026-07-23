@@ -19,75 +19,71 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	registrymock "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 )
 
-// mockStore captures ReportIssue calls for assertions.
-type mockStore struct {
-	mu        sync.Mutex
-	reports   []storedef.IssueReport
-	reportErr error // if non-nil, returned for the report whose IssueID equals errOnID
-	errOnID   string
+// failingTemplate is a Template whose BuildIssue always errors, used to
+// exercise runner.toProto's minimal-fallback path.
+type failingTemplate struct {
+	issueName string
+	issueType string
 }
 
-func (m *mockStore) ReportIssue(r storedef.IssueReport) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.reportErr != nil && r.IssueID == m.errOnID {
-		return m.reportErr
-	}
-	m.reports = append(m.reports, r)
-	return nil
+func (f *failingTemplate) IssueName() string { return f.issueName }
+func (f *failingTemplate) IssueType() string { return f.issueType }
+func (f *failingTemplate) BuildIssue(_ map[string]string) (*healthplatformpayload.Issue, error) {
+	return nil, errors.New("build failed")
 }
 
-func (m *mockStore) ResolveIssue(_ string)                                        {}
-func (m *mockStore) ResolveAllIssues()                                            {}
-func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
-func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
-func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
-
-func newTestRunner(t *testing.T) (*runner, *mockStore) {
+func newTestRunner(t *testing.T) (*runner, *storemock.Mock) {
 	t.Helper()
-	store := &mockStore{}
-	r := &runner{log: logmock.New(t), store: store}
+	store := storemock.New(t)
+	r := &runner{
+		log:      logmock.New(t),
+		registry: registrymock.New(t),
+		store:    store,
+	}
 	return r, store
 }
 
 func TestRunHappyPath(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
-			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
+			{IssueID: "id-2", IssueName: "type-b", Source: "mycomp"},
 		}, nil
 	}
 
 	ids, err := r.Run("mycomp", fn)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"id-1", "id-2"}, ids)
-	assert.Len(t, store.reports, 2)
+	count, _ := store.GetAllIssues()
+	assert.Equal(t, 2, count)
 }
 
 func TestRunEmptyResult(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	ids, err := r.Run("mycomp", func() ([]storedef.IssueReport, error) {
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
 		return nil, nil
 	})
 
 	require.NoError(t, err)
 	assert.Empty(t, ids)
-	assert.Empty(t, store.reports)
+	count, _ := store.GetAllIssues()
+	assert.Equal(t, 0, count)
 }
 
 func TestRunFnError(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
 		}, errors.New("probe failed")
 	}
 
@@ -96,61 +92,96 @@ func TestRunFnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "probe failed")
 	// Report emitted before error is still forwarded.
 	assert.Equal(t, []string{"id-1"}, ids)
-	assert.Len(t, store.reports, 1)
+	count, _ := store.GetAllIssues()
+	assert.Equal(t, 1, count)
 }
 
 func TestRunFnPanic(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	ids, err := r.Run("mycomp", func() ([]storedef.IssueReport, error) {
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
 		panic("something exploded")
 	})
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "panic")
 	assert.Empty(t, ids)
-	assert.Empty(t, store.reports)
+	count, _ := store.GetAllIssues()
+	assert.Equal(t, 0, count)
 }
 
 func TestRunSourceDefaultFill(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a"}, // Source intentionally empty
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a"}, // Source intentionally empty
 		}, nil
 	}
 
 	_, err := r.Run("fallback-source", fn)
 	require.NoError(t, err)
-	require.Len(t, store.reports, 1)
-	assert.Equal(t, "fallback-source", store.reports[0].Source)
+	issue := store.GetIssue("id-1")
+	require.NotNil(t, issue)
+	// The mock registry has no template for "type-a" so a minimal proto is built
+	// with the source filled from the fallback.
+	assert.Equal(t, "fallback-source", issue.Source)
+}
+
+// TestRunFallbackUsesTemplateIssueType guards that when a template is found by
+// the registry but BuildIssue errors, the minimal fallback proto still carries
+// the template's own IssueType instead of leaving it empty.
+func TestRunFallbackUsesTemplateIssueType(t *testing.T) {
+	tmpl := &failingTemplate{issueName: "type-a", issueType: "type_a_snake"}
+	store := storemock.New(t)
+	r := &runner{
+		log:      logmock.New(t),
+		registry: registrymock.New(t, registrymock.WithTemplate("type-a", tmpl)),
+		store:    store,
+	}
+
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
+		}, nil
+	}
+
+	_, err := r.Run("mycomp", fn)
+	require.NoError(t, err)
+
+	issue := store.GetIssue("id-1")
+	require.NotNil(t, issue)
+	assert.Equal(t, "type_a_snake", issue.IssueType)
 }
 
 func TestRunSourceNotOverridden(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "explicit-source"},
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a", Source: "explicit-source"},
 		}, nil
 	}
 
 	_, err := r.Run("fallback-source", fn)
 	require.NoError(t, err)
-	require.Len(t, store.reports, 1)
-	assert.Equal(t, "explicit-source", store.reports[0].Source)
+	issue := store.GetIssue("id-1")
+	require.NotNil(t, issue)
+	assert.Equal(t, "explicit-source", issue.Source)
 }
 
 func TestRunStoreError(t *testing.T) {
-	r, store := newTestRunner(t)
-	store.errOnID = "id-2"
-	store.reportErr = errors.New("store rejected")
+	store := storemock.New(t, storemock.WithReportIssueError("id-2", errors.New("store rejected")))
+	r := &runner{
+		log:      logmock.New(t),
+		registry: registrymock.New(t),
+		store:    store,
+	}
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
-			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
+			{IssueID: "id-2", IssueName: "type-b", Source: "mycomp"},
 		}, nil
 	}
 
@@ -158,8 +189,8 @@ func TestRunStoreError(t *testing.T) {
 	require.NoError(t, err)
 	// id-1 accepted, id-2 rejected by store — only id-1 in returned slice.
 	assert.Equal(t, []string{"id-1"}, ids)
-	assert.Len(t, store.reports, 1)
-	assert.Equal(t, "id-1", store.reports[0].IssueID)
+	assert.NotNil(t, store.GetIssue("id-1"))
+	assert.Nil(t, store.GetIssue("id-2"))
 }
 
 func TestRunConcurrent(t *testing.T) {
@@ -173,10 +204,10 @@ func TestRunConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			fn := func() ([]storedef.IssueReport, error) {
+			fn := func() ([]runnerdef.IssueReport, error) {
 				atomic.AddInt32(&callCount, 1)
-				return []storedef.IssueReport{
-					{IssueID: fmt.Sprintf("id-%d", idx), IssueType: "type-a", Source: "mycomp"},
+				return []runnerdef.IssueReport{
+					{IssueID: fmt.Sprintf("id-%d", idx), IssueName: "type-a", Source: "mycomp"},
 				}, nil
 			}
 			r.Run("mycomp", fn) //nolint:errcheck
@@ -185,10 +216,9 @@ func TestRunConcurrent(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, int32(n), atomic.LoadInt32(&callCount))
-	store.mu.Lock()
-	assert.Len(t, store.reports, n)
-	store.mu.Unlock()
+	count, _ := store.GetAllIssues()
+	assert.Equal(t, n, count)
 }
 
 // Ensure HealthCheckFunc type is used correctly in tests.
-var _ runnerdef.HealthCheckFunc = func() ([]storedef.IssueReport, error) { return nil, nil }
+var _ runnerdef.HealthCheckFunc = func() ([]runnerdef.IssueReport, error) { return nil, nil }

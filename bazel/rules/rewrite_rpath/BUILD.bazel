@@ -1,4 +1,0 @@
-exports_files([
-    "macos.sh",
-    "macos_dir.sh",
-])

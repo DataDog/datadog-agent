@@ -1,7 +1,7 @@
 """
 Schema linter for the Datadog Agent configuration schemas.
 
-Validates generated YAML schema files (pkg/config/schema/*.yaml) against
+Validates generated YAML schema files (pkg/config/schema/yaml/*.yaml) against
 a set of quality rules. Run with:
 
     dda inv schema.lint
@@ -15,13 +15,15 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-SCHEMA_DIR = os.path.join("pkg", "config", "schema")
+from tasks.schema.merge_schema import resolve_schema
+
+SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
 
-VALID_TYPES = {"string", "number", "boolean", "array", "object"}
+VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
-VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
-REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
+VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "aix", "container", "fargate", "other"}
+REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux", "aix"}
 VALID_ENV_PARSERS = {
     "comma_separated",
     "space_separated",
@@ -34,7 +36,7 @@ VALID_ENV_PARSERS = {
     "json_list_or_space_separated",
 }
 
-SLACK_HINT = "If you have any question please reach out on #agent-configuration"
+SLACK_HINT = "If you have any question please reach out on #fleet-automation"
 
 
 # ---------------------------------------------------------------------------
@@ -236,48 +238,22 @@ def check_node_types_present(path, schema):
 # ---------------------------------------------------------------------------
 
 
-def check_settings_have_default(path, schema, no_default_exceptions=None):
+def check_settings_have_default(path, schema):
     """
     Check that every setting node has a 'default' or 'platform_default' field.
 
-    Settings in *no_default_exceptions* (a set of dotted paths) are allowed to
-    skip the default **only if** they also carry the 'TODO:fix-no-default' tag.
-    A setting in the exception list without the required tag is still an error.
-
     Returns a list of error strings.
     """
-    if no_default_exceptions is None:
-        no_default_exceptions = set()
     errors = []
     for node_path, node in walk_nodes(schema):
         if node.get("node_type") != "setting":
             continue
         has_default = "default" in node or "platform_default" in node
-        tags = get_tags(node)
-        in_exceptions = node_path in no_default_exceptions
-
-        if in_exceptions:
-            # Accept TODO:fix-missing-type as an equivalent marker: settings registered
-            # with BindEnvAndSetDefault(key, nil) have no meaningful default and no
-            # derivable type; the builder tags them with TODO:fix-missing-type (and
-            # TODO:fix-no-default after the next schema regeneration with the updated
-            # builder). Either tag satisfies the requirement.
-            has_marker = "TODO:fix-no-default" in tags or "TODO:fix-missing-type" in tags
-            if not has_marker:
-                errors.append(
-                    f"{path}: [{node_path}] Setting is in the no-default exception list but is missing "
-                    f"the 'TODO:fix-no-default' tag (or 'TODO:fix-missing-type' as equivalent). "
-                    f"Fix: add 'TODO:fix-no-default' to the setting's tags list."
-                )
-            continue
 
         if not has_default:
             errors.append(
                 f"{path}: [{node_path}] Setting has no default value. "
                 f"Fix: add a 'default' or 'platform_default' field. "
-                f"If this setting genuinely cannot have a default, add it to "
-                f"'tasks/schema/lint_exceptions.yaml' under 'no_default' and add the "
-                f"'TODO:fix-no-default' tag to the setting."
             )
     return errors
 
@@ -287,46 +263,21 @@ def check_settings_have_default(path, schema, no_default_exceptions=None):
 # ---------------------------------------------------------------------------
 
 
-def check_settings_have_type(path, schema, no_type_exceptions=None):
+def check_settings_have_type(path, schema):
     """
     Check that every setting node has a 'type' field.
 
-    Settings in *no_type_exceptions* (a set of dotted paths) are allowed to
-    skip the type **only if** they also carry the 'TODO:fix-missing-type' tag.
-
     Returns a list of error strings.
     """
-    if no_type_exceptions is None:
-        no_type_exceptions = set()
     errors = []
     for node_path, node in walk_nodes(schema):
         if node.get("node_type") != "setting":
             continue
         has_type = "type" in node
-        tags = get_tags(node)
-        in_exceptions = node_path in no_type_exceptions
-
-        if in_exceptions:
-            # Accept TODO:fix-no-default as an equivalent marker: settings registered
-            # with BindEnv have no default and no derivable type; the builder tags them
-            # with TODO:fix-no-default (and TODO:fix-missing-type after the next schema
-            # regeneration with the updated builder). Either tag satisfies the requirement.
-            has_marker = "TODO:fix-missing-type" in tags or "TODO:fix-no-default" in tags
-            if not has_marker:
-                errors.append(
-                    f"{path}: [{node_path}] Setting is in the no-type exception list but is missing "
-                    f"the 'TODO:fix-missing-type' tag (or 'TODO:fix-no-default' as equivalent). "
-                    f"Fix: add 'TODO:fix-missing-type' to the setting's tags list."
-                )
-            continue
-
         if not has_type:
             errors.append(
                 f"{path}: [{node_path}] Setting has no 'type' field. "
                 f"Fix: add a 'type' field (one of: {sorted(VALID_TYPES)}). "
-                f"If the type genuinely cannot be determined, add this setting to "
-                f"'tasks/schema/lint_exceptions.yaml' under 'no_type' and add the "
-                f"'TODO:fix-missing-type' tag to the setting."
             )
     return errors
 
@@ -581,17 +532,13 @@ def load_exceptions(exceptions_file=EXCEPTIONS_FILE):
     Load the exception lists from lint_exceptions.yaml.
 
     Returns a dict with keys:
-      - no_default: set of dotted paths (require TODO:fix-no-default tag)
-      - no_type: set of dotted paths (require TODO:fix-missing-type tag)
       - array_no_items: set of dotted paths
     """
     if not os.path.isfile(exceptions_file):
-        return {k: set() for k in ("no_default", "no_type", "array_no_items")}
+        return {"array_no_items": set()}
     with open(exceptions_file) as f:
         data = yaml.safe_load(f) or {}
     return {
-        "no_default": set(data.get("no_default", []) or []),
-        "no_type": set(data.get("no_type", []) or []),
         "array_no_items": set(data.get("array_no_items", []) or []),
     }
 
@@ -627,15 +574,17 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
             # Cannot continue linting an unparseable file
             continue
 
-        with open(schema_path) as f:
-            schema = yaml.safe_load(f)
+        # Use resolve_schema so that lint checks see the fully merged content
+        # (split sub-files inlined). Linting operates on the logical schema,
+        # not on the on-disk fragments.
+        schema = resolve_schema(schema_path)
 
         all_errors.extend(check_json_schema_structure(schema_path, schema, exc["array_no_items"]))
         all_errors.extend(check_public_descriptions(schema_path, schema))
         all_errors.extend(check_public_parent_sections(schema_path, schema))
         all_errors.extend(check_node_types_present(schema_path, schema))
-        all_errors.extend(check_settings_have_default(schema_path, schema, exc["no_default"]))
-        all_errors.extend(check_settings_have_type(schema_path, schema, exc["no_type"]))
+        all_errors.extend(check_settings_have_default(schema_path, schema))
+        all_errors.extend(check_settings_have_type(schema_path, schema))
         all_errors.extend(check_platform_default_keys(schema_path, schema))
         all_errors.extend(check_sections_have_children(schema_path, schema))
         all_errors.extend(check_public_section_has_public_child(schema_path, schema))

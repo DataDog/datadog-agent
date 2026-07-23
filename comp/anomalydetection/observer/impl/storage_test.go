@@ -575,9 +575,43 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	require.Len(t, workload, 1)
 	assert.Equal(t, "work", workload[0].Namespace)
 
+	workloadRefs := s.ListSeriesRefsInto(observer.WorkloadSeriesFilter(), nil)
+	require.Equal(t, []observer.SeriesRef{workload[0].Ref}, workloadRefs)
+
 	onlyTel := s.ListSeries(observer.SeriesFilter{Namespace: observer.TelemetryNamespace})
 	require.Len(t, onlyTel, 1)
 	assert.Equal(t, observer.TelemetryNamespace, onlyTel[0].Namespace)
+
+	telRefs := s.ListSeriesRefsInto(observer.SeriesFilter{Namespace: observer.TelemetryNamespace}, workloadRefs)
+	require.Equal(t, []observer.SeriesRef{onlyTel[0].Ref}, telRefs)
+}
+
+func TestTimeSeriesStorage_ListSeriesRefsInto_MatchesListSeriesFilters(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add(observer.TelemetryNamespace, "internal.gauge", 1, 1000, []string{"env:prod"})
+	s.Add("work", "cpu.usage", 2, 1000, []string{"env:prod", "service:web"})
+	s.Add("work", "cpu.load", 3, 1000, []string{"env:prod", "service:api"})
+	s.Add("work", "mem.rss", 4, 1000, []string{"env:stage", "service:web"})
+
+	for name, filter := range map[string]observer.SeriesFilter{
+		"all":                {},
+		"workload":           observer.WorkloadSeriesFilter(),
+		"namespace":          {Namespace: observer.TelemetryNamespace},
+		"name_prefix":        {NamePattern: "cpu."},
+		"tag_matcher":        {TagMatchers: map[string]string{"service": "web"}},
+		"namespace_and_tags": {Namespace: "work", TagMatchers: map[string]string{"env": "prod"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			metas := s.ListSeries(filter)
+			want := make([]observer.SeriesRef, 0, len(metas))
+			for _, meta := range metas {
+				want = append(want, meta.Ref)
+			}
+
+			got := s.ListSeriesRefsInto(filter, []observer.SeriesRef{999})
+			require.Equal(t, want, got)
+		})
+	}
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
@@ -609,6 +643,23 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
 }
 
+func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
+	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
+	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+
+	hA := seriesKeyHash("ns", "a", []string{"k:1"})
+	hB := seriesKeyHash("ns", "b", []string{"k:2"})
+	hMissing := seriesKeyHash("ns", "ghost", nil)
+
+	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
+
+	require.Len(t, refs, 2)
+	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
+}
+
 func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns", "a", 1.0, 1000, nil)
@@ -620,6 +671,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{-1, 999}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
+
 func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {
 	// Add returns a valid Ref (>= 0) for accepted points, and the same Ref
 	// on subsequent writes. Each distinct series gets a unique Ref.

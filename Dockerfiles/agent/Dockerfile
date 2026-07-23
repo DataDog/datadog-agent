@@ -210,6 +210,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   # copy it on OpenShift where containers run with a random UID in the root group.
   && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
+# Set owner-only (0500) perms on built-in Rust shared-library checks (no-op when none are present).
+RUN find /etc/datadog-agent/checks.d -name 'libdatadog-agent-*.so' -exec chmod 0500 {} \;
+
 # Check that the UID of dd-agent is still 100.
 #
 # The exact numeric value of the UID of the dd-agent user shouldn’t matter.
@@ -224,7 +227,8 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN apt-get purge -y adduser \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Enable FIPS if needed

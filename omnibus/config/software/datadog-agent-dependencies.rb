@@ -2,21 +2,13 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
-if heroku_target?
-  flavor_flag = "--//packages/agent:flavor=heroku"
-else
-  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
-end
-
-dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
-
-# Used for memory profiling with the `status py` agent subcommand
-dependency 'pympler'
+dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target?
 
 dependency 'datadog-agent-integrations-py3'
 
 build do
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+    command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+        :live_stream => Omnibus.logger.live_stream(:info)
 end
 
 build do

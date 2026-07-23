@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "serializer",
@@ -11,7 +14,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
@@ -32,7 +35,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "serializer_test",
     srcs = [
         "metrics_test.go",
@@ -40,17 +43,18 @@ go_test(
         "series_benchmark_test.go",
     ],
     embed = [":serializer"],
-    gotags = ["test"],
     deps = [
         "//comp/core/log/mock",
         "//comp/core/secrets/noop-impl/types",
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/impl",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/serializer/metricscompression/def",
         "//comp/serializer/metricscompression/impl",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/metrics/event",
@@ -60,6 +64,7 @@ go_test(
         "//pkg/serializer/marshaler",
         "//pkg/tagset",
         "//pkg/util/compression",
+        "//pkg/util/compression/impl-zlib",
         "//pkg/util/testutil",
         "//pkg/version",
         "@com_github_json_iterator_go//:go",

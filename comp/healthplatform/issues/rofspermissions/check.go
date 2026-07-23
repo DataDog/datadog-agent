@@ -12,13 +12,13 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Check determines if all directories the agent could write to are writable.
-func Check(cfg config.Component) ([]storedef.IssueReport, error) {
+func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
 	writeDirs := []string{
 		"/tmp",
 		cfg.GetString("run_path"),
@@ -57,10 +57,10 @@ func Check(cfg config.Component) ([]storedef.IssueReport, error) {
 		return nil, nil
 	}
 
-	return []storedef.IssueReport{
+	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
-			IssueType: IssueType,
+			IssueName: IssueName,
 			Source:    "agent",
 			Context: map[string]string{
 				"directories": strings.Join(nonWritableDirs, ","),

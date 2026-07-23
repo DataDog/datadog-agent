@@ -1,6 +1,6 @@
 # Running E2E tests
 
-End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](../../../../test/new-e2e/) folder.
+End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](https://github.com/DataDog/datadog-agent/tree/main/test/new-e2e) folder.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ Before running E2E tests, ensure you have the following installed:
 
 ### Cloud Provider Setup
 
-You need access to the `account-admin` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
+You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin-8h`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
 
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
@@ -41,34 +41,6 @@ dda inv e2e.setup --with-azure --with-gcp
 
 The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
 
-## Setting Up the Development Environment
-
-E2E tests should be run within a [developer environment](../../tutorials/dev/env.md) to ensure consistency and proper isolation.
-
-### Start a Developer Environment
-
-1. **Clone the repository** (if using local checkout):
-   ```bash
-   git clone https://github.com/DataDog/datadog-agent.git
-   cd datadog-agent
-   ```
-
-2. **Start the environment** The following example is for an amd64 environment:
-   ```bash
-   dda env dev start --id devenv-amd --arch amd64
-   ```
-
-   Or use a remote clone for better isolation:
-   ```bash
-   dda env dev start --clone
-   ```
-
-3. **Enter the environment shell**:
-   ```bash
-   dda env dev shell --id devenv-amd
-   ```
-
-For detailed information about developer environments, see the [Using developer environments](../../tutorials/dev/env.md) tutorial.
 
 ## Running E2E Tests
 
@@ -147,7 +119,7 @@ By default, the image is names `agent` unless you override it with the `--target
 Then push the image to a registry:
 ```bash
 # Login to ECR
-aws-vault exec sso-agent-sandbox-account-admin -- \
+aws-vault exec sso-agent-sandbox-account-admin-8h -- \
 aws ecr get-login-password --region us-east-1 | \
 docker login --username AWS --password-stdin 376334461865.dkr.ecr.us-east-1.amazonaws.com
 # Push the image
@@ -281,4 +253,4 @@ func (v *vmSuite) TestAgentInstallation() {
 - [Test Categories](../../guidelines/testing/test-categories.md) - Understanding different test types
 - [Unit Testing](unit.md) - Running unit tests
 - [Using Developer Environments](../../tutorials/dev/env.md) - Setting up development environments
-- [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) - Infrastructure provisioning framework
+- [test-infra-definitions](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) - Infrastructure provisioning framework

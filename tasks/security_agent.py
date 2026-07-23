@@ -11,8 +11,6 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-import tasks.libs.cws.backend_doc_gen as backend_doc_gen
-import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
@@ -494,28 +492,7 @@ def docker_functional_tests(
 
 @task
 def generate_cws_documentation(ctx):
-    # secl docs
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_linux.json",
-        "./docs/cloud-workload-security/linux_expressions.md",
-        "./linux_expressions.md",
-    )
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_windows.json",
-        "./docs/cloud-workload-security/windows_expressions.md",
-        "./windows_expressions.md",
-    )
-    # backend event docs
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_linux.schema.json",
-        "./docs/cloud-workload-security/backend_linux.md",
-        "./backend_linux.md",
-    )
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_windows.schema.json",
-        "./docs/cloud-workload-security/backend_windows.md",
-        "./backend_windows.md",
-    )
+    bazel(ctx, "run", "//docs/cloud-workload-security:cws_docs")
 
 
 @task
@@ -596,8 +573,8 @@ def generate_utils_syscall_table(ctx):
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
-DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_arm64.json"
-DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_amd64.json"
+DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/constants_arm64.json"
+DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/constants_amd64.json"
 
 
 @task

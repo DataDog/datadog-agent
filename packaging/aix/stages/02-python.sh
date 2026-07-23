@@ -92,16 +92,9 @@ log "Extraction complete."
 
 # ─── Step 3: Apply AIX patches ───────────────────────────────────────────────
 #
-# NOTE: These patches were identified from datadog-unix-agent's AIX patches for
-# Python 3.8 (omnibus/config/patches/python3/). For Python 3.13, patch offsets
-# will have shifted and some may no longer apply or may not be needed at all.
-# We use sed-based substitutions rather than patch(1) files to avoid offset
-# sensitivity. If a patch no longer applies (pattern not found), we log a
-# warning rather than failing — it may mean the upstream fixed the issue.
-#
-# IMPORTANT: Validate all patches by doing a trial build of Python 3.13.12 on
-# AIX before finalising this script. Add or remove sed substitutions based on
-# actual configure/compile errors encountered.
+# NOTE: We use sed-based substitutions rather than patch(1) files to avoid offset
+# sensitivity. If a patch no longer applies (pattern not found), we log a warning
+# rather than failing — it may mean the upstream fixed the issue.
 
 log "Applying AIX-specific patches to Python ${PYTHON_VERSION} source"
 
@@ -332,7 +325,9 @@ log "AIX patching complete."
 #
 # --with-openssl=$EMBEDDED_DESTDIR : points to staging path (where OpenSSL
 #   headers and libs ARE during the build, not $EMBEDDED which is the final path)
-# --with-dbmliborder=gdbm : use gdbm built in Stage 1
+# --with-dbmliborder= (empty) : disable the dbm module family (gdbm/ndbm/dumb).
+#   Matches the Linux omnibus/bazel build (deps/cpython.BUILD.bazel), which links
+#   no dbm backend either — the agent and its checks don't use Python's dbm module.
 # --without-ensurepip : we bootstrap pip manually below (step 7)
 # ac_cv_header_libintl_h=no / ac_cv_lib_intl_textdomain=no : suppress libintl link.
 #   Python's configure tests for libintl.h (ac_cv_header_libintl_h) and then
@@ -342,23 +337,40 @@ log "AIX patching complete."
 #   baked in at build time, making it impossible to fully bundle without rebuilding
 #   libintl from source. Since the agent does not use Python's i18n/gettext support,
 #   suppress the detection entirely.
-
+# ac_cv_header_*panel*=no / ac_cv_search_update_panels=no : the toolbox ncurses
+#   headers reference the panel extension, but panel itself isn't packaged;
+#   suppress its detection to avoid a link failure while keeping ncurses itself
+#   to ease interactive debugging.
 log "Configuring Python ${PYTHON_VERSION} (--prefix=$EMBEDDED)"
 log "  (Note: configure can take several minutes on POWER8)"
+
+# Extend LDFLAGS with the final install-time -blibpath for all Python binaries
+# (python3.13, libpython3.13.so, and every C extension .so built in later stages).
+#
+# Without this, the linker bakes the staging path ($EMBEDDED_DESTDIR/lib, i.e.
+# /opt/dd-build/staging/opt/datadog-agent/embedded/lib) into the XCOFF loader
+# section. That path does not exist on the installed system, so any direct
+# invocation of the embedded Python without LIBPATH set (e.g. running pip as the
+# operator) fails with "libpython3.13.so could not be loaded".
+#
+# On AIX, -blibpath replaces the default runtime search path computed by ld, so
+# we must list every directory needed at runtime: our embedded libs, the GCC/
+# freeware libs (libgcc_s, libstdc++, etc.), and the system defaults.
+_PYTHON_LDFLAGS="$LDFLAGS -Wl,-blibpath:$EMBEDDED/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
 
 cd "$PYTHON_SRC"
 ./configure \
     --prefix="$EMBEDDED" \
     --enable-shared \
     --with-openssl="$EMBEDDED_DESTDIR" \
-    --with-dbmliborder=gdbm \
+    --with-dbmliborder= \
     --without-ensurepip \
     --without-mimalloc \
     CC="$CC" \
     CXX="$CXX" \
     CFLAGS="$CFLAGS -I$EMBEDDED_DESTDIR/include" \
     CPPFLAGS="$CPPFLAGS" \
-    LDFLAGS="$LDFLAGS" \
+    LDFLAGS="$_PYTHON_LDFLAGS" \
     ARFLAGS="$ARFLAGS" \
     NM="$NM" \
     ac_cv_header_libintl_h=no \
@@ -377,6 +389,23 @@ log "Configure complete."
 
 log "Building Python ${PYTHON_VERSION} with make -j$NPROC"
 log "  (This step takes approximately 20 minutes on POWER8 — please be patient.)"
+
+# Create the runtime-path symlink BEFORE make so that the baked-in -blibpath
+# resolves during Python's own build-time module import tests.
+# Python self-tests each extension module by importing it mid-build; those .so
+# files carry -blibpath:$EMBEDDED/lib (from _PYTHON_LDFLAGS), so the symlink
+# must exist for the loader to find libpython3.13.so and other staged libs.
+if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
+    log "INFO: $EMBEDDED symlink already correct."
+else
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        log "INFO: $EMBEDDED is a real path — removing to create symlink"
+        rm -rf "$EMBEDDED"
+    fi
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
+    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
+fi
 
 cd "$PYTHON_SRC"
 make -j"$NPROC"
@@ -410,15 +439,14 @@ fi
 # We invoke the STAGING executable ($EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}).
 # Python discovers sys.prefix from its executable path at runtime, so it finds
 # its stdlib under $EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/ and installs packages into
-# the staging tree — not into $EMBEDDED (which does not exist yet on this host).
-# At runtime on the user's system the files are at $EMBEDDED, which is correct.
+# the staging tree. At runtime on the user's system the files are at $EMBEDDED.
 
 log "Bootstrapping pip using staging Python executable"
 "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -m ensurepip
 log "ensurepip complete."
 
-log "Upgrading pip to 24.0, setuptools to 75.1.0, and installing wheel"
-"$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}" install --upgrade "pip==24.0" "setuptools==75.1.0" "wheel"
+log "Upgrading pip to 26.1, setuptools to 75.1.0, and installing wheel"
+"$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -m pip install --upgrade "pip==26.1" "setuptools==75.1.0" "wheel"
 log "pip bootstrap complete."
 
 # ─── Step 7b: Create AIX .a archive wrapper for libpython${PYTHON_MAJ_MIN}.so ─────────────
@@ -441,26 +469,6 @@ log "Created: $EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.a (member: shr_64
 # of hardcoding the minor version.
 ln -sf "libpython${PYTHON_MAJ_MIN}.a" "$EMBEDDED_DESTDIR/lib/libpython3.a"
 log "Created symlink: libpython3.a -> libpython${PYTHON_MAJ_MIN}.a"
-
-# ─── Step 7c: Create runtime-path symlink (needed to build C extensions) ─────
-#
-# Python's sys.prefix is baked-in as $EMBEDDED (/opt/datadog-agent/embedded).
-# When building C extensions (cffi, psutil, etc.) in later stages, Python looks
-# for ld_so_aix and config files at that prefix. We create a symlink from the
-# runtime path to the staging path so Python can find these files during the build.
-# The 10-assemble stage will remove this symlink and replace it with the real files.
-
-if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
-    log "INFO: $EMBEDDED symlink already correct."
-else
-    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
-        log "INFO: $EMBEDDED is a real path — removing to create symlink"
-        rm -rf "$EMBEDDED"
-    fi
-    mkdir -p "$(dirname "$EMBEDDED")"
-    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
-    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
-fi
 
 # ─── Step 8: Convenience symlinks ────────────────────────────────────────────
 

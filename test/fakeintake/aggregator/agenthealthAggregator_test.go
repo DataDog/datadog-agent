@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"testing"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,7 +64,7 @@ func TestAgentHealthAggregator(t *testing.T) {
 		assert.Contains(t, issue.Description, "Unable to access Docker socket")
 		assert.Equal(t, "permissions", issue.Category)
 		assert.Equal(t, "core-agent", issue.Location)
-		assert.Equal(t, "error", issue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.Severity)
 		assert.Equal(t, "docker", issue.Source)
 
 		// Verify remediation

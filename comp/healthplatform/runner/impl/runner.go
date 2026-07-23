@@ -9,39 +9,43 @@ package runnerimpl
 import (
 	"fmt"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 type runner struct {
-	log   log.Component
-	store storedef.Component
+	log      log.Component
+	registry registrydef.Component
+	store    storedef.Component
 }
 
 // Requires defines the dependencies for the runner.
 type Requires struct {
-	Log   log.Component
-	Store storedef.Component
+	Log      log.Component
+	Registry registrydef.Component
+	Store    storedef.Component
 }
 
-// New creates a new runner instance.
-func New(reqs Requires) runnerdef.Component {
+// NewComponent creates a new runner instance.
+func NewComponent(reqs Requires) runnerdef.Component {
 	return &runner{
-		log:   reqs.Log,
-		store: reqs.Store,
+		log:      reqs.Log,
+		registry: reqs.Registry,
+		store:    reqs.Store,
 	}
 }
 
-// Run executes fn once with panic recovery, forwards each emitted IssueReport to
-// the store, fills Source if empty, and returns the slice of IssueIds that were
-// successfully reported.
+// Run executes fn once with panic recovery, translates each emitted IssueReport
+// into a proto Issue via the registry, forwards it to the store, and returns
+// the slice of IssueIds that were successfully reported.
 //
 // If fn returns both reports and a non-nil error, the reports emitted before the
-// error are still forwarded to the store — this is intentional so that partial
-// results are not silently dropped. Callers should treat a non-nil error as a
-// signal that the check may be incomplete and must not use the returned IDs for
-// issue-state diffs.
+// error are still forwarded — partial results are not silently dropped. Callers
+// should treat a non-nil error as a signal that the check may be incomplete and
+// must not use the returned IDs for issue-state diffs.
 func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []string, retErr error) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -60,11 +64,11 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 	}
 
 	for _, report := range reports {
-		// report is a value copy from the range — safe to modify Source directly.
 		if report.Source == "" {
 			report.Source = source
 		}
-		if reportErr := r.store.ReportIssue(report); reportErr != nil {
+		issue := r.toProto(report)
+		if reportErr := r.store.ReportIssue(issue); reportErr != nil {
 			r.log.Warnf("failed to report issue %s from %s: %v", report.IssueID, source, reportErr)
 		} else {
 			issueIDs = append(issueIDs, report.IssueID)
@@ -72,4 +76,37 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 	}
 
 	return issueIDs, retErr
+}
+
+// toProto builds a proto Issue from an IssueReport. If the registry has a
+// template for report.IssueName, that template is used to populate the proto
+// fields; otherwise a minimal proto is built from the report fields directly.
+func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Issue {
+	tmpl, ok := r.registry.GetTemplate(report.IssueName)
+	if ok {
+		issue, err := tmpl.BuildIssue(report.Context)
+		if err == nil && issue != nil {
+			issue.Id = report.IssueID
+			if len(report.Tags) > 0 {
+				issue.Tags = append(issue.Tags, report.Tags...)
+			}
+			return issue
+		}
+		r.log.Warnf("runner: failed to build issue %s from registry: %v; using minimal proto", report.IssueName, err)
+	}
+
+	var issueType string
+	if ok {
+		// Template lookup succeeded but BuildIssue errored; the template still
+		// knows its own IssueType even though it couldn't populate the rest.
+		issueType = tmpl.IssueType()
+	}
+	return &healthplatformpayload.Issue{
+		Id:        report.IssueID,
+		IssueName: report.IssueName,
+		IssueType: issueType,
+		Title:     report.IssueName,
+		Source:    report.Source,
+		Tags:      report.Tags,
+	}
 }

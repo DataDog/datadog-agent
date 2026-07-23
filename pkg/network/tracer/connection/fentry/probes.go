@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -37,23 +38,35 @@ const (
 	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
+	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
+	// classification after the socket filter has seen the termination packets
+	// (mirrors kretprobe__tcp_close in the kprobe tracer)
+	tcpCloseReturn = "tcp_close_exit"
+
+	// tcpDone traces the tcp_done() kernel function for failed connection tracking
+	tcpDone = "tcp_done"
+
+	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
+	tcpReadSockReturn = "tcp_read_sock_exit"
 
 	// We use the following two probes for UDP
 	udpRecvMsg              = "udp_recvmsg"
+	udpRecvMsgPre5190       = "udp_recvmsg_pre_5_19_0"
 	udpRecvMsgReturn        = "udp_recvmsg_exit"
 	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
 	udpSendMsgReturn        = "udp_sendmsg_exit"
-	udpSendSkb              = "kprobe__udp_send_skb"
+	udpSendSkb              = "udp_send_skb_entry"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
 	skbConsumeUDP           = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
+	udpv6RecvMsgPre5190       = "udpv6_recvmsg_pre_5_19_0"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
-	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
+	udpv6SendSkb              = "udp_v6_send_skb_entry"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
@@ -73,8 +86,9 @@ const (
 	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
 	tcpSendProbe0 = "kprobe__tcp_send_probe0"
 
-	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
-	inetCskAcceptReturn = "inet_csk_accept_exit"
+	// inetCskAcceptReturn traces the return value for inet_csk_accept
+	inetCskAcceptReturn        = "inet_csk_accept_exit"
+	inetCskAcceptReturnPre6100 = "inet_csk_accept_exit_pre_6_10_0"
 
 	// inetBind traces the bind() syscall for IPv4
 	inetBind = "inet_bind_enter"
@@ -84,43 +98,70 @@ const (
 	inetBindRet = "inet_bind_exit"
 	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
+
+	// Protocol classification socket filters
+	protocolClassifierEntry     = "socket__classifier_entry"
+	protocolClassifierTLSClient = "socket__classifier_tls_handshake_client"
+	protocolClassifierTLSServer = "socket__classifier_tls_handshake_server"
+	protocolClassifierQueues    = "socket__classifier_queues"
+	protocolClassifierDBs       = "socket__classifier_dbs"
+	protocolClassifierGRPC      = "socket__classifier_grpc"
+
+	// net_dev_queue raw tracepoint for protocol classification (fentry requires 5.8+ so raw tracepoints are always available)
+	netDevQueueRawTracepoint = "raw_tracepoint__net__net_dev_queue"
 )
 
 var programs = map[string]struct{}{
-	inetBind:                  {},
-	inet6Bind:                 {},
-	inet6BindRet:              {},
-	inetBindRet:               {},
-	inetCskAcceptReturn:       {},
-	inetCskListenStop:         {},
-	tcpRecvMsgReturn:          {},
-	tcpClose:                  {},
-	tcpConnect:                {},
-	tcpFinishConnect:          {},
-	tcpRetransmit:             {},
-	tcpRetransmitRet:          {},
-	tcpEnterLoss:              {},
-	tcpEnterRecovery:          {},
-	tcpSendProbe0:             {},
-	tcpSendMsgReturn:          {},
-	tcpSendPageReturn:         {},
-	udpDestroySock:            {},
-	udpRecvMsg:                {},
-	udpRecvMsgReturn:          {},
-	udpSendMsgReturn:          {},
-	udpSendPageReturn:         {},
-	udpSendSkb:                {},
-	udpv6RecvMsg:              {},
-	udpv6RecvMsgReturn:        {},
-	udpv6SendMsgReturn:        {},
-	udpv6SendSkb:              {},
-	udpv6DestroySock:          {},
-	skbFreeDatagramLocked:     {},
-	__skbFreeDatagramLocked:   {},
-	skbConsumeUDP:             {},
-	tcpRecvMsgPre5190Return:   {},
-	udpRecvMsgPre5190Return:   {},
-	udpv6RecvMsgPre5190Return: {},
+	inetBind:                   {},
+	inet6Bind:                  {},
+	inet6BindRet:               {},
+	inetBindRet:                {},
+	inetCskAcceptReturn:        {},
+	inetCskAcceptReturnPre6100: {},
+	inetCskListenStop:          {},
+	tcpRecvMsgReturn:           {},
+	tcpClose:                   {},
+	tcpCloseReturn:             {},
+	tcpConnect:                 {},
+	tcpFinishConnect:           {},
+	tcpRetransmit:              {},
+	tcpRetransmitRet:           {},
+	tcpEnterLoss:               {},
+	tcpEnterRecovery:           {},
+	tcpSendProbe0:              {},
+	tcpSendMsgReturn:           {},
+	tcpSendPageReturn:          {},
+	tcpDone:                    {},
+	tcpReadSockReturn:          {},
+	udpDestroySock:             {},
+	udpRecvMsg:                 {},
+	udpRecvMsgPre5190:          {},
+	udpRecvMsgReturn:           {},
+	udpSendMsgReturn:           {},
+	udpSendPageReturn:          {},
+	udpSendSkb:                 {},
+	udpv6RecvMsg:               {},
+	udpv6RecvMsgPre5190:        {},
+	udpv6RecvMsgReturn:         {},
+	udpv6SendMsgReturn:         {},
+	udpv6SendSkb:               {},
+	udpv6DestroySock:           {},
+	skbFreeDatagramLocked:      {},
+	__skbFreeDatagramLocked:    {},
+	skbConsumeUDP:              {},
+	tcpRecvMsgPre5190Return:    {},
+	udpRecvMsgPre5190Return:    {},
+	udpv6RecvMsgPre5190Return:  {},
+	// Protocol classification
+	protocolClassifierEntry:     {},
+	protocolClassifierTLSClient: {},
+	protocolClassifierTLSServer: {},
+	protocolClassifierQueues:    {},
+	protocolClassifierDBs:       {},
+	protocolClassifierGRPC:      {},
+	// Note: netDevQueueRawTracepoint is NOT in this map — it's added separately
+	// in manager.go with TracepointName/TracepointCategory fields, and enabled
+	// directly in enabledPrograms() to avoid duplicate probe registration.
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -129,8 +170,42 @@ func enableProgram(enabled map[string]struct{}, name string) {
 	}
 }
 
+// classificationSupported returns true if protocol classification is supported.
+// Note: fentry requires kernel 5.8+ which is well above the 4.11 minimum for
+// bpf_skb_load_bytes in socket filters, so no kernel version check is needed
+// for that. However, RHEL 9+ has a known issue with protocol classification.
+func classificationSupported(c *config.Config) bool {
+	if !c.ProtocolClassificationEnabled {
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		return false
+	}
+
+	// TODO: fix protocol classification is not supported on RHEL 9+
+	family, err := kernel.Family()
+	if err != nil {
+		log.Warnf("could not determine OS family: %s", err)
+		return false
+	}
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
+		return false
+	}
+
+	rhel9KernelVersion := kernel.VersionCode(5, 14, 0)
+	if family == "rhel" && kv >= rhel9KernelVersion {
+		log.Warn("protocol classification is currently not supported on RHEL 9+")
+		return false
+	}
+
+	return true
+}
+
 // enabledPrograms returns a map of probes that are enabled per config settings.
-func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
+func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
@@ -144,26 +219,35 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpSendMsgReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
+		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
-		enableProgram(enabled, inetCskAcceptReturn)
+		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn, inetCskAcceptReturnPre6100, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 		enableProgram(enabled, tcpEnterLoss)
 		enableProgram(enabled, tcpEnterRecovery)
 		enableProgram(enabled, tcpSendProbe0)
-
-		// TODO: see comments above on availability for these
-		//       hooks
-		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
-		// if err == nil && len(missing) == 0 {
-		// 	enableProgram(enabled, sockFDLookupRet)
-		// }
+		enableProgram(enabled, tcpDone)
+		enableProgram(enabled, tcpReadSockReturn)
 
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)
+		}
+
+		// Protocol classification probes
+		if isClassificationSupported {
+			enableProgram(enabled, protocolClassifierEntry)
+			enableProgram(enabled, protocolClassifierTLSClient)
+			enableProgram(enabled, protocolClassifierTLSServer)
+			enableProgram(enabled, protocolClassifierQueues)
+			enableProgram(enabled, protocolClassifierDBs)
+			enableProgram(enabled, protocolClassifierGRPC)
+
+			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
+			// Directly insert — not in programs map since manager.go adds it with TracepointName fields
+			enabled[netDevQueueRawTracepoint] = struct{}{}
 		}
 	}
 
@@ -171,7 +255,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
-		enableProgram(enabled, udpRecvMsg)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsg, udpRecvMsgPre5190, kv5190))
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
@@ -181,7 +265,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
-		enableProgram(enabled, udpv6RecvMsg)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsg, udpv6RecvMsgPre5190, kv5190))
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)

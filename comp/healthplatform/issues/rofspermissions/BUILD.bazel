@@ -13,7 +13,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/healthplatform/issues",
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/runner/def",
         "//pkg/config/env",
         "//pkg/util/filesystem",
         "//pkg/util/log",

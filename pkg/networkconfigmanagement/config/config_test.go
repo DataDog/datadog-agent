@@ -32,6 +32,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: true,
@@ -44,6 +47,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -58,6 +64,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -71,6 +80,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -84,6 +96,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Username: "admin",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -98,6 +113,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "not-a-port",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -112,10 +130,27 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "99999",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
 			errorMsg:    "invalid port, out of range",
+		},
+		{
+			name: "missing SSH config",
+			config: DeviceInstance{
+				IPAddress: "100.1.1.1",
+				Auth: AuthCredentials{
+					Username: "admin",
+					Password: "password",
+					Port:     "22",
+					Protocol: "tcp",
+				},
+			},
+			expectValid: false,
+			errorMsg:    "auth is required: missing SSH configuration for device 100.1.1.1",
 		},
 	}
 
@@ -215,9 +250,67 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 			Password: "password",
 		},
 	}
-	config.applyDefaults()
+	ic := &InitConfig{
+		Namespace: "thenamespace",
+		SSH: &SSHConfig{
+			InsecureSkipVerify: true,
+		},
+	}
+	config.applyDefaults(ic)
 	assert.Equal(t, "22", config.Auth.Port)
 	assert.Equal(t, "tcp", config.Auth.Protocol)
+	assert.Equal(t, "thenamespace", config.Namespace)
+	assert.True(t, config.Auth.SSH.InsecureSkipVerify)
+}
+
+func TestInitConfig_InventoryReportMaxInterval_ApplyDefaults(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    time.Duration
+		expected time.Duration
+	}{
+		{name: "unset (zero) defaults to 1h", input: 0, expected: defaultInventoryReportMaxInterval},
+		{name: "negative defaults to 1h", input: -5 * time.Minute, expected: defaultInventoryReportMaxInterval},
+		{name: "user-set value preserved", input: 7 * time.Hour, expected: 7 * time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ic := InitConfig{
+				MinCollectionInterval:      60,
+				InventoryReportMaxInterval: tt.input,
+			}
+			ic.applyDefaults()
+			assert.Equal(t, tt.expected, ic.InventoryReportMaxInterval)
+		})
+	}
+}
+
+func TestInitConfig_InventoryReportMaxInterval_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   time.Duration
+		wantErr string
+	}{
+		{name: "zero rejected", value: 0, wantErr: "inventory_report_max_interval must be greater than 0"},
+		{name: "negative rejected", value: -1 * time.Second, wantErr: "inventory_report_max_interval must be greater than 0"},
+		{name: "positive accepted", value: 1 * time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ic := InitConfig{
+				Namespace:                  "default",
+				MinCollectionInterval:      60,
+				InventoryReportMaxInterval: tt.value,
+			}
+			err := ic.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestParsingSSHTimeoutFromYAML(t *testing.T) {

@@ -754,7 +754,9 @@ func TestFlush(t *testing.T) {
 	t.Run("SyslogFraming/partial octet-counted is emitted at EOF", func(t *testing.T) {
 		gotContent := []string{}
 		outputFn := func(msg *message.Message, _ int) {
-			gotContent = append(gotContent, string(msg.GetContent()))
+			if len(msg.GetContent()) > 0 {
+				gotContent = append(gotContent, string(msg.GetContent()))
+			}
 		}
 		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
 
@@ -763,7 +765,8 @@ func TestFlush(t *testing.T) {
 		require.Empty(t, gotContent)
 
 		fr.Flush()
-		require.Equal(t, []string{"200 <134>partial"}, gotContent, "partial octet-counted frame should be emitted at EOF")
+		require.Len(t, gotContent, 1, "partial octet-counted frame should be emitted at EOF")
+		assert.Equal(t, "200 <134>partial", gotContent[0])
 	})
 
 	t.Run("SyslogFraming/empty buffer is no-op", func(t *testing.T) {
@@ -794,6 +797,59 @@ func TestFlush(t *testing.T) {
 
 		fr.Flush()
 		require.Empty(t, gotContent, "UTF8Newline should not flush partial lines")
+	})
+
+	t.Run("UTF8NewlineStream/partial line emitted on flush", func(t *testing.T) {
+		gotContent := []string{}
+		gotLens := []int{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+			gotLens = append(gotLens, rawDataLen)
+		}
+		fr := NewFramer(outputFn, UTF8NewlineStream, contentLenLimit)
+
+		// A complete line followed by a partial without a trailing newline,
+		// as if the peer closed the connection mid-stream.
+		msg := message.NewMessage([]byte("complete\norphan"), nil, "", 0)
+		fr.Process(msg)
+		require.Equal(t, []string{"complete"}, gotContent, "complete line should emit normally")
+
+		fr.Flush()
+		require.Equal(t, []string{"complete", "orphan"}, gotContent,
+			"UTF8NewlineStream should emit the buffered partial line at end-of-stream")
+		require.Equal(t, []int{9, 6}, gotLens)
+	})
+
+	t.Run("UTF8NewlineStream/single message without newline", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, UTF8NewlineStream, contentLenLimit)
+
+		// Connect-send-close pattern: one message, no newline, then close.
+		msg := message.NewMessage([]byte("orphan-message"), nil, "", 0)
+		fr.Process(msg)
+		require.Empty(t, gotContent, "no newline yet, nothing should be emitted")
+
+		fr.Flush()
+		require.Equal(t, []string{"orphan-message"}, gotContent)
+	})
+
+	t.Run("UTF8NewlineStream/flush after clean newline-terminated stream is no-op", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, UTF8NewlineStream, contentLenLimit)
+
+		msg := message.NewMessage([]byte("alpha\nbeta\n"), nil, "", 0)
+		fr.Process(msg)
+		require.Equal(t, []string{"alpha", "beta"}, gotContent)
+
+		fr.Flush()
+		require.Equal(t, []string{"alpha", "beta"}, gotContent,
+			"Flush with no buffered remainder must not emit anything")
 	})
 
 	t.Run("NoFraming/always drained so Flush is no-op", func(t *testing.T) {

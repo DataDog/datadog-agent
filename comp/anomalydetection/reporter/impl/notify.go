@@ -6,6 +6,7 @@
 package reporterimpl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,8 +17,10 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -38,8 +41,8 @@ const (
 	logPatternExtractorNamespace = "log_pattern_extractor"
 	logMetricsExtractorNamespace = "log_metrics_extractor"
 
-	// changeEventMessageMaxLen caps the rendered change-event message. The v2
-	// Events API rejects messages larger than 4 KiB.
+	// changeEventMessageMaxLen caps the rendered change-event message below the
+	// v2 Events API 4 KiB limit (4096 bytes).
 	changeEventMessageMaxLen = 4000
 	// impactedResourcesMaxItems caps the number of service entries we attach
 	// to a change event. Matches the v2 API server-side limit.
@@ -49,12 +52,11 @@ const (
 
 	// changeEventIntegrationID identifies the publishing integration. The
 	// `edge-intelligence` integration is registered upstream in
-	// integrations-internal-core#3240 (source_type_id 78252213) and the
-	// event-management intake derives source_type from this value. We also
-	// emit changeEventSourceTypeID explicitly so the intake can validate the
-	// pairing without a registry lookup.
+	// integrations-internal-core#3240 and the event-management intake derives
+	// source_type from this value. The v2 Events API schema does not accept
+	// source_type_id as a field at $.data.attributes — integration_id alone
+	// is sufficient for routing.
 	changeEventIntegrationID = "edge-intelligence"
-	changeEventSourceTypeID  = 78252213
 
 	// changedResourceType is the resource classification carried in
 	// data.attributes.attributes.changed_resource.type.
@@ -79,12 +81,13 @@ type eventSender struct {
 	forwarder eventplatform.Forwarder
 	logger    log.Component
 	storage   observerdef.StorageReader
+	hostname  hostname.Component
 }
 
 // newEventSender creates an eventSender backed by the given forwarder.
 // storage is used to compute windowed log rates for display in event messages;
 // it may be nil and will be set later via EventReporter.SetStorage.
-func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
+func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
 	if forwarder == nil {
 		return nil, errors.New("event-platform forwarder is not available")
 	}
@@ -92,6 +95,7 @@ func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, sto
 		forwarder: forwarder,
 		logger:    logger,
 		storage:   storage,
+		hostname:  hn,
 	}, nil
 }
 
@@ -147,9 +151,14 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:" + c.Pattern
 
+	var host string
+	if s.hostname != nil {
+		host = s.hostname.GetSafe(context.TODO())
+	}
+
 	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
-	payload := buildChangeEventPayload(c, msg, ts, aggKey)
+	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal change-event payload: %w", err)
@@ -159,27 +168,126 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
 }
 
-// buildChangeEventPayload returns the v2 Events API JSON envelope for a
-// correlation. Keys mirror the schema produced by datadog-api-client-go's
-// EventCreateRequestPayload (data.type=event, data.attributes.{title, message,
-// category, integration_id, source_type_id, tags, timestamp, aggregation_key,
-// attributes}). integration_id pins the publisher to the `edge-intelligence`
-// integration so the event-management intake can route and authorize the event.
-func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey string) map[string]any {
-	return map[string]any{
+// sendEpisodeEvent sends a v2 change event for a scorer EpisodeStarted or EpisodeEnded
+// lifecycle event. Unlike send(), this path is driven by the correlator's own PendingEvents
+// and requires no reporter-side deduplication.
+func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
+	var title, direction string
+	switch evt.Kind {
+	case observerdef.CorrelatorEventEpisodeStarted:
+		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
+			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+		direction = "started"
+	case observerdef.CorrelatorEventEpisodeEnded:
+		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
+			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+		direction = "ended"
+	default:
+		return fmt.Errorf("unsupported CorrelatorEventKind %d", evt.Kind)
+	}
+
+	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
+	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
+	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
+		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+
+	var host string
+	if s.hostname != nil {
+		host = s.hostname.GetSafe(context.TODO())
+	}
+
+	s.logger.Infof("[observer] sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+		evt.Correlation.Pattern, direction, aggKey, ts)
+
+	tags := []string{
+		"source:edge-intelligence",
+		"pattern:" + evt.Correlation.Pattern,
+		"scorer:" + evt.CorrelatorName,
+		"episode_direction:" + direction,
+	}
+	payload := map[string]any{
 		"data": map[string]any{
 			"type": "event",
 			"attributes": map[string]any{
-				"title":           c.Title,
+				"title":           title,
 				"message":         msg,
 				"category":        "change",
 				"integration_id":  changeEventIntegrationID,
-				"source_type_id":  changeEventSourceTypeID,
-				"tags":            BuildEventTags(c),
+				"tags":            tags,
 				"timestamp":       ts,
 				"aggregation_key": aggKey,
-				"attributes":      buildChangeAttributes(c),
+				"attributes": map[string]any{
+					"changed_resource": map[string]any{
+						"name": truncateChars(evt.Correlation.Pattern, changedResourceNameMaxLen),
+						"type": changedResourceType,
+					},
+					"author": map[string]any{
+						"name": "datadog-agent-observer",
+						"type": "automation",
+					},
+					"change_metadata": map[string]any{
+						"episode_pattern":   evt.Correlation.Pattern,
+						"episode_direction": direction,
+						"from_level":        severityLevelName(evt.FromLevel),
+						"to_level":          severityLevelName(evt.ToLevel),
+						"first_seen":        time.Unix(evt.Correlation.FirstSeen, 0).UTC().Format(time.RFC3339),
+						"last_updated":      time.Unix(evt.Correlation.LastUpdated, 0).UTC().Format(time.RFC3339),
+					},
+				},
 			},
+		},
+	}
+	if host != "" {
+		payload["data"].(map[string]any)["attributes"].(map[string]any)["host"] = host
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal scorer episode event payload: %w", err)
+	}
+
+	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
+	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+// severityLevelName returns a human-readable label for a SeverityLevel.
+func severityLevelName(level severityeventsdef.SeverityLevel) string {
+	switch level {
+	case severityeventsdef.SeverityLow:
+		return "low"
+	case severityeventsdef.SeverityMedium:
+		return "medium"
+	case severityeventsdef.SeverityHigh:
+		return "high"
+	default:
+		return fmt.Sprintf("level(%d)", int(level))
+	}
+}
+
+// buildChangeEventPayload returns the v2 Events API JSON envelope for a
+// correlation. Keys mirror the schema produced by datadog-api-client-go's
+// EventCreateRequestPayload (data.type=event, data.attributes.{title, message,
+// category, integration_id, tags, timestamp, aggregation_key, attributes}).
+// integration_id pins the publisher to the `edge-intelligence` integration so
+// the event-management intake can route and authorize the event.
+func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, host string) map[string]any {
+	attrs := map[string]any{
+		"title":           c.Title,
+		"message":         msg,
+		"category":        "change",
+		"integration_id":  changeEventIntegrationID,
+		"tags":            BuildEventTags(c),
+		"timestamp":       ts,
+		"aggregation_key": aggKey,
+		"attributes":      buildChangeAttributes(c),
+	}
+	if host != "" {
+		attrs["host"] = host
+	}
+	return map[string]any{
+		"data": map[string]any{
+			"type":       "event",
+			"attributes": attrs,
 		},
 	}
 }

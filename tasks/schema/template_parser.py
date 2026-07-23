@@ -1,6 +1,8 @@
 import collections
 import re
 
+import yaml
+
 
 def get_indent(line):
     count = 0
@@ -92,6 +94,28 @@ def is_node_section(node):
     return node.get("node_type", "") == "section"
 
 
+def example_matches_default(example, node):
+    """
+    Return True if the example is merely the serialized form of the node's default.
+
+    The example is the raw YAML text taken from the config template (e.g. '"full"',
+    'false', '""'), while the default stored on the node is the already-parsed value
+    (e.g. 'full', False, ''). When the example parses back to the same value as the
+    default, keeping it in the schema is redundant.
+    """
+    if "default" not in node:
+        return False
+    # If the example contains go template we don't add if to the schema
+    if "{{" in example:
+        return True
+
+    try:
+        return yaml.safe_load(example) == node["default"]
+    except yaml.YAMLError:
+        # If the example isn't valid YAML it can't be a serialized default; keep it.
+        return False
+
+
 class Parser:
     def __init__(self):
         self.current_title = ""
@@ -138,7 +162,7 @@ class Parser:
             node["title"] = self.current_title
             self.current_title = ""
         if not is_node_section(node):
-            if example and node.get("default") != example:
+            if example and not example_matches_default(example, node):
                 node["example"] = example
 
         tags = node.get("tags", [])

@@ -8,8 +8,9 @@
 package dockerpermissions
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -17,8 +18,13 @@ func init() {
 }
 
 const (
-	// IssueType is the template identifier for Docker permission issues
-	IssueType = "docker-file-tailing-disabled"
+	// IssueName is the identifier for Docker permission issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "Docker File Tailing Disabled"
+
+	// IssueType is the snake_case type key for Docker permission issues:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "docker_file_tailing_disabled"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "docker-socket-permissions"
@@ -30,30 +36,36 @@ type dockerPermissionsModule struct {
 }
 
 // NewModule creates a new Docker permissions issue module
-func NewModule(config.Component) issues.Module {
+func NewModule(issues.ModuleDeps) issues.Module {
 	return &dockerPermissionsModule{
 		template: NewDockerPermissionIssue(),
 	}
+}
+
+func (m *dockerPermissionsModule) IssueName() string {
+	return IssueName
 }
 
 func (m *dockerPermissionsModule) IssueType() string {
 	return IssueType
 }
 
-func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *dockerPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns the periodic health check configuration.
 // Interval is 0 to use the default (15 minutes).
-func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
-	return &issues.BuiltInPeriodicHealthCheck{
-		Source: "docker",
-		Fn:     Check,
+func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return &runnerdef.BuiltInPeriodicHealthCheck{
+		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
+			Source: "docker",
+			Fn:     Check,
+		},
 	}
 }
 
 // BuiltInStartupHealthCheck returns nil — docker permission checks run periodically.
-func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }

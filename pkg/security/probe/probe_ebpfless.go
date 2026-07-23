@@ -364,6 +364,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Type = uint32(model.PrCtlEventType)
 		event.PrCtl.Option = syscallMsg.Prctl.Option
 		event.PrCtl.NewName = syscallMsg.Prctl.NewName
+	case ebpfless.SyscallTypeSocket:
+		event.Type = uint32(model.SocketEventType)
+		event.Socket.Domain = syscallMsg.SocketEvent.Domain
+		event.Socket.Type = syscallMsg.SocketEvent.Type
+		event.Socket.Protocol = syscallMsg.SocketEvent.Protocol
+		event.Socket.Retval = syscallMsg.Retval
 	}
 
 	// container context
@@ -657,6 +663,12 @@ func (p *EBPFLessProbe) ReplayEvents() {
 func (p *EBPFLessProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
 }
+
+// EnrichRuleEvent is a no-op for the ebpf-less probe. The ptracer-based
+// userspace pipeline applies its own truncation in pkg/security/ptracer and
+// does not retain the pre-truncation argv/envp, so there is no cheap source
+// of fuller values to backfill from at rule-match time.
+func (p *EBPFLessProbe) EnrichRuleEvent(_ *model.Event) {}
 
 // HandleActions handles the rule actions
 func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {

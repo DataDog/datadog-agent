@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package fx provides the fx module for the health platform check runner component.
+// Package fx provides the fx module for the health platform scheduler component.
 package fx
 
 import (
@@ -11,11 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for the check runner component.
-// The reporter is wired separately via SetReporter() in the lifecycle start hook
-// to avoid a circular dependency with the core health platform component.
+// Module defines the fx options for the scheduler component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(checkrunnerimpl.New),
+		fxutil.ProvideComponentConstructor(checkrunnerimpl.NewComponent),
 	)
 }

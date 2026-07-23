@@ -126,7 +126,6 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
 	containerID := t.containerIDProvider.GetContainerID(req.Context(), req.Header)
-	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
@@ -141,10 +140,6 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 	if !isValidQueryString(req.URL.RawQuery) {
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
-	}
-
-	if needsAppKey && t.conf.EVPProxy.ApplicationKey == "" {
-		return nil, errors.New("EVPProxy: ApplicationKey needed but not set")
 	}
 
 	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
@@ -176,9 +171,6 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
 	log.Debugf("Setting headers X-Datadog-Hostnames=%s, X-Datadog-AgentDefaultEnv=%s for evp proxy", t.conf.Hostname, t.conf.DefaultEnv)
 	req.Header.Set(header.ContainerID, containerID)
-	if needsAppKey {
-		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
-	}
 	if t.conf.ErrorTrackingStandalone {
 		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "true")
 	}
@@ -187,7 +179,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
-	//nolint:govet,lostcancel // we don't need to manually cancel this context, we can rely on the parent context being cancelled
+	//nolint:govet // we don't need to manually cancel this context, we can rely on the parent context being cancelled
 	ctx, _ := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
 

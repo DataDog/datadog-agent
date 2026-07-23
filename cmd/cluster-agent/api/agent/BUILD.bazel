@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "agent",
+    srcs = ["agent.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/signals",
+        "//comp/core/autodiscovery/def",
+        "//comp/core/diagnose/def",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/settings/def",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/metadata/clusteragent/def",
+        "//comp/metadata/clusterchecks/def",
+        "//pkg/api/coverage",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/config/setup",
+        "//pkg/flare/clusteragent",
+        "//pkg/status/health",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/hostname",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+dd_agent_go_test(
+    name = "agent_test",
+    srcs = ["agent_test.go"],
+    embed = [":agent"],
+)

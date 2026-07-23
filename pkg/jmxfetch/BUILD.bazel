@@ -16,8 +16,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/jmxfetch",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/agent/jmxlogger",
-        "//comp/core/autodiscovery",
+        "//comp/agent/jmxlogger/def",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/ipc/def",
         "//comp/core/workloadfilter/def",
@@ -45,6 +45,7 @@ go_test(
         "runner_test.go",
         "utils_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":jmxfetch"],
     gotags = ["test"],
     deps = [

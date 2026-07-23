@@ -14,12 +14,15 @@
 #include "swiss_map_hash.h"
 
 // Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
-// expression status array at the start of event root data.
-#define EXPR_STATUS_BITS      2
+// expression status array at the start of event root data. Must stay in
+// sync with ir.ExprStatusBits / the ExprStatus* constants in
+// pkg/dyninst/ir/expression.go.
+#define EXPR_STATUS_BITS      4
 #define EXPR_STATUS_ABSENT    0  // evaluation failed (unknown reason)
 #define EXPR_STATUS_PRESENT   1  // evaluation succeeded
 #define EXPR_STATUS_NIL_DEREF 2  // nil pointer dereference
 #define EXPR_STATUS_OOB       3  // index out of bounds
+#define EXPR_STATUS_TRUNCATED 4  // value present, but collection truncated (filter)
 
 // Sentinel value for expr_status_idx indicating no status should be written
 // (used by condition expressions which report errors via condition_eval_error).
@@ -308,6 +311,19 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   if (info->byte_len == 0) {
     return true;
   }
+  // Filter (deferred collection-filter) types skip the entire
+  // header-write + payload-read block: the enqueue_pc itself emits
+  // per-element data items, and reading the source contents into
+  // scratch would corrupt our element-by-element streaming.
+  // sm->offset is positioned at the current buffer tail and
+  // sm->di_0 carries the chase item unchanged so the enqueue_pc
+  // can recover source pointer/length from it.
+  if (info->dynamic_size_class == DYNAMIC_SIZE_CLASS_FILTER_DEFERRED) {
+    sm->offset = scratch_buf_len(ctx->buf);
+    sm->pointer_chasing_ttl = item.ttl;
+    sm->di_0 = item.di;
+    goto enqueue_pc_jump;
+  }
   uint32_t byte_len = info->byte_len;
   switch (info->dynamic_size_class) {
   case DYNAMIC_SIZE_CLASS_STATIC:
@@ -334,6 +350,10 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
       // In this case the info stores byte len of a single element.
       byte_len = sm->collection_size_limit * info->byte_len * 4;
     }
+    break;
+  case DYNAMIC_SIZE_CLASS_FILTER_DEFERRED:
+    // Already handled above; this case is unreachable but keeps the
+    // switch exhaustive.
     break;
   }
   // For dynamically-sized objects (strings, slices), byte_len is the
@@ -365,6 +385,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   sm->pointer_chasing_ttl = item.ttl;
   sm->di_0 = item.di;
   sm->di_0.length = item.di.length;
+enqueue_pc_jump:
   if (!info->enqueue_pc) {
     return false;
   }
@@ -2892,6 +2913,179 @@ sm_swissmap_loop_short_circuit_check(scratch_buf_t* buf, stack_machine_t* sm) {
   #undef ST
 }
 
+// sm_panic_unwind_prepare reads gp from DWARF reg 0, validates the
+// goroutine has a recovered (non-goexit) panic with an open
+// in_progress_calls entry, and writes panic_lo_depth / panic_hi_depth
+// / goid into the event header. Returns true on success; on failure
+// the caller sets sm->condition_failed to abort the event. Factored
+// out as a noinline helper to keep sm_loop's own stack frame small —
+// the verifier sums local stack across the worst-case call chain and
+// would otherwise reject sm_loop combined with its other handlers.
+__attribute__((noinline)) bool
+sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
+  if (!buf) {
+    return false;
+  }
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
+  if (stats) {
+    __sync_fetch_and_add(&stats->recovery_fires, 1);
+  }
+  if (OFFSET_runtime_dot_g___panic == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  // Defense in depth: irgen drops the recovery probe when these offsets
+  // are absent from DWARF (see synthesizeRecoveryProbeEventRoot), so we
+  // should never see them as 0 here. Bail explicitly anyway rather than
+  // letting the (lo, hi] computation below silently degenerate to
+  // start_sp == sp == 0 → sp <= start_sp → return false.
+  if (OFFSET_runtime_dot__panic__startSP == 0 ||
+      OFFSET_runtime_dot__panic__sp == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (gp == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  di_event_header_t* hdr = (di_event_header_t*)buf;
+  uint64_t goid = 0;
+  if (bpf_probe_read_user(&goid, sizeof(goid),
+                          (void*)(gp + OFFSET_runtime_dot_g__goid))) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (goid == 0) {
+    uint64_t m_ptr = 0;
+    if (bpf_probe_read_user(&m_ptr, sizeof(m_ptr),
+                            (void*)(gp + OFFSET_runtime_dot_g__m)) ||
+        bpf_probe_read_user(&gp, sizeof(gp),
+                            (void*)(m_ptr + OFFSET_runtime_dot_m__curg)) ||
+        bpf_probe_read_user(&goid, sizeof(goid),
+                            (void*)(gp + OFFSET_runtime_dot_g__goid))) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+      return false;
+    }
+  }
+  if (!bpf_map_lookup_elem(&in_progress_calls, &goid)) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_no_open_calls, 1);
+    return false;
+  }
+  uint64_t panic_ptr = 0;
+  if (bpf_probe_read_user(&panic_ptr, sizeof(panic_ptr),
+                          (void*)(gp + OFFSET_runtime_dot_g___panic))) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (panic_ptr == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (OFFSET_runtime_dot__panic__recovered != 0) {
+    uint8_t recovered = 0;
+    if (bpf_probe_read_user(&recovered, sizeof(recovered),
+                            (void*)(panic_ptr +
+                                    OFFSET_runtime_dot__panic__recovered)) ||
+        recovered == 0) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+      return false;
+    }
+  }
+  if (OFFSET_runtime_dot__panic__goexit != 0) {
+    uint8_t goexit = 0;
+    if (bpf_probe_read_user(&goexit, sizeof(goexit),
+                            (void*)(panic_ptr +
+                                    OFFSET_runtime_dot__panic__goexit))) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+      return false;
+    }
+    if (goexit != 0) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_filtered_goexit, 1);
+      return false;
+    }
+  }
+  uint64_t stack_hi = 0, start_sp = 0, sp = 0;
+  if (bpf_probe_read_user(&stack_hi, sizeof(stack_hi),
+                          (void*)(gp + OFFSET_runtime_dot_g__stack +
+                                  OFFSET_runtime_dot_stack__hi)) ||
+      bpf_probe_read_user(&start_sp, sizeof(start_sp),
+                          (void*)(panic_ptr +
+                                  OFFSET_runtime_dot__panic__startSP)) ||
+      bpf_probe_read_user(&sp, sizeof(sp),
+                          (void*)(panic_ptr +
+                                  OFFSET_runtime_dot__panic__sp))) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (start_sp == 0 || sp == 0 || start_sp >= stack_hi ||
+      sp >= stack_hi || sp <= start_sp) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  hdr->panic_lo_depth = (uint32_t)(stack_hi - sp);
+  hdr->panic_hi_depth = (uint32_t)(stack_hi - start_sp);
+  hdr->goid = goid;
+  // Stamp the pairing expectation so the sink routes this event
+  // through NotePanicUnwoundRange rather than treating it as a
+  // normal probe entry.
+  hdr->event_pairing_expectation = EVENT_PAIRING_RETURN_PANIC_UNWOUND;
+  return true;
+}
+
+// sm_panic_unwind_evict_slots clears in_progress_calls slots in
+// (lo, hi]. Reads (goid, lo, hi) from the event header populated by
+// sm_panic_unwind_prepare. Deletes the map entry if all slots become
+// empty. Factored out for the same verifier-budget reason as
+// sm_panic_unwind_prepare. Returns 0 — the BPF verifier requires
+// noinline "global functions" to return a scalar.
+__attribute__((noinline)) int
+sm_panic_unwind_evict_slots(scratch_buf_t* buf) {
+  if (!buf) {
+    return 0;
+  }
+  di_event_header_t* hdr = (di_event_header_t*)buf;
+  uint64_t goid = hdr->goid;
+  uint32_t lo = hdr->panic_lo_depth;
+  uint32_t hi = hdr->panic_hi_depth;
+  if (lo >= hi || goid == 0) {
+    return 0;
+  }
+  call_depths_t* depths =
+      bpf_map_lookup_elem(&in_progress_calls, &goid);
+  if (!depths) {
+    return 0;
+  }
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
+  int remaining = 0;
+  for (int s = 0; s < CALL_DEPTHS_SIZE; s++) {
+    if (depths->depths[s].depth == 0 && depths->depths[s].probe_id == 0) {
+      continue;
+    }
+    if (depths->depths[s].depth <= lo || depths->depths[s].depth > hi) {
+      remaining++;
+      continue;
+    }
+    depths->depths[s].depth = 0;
+    depths->depths[s].probe_id = 0;
+    depths->depths[s].condition_state = 0;
+    depths->depths[s].dict_ptr = 0;
+    depths->depths[s].entry_ktime_ns = 0;
+    if (stats) {
+      __sync_fetch_and_add(&stats->recovery_evicted_frames, 1);
+    }
+  }
+  if (remaining == 0) {
+    bpf_map_delete_elem(&in_progress_calls, &goid);
+  }
+  return 0;
+}
+
+// filter.h depends on COLLECTION_PREDICATE_MAX_ITERATIONS,
+// EXPR_STATUS_TRUNCATED, sm_record_pointer, and stack_machine_t —
+// all defined above. Include here so the helpers are in scope for the
+// sm_loop op handlers below.
+#include "filter.h"
+
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
   scratch_buf_t* buf = ctx->buf;
@@ -2941,6 +3135,17 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_EXPR_PREPARE: {
+    // Start each expression with the condition error flags cleared so that
+    // a faulting any/all loop body in a template segment or capture
+    // expression cannot leak into the next condition's ConditionCheck.
+    // Mirrors the ConditionBegin / ConditionCheck lifecycle for conditions.
+    sm->condition_eval_error = false;
+    sm->condition_nil_deref = false;
+    // Defensively clear any leftover one-shot status override. The
+    // marker ops set this; if any future code path ever sets it and
+    // errors before the matching ExprSave, prepare-time reset
+    // guarantees no cross-expression leak.
+    sm->pending_expr_status = 0;
     sm->expr_results_end_offset = scratch_buf_len(buf);
     sm->offset = sm->expr_results_end_offset;
     if (sm->expr_type == POINTER) {
@@ -2962,8 +3167,16 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     LOG(4, "copy data 0x%llx->0x%llx !%u", sm->offset, sm->expr_results_offset + result_offset, byte_len);
 
-    // Write expression status = present.
-    expr_status_write(buf, sm->expr_results_offset, expr_idx, EXPR_STATUS_PRESENT);
+    // Write expression status. The default is PRESENT, but the filter
+    // marker ops set pending_expr_status = EXPR_STATUS_TRUNCATED
+    // inline (before the chase phase) when the source collection
+    // exceeds the iteration cap. The override is one-shot: cleared
+    // here so the next expression's save sees the default again.
+    uint8_t status = sm->pending_expr_status != 0
+                     ? sm->pending_expr_status
+                     : EXPR_STATUS_PRESENT;
+    expr_status_write(buf, sm->expr_results_offset, expr_idx, status);
+    sm->pending_expr_status = 0;
 
     // Set the offset at the result data, for potential following process type functions.
     sm->offset = sm->expr_results_offset + result_offset;
@@ -4781,11 +4994,158 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->pc = op_start;
   } break;
 
+  case SM_OP_PANIC_UNWIND_PREPARE: {
+    // All the panic-chain reads and validation happens in a noinline
+    // helper so sm_loop's stack frame stays small enough that the
+    // verifier accepts sm_loop -> sm_run -> probe_run's worst-case
+    // call chain. The helper takes gp by value (rather than the full
+    // pt_regs*) so its signature uses verifier-friendly scalar types.
+    struct pt_regs* regs = ctx->regs;
+    uint64_t gp = regs ? regs->DWARF_REGISTER(0) : 0;
+    if (!sm_panic_unwind_prepare(gp, buf)) {
+      sm->condition_failed = true;
+      return 1;
+    }
+  } break;
+
+  case SM_OP_PANIC_UNWIND_EVICT_SLOTS:
+    (void)sm_panic_unwind_evict_slots(buf);
+    break;
+
+  case SM_OP_EMIT_FILTER_SLICE_MARKER: {
+    type_t data_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    int r = sm_emit_filter_slice_marker_noctx(data_type, elem_size);
+    if (r == 2) {
+      return 1;
+    }
+    if (r == 0) {
+      // Helper stored chase params in sm->di_0; enqueue the chase.
+      sm_record_pointer(ctx, sm->di_0.type, sm->di_0.address,
+                        /*decrease_ttl=*/false, sm->di_0.length);
+    }
+  } break;
+
+  case SM_OP_INIT_FILTER_SLICE_LOOP: {
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    uint32_t iter_budget = sm_read_program_uint32(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+    int r = sm_filter_slice_init_noctx(elem_size, iter_budget);
+    if (r == 1 || r == 2) {
+      sm->pc = end_label_pc;
+    }
+  } break;
+
+  case SM_OP_FILTER_SLICE_ADVANCE: {
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+    uint32_t iter_budget = elem_size + 512 + 16 + elem_size + 8;
+    int r = sm_filter_slice_advance_noctx(elem_size, iter_budget);
+    if (r == 0) {
+      sm->pc = body_target_pc;
+    }
+  } break;
+
+  case SM_OP_EMIT_FILTER_SLICE_ELEMENT: {
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    (void)elem_size;
+    sm_emit_filter_slice_element_noctx();
+  } break;
+
+  case SM_OP_EMIT_FILTER_MAP_MARKER: {
+    type_t data_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t swiss_header_size = sm_read_program_uint32(sm);
+    uint32_t used_field_offset = sm_read_program_uint32(sm);
+    int r = sm_emit_filter_map_marker_noctx(data_type, swiss_header_size,
+                                            used_field_offset);
+    if (r == 2) {
+      return 1;
+    }
+    if (r == 0) {
+      sm_record_pointer(ctx, sm->di_0.type, sm->di_0.address,
+                        /*decrease_ttl=*/false, sm->di_0.length);
+    }
+  } break;
+
+  case SM_OP_INIT_FILTER_MAP_LOOP: {
+    uint32_t op_start = sm->pc - 1;
+    filter_loop_state_t* fst = filter_loop_state_load();
+    if (!fst) {
+      sm_read_program_uint32(sm); sm_read_program_uint32(sm);
+      sm_read_program_uint32(sm); sm_read_program_uint32(sm);
+      sm_read_program_uint8(sm); sm_read_program_uint8(sm);
+      sm_read_program_uint8(sm); sm_read_program_uint8(sm);
+      sm_read_program_uint8(sm);
+      sm_read_program_uint16(sm); sm_read_program_uint16(sm);
+      sm_read_program_uint16(sm);
+      sm_read_program_uint8(sm); sm_read_program_uint8(sm);
+      sm_read_program_uint8(sm);
+      uint32_t end_label_pc = sm_read_program_uint32(sm);
+      sm->pc = end_label_pc;
+      break;
+    }
+    fst->elem_size = sm_read_program_uint32(sm);
+    fst->val_size = sm_read_program_uint32(sm);
+    fst->val_offset_in_pair = sm_read_program_uint32(sm);
+    uint32_t iter_scratch_budget = sm_read_program_uint32(sm);
+    fst->map_dir_ptr_offset = sm_read_program_uint8(sm);
+    fst->map_dir_len_offset = sm_read_program_uint8(sm);
+    fst->map_ctrl_offset = sm_read_program_uint8(sm);
+    fst->map_slots_offset = sm_read_program_uint8(sm);
+    fst->map_key_in_slot_offset = sm_read_program_uint8(sm);
+    fst->map_val_in_slot_offset = sm_read_program_uint16(sm);
+    fst->map_slot_size = sm_read_program_uint16(sm);
+    fst->map_group_byte_size = sm_read_program_uint16(sm);
+    fst->map_table_groups_field_offset = sm_read_program_uint8(sm);
+    fst->map_groups_data_field_offset = sm_read_program_uint8(sm);
+    fst->map_groups_len_mask_field_offset = sm_read_program_uint8(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+    int r = sm_filter_map_init_noctx(iter_scratch_budget);
+    if (r == 1 || r == 2) {
+      sm->pc = end_label_pc;
+    } else if (r == 3) {
+      sm->pc = op_start;
+    }
+  } break;
+
+  case SM_OP_EMIT_FILTER_MAP_ELEMENT: {
+    uint32_t key_size = sm_read_program_uint32(sm);
+    uint32_t val_size = sm_read_program_uint32(sm);
+    uint32_t val_off = sm_read_program_uint32(sm);
+    (void)key_size; (void)val_size; (void)val_off;
+    sm_emit_filter_map_element_noctx();
+  } break;
+
+  case SM_OP_FILTER_MAP_ADVANCE: {
+    uint32_t op_start = sm->pc - 1;
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+    uint32_t iter_scratch_budget = 1024;
+    int r = sm_filter_map_advance_and_read_noctx(iter_scratch_budget);
+    if (r == 0) {
+      sm->pc = body_target_pc;
+    } else if (r == 3) {
+      sm->pc = op_start;
+    }
+  } break;
+
   default:
     LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc - 1, op);
     return 1;
   }
 
+  return 0;
+}
+
+// sm_run_reset_phase resets the swiss-map any/all loop phase. Re-derives
+// the stack_machine pointer via bpf_map_lookup_elem so the verifier
+// has fresh map_value bounds — loading the pointer through ctx after
+// a bpf_loop call boundary loses the typed-pointer info.
+__attribute__((noinline)) int sm_run_reset_phase(void) {
+  const unsigned long zero = 0;
+  stack_machine_t* sm =
+      (stack_machine_t*)bpf_map_lookup_elem(&stack_machine_buf, &zero);
+  if (!sm) return 0;
+  sm->swissmap_loop_state.phase = 0;
   return 0;
 }
 
@@ -4795,13 +5155,20 @@ __attribute__((always_inline)) int sm_run(global_ctx_t* ctx) {
   const int limit = 512 << 10;
   int n = bpf_loop(limit, sm_loop, ctx, 0);
   if (n == limit) {
-    // Hitting the iteration cap can leave a swiss-map any/all loop's phase
-    // mid-step (phase==1). Reset it so the next probe's first
-    // SM_OP_SWISS_MAP_LOOP_BEGIN runs sm_swissmap_loop_init rather than
-    // reading uninitialized state. Doing the reset here (cold path, after
-    // bpf_loop) avoids forcing a stack_machine_t spill in the hot
-    // probe_run_with_cookie frame.
-    ctx->stack_machine->swissmap_loop_state.phase = 0;
+    // Hitting the iteration cap can leave a swiss-map any/all loop's
+    // phase mid-step (phase==1). Reset it so the next probe's first
+    // SWISS_MAP_LOOP_BEGIN runs sm_swissmap_loop_init rather than
+    // reading uninitialized state.
+    //
+    // The reset goes through a noinline helper that re-derives the
+    // pointer via bpf_map_lookup_elem. Writing through
+    // ctx->stack_machine here would be rejected by the verifier:
+    // after the bpf_loop call the compiler may reload
+    // ctx->stack_machine from a stack spill whose typed-pointer info
+    // the verifier has forgotten, and the access to
+    // swissmap_loop_state.phase (well past the verifier's bounds-
+    // tracking window for a scalar register) fails.
+    (void)sm_run_reset_phase();
     LOG(2, "stack machine loop hit limit of %d steps", n)
     return -1;
   }

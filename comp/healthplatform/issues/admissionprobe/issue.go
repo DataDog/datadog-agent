@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	issueName = "admission_controller_unreachable"
+	issueName = IssueName
+	issueType = IssueType
 	category  = "availability"
 	location  = "admission-controller"
-	severity  = "high"
+	severity  = healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH
 	source    = "cluster-agent"
 )
 
@@ -56,6 +57,7 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   issueName,
+		IssueType:   issueType,
 		Title:       "Admission Controller Unreachable",
 		Description: issue,
 		Category:    category,

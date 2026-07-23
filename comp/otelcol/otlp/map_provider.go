@@ -38,6 +38,12 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
 	}
+	// An empty value is left unset so the processor falls back to its own default ("off").
+	if cfg.TracesContainerTagPromotion != "" {
+		smap[buildKey("processors", "infraattributes/traces")] = map[string]interface{}{
+			"trace_container_tag_promotion": cfg.TracesContainerTagPromotion,
+		}
+	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
@@ -79,6 +85,12 @@ func buildLogsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "logsagent", "sending_queue", "batch"): ensureNonNilMap(cfg.Logs)["batch"],
 	}
+	// The logs pipeline shares the `infraattributes` processor instance with the
+	// metrics pipeline (see defaultMetricsConfig/defaultLogsConfig); this is
+	// harmless since the metrics processor ignores logs_tags_as_ddtags.
+	if cfg.LogsTagsAsDDTags {
+		smap[buildKey("processors", "infraattributes", "logs_tags_as_ddtags")] = true
+	}
 
 	{
 		configMap := confmap.NewFromStringMap(smap)
@@ -95,16 +107,20 @@ func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }
 
-// removeInfraAttributesProcessor removes the infraattributes processor from the pipeline config
+// removeInfraAttributesProcessor removes any infraattributes processor
+// instance (base `infraattributes` or a named variant such as
+// `infraattributes/traces`) from the given pipeline's processor list.
 func removeInfraAttributesProcessor(cfg *confmap.Conf, pipelineType string) error {
 	// Remove from processors section
 	processorsKey := buildKey("service", "pipelines", pipelineType, "processors")
 	if processors, ok := cfg.Get(processorsKey).([]interface{}); ok {
 		filtered := make([]interface{}, 0, len(processors))
 		for _, p := range processors {
-			if p != "infraattributes" {
-				filtered = append(filtered, p)
+			name, _ := p.(string)
+			if name == "infraattributes" || strings.HasPrefix(name, "infraattributes/") {
+				continue
 			}
+			filtered = append(filtered, p)
 		}
 		return cfg.Merge(confmap.NewFromStringMap(map[string]interface{}{
 			processorsKey: filtered,

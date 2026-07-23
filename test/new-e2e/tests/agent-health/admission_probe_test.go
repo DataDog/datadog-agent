@@ -44,6 +44,7 @@ type admissionProbeSuite struct {
 }
 
 func TestAdmissionProbeSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &admissionProbeSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
@@ -73,98 +74,78 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 	// =========================================================================
 	// Phase 1: Verify probe is healthy
 	// =========================================================================
-	suite.T().Run("ProbeHealthy", func(t *testing.T) {
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
-				clusterAgentNamespace, clusterAgentPod.Name, "cluster-agent",
-				[]string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"},
-			)
-			assert.NoError(ct, err)
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+			clusterAgentNamespace, clusterAgentPod.Name, "cluster-agent",
+			[]string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"},
+		)
+		assert.NoError(ct, err)
 
-			var status map[string]interface{}
-			assert.NoError(ct, json.Unmarshal([]byte(stdout), &status))
+		var status map[string]any
+		assert.NoError(ct, json.Unmarshal([]byte(stdout), &status))
 
-			webhook, ok := status["admissionWebhook"].(map[string]interface{})
-			if !assert.True(ct, ok, "admissionWebhook section not found in status") {
-				return
-			}
-			probeSection, ok := webhook["Probe"].(map[string]interface{})
-			if !assert.True(ct, ok, "Probe section not found in admissionWebhook status") {
-				return
-			}
-			assert.Equal(ct, true, probeSection["LastExecutionSuccess"])
-		}, 3*time.Minute, 15*time.Second, "Probe has not completed a successful execution")
-	})
+		webhook, ok := status["admissionWebhook"].(map[string]any)
+		if !assert.True(ct, ok, "admissionWebhook section not found in status") {
+			return
+		}
+		probeSection, ok := webhook["Probe"].(map[string]any)
+		if !assert.True(ct, ok, "Probe section not found in admissionWebhook status") {
+			return
+		}
+		assert.Equal(ct, true, probeSection["LastExecutionSuccess"])
+	}, 3*time.Minute, 15*time.Second, "Probe has not completed a successful execution")
 
-	// =========================================================================
-	// Phase 2: Block connectivity and verify issue detection
-	// =========================================================================
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		suite.blockWebhookFromAPIServer(t)
 
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
-		// Wait for the health report containing the admission probe issue to arrive in fakeintake.
-		// This is the authoritative assertion: it verifies the full pipeline
-		// (probe detection → health platform → forwarder → fakeintake).
 		var detectedIssue *healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
 			assert.NoError(ct, err)
-			assert.NotEmpty(ct, payloads, "No health report received in fakeintake")
-			if len(payloads) == 0 {
-				return
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, admissionProbeIssueID) {
+					if iss.PersistedIssue != nil &&
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
+						detectedIssue = iss
+						return
+					}
+				}
 			}
-			latest := payloads[len(payloads)-1]
-			detectedIssue = findIssue(t, latest, admissionProbeIssueID)
-			assert.NotNil(ct, detectedIssue, "Admission probe issue not in fakeintake report")
-		}, 4*time.Minute, 15*time.Second, "Health report with admission probe issue not received in fakeintake")
+			assert.Fail(ct, "admission probe issue not found as ACTIVE in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "admission probe issue not detected in fakeintake")
 
 		require.NotNil(t, detectedIssue)
 		assert.Equal(t, admissionProbeIssueID, detectedIssue.Id)
+		assert.Equal(t, "Admission Controller Unreachable", detectedIssue.IssueName)
+		assert.Equal(t, "admission_controller_unreachable", detectedIssue.IssueType)
 		assert.Equal(t, "availability", detectedIssue.Category)
-		assert.Equal(t, "high", detectedIssue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, detectedIssue.Severity)
 		assert.Equal(t, "cluster-agent", detectedIssue.Source)
 		assert.NotNil(t, detectedIssue.Remediation)
 		assert.NotEmpty(t, detectedIssue.Remediation.Steps)
-
 		require.NotNil(t, detectedIssue.PersistedIssue)
-		assert.Contains(t,
-			[]healthplatform.IssueState{
-				healthplatform.IssueState_ISSUE_STATE_NEW,
-				healthplatform.IssueState_ISSUE_STATE_ONGOING,
-			},
-			detectedIssue.PersistedIssue.State)
-
-		t.Logf("Phase 2 passed: admission probe issue detected (state=%v)", detectedIssue.PersistedIssue.State)
+		assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ACTIVE, detectedIssue.PersistedIssue.State)
 	})
 
-	// =========================================================================
-	// Phase 3: Restore connectivity and verify resolution
-	// =========================================================================
+	suite.unblockWebhookFromAPIServer(suite.T())
+
 	suite.T().Run("Resolution", func(t *testing.T) {
-		suite.unblockWebhookFromAPIServer(t)
-
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
-
-		// Once resolved, the issue should be absent from all subsequent health reports.
-		require.Never(t, func() bool {
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
-			if err != nil {
-				return false
-			}
-			for _, payload := range payloads {
-				if findIssue(t, payload, admissionProbeIssueID) != nil {
-					return true
+			assert.NoError(ct, err)
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, admissionProbeIssueID) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return
+					}
 				}
 			}
-			return false
-		}, 3*time.Minute, 15*time.Second, "Admission probe issue still present after restoring connectivity")
-
-		t.Log("Phase 3 passed: admission probe issue resolved")
+			assert.Fail(ct, "no payload found with the issue in RESOLVED state")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "admission probe issue never transitioned to RESOLVED")
 	})
 
-	suite.T().Log("=== Full admission probe lifecycle test passed ===")
 }
 
 // ============================================================================

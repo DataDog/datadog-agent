@@ -95,6 +95,12 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 	truncatedReason := "single_line"
 	if lineCount > 1 {
 		truncatedReason = "auto_multiline"
+		// Carry the LAST line's parser timestamp so downstream offset trackers
+		// (the Docker socket tailer's lastSince, in particular) advance past every
+		// line that was combined. Without this, a reader restart resumes from the
+		// first line's timestamp and Docker replays lines 2..N of the group as
+		// duplicates.
+		msg.ParsingExtra.Timestamp = b.lines[lineCount-1].Msg.ParsingExtra.Timestamp
 	}
 
 	// Process flushes multiline buckets before an additional aggregate line can push the

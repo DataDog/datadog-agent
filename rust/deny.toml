@@ -12,8 +12,8 @@ multiple-versions = "allow"  # Allow multiple versions of same crate
 
 [licenses]
 version = 2
-# Match Datadog's allowed licenses (from Saluki)
 allow = [
+  # Datadog's standard allowed licenses (from Saluki).
   "0BSD",
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
@@ -24,4 +24,8 @@ allow = [
   "MPL-2.0",
   "Unicode-3.0",
   "Zlib",
+
+  # Permissive licenses pulled in transitively by dd-sensitive-data-scanner.
+  "CC0-1.0",
+  "MITNFA",
 ]

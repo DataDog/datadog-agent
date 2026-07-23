@@ -163,7 +163,7 @@ func TestPrometheusServicesEPS_Collect(t *testing.T) {
 	}
 
 	cfg := pkgconfigmock.New(t)
-	cfg.SetWithoutSource("prometheus_scrape.version", 2)
+	cfg.SetInTest("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -354,10 +354,12 @@ func TestPrometheusServicesEPS_InvalidateIfChangedEndpointSlices(t *testing.T) {
 		old                *discv1.EndpointSlice
 		new                *discv1.EndpointSlice
 		monitoredEndpoints []string
+		initialUpToDate    bool
 		expectUpToDate     bool
 	}{
 		{
-			name: "no change",
+			name:            "no change",
+			initialUpToDate: true,
 			old: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v1",
@@ -445,7 +447,8 @@ func TestPrometheusServicesEPS_InvalidateIfChangedEndpointSlices(t *testing.T) {
 			monitoredEndpoints: []string{
 				"kube_endpoint_uid://ns/svc/",
 			},
-			expectUpToDate: true,
+			initialUpToDate: true,
+			expectUpToDate:  true,
 		},
 		{
 			name: "new address added to endpoint slice",
@@ -500,7 +503,56 @@ func TestPrometheusServicesEPS_InvalidateIfChangedEndpointSlices(t *testing.T) {
 			monitoredEndpoints: []string{
 				"kube_endpoint_uid://ns/svc/",
 			},
-			expectUpToDate: false,
+			initialUpToDate: true,
+			expectUpToDate:  false,
+		},
+		{
+			name: "unchanged endpoints must not re-validate a pending invalidation",
+			old: &discv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "v1",
+					Name:            "svc-abc123",
+					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
+				},
+				Endpoints: []discv1.Endpoint{
+					{
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
+						},
+						NodeName: &node,
+					},
+				},
+			},
+			new: &discv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "v2",
+					Name:            "svc-abc123",
+					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
+				},
+				Endpoints: []discv1.Endpoint{
+					{
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
+						},
+						NodeName: &node,
+					},
+				},
+			},
+			monitoredEndpoints: []string{
+				"kube_endpoint_uid://ns/svc/",
+			},
+			initialUpToDate: false,
+			expectUpToDate:  false,
 		},
 	}
 
@@ -508,7 +560,7 @@ func TestPrometheusServicesEPS_InvalidateIfChangedEndpointSlices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			p := newPromServicesEndpointSlicesProvider(checks, api, true)
-			p.setUpToDate(true)
+			p.setUpToDate(test.initialUpToDate)
 			for _, monitored := range test.monitoredEndpoints {
 				p.monitoredEndpoints[monitored] = true
 			}

@@ -45,7 +45,11 @@ func ParseSbomPayload(payload api.Payload) ([]*SBOMPayload, error) {
 
 	msg := agentmodel.SBOMPayload{}
 	if err := proto.Unmarshal(inflated, &msg); err != nil {
-		return nil, fmt.Errorf("error parsing SBOM payload: data_len=%d, inflated_len=%d, encoding=%s, first_few_data_bytes=%v: %w", len(payload.Data), len(inflated), payload.Encoding, payload.Data[:min(20, len(payload.Data))], err)
+		// The Agent's SBOM endpoint can also receive non SBOM bodies (for example
+		// empty {} keepalive payloads when the endpoint is redirected to the
+		// fakeintake). Skip anything that is not a valid SBOM protobuf so one junk
+		// payload does not fail the entire SBOM query.
+		return nil, nil
 	}
 
 	payloads := make([]*SBOMPayload, len(msg.Entities))

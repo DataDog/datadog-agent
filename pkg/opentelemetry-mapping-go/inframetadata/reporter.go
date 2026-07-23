@@ -7,6 +7,7 @@ package inframetadata
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -129,7 +130,6 @@ func (r *Reporter) ConsumeResource(res pcommon.Resource) error {
 	if ok, err := hasHostMetadata(res); err != nil {
 		return fmt.Errorf("failed to check resource: %w", err)
 	} else if !ok {
-		// The resource should not be used for host metadata.
 		return nil
 	}
 
@@ -138,31 +138,30 @@ func (r *Reporter) ConsumeResource(res pcommon.Resource) error {
 		return nil
 	}
 
-	changed, payload, err := r.hostMap.Update(hostname, res)
+	changed, md, err := r.hostMap.Update(hostname, res)
 	if changed {
 		r.logger.Debug("Host metadata changed for host after payload",
 			zap.String("host", hostname), zap.Any("attributes", res.Attributes()),
 		)
-		r.pushAndLog(context.Background(), payload)
+		r.pushAndLog(context.Background(), md)
 	}
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
-// ConsumeMetrics checks if a metric is tracked by the reporter
-// and if so updates the host metadata accordingly.
+// ConsumeMetrics updates host metadata from resource attributes and tracked metric values,
+// pushing immediately on any change. Errors from one resource do not prevent processing
+// of subsequent resources in the same batch.
 func (r *Reporter) ConsumeMetrics(md pmetric.Metrics) error {
+	var errs error
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
 		res := rm.Resource()
+
 		if ok, err := hasHostMetadata(res); err != nil {
-			return fmt.Errorf("failed to check resource: %w", err)
+			errs = errors.Join(errs, fmt.Errorf("failed to check resource: %w", err))
+			continue
 		} else if !ok {
-			// The resource should not be used for host metadata.
-			// Go to next resource.
 			continue
 		}
 
@@ -170,18 +169,28 @@ func (r *Reporter) ConsumeMetrics(md pmetric.Metrics) error {
 		if !ok {
 			continue
 		}
+
+		var metrics []pmetric.Metric
 		ilms := rm.ScopeMetrics()
 		for j := 0; j < ilms.Len(); j++ {
-			metricsArray := ilms.At(j).Metrics()
-			for k := 0; k < metricsArray.Len(); k++ {
-				metric := metricsArray.At(k)
+			for k := 0; k < ilms.At(j).Metrics().Len(); k++ {
+				metric := ilms.At(j).Metrics().At(k)
 				if _, ok := hostmap.TrackedMetrics[metric.Name()]; ok {
-					r.hostMap.UpdateFromMetric(host, metric)
+					metrics = append(metrics, metric)
 				}
 			}
 		}
+
+		changed, hm, err := r.hostMap.UpdateWithMetrics(host, res, metrics)
+		if changed {
+			r.logger.Debug("Host metadata changed for host after payload",
+				zap.String("host", host), zap.Any("attributes", res.Attributes()),
+			)
+			r.pushAndLog(context.Background(), hm)
+		}
+		errs = errors.Join(errs, err)
 	}
-	return nil
+	return errs
 }
 
 // ConsumeHostMetadata consumes a host metadata payload and pushes it.

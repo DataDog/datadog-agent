@@ -21,12 +21,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        package = "libsepol",
+        package = "pcre2",
         version = VERSION,
-        # It is OK to point to the download URL where you retrieved the file, rather than the
-        # canonical upstream version. It might even be preferable. PURLs are pretty much an
-        # instance of https://xkcd.com/927.
-        download_url = "https://dd-agent-omnibus.s3.amazonaws.com/bazel/pcre2-{version}.tar.bz2",
+        download_url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{version}/pcre2-{version}.tar.bz2",
     ),
 )
 

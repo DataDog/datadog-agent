@@ -36,6 +36,32 @@ typedef struct stats {
   uint64_t cpu_ns;
   uint64_t hit_cnt;
   uint64_t throttled_cnt;
+  // runtime.recovery probe counters. All zero on cores that haven't
+  // observed a recovery firing.
+  //
+  //  recovery_fires            — number of times the recovery handler ran
+  //                              (i.e. uprobe on runtime.recovery hit).
+  //  recovery_evicted_frames   — total in_progress_calls slots evicted
+  //                              across all recoveries.
+  //  recovery_submit_failures  — synthetic-event ringbuf submits that
+  //                              failed; we fell back to a RETURN_LOST
+  //                              drop notification.
+  //  recovery_no_open_calls    — recoveries where the goroutine had no
+  //                              entry in in_progress_calls; we short-
+  //                              circuited before reading the panic
+  //                              chain.
+  //  recovery_filtered_goexit  — recoveries we skipped because the
+  //                              innermost panic was a runtime.Goexit
+  //                              (out of scope for this revision).
+  //  recovery_invalid_state    — defensive bails: panic_ptr==0,
+  //                              recovered!=1, missing SP fields, or
+  //                              lo>=hi. Should normally stay zero.
+  uint64_t recovery_fires;
+  uint64_t recovery_evicted_frames;
+  uint64_t recovery_submit_failures;
+  uint64_t recovery_no_open_calls;
+  uint64_t recovery_filtered_goexit;
+  uint64_t recovery_invalid_state;
 } stats_t;
 
 typedef enum dynamic_size_class {
@@ -43,6 +69,12 @@ typedef enum dynamic_size_class {
   DYNAMIC_SIZE_CLASS_SLICE = 1,
   DYNAMIC_SIZE_CLASS_STRING = 2,
   DYNAMIC_SIZE_CLASS_HASHMAP = 3,
+  // FILTER_DEFERRED marks per-call-site filter data types whose
+  // enqueue_pc runs the deferred filter loop. sm_chase_pointer
+  // emits no header and reads no payload for these types — the
+  // enqueue_pc itself does all the work. Must stay in sync with
+  // ir.DynamicSizeFilterDeferred.
+  DYNAMIC_SIZE_CLASS_FILTER_DEFERRED = 4,
 } dynamic_size_class_t;
 
 typedef struct type_info {
@@ -194,6 +226,26 @@ typedef enum sm_opcode {
   // lowering for @it to position sm->offset at a field within the loop's
   // @it scratch slot before the body's PushOffset/CmpBase sequence.
   SM_OP_EXPR_ADVANCE_OFFSET = 57,
+  // Recovery probe opcodes. PREPARE validates that the goroutine has
+  // a recovered panic and computes (lo, hi) depth bounds into the
+  // event header; on validation failure it sets condition_failed so
+  // the SM aborts and probe_run skips submitting the event. EVICT_SLOTS
+  // walks in_progress_calls[goid] and zeros every slot whose depth is
+  // in (lo, hi]; deletes the per-goroutine map entry if empty.
+  SM_OP_PANIC_UNWIND_PREPARE = 58,
+  SM_OP_PANIC_UNWIND_EVICT_SLOTS = 59,
+  // Filter (deferred collection-filter) opcodes. See
+  // ir.EmitFilter{Slice,Map}MarkerOp, ir.InitFilter{Slice,Map}LoopOp,
+  // ir.FilterSliceLoopStepOp, ir.FilterMapLoopStepOp, and the
+  // compiler-only EmitFilter{Slice,Map}ElementOp / Filter{Slice,Map}AdvanceOp.
+  SM_OP_EMIT_FILTER_SLICE_MARKER = 60,
+  SM_OP_EMIT_FILTER_MAP_MARKER = 61,
+  SM_OP_INIT_FILTER_SLICE_LOOP = 62,
+  SM_OP_EMIT_FILTER_SLICE_ELEMENT = 63,
+  SM_OP_FILTER_SLICE_ADVANCE = 64,
+  SM_OP_INIT_FILTER_MAP_LOOP = 65,
+  SM_OP_EMIT_FILTER_MAP_ELEMENT = 66,
+  SM_OP_FILTER_MAP_ADVANCE = 67,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
@@ -318,6 +370,10 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "GO_CONTEXT_CHAIN_INIT";
   case SM_OP_GO_CONTEXT_CHAIN_HOP:
     return "GO_CONTEXT_CHAIN_HOP";
+  case SM_OP_PANIC_UNWIND_PREPARE:
+    return "PANIC_UNWIND_PREPARE";
+  case SM_OP_PANIC_UNWIND_EVICT_SLOTS:
+    return "PANIC_UNWIND_EVICT_SLOTS";
   default:
     break;
   }

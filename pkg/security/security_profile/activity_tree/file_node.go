@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -40,8 +41,24 @@ type OpenNode struct {
 	Mode  uint32
 }
 
+// size approximates this node's own heap footprint
+func (fn *FileNode) size() int64 {
+	s := int64(unsafe.Sizeof(*fn))
+	s += seenBytes(fn.NodeBase)
+	s += int64(len(fn.Name))
+	if fn.File != nil {
+		s += fileEventStringsBytes(fn.File)
+	}
+	if fn.Open != nil {
+		s += int64(unsafe.Sizeof(*fn.Open))
+	}
+	s += sliceBackingBytes(cap(fn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	s += stringMapBytes(fn.Children)
+	return s
+}
+
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTag string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
@@ -55,7 +72,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
-		fan.AppendImageTag(imageTag, event.ResolveEventTime())
+		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
@@ -144,9 +161,9 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 	}
 }
 
-// InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
-// the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
+// InsertFileEvent inserts an event in a FileNode. Returns whether a new entry was added and
+// the NodeBase of the leaf FileNode reached or created.
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -164,47 +181,52 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.AppendImageTag(imageTag, event.ResolveEventTime())
+			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
 			continue
 		}
 
-		// create new child
 		newEntry = true
 		if dryRun {
 			break
 		}
 		if len(currentPath) <= nextParentIndex+1 {
-			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTag, generationType, reducedPath, resolvers)
+			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
+			stats.SizeBytes += leafNode.size()
+			currentFn = leafNode
 			break
 		}
-		newChild := NewFileNode(nil, nil, parent, imageTag, generationType, "", resolvers)
+		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
 		currentFn.Children[parent] = newChild
+		stats.SizeBytes += newChild.size()
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
 	}
-	return newEntry
+	return newEntry, &currentFn.NodeBase
 }
 
-func (fn *FileNode) tagAllNodes(imageTag string, timestamp time.Time) {
-	fn.AppendImageTag(imageTag, timestamp)
+func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {
+	fn.AppendImageTagID(imageTagID, timestamp)
 	for _, child := range fn.Children {
-		child.tagAllNodes(imageTag, timestamp)
+		child.tagAllNodes(imageTagID, timestamp)
 	}
 }
 
-func (fn *FileNode) evictImageTag(imageTag string) bool {
-	if !fn.HasImageTag(imageTag) {
-		return false
+func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
+	if !fn.HasImageTag(imageTagID) {
+		return false, 0
 	}
-	evicted := fn.EvictImageTag(imageTag)
-	if evicted {
-		return true
+	if fn.EvictImageTag(imageTagID) {
+		return true, fileSubtreeSizeBytes(fn)
 	}
+	var removed int64
 	for filename, child := range fn.Children {
-		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
+		shouldRemove, childRemoved := child.evictImageTag(imageTagID)
+		if shouldRemove {
 			delete(fn.Children, filename)
 		}
+		removed += childRemoved
 	}
-	return false
+	return false, removed
 }

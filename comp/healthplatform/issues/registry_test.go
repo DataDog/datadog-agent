@@ -6,6 +6,7 @@
 package issues
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -14,87 +15,97 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
-
-// mockIssueTemplate is a test implementation of IssueTemplate
-type mockIssueTemplate struct {
-	issueID string
-}
-
-func (m *mockIssueTemplate) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
-	return &healthplatform.Issue{
-		Title:       "Test Issue: " + m.issueID,
-		Description: "Context value: " + context["key"],
-		Severity:    "medium",
-	}, nil
-}
 
 // mockModuleWithCheck has a periodic check only.
 type mockModuleWithCheck struct {
-	id       string
-	template *mockIssueTemplate
+	id string
 }
 
-func (m *mockModuleWithCheck) IssueType() string            { return m.id }
-func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate { return m.template }
-func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck {
-	return &BuiltInPeriodicHealthCheck{
-		Source:   "check-" + m.id,
-		Fn:       func() ([]storedef.IssueReport, error) { return nil, nil },
+func (m *mockModuleWithCheck) IssueName() string { return m.id }
+func (m *mockModuleWithCheck) IssueType() string { return m.id }
+func (m *mockModuleWithCheck) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return &healthplatform.Issue{
+		Title:       "Test Issue: " + m.id,
+		Description: "Context value: " + context["key"],
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
+	}, nil
+}
+func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return &runnerdef.BuiltInPeriodicHealthCheck{
+		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
+			Source: "check-" + m.id,
+			Fn:     func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		},
 		Interval: 5 * time.Minute,
 	}
 }
-func (m *mockModuleWithCheck) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck { return nil }
+func (m *mockModuleWithCheck) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return nil
+}
 
 // mockModuleWithOnce has a once check only.
 type mockModuleWithOnce struct {
-	id       string
-	template *mockIssueTemplate
+	id string
 }
 
-func (m *mockModuleWithOnce) IssueType() string                                       { return m.id }
-func (m *mockModuleWithOnce) IssueTemplate() IssueTemplate                            { return m.template }
-func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
-func (m *mockModuleWithOnce) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck {
-	return &BuiltInStartupHealthCheck{
+func (m *mockModuleWithOnce) IssueName() string { return m.id }
+func (m *mockModuleWithOnce) IssueType() string { return m.id }
+func (m *mockModuleWithOnce) BuildIssue(_ map[string]string) (*healthplatform.Issue, error) {
+	return &healthplatform.Issue{
+		Title:    "Test Issue: " + m.id,
+		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
+	}, nil
+}
+func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
+}
+func (m *mockModuleWithOnce) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return &runnerdef.BuiltInHealthCheck{
 		Source: "once-" + m.id,
-		Fn:     func() ([]storedef.IssueReport, error) { return nil, nil },
+		Fn:     func() ([]runnerdef.IssueReport, error) { return nil, nil },
 	}
 }
 
 // mockModuleWithoutCheck has neither check type.
 type mockModuleWithoutCheck struct {
-	id       string
-	template *mockIssueTemplate
+	id string
 }
 
-func (m *mockModuleWithoutCheck) IssueType() string                                       { return m.id }
-func (m *mockModuleWithoutCheck) IssueTemplate() IssueTemplate                            { return m.template }
-func (m *mockModuleWithoutCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
-func (m *mockModuleWithoutCheck) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck   { return nil }
+func (m *mockModuleWithoutCheck) IssueName() string { return m.id }
+func (m *mockModuleWithoutCheck) IssueType() string { return m.id }
+func (m *mockModuleWithoutCheck) BuildIssue(_ map[string]string) (*healthplatform.Issue, error) {
+	return &healthplatform.Issue{
+		Title:    "Test Issue: " + m.id,
+		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
+	}, nil
+}
+func (m *mockModuleWithoutCheck) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
+}
+func (m *mockModuleWithoutCheck) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return nil
+}
 
 func TestNewRegistry(t *testing.T) {
 	registry := NewRegistry()
 	assert.NotNil(t, registry)
 	assert.Empty(t, registry.templates)
 	assert.Empty(t, registry.periodicChecks)
-	assert.Empty(t, registry.startupChecks)
+	assert.Empty(t, registry.healthChecks)
 }
 
 func TestRegisterModuleWithPeriodicCheck(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{
-		id:       "test-issue-1",
-		template: &mockIssueTemplate{issueID: "test-issue-1"},
-	})
+	registry.RegisterModule(&mockModuleWithCheck{id: "Test Issue One"})
 
-	_, exists := registry.GetTemplate("test-issue-1")
+	_, exists := registry.GetTemplate("Test Issue One")
 	assert.True(t, exists)
 
 	checks := registry.GetBuiltInPeriodicHealthChecks()
 	assert.Len(t, checks, 1)
-	assert.Equal(t, "check-test-issue-1", checks[0].Source)
+	assert.Equal(t, "check-Test Issue One", checks[0].Source)
 	assert.Equal(t, 5*time.Minute, checks[0].Interval)
 
 	assert.Empty(t, registry.GetBuiltInStartupHealthChecks())
@@ -102,29 +113,23 @@ func TestRegisterModuleWithPeriodicCheck(t *testing.T) {
 
 func TestRegisterModuleWithOnceCheck(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithOnce{
-		id:       "test-issue-2",
-		template: &mockIssueTemplate{issueID: "test-issue-2"},
-	})
+	registry.RegisterModule(&mockModuleWithOnce{id: "Test Issue Two"})
 
-	_, exists := registry.GetTemplate("test-issue-2")
+	_, exists := registry.GetTemplate("Test Issue Two")
 	assert.True(t, exists)
 
 	once := registry.GetBuiltInStartupHealthChecks()
 	assert.Len(t, once, 1)
-	assert.Equal(t, "once-test-issue-2", once[0].Source)
+	assert.Equal(t, "once-Test Issue Two", once[0].Source)
 
 	assert.Empty(t, registry.GetBuiltInPeriodicHealthChecks())
 }
 
 func TestRegisterModuleWithoutCheck(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithoutCheck{
-		id:       "test-issue-3",
-		template: &mockIssueTemplate{issueID: "test-issue-3"},
-	})
+	registry.RegisterModule(&mockModuleWithoutCheck{id: "Test Issue Three"})
 
-	_, exists := registry.GetTemplate("test-issue-3")
+	_, exists := registry.GetTemplate("Test Issue Three")
 	assert.True(t, exists)
 	assert.Empty(t, registry.GetBuiltInPeriodicHealthChecks())
 	assert.Empty(t, registry.GetBuiltInStartupHealthChecks())
@@ -132,9 +137,9 @@ func TestRegisterModuleWithoutCheck(t *testing.T) {
 
 func TestRegisterMultipleModules(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{id: "periodic", template: &mockIssueTemplate{issueID: "periodic"}})
-	registry.RegisterModule(&mockModuleWithOnce{id: "once", template: &mockIssueTemplate{issueID: "once"}})
-	registry.RegisterModule(&mockModuleWithoutCheck{id: "neither", template: &mockIssueTemplate{issueID: "neither"}})
+	registry.RegisterModule(&mockModuleWithCheck{id: "Periodic Check"})
+	registry.RegisterModule(&mockModuleWithOnce{id: "Once Check"})
+	registry.RegisterModule(&mockModuleWithoutCheck{id: "Neither Check"})
 
 	assert.Len(t, registry.GetBuiltInPeriodicHealthChecks(), 1)
 	assert.Len(t, registry.GetBuiltInStartupHealthChecks(), 1)
@@ -149,32 +154,26 @@ func TestGetTemplateNotFound(t *testing.T) {
 
 func TestBuildIssue(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{
-		id:       "test-issue",
-		template: &mockIssueTemplate{issueID: "test-issue"},
-	})
+	registry.RegisterModule(&mockModuleWithCheck{id: "Test Issue"})
 
-	issue, err := registry.BuildIssue("test-issue", map[string]string{"key": "test-value"})
+	issue, err := registry.BuildIssue("Test Issue", map[string]string{"key": "test-value"})
 	require.NoError(t, err)
 	assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
-	assert.Equal(t, "Test Issue: test-issue", issue.Title)
+	assert.Equal(t, "Test Issue: Test Issue", issue.Title)
 	assert.Equal(t, "Context value: test-value", issue.Description)
 }
 
 func TestBuildIssueNotFound(t *testing.T) {
 	registry := NewRegistry()
-	issue, err := registry.BuildIssue("non-existent-issue", nil)
+	issue, err := registry.BuildIssue("Nonexistent Issue", nil)
 	assert.Error(t, err)
 	assert.Nil(t, issue)
-	assert.Contains(t, err.Error(), "no issue template found for: non-existent-issue")
+	assert.Contains(t, err.Error(), "no issue template found for: Nonexistent Issue")
 }
 
 func TestGetBuiltInPeriodicHealthChecksReturnsCopy(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{
-		id:       "test-issue",
-		template: &mockIssueTemplate{issueID: "test-issue"},
-	})
+	registry.RegisterModule(&mockModuleWithCheck{id: "Test Issue"})
 
 	checks1 := registry.GetBuiltInPeriodicHealthChecks()
 	checks2 := registry.GetBuiltInPeriodicHealthChecks()
@@ -185,10 +184,7 @@ func TestGetBuiltInPeriodicHealthChecksReturnsCopy(t *testing.T) {
 
 func TestGetBuiltInStartupHealthChecksReturnsCopy(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithOnce{
-		id:       "test-issue",
-		template: &mockIssueTemplate{issueID: "test-issue"},
-	})
+	registry.RegisterModule(&mockModuleWithOnce{id: "Test Issue Once"})
 
 	once1 := registry.GetBuiltInStartupHealthChecks()
 	once2 := registry.GetBuiltInStartupHealthChecks()
@@ -206,8 +202,7 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			registry.RegisterModule(&mockModuleWithCheck{
-				id:       "concurrent-issue-" + string(rune('A'+idx)),
-				template: &mockIssueTemplate{issueID: "concurrent-issue-" + string(rune('A'+idx))},
+				id: fmt.Sprintf("Concurrent Issue %d", idx),
 			})
 		}(i)
 	}
@@ -218,7 +213,7 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			registry.GetBuiltInPeriodicHealthChecks()
 			registry.GetBuiltInStartupHealthChecks()
-			registry.GetTemplate("concurrent-issue-A")
+			registry.GetTemplate("Concurrent Issue 0")
 		}()
 	}
 

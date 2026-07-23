@@ -7,21 +7,68 @@
 package mock
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"testing"
+	"time"
 
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
 type mockNetworkConfigManagement struct {
-	store ncmstore.ConfigStore
+	store   ncmstore.ConfigStore
+	devices map[string]*config.DeviceInstance
 }
+
+// RollbackEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RollbackEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
+// GetConfigEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
+// ReportConfig implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string, _ sender.Sender) error {
+	if _, ok := m.devices[deviceID]; ok {
+		return nil
+	}
+	return fmt.Errorf("unrecognized device %s", deviceID)
+}
+
+// RegisterDevice implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstance) error {
+	m.devices[device.DeviceID()] = device
+	return nil
+}
+
+// RollbackConfig implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) error {
+	return errors.New("TODO unimplemented")
+}
+
+// SetMaxReportInterval implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) SetMaxReportInterval(_ time.Duration) {}
 
 // Mock returns a networkconfigmanagement.Component backed by an in-memory store.
-func Mock(_ *testing.T) networkconfigmanagement.Component {
-	return &mockNetworkConfigManagement{store: ncmstore.NewMemStore()}
+func Mock(t *testing.T) networkconfigmanagement.Component {
+	return MockWithStore(t, ncmstore.NewMemStore())
 }
 
-func (m *mockNetworkConfigManagement) GetConfigStore() ncmstore.ConfigStore {
-	return m.store
+// MockWithStore returns a networkconfigmanagement.Component backed by the
+// provided store. Useful for tests that need a memstore with custom options
+// (e.g. deterministic clock or UUID generator) so inventory output is
+// predictable.
+func MockWithStore(_ *testing.T, store ncmstore.ConfigStore) networkconfigmanagement.Component {
+	return &mockNetworkConfigManagement{
+		store:   store,
+		devices: make(map[string]*config.DeviceInstance),
+	}
 }

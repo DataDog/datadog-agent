@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -153,6 +153,7 @@ var DefaultIgnoredCrashDumpImages = []string{
 	"svchost.exe",
 	"WmiPrvSE.exe",
 	"powershell.exe",
+	"TiWorker.exe",
 }
 
 // IsIgnoredCrashDump reports whether the dump's image name appears in ignore

@@ -37,7 +37,7 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: cfg}).Comp
 	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(t))
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmo
 
 func decodePayload(t *testing.T, cfg pkgconfigmodel.Config, payloads []*transaction.BytesPayload) [][]byte {
 	var uncompressedPayloads [][]byte
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: cfg}).Comp
 	for _, compressedPayload := range payloads {
 		payload, err := compressor.Decompress(compressedPayload.GetContent())
 		assert.NoError(t, err)
@@ -125,7 +125,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	mockConfig := mock.New(b)
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
 	serviceChecks := createServiceChecks(numberOfItem)
 

@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issues",
-        "//pkg/util/fxutil",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//comp/healthplatform/runner/def",
     ],
 )

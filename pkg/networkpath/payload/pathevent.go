@@ -98,6 +98,8 @@ type PathOrigin string
 const (
 	// PathOriginNetworkTraffic correspond to traffic from network traffic (NPM).
 	PathOriginNetworkTraffic PathOrigin = "network_traffic"
+	// PathOriginNetflow correspond to traffic from NetFlow.
+	PathOriginNetflow PathOrigin = "netflow"
 	// PathOriginNetworkPathIntegration correspond to traffic from network_path integration.
 	PathOriginNetworkPathIntegration PathOrigin = "network_path_integration"
 	// PathOriginSynthetics correspond to traffic from synthetics.
@@ -116,6 +118,17 @@ const (
 	TestRunTypeTriggered TestRunType = "triggered"
 )
 
+// TestConfigSource identifies the source of the configuration responsible for a
+// Network Path test. It is independent of TestRunType and is intentionally unset
+// when the path cannot be attributed to a managed test configuration.
+type TestConfigSource string
+
+const (
+	// TestConfigSourceRemote identifies a test configured through Network Path
+	// Remote Configuration, including dynamic paths admitted by an RC filter.
+	TestConfigSourceRemote TestConfigSource = "remote"
+)
+
 // SourceProduct defines the product that originated the path
 type SourceProduct string
 
@@ -126,6 +139,8 @@ const (
 	SourceProductSynthetics SourceProduct = "synthetics"
 	// SourceProductEndUserDevice is the end user device monitoring product.
 	SourceProductEndUserDevice SourceProduct = "end_user_device"
+	// SourceProductNetflow is the NetFlow product.
+	SourceProductNetflow SourceProduct = "netflow"
 )
 
 // GetSourceProduct returns the appropriate SourceProduct based on infrastructure mode.
@@ -233,20 +248,21 @@ type TracerouteDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp     int64                  `json:"timestamp"`
-	AgentVersion  string                 `json:"agent_version"`
-	Namespace     string                 `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID  string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	TestResultID  string                 `json:"test_result_id"` // ID of specific test result (test run)
-	TestRunID     string                 `json:"test_run_id"`
-	Origin        PathOrigin             `json:"origin"`
-	TestRunType   TestRunType            `json:"test_run_type"`
-	SourceProduct SourceProduct          `json:"source_product"`
-	CollectorType CollectorType          `json:"collector_type"`
-	Protocol      Protocol               `json:"protocol"`
-	Source        NetworkPathSource      `json:"source"`
-	Destination   NetworkPathDestination `json:"destination"`
-	Traceroute    Traceroute             `json:"traceroute"`
-	E2eProbe      E2eProbe               `json:"e2e_probe"`
-	Tags          []string               `json:"tags,omitempty"`
+	Timestamp        int64                  `json:"timestamp"`
+	AgentVersion     string                 `json:"agent_version"`
+	Namespace        string                 `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID     string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestResultID     string                 `json:"test_result_id"` // ID of specific test result (test run)
+	TestRunID        string                 `json:"test_run_id"`
+	Origin           PathOrigin             `json:"origin"`
+	TestRunType      TestRunType            `json:"test_run_type"`
+	TestConfigSource TestConfigSource       `json:"test_config_source,omitempty"`
+	SourceProduct    SourceProduct          `json:"source_product"`
+	CollectorType    CollectorType          `json:"collector_type"`
+	Protocol         Protocol               `json:"protocol"`
+	Source           NetworkPathSource      `json:"source"`
+	Destination      NetworkPathDestination `json:"destination"`
+	Traceroute       Traceroute             `json:"traceroute"`
+	E2eProbe         E2eProbe               `json:"e2e_probe"`
+	Tags             []string               `json:"tags,omitempty"`
 }

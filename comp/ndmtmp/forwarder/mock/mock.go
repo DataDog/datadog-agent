@@ -11,11 +11,11 @@ package mock
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/golang/mock/gomock"
 	"go.uber.org/fx"
+	"go.uber.org/mock/gomock"
 )
 
 // MockComponent is the type for mock components.

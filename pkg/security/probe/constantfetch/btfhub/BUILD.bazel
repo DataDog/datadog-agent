@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+# keep: main.go is gated by linux && linux_bpf; Gazelle drops rules for packages
+# with no platform-independent sources, but this binary is valid on Linux+linux_bpf.
+go_library(
+    name = "btfhub_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch/btfhub",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/probe",
+            "//pkg/security/probe/constantfetch",
+            "//pkg/util/kernel",
+            "@com_github_smira_go_xz//:go-xz",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# keep: see go_library comment above.
+go_binary(
+    name = "btfhub",
+    embed = [":btfhub_lib"],
+    gotags = ["linux_bpf"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

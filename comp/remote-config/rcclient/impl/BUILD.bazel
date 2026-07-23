@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -12,7 +13,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
-        "//comp/core/settings",
+        "//comp/core/settings/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/def",
         "//comp/remote-config/rcclient/def",
@@ -28,19 +29,19 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["rcclient_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
-        "//comp/core/settings",
-        "//comp/core/settings/settingsimpl",
+        "//comp/core/settings/def",
+        "//comp/core/settings/fx",
+        "//comp/core/settings/mock",
         "//comp/core/sysprobeconfig/def",
         "//comp/remote-config/rcclient/def",
         "//pkg/config/mock",

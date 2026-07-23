@@ -11,10 +11,9 @@
   # We only want to allow automatically triggering agent-release-manangement
   # pipelines when everything goes well
   variables:
-    DD_PKG_ARCH: x86_64
     RELEASE_PRODUCT: datadog-agent
   script:
-    - !reference [.setup_dd_pkg]
+    - !reference [.log_dd_pkg_version]
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
     - |
       echo "Using artifact gateway: $DD_PKG_GITLAB_URL"
@@ -87,7 +86,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
       when: manual
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/ci-platform-machine-images --policy self.datadog-agent.trigger-agent-bump)
+    - !reference [.setup_github_ci_platform_machine_images_token]
   script:
     # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - dda self dep sync -f legacy-tasks

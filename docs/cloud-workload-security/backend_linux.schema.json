@@ -319,21 +319,6 @@
       "type": "object",
       "description": "ContainerContextSerializer serializes a container context to JSON"
     },
-    "DDContext": {
-      "properties": {
-        "span_id": {
-          "type": "string",
-          "description": "Span ID used for APM correlation"
-        },
-        "trace_id": {
-          "type": "string",
-          "description": "Trace ID used for APM correlation"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "DDContextSerializer serializes a span context to JSON"
-    },
     "DNSEvent": {
       "properties": {
         "id": {
@@ -402,6 +387,20 @@
         "code": {
           "type": "integer",
           "description": "RCode is the response code present in the response"
+        },
+        "ips": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "IPs is the list of IP addresses resolved by the DNS response"
+        },
+        "cnames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CNames is the list of CNAME targets returned by the DNS response"
         }
       },
       "additionalProperties": false,
@@ -1487,8 +1486,8 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "$ref": "#/$defs/TracerMetadata",
-          "description": "Metadata from APM tracer instrumentation"
+          "$ref": "#/$defs/Tracer",
+          "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -1670,8 +1669,8 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "$ref": "#/$defs/TracerMetadata",
-          "description": "Metadata from APM tracer instrumentation"
+          "$ref": "#/$defs/Tracer",
+          "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -1961,15 +1960,11 @@
       "properties": {
         "socket_type": {
           "type": "string",
-          "description": "Socket file descriptor"
+          "description": "Socket type"
         },
         "socket_family": {
           "type": "string",
           "description": "Socket family"
-        },
-        "filter_len": {
-          "type": "integer",
-          "description": "Length of the filter"
         },
         "socket_protocol": {
           "type": "string",
@@ -1983,17 +1978,21 @@
           "type": "string",
           "description": "Name of the option being set"
         },
+        "filter_len": {
+          "type": "integer",
+          "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+        },
         "is_filter_truncated": {
           "type": "boolean",
-          "description": "Filter truncated"
+          "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter": {
           "type": "string",
-          "description": "Filter instructions"
+          "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter_hash": {
           "type": "string",
-          "description": "Filter hash"
+          "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         }
       },
       "additionalProperties": false,
@@ -2057,6 +2056,30 @@
         "pid"
       ],
       "description": "SignalEventSerializer serializes a signal event to JSON"
+    },
+    "SocketEvent": {
+      "properties": {
+        "domain": {
+          "type": "string",
+          "description": "Socket domain"
+        },
+        "type": {
+          "type": "string",
+          "description": "Socket type"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Socket protocol"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "domain",
+        "type",
+        "protocol"
+      ],
+      "description": "SocketEventSerializer serializes a socket event to JSON"
     },
     "SpliceEvent": {
       "properties": {
@@ -2244,6 +2267,43 @@
       "type": "object",
       "description": "TLSContextSerializer defines a tls context serializer"
     },
+    "Trace": {
+      "properties": {
+        "span_id": {
+          "type": "string",
+          "description": "Span ID used for APM correlation"
+        },
+        "trace_id": {
+          "type": "string",
+          "description": "Trace ID used for APM correlation"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Custom OTel thread-local attributes from the span context"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TraceSerializer serializes a span context to JSON"
+    },
+    "Tracer": {
+      "properties": {
+        "trace": {
+          "$ref": "#/$defs/Trace",
+          "description": "Captured APM span context for this process."
+        },
+        "metadata": {
+          "$ref": "#/$defs/TracerMetadata",
+          "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TracerSerializer groups the per-process APM tracer information surfaced under the \"tracer\" key in the serialized process: the captured span context (.trace) and the static tracer metadata (.metadata)."
+    },
     "TracerMetadata": {
       "properties": {
         "schema_version": {
@@ -2278,6 +2338,12 @@
         },
         "logs_collected": {
           "type": "boolean"
+        },
+        "threadlocal_attribute_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -2410,7 +2476,12 @@
       "$ref": "#/$defs/NetworkContext"
     },
     "dd": {
-      "$ref": "#/$defs/DDContext"
+      "$ref": "#/$defs/Trace",
+      "description": "DD holds the APM correlation span context under the \"dd\" key, the\nshape the Datadog backend expects at ingest. This field is consumed\nby the intake and not surfaced back to end users."
+    },
+    "trace": {
+      "$ref": "#/$defs/Trace",
+      "description": "Trace is the same span/trace/attributes payload, exposed under a\nuser-facing key. Built from newTraceSerializer just like the \"dd\"\nfield above — the two pointers reference the same serializer\ninstance, so the two views can never drift."
     },
     "security_profile": {
       "$ref": "#/$defs/SecurityProfileContext"
@@ -2492,6 +2563,9 @@
     },
     "setrlimit": {
       "$ref": "#/$defs/SetrlimitEvent"
+    },
+    "socket": {
+      "$ref": "#/$defs/SocketEvent"
     }
   },
   "additionalProperties": false,

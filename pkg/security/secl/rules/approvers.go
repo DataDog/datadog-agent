@@ -269,6 +269,8 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			var filterValues FilterValues
 			var bitmasks []int
 
+			filterWeight := fieldCap.FilterWeight
+
 			for _, value := range rule.GetFieldValues(field) {
 				// TODO: handle range for bitmask field, for now ignore range value
 				if fieldCap.TypeBitmask&eval.BitmaskValueType == eval.BitmaskValueType && value.Type == eval.RangeValueType {
@@ -292,6 +294,13 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 							continue LOOP
 						}
 						filterValues = filterValues.Merge(filterValue)
+
+						// we need to take the min weight of the approver value
+						// in case of multiple values with different weights
+						// open.file.path in ["/etc/passwd", "/var/*] && open.flags == O_RDWR
+						if fieldCap.FilterWeightFnc != nil {
+							filterWeight = min(filterWeight, fieldCap.FilterWeightFnc(filterValue))
+						}
 					}
 				case eval.BitmaskValueType:
 					bitmasks = append(bitmasks, value.Value.(int))
@@ -311,6 +320,10 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 						continue LOOP
 					}
 					filterValues = filterValues.Merge(filterValue)
+
+					if fieldCap.FilterWeightFnc != nil {
+						filterWeight = min(filterWeight, fieldCap.FilterWeightFnc(filterValue))
+					}
 				}
 			}
 
@@ -318,10 +331,10 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 				continue
 			}
 
-			if bestFilterValues == nil || fieldCap.FilterWeight > bestFilterWeight {
+			if bestFilterValues == nil || filterWeight > bestFilterWeight {
 				bestFilterField = field
 				bestFilterValues = filterValues
-				bestFilterWeight = fieldCap.FilterWeight
+				bestFilterWeight = filterWeight
 				bestFilterMode = fieldCap.FilterMode
 			}
 		}

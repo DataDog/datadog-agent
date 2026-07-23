@@ -3,11 +3,13 @@ Config template generation tasks.
 """
 
 import os
+import sys
 import textwrap
 
-import yaml
 from invoke import task
 from invoke.exceptions import Exit
+
+from tasks.schema.merge_schema import resolve_schema
 
 # Available Variables
 #
@@ -32,6 +34,12 @@ default_path = {
         "${install_path}": "/opt/datadog-agent",
         "${run_path}": "/opt/datadog-agent/run",
         "${log_path}": "/opt/datadog-agent/logs",
+    },
+    "aix": {
+        "${conf_path}": "/etc/datadog-agent",
+        "${install_path}": "/opt/datadog-agent",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/var/log/datadog",
     },
 }
 
@@ -62,29 +70,6 @@ def _env_type_for_json(node):
         return "JSON list of objects"
     return "JSON object"
 
-
-# Settings declared with BindEnv() don't have a type or a default but some are still listed in the config example.
-# Until the team migrates to BindEnvAndSetDefault we use the following list pulled from the config template.
-type_exception = {
-    "api_key": ("string", "string", ""),
-    "site": ("string", "string", "datadoghq.com"),
-    "dd_url": ("string", "string", "https://app.datadoghq.com"),
-    "logs_config.logs_dd_url": ("string", "string", ""),
-    "logs_config.processing_rules": ("list of custom objects", "list of custom objects", []),
-    "bind_host": ("string", "string", "localhost"),
-    "dogstatsd_mapper_profiles": ("list of custom object", "list of custom object", None),
-    "listeners": ("list of key:value elements", "list of key:value elements", None),
-    "network_config.enabled": ("boolean", "boolean", False),
-    "network_devices.netflow.listeners": ("custom object", "custom object", None),
-    "network_devices.netflow.stop_timeout": ("integer", "integer", 5),
-    "reverse_dns_enrichment.workers": ("integer", "integer", 10),
-    "reverse_dns_enrichment.chan_size": ("integer", "integer", 5000),
-    "reverse_dns_enrichment.cache.max_size": ("integer", "integer", 1000000),
-    "reverse_dns_enrichment.rate_limiter.limit_per_sec": ("integer", "integer", 1000),
-    "reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec": ("integer", "integer", 1),
-    "reverse_dns_enrichment.rate_limiter.throttle_error_threshold": ("integer", "integer", 10),
-    "reverse_dns_enrichment.rate_limiter.recovery_intervals": ("integer", "integer", 5),
-}
 
 build_type_to_section = {
     "agent-py3": [
@@ -147,6 +132,12 @@ build_type_to_section = {
 VALID_BUILD_TYPES = list(build_type_to_section.keys())
 VALID_OS_TARGETS = list(default_path.keys())
 
+# Canonical paths to the enriched schema files. Callers (tasks/agent.py,
+# tasks/cluster_agent_helpers.py, tasks/dogstatsd.py) import these so the
+# schema location is defined in exactly one place.
+CORE_SCHEMA_FILE = "./pkg/config/schema/yaml/core_schema.yaml"
+SYSPROBE_SCHEMA_FILE = "./pkg/config/schema/yaml/system-probe_schema.yaml"
+
 # build_types that use the core schema vs the system-probe schema
 _SYSPROBE_BUILD_TYPES = {"system-probe"}
 
@@ -156,7 +147,7 @@ def _is_node_section(node):
 
 
 def _should_render(build_type, node):
-    for t in node["tags"]:
+    for t in node.get("tags", []):
         if t.startswith("template_section:"):
             section = t.split(":")[1]
             return section in build_type_to_section[build_type]
@@ -222,26 +213,26 @@ def _get_node_types_and_default(full_name, node, os_target):
     default = _get_default_from_node(node, os_target)
 
     node_type = node.get("type")
-    if node_type is None:
-        return type_exception[full_name]
-
     for tag in node.get("tags", []):
         if tag.startswith("golang_type:"):
             node_type = tag.split(":")[1]
 
     if node_type == "array":
-        if node["items"]["type"] == "string":
+        # some type are just arrays of unknown types (ex: dogstatsd_mapper_profiles)
+        if "items" not in node:
+            yaml_type, env_type = "list", "JSON list"
+        elif node["items"]["type"] == "string":
             yaml_type, env_type = "list of strings", "space-separated list of strings"
         elif node["items"]["type"] == "object":
             yaml_type, env_type = "list of object", "JSON list of object"
-        elif node["items"]["type"] == "number":
-            yaml_type, env_type = "list of integers", "space-separated list of integers"
+        elif node["items"]["type"] in ["number", "integer"]:
+            yaml_type, env_type = "list of integers", "JSON array of numbers or space-separated list of integers"
         else:
             raise Exception(f"unknown array of type: {node['items']['type']}")
     elif node_type in ["number", "integer", "int", "int64"]:
         yaml_type, env_type = "integer", "integer"
     elif node_type == '[]int':
-        yaml_type, env_type = "list of integers", "space-separated list of integers"
+        yaml_type, env_type = "list of integers", "JSON array of numbers or space-separated list of integers"
     elif node_type == "float64":
         return "float", "float", default
     elif node_type == "object":
@@ -389,8 +380,7 @@ def _render(build_type, os_target, previous_path, name, node, indent_level):
 
 
 def generate_template(schema_file, dest, build_type, os_target):
-    with open(schema_file) as f:
-        schema = yaml.safe_load(f)
+    schema = resolve_schema(schema_file)
 
     config_template = ""
     child_nodes = _filter_hidden_nodes(schema.get("properties", {}), os_target)
@@ -454,3 +444,40 @@ def template_all(ctx, core_schema, sysprobe_schema, output_dir):
             dest = os.path.join(output_dir, f"{build_type}_{os_target}.yaml")
             generate_template(schema, dest, build_type, os_target)
             print(f"  {dest}")
+
+
+def main(argv):
+    """CLI entry point for `bazel run //tasks/schema:schema_template` and direct
+    `python -m` invocation. Mirrors the `template` invoke task, minus the
+    Context dependency, so it can be called from a Bazel py_binary
+    without going through the full invoke task collection."""
+    if len(argv) != 5:
+        print(
+            f"usage: {argv[0]} <schema.yaml> <build_type> <os_target> <output.yaml>",
+            file=sys.stderr,
+        )
+        return 2
+    _, schema, build_type, os_target, output = argv
+
+    if build_type not in VALID_BUILD_TYPES:
+        print(
+            f"Invalid build_type '{build_type}'. Must be one of: {', '.join(VALID_BUILD_TYPES)}",
+            file=sys.stderr,
+        )
+        return 1
+    if os_target not in VALID_OS_TARGETS:
+        print(
+            f"Invalid os_target '{os_target}'. Must be one of: {', '.join(VALID_OS_TARGETS)}",
+            file=sys.stderr,
+        )
+        return 1
+    if not os.path.isfile(schema):
+        print(f"Schema file not found: {schema}", file=sys.stderr)
+        return 1
+
+    generate_template(schema, output, build_type, os_target)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

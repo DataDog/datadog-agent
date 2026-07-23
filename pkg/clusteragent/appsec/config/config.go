@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +32,7 @@ const (
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
 	// AppsecInjectionVersionAnnotation is the version annotation key used to track the injector version
 	AppsecInjectionVersionAnnotation = "appsec.datadoghq.com/injection-version"
+	maxUDSPathLen                    = 100
 )
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
@@ -97,6 +99,11 @@ type Sidecar struct {
 
 	// Environment variables
 	BodyParsingSizeLimit string // Default: "10000000" (10MB)
+
+	// UDSPath is the in-pod Unix domain socket path the ext_proc sidecar listens on (UDS sidecar mode for Envoy Gateway).
+	UDSPath string
+	// RunAsUser is the UID/GID for the injected sidecar so it can share the UDS volume with the proxy container (default 65532, the Envoy Gateway proxy UID).
+	RunAsUser int64
 }
 
 // Nginx contains configuration specific to ingress-nginx injection
@@ -107,6 +114,12 @@ type Nginx struct {
 	// ModuleMountPath is where the .so module is mounted in the controller container
 	// Default: "/modules_mount"
 	ModuleMountPath string
+	// InitRunAsUser/InitRunAsGroup set the init container's RunAsUser/RunAsGroup.
+	// The default init image declares no USER (runs as root) and would be rejected
+	// under RunAsNonRoot, so a non-root UID/GID must be supplied. A negative value
+	// leaves the field unset, honoring a custom InitImage's own USER.
+	InitRunAsUser  int64
+	InitRunAsGroup int64
 }
 
 func (p Processor) String() string {
@@ -153,6 +166,16 @@ type Injection struct {
 
 	// IstioNamespace is used to determine where we will inject the `EnvoyFilter` object to make it global to the cluster.
 	IstioNamespace string
+
+	// EnvoyGatewayNamespace is the namespace where Envoy Gateway runs its data-plane proxy pods; it scopes
+	// which pods the sidecar webhook injects into (IsNamespaceEligible). Defaults to envoy-gateway-system.
+	EnvoyGatewayNamespace string
+
+	// EnvoyGatewayControllerNamespace is the namespace of the Envoy Gateway control plane, where the
+	// envoy-gateway-config ConfigMap lives; it scopes the Backend extension API check. Defaults to
+	// envoy-gateway-system. It can differ from EnvoyGatewayNamespace when proxies run in Gateway
+	// namespaces (provider.kubernetes.deploy.type=GatewayNamespace).
+	EnvoyGatewayControllerNamespace string
 }
 
 // Config represents the configuration of the AppSec Injection Proxy feature passed down to [InjectionPattern] implementations
@@ -206,6 +229,22 @@ func validateSidecarConfig(config Sidecar) error {
 		errs = append(errs, fmt.Errorf("sidecar.port and sidecar.health_port cannot be the same: %d", config.Port))
 	}
 
+	if config.UDSPath != "" {
+		if !strings.HasPrefix(config.UDSPath, "/") {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be an absolute path, got: %q", config.UDSPath))
+		}
+		if path.Dir(config.UDSPath) == "/" {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be inside a non-root directory, got: %q", config.UDSPath))
+		}
+		if len(config.UDSPath) > maxUDSPathLen {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be at most 100 characters to stay under the kernel sun_path limit, got %d", len(config.UDSPath)))
+		}
+	}
+
+	if config.RunAsUser <= 0 {
+		errs = append(errs, fmt.Errorf("sidecar.run_as_user must be greater than 0 (running the sidecar as root is not allowed), got: %d", config.RunAsUser))
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -247,11 +286,15 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		MemoryRequest:        cfg.GetString("admission_controller.appsec.sidecar.resources.requests.memory"),
 		MemoryLimit:          cfg.GetString("admission_controller.appsec.sidecar.resources.limits.memory"),
 		BodyParsingSizeLimit: cfg.GetString("admission_controller.appsec.sidecar.body_parsing_size_limit"),
+		UDSPath:              cfg.GetString("admission_controller.appsec.sidecar.uds_path"),
+		RunAsUser:            int64(cfg.GetInt("admission_controller.appsec.sidecar.run_as_user")),
 	}
 
 	nginxConfig := Nginx{
 		InitImage:       cfg.GetString("admission_controller.appsec.nginx.init_image"),
 		ModuleMountPath: cfg.GetString("admission_controller.appsec.nginx.module_mount_path"),
+		InitRunAsUser:   int64(cfg.GetInt("admission_controller.appsec.nginx.init_run_as_user")),
+		InitRunAsGroup:  int64(cfg.GetInt("admission_controller.appsec.nginx.init_run_as_group")),
 	}
 
 	staticLabels := map[string]string{
@@ -305,7 +348,9 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			BaseBackoff:       cfg.GetDuration("cluster_agent.appsec.injector.base_backoff"),
 			MaxBackoff:        cfg.GetDuration("cluster_agent.appsec.injector.max_backoff"),
 
-			IstioNamespace: cfg.GetString("cluster_agent.appsec.injector.istio.namespace"),
+			IstioNamespace:                  cfg.GetString("cluster_agent.appsec.injector.istio.namespace"),
+			EnvoyGatewayNamespace:           cfg.GetString("cluster_agent.appsec.injector.envoy_gateway.namespace"),
+			EnvoyGatewayControllerNamespace: cfg.GetString("cluster_agent.appsec.injector.envoy_gateway.controller_namespace"),
 		},
 	}
 }

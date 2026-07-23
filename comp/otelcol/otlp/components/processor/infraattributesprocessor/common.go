@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -27,6 +28,22 @@ var unifiedServiceTagMap = map[string][]string{
 	tags.Env:     {string(conventions.DeploymentEnvironmentKey), "deployment.environment.name"},
 	tags.Version: {string(conventions.ServiceVersionKey)},
 }
+
+// knownConventionKeys is the set of resource-attribute keys that the
+// downstream trace-agent / Datadog exporter already promotes into
+// `_dd.tags.container` through its own convention mappings. The infra
+// attributes processor's container-tag-promotion logic (see
+// ContainerTagPromotionMode) skips these keys, since prefixing them would
+// either create duplicate entries (in `duplicate` mode) or break downstream
+// consumers reading the raw key (in `rename` mode).
+var knownConventionKeys = func() map[string]struct{} {
+	m := make(map[string]struct{}, 2*len(attributes.ContainerMappings))
+	for otelKey, ddName := range attributes.ContainerMappings {
+		m[ddName] = struct{}{}  // trace-agent source 3 (containerDDTags)
+		m[otelKey] = struct{}{} // trace-agent source 1 (OTel semconv)
+	}
+	return m
+}()
 
 type infraTagsProcessor struct {
 	tagger   types.TaggerClient
@@ -49,13 +66,33 @@ func newInfraTagsProcessor(
 	return infraTagsProcessor
 }
 
-// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
+// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes.
+//
+// The promote parameter controls how tags that are NOT recognized container-tag
+// conventions are surfaced for downstream `_dd.tags.container` promotion. Known
+// DD / OTel conventions (knownConventionKeys), USM keys, and the
+// `datadog.host.name` host attribute are exempt and always written under their
+// canonical key. promote is ignored when divertToDDTags is true.
+//
+// If divertToDDTags is true, custom tags (i.e. those NOT covered by the
+// exemptions above) are appended to *ddtags as "key:value" pairs instead of
+// being written to resourceAttributes; ddtags must be non-nil in that case.
+// This is used by the logs pipeline to turn tagger tags into real Datadog log
+// tags rather than log attributes. Exempted keys are always written to
+// resourceAttributes regardless of divertToDDTags, since the Datadog logs
+// intake already promotes them into tags on its own.
 func (p infraTagsProcessor) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
 	allowHostnameOverride bool,
+	promote ContainerTagPromotionMode,
+	divertToDDTags bool,
+	ddtags *[]string,
 ) {
+	if divertToDDTags && ddtags == nil {
+		panic("infraattributesprocessor: divertToDDTags is true but ddtags is nil")
+	}
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
 		if containerID, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
@@ -97,7 +134,7 @@ func (p infraTagsProcessor) ProcessTags(
 	for k, v := range tagMap {
 		otelAttrs, ust := unifiedServiceTagMap[k]
 		if !ust {
-			resourceAttributes.PutStr(k, v)
+			writeTagAttribute(resourceAttributes, k, v, promote, divertToDDTags, ddtags)
 			continue
 		}
 
@@ -118,6 +155,56 @@ func (p infraTagsProcessor) ProcessTags(
 		if hostname, found := p.hostname.Get(); found {
 			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
+	}
+}
+
+// writeTagAttribute writes a non-USM tag into resource attributes, honoring
+// the container-tag-promotion mode. Keys already carrying the
+// `datadog.container.tag.` prefix and keys in knownConventionKeys are always
+// written as-is (idempotency / convention exemption); only truly custom keys
+// are subject to duplication / renaming.
+//
+// If divertToDDTags is true, a truly custom key is instead appended to
+// *ddtags as "k:v" and NOT written to resourceAttributes (promote is ignored
+// in this case, since it only makes sense for the resource-attribute path).
+// Keys in attributes.KubernetesDDTags are exempted from this diversion: the
+// OTLP logs translator (attributes.TagsFromAttributes) already promotes them
+// from resource attributes into tags downstream, so they must stay on
+// resourceAttributes rather than being moved into ddtags.
+func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode, divertToDDTags bool, ddtags *[]string) {
+	if strings.HasPrefix(k, attributes.CustomContainerTagPrefix) {
+		resourceAttributes.PutStr(k, v)
+		return
+	}
+	if _, isKnown := knownConventionKeys[k]; isKnown {
+		resourceAttributes.PutStr(k, v)
+		return
+	}
+	if divertToDDTags {
+		if _, isKnownDDTag := attributes.KubernetesDDTags[k]; isKnownDDTag {
+			resourceAttributes.PutStr(k, v)
+			return
+		}
+		*ddtags = append(*ddtags, k+":"+v)
+		return
+	}
+	switch promote {
+	case ContainerTagPromotionDuplicate:
+		resourceAttributes.PutStr(k, v)
+		putStrIfAbsent(resourceAttributes, attributes.CustomContainerTagPrefix+k, v)
+	case ContainerTagPromotionRename:
+		putStrIfAbsent(resourceAttributes, attributes.CustomContainerTagPrefix+k, v)
+	default: // "", ContainerTagPromotionOff
+		resourceAttributes.PutStr(k, v)
+	}
+}
+
+// putStrIfAbsent writes k=v only when k is not already present in attrs.
+// Used by the promotion logic to avoid overwriting a `datadog.container.tag.<X>`
+// value the user set themselves.
+func putStrIfAbsent(attrs pcommon.Map, k, v string) {
+	if _, exists := attrs.Get(k); !exists {
+		attrs.PutStr(k, v)
 	}
 }
 

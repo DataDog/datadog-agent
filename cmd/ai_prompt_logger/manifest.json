@@ -1,6 +1,6 @@
 {
-  "name": "com.ai_prompt_logger.native_host",
-  "description": "AI Prompt Logger Native ML Inference Host (Rust)",
+  "name": "com.datadoghq.ai_usage_agent.native_host",
+  "description": "AI Usage Agent Native ML Inference Host (Rust)",
   "path": "PLACEHOLDER_PATH_TO_HOST_EXE",
   "type": "stdio",
   "allowed_origins": [

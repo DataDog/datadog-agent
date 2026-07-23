@@ -42,6 +42,18 @@ func getLinkProbe(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_do_linkat",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filename_linkat",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_filename_linkat",
+			},
+		},
 	}
 
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{

@@ -24,9 +24,15 @@ func TestRuntimeStatsHasSameLayoutAsStats(t *testing.T) {
 	rand.Read(bytes)
 	cStats := *(*stats)(unsafe.Pointer(&bytes[0]))
 	runtimeStats := RuntimeStats{
-		CPU:          time.Duration(cStats.Cpu_ns),
-		HitCnt:       cStats.Hit_cnt,
-		ThrottledCnt: cStats.Throttled_cnt,
+		CPU:                    time.Duration(cStats.Cpu_ns),
+		HitCnt:                 cStats.Hit_cnt,
+		ThrottledCnt:           cStats.Throttled_cnt,
+		RecoveryFires:          cStats.Recovery_fires,
+		RecoveryEvictedFrames:  cStats.Recovery_evicted_frames,
+		RecoverySubmitFailures: cStats.Recovery_submit_failures,
+		RecoveryNoOpenCalls:    cStats.Recovery_no_open_calls,
+		RecoveryFilteredGoexit: cStats.Recovery_filtered_goexit,
+		RecoveryInvalidState:   cStats.Recovery_invalid_state,
 	}
 	require.Equal(t, runtimeStats, *(*RuntimeStats)(unsafe.Pointer(&cStats)))
 	require.Equal(t, cStats, *(*stats)(unsafe.Pointer(&runtimeStats)))

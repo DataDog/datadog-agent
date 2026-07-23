@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Logs: Fix duplicate logs from containers tailed via the Docker socket
+    when ``logs_config.auto_multi_line_detection`` is enabled. The
+    auto-multiline aggregator emitted combined messages stamped with the
+    first aggregated line's timestamp, which the Docker tailer committed
+    as its resume offset; any reader restart then replayed lines 2..N of
+    the group as duplicate, un-aggregated entries. The aggregator now
+    carries the last aggregated line's timestamp through to the emitted
+    message so the offset advances past the full group. Container logs
+    tailed via files and the regex-driven ``log_processing_rules``
+    multi-line path were unaffected.

@@ -297,6 +297,19 @@ filters:
 			expectedErr: "",
 		},
 		{
+			name:   "default local and internal domains excluded",
+			config: ``,
+			expectedMatches: []expectedMatch{
+				{domain: "printer.local", shouldMatch: false},
+				{domain: "foo.bar.local", shouldMatch: false},
+				{domain: "compute.internal", shouldMatch: false},
+				{domain: "foo.bar.internal", shouldMatch: false},
+				{domain: "local.example.com", shouldMatch: true},
+				{domain: "internal.example.com", shouldMatch: true},
+			},
+			expectedCustomFilterCount: 0,
+		},
+		{
 			name: "include all domain",
 			config: `
 filters:
@@ -412,4 +425,29 @@ filters:
 			}
 		})
 	}
+}
+
+func TestEvaluateReturnsWinningRuleTestConfigID(t *testing.T) {
+	filter, errs := NewConnFilter([]Config{
+		{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a"},
+		{Type: FilterTypeInclude, MatchDomain: "local.example.com"},
+		{Type: FilterTypeExclude, MatchDomain: "excluded.example.com", TestConfigID: "remote-a"},
+	}, "", false)
+	require.Empty(t, errs)
+
+	included, testConfigID := filter.Evaluate("remote.example.com", netip.Addr{})
+	assert.True(t, included)
+	assert.Equal(t, "remote-a", testConfigID)
+
+	included, testConfigID = filter.Evaluate("local.example.com", netip.Addr{})
+	assert.True(t, included)
+	assert.Empty(t, testConfigID, "a later local rule must clear RC attribution")
+
+	included, testConfigID = filter.Evaluate("excluded.example.com", netip.Addr{})
+	assert.False(t, included)
+	assert.Empty(t, testConfigID, "excluded connections never produce attributed payloads")
+
+	included, testConfigID = filter.Evaluate("unmatched.test", netip.Addr{})
+	assert.True(t, included)
+	assert.Empty(t, testConfigID)
 }

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -26,6 +26,13 @@ import (
 
 const (
 	syntheticsMetricPrefix = "datadog.synthetics.agent."
+
+	// defaultTestTimeoutSeconds is the total test timeout applied when the test
+	// config does not specify one, matching the default added on the RC path.
+	defaultTestTimeoutSeconds = 60
+	// defaultMaxTTL is the fallback max-TTL used only when computing the
+	// per-hop timeout and neither the test config nor cfg.MaxTTL is set.
+	defaultMaxTTL = 30
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
@@ -233,10 +240,14 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	}
 	if ncr.MaxTTL != nil {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
+	} else {
+		cfg.MaxTTL = defaultMaxTTL
 	}
+	timeoutSec := defaultTestTimeoutSeconds
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(float64(*ncr.Timeout) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
+		timeoutSec = *ncr.Timeout
 	}
+	cfg.Timeout = time.Duration(float64(timeoutSec) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
 	}
@@ -244,6 +255,7 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.E2eQueries = *ncr.ProbeCount
 	}
 	cfg.ReverseDNS = true
+	cfg.DisableSourcePublicIPCollection = false
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -362,6 +374,7 @@ func configRequestToResultRequest(req common.ConfigRequest) (common.ResultReques
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*common.TestResult, error) {
 	t := common.Test{
 		ID:      w.testCfg.cfg.PublicID,
+		Name:    w.testCfg.cfg.TestName,
 		SubType: strings.ToLower(string(w.testCfg.cfg.Config.Request.GetSubType())),
 		Type:    w.testCfg.cfg.Type,
 		Version: w.testCfg.cfg.Version,
@@ -432,8 +445,14 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 
 	return &common.TestResult{
 		Location: struct {
-			ID string `json:"id"`
-		}{ID: "agent:" + w.hostname},
+			ID          string `json:"id"`
+			Name        string `json:"name,omitempty"`
+			DisplayName string `json:"displayName,omitempty"`
+		}{
+			ID:          "agent:" + w.hostname,
+			Name:        w.testCfg.cfg.LocationName,
+			DisplayName: w.testCfg.cfg.LocationDisplayName,
+		},
 		DD:     make(map[string]interface{}),
 		Result: result,
 		Test:   t,

@@ -1,11 +1,12 @@
-load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
+load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -15,15 +16,12 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 python_externals = {
     "bzip2": "1.0.8",
     "mpdecimal": "4.0.0",
-    "sqlite": "3.53.0.0",
+    "sqlite": "3.53.2.0",
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",
     "tcltk": "8.6.15.0",
 }
-
-VERSION_STR = "3.13"
-VERSION_STR_FLAT = VERSION_STR.replace(".", "")
 
 # These rules will make it easier to get a reference to their folder via $(location)
 # and they add the version in the folder name (as some of the vcxproj stuff relies on that)
@@ -94,7 +92,7 @@ run_binary(
         for file in [
             "python.exe",
             "python3.dll",
-            "python{}.dll".format(VERSION_STR_FLAT),
+            "python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
             "pythonw.exe",
             "vcruntime140.dll",
             "vcruntime140_1.dll",
@@ -124,13 +122,13 @@ select_file(
 select_file(
     name = "python_win_lib",
     srcs = "python_win",
-    subpath = "build/python{}.dll".format(VERSION_STR_FLAT),
+    subpath = "build/python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
     visibility = ["//visibility:public"],
 )
 
 cc_import(
-    name = "_python313_dll",
-    shared_library = "build/python{}.dll".format(VERSION_STR_FLAT),
+    name = "_python_dll",
+    shared_library = "build/python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
     visibility = ["//visibility:private"],
 )
 
@@ -140,22 +138,39 @@ cc_library(
     name = "lib_win",
     hdrs = [":headers_win"],
     includes = ["build/include"],
-    deps = [":_python313_dll"],
+    deps = [":_python_dll"],
     visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".devcontainer/**",
+            "Android/**",
+            "Doc/**",
+            "InternalDocs/**",
+            "iOS/**",
+            # Windows related.
+            "PC/**",
+            "PCbuild/**",
+            "Tools/msi/**",
+            "Tools/nuget/**",
+            # Tests that don't need to be shipped with the Agent
+            "Lib/idlelib/idle_test/**",
+            "Lib/test/**",
+        ],
+    ),
 )
 
 UNIX_BINS = [
-    "pip{}".format(VERSION_STR),
-    "python{}".format(VERSION_STR),
+    "python{}".format(PYTHON_MAJOR_MINOR),
 ]
 
-LINUX_SO = "libpython{}.so.1.0".format(VERSION_STR)
-MACOS_DYLIB = "libpython{}.dylib".format(VERSION_STR)
+LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
+MACOS_DYLIB = "libpython{}.dylib".format(PYTHON_MAJOR_MINOR)
 
 python_deps = {
     "libffi": "-lffi",
@@ -169,12 +184,13 @@ configure_make(
     name = "python_unix",
     configure_options = [
         "--enable-ipv6",
-        "--with-ensurepip=yes",
+        "--with-ensurepip=no",  # pip is installed as a separate target
         "--enable-shared",
         "--without-static-libpython",
         "--with-dbmliborder=",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
+        "--disable-test-modules",
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
@@ -232,7 +248,7 @@ configure_make(
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
-        "lib/python{}".format(VERSION_STR),
+        "lib/python{}".format(PYTHON_MAJOR_MINOR),
     ],
     out_data_files = select({
         "@platforms//os:linux": [
@@ -272,15 +288,15 @@ configure_make(
         "@xz//:lzma_pkg",
         "@zlib//:z_pkg",
     ],
-    includes = ["python{}".format(VERSION_STR)],
+    includes = ["python{}".format(PYTHON_MAJOR_MINOR)],
     targets = [
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        # Set compileall options for improved reproducibility of pyc files by enabling hash-based invalidation
-        # and removing the sandbox path from the paths recorded in them.
-        'install COMPILEALL_OPTS="--invalidation-mode checked-hash -s $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"',
+        "install",
     ],
+    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
+    toolchains = ["@@//:install_dir"],
     target_compatible_with = select({
         "@platforms//os:macos": [],
         "@platforms//os:linux": [],
@@ -295,17 +311,36 @@ configure_make(
     # sandbox paths with their install-prefix-relative equivalents.
     postfix_script = """
     $(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
-      --install-prefix "##PREFIX##" \
+      --install-prefix "$(INSTALL_DIR)/embedded" \
       --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
       $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
+    rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
+    find $$INSTALLDIR/lib/python{version} -name '*.exe' -delete
     """.format(
-        version = VERSION_STR,
+        version = PYTHON_MAJOR_MINOR,
     ),
 )
 
 foreign_cc_shared_wrapper(
     name = "python_unix_shared",
     input = ":python_unix",
+    visibility = ["//visibility:public"],
+)
+
+# A copy of python_unix with rpaths rewritten so the interpreter and its
+# lib-dynload modules can find libpython and the dynamic deps at runtime.
+# Use this (not :python_unix) when invoking python from a Bazel action.
+foreign_cc_runnable(
+    name = "python_unix_runnable",
+    input = ":python_unix",
+    binary_path = "bin/python{}".format(PYTHON_MAJOR_MINOR),
+    patch_globs = [
+        "lib/python{}/lib-dynload/*.so".format(PYTHON_MAJOR_MINOR),
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
 
@@ -352,61 +387,27 @@ dd_collect_dependencies(
 select_file(
     name = "python_lib_dir_group_unix",
     srcs = ":python_unix",
-    subpath = "lib/python{}".format(VERSION_STR),
+    subpath = "lib/python{}".format(PYTHON_MAJOR_MINOR),
 )
 
 select_file(
     name = "python3_bin",
     srcs = ":python_unix",
-    subpath = "bin/python{}".format(VERSION_STR),
+    subpath = "bin/python{}".format(PYTHON_MAJOR_MINOR),
     visibility = ["//visibility:public"],
-)
-
-# Using a copy here is the most convenient way to exclude a bunch of things for the final package
-copy_to_directory(
-    name = "python_lib_dir_unix",
-    srcs = [":python_lib_dir_group_unix"],
-    exclude_srcs_patterns = [
-        "test/**/*",
-        "**/*.exe",
-        "**/Makefile",
-    ],
-    root_paths = ["python_unix/lib/python{}".format(VERSION_STR)],
-    out = "python{}".format(VERSION_STR),
-)
-
-filegroup(
-    name = "pip_exec",
-    srcs = [":python_unix"],
-    output_group = "pip{}".format(VERSION_STR),
-)
-
-genrule(
-    name = "patch_pip_shebang",
-    srcs = [":pip_exec"],
-    outs = ["pip_patched_tmp"],
-    cmd = "{ echo '#!{install_dir}/embedded/bin/python3\n' ; tail -n +4 $(location :pip_exec) ;} > $@",
-)
-
-dd_agent_expand_template(
-    name = "patch_pip_interpreter",
-    template = ":patch_pip_shebang",
-    out = "pip{}".format(VERSION_STR),
 )
 
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
-    link_name = "lib/libpython{}.so".format(VERSION_STR),
+    link_name = "lib/libpython{}.so".format(PYTHON_MAJOR_MINOR),
     target = LINUX_SO,
     attributes = pkg_attributes("0644"),
 )
 
 BIN_SYMLINKS = {
-    "bin/python3": "python{}".format(VERSION_STR),
+    "bin/python3": "python{}".format(PYTHON_MAJOR_MINOR),
     "bin/python": "python3",
-    "bin/pip3": "pip{}".format(VERSION_STR),
-    "bin/pip": "pip3",
 }
 
 [
@@ -451,34 +452,12 @@ pkg_files(
     srcs = [":headers_unix"],
 )
 
-# Stdlib dir + stable API lib only — the versioned shared lib is handled by python_pkg/dd_cc_packaged.
-pkg_files(
-    name = "install_stdlib_unix",
-    srcs = [
-        ":python_lib_dir_unix",
-    ] + select({
-        "@platforms//os:linux": [":python_stable_lib_linux"],
-        "//conditions:default": [],
-    }),
-    attributes = pkg_attributes("0755"),
-    prefix = "lib",
-)
-
-pkg_files(
-    name = "install_pip_unix",
-    srcs = [":patch_pip_interpreter"],
-    prefix = "bin",
-    attributes = pkg_attributes("0755"),
-)
-
 # Grouped helper for python_pkg installed_files: installed_files is non-configurable,
 # so the Linux-only libpython_symlink select lives here instead.
 pkg_filegroup(
     name = "_python_pkg_common_files",
     srcs = [
-        ":install_stdlib_unix",
         ":install_headers_unix",
-        ":install_pip_unix",
     ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()] + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
@@ -489,7 +468,13 @@ dd_cc_packaged(
     name = "python_pkg",
     input = ":python_unix_shared",
     installed_files = [":_python_pkg_common_files"],
-    installed_executables = {":python3_bin": "bin"},
+    installed_executables = {
+        ":python3_bin": "bin",
+        ":python_lib_dir_group_unix": "lib",
+    } | select({
+        "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
+        "//conditions:default": {},
+    }),
     visibility = ["//visibility:public"],
 )
 
@@ -501,9 +486,7 @@ pkg_filegroup(
             ":_openssl_deps_win",
         ],
         "//conditions:default": [
-            ":install_stdlib_unix",
             ":install_headers_unix",
-            ":install_pip_unix",
         ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],

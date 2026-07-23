@@ -27,7 +27,6 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	gorilla "github.com/gorilla/mux"
 	redis2 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -244,7 +243,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 		require.NoError(t, tr.RegisterClient(clientID))
 		require.NoError(t, tr.Resume())
 
-		mux := gorilla.NewRouter()
+		mux := nethttp.NewServeMux()
 		mux.Handle("/test", nethttp.DefaultServeMux)
 		grpcHandler := grpc.NewServerWithoutBind()
 

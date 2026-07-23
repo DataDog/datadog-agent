@@ -78,8 +78,8 @@ func TestGetStatus(t *testing.T) {
 	// when the datadog.yaml file is loaded
 	cfg := configmock.New(t)
 	env.SetFeatures(t)
-	cfg.SetWithoutSource("hostname", "test") // Prevents panic since feature detection has not run
-	cfg.SetWithoutSource("language_detection.enabled", true)
+	cfg.SetInTest("hostname", "test") // Prevents panic since feature detection has not run
+	cfg.SetInTest("language_detection.enabled", true)
 
 	expectedStatus := &Status{
 		Date: float64(testTime.UnixNano()),

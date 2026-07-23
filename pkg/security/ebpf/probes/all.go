@@ -117,7 +117,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
-	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
 
@@ -285,6 +285,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"basename_approvers": {
+			MaxEntries: uint32(opts.BasenameApproversSize),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	if opts.SecurityProfileSyscallAnomaly {
@@ -403,11 +407,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
-		editors["basename_approvers"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.BasenameApproversSize),
-			Flags:      unix.BPF_ANY,
-			EditorFlag: manager.EditMaxEntries,
-		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -415,10 +414,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
-			EditorFlag: manager.EditMaxEntries,
-		}
-		editors["basename_approvers"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

@@ -18,7 +18,8 @@ import (
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore interface {
 	Close(context.Context) error
-	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error)
+	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (configUUID string, configHash string, stored bool, err error)
 	GetConfig(configUUID string) (string, *types.ConfigMetadata, error)
 	CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error)
+	GetAllConfigMetadata() ([]*types.ConfigMetadata, error)
 }

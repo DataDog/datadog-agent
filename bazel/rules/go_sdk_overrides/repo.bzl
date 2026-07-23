@@ -1,6 +1,5 @@
 """Repository rule for patching Go SDK packages into a local repo."""
 
-load("@go_host_compatible_sdk_label//:defs.bzl", "HOST_COMPATIBLE_SDK")
 load("@rules_python//python/private:repo_utils.bzl", "repo_utils")  # buildifier: disable=bzl-visibility
 load("//bazel/rules/go_sdk_overrides:defs.bzl", "OVERRIDES", "PATCHES")
 
@@ -27,7 +26,7 @@ def _impl(rctx):
 go_sdk_overrides = repository_rule(
     implementation = _impl,
     attrs = {
-        "_go_sdk": attr.label(default = HOST_COMPATIBLE_SDK),
+        "_go_sdk": attr.label(default = "@go_work_sdk//:ROOT"),
         "_gopatch": attr.label(default = "@com_github_uber_go_gopatch//:gopatch"),
         "overrides": attr.string_keyed_label_dict(default = OVERRIDES),
         "patches": attr.label_list(default = PATCHES),

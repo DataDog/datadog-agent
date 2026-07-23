@@ -8,10 +8,12 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"expvar"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -528,6 +530,114 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 	return destination.unconditionalSend(&emptyJSONPayload)
 }
 
+// classifyConnectivityError maps a connectivity-check error to a stable failure_cause tag value.
+// The returned string is one of: dns, tls, timeout, connection, http_status, other.
+//
+// These values are designed to be stable over time so that dashboards and monitors that
+// filter on failure_cause=<X> remain valid across agent upgrades.
+//
+// *client.RetryableError implements Unwrap, so errors.Is and errors.As can traverse it.
+// This lets us correctly classify wrapped HTTP-status sentinels (errServer/errClient)
+// and wrapped *url.Error chains without falling back to fragile message-string matching.
+func classifyConnectivityError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	// HTTP status errors (errClient / errServer) — match both the direct sentinel
+	// and the wrapped form produced by client.NewRetryableError(errServer) on 5xx
+	// responses and the secret-backed 403 refresh path.
+	if errors.Is(err, errClient) || errors.Is(err, errServer) {
+		return metrics.FailureCauseHTTPStatus
+	}
+
+	// Attempt to classify via *url.Error. errors.As traverses RetryableError now,
+	// so this catches both the direct url.Error case and the wrapped one.
+	if cause := classifyURLError(err); cause != metrics.FailureCauseOther {
+		return cause
+	}
+
+	// Fall back to message-string heuristics for any error type we don't recognise
+	// structurally (defensive — shouldn't fire on common paths now that Unwrap exists).
+	return classifyErrorMessage(err.Error())
+}
+
+// classifyURLError inspects a *url.Error and its inner error chain and returns a
+// failure_cause tag value, or "other" if the error is not a *url.Error.
+func classifyURLError(err error) string {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return metrics.FailureCauseOther
+	}
+
+	// Timeout covers both dial timeout and request deadline exceeded.
+	if urlErr.Timeout() {
+		return metrics.FailureCauseTimeout
+	}
+
+	inner := urlErr.Err
+
+	// DNS: *net.DNSError — check before OpError since DNSError is more specific.
+	var dnsErr *net.DNSError
+	if errors.As(inner, &dnsErr) {
+		if dnsErr.Timeout() {
+			return metrics.FailureCauseTimeout
+		}
+		return metrics.FailureCauseDNS
+	}
+
+	// TCP connect errors: *net.OpError wrapping syscall errors.
+	var opErr *net.OpError
+	if errors.As(inner, &opErr) {
+		if opErr.Op == "dial" || opErr.Op == "connect" {
+			return metrics.FailureCauseConnection
+		}
+	}
+
+	// TLS errors: tls.AlertError is a byte type, not a pointer.
+	var tlsAlert tls.AlertError
+	if errors.As(inner, &tlsAlert) {
+		return metrics.FailureCauseTLS
+	}
+
+	// Guard against malformed *url.Error{Err: nil} from third-party transports.
+	if inner == nil {
+		return metrics.FailureCauseOther
+	}
+
+	return classifyErrorMessage(inner.Error())
+}
+
+// classifyErrorMessage classifies an error based on its message string.
+// This is a fallback for error types that cannot be type-asserted (e.g. when the
+// underlying error is wrapped in a type that lacks Unwrap).
+// The message is lowercased before matching so that mixed-case messages from
+// custom transports, Windows resolvers, or third-party middleware are handled correctly.
+func classifyErrorMessage(msg string) string {
+	msg = strings.ToLower(msg)
+	if strings.Contains(msg, "x509") ||
+		strings.Contains(msg, "certificate") ||
+		strings.Contains(msg, "tls") {
+		return metrics.FailureCauseTLS
+	}
+	if strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "dns") ||
+		strings.Contains(msg, "lookup") {
+		return metrics.FailureCauseDNS
+	}
+	if strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "deadline exceeded") {
+		return metrics.FailureCauseTimeout
+	}
+	if strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "connect:") {
+		return metrics.FailureCauseConnection
+	}
+	return metrics.FailureCauseOther
+}
+
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
@@ -536,7 +646,9 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
-		log.Warnf("HTTP connectivity failure: %v", err)
+		cause := classifyConnectivityError(err)
+		log.Warnf("HTTP connectivity failure: %v (failure_cause=%s)", err, cause)
+		metrics.TlmHTTPConnectivityFailure.Inc(cause)
 	} else {
 		log.Info("HTTP connectivity successful")
 	}

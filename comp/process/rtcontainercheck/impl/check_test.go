@@ -148,7 +148,7 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 
 			sysprobeConf := sysprobeconfigmock.NewMock(t)
 			for k, v := range tc.sysProbeConfigs {
-				sysprobeConf.SetWithoutSource(k, v)
+				sysprobeConf.SetInTest(k, v)
 			}
 			c := fxutil.Test[rtcontainercheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
@@ -159,7 +159,7 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),
-				fxutil.ProvideComponentConstructor(NewCheck),
+				fxutil.ProvideComponentConstructor(NewComponent),
 			))
 
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())

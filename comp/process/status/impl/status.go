@@ -15,7 +15,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -87,7 +87,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		// Get expVar server address
 		// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 		ipcKey := "cmd_host"
-		if s.config.IsSet("ipc_address") {
+		if s.config.IsConfigured("ipc_address") {
 			log.Warn("ipc_address is deprecated, use cmd_host instead")
 			ipcKey = "ipc_address"
 		}

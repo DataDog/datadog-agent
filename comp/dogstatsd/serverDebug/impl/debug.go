@@ -20,14 +20,12 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -77,11 +75,6 @@ type serverDebugImpl struct {
 	tagsAccumulator *tagset.HashingTagsAccumulator
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
 	dogstatsdDebugLogger pkglog.LoggerInterface
-}
-
-// NewServerlessServerDebug creates a new instance of serverDebug.Component
-func NewServerlessServerDebug(cfg model.Reader) serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), cfg)
 }
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
@@ -291,15 +284,9 @@ func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) pkglog.LoggerInter
 
 	var dogstatsdLogger pkglog.LoggerInterface
 
-	// Configuring the log file path
-	logFile := cfg.GetString("dogstatsd_log_file")
-	if logFile == "" {
-		logFile = defaultpaths.DogstatsDLogFile
-	}
-
 	// Set up dogstatsdLogger
 	if cfg.GetBool("dogstatsd_logging_enabled") {
-		logger, e := pkglogsetup.SetupDogstatsdLogger(logFile, cfg)
+		logger, e := pkglogsetup.SetupDogstatsdLogger(cfg.GetString("dogstatsd_log_file"), cfg)
 		if e != nil {
 			// use component logger instead of global logger.
 			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)

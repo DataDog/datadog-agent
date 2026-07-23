@@ -1,10 +1,18 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 
 # Source-level export so the //pkg/security/secl/model:event_deep_copy_*
 # Bazel codegens can resolve tracermetadata.TracerMetadata.
 exports_files(
     ["tracer_metadata.go"],
     visibility = ["//pkg/security/secl/model:__pkg__"],
+)
+
+go_msgp(
+    name = "tracer_metadata_gen",
+    src = "tracer_metadata.go",
+    out = "tracer_metadata_gen.go",
+    out_test = "tracer_metadata_gen_test.go",
 )
 
 go_library(

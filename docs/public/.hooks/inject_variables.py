@@ -3,13 +3,12 @@ from functools import cache
 from pathlib import Path
 
 import httpx
-from markdown.preprocessors import Preprocessor
 
 
 @cache
 def variable_replacements():
     return {
-        f"<<<{variable}>>>": replacement
+        variable: replacement
         for variable, replacement in (
             ("GO_VERSION", get_go_version()),
             ("PYTHON_VERSION", get_python_version()),
@@ -70,21 +69,15 @@ def get_dda_tab_complete_docs():
 
 
 def get_vscode_extensions():
-    url = "https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/refs/heads/main/dev-envs/linux/default-vscode-extensions.txt"
+    url = "https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/refs/heads/main/dev-envs/linux/default-vscode-extensions.json"
     response = httpx.get(url)
     response.raise_for_status()
     marketplace_url_base = "https://marketplace.visualstudio.com/items?itemName="
     return "\n".join(
         f"- [{extension}]({marketplace_url_base}{extension})"
-        for extension in response.text.splitlines()
-        if not extension.startswith("#")
+        for extension in response.json()
     )
 
 
-class VariableInjectionPreprocessor(Preprocessor):
-    def run(self, lines):  # noqa: PLR6301
-        markdown = "\n".join(lines)
-        for variable, replacement in variable_replacements().items():
-            markdown = markdown.replace(variable, replacement)
-
-        return markdown.splitlines()
+def define_env(env):
+    env.variables.update(variable_replacements())

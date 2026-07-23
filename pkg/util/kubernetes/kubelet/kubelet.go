@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
 	devicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
-	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -68,7 +67,7 @@ type KubeUtil struct {
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration time.Duration     // a duration of 0 disables the cache
-	podUnmarshaller      *podUnmarshaller
+	podUnmarshaller      *PodUnmarshaller
 	podResourcesClient   *PodResourcesClient
 	devicePluginsClient  DevicePluginClient
 
@@ -82,7 +81,8 @@ type KubeUtil struct {
 
 func (ku *KubeUtil) init() error {
 	var err error
-	ku.kubeletClient, err = getKubeletClient(context.Background())
+	ctx := context.Background()
+	ku.kubeletClient, err = getKubeletClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -118,10 +118,15 @@ func (ku *KubeUtil) init() error {
 
 	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 		ku.useAPIServer = true
-		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
+
+		// the method getNodeNameFromStatsSummary will get the node name from the stats summary
+		// and cache it in the kubeletClient.config.nodeName on success.
+		nodeName, err := ku.getNodeNameFromStatsSummary(ctx)
 		if err != nil {
 			return err
 		}
+
+		log.Debugf("got node name from kubelet: %s", nodeName)
 	}
 
 	return nil
@@ -132,7 +137,7 @@ func NewKubeUtil() *KubeUtil {
 	return &KubeUtil{
 		rawConnectionInfo:    make(map[string]string),
 		podListCacheDuration: pkgconfigsetup.Datadog().GetDuration("kubelet_cache_pods_duration") * time.Second,
-		podUnmarshaller:      newPodUnmarshaller(),
+		podUnmarshaller:      NewPodUnmarshaller(),
 	}
 }
 
@@ -202,16 +207,12 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	var nodeName string
 
 	if ku.useAPIServer {
-		if ku.kubeletClient.config.nodeName != "" {
-			nodeName = ku.kubeletClient.config.nodeName
-		} else {
-			stats, err := ku.GetLocalStatsSummary(ctx)
-			if err == nil && stats.Node.NodeName != "" {
-				nodeName = stats.Node.NodeName
-			} else {
-				return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
-			}
+		var err error
+		nodeName, err = ku.getNodeNameFromStatsSummary(ctx)
+		if err != nil {
+			return "", err
 		}
+
 	} else {
 		pods, err := ku.GetLocalPodList(ctx)
 		if err != nil {
@@ -258,7 +259,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
 	}
 
-	err = ku.podUnmarshaller.unmarshal(data, &pods)
+	err = ku.podUnmarshaller.Unmarshal(data, &pods)
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
 	}
@@ -305,20 +306,20 @@ func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) 
 		return nil
 	}
 
-	containerToDevicesMap, err := ku.podResourcesClient.GetContainerToDevicesMap(ctx)
+	containerResourcesMap, err := ku.podResourcesClient.GetContainerResourcesMap(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting container resources data: %w", err)
 	}
 
 	for _, pod := range pods {
-		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.InitContainers)
-		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.Containers)
+		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.InitContainers)
+		ku.addResourcesToContainerList(containerResourcesMap, pod, pod.Status.Containers)
 	}
 
 	return nil
 }
 
-func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[ContainerKey][]*podresourcesv1.ContainerDevices, pod *Pod, containers []ContainerStatus) {
+func (ku *KubeUtil) addResourcesToContainerList(containerResourcesMap map[ContainerKey][]ContainerAllocatedResource, pod *Pod, containers []ContainerStatus) {
 	for i := range containers {
 		container := &containers[i] // take the pointer so that we can modify the original
 		key := ContainerKey{
@@ -326,20 +327,12 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 			PodName:       pod.Metadata.Name,
 			ContainerName: container.Name,
 		}
-		devices, ok := containerToDevicesMap[key]
+		allocatedResources, ok := containerResourcesMap[key]
 		if !ok {
 			continue
 		}
 
-		for _, device := range devices {
-			name := device.GetResourceName()
-			for _, id := range device.GetDeviceIds() {
-				container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, ContainerAllocatedResource{
-					Name: name,
-					ID:   id,
-				})
-			}
-		}
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, allocatedResources...)
 	}
 }
 
@@ -387,6 +380,27 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 // which were expired and therefore removed from the list when it was generated.
 func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error) {
 	return ku.getLocalPodList(ctx)
+}
+
+// getNodeNameFromStatsSummary gets the node name from the stats summary API
+// and caches it in the kubeletClient.config.nodeName on success.
+func (ku *KubeUtil) getNodeNameFromStatsSummary(ctx context.Context) (string, error) {
+	if ku.kubeletClient.config.nodeName != "" {
+		return ku.kubeletClient.config.nodeName, nil
+	}
+
+	stats, err := ku.GetLocalStatsSummary(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
+	}
+
+	if stats.Node.NodeName == "" {
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s, node name is empty", kubeletStatsSummary)
+	}
+
+	ku.kubeletClient.config.nodeName = stats.Node.NodeName // cache the node name
+
+	return stats.Node.NodeName, nil
 }
 
 // GetLocalStatsSummary returns node and pod stats from kubelet
@@ -449,7 +463,9 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
-// GetConfig returns the kubelet configuration from /configz
+// GetConfig returns the kubelet configuration from /configz. Since
+// kubernetes/kubernetes#136044, the inner kubeletconfig object carries
+// APIVersion and Kind; older kubelets leave them empty.
 func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {

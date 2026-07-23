@@ -244,3 +244,24 @@ func FuzzUnmarshalTracerPayloadErrorHandling(f *testing.F) {
 		}
 	})
 }
+
+// TestShortTraceIDSurvivesWireDecode confirms a short TraceID decoded from the
+// wire (InternalTraceChunk.UnmarshalMsg) flows into the sampler's LegacyTraceID
+// call without panicking.
+func TestShortTraceIDSurvivesWireDecode(t *testing.T) {
+	// Craft a minimal trace chunk msgpack: a 1-field map { field 6: TraceID }
+	// where TraceID is only 4 bytes long.
+	var b []byte
+	b = msgp.AppendMapHeader(b, 1)
+	b = msgp.AppendUint32(b, 6)                 // field 6 = TraceID
+	b = msgp.AppendBytes(b, []byte{1, 2, 3, 4}) // 4-byte (short) TraceID
+
+	c := &InternalTraceChunk{Strings: NewStringTable()}
+	_, err := c.UnmarshalMsg(b)
+	assert.NoError(t, err)
+
+	// The sampler calls LegacyTraceID() on this chunk; it must not panic.
+	assert.NotPanics(t, func() {
+		assert.Equal(t, uint64(0x01020304), c.LegacyTraceID())
+	})
+}

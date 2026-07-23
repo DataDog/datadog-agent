@@ -8,6 +8,10 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -22,7 +26,7 @@ jobs:
       # NOTE: Do NOT use sparse-checkout here — reno uses dulwich which doesn't
       # support the extensions.worktreeConfig that sparse-checkout enables.
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
           fetch-depth: 0
@@ -34,7 +38,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: git fetch origin "refs/pull/${PR_NUMBER}/head"
       - name: Checkout releasenotes from PR
-        run: git checkout FETCH_HEAD -- releasenotes releasenotes-dca releasenotes-installscript 2>/dev/null || true
+        run: git checkout FETCH_HEAD -- releasenotes releasenotes-dca 2>/dev/null || true
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
@@ -92,7 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
           sparse-checkout: |
@@ -115,7 +119,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
       - name: Install dda

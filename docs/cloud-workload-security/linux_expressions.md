@@ -64,6 +64,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
+| `socket` | Network | A socket was created | 7.81 |
 | `splice` | File | A splice command was executed | 7.36 |
 | `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |
@@ -284,7 +285,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -489,7 +490,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -508,7 +509,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`process.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -775,7 +776,9 @@ A DNS request was sent
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.name.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`dns.response.cnames`](#dns-response-cnames-doc) | CNAME targets returned by the DNS response |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
+| [`dns.response.ips`](#dns-response-ips-doc) | IP addresses resolved by the DNS response |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -898,7 +901,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exec.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exec.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1020,7 +1023,7 @@ A process was terminated
 | [`exit.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exit.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exit.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1487,7 +1490,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1692,7 +1695,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1711,7 +1714,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`ptrace.tracee.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1996,7 +1999,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2201,7 +2204,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2220,7 +2223,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`setrlimit.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2410,7 +2413,7 @@ A signal was sent
 | [`signal.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2615,7 +2618,7 @@ A signal was sent
 | [`signal.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2634,7 +2637,7 @@ A signal was sent
 | [`signal.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`signal.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2653,6 +2656,17 @@ A signal was sent
 | [`signal.target.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`signal.target.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
+
+### Event `socket`
+
+A socket was created
+
+| Property | Definition |
+| -------- | ------------- |
+| [`socket.domain`](#socket-domain-doc) | Socket domain |
+| [`socket.protocol`](#socket-protocol-doc) | Socket protocol |
+| [`socket.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`socket.type`](#socket-type-doc) | Socket type |
 
 ### Event `splice`
 
@@ -3581,7 +3595,7 @@ Definition: Port number
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
-### `*.ppid` {#common-pidcontext-ppid-doc}
+### `*.ppid` {#common-process-ppid-doc}
 Type: int
 
 Definition: Parent process ID
@@ -3595,8 +3609,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 27 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 28 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -4096,6 +4110,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `dns.response.cnames` {#dns-response-cnames-doc}
+Type: string
+
+Definition: CNAME targets returned by the DNS response
+
+
+
 ### `dns.response.code` {#dns-response-code-doc}
 Type: int
 
@@ -4103,6 +4124,13 @@ Definition: Response code of the DNS response according to RFC 1035
 
 
 Constants: [DNS Responses](#dns-responses)
+
+
+
+### `dns.response.ips` {#dns-response-ips-doc}
+Type: IP/CIDR
+
+Definition: IP addresses resolved by the DNS response
 
 
 
@@ -4847,6 +4875,27 @@ Definition: Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
 
 
 Constants: [Signal constants](#signal-constants)
+
+
+
+### `socket.domain` {#socket-domain-doc}
+Type: int
+
+Definition: Socket domain
+
+
+
+### `socket.protocol` {#socket-protocol-doc}
+Type: int
+
+Definition: Socket protocol
+
+
+
+### `socket.type` {#socket-type-doc}
+Type: int
+
+Definition: Socket type
 
 
 
@@ -6495,6 +6544,28 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPOLL` | all |
 | `SIGPWR` | all |
 | `SIGSYS` | all |
+
+### `Socket domains` {#socket-domains}
+Socket domains are the supported socket domains.
+
+| Name | Architectures |
+| ---- |---------------|
+| `AF_UNSPEC` | all |
+| `AF_INET` | all |
+| `AF_INET6` | all |
+| `AF_UNIX` | all |
+
+### `Socket protocols` {#socket-protocols}
+Socket protocols are the supported socket protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `IPPROTO_IP` | all |
+| `IPPROTO_TCP` | all |
+| `IPPROTO_UDP` | all |
+| `IPPROTO_ICMP` | all |
+| `IPPROTO_IPV6` | all |
+| `IPPROTO_ICMPV6` | all |
 
 ### `Socket types` {#socket-types}
 Socket types are the supported socket types.

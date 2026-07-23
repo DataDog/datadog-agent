@@ -23,15 +23,16 @@ import (
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
-	"github.com/gorilla/mux"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
@@ -45,11 +46,13 @@ type gui struct {
 
 	address  string
 	listener net.Listener
-	router   *mux.Router
+	router   *http.ServeMux
 
 	auth         authenticator
 	intentTokens map[string]bool
 	intentMu     sync.Mutex
+
+	sysprobeConfig sysprobeconfig.Component
 
 	// To compute uptime
 	startTimestamp int64
@@ -69,12 +72,14 @@ type Payload struct {
 type Requires struct {
 	compdef.In
 
-	Log      log.Component
-	Config   config.Component
-	Flare    flare.Component
-	Status   status.Component
-	Lc       compdef.Lifecycle
-	Hostname hostnameinterface.Component
+	Log            log.Component
+	Config         config.Component
+	Flare          flare.Component
+	Status         status.Component
+	Lc             compdef.Lifecycle
+	Hostname       hostnameinterface.Component
+	Ipc            ipc.Component
+	SysprobeConfig sysprobeconfig.Component
 }
 
 // Provides defines the output of the gui component.
@@ -105,13 +110,13 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	g := gui{
-		address:      net.JoinHostPort(guiHost, guiPort),
-		logger:       deps.Log,
-		intentTokens: make(map[string]bool),
+		address:        net.JoinHostPort(guiHost, guiPort),
+		logger:         deps.Log,
+		intentTokens:   make(map[string]bool),
+		sysprobeConfig: deps.SysprobeConfig,
 	}
 
-	// Instantiate the gorilla/mux publicRouter
-	publicRouter := mux.NewRouter()
+	publicRouter := http.NewServeMux()
 
 	// Fetch the authentication token (persists across sessions)
 	authToken, e := security.FetchAuthToken(deps.Config)
@@ -122,23 +127,25 @@ func NewComponent(deps Requires) Provides {
 
 	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
 	g.auth = newAuthenticator(authToken, sessionExpiration)
+	socketPath := deps.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")
 
 	// register the public routes
-	publicRouter.HandleFunc("/", renderIndexPage).Methods("GET")
-	publicRouter.HandleFunc("/auth", g.getAccessToken).Methods("GET")
+	publicRouter.HandleFunc("GET /{$}", g.renderIndexPage)
+	publicRouter.HandleFunc("GET /auth", g.getAccessToken)
 	// Mount our filesystem at the view/{path} route
-	publicRouter.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
+	publicRouter.Handle("/view/", http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
 
-	// Create a subrouter to handle routes that needs authentication
-	securedRouter := publicRouter.PathPrefix("/").Subrouter()
-	// Set up handlers for the API
-	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
-	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter)
+	// Set up handlers for the API, guarded by auth middleware
+	agentMux := http.NewServeMux()
+	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp, deps.Ipc.GetAuthToken, socketPath)
 
-	// Check token on every securedRouter endpoints
-	securedRouter.Use(g.authMiddleware)
+	checkMux := http.NewServeMux()
+	checkHandler(checkMux)
+
+	securedMux := http.NewServeMux()
+	securedMux.Handle("/agent/", http.StripPrefix("/agent", agentMux))
+	securedMux.Handle("/checks/", http.StripPrefix("/checks", checkMux))
+	publicRouter.Handle("/", g.authMiddleware(securedMux))
 
 	g.router = publicRouter
 
@@ -192,7 +199,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(token))
 }
 
-func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
+func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	data, err := templatesFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -214,7 +221,7 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 		RestartEnabled bool
 		DocURL         template.URL
 	}{
-		RestartEnabled: restartEnabled(),
+		RestartEnabled: restartEnabled(g.sysprobeConfig),
 		DocURL:         docURL,
 	})
 	if e != nil {
@@ -251,6 +258,10 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 }
 
 func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
 	// intentToken is present in the query when the GUI is opened from the CLI
 	intentToken := r.URL.Query().Get("intent")
@@ -278,6 +289,7 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   31536000, // 1 year
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -288,6 +300,17 @@ func (g *gui) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if origin := r.Header.Get("Origin"); origin != "" {
+				expectedFromListener := "http://" + g.address
+				expectedFromRequest := "http://" + r.Host
+				if origin != expectedFromListener && origin != expectedFromRequest {
+					http.Error(w, "invalid origin", http.StatusForbidden)
+					return
+				}
+			}
+		}
 
 		cookie, _ := r.Cookie("accessToken")
 		if cookie == nil {

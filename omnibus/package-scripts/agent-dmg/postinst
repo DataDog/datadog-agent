@@ -10,6 +10,10 @@ OPT_APP_DIR="$INSTALL_DIR/Datadog Agent.app"
 APP_DIR="/Applications/Datadog Agent.app"
 CONF_DIR=$INSTALL_DIR/etc
 RUN_DIR=$INSTALL_DIR/run
+AI_USAGE_DESKTOP_MONITOR_LABEL="com.datadoghq.ai-usage-agent.desktop-monitor"
+OLD_AI_USAGE_DESKTOP_MONITOR_LABEL="com.datadoghq.ai-prompt-logger.desktop-monitor"
+AI_USAGE_DESKTOP_MONITOR_PLIST="/Library/LaunchAgents/${AI_USAGE_DESKTOP_MONITOR_LABEL}.plist"
+AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE="$CONF_DIR/${AI_USAGE_DESKTOP_MONITOR_LABEL}.plist.example"
 
 # On Mac, the real log folder is located under /opt/datadog-agent/logs, because MacOS upgrades delete /var/log
 LOG_DIR=/opt/datadog-agent/logs
@@ -19,6 +23,7 @@ LOG_DIR=/opt/datadog-agent/logs
 INSTALL_STAGING_DIR="/private/var/root/datadog-install"
 INSTALL_ENV_FILE="$INSTALL_STAGING_DIR/env"
 SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
+AI_USAGE_CHROME_EXTENSION_ID_DEFAULT="gkmbhgbippkmmmidcikijiblbagbjgjj"
 
 # Let's log the standard outputs of this script
 LOG_FILE="$LOG_DIR/postinstall.log"
@@ -40,6 +45,8 @@ echo "# Stopping GUI app if running"
 for logged_user in $(who | awk '{print $1}' | sort -u); do
     logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
     launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+    launchctl bootout "gui/$logged_uid/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
+    launchctl bootout "gui/$logged_uid/$OLD_AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
 done
 
 # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
@@ -88,6 +95,7 @@ mkdir -vp $CONF_DIR/checks.d
 
 if [ -d "$SAVED_CONF_DIR" ]; then
     cp -vf "$SAVED_CONF_DIR/datadog.yaml" $CONF_DIR/ 2>/dev/null || true
+    cp -vf "$SAVED_CONF_DIR/system-probe.yaml" $CONF_DIR/ 2>/dev/null || true
     cp -vfR "$SAVED_CONF_DIR/conf.d/"* $CONF_DIR/conf.d 2>/dev/null || true
     cp -vn "$SAVED_CONF_DIR/checks.d/"* $CONF_DIR/checks.d 2>/dev/null || true
 fi
@@ -98,6 +106,23 @@ fi
 
 if [ ! -f "$CONF_DIR/ai_usage_native_host.yaml" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
     cp "$CONF_DIR/ai_usage_native_host.yaml.example" "$CONF_DIR/ai_usage_native_host.yaml"
+    apm_receiver_port=$(awk '
+        /^[[:space:]]*#/ { next }
+        /^[^[:space:]][^:]*:/ { in_apm = 0 }
+        /^[[:space:]]*apm_config:[[:space:]]*($|#)/ { in_apm = 1; next }
+        in_apm && /^[[:space:]]*receiver_port:/ {
+            sub(/^[^:]*:[[:space:]]*/, "")
+            sub(/[[:space:]]*#.*/, "")
+            gsub(/["'\''[:space:]]/, "")
+            if ($0 ~ /^[0-9]+$/) {
+                print
+                exit
+            }
+        }
+    ' "$CONF_DIR/datadog.yaml" 2>/dev/null || true)
+    if [ -n "$apm_receiver_port" ]; then
+        sed -i '' "s#^[ #]*trace_agent_url:.*#trace_agent_url: \"http://127.0.0.1:$apm_receiver_port\"#" "$CONF_DIR/ai_usage_native_host.yaml"
+    fi
 fi
 
 # Read configuration written by the install script (if present).
@@ -170,6 +195,13 @@ find $CONF_DIR -type f -exec chmod 660 {} \;
 #      so the replacement file retains _dd-agent access.
 find "$CONF_DIR" -type d -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit" {} \;
 find "$CONF_DIR" -type f -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity" {} \;
+if [ -f "$CONF_DIR/ai_usage_native_host.yaml" ]; then
+    # The AI usage native host runs as the logged-in user for Chrome native
+    # messaging and desktop monitoring. Grant only path traversal plus read
+    # access to this single non-secret config file, not the rest of etc/.
+    chmod +a "everyone allow search,readattr,readextattr,readsecurity" "$CONF_DIR"
+    chmod +a "everyone allow read,readattr,readextattr,readsecurity" "$CONF_DIR/ai_usage_native_host.yaml"
+fi
 
 # Chrome NativeMessagingHosts for AI usage native host (per-user)
 CHROME_EXT_ID=""
@@ -180,9 +212,13 @@ if [ -z "$CHROME_EXT_ID" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml" ]; then
     CHROME_EXT_ID=$(awk '/^chrome_extension_id:/{sub(/^[^:]*:[[:space:]]*/, ""); gsub(/["'\'']/, ""); print; exit}' "$CONF_DIR/ai_usage_native_host.yaml")
 fi
 CHROME_EXT_ID=$(echo "$CHROME_EXT_ID" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+if [ -z "$CHROME_EXT_ID" ]; then
+    CHROME_EXT_ID="$AI_USAGE_CHROME_EXTENSION_ID_DEFAULT"
+fi
 # Launcher passes --config like `agent run -c` / `system-probe --config` (Chrome does not pass argv).
 NATIVE_HOST_BIN="$INSTALL_DIR/embedded/bin/run_ai_usage_native_host.sh"
-NM_HOST_NAME="com.ai_prompt_logger.native_host"
+NM_HOST_NAME="com.datadoghq.ai_usage_agent.native_host"
+OLD_NM_HOST_NAME="com.datadoghq.ai_prompt_logger.native_host"
 if [ -n "$CHROME_EXT_ID" ] && [ -f "$NATIVE_HOST_BIN" ]; then
     echo "# Installing Chrome NativeMessagingHosts for AI usage native host"
     for user_home in /Users/*; do
@@ -193,6 +229,8 @@ if [ -n "$CHROME_EXT_ID" ] && [ -f "$NATIVE_HOST_BIN" ]; then
         nmh_dir="$user_home/Library/Application Support/Google/Chrome/NativeMessagingHosts"
         sudo -u "$u" mkdir -p "$nmh_dir"
         manifest="$nmh_dir/${NM_HOST_NAME}.json"
+        old_manifest="$nmh_dir/${OLD_NM_HOST_NAME}.json"
+        sudo -u "$u" rm -f "$old_manifest"
         sudo -u "$u" tee "$manifest" >/dev/null <<EOF
 {
   "name": "${NM_HOST_NAME}",
@@ -238,6 +276,16 @@ if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.pl
     echo "WARNING: Failed to bootstrap system-probe service."
 fi
 
+# Install Agent Data Plane as system-wide LaunchDaemon
+echo "# Installing Agent Data Plane as system-wide LaunchDaemon"
+cp -vf "$CONF_DIR/com.datadoghq.data-plane.plist.example" /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+chown root:wheel /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+chmod 644 /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+launchctl enable system/com.datadoghq.data-plane 2>/dev/null || true
+if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist 2>&1; then
+    echo "WARNING: Failed to bootstrap Agent Data Plane service."
+fi
+
 # Install GUI LaunchAgent for all users (system-wide)
 echo "# Configuring GUI app for system-wide installation"
 cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
@@ -263,6 +311,30 @@ if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2
     fi
 else
     echo "# No GUI session detected; GUI app will launch at next user login"
+fi
+
+# Remove previous LaunchAgent labels if this package is upgrading an in-branch install.
+rm -f "/Library/LaunchAgents/${OLD_AI_USAGE_DESKTOP_MONITOR_LABEL}.plist"
+rm -f "$CONF_DIR/${OLD_AI_USAGE_DESKTOP_MONITOR_LABEL}.plist.example"
+
+# Install AI Usage Agent desktop monitor LaunchAgent for all users (system-wide)
+if [ -f "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" ]; then
+    echo "# Configuring AI Usage Agent desktop monitor for system-wide installation"
+    cp -vf "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" "$AI_USAGE_DESKTOP_MONITOR_PLIST"
+    chown root:wheel "$AI_USAGE_DESKTOP_MONITOR_PLIST"
+    chmod 644 "$AI_USAGE_DESKTOP_MONITOR_PLIST"
+
+    if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
+        echo "# Loading AI Usage Agent desktop monitor for $CONSOLE_USER"
+        launchctl enable "gui/$CONSOLE_USER_UID/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
+        if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" "$AI_USAGE_DESKTOP_MONITOR_PLIST" 2>&1; then
+            echo "WARNING: Failed to bootstrap AI Usage Agent desktop monitor."
+        fi
+    else
+        echo "# No GUI session detected; AI Usage Agent desktop monitor will launch at next user login"
+    fi
+else
+    echo "WARNING: AI Usage Agent desktop monitor LaunchAgent template missing at $AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE"
 fi
 
 echo ""

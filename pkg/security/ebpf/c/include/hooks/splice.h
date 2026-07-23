@@ -1,14 +1,17 @@
 #ifndef _HOOKS_SPLICE_H_
 #define _HOOKS_SPLICE_H_
 
+#include <uapi/linux/io_uring.h>
+
 #include "constants/offsets/splice.h"
 #include "constants/syscall_macro.h"
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/iouring.h"
 #include "helpers/syscalls.h"
 
-HOOK_SYSCALL_ENTRY0(splice) {
+int __attribute__((always_inline)) sys_splice(void *ctx, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -17,10 +20,31 @@ HOOK_SYSCALL_ENTRY0(splice) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SPLICE,
         .policy = policy,
+        .async = pid_tgid ? ASYNC_SYSCALL : SYNC_SYSCALL,
+        .splice = {
+            .pid_tgid = pid_tgid,
+        },
     };
 
     cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
+}
+
+HOOK_SYSCALL_ENTRY0(splice) {
+    return sys_splice(ctx, 0);
+}
+
+// io_splice is a static function that the compiler may inline into its sole caller
+// (io_issue_sqe). Hook io_issue_sqe instead and filter by opcode == IORING_OP_SPLICE.
+HOOK_ENTRY("io_issue_sqe")
+int hook_io_issue_sqe(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u8 opcode;
+    int ret = bpf_probe_read(&opcode, sizeof(opcode), raw_req + get_iokiocb_opcode_offset());
+    if (ret < 0 || opcode != IORING_OP_SPLICE) {
+        return 0;
+    }
+    return sys_splice(ctx, get_pid_tgid_from_iouring(raw_req));
 }
 
 HOOK_ENTRY("get_pipe_info")
@@ -56,7 +80,8 @@ int rethook_get_pipe_info(ctx_t *ctx) {
         syscall->resolver.dentry = syscall->splice.dentry;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
-        syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+        syscall->resolver.event_type = syscall->type;
+        syscall->resolver.flags = get_resolver_flags(syscall, 1);
 
         resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
@@ -81,8 +106,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_SPLICE);
+    apply_dentry_resolution_outcome(syscall, EVENT_SPLICE);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 
@@ -97,13 +122,19 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
 
     struct splice_event_t event = {
         .syscall.retval = retval,
+        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .file = syscall->splice.file,
         .pipe_entry_flag = syscall->splice.pipe_entry_flag,
         .pipe_exit_flag = syscall->splice.pipe_exit_flag,
     };
     fill_file(syscall->splice.dentry, &event.file);
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
+    struct proc_cache_t *entry;
+    if (syscall->splice.pid_tgid != 0) {
+        entry = fill_process_context_with_pid_tgid(&event.process, syscall->splice.pid_tgid);
+    } else {
+        entry = fill_process_context(&event.process);
+    }
     fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
@@ -114,6 +145,12 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
 
 HOOK_SYSCALL_EXIT(splice) {
     return sys_splice_ret(ctx, (int)SYSCALL_PARMRET(ctx));
+}
+
+HOOK_EXIT("io_issue_sqe")
+int rethook_io_issue_sqe(ctx_t *ctx) {
+    // pop_syscall inside sys_splice_ret returns NULL if no splice entry was cached
+    return sys_splice_ret(ctx, (int)CTX_PARMRET(ctx));
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_splice_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {

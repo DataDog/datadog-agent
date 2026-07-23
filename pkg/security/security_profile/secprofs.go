@@ -215,7 +215,7 @@ func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionCon
 		insertMissingProcesses = true
 	}
 
-	newEntry, err := profile.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
+	newEntry, _, _, err := profile.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
 		return model.NoProfile
@@ -401,7 +401,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	}
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil))) {
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
 		return
 	}
 

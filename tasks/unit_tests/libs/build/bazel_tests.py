@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from invoke import Context, Exit, MockContext
 
@@ -10,7 +10,7 @@ from tasks.libs.common.utils import get_repo_root
 
 class TestBazel(unittest.TestCase):
     def test_bazel_call(self):
-        self.assertIsNone(bazel(Context(), "info", "release"))
+        self.assertEqual(bazel(Context(), "info", "release"), "")
 
     def test_bazel_output(self):
         expected_version = (get_repo_root() / ".bazelversion").read_text().strip()
@@ -22,6 +22,54 @@ class TestBazel(unittest.TestCase):
         with self.assertRaises(Exit) as cm:
             bazel(MockContext(), "info")
         self.assertIn("Please run `inv install-tools` for `bazel` support!", cm.exception.message)
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_output(self, _):
+        self.assertEqual(bazel(self._ctx(), "info", capture_output=True), "out\n")
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_stderr(self, _):
+        self.assertEqual(bazel(self._ctx(), "info", capture_stderr=True), "err\n")
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_both(self, _):
+        self.assertEqual(bazel(self._ctx(), "info", capture_output=True, capture_stderr=True), "out\nerr\n")
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_ignore_errors_captures_output_on_success(self, _):
+        self.assertEqual(bazel(self._ctx(), "info", ignore_errors=True, capture_output=True), "out\n")
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_ignore_errors_only_captures_stderr_on_failure(self, _):
+        self.assertEqual(
+            bazel(self._ctx(exit=1), "info", ignore_errors=True, capture_output=True, capture_stderr=True), "err\n"
+        )
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_omnibazel_flag_to_insert(self, _):
+        ctx = self._ctx()
+        bazel(ctx, "run", "//:go")
+        self.assertEqual(ctx.run.call_args[0][0], "/bzlx run //:go")
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {"AGENT_FLAVOR": "fips", "INSTALL_DIR": "/opt"})
+    def test_inserted_omnibazel_flags(self, _):
+        ctx = self._ctx()
+        bazel(ctx, "--batch", "run", "//:go")
+        self.assertEqual(
+            ctx.run.call_args[0][0],
+            "/bzlx --batch run --//packages/agent:flavor=fips --//:install_dir=/opt --//:output_config_dir= //:go",
+        )
+
+    def _ctx(self, *, exit=0, stdout="out\n", stderr="err\n"):
+        result = MagicMock()
+        result.ok = exit == 0
+        result.stdout = stdout
+        result.stderr = stderr
+        ctx = MagicMock()
+        ctx.run.return_value = result
+        return ctx
 
 
 class TestSplitLabel(unittest.TestCase):

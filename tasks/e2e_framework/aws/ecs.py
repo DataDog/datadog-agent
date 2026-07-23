@@ -27,6 +27,7 @@ scenario_name = "aws/ecs"
         "full_image_path": doc.full_image_path,
         "agent_flavor": doc.agent_flavor,
         "agent_env": doc.agent_env,
+        "interactive": doc.interactive,
     }
 )
 def create_ecs(
@@ -45,6 +46,7 @@ def create_ecs(
     full_image_path: str | None = None,
     agent_flavor: str | None = None,
     agent_env: str | None = None,
+    interactive: bool | None = True,
 ):
     """
     Create a new ECS environment.
@@ -72,13 +74,15 @@ def create_ecs(
         agent_env=agent_env,
     )
 
-    tool.notify(ctx, "Your ECS cluster is now created")
+    if interactive:
+        tool.notify(ctx, "Your ECS cluster is now created")
 
-    _show_connection_message(ctx, config_path, full_stack_name)
+    _show_connection_message(ctx, config_path, full_stack_name, interactive)
 
 
-def _show_connection_message(ctx: Context, config_path: str | None, full_stack_name: str):
-    import pyperclip
+def _show_connection_message(
+    ctx: Context, config_path: str | None, full_stack_name: str, interactive: bool | None = True
+):
     from pydantic import ValidationError
 
     from tasks.e2e_framework import config
@@ -94,8 +98,11 @@ def _show_connection_message(ctx: Context, config_path: str | None, full_stack_n
     command = f"{get_aws_wrapper(local_config.get_aws().get_account())} aws ecs list-tasks --cluster {cluster_name}"
     print(f"\nYou can run the following command to list tasks on the ECS cluster\n\n{command}\n")
 
-    input("Press a key to copy command to clipboard...")
-    pyperclip.copy(command)
+    if interactive:
+        import pyperclip
+
+        input("Press a key to copy command to clipboard...")
+        pyperclip.copy(command)
 
 
 @task(help={"stack_name": doc.stack_name})

@@ -102,19 +102,16 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
     u8 is_cgroupfs = is_cgroup2fs(syscall->open.dentry) && !is_runtime_request();
 
-    if (syscall->state != ACCEPTED && is_cgroupfs) {
+    if (syscall->state != ACCEPTED && syscall->state != APPROVED && is_cgroupfs) {
         syscall->state = INTERNAL;
-    }
-
-    if (syscall->state == DISCARDED) {
-        return 0;
     }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
+    syscall->resolver.event_type = syscall->type;
     // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
     // to track cgroup lifecycle, and a discarder match here would drop them.
-    syscall->resolver.discarder_event_type = !is_cgroupfs ? dentry_resolver_discarder_event_type(syscall) : 0;
+    syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroupfs);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -133,7 +130,19 @@ int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path 
 
 HOOK_ENTRY("do_truncate")
 int hook_do_truncate(ctx_t *ctx) {
+    // filp is the 4th argument on older kernels; the idmapped-mounts series (kernel 5.12) prepended
+    // an idmap/user_namespace argument to do_truncate, shifting filp to the 5th position. This is
+    // detected specifically for do_truncate, as its argument gained the idmap argument independently
+    // of the security_* hooks.
+    u64 do_truncate_has_idmap_arg;
+    LOAD_CONSTANT("do_truncate_has_idmap_arg", do_truncate_has_idmap_arg);
+
     struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (do_truncate_has_idmap_arg) {
+        // prevent the verifier from whining
+        bpf_probe_read(&f, sizeof(f), &f);
+        f = (struct file *)CTX_PARM5(ctx);
+    }
     if (f == NULL) {
         return 0;
     }
@@ -224,19 +233,32 @@ int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
+// io_ftruncate (IORING_OP_FTRUNCATE, kernel 6.9+) calls do_ftruncate -> do_truncate, which
+// is already hooked (hook_do_truncate). As with the ftruncate syscall, we model it as an
+// open with O_TRUNC and let the do_truncate hook resolve the path from the file.
+HOOK_ENTRY("io_ftruncate")
+int hook_io_ftruncate(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    return trace__sys_openat2(ctx, NULL, flags, 0, pid_tgid);
+}
+
 // used by both tail call callback and directly for tracepoints
 int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
         return 0;
     }
 
-    // check if the syscall was discarded
-    if (syscall->state == DISCARDED) {
-        return 0;
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_OPEN);
+    apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 
@@ -254,6 +276,7 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
+        .sample_cookie = syscall->sample_cookie,
     };
 
     fill_file(syscall->open.dentry, &event.file);
@@ -313,6 +336,16 @@ HOOK_SYSCALL_COMPAT_EXIT(truncate) {
 
 HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
     return sys_open_ret(ctx);
+}
+
+HOOK_EXIT("io_ftruncate")
+int rethook_io_ftruncate(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        return 0;
+    }
+    syscall->retval = CTX_PARMRET(ctx);
+    return _sys_open_ret(ctx, syscall);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(open) {

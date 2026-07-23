@@ -43,7 +43,8 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
     syscall->resolver.iteration = 0;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
@@ -65,7 +66,9 @@ int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
         return 0;
     }
 
-    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &m->name);
+    u64 module_name_offset;
+    LOAD_CONSTANT("module_name_offset", module_name_offset);
+    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), (void *)m + module_name_offset);
     return 0;
 }
 

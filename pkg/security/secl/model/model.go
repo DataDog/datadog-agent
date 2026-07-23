@@ -195,8 +195,20 @@ func (nc *NetworkContext) IsZero() bool {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
+	SpanID        uint64            `field:"-"`
+	TraceID       utils.TraceID     `field:"-"`
+	HasExtraAttrs bool              `field:"-"`
+	ExtraAttrsID  uint64            `field:"-"`
+	Attributes    map[string]string `field:"-"`
+}
+
+// Tracer bundles the per-process APM tracer state: static metadata captured
+// from the tracer-info memfd, plus the most recent span context observed for
+// this process. Cross-platform so the model.go-level accessors compile on
+// both Linux and Windows builds.
+type Tracer struct {
+	Metadata tracermetadata.TracerMetadata
+	Trace    SpanContext
 }
 
 // RuleContext defines a rule context
@@ -398,7 +410,7 @@ func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
 		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerMetadata
+	return e.BaseEvent.ProcessContext.Process.Tracer.Metadata
 }
 
 // UserSessionContext describes the user session context
@@ -569,7 +581,6 @@ type SnapshottedMmapedFile struct {
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
-	Children []*ProcessCacheEntry `field:"-" copy:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -707,7 +718,9 @@ type FailedDNSEvent struct {
 
 // DNSResponse represents a DNS response event
 type DNSResponse struct {
-	ResponseCode uint8 `field:"code"` // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
+	ResponseCode uint8       `field:"code,default:-1"`                              // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
+	IPs          []net.IPNet `field:"ips"`                                          // SECLDoc[ips] Definition:`IP addresses resolved by the DNS response`
+	CNames       []string    `field:"cnames" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[cnames] Definition:`CNAME targets returned by the DNS response`
 }
 
 // Matches returns true if the two DNS events matches

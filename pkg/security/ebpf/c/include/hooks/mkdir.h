@@ -81,9 +81,7 @@ int hook_vfs_mkdir(ctx_t *ctx) {
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
-    if (approve_syscall(syscall, mkdir_approvers) == DISCARDED) {
-        pop_syscall(EVENT_MKDIR);
-    }
+    approve_syscall(syscall, mkdir_approvers);
 
     return 0;
 }
@@ -109,7 +107,8 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
 
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = select_dr_key(prog_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -131,8 +130,24 @@ int hook_do_mkdirat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_mkdirat")
+int hook_filename_mkdirat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
+    if (!syscall) {
+        umode_t mode = (umode_t)CTX_PARM3(ctx);
+        return trace__sys_mkdir(ctx, ASYNC_SYSCALL, NULL, mode);
+    }
+    return 0;
+}
+
 HOOK_EXIT("do_mkdirat")
 int rethook_do_mkdirat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_mkdirat")
+int rethook_filename_mkdirat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
@@ -164,8 +179,8 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_MKDIR);
+    apply_dentry_resolution_outcome(syscall, EVENT_MKDIR);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 

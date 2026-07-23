@@ -159,6 +159,7 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 		traceContextTypeID:   traceContextTypeID,
+		redaction:            program.Redaction,
 	}
 	decoder._return.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -167,6 +168,7 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 		traceContextTypeID:   traceContextTypeID,
+		redaction:            program.Redaction,
 	}
 	return decoder, nil
 }
@@ -263,6 +265,13 @@ type Event struct {
 	// flag in the emitted snapshot JSON so users know the capture is not
 	// full.
 	Truncated bool
+	// PanicUnwound is true when Return is a synthetic return-side event
+	// emitted by the runtime.recovery uprobe in place of a normal return.
+	// The function never returned; instead its frame was torn down by a
+	// recovered panic. The decoder renders the entry capture, skips the
+	// normal return-side decoding (no root type was generated for this
+	// path), and records an evaluation error noting the panic.
+	PanicUnwound bool
 }
 
 // firstFragment returns the first event from a FragmentedEvent. This is used
@@ -390,7 +399,30 @@ func (s *message) init(
 	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
 	var returnMissingReason string
-	if event.Return != nil {
+	if event.PanicUnwound {
+		// The recovery probe emitted a synthetic return whose root
+		// payload is the recovery probe's own EventRootType with a
+		// single @exception capture expression carrying the panic value's
+		// chased interface payload. Route it through the standard
+		// _return.init so the @exception value renders normally as the
+		// Return capture; surface the panic-recovery context as an
+		// evaluation error so callers know this isn't a real return.
+		if event.Return != nil {
+			if err := decoder._return.init(
+				event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
+			); err != nil {
+				return nil, fmt.Errorf("error initializing panic-unwound return event: %w", err)
+			}
+			s.Debugger.Snapshot.captures.Return = &decoder._return
+		}
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
+			evaluationError{
+				Expression: "@return",
+				Message:    "function did not return: panic was recovered by an ancestor frame",
+			},
+		)
+	} else if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {

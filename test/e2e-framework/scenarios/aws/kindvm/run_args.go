@@ -48,6 +48,10 @@ type RunParams struct {
 	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
 	// When empty the cluster uses the default single worker node.
 	workerNodes []kubecomp.KindWorkerNode
+
+	// mountDockerSocket bind-mounts /var/run/docker.sock from the EC2 host into
+	// each kind node, surfacing the host's dockerd inside the cluster.
+	mountDockerSocket bool
 }
 
 type RunOption = func(*RunParams) error
@@ -79,7 +83,7 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 	}
 
 	// VM: pick OS from InfraOSDescriptor
-	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.AmazonLinuxECSDefault)
+	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuDefault)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 
 	// Agent defaults
@@ -210,4 +214,11 @@ func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
 		p.workerNodes = append(p.workerNodes, nodes...)
 		return nil
 	}
+}
+
+// WithMountDockerSocket bind-mounts /var/run/docker.sock from the EC2 host into
+// each kind node. Use this to reproduce environments (e.g. GKE COS) where the
+// kubelet runs on containerd but a separate dockerd is still reachable.
+func WithMountDockerSocket() RunOption {
+	return func(p *RunParams) error { p.mountDockerSocket = true; return nil }
 }

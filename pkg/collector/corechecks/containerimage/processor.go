@@ -13,7 +13,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -88,8 +88,12 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		modelLayer := &model.ContainerImage_ContainerImageLayer{
 			Urls:      layer.URLs,
 			MediaType: layer.MediaType,
-			Digest:    layer.Digest,
-			Size:      layer.SizeBytes,
+			// The agent-payload field is named "Digest" but has carried
+			// diff_id semantics since this collector existed. Keep emitting
+			// the diff_id so the backend join against trivy vulnerability
+			// records (also keyed on diff_id) continues to match.
+			Digest: layer.DiffID,
+			Size:   layer.SizeBytes,
 		}
 
 		if layer.History != nil {

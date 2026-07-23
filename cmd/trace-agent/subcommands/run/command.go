@@ -19,7 +19,10 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -88,7 +91,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		telemetryfx.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
-			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath)
+			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath())
 		}),
 		logtracefx.Module(),
 		autoexitfx.Module(),
@@ -119,9 +122,11 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		payloadmodifierfx.Module(),
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(configsync.NewDefaultParams()),
 		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", cliParams.ConfPath)),
+		configstreamconsumerfx.Module(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 		agenttelemetryfx.Module(),

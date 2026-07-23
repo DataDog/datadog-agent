@@ -696,9 +696,9 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 // It enables the in_place_vertical_scaling config and sets Mode: Auto on the DPA.
 func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datadoghq.DatadogPodAutoscaler, sv *model.VerticalScalingValues, recommendationID string, pods []*workloadmeta.KubernetesPod) (autoscaling.ProcessResult, error) {
 	t.Helper()
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+		pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 	})
 
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
@@ -1170,8 +1170,8 @@ func TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath(t *testing.T) 
 // TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath verifies that with the
 // config flag enabled and no ApplyPolicy on the DPA, in-place is used (Auto strategy is assumed).
 func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
 	f := newVerticalControllerFixture(t, time.Now())
 
@@ -1209,8 +1209,8 @@ func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T)
 // TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath verifies that in-place scaling
 // is used only when the config flag is enabled AND the DPA explicitly sets Strategy: Auto.
 func TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
 	f := newVerticalControllerFixture(t, time.Now())
 
@@ -1250,4 +1250,62 @@ func TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath(t *testing.T) 
 	)
 	assert.NoError(t, err)
 	assert.False(t, workloadPatched, "Config enabled + Strategy: Auto must use in-place path, not rollout")
+}
+
+// disruptivePod builds a pod whose container c1 has a RestartContainer CPU resize policy.
+func disruptivePod(name, recID, owner string, ready bool, cpuPct float64, condType, reason string) *workloadmeta.KubernetesPod {
+	p := pod(name, recID, kubernetes.ReplicaSetKind, owner)
+	p.Ready = ready
+	p.Containers = []workloadmeta.OrchestratorContainer{{
+		Name:         "c1",
+		Resources:    workloadmeta.ContainerResources{CPURequest: &cpuPct, CPULimit: &cpuPct},
+		ResizePolicy: workloadmeta.ContainerResizePolicy{CPURestartPolicy: string(corev1.RestartContainer)},
+	}}
+	if condType != "" {
+		p.Conditions = []workloadmeta.KubernetesPodCondition{{Type: condType, Reason: reason}}
+	}
+	return p
+}
+
+// TestSyncInternal_InPlace_DisruptionBudget_CountsInFlightResizes verifies that in-flight resizes
+// count even while Ready, so they still consume budget across syncs.
+func TestSyncInternal_InPlace_DisruptionBudget_CountsInFlightResizes(t *testing.T) {
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 50)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 15)
+
+	f := newVerticalControllerFixture(t, time.Now())
+
+	var resizePatches int
+	f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		pa := a.(k8stesting.PatchAction)
+		if pa.GetSubresource() == "resize" {
+			resizePatches++
+		}
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	sv := scalingValWithRequests("r2", "1000m") // current pods are 500m -> CPU is changing
+
+	// Sync A: 4 disruptive pods needing patch, all Ready. tolerance(floor(4*0.5))=2 -> patch 2.
+	syncA := []*workloadmeta.KubernetesPod{
+		disruptivePod("p1", "old", "rs1", true, 50, "", ""),
+		disruptivePod("p2", "old", "rs1", true, 50, "", ""),
+		disruptivePod("p3", "old", "rs1", true, 50, "", ""),
+		disruptivePod("p4", "old", "rs1", true, 50, "", ""),
+	}
+	_, err := f.runSyncInPlaceMode(t, nil, sv, "r2", syncA)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, resizePatches, "first sync patches exactly the budget (2 of 4)")
+
+	// Sync B: the 2 from sync A are now InProgress but still Ready; 2 remain NeedsPatch.
+	resizePatches = 0
+	syncB := []*workloadmeta.KubernetesPod{
+		disruptivePod("p1", "r2", "rs1", true, 50, kubePodConditionResizeInProgress, ""),
+		disruptivePod("p2", "r2", "rs1", true, 50, kubePodConditionResizeInProgress, ""),
+		disruptivePod("p3", "old", "rs1", true, 50, "", ""),
+		disruptivePod("p4", "old", "rs1", true, 50, "", ""),
+	}
+	_, err = f.runSyncInPlaceMode(t, nil, sv, "r2", syncB)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, resizePatches, "in-flight Ready resizes consume budget; no new disruptive patches")
 }

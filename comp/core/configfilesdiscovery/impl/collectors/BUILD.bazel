@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "collectors",
+    srcs = [
+        "doc.go",
+        "helpers.go",
+        "kafka.go",
+        "redis.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl/collectors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/configfilesdiscovery/impl",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
+    ],
+)
+
+dd_agent_go_test(
+    name = "collectors_test",
+    srcs = [
+        "kafka_test.go",
+        "redis_test.go",
+    ],
+    embed = [":collectors"],
+    deps = [
+        "//comp/core/configfilesdiscovery/impl",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

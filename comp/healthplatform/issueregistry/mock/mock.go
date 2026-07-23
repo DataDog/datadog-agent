@@ -9,50 +9,56 @@
 package mock
 
 import (
-	"fmt"
+	"testing"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 type mockRegistry struct {
-	templates map[string]issuesmod.IssueTemplate
+	t         testing.TB
+	templates map[string]issuesmod.Template
+	periodic  []*runnerdef.BuiltInPeriodicHealthCheck
+	startup   []*runnerdef.BuiltInHealthCheck
 }
 
-// New returns an empty mock registry. Call RegisterTemplate to add templates.
-func New() registrydef.Component {
-	return &mockRegistry{templates: make(map[string]issuesmod.IssueTemplate)}
+// Option configures the mock registry returned by New.
+type Option func(*mockRegistry)
+
+// WithTemplate registers a template so that GetTemplate(issueName) succeeds.
+func WithTemplate(issueName string, tmpl issuesmod.Template) Option {
+	return func(m *mockRegistry) { m.templates[issueName] = tmpl }
 }
 
-// MockModule provides the mock registry via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
+// WithPeriodicCheck appends a check returned by GetBuiltInPeriodicHealthChecks.
+func WithPeriodicCheck(check *runnerdef.BuiltInPeriodicHealthCheck) Option {
+	return func(m *mockRegistry) { m.periodic = append(m.periodic, check) }
 }
 
-// RegisterTemplate adds a template under issueType so that BuildIssue succeeds.
-// Panics if r was not created by New() — intentional, test-only helper.
-func RegisterTemplate(r registrydef.Component, issueType string, tmpl issuesmod.IssueTemplate) {
-	r.(*mockRegistry).templates[issueType] = tmpl //nolint:forcetypeassert
+// WithStartupCheck appends a check returned by GetBuiltInStartupHealthChecks.
+func WithStartupCheck(check *runnerdef.BuiltInHealthCheck) Option {
+	return func(m *mockRegistry) { m.startup = append(m.startup, check) }
 }
 
-func (m *mockRegistry) BuildIssue(issueType string, context map[string]string) (*healthplatformpayload.Issue, error) {
-	if tmpl, ok := m.templates[issueType]; ok {
-		return tmpl.BuildIssue(context)
+// New returns a mock registry pre-populated with the given options.
+func New(t testing.TB, opts ...Option) registrydef.Component {
+	m := &mockRegistry{t: t, templates: make(map[string]issuesmod.Template)}
+	for _, o := range opts {
+		o(m)
 	}
-	return nil, fmt.Errorf("no issue template registered for type %q", issueType)
+	return m
 }
 
-func (m *mockRegistry) HasTemplate(issueType string) bool {
-	_, ok := m.templates[issueType]
-	return ok
+func (m *mockRegistry) GetTemplate(issueName string) (issuesmod.Template, bool) {
+	tmpl, ok := m.templates[issueName]
+	return tmpl, ok
 }
 
-func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*issuesmod.BuiltInPeriodicHealthCheck {
-	return nil
+func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
+	return m.periodic
 }
 
-func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*issuesmod.BuiltInStartupHealthCheck {
-	return nil
+func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
+	return m.startup
 }

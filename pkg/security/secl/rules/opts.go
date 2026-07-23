@@ -18,6 +18,7 @@ type VariableProvider interface {
 	NewSECLVariable(name string, value interface{}, scope string, opts eval.VariableOpts) (eval.SECLVariable, error)
 	CleanupExpiredVariables()
 	GetScopedVariables(name string) map[eval.ScopeHashKey]eval.Variable
+	CopyInheritedVariables(scope eval.VariableScope)
 }
 
 // VariableProviderFactory describes a function called to instantiate a variable provider

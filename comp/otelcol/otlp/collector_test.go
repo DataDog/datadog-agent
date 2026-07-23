@@ -72,7 +72,7 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 
 func TestStartPipeline(t *testing.T) {
 	cfg := pkgconfigmock.New(t)
-	cfg.SetWithoutSource("hostname", "otlp-testhostname")
+	cfg.SetInTest("hostname", "otlp-testhostname")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
@@ -80,7 +80,7 @@ func TestStartPipeline(t *testing.T) {
 
 func TestStartPipelineFromConfig(t *testing.T) {
 	cfg := pkgconfigmock.New(t)
-	cfg.SetWithoutSource("hostname", "otlp-testhostname")
+	cfg.SetInTest("hostname", "otlp-testhostname")
 
 	tests := []struct {
 		path string

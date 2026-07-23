@@ -16,13 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -31,17 +30,17 @@ import (
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64) {
-	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) }).Methods("POST")
-	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
-	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
-	r.HandleFunc("/hostname", http.HandlerFunc(getHostname(hostname))).Methods("POST")
-	r.HandleFunc("/log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, config) }).Methods("POST")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
-	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
-	r.HandleFunc("/getConfig", func(w http.ResponseWriter, _ *http.Request) { getConfigFile(w, config) }).Methods("POST")
-	r.HandleFunc("/getConfig/{setting}", func(w http.ResponseWriter, r *http.Request) { getConfigSetting(w, r, config) }).Methods("GET")
-	r.HandleFunc("/setConfig", func(w http.ResponseWriter, r *http.Request) { setConfigFile(w, r, config) }).Methods("POST")
+func agentHandler(r *http.ServeMux, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64, getToken func() string, sysprobeSocketPath string) {
+	r.HandleFunc("POST /ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) })
+	r.HandleFunc("POST /status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) })
+	r.HandleFunc("POST /version", getVersion)
+	r.HandleFunc("POST /hostname", getHostname(hostname))
+	r.HandleFunc("POST /log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, config) })
+	r.HandleFunc("POST /flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) })
+	r.HandleFunc("POST /restart", func(w http.ResponseWriter, r *http.Request) { restartAgent(w, r, getToken, sysprobeSocketPath) })
+	r.HandleFunc("POST /getConfig", func(w http.ResponseWriter, _ *http.Request) { getConfigFile(w, config) })
+	r.HandleFunc("GET /getConfig/{setting}", func(w http.ResponseWriter, r *http.Request) { getConfigSetting(w, r, config) })
+	r.HandleFunc("POST /setConfig", func(w http.ResponseWriter, r *http.Request) { setConfigFile(w, r, config) })
 }
 
 // Sends a simple reply (for checking connection to server)
@@ -52,7 +51,7 @@ func ping(w http.ResponseWriter, startTimestamp int64) {
 
 // Sends the current agent status
 func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
-	statusType := mux.Vars(r)["type"]
+	statusType := r.PathValue("type")
 
 	var (
 		stats []byte
@@ -108,11 +107,11 @@ func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter,
 
 // Sends the log file (agent.log)
 func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
-	flip, _ := strconv.ParseBool(mux.Vars(r)["flip"])
+	flip, _ := strconv.ParseBool(r.PathValue("flip"))
 
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.LogFile
+		logFile = defaultpaths.GetDefaultLogFile()
 	}
 
 	logFileContents, e := os.ReadFile(logFile)
@@ -169,9 +168,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function
-func restartAgent(w http.ResponseWriter, _ *http.Request) {
+func restartAgent(w http.ResponseWriter, _ *http.Request, getToken func() string, sysprobeSocketPath string) {
 	log.Infof("got restart function")
-	e := restart()
+	e := restart(getToken, sysprobeSocketPath)
 	if e != nil {
 		log.Warnf("restart failed %v", e)
 		w.Write([]byte(e.Error()))
@@ -183,7 +182,7 @@ func restartAgent(w http.ResponseWriter, _ *http.Request) {
 
 func getConfigSetting(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 	w.Header().Set("Content-Type", "application/json")
-	setting := mux.Vars(r)["setting"]
+	setting := r.PathValue("setting")
 	if _, ok := map[string]bool{
 		// only allow whitelisted settings:
 		"apm_config.receiver_port": true,

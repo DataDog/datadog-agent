@@ -256,7 +256,6 @@ func (cr *contextResolver) clearTagFilterCache() {
 	cr.tagFilterCache.clear()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}

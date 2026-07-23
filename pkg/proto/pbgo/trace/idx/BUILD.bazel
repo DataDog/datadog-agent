@@ -37,6 +37,7 @@ go_test(
         "span_marshal_test.go",
         "span_test.go",
         "span_v05_test.go",
+        "string_table_guard_test.go",
         "tracer_payload_test.go",
     ],
     embed = [":idx"],
@@ -45,6 +46,7 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
-        "@com_github_vmihailenco_msgpack_v4//:msgpack",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
+        "@org_golang_google_protobuf//reflect/protoreflect",
     ],
 )

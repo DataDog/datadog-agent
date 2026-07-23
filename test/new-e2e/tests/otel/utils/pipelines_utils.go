@@ -41,6 +41,16 @@ const (
 	customAttributeValue = "true"
 	log1Body             = "getting random date"
 	log2Body             = "random date"
+
+	// customLabelKey is a pod label on the calendar app that the base Helm
+	// values (see kubernetesResourcesLabelsAsTags in buildLinuxHelmValues) map
+	// to the "domain" tag via labels-as-tags -- i.e. a tag that is NOT part of
+	// the curated OTel resource attribute conventions the infraattributes
+	// processor always keeps as resource attributes. This is used to validate
+	// the logs_tags_as_ddtags option, which only affects tags like this one.
+	customLabelKey   = "x-parent-type"
+	customLabelValue = "e2e-test"
+	customLabelTag   = "domain"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -59,6 +69,19 @@ type IAParams struct {
 
 	// Cardinality represents the tag cardinality used by this test
 	Cardinality types.TagCardinality
+
+	// LogsTagsAsDDTags indicates whether the infraattributes processor's
+	// logs_tags_as_ddtags option is enabled for this test, i.e. whether
+	// custom tagger-derived tags (e.g. customLabelTag) are expected as real
+	// log tags instead of log attributes.
+	LogsTagsAsDDTags bool
+
+	// SkipCustomLabelTag skips testCustomLabelAsTag. Set this for deployments
+	// that don't configure kubernetesResourcesLabelsAsTags (e.g. the
+	// standalone otel-agent DaemonSet, which has no Helm chart / Cluster
+	// Agent backing the tagger's labels-as-tags mapping), where customLabelTag
+	// is never produced regardless of LogsTagsAsDDTags.
+	SkipCustomLabelTag bool
 }
 
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
@@ -334,6 +357,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
 			testInfraTags(s.T(), tags, iaParams)
+			if !iaParams.SkipCustomLabelTag {
+				testCustomLabelAsTag(s.T(), log, iaParams.LogsTagsAsDDTags)
+			}
 		}
 	}
 }
@@ -413,6 +439,59 @@ func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 		require.True(c, hasStatsForService)
 	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got APM stats", stats)
+}
+
+// TestHeadBasedSamplingScaling validates that the Datadog connector scales APM
+// stats up by the W3C tracestate head-sampling weight.
+//
+// The accompanying config (config/sampling-head-based.yml) runs two connectors
+// over the same OTLP stream:
+//   - datadog/unsampled sees 100% of traffic (service "calendar-rest-go"), so
+//     its Hits are the ground-truth volume.
+//   - datadog/sampled sits behind a 50% proportional probabilistic_sampler that
+//     stamps an "ot=th:" tracestate; its service is renamed to
+//     "calendar-rest-go-sampled". It observes only the sampled subset and must
+//     recover the sampling weight from the tracestate to scale its Hits back up.
+//
+// With correct scaling the sampled connector's Hits approximate the unsampled
+// baseline (ratio ~1.0). Without scaling they would be roughly half (~0.5), so
+// the ratio band below both requires the fix and tolerates 50% sampling variance.
+func TestHeadBasedSamplingScaling(s OTelTestSuite) {
+	const sampledService = CalendarService + "-sampled"
+	s.T().Log("Waiting for head-based-sampling APM stats")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
+		require.NoError(c, err)
+		require.NotEmpty(c, stats)
+
+		var unsampledHits, sampledHits uint64
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						switch cgs.Service {
+						case CalendarService:
+							unsampledHits += cgs.Hits
+						case sampledService:
+							sampledHits += cgs.Hits
+						}
+					}
+				}
+			}
+		}
+		s.T().Logf("head-based sampling hits: unsampled=%d sampled=%d", unsampledHits, sampledHits)
+
+		// Require enough volume on both branches before comparing, so the ratio
+		// is not dominated by sampling variance at low counts.
+		require.Greater(c, unsampledHits, uint64(20), "not enough baseline volume yet")
+		require.Greater(c, sampledHits, uint64(20), "not enough sampled volume yet")
+
+		ratio := float64(sampledHits) / float64(unsampledHits)
+		assert.Greater(c, ratio, 0.65,
+			"sampled connector Hits should be scaled up to ~unsampled baseline (ratio %.2f); a ratio near 0.5 means the tracestate head-sampling weight was not applied", ratio)
+		assert.Less(c, ratio, 1.5,
+			"sampled connector Hits unexpectedly high (ratio %.2f)", ratio)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 const (
@@ -672,6 +751,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 						"app.kubernetes.io/instance":   name,
 						"app.kubernetes.io/version":    "0.15",
 						"app.kubernetes.io/managed-by": "Helm",
+						customLabelKey:                 customLabelValue,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -795,6 +875,28 @@ func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	if iaParams.Cardinality == types.HighCardinality && iaParams.EKS {
 		assert.NotNil(t, tags["display_container_name"])
 	}
+}
+
+// testCustomLabelAsTag verifies that the custom tagger-derived tag
+// customLabelTag (from labels-as-tags on the calendar app's customLabelKey
+// pod label) is surfaced as a real log tag when logsTagsAsDDTags is enabled,
+// and as a log attribute (not a tag) otherwise -- this is the default,
+// unchanged behavior of the infraattributes processor.
+func testCustomLabelAsTag(t *testing.T, log *aggregator.Log, logsTagsAsDDTags bool) {
+	tagMap := getTagMapFromSlice(t, log.Tags)
+	var attrs map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(log.Message), &attrs))
+
+	if logsTagsAsDDTags {
+		assert.Equal(t, customLabelValue, tagMap[customLabelTag])
+		_, hasAttr := attrs[customLabelTag]
+		assert.False(t, hasAttr, "expected %q to not be a log attribute when logs_tags_as_ddtags is enabled", customLabelTag)
+		return
+	}
+
+	_, hasTag := tagMap[customLabelTag]
+	assert.False(t, hasTag, "expected %q to not be a log tag by default", customLabelTag)
+	assert.Equal(t, customLabelValue, fmt.Sprint(attrs[customLabelTag]))
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {

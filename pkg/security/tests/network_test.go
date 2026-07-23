@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/cilium/ebpf"
 	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
@@ -325,7 +325,7 @@ func TestRawPacketAction(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
 		}, "test_rule_raw_packet_drop")
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("test_rule_raw_packet_drop")
 			if msg == nil {
 				return errors.New("not found")
@@ -346,7 +346,7 @@ func TestRawPacketAction(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(60), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(60))
 		assert.NoError(t, err)
 
 		// wait for the action to be performed
@@ -357,7 +357,7 @@ func TestRawPacketAction(t *testing.T) {
 			t.Error("should return an error")
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("rawpacket_action")
 			if msg == nil {
 				return errors.New("not found")
@@ -365,7 +365,7 @@ func TestRawPacketAction(t *testing.T) {
 			validateRawPacketActionSchema(t, string(msg.Data))
 
 			return nil
-		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
 }
@@ -493,14 +493,14 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	}
 
 	// Verify the raw packet action event was sent
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("rawpacket_action")
 		if msg == nil {
 			return errors.New("not found")
 		}
 		validateRawPacketActionSchema(t, string(msg.Data))
 		return nil
-	}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 	assert.NoError(t, err)
 
 	// Now remove the network isolation rule and verify DNS works again
@@ -799,6 +799,11 @@ func TestRawPacketFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, progSpecs)
 
+		for _, prog := range progSpecs {
+			// check if len of proc insturctions is lower than the limit
+			assert.Less(t, len(prog.Instructions), opts.MaxProgSize)
+		}
+
 		colSpec := ebpf.CollectionSpec{
 			Programs: make(map[string]*ebpf.ProgramSpec),
 		}
@@ -831,7 +836,7 @@ func TestRawPacketFilter(t *testing.T) {
 
 		opts := rawpacket.DefaultProgOpts()
 		opts.MaxProgSize = 4000
-		opts.NopInstLen = 3500
+		opts.NopInstLen = 1000
 		runTest(t, filters, opts)
 	})
 }

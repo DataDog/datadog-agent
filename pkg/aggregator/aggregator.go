@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -155,7 +155,9 @@ var (
 		[]string{"shard"}, "Size of the aggregator channel")
 	tlmProcessed = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "processed",
 		[]string{"shard", "data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
-	tlmDogstatsdTimeBuckets = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
+	tlmProcessedMetrics         = tlmProcessed.WithValues("", "metrics")
+	tlmProcessedHistogramBucket = tlmProcessed.WithValues("", "histogram_bucket")
+	tlmDogstatsdTimeBuckets     = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
 		[]string{"shard"}, "Number of time buckets in the dogstatsd sampler")
 	tlmDogstatsdContexts = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts",
 		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
@@ -456,7 +458,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	defer agg.mu.Unlock()
 
 	aggregatorChecksMetricSample.Add(1)
-	tlmProcessed.Inc("", "metrics")
+	tlmProcessedMetrics.Inc()
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
@@ -475,7 +477,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	defer agg.mu.Unlock()
 
 	aggregatorCheckHistogramBucketMetricSample.Add(1)
-	tlmProcessed.Inc("", "histogram_bucket")
+	tlmProcessedHistogramBucket.Inc()
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)

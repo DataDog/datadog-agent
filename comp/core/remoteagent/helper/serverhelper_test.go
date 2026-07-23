@@ -8,8 +8,13 @@ package helper
 import (
 	"context"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +25,7 @@ import (
 	"google.golang.org/grpc/examples/features/proto/echo"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -29,6 +35,108 @@ import (
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
+
+// shortUDSDir returns a short-path temp directory suitable for UDS sockets.
+// macOS limits sun_path to 104 bytes; the default t.TempDir() on macOS
+// produces paths that easily blow past that with long test names.
+func shortUDSDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "rar-uds-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
+func TestBuildRemoteAgentListener(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("")
+		require.Error(t, err)
+	})
+
+	t.Run("https", func(t *testing.T) {
+		ral, err := buildRemoteAgentListener("https://127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ral.listener.Close() })
+
+		assert.Empty(t, ral.cleanupSocketPath)
+		assert.True(t, strings.HasPrefix(ral.apiEndpointURI, "https://127.0.0.1:"), "got %q", ral.apiEndpointURI)
+		assert.NotEqual(t, "https://127.0.0.1:0", ral.apiEndpointURI, "random port should be resolved")
+	})
+
+	t.Run("unix", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UDS not supported on Windows")
+		}
+		socketPath := filepath.Join(shortUDSDir(t), "ra.sock")
+		listenURI := "unix://" + socketPath
+
+		ral, err := buildRemoteAgentListener(listenURI)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ral.listener.Close() })
+
+		assert.Equal(t, listenURI, ral.apiEndpointURI, "unix URI should round-trip into the advertised URI")
+		assert.Equal(t, socketPath, ral.cleanupSocketPath)
+
+		info, err := os.Stat(socketPath)
+		require.NoError(t, err)
+		assert.True(t, info.Mode()&os.ModeSocket != 0, "expected a socket at %q", socketPath)
+		assert.Equal(t, os.FileMode(0700), info.Mode().Perm(), "socket should be owner-only")
+	})
+
+	t.Run("unix_stale", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UDS not supported on Windows")
+		}
+		socketPath := filepath.Join(shortUDSDir(t), "s.sock")
+
+		// Pre-create a socket and close it without unlinking the on-disk file, to
+		// simulate a process that crashed and left a stale socket inode behind.
+		first, err := net.Listen("unix", socketPath)
+		require.NoError(t, err)
+		first.(*net.UnixListener).SetUnlinkOnClose(false)
+		require.NoError(t, first.Close())
+		info, err := os.Stat(socketPath)
+		require.NoError(t, err)
+		require.NotZero(t, info.Mode()&os.ModeSocket, "precondition: stale socket file should exist on disk")
+
+		ral, err := buildRemoteAgentListener("unix://" + socketPath)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ral.listener.Close() })
+		assert.Equal(t, socketPath, ral.cleanupSocketPath)
+	})
+
+	t.Run("unix_non_socket_file", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UDS not supported on Windows")
+		}
+		filePath := filepath.Join(shortUDSDir(t), "f")
+		require.NoError(t, os.WriteFile(filePath, []byte("hi"), 0600))
+
+		_, err := buildRemoteAgentListener("unix://" + filePath)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a socket")
+	})
+
+	t.Run("http_rejected", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("http://127.0.0.1:0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "http:// scheme is not supported")
+	})
+
+	t.Run("missing_scheme", func(t *testing.T) {
+		// listenURI must be either empty (legacy) or scheme-prefixed; a bare "host:port" is rejected
+		// to keep callsites unambiguous.
+		_, err := buildRemoteAgentListener("127.0.0.1:0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing scheme")
+	})
+
+	t.Run("unsupported_scheme", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("vsock://2:50051")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported remote agent listen URI scheme")
+	})
+}
 
 // TestNoSessionIDReturnsError tests that requests to the remote agent server
 // return errors when no session ID is set (i.e., before registration completes)
@@ -296,52 +404,49 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	logComp := logmock.New(t)
 	configComp := configmock.New(t)
-
-	// Set a short query timeout for faster test
-	configComp.SetWithoutSource("remote_agent.registry.query_timeout", 50*time.Millisecond)
-
-	registerCallCount := 0
-	refreshCallCount := 0
-	var mu sync.Mutex
-
-	// Create a mock core agent server where registration hangs the 2 first calls
-	mockCoreAgent := newMockCoreAgentServer(t, ipcComp,
-		func(ctx context.Context, _ *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
-			mu.Lock()
-			registerCallCount++
-			if registerCallCount > 2 {
-				defer mu.Unlock()
-				return &pbcore.RegisterRemoteAgentResponse{
-					SessionId:                      "uuid_session_id",
-					RecommendedRefreshIntervalSecs: 1,
-				}, nil
-			}
-			mu.Unlock()
-
-			// Block forever to prevent registration from completing
-			<-ctx.Done()
-			return nil, ctx.Err()
-		},
-		func(_ context.Context, _ *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error) {
-			mu.Lock()
-			refreshCallCount++
-			mu.Unlock()
-			return &pbcore.RefreshRemoteAgentResponse{}, nil
-		},
-	)
-	defer mockCoreAgent.stop()
-
-	// Create the remote agent server
 	server, err := NewUnimplementedRemoteAgentServer(
 		ipcComp,
 		logComp,
 		configComp,
 		lc,
-		mockCoreAgent.address,
+		"test.invalid",
 		"test-agent",
 		"Test Agent",
 	)
 	require.NoError(t, err)
+
+	synctest.Test(t, func(t *testing.T) {
+		syncTestRegistrationRefreshContention(t, lc, server)
+	})
+}
+
+func syncTestRegistrationRefreshContention(t *testing.T, lc *compdef.TestLifecycle, server *UnimplementedRemoteAgentServer) {
+	registerCallCount := 0
+	refreshCallCount := 0
+	registered := make(chan struct{})
+	require.NoError(t, server.listener.Close())
+	server.listener = bufconn.Listen(1 << 20)
+
+	// Create a fake agent client where registration hangs the 2 first calls
+	server.agentClient = &fakeRemoteAgentClient{
+		func(ctx context.Context, _ *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
+			registerCallCount++
+			if registerCallCount > 2 {
+				close(registered)
+				return &pbcore.RegisterRemoteAgentResponse{
+					SessionId:                      "uuid_session_id",
+					RecommendedRefreshIntervalSecs: 1,
+				}, nil
+			}
+			// Block forever to prevent registration from completing
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+		func(_ context.Context, _ *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error) {
+			refreshCallCount++
+			return &pbcore.RefreshRemoteAgentResponse{}, nil
+		},
+	}
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
@@ -349,22 +454,16 @@ func TestRegistrationRefreshContention(t *testing.T) {
 
 	// Wait for registration to be retried after the first two timeouts.
 	// The third attempt should succeed and bring the counter to 3.
-	require.Eventually(t, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return registerCallCount == 3
-	}, 3*time.Second, 50*time.Millisecond, "Registration should have been retried after timeout")
+	<-registered
+	assert.Equal(t, 3, registerCallCount, "Registration should have been retried after timeout")
 
 	// Now test refresh contention - the server should be registered by now
 	// Wait a bit more to ensure refresh is called
-	time.Sleep(2 * time.Second)
+	time.Sleep(1500 * time.Millisecond) // at midpoint between 1st and 2nd tick
+	synctest.Wait()                     // for the bubble to quiesce
 
-	mu.Lock()
-	refCount := refreshCallCount
-	mu.Unlock()
-
-	// We should have at least one refresh call by now
-	assert.Greater(t, refCount, 0, "Refresh should have been called")
+	// We should have exactly one refresh call by now
+	assert.Equal(t, 1, refreshCallCount, "Refresh should have been called exactly once")
 }
 
 // TestSessionIDInResponseMetadata tests that the session ID is properly
@@ -431,6 +530,25 @@ func TestSessionIDInResponseMetadata(t *testing.T) {
 
 // Helper types and functions
 
+// fakeRemoteAgentClient implements pbcore.RemoteAgentClient via callbacks, with no gRPC transport
+// goroutines nor timers, safe to use inside a synctest bubble.
+type fakeRemoteAgentClient struct {
+	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
+	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
+}
+
+func (f *fakeRemoteAgentClient) RegisterRemoteAgent(ctx context.Context, req *pbcore.RegisterRemoteAgentRequest, _ ...grpc.CallOption) (*pbcore.RegisterRemoteAgentResponse, error) {
+	return f.registerFunc(ctx, req)
+}
+
+func (f *fakeRemoteAgentClient) RefreshRemoteAgent(ctx context.Context, req *pbcore.RefreshRemoteAgentRequest, _ ...grpc.CallOption) (*pbcore.RefreshRemoteAgentResponse, error) {
+	return f.refreshFunc(ctx, req)
+}
+
+func (f *fakeRemoteAgentClient) ReportRemoteAgentEvent(_ context.Context, _ *pbcore.ReportRemoteAgentEventRequest, _ ...grpc.CallOption) (*pbcore.ReportRemoteAgentEventResponse, error) {
+	return &pbcore.ReportRemoteAgentEventResponse{}, nil
+}
+
 // mockStatusProvider implements a mock status provider
 type mockStatusProvider struct {
 	pbcore.UnimplementedStatusProviderServer
@@ -465,7 +583,7 @@ type mockCoreAgentServer struct {
 	address      string
 	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
 	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
-	pbcore.UnimplementedAgentSecureServer
+	pbcore.UnimplementedRemoteAgentServer
 	echo.UnimplementedEchoServer
 }
 
@@ -519,7 +637,7 @@ func newMockCoreAgentServer(
 	}
 
 	mock.server = grpc.NewServer(serverOpts...)
-	pbcore.RegisterAgentSecureServer(mock.server, mock)
+	pbcore.RegisterRemoteAgentServer(mock.server, mock)
 
 	// register echo service
 	echo.RegisterEchoServer(mock.server, mock)

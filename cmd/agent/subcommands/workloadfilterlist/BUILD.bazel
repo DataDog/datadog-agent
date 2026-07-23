@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "workloadfilterlist",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadfilterlist",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//pkg/cli/subcommands/workloadfilter",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

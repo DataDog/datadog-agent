@@ -8,18 +8,14 @@
 package kubeletconfig
 
 import (
-	"context"
 	"strings"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/agent-payload/v5/process"
-
-	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -28,19 +24,14 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-
 	stypes "github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -54,59 +45,11 @@ type fakeSender struct {
 	manifests []process.MessageBody
 }
 
-type fakeDCAClient struct{}
+type fakeNodeUIDClient struct{}
 
-func (f *fakeDCAClient) Version(_ bool) version.Version                    { panic("not used") }
-func (f *fakeDCAClient) ClusterAgentAPIEndpoint() string                   { panic("not used") }
-func (f *fakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) { panic("not used") }
-func (f *fakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetNodeUID(_ string) (string, error) {
+func (f *fakeNodeUIDClient) GetNodeUID(_ string) (string, error) {
 	return "uid-test-123", nil
 }
-
-func (f *fakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetNodeInfo(_ string, _ ...string) (*clusteragent.NodeSystemInfo, error) {
-	panic("implement me")
-}
-
-func (f *fakeDCAClient) GetNamespaceMetadata(_ string) (*clusteragent.Metadata, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetKubernetesMetadataNames(_, _, _ string) ([]string, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) PostClusterCheckStatus(_ context.Context, _ string, _ types.NodeStatus) (types.StatusResponse, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetClusterCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
-	panic("not used")
-}
-
-func (f *fakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
-	panic("not used")
-}
-func (f *fakeDCAClient) GetKubernetesClusterID() (string, error) { panic("not used") }
-func (f *fakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
-	panic("not used")
-}
-func (f *fakeDCAClient) SupportsNamespaceMetadataCollection() bool { panic("not used") }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (s *fakeSender) OrchestratorManifest(msgs []stypes.ProcessMessageBody, clusterID string) {
@@ -123,15 +66,14 @@ type KubeletConfigTestSuite struct {
 func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
-	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
-	mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
-	mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
+	mockConfig.SetInTest("cluster_agent.enabled", true)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("orchestrator_explorer.enabled", true)
+	mockConfig.SetInTest("orchestrator_explorer.manifest_collection.enabled", true)
+	mockConfig.SetInTest("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
+	mockConfig.SetInTest("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
 
 	sender := &fakeSender{}
 	suite.sender = sender
@@ -161,8 +103,8 @@ func (suite *KubeletConfigTestSuite) SetupSuite() {
 		store:    mockStore,
 	}
 
-	getClusterAgentClient = func() (clusteragent.DCAClientInterface, error) {
-		return &fakeDCAClient{}, nil
+	getClusterAgentClient = func() (nodeUIDClient, error) {
+		return &fakeNodeUIDClient{}, nil
 	}
 }
 
@@ -171,6 +113,39 @@ func (suite *KubeletConfigTestSuite) TearDownSuite() {
 
 func TestKubeletConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletConfigTestSuite))
+}
+
+func TestResolveManifestTypeMeta(t *testing.T) {
+	const realAPIVersion = "kubelet.config.k8s.io/v1beta1"
+	const realKind = "KubeletConfiguration"
+
+	tests := []struct {
+		name           string
+		spec           workloadmeta.KubeletConfigSpec
+		wantKind       string
+		wantAPIVersion string
+	}{
+		{
+			name:           "apiVersion populated + kind populated (modern kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{APIVersion: realAPIVersion, Kind: realKind},
+			wantKind:       realKind,
+			wantAPIVersion: realAPIVersion,
+		},
+		{
+			name:           "apiVersion empty + kind empty (legacy kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{},
+			wantKind:       kubeletVirtualKind,
+			wantAPIVersion: kubeletVirtualAPIVersion,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotKind, gotAPIVersion := resolveManifestTypeMeta(tc.spec)
+			require.Equal(t, tc.wantKind, gotKind)
+			require.Equal(t, tc.wantAPIVersion, gotAPIVersion)
+		})
+	}
 }
 
 func (suite *KubeletConfigTestSuite) TestKubeletConfigCheck() {

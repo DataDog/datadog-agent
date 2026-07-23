@@ -76,6 +76,10 @@ var (
 	_ Type = (*GoHMapBucketType)(nil)
 	_ Type = (*GoSwissMapHeaderType)(nil)
 	_ Type = (*GoSwissMapGroupsType)(nil)
+	_ Type = (*GoFilteredSliceType)(nil)
+	_ Type = (*GoFilteredSliceDataType)(nil)
+	_ Type = (*GoFilteredMapType)(nil)
+	_ Type = (*GoFilteredMapDataType)(nil)
 	_ Type = (*GoTimeType)(nil)
 	_ Type = (*GoChannelType)(nil)
 	_ Type = (*GoEmptyInterfaceType)(nil)
@@ -122,6 +126,12 @@ const (
 	// DynamicSizeHashmap corresponds to bucket slice types of hashmaps.
 	// These are given extra space due to expected fraction of empty slots.
 	DynamicSizeHashmap
+	// DynamicSizeFilterDeferred marks per-call-site filter data types whose
+	// `enqueue_pc` runs the deferred filter loop. sm_chase_pointer skips the
+	// usual serialize step for these types; the enqueue_pc itself emits the
+	// per-passing-element data items. Used only by GoFilteredSliceDataType
+	// and GoFilteredMapDataType.
+	DynamicSizeFilterDeferred
 )
 
 // TypeCommon has common fields for all types.
@@ -148,6 +158,20 @@ const (
 	// GoContextNoOffset means the type does not contain that context field.
 	GoContextNoOffset int32 = -1
 )
+
+// HasChainData reports whether the type is a link in a walkable context chain:
+// it carries the layout the BPF chain walk needs to step to the next context,
+// namely an embedded parent Context or (for valueCtx) a key/value payload. A
+// concrete context.Context implementation with none of these is not a chain
+// link (it implements the interface without holding a context of its own, e.g.
+// a request type whose methods forward to another context, or one of the
+// terminal roots like context.Background); it must be captured as an ordinary
+// struct rather than chain-walked.
+func (a GoContextAttributes) HasChainData() bool {
+	return a.ContextOffset != GoContextNoOffset ||
+		a.KeyOffset != GoContextNoOffset ||
+		a.ValueOffset != GoContextNoOffset
+}
 
 // DDTraceSpanKind identifies the dd-trace-go span layout carried by a type.
 type DDTraceSpanKind uint8
@@ -466,6 +490,87 @@ type GoSwissMapGroupsType struct {
 
 func (GoSwissMapGroupsType) irType() {}
 
+// GoFilteredSliceType is the pointer-shaped, 8-byte handle stored in the
+// event-root expression slot for a filter() call whose source is a slice.
+// One unique instance is synthesized per filter() call site at irgen time.
+// It is NOT a slice header (24 bytes); it is a handle the decoder uses to
+// locate the associated per-element data items via their unique type ID.
+//
+// The wire value is the source slice's data pointer (zero ⇒ nil source).
+type GoFilteredSliceType struct {
+	TypeCommon
+	syntheticType
+	// Data is the per-passing-element data-item type whose enqueue_pc
+	// implements the deferred filter loop for this call site.
+	Data *GoFilteredSliceDataType
+}
+
+func (GoFilteredSliceType) irType() {}
+
+// GoFilteredSliceDataType is the per-passing-element data-item type for a
+// single filter() call site. Its enqueue_pc bytecode IS the deferred
+// filter loop. Because addTypeHandler today switches on type shape only
+// and cannot synthesize per-call-site predicate bodies, this type carries
+// its own pre-compiled IR op sequence in EnqueueOps. The compiler's
+// addTypeHandler switch matches this type and lowers EnqueueOps directly.
+type GoFilteredSliceDataType struct {
+	TypeCommon
+	syntheticType
+	// Element is the element type from the source slice's GoSliceDataType.
+	Element Type
+	// ElemByteSize is the element byte size, duplicated here so the
+	// enqueue_pc lowering doesn't need to re-resolve Element.
+	ElemByteSize uint32
+	// EnqueueOps is the pre-compiled IR op sequence emitted by irgen.
+	// It contains only ir.ExpressionOp values:
+	//   InitFilterSliceLoopOp
+	//   CondLabelOp{Label: BodyLabel}
+	//   <predicate body ops>
+	//   FilterSliceLoopStepOp{ElementTypeID, ...}
+	//   CondLabelOp{Label: EndLabel}
+	// The trailing compiler ReturnOp and the per-element CallOp for
+	// nested-pointer chasing are introduced by the compiler at lowering
+	// time, not stored in EnqueueOps.
+	EnqueueOps []ExpressionOp
+}
+
+func (GoFilteredSliceDataType) irType() {}
+
+// GoFilteredMapType is the pointer-shaped, 8-byte handle stored in the
+// event-root expression slot for a filter() call whose source is a map.
+// Analogous to GoFilteredSliceType but for filter results whose source is
+// a swiss-table map.
+//
+// The wire value is the raw map[K]V pointer (zero ⇒ nil source).
+type GoFilteredMapType struct {
+	TypeCommon
+	syntheticType
+	// Data is the per-passing-(k,v)-pair data-item type whose enqueue_pc
+	// implements the deferred filter loop for this call site.
+	Data *GoFilteredMapDataType
+}
+
+func (GoFilteredMapType) irType() {}
+
+// GoFilteredMapDataType is the per-passing-(k,v)-pair data-item type for a
+// single filter() call site over a map. See GoFilteredSliceDataType for the
+// EnqueueOps contract.
+type GoFilteredMapDataType struct {
+	TypeCommon
+	syntheticType
+	KeyType   Type
+	ValueType Type
+	// ValOffsetInPair is the byte offset of the value within the synthetic
+	// (key, value) data-item payload. Always (KeyByteSize + 7) & ~7 so the
+	// value is 8-byte aligned, matching the @it scratch layout.
+	ValOffsetInPair uint32
+	// EnqueueOps mirrors GoFilteredSliceDataType.EnqueueOps but contains
+	// InitFilterMapLoopOp / FilterMapLoopStepOp instead.
+	EnqueueOps []ExpressionOp
+}
+
+func (GoFilteredMapDataType) irType() {}
+
 // GoTimeType is a specialized wrapper for the standard library's time.Time
 // structure. Decoding time.Time as a generic struct would either leak the
 // private wall/ext bit layout or render an opaque blob. By recognizing the
@@ -599,6 +704,11 @@ type RootExpression struct {
 	// read the resolved runtime type from the corresponding DictEntry
 	// in the EventRootType.
 	DictIndex int
+	// Redacted is true when the expression resolves to a sensitive value:
+	// its source references a redacted variable, member, or string map key.
+	// irgen decides this from the parsed expression (the resolved IR keeps
+	// only offsets and a display name); the decoder drops the value.
+	Redacted bool
 }
 
 // RootExpressionKind is the kind of a root expression.

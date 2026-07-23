@@ -36,6 +36,24 @@ const (
 	goVersionSwissMap = "go1.24"
 )
 
+// packExprStatuses returns the byte(s) of a packed expression-status array
+// for the given per-expression status values. Each status occupies
+// ir.ExprStatusBits bits. The array length matches the encoding used by
+// irgen / event.c so test fixtures can be built without hard-coding the
+// bit width.
+func packExprStatuses(statuses ...ir.ExprStatus) []byte {
+	out := make([]byte, (ir.ExprStatusBits*len(statuses)+7)/8)
+	for i, s := range statuses {
+		bitOffset := i * ir.ExprStatusBits
+		for b := range ir.ExprStatusBits {
+			if (uint8(s)>>b)&1 != 0 {
+				out[(bitOffset+b)/8] |= 1 << ((bitOffset + b) % 8)
+			}
+		}
+	}
+	return out
+}
+
 func FuzzDecoder(f *testing.F) {
 	probeNameSet := make(map[string]bool)
 	goVersions := make(map[string]bool)
@@ -304,7 +322,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 0x05) // bitset: present (1) at expr 0 bits [0..1] and expr 1 bits [2..3]
+	item = append(item, packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusPresent)...)
 	// First expression (template_segment) at offset 1
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
@@ -398,7 +416,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set expression status to present for both expressions.
 	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
+		copy(rootData, packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusPresent))
 	}
 	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -591,7 +609,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// Build root data item
 	rootData := make([]byte, rootLen)
 	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
+		copy(rootData, packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusPresent))
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -810,7 +828,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// Build root data item
 	rootData := make([]byte, rootLen)
 	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
+		copy(rootData, packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusPresent))
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -1044,7 +1062,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set expression status to present for both expressions.
 	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
+		copy(rootData, packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusPresent))
 	}
 	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -1166,7 +1184,7 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	rootData := make([]byte, rootLen)
 	// Set expression status to present for both expressions.
 	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
+		copy(rootData, packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusPresent))
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type
@@ -1560,13 +1578,10 @@ func TestDecoderNilPointerCaptureExpression(t *testing.T) {
 	require.NoError(t, err)
 	input := simpleStringArgEvent(t, irProg)
 
-	// Flip bitset so expression 1 (the argument capture) has nil-deref (2)
-	// instead of present (1). With 2 bits per status:
-	// expr 0 = present (1) at bits [0:1]
-	// expr 1 = nil-deref (2) at bits [2:3]
-	// Result: (1 << 0) | (2 << 2) = 0x09
+	// Flip bitset so expression 1 (the argument capture) has nil-deref
+	// instead of present.
 	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
-	input[bitsetOffset] = 0x09
+	copy(input[bitsetOffset:], packExprStatuses(ir.ExprStatusPresent, ir.ExprStatusNilDeref))
 
 	buf, probe, err := decoder.Decode(Event{
 		EntryOrLine: output.SingleEvent(input),
@@ -1601,13 +1616,9 @@ func TestDecoderNilPointerTemplateExpression(t *testing.T) {
 	require.NoError(t, err)
 	input := simpleStringArgEvent(t, irProg)
 
-	// Flip bitset so expression 0 (the template segment) has nil-deref (2).
-	// With 2 bits per status:
-	// expr 0 = nil-deref (2) at bits [0:1]
-	// expr 1 = present (1) at bits [2:3]
-	// Result: (2 << 0) | (1 << 2) = 0x06
+	// Flip bitset so expression 0 (the template segment) has nil-deref.
 	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
-	input[bitsetOffset] = 0x06
+	copy(input[bitsetOffset:], packExprStatuses(ir.ExprStatusNilDeref, ir.ExprStatusPresent))
 
 	buf, probe, err := decoder.Decode(Event{
 		EntryOrLine: output.SingleEvent(input),
