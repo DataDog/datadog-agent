@@ -21,23 +21,27 @@
 //   - /suspend  — VM is about to be snapshotted/frozen.
 //   - /terminate — VM is being torn down permanently.
 //
-// This server handles those hooks in two modes:
+// Each hook is forwarded independently based on a pair of conditions:
 //
-//   - When DD_AWS_MICROVM_USER_APP_PORT is unset: the agent responds
-//     to each hook itself. /ready checks child-process liveness; /validate
-//     returns 200 directly; /run, /resume, /suspend, and /terminate emit
-//     an enhanced metric and, for /suspend and /terminate, flush telemetry
-//     before responding.
+//   - DD_AWS_MICROVM_USER_APP_PORT must be set (a Forwarder is configured).
+//   - That hook's own DD_AWS_MICROVM_ENABLE_{READY,VALIDATE,RUN,RESUME,
+//     SUSPEND,TERMINATE} toggle must be true (defaults to false).
 //
-//   - When the env var is set: the agent forwards each hook to
-//     127.0.0.1:<user-app-port> on the same path and mirrors the user app's
-//     response (status, body, Content-Type) back to the platform. /ready and
-//     /validate check TCP reachability with a single fast dial before
-//     forwarding, answering 503 immediately if the app isn't up yet rather
-//     than blocking — the platform owns the retry loop for those two hooks.
-//     For /run, /resume, /suspend, and /terminate the agent's own work —
-//     metric emission, /suspend and /terminate telemetry flush — runs in a
-//     goroutine in parallel with the pass-through.
+// When both are true for a given hook, the agent forwards it to
+// 127.0.0.1:<user-app-port> on the same path and mirrors the user app's
+// response (status, body, Content-Type) back to the platform. /ready and
+// /validate check TCP reachability with a single fast dial before
+// forwarding, answering 503 immediately if the app isn't up yet rather than
+// blocking — the platform owns the retry loop for those two hooks. For
+// /run, /resume, /suspend, and /terminate the agent's own work — metric
+// emission, /suspend and /terminate telemetry flush — runs in a goroutine in
+// parallel with the pass-through.
+//
+// Otherwise (no Forwarder, or the hook's own toggle is false) the agent
+// responds to that hook itself: /ready checks child-process liveness;
+// /validate returns 200 directly; /run, /resume, /suspend, and /terminate
+// emit an enhanced metric and, for /suspend and /terminate, flush telemetry
+// before responding.
 //
 // /terminate does NOT synthesize SIGTERM. The platform owns process
 // termination via OS signals delivered independently of this HTTP event.
@@ -172,10 +176,11 @@ type Server struct {
 	metricSource  metrics.MetricSource
 	flushTimeout  time.Duration
 
-	childHandle ChildHandle // production: *Child (init) or NewNoopChildHandle() (sidecar); always non-nil after lifecycle.SetupFromEnv. nil only in legacy unit tests; logs WARN if hit.
-	child       *Child      // non-nil only in init-container mode; nil in sidecar and unit tests. Derived from childHandle when it is a *Child.
-	fwd         *Forwarder  // nil = no opt-in; today's behavior preserved
-	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
+	childHandle  ChildHandle // production: *Child (init) or NewNoopChildHandle() (sidecar); always non-nil after lifecycle.SetupFromEnv. nil only in legacy unit tests; logs WARN if hit.
+	child        *Child      // non-nil only in init-container mode; nil in sidecar and unit tests. Derived from childHandle when it is a *Child.
+	fwd          *Forwarder  // nil = no forwarder configured; forwarding also requires the hook's own enabledHooks.* toggle
+	enabledHooks HookToggles // per-hook forwarding opt-in; only meaningful when fwd != nil
+	heartbeat    *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
 	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
 	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /run
@@ -217,6 +222,7 @@ func NewServer(
 	flushTimeout time.Duration,
 	childHandle ChildHandle, // may be nil
 	fwd *Forwarder, // may be nil
+	enabledHooks HookToggles, // only meaningful when fwd != nil
 	heartbeat *Heartbeat, // may be nil
 ) *Server {
 	s := &Server{
@@ -229,6 +235,7 @@ func NewServer(
 		flushTimeout:  flushTimeout,
 		childHandle:   childHandle,
 		fwd:           fwd,
+		enabledHooks:  enabledHooks,
 		instanceID:    atomic.NewString(""),
 		heartbeat:     heartbeat,
 	}
@@ -350,9 +357,9 @@ func (s *Server) handler() http.Handler {
 // causes a retry (the platform does not treat /ready failures as fatal).
 //
 // Dispatcher:
-//   - If a Forwarder is configured (env-var opt-in), pass-through to the user
-//     app with a fast reachability check: dial errors and deadline exceeded
-//     both map to 503.
+//   - If a Forwarder is configured AND the /ready hook is enabled
+//     (DD_AWS_MICROVM_ENABLE_READY), pass-through to the user app with a fast
+//     reachability check: dial errors and deadline exceeded both map to 503.
 //   - Otherwise, alive-check via ChildHandle: child alive → 200, anything
 //     else (not yet started, already exited, or nil handle) → 503. The
 //     pre-spawn race is absorbed by the platform's /ready retry behavior;
@@ -360,7 +367,7 @@ func (s *Server) handler() http.Handler {
 //     call site in mode.RunInit, where the actual error value is available.
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: ready")
-	if s.fwd != nil {
+	if s.fwd != nil && s.enabledHooks.Ready {
 		s.passThroughReady(w, r)
 		return
 	}
@@ -379,13 +386,13 @@ func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
 // retry until validateTimeout. It is NOT sent during the normal run/resume
 // lifecycle of a production MicroVM.
 //
-// When a Forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT set):
-// pass-through to the user app with a fast reachability check, mirroring the
-// response, so the user app's own smoke test drives the build's validity
-// decision. A 503 while the app isn't yet reachable on the test run relies on
-// the platform's own /validate retry to absorb the window. Without a
-// forwarder the agent returns 200 directly; the user app is not required to
-// implement /validate in that mode.
+// When a Forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT set) AND the
+// /validate hook is enabled (DD_AWS_MICROVM_ENABLE_VALIDATE): pass-through to
+// the user app with a fast reachability check, mirroring the response, so the
+// user app's own smoke test drives the build's validity decision. A 503
+// while the app isn't yet reachable on the test run relies on the platform's
+// own /validate retry to absorb the window. Otherwise the agent returns 200
+// directly; the user app is not required to implement /validate in that mode.
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: validate")
 	// TODO(microvm-validate-metric): /validate is a build-time hook that only
@@ -395,7 +402,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	// may not reliably flush before the test VM is torn down. Revisit whether it
 	// carries enough value to keep alongside the genuine runtime lifecycle metrics.
 	s.emitLifecycleMetric(validateMetricName)
-	if s.fwd != nil {
+	if s.fwd != nil && s.enabledHooks.Validate {
 		s.passThroughValidate(w, r)
 		return
 	}
@@ -611,15 +618,16 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// forwarded /run request carries a fixed Content-Length rather than
 	// chunked encoding (which some user-app HTTP servers reject).
 	r.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-	s.dispatchHook(runMetricName, pathRun, noFlush, w, r)
+	s.dispatchHook(runMetricName, pathRun, noFlush, s.enabledHooks.Run, w, r)
 }
 
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
-// /suspend), and (when a forwarder is configured) mirrors the user app's response.
+// /suspend), and (when a forwarder is configured and enabled) mirrors the
+// user app's response.
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
-	s.dispatchHook(resumeMetricName, pathResume, noFlush, w, r)
+	s.dispatchHook(resumeMetricName, pathResume, noFlush, s.enabledHooks.Resume, w, r)
 }
 
 // handleSuspend stops the heartbeat, flushes telemetry, and (when a forwarder
@@ -657,7 +665,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: suspend — flushing telemetry")
 	s.heartbeat.Stop()
-	s.dispatchHook(suspendMetricName, pathSuspend, flushParallel, w, r)
+	s.dispatchHook(suspendMetricName, pathSuspend, flushParallel, s.enabledHooks.Suspend, w, r)
 }
 
 // handleTerminate flushes all telemetry and, when a forwarder is configured,
@@ -674,17 +682,18 @@ func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTerminate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: terminate — flushing telemetry")
 	s.heartbeat.Stop()
-	s.dispatchHook(terminateMetricName, pathTerminate, flushSequential, w, r)
+	s.dispatchHook(terminateMetricName, pathTerminate, flushSequential, s.enabledHooks.Terminate, w, r)
 }
 
 // dispatchHook is the shared dispatch path for run, resume, suspend, and
 // terminate. When a forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT
-// set): delegates to handleWithForwarder which mirrors the user app's response.
-// When no forwarder is configured: emit metric, optionally flush, return 200.
-// In standalone mode the parallel/sequential distinction does not apply, so
-// both flush modes result in a single flushAll call.
-func (s *Server) dispatchHook(metricName, path string, mode flushMode, w http.ResponseWriter, r *http.Request) {
-	if s.fwd != nil {
+// set) AND enabled is true (the hook's own DD_AWS_MICROVM_ENABLE_* toggle):
+// delegates to handleWithForwarder which mirrors the user app's response.
+// Otherwise: emit metric, optionally flush, return 200. In standalone mode
+// the parallel/sequential distinction does not apply, so both flush modes
+// result in a single flushAll call.
+func (s *Server) dispatchHook(metricName, path string, mode flushMode, enabled bool, w http.ResponseWriter, r *http.Request) {
+	if s.fwd != nil && enabled {
 		s.handleWithForwarder(metricName, path, mode, w, r)
 		return
 	}
