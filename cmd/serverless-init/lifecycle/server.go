@@ -32,10 +32,12 @@
 //   - When the env var is set: the agent forwards each hook to
 //     127.0.0.1:<user-app-port> on the same path and mirrors the user app's
 //     response (status, body, Content-Type) back to the platform. /ready and
-//     /validate wait for TCP reachability before forwarding. For /run,
-//     /resume, /suspend, and /terminate the agent's own work — metric
-//     emission, /suspend and /terminate telemetry flush — runs in a goroutine
-//     in parallel with the pass-through.
+//     /validate check TCP reachability with a single fast dial before
+//     forwarding, answering 503 immediately if the app isn't up yet rather
+//     than blocking — the platform owns the retry loop for those two hooks.
+//     For /run, /resume, /suspend, and /terminate the agent's own work —
+//     metric emission, /suspend and /terminate telemetry flush — runs in a
+//     goroutine in parallel with the pass-through.
 //
 // /terminate does NOT synthesize SIGTERM. The platform owns process
 // termination via OS signals delivered independently of this HTTP event.
@@ -151,6 +153,19 @@ type TraceTagSetterFunc func(map[string]string)
 // SetTraceTags implements TraceTagSetter.
 func (f TraceTagSetterFunc) SetTraceTags(tags map[string]string) { f(tags) }
 
+// MetricTagSetter can replace the tags on the enhanced usage metric.
+// Satisfied by ServerlessMetricAgent.SetEnhancedUsageMetricTags (wrapped via
+// MetricTagSetterFunc).
+type MetricTagSetter interface {
+	SetMetricTags(tags []string)
+}
+
+// MetricTagSetterFunc wraps a bare function so it satisfies MetricTagSetter.
+type MetricTagSetterFunc func([]string)
+
+// SetMetricTags implements MetricTagSetter.
+func (f MetricTagSetterFunc) SetMetricTags(tags []string) { f(tags) }
+
 // runBody is the JSON payload sent by the MicroVM platform on /run.
 type runBody struct {
 	MicroVMID string `json:"microvmId"`
@@ -172,10 +187,12 @@ type Server struct {
 	fwd         *Forwarder  // nil = no opt-in; today's behavior preserved
 	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
-	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
-	baseLogTags    []string          // startup log tag snapshot; lambda_microvm_id is appended at /run
-	traceTagSetter TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
-	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
+	logsTagSetter       LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
+	baseLogTags         []string          // startup log tag snapshot; lambda_microvm_id is appended at /run
+	traceTagSetter      TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
+	baseTraceTags       map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
+	metricTagSetter     MetricTagSetter   // nil-safe; set via SetMetricTagSetter after construction
+	baseUsageMetricTags []string          // startup enhanced usage metric tag snapshot; instance:<id> is appended at /run
 
 	httpServer *http.Server
 	listener   net.Listener // set once ListenAndServe binds successfully
@@ -234,14 +251,16 @@ func NewServer(
 		s.child = c
 	}
 	// WriteTimeout must cover the full wall-clock of every hook path (see
-	// forwardTimeout/readyTimeout/validateTimeout on Forwarder, and
-	// writeTimeoutHeadroom above), or the HTTP server closes the
-	// platform-facing connection before the handler finishes writing.
+	// forwardTimeout/readyTimeout/validateTimeout/dialCheckTimeout on
+	// Forwarder, and writeTimeoutHeadroom above), or the HTTP server closes
+	// the platform-facing connection before the handler finishes writing.
 	maxTimeout := s.flushTimeout
 	if s.fwd != nil {
 		// /terminate uses flushSequential: flush runs after the forward, so its
 		// wall-clock is forwardTimeout+flushTimeout, not max of the two.
-		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout+s.flushTimeout, s.fwd.readyTimeout, s.fwd.validateTimeout)
+		readyBudget := dialCheckTimeout + s.fwd.readyTimeout
+		validateBudget := dialCheckTimeout + s.fwd.validateTimeout
+		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout+s.flushTimeout, readyBudget, validateBudget)
 	}
 	writeTimeout := maxTimeout + writeTimeoutHeadroom
 	log.Debugf("MicroVM lifecycle: server WriteTimeout=%s (maxTimeout=%s + writeTimeoutHeadroom=%s)", writeTimeout, maxTimeout, writeTimeoutHeadroom)
@@ -272,6 +291,14 @@ func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseLogTags []string) {
 func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[string]string) {
 	s.traceTagSetter = setter
 	s.baseTraceTags = baseTraceTags
+}
+
+// SetMetricTagSetter wires a MetricTagSetter and baseline usage-metric tags
+// into the server. Optional; nil is a no-op. Must be called before the first
+// /run request. instance:<id> is appended to baseUsageMetricTags at /run.
+func (s *Server) SetMetricTagSetter(setter MetricTagSetter, baseUsageMetricTags []string) {
+	s.metricTagSetter = setter
+	s.baseUsageMetricTags = baseUsageMetricTags
 }
 
 // listen binds the TCP port synchronously. Call before serve so the socket is
@@ -348,6 +375,18 @@ func (s *Server) Child() *Child {
 // Exposed for white-box tests in external packages; not part of the stable API.
 func (s *Server) Heartbeat() *Heartbeat { return s.heartbeat }
 
+// InstanceID returns the MicroVM instance ID captured from /run, or "" if
+// /run has not fired yet (or the server is nil). Lets callers outside this
+// package — e.g. the enhanced-metrics collector — attach the current
+// per-instance tag to metrics emitted after Init, without this package
+// needing to know about metric-agent internals.
+func (s *Server) InstanceID() string {
+	if s == nil {
+		return ""
+	}
+	return s.instanceID.Load()
+}
+
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(postReady, s.handleReady)
@@ -365,7 +404,8 @@ func (s *Server) handler() http.Handler {
 //
 // Dispatcher:
 //   - If a Forwarder is configured (env-var opt-in), pass-through to the user
-//     app with TCP-wait: dial errors map to 503, deadline to 504.
+//     app with a fast reachability check: dial errors and deadline exceeded
+//     both map to 503.
 //   - Otherwise, alive-check via ChildHandle: child alive → 200, anything
 //     else (not yet started, already exited, or nil handle) → 503. The
 //     pre-spawn race is absorbed by the platform's /ready retry behavior;
@@ -393,9 +433,10 @@ func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
 // lifecycle of a production MicroVM.
 //
 // When a Forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT set):
-// pass-through to the user app with TCP-wait, mirroring the response, so the
-// user app's own smoke test drives the build's validity decision. The TCP-wait
-// absorbs the window before the app is reachable on the test run. Without a
+// pass-through to the user app with a fast reachability check, mirroring the
+// response, so the user app's own smoke test drives the build's validity
+// decision. A 503 while the app isn't yet reachable on the test run relies on
+// the platform's own /validate retry to absorb the window. Without a
 // forwarder the agent returns 200 directly; the user app is not required to
 // implement /validate in that mode.
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -503,7 +544,8 @@ func (s *Server) waitForFlushes(flushCtx context.Context, wg *sync.WaitGroup) {
 //
 // Used for /run and /resume (noFlush), /suspend (flushParallel), and
 // /terminate (flushSequential). /ready and /validate use passThroughReady
-// and passThroughValidate directly (TCP-wait path, not this function).
+// and passThroughValidate directly (fast-reachability-check path, not this
+// function).
 //
 // flushParallel: flush runs concurrently with the forward; wall-clock is
 // max(forwardTimeout, flushTimeout)+ε. Known limitation: telemetry produced
@@ -606,7 +648,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	_ = r.Body.Close()
 	if err != nil {
-		log.Debugf("MicroVM lifecycle: could not read run body: %v", err)
+		log.Warnf("MicroVM lifecycle: could not read run body: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -628,6 +670,9 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 			}
 			tags[lambdaMicroVMIDKey] = body.MicroVMID
 			s.traceTagSetter.SetTraceTags(tags)
+		}
+		if s.metricTagSetter != nil {
+			s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+body.MicroVMID))
 		}
 	} else {
 		log.Info("MicroVM lifecycle: run")

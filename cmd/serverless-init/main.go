@@ -499,6 +499,10 @@ func setup(
 					traceAgent.UpdateRuntimeTags(tags)
 				}),
 				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
+				MetricTagSetter: lifecycle.MetricTagSetterFunc(func(tags []string) {
+					metricAgent.SetEnhancedUsageMetricTags(tags)
+				}),
+				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -535,6 +539,10 @@ func setup(
 				traceAgent.UpdateRuntimeTags(tags)
 			}),
 			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
+			MetricTagSetter: lifecycle.MetricTagSetterFunc(func(tags []string) {
+				metricAgent.SetEnhancedUsageMetricTags(tags)
+			}),
+			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
 		},
 	}
 

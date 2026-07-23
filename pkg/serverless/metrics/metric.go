@@ -7,6 +7,7 @@
 package metrics
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -30,11 +31,17 @@ type Tags struct {
 type ServerlessMetricAgent struct {
 	Demux aggregator.Demultiplexer
 	tags  Tags
+	// enhancedUsageMetricTags backs AddEnhancedUsageMetric. Swapped via
+	// SetEnhancedUsageMetricTags once MicroVM's /run hook learns the
+	// instance tag; same pattern as spanModifier.tags.
+	enhancedUsageMetricTags atomic.Pointer[[]string]
 }
 
 // New constructs a ServerlessMetricAgent.
 func New(demux aggregator.Demultiplexer, tags Tags) *ServerlessMetricAgent {
-	return &ServerlessMetricAgent{Demux: demux, tags: tags}
+	agent := &ServerlessMetricAgent{Demux: demux, tags: tags}
+	agent.enhancedUsageMetricTags.Store(&tags.EnhancedUsageMetric)
+	return agent
 }
 
 // AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
@@ -53,7 +60,17 @@ func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, me
 // AddEnhancedUsageMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced usage metrics.
 // optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
-	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.tags.EnhancedUsageMetric, extraTags...)
+	tags := c.tags.EnhancedUsageMetric
+	if loaded := c.enhancedUsageMetricTags.Load(); loaded != nil {
+		tags = *loaded
+	}
+	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, tags, extraTags...)
+}
+
+// SetEnhancedUsageMetricTags atomically replaces the enhanced usage metric's
+// tags. Safe to call concurrently with AddEnhancedUsageMetric.
+func (c *ServerlessMetricAgent) SetEnhancedUsageMetricTags(tags []string) {
+	c.enhancedUsageMetricTags.Store(&tags)
 }
 
 // Flush forces an immediate flush of aggregated samples to the serializer.

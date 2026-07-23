@@ -44,16 +44,18 @@ const (
 // construct and start the lifecycle hook server. Populated by main.go before
 // calling CloudService.Init; nil (and ignored) for all non-MicroVM services.
 type LifecycleContext struct {
-	MetricFlusher  lifecycle.Flusher
-	LogsFlusher    lifecycle.LogsFlusher
-	MetricEmitter  lifecycle.MetricEmitter
-	SampleDrainer  lifecycle.SampleDrainer
-	FlushTimeout   time.Duration
-	SidecarMode    bool
-	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /run
-	BaseTags       []string                 // startup log tag snapshot passed alongside LogsTagSetter
-	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /run
-	BaseTraceTags  map[string]string        // startup trace tag snapshot passed alongside TraceTagSetter
+	MetricFlusher       lifecycle.Flusher
+	LogsFlusher         lifecycle.LogsFlusher
+	MetricEmitter       lifecycle.MetricEmitter
+	SampleDrainer       lifecycle.SampleDrainer
+	FlushTimeout        time.Duration
+	SidecarMode         bool
+	LogsTagSetter       lifecycle.LogsTagSetter   // nil-safe; applied via server.SetLogsTagSetter after /run
+	BaseTags            []string                  // startup log tag snapshot passed alongside LogsTagSetter
+	TraceTagSetter      lifecycle.TraceTagSetter  // nil-safe; applied via server.SetTraceTagSetter after /run
+	BaseTraceTags       map[string]string         // startup trace tag snapshot passed alongside TraceTagSetter
+	MetricTagSetter     lifecycle.MetricTagSetter // nil-safe; applied via server.SetMetricTagSetter after /run
+	BaseUsageMetricTags []string                  // startup enhanced usage metric tag snapshot passed alongside MetricTagSetter
 }
 
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
@@ -175,6 +177,9 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	}
 	if lc.TraceTagSetter != nil {
 		m.server.SetTraceTagSetter(lc.TraceTagSetter, lc.BaseTraceTags)
+	}
+	if lc.MetricTagSetter != nil {
+		m.server.SetMetricTagSetter(lc.MetricTagSetter, lc.BaseUsageMetricTags)
 	}
 	if err := m.server.ListenAndServe(func(err error) {
 		log.Fatalf("MicroVM lifecycle server error: %v", err)
