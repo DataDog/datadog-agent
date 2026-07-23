@@ -17,5 +17,5 @@ description = "Sentry dotagents CLI"
 run = "dotagents"
 
 [tasks.dotagents.tools]
-node = "22.23.1"
-"npm:@sentry/dotagents" = "1.17.0"
+node = "24.18.0"
+"npm:@sentry/dotagents" = "1.19.0"

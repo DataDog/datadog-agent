@@ -78,7 +78,7 @@ def run_golangci_lint(
 
     verbosity = "-v" if verbose else ""
     concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-    tags_arg = " ".join(sorted(set(tags)))
+    tags_arg = ",".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
     targets_rec = [f"{target}/..." if not target.endswith("/...") else target for target in targets]

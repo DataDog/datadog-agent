@@ -413,8 +413,8 @@ github.com/prometheus/procfs v0.21.1 h1:GljZCt+zSTS+NZq88cyQ1LjZ+RCHp3uVuabBWA5+
 github.com/prometheus/procfs v0.21.1/go.mod h1:aB55Cww9pdSJVHk0hUf0inxWyyjPogFIjmHKYgMKmtY=
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435cARxCW6q9gc0S/Yxz7Mkd38pOb0=
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.36.0 h1:IEsJH9qTkK7tJUJm81zKQ4nsPHd97D88ymVWsuqi8zU=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.36.0/go.mod h1:jgGcMiHJTSvFB1hHa1Bnc0JmHiCub2RSrTtBPZYfEz4=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.37.0 h1:J3IHODWosQ+1v4reLsZscPjy2MCMh1mRV3OzfR3RJ08=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.37.0/go.mod h1:5cYRNmFkGUHW0OCUWKH3yinOnOcOJAnBvqAiAsxcV9M=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.7.0 h1:rcBTxjaqkrKg5JQs0A6QP+tMHxle9fnrmO20mpEdgzU=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.7.0/go.mod h1:5IRij9mHJMZBjecVckf+xYMRMlyxBP4+OH0FpX3wUy0=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 h1:CNyoETY53sPooJbyymlVnPhYG34yr0iK8OezkJZnydQ=
@@ -565,8 +565,8 @@ golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8U
 golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.54.0 h1:YLIA59K4fiNzHzjnZt2tUJQjQtUWfWbeHBqKtk3eScw=
 golang.org/x/crypto v0.54.0/go.mod h1:KWL8ny2AZdGR2cWmzeHrp2azQPGogOv+HeQaVEXC2dk=
-golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 h1:4d4PbuBNwaxMXkXI8yiIYjydtMU+04RHeuSxJdgKftM=
-golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9/go.mod h1:d2fgXJLVs4dYDHUk5lwMIfzRzSrWCfGZb0ZqeLa/Vcw=
+golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 h1:qLvzZeaANDgyVOA8pyHCOStGlXn0rseXma+GQjeuv2g=
+golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597/go.mod h1:EdfpwwqSu+0Li0mzskwHU6FWDV3t9Q+RZDo3QMUtL3Q=
 golang.org/x/lint v0.0.0-20200302205851-738671d3881b/go.mod h1:3xt1FjdF8hUf6vQPIChWIBhFzV8gjjsPE/fR3IyQdNY=
 golang.org/x/mod v0.1.1-0.20191105210325-c90efee705ee/go.mod h1:QqPTAvyqsEbceGzBzNggFXnrqF1CaUcvgkdR5Ot7KZg=
 golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
@@ -630,8 +630,8 @@ google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa h1:
 google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa/go.mod h1:q4lMZS6kskjT5HvCPrnnypcDPVJqT/f4nfxmkE7gryY=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 h1:phvBWCAQMGN1945mp5fjCXP6jEF0+a0+4TjokS4sxNY=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3/go.mod h1:4Hqkh8ycfw05ld/3BWL7rJOSfebL2Q+DVDeRgYgxUU8=
-google.golang.org/grpc v1.82.0 h1:vguDnZUPjE26w09A63VoxZPnvPjB5Riyc0mkXPFmAIU=
-google.golang.org/grpc v1.82.0/go.mod h1:yzTZ1TB1Z3SG+LIYaI+WiE8D5+PZ3ArnrSp8zF3+/ZA=
+google.golang.org/grpc v1.82.1 h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+google.golang.org/grpc v1.82.1/go.mod h1:yzTZ1TB1Z3SG+LIYaI+WiE8D5+PZ3ArnrSp8zF3+/ZA=
 google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca h1:/ro7D0tSP+jEnQPzy9e1r5L6mAcEShGlE5kFsShX5O8=
 google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
