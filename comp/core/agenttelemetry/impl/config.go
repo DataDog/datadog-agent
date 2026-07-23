@@ -256,6 +256,7 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	if len(tags) == 0 {
 		tags = m.AggregateTags
 	}
+	// AggregateTotal synthesizes total=<timeseries count>; preserving a source total tag could emit two series with the same metric name and tags.
 	if m.AggregateTotal {
 		for _, tag := range tags {
 			if tag == "total" {
