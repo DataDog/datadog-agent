@@ -215,7 +215,7 @@ func (f *factory) createMetricsExporter(
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter, nil)
 	ex := buildMetricsExporterConfig(cfg, func(context.Context) error {
 		cancel()  // first cancel context
 		wg.Wait() // then wait for shutdown

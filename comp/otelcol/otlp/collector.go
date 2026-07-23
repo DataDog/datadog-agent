@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -55,6 +56,7 @@ func getComponents(
 	tagger tagger.Component,
 	hostname hostnameinterface.Component,
 	telemetry telemetry.Component,
+	filterList filterlist.Component,
 ) (
 	otelcol.Factories,
 	error,
@@ -87,7 +89,7 @@ func getComponents(
 	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, hostname.Get, store),
+		serializerexporter.NewFactoryForAgent(s, hostname.Get, store, filterList),
 		debugexporter.NewFactory(),
 	}
 
@@ -188,6 +190,7 @@ func NewPipeline(
 	tagger tagger.Component,
 	hostname hostnameinterface.Component,
 	telemetry telemetry.Component,
+	filterList filterlist.Component,
 ) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
@@ -208,7 +211,7 @@ func NewPipeline(
 
 	col, err := otelcol.NewCollector(otelcol.CollectorSettings{
 		Factories: func() (otelcol.Factories, error) {
-			return getComponents(s, logsAgentChannel, tagger, hostname, telemetry)
+			return getComponents(s, logsAgentChannel, tagger, hostname, telemetry, filterList)
 		},
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
@@ -262,6 +265,7 @@ func NewPipelineFromAgentConfig(
 	tagger tagger.Component,
 	hostname hostnameinterface.Component,
 	telemetry telemetry.Component,
+	filterList filterlist.Component,
 ) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
@@ -271,7 +275,7 @@ func NewPipelineFromAgentConfig(
 	if err := checkAndUpdateCfg(cfg, pcfg, logsAgentChannel); err != nil {
 		return nil, err
 	}
-	p, err := NewPipeline(pcfg, s, logsAgentChannel, tagger, hostname, telemetry)
+	p, err := NewPipeline(pcfg, s, logsAgentChannel, tagger, hostname, telemetry, filterList)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
 		return nil, pipelineError.Load()

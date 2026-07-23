@@ -36,6 +36,7 @@ import (
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
@@ -368,10 +369,11 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	filterList filterlist.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux,
+		cloudService, tagConfig, metricTags, demux, filterList,
 	)
 
 	err := modeConf.Runner(logConfig)
@@ -442,6 +444,7 @@ func setup(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
+	filterList filterlist.Component,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -496,7 +499,7 @@ func setup(
 		cloudService.AddStartMetric(metricAgent)
 	}
 
-	setupOtlpAgent(metricAgent, tagger)
+	setupOtlpAgent(metricAgent, tagger, filterList)
 
 	var enhancedMetricsCollector *enhancedmetrics.Collector
 	if enhancedMetricsEnabled {
@@ -609,7 +612,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	return traceAgent
 }
 
-func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component) {
+func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component, filterList filterlist.Component) {
 	if !otlp.IsEnabled() {
 		log.Debugf("otlp endpoint disabled")
 		return
@@ -620,7 +623,7 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 		return
 	}
 
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger, filterList)
 	otlpAgent.Start()
 }
 

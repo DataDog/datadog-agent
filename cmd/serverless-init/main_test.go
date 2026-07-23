@@ -107,7 +107,7 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	bundle := metricstest.New(t, fakeTagger)
 	metricAgent := metrics.New(bundle.Demux, metrics.Tags{})
 
-	assert.NotPanics(t, func() { setupOtlpAgent(metricAgent, fakeTagger) })
+	assert.NotPanics(t, func() { setupOtlpAgent(metricAgent, fakeTagger, nil) })
 
 	// Timeout to allow the goroutine in ServerlessOTLPAgent.Start() to run.
 	// If it panics the process crashes. Without this the test can pass flakily when the goroutine hasn't run yet.
