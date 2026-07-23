@@ -1,0 +1,57 @@
+# Idle experiment for the regular Agent in DogStatsD-only mode
+# (`infrastructure_mode: dogstatsd`) with Agent Data Plane DISABLED — a single
+# process. Migration target for the standalone DogStatsD flavor; baseline
+# against which quality_gate_idle_dogstatsd_mode_adp isolates the ADP process.
+# See the "Freezing Standalone DogStatsD" proposal.
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle
+
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 200 MiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
+
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_dogstatsd_mode
+
+checks:
+  - name: memory_usage
+    description: "Total agent memory usage at idle in dogstatsd mode (single process, ADP off)."
+    bounds:
+      series: total_pss_bytes
+      upper_bound: "154 MiB"
+
+  - name: intake_connections
+    description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
+    bounds:
+      series: "connection.current"
+      upper_bound: 4
+
+  - name: total_bytes_received
+    description: "Bytes received quality gate. This bounds total network egress."
+    bounds:
+      series: total_bytes_received
+      upper_bound: "0.8 MiB"
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

@@ -1,0 +1,23 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+dd_url: http://127.0.0.1:9091
+process_config.process_dd_url: http://localhost:9092
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+telemetry.enabled: true
+telemetry.checks: '*'
+
+# Regular Agent constrained to DogStatsD-only behavior, with DogStatsD served
+# by Agent Data Plane (ADP) running as a second process — the recommended end
+# state for migrated standalone-DogStatsD users. `infrastructure_mode: dogstatsd`
+# already enables ADP; set explicitly here for clarity. Compared against
+# quality_gate_idle_dogstatsd_mode (ADP off), the delta isolates the ADP process.
+infrastructure_mode: dogstatsd
+data_plane.enabled: true
+data_plane.dogstatsd.enabled: true
+data_plane.telemetry_enabled: true
+data_plane.telemetry_listen_addr: "tcp://127.0.0.1:5102"
