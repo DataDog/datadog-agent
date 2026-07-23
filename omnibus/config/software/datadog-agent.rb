@@ -109,6 +109,14 @@ build do
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
+
+  # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
+  # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
+  if linux_target?
+    command "bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=\"#{conf_dir}\"",
+      env: env,
+      :live_stream => Omnibus.logger.live_stream(:info)
+  end
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
   # Now we place them into the pacakge via the //packages/agent/product:post_build_install
@@ -243,7 +251,7 @@ build do
 
   end
 
-  # system-probe-lite (service discovery agent)
+  # sd-agent (service discovery agent)
   if linux_target? and !heroku_target?
     command "bazel run #{bazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
