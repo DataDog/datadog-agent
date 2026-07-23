@@ -216,9 +216,12 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 
 	err = m.scanner.ScanDeviceAndSendData(m.ctx, snmpConfig, namespace,
 		snmpscan.ScanParams{
-			ScanType:     metadata.DefaultScan,
-			CallInterval: snmpCallInterval,
-			MaxCallCount: maxSnmpCallCount,
+			ScanType:        metadata.DefaultScan,
+			CallInterval:    snmpCallInterval,
+			MaxCallCount:    maxSnmpCallCount,
+			BulkBatchSize:   uint32(m.agentConfig.GetInt("network_devices.default_scan.bulk_batch_size")),
+			FlushEveryNOIDs: m.agentConfig.GetInt("network_devices.default_scan.flush_every_n_oids"),
+			FlushInterval:   m.agentConfig.GetDuration("network_devices.default_scan.flush_interval"),
 		})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {

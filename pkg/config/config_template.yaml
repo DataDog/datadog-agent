@@ -4235,6 +4235,14 @@ api_key:
 #
 #     excluded_ips: []
 
+#     # @param bulk_batch_size - integer - optional - default: 20
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_BULK_BATCH_SIZE - integer - optional - default: 20
+#     # Starting number of values requested per GetBulk call during the automatic
+#     # device scan. The scan adjusts this down on failures and back up on
+#     # successes, so this is the ceiling it walks toward.
+#
+#     bulk_batch_size: 20
+
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
 #   # Discovered devices can then be monitored with the SNMP integration by using

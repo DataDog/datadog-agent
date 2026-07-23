@@ -4154,6 +4154,26 @@ properties:
               Devices with these IP addresses will be skipped during default scan.
             tags:
             - template_section:CoreAgent
+          bulk_batch_size:
+            node_type: setting
+            type: integer
+            default: 20
+            visibility: public
+            description: |-
+              Starting number of values requested per GetBulk call during the automatic
+              device scan. The scan adjusts this down on failures and back up on
+              successes, so this is the ceiling it walks toward.
+            tags:
+            - template_section:CoreAgent
+          flush_every_n_oids:
+            node_type: setting
+            type: integer
+            default: 0
+            comment: Internal, undocumented knobs for tuning partial result reporting.
+          flush_interval:
+            node_type: setting
+            type: string
+            default: 0s
       autodiscovery:
         node_type: section
         type: object

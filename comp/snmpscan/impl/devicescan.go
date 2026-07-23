@@ -72,15 +72,34 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 		)
 	}
 
-	// GetBulk is used for the scan, but it does not exist in SNMPv1, so fall
-	// back to the legacy GetNext walk for v1 devices.
-	useBulk := snmp.Version != gosnmp.Version1
-	if !useBulk {
+	// GetBulk is the default, but it does not exist in SNMPv1, so fall back to
+	// the legacy GetNext walk for v1 devices or when GetNext is requested.
+	useBulk := resolveUseBulk(scanParams.ScanMethod, snmp.Version)
+	if !useBulk && scanParams.ScanMethod != snmpscan.ScanMethodGetNext {
 		s.log.Infof("device %s is SNMPv1, using GetNext for the scan (GetBulk unsupported)", deviceID)
 	}
+	bulkMaxRep := int(scanParams.BulkBatchSize)
+	if bulkMaxRep <= 0 {
+		bulkMaxRep = defaultBulkMaxRepetitions
+	}
+	flushEveryNOIDs := scanParams.FlushEveryNOIDs
+	// A single payload holds up to PayloadMetadataBatchSize OIDs, so flushing
+	// more often than that gains nothing and only multiplies payloads. Treat it
+	// as the floor; 0 means "use the default".
+	if flushEveryNOIDs <= 0 {
+		flushEveryNOIDs = metadata.PayloadMetadataBatchSize
+	} else if flushEveryNOIDs < metadata.PayloadMetadataBatchSize {
+		s.log.Warnf("flush_every_n_oids=%d is below the minimum of %d; using %d", flushEveryNOIDs, metadata.PayloadMetadataBatchSize, metadata.PayloadMetadataBatchSize)
+		flushEveryNOIDs = metadata.PayloadMetadataBatchSize
+	}
+	flushInterval := scanParams.FlushInterval
+	if flushInterval <= 0 {
+		flushInterval = defaultFlushInterval
+	}
+
 	err = s.runDeviceScan(ctx, snmp, namespace, deviceID, useBulk,
-		scanParams.CallInterval, scanParams.MaxCallCount, defaultBulkMaxRepetitions,
-		metadata.PayloadMetadataBatchSize, defaultFlushInterval)
+		scanParams.CallInterval, scanParams.MaxCallCount, bulkMaxRep,
+		flushEveryNOIDs, flushInterval)
 	if err != nil {
 		errs := []error{err}
 
@@ -113,6 +132,16 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 		return fmt.Errorf("unable to send completed status: %w", err)
 	}
 	return nil
+}
+
+// resolveUseBulk returns whether a scan should walk the device with GetBulk.
+// GetBulk is used by default and only disabled when GetNext is explicitly
+// requested or when the device speaks SNMPv1, which has no GetBulk.
+func resolveUseBulk(method snmpscan.ScanMethod, version gosnmp.SnmpVersion) bool {
+	if method == snmpscan.ScanMethodGetNext {
+		return false
+	}
+	return version != gosnmp.Version1
 }
 
 func (s snmpScannerImpl) runDeviceScan(
