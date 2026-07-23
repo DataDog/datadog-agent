@@ -256,9 +256,12 @@ go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
+    # nvml: pkg/gpu needs it alongside linux_bpf; dd_linux_bpf only knows about
+    # linux_bpf, so this has to be hand-added.
     gotags = [
         "test",
         "linux_bpf",
+        "nvml",
     ],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
