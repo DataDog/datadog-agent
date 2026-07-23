@@ -598,7 +598,7 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 // buildToolConversation builds the three child spans of a reconstructed tool
 // round-trip — llm (tool-call generation) → tool → llm (final answer) — under
 // the given parent context. The parent is an agent span for a standalone
-// conversation, or a workflow span nested under a session agent. start/end
+// conversation, or a workflow span nested under a conversation agent. start/end
 // bound the round-trip; the tool span's timing is approximate (split into
 // thirds) since the tool runs in-process on the client.
 func buildToolConversation(ctx context.Context, info llmSpanInfo, start, end time.Time, tags map[string]string) {
@@ -681,8 +681,9 @@ func buildToolConversation(ctx context.Context, info llmSpanInfo, start, end tim
 
 // emitWorkflowSpan reconstructs a standalone tool-using turn as its own agent
 // trace: a root "agent" span with llm → tool → llm children. Used only for
-// traffic that carries no session id — session-scoped traffic is grouped under
-// a shared session agent instead (see emitIntoConversation).
+// traffic with no threadable signal (no session id and no user message);
+// threadable traffic is grouped under a per-conversation agent instead (see
+// emitIntoConversation).
 func emitWorkflowSpan(path string, latencyNs float64, info llmSpanInfo) {
 	if !ensureLLMOTracer() {
 		return
@@ -1078,7 +1079,7 @@ func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
 		return err
 	}
 	h.llmRespReader = reader
-	// Close idle session agents in the background (no wire signal ends a session).
+	// Close idle conversation agents in the background (no wire signal ends one).
 	go h.reapConvAgents()
 	go func() {
 		defer h.finishAllConvAgents()
