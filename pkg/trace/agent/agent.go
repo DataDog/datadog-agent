@@ -789,11 +789,11 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
 	if debug.HasData() {
 		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
-			Error:                debug.Error,
-			LatencyMs:            debug.LatencyMs,
-			WasBuffered:          debug.WasBuffered,
-			BufferMs:             debug.BufferMs,
-			BufferEvictionReason: debug.BufferEvictionReason,
+			ErrorRef:                p.TracerPayload.Strings.Add(debug.Error),
+			LatencyMs:               debug.LatencyMs,
+			WasBuffered:             debug.WasBuffered,
+			BufferMs:                debug.BufferMs,
+			BufferEvictionReasonRef: p.TracerPayload.Strings.Add(debug.BufferEvictionReason),
 		}
 	}
 	if err != nil {
