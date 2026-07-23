@@ -1308,7 +1308,7 @@ properties:
       enable_ebpf_probes:
         node_type: setting
         type: boolean
-        default: true
+        default: false
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
