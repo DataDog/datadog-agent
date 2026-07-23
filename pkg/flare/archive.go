@@ -87,6 +87,8 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
+		flaretypes.NewFiller(getUlimitData),
+		flaretypes.NewFiller(getSvmonData),
 	}
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
