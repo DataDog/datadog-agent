@@ -121,6 +121,27 @@ func WithGetBackoffRetries(retries uint) Option {
 	}
 }
 
+// Default HTTP client timeouts for requests to the fakeintake server.
+const (
+	// defaultHTTPDialTimeout bounds connection establishment so a transient
+	// "dial tcp ...: i/o timeout" fails fast (in seconds) instead of hanging on
+	// the OS-default connect timeout, letting the get() backoff and the caller's
+	// polling loop retry within their budget.
+	defaultHTTPDialTimeout = 10 * time.Second
+	// defaultHTTPResponseHeaderTimeout bounds a server that accepts the
+	// connection but never sends response headers. It does NOT cap body reads,
+	// so large payload dumps are unaffected.
+	defaultHTTPResponseHeaderTimeout = 30 * time.Second
+)
+
+// WithHTTPDialTimeout sets the connection (dial) timeout for HTTP requests to
+// the fakeintake server.
+func WithHTTPDialTimeout(timeout time.Duration) Option {
+	return func(c *Client) {
+		c.httpDialTimeout = timeout
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
 	fakeintakeID            string
@@ -131,6 +152,12 @@ type Client struct {
 	// Get retry parameters
 	getBackoffRetries uint
 	getBackoffDelay   time.Duration
+
+	// HTTP client used for all requests to the fakeintake server, with a bounded
+	// dial timeout so transient network blips surface as retryable errors rather
+	// than hanging on the OS-default connect timeout.
+	httpClient      *http.Client
+	httpDialTimeout time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
 	metricAggregatorV3             aggregator.MetricAggregator
@@ -168,6 +195,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		fakeintakeIDMutex:              sync.RWMutex{},
 		getBackoffRetries:              4,
 		getBackoffDelay:                5 * time.Second,
+		httpDialTimeout:                defaultHTTPDialTimeout,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		metricAggregatorV3:             aggregator.NewMetricAggregatorV3(),
@@ -200,7 +228,24 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		opt(client)
 	}
 
+	client.httpClient = newHTTPClient(client.httpDialTimeout)
+
 	return client
+}
+
+// newHTTPClient builds the HTTP client used for all fakeintake requests. It
+// bounds connection establishment (dial) and the response-header wait so a
+// transient network failure surfaces quickly as a retryable error instead of
+// hanging on the OS-default connect timeout. It intentionally sets no overall
+// client Timeout so large payload body reads are not truncated.
+func newHTTPClient(dialTimeout time.Duration) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{
+		Timeout:   dialTimeout,
+		KeepAlive: 30 * time.Second,
+	}).DialContext
+	transport.ResponseHeaderTimeout = defaultHTTPResponseHeaderTimeout
+	return &http.Client{Transport: transport}
 }
 
 // PayloadFilter is used to filter payloads by name and resource type
@@ -552,7 +597,7 @@ func (c *Client) GetComplianceFindings() ([]*ComplianceFinding, error) {
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/health")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/health")
 	if err != nil {
 		return err
 	}
@@ -573,7 +618,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 		return err
 	}
 
-	resp, err := http.Post(route, "application/json", buf)
+	resp, err := c.httpClient.Post(route, "application/json", buf)
 	if err != nil {
 		return err
 	}
@@ -587,7 +632,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 
 // GetLastAPIKey returns the last apiKey sent with a payload to the intake
 func (c *Client) GetLastAPIKey() (string, error) {
-	resp, err := http.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
 	if err != nil {
 		return "", err
 	}
@@ -818,7 +863,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
 	if err != nil {
 		return err
 	}
@@ -1106,7 +1151,7 @@ func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestP
 
 func (c *Client) get(route string) ([]byte, error) {
 	body, err := backoff.Retry(context.Background(), func() ([]byte, error) {
-		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		tmpResp, err := c.httpClient.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err != nil {
 			return nil, err
 		}
@@ -1140,8 +1185,12 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		return io.ReadAll(tmpResp.Body)
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(c.getBackoffDelay)), backoff.WithMaxTries(c.getBackoffRetries))
-	if err, ok := err.(net.Error); ok && err.Timeout() {
-		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
+	if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+		// Surface timeouts as a normal (retryable) error instead of panicking:
+		// callers run get() inside polling loops (e.g. EventuallyWithTf), where a
+		// panic fails the whole test on a single transient network blip instead
+		// of letting the next poll iteration retry.
+		return nil, fmt.Errorf("fakeintake call timed out: %w", err)
 	}
 	return body, err
 }
