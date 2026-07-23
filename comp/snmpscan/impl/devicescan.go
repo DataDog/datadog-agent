@@ -83,7 +83,13 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 		bulkMaxRep = defaultBulkMaxRepetitions
 	}
 	flushEveryNOIDs := scanParams.FlushEveryNOIDs
+	// A single payload holds up to PayloadMetadataBatchSize OIDs, so flushing
+	// more often than that gains nothing and only multiplies payloads. Treat it
+	// as the floor; 0 means "use the default".
 	if flushEveryNOIDs <= 0 {
+		flushEveryNOIDs = metadata.PayloadMetadataBatchSize
+	} else if flushEveryNOIDs < metadata.PayloadMetadataBatchSize {
+		s.log.Warnf("flush_every_n_oids=%d is below the minimum of %d; using %d", flushEveryNOIDs, metadata.PayloadMetadataBatchSize, metadata.PayloadMetadataBatchSize)
 		flushEveryNOIDs = metadata.PayloadMetadataBatchSize
 	}
 	flushInterval := scanParams.FlushInterval

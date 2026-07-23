@@ -42,9 +42,10 @@ func TestScanCommand(t *testing.T) {
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
-			// scan tuning flags default to GetBulk with the default max-rep
+			// scan tuning flags default to GetBulk; batch size 0 means the scan
+			// falls back to its configured default.
 			require.True(t, scanOpts.useGetBulk)
-			require.Equal(t, uint32(defaultBulkBatchSize), scanOpts.bulkBatchSize)
+			require.Equal(t, uint32(0), scanOpts.bulkBatchSize)
 		})
 }
 
