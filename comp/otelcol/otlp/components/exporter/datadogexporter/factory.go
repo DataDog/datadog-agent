@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -55,6 +55,7 @@ type factory struct {
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
 	store          serializerexporter.TelemetryStore
+	coreCfg        coreconfig.Component
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -81,6 +82,7 @@ func newFactoryWithRegistry(
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
 	store serializerexporter.TelemetryStore,
+	coreCfg coreconfig.Component,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -91,6 +93,7 @@ func newFactoryWithRegistry(
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
 		store:          store,
+		coreCfg:        coreCfg,
 	}
 
 	return exporter.NewFactory(
@@ -111,8 +114,9 @@ func NewFactory(
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
 	store serializerexporter.TelemetryStore,
+	coreCfg coreconfig.Component,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store, coreCfg)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -345,7 +349,7 @@ func (f *factory) createLogsExporter(
 	// k8sobjectsreceiver is only enabled in standalone mode. In connected mode
 	// the core/cluster agent already collects and ships orchestrator data, so
 	// enabling it here as well would duplicate manifests.
-	standalone := pkgconfigsetup.Datadog().GetBool("otel_standalone")
+	standalone := f.coreCfg != nil && f.coreCfg.GetBool("otel_standalone")
 	if cfg.OrchestratorExplorer.Enabled && !standalone {
 		set.Logger.Warn("orchestrator_explorer is enabled on the datadog exporter but will be ignored: it is only supported in standalone mode (DD_OTEL_STANDALONE=true); in connected mode the Datadog cluster agent collects orchestrator data")
 	}
