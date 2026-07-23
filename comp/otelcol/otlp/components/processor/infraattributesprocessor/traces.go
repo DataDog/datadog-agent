@@ -40,7 +40,7 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		resourceAttributes := rss.At(i).Resource().Attributes()
-		iasp.infraTags.ProcessTags(iasp.logger, iasp.cardinality, resourceAttributes, iasp.cfg.AllowHostnameOverride, iasp.cfg.TraceContainerTagPromotion)
+		iasp.infraTags.ProcessTags(iasp.logger, iasp.cardinality, resourceAttributes, iasp.cfg.AllowHostnameOverride, iasp.cfg.TraceContainerTagPromotion, false, nil)
 	}
 	return td, nil
 }
