@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
-	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -34,8 +33,7 @@ import (
 )
 
 const (
-	intakeTrackType  = "logs"
-	agentIdentityTag = "otel-agent"
+	intakeTrackType = "logs"
 
 	// Log messages
 	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
@@ -78,8 +76,6 @@ func NewComponent(deps Dependencies) option.Option[logsagentpipeline.Component] 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
 func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
-		metrics.SetAgentIdentity(agentIdentityTag)
-
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}

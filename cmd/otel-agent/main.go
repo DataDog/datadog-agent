@@ -13,11 +13,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/command"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	_ "github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func main() {
+const otelAgentIdentity = "otel-agent"
+
+func initializeProcessIdentity() {
 	flavor.SetFlavor(flavor.OTelAgent)
+	metrics.SetAgentIdentity(otelAgentIdentity)
+}
+
+func main() {
+	initializeProcessIdentity()
 	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }

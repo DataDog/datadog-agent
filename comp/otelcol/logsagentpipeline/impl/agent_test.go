@@ -164,24 +164,6 @@ func TestAgentTestSuite(t *testing.T) {
 	suite.Run(t, new(AgentTestSuite))
 }
 
-func TestNewLogsAgentSetsAgentIdentity(t *testing.T) {
-	originalIdentity := metrics.GetAgentIdentityTag()
-	t.Cleanup(func() {
-		metrics.SetAgentIdentity(originalIdentity)
-	})
-	metrics.SetAgentIdentity("agent")
-
-	cfg := configComponent.NewMock(t)
-	cfg.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
-	agent := NewLogsAgent(Dependencies{
-		Log:    logmock.New(t),
-		Config: cfg,
-	})
-
-	assert.NotNil(t, agent)
-	assert.Equal(t, "otel-agent", metrics.GetAgentIdentityTag())
-}
-
 func TestBuildEndpoints(t *testing.T) {
 	cfg := configComponent.NewMock(t)
 	lg := logmock.New(t)
