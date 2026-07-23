@@ -181,7 +181,7 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			continue
 		}
 
-		for _, aggregate := range coalesceCanonicalMetrics(mf.Metric, metricType, remoteAgentName) {
+		for _, aggregate := range coalesceCanonicalMetrics(mf.Metric, metricType, mf.GetName(), remoteAgentName) {
 			desc := prometheus.NewDesc(*mf.Name, help, aggregate.labelNames, nil)
 
 			switch metricType {
@@ -264,8 +264,8 @@ func canonicalMetricLabelKey(labelNames, labelValues []string) string {
 	return key.String()
 }
 
-func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, registeredEmitter string) []*canonicalMetricAggregate {
-	aggregatesByLabels := make(map[string][]*canonicalMetricAggregate, len(metrics))
+func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, metricName, registeredEmitter string) []*canonicalMetricAggregate {
+	aggregatesByLabels := make(map[string]*canonicalMetricAggregate, len(metrics))
 	aggregates := make([]*canonicalMetricAggregate, 0, len(metrics))
 	for _, metric := range metrics {
 		if metric == nil {
@@ -274,28 +274,17 @@ func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, 
 
 		labelNames, labelValues := canonicalMetricLabels(metric.Label, registeredEmitter)
 		key := canonicalMetricLabelKey(labelNames, labelValues)
-		var bucketBounds []float64
-		if metricType == dto.MetricType_HISTOGRAM {
-			bucketBounds = histogramBucketBounds(metric.GetHistogram())
-		}
-
-		var aggregate *canonicalMetricAggregate
-		for _, candidate := range aggregatesByLabels[key] {
-			if metricType != dto.MetricType_HISTOGRAM || equalHistogramBucketBounds(candidate.bucketBounds, bucketBounds) {
-				aggregate = candidate
-				break
-			}
-		}
-		if aggregate == nil {
+		aggregate, found := aggregatesByLabels[key]
+		if !found {
 			aggregate = &canonicalMetricAggregate{
-				labelNames:   labelNames,
-				labelValues:  labelValues,
-				bucketBounds: bucketBounds,
+				labelNames:  labelNames,
+				labelValues: labelValues,
 			}
 			if metricType == dto.MetricType_HISTOGRAM {
+				aggregate.bucketBounds = histogramBucketBounds(metric.GetHistogram())
 				aggregate.buckets = make(map[float64]uint64)
 			}
-			aggregatesByLabels[key] = append(aggregatesByLabels[key], aggregate)
+			aggregatesByLabels[key] = aggregate
 			aggregates = append(aggregates, aggregate)
 		}
 
@@ -306,6 +295,11 @@ func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, 
 			aggregate.value += metric.GetGauge().GetValue()
 		case dto.MetricType_HISTOGRAM:
 			histogram := metric.GetHistogram()
+			bucketBounds := histogramBucketBounds(histogram)
+			if found && !equalHistogramBucketBounds(aggregate.bucketBounds, bucketBounds) {
+				log.Warnf("Dropping colliding histogram metric %q from remote agent %q with incompatible bucket layout %v; keeping first layout %v", metricName, registeredEmitter, bucketBounds, aggregate.bucketBounds)
+				continue
+			}
 			aggregate.sampleCount += histogram.GetSampleCount()
 			aggregate.sampleSum += histogram.GetSampleSum()
 			for _, bucket := range histogram.GetBucket() {
