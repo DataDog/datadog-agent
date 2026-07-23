@@ -783,6 +783,29 @@ infrastructure_mode: none
 	assert.False(t, config.GetBool("integration.enabled"))
 }
 
+func TestInfrastructureModeHeroku(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: heroku
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// Container / orchestration / cloud-provider subsystems the heroku build omits are disabled.
+	assert.False(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.False(t, config.GetBool("process_config.container_collection.enabled"))
+	assert.False(t, config.GetBool("orchestrator_explorer.enabled"))
+	assert.False(t, config.GetBool("sbom.enabled"))
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+
+	// APM and integrations are kept (the heroku flavor ships them).
+	assert.True(t, config.GetBool("apm_config.enabled"))
+	assert.True(t, config.GetBool("integration.enabled"))
+
+	// DogStatsD is served by ADP.
+	assert.True(t, config.GetBool("data_plane.enabled"))
+	assert.True(t, config.GetBool("data_plane.dogstatsd.enabled"))
+}
+
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
 	// Test that legacy allowed_additional_checks is aliased to mode-specific
 	// key via applyInfrastructureModeOverrides
