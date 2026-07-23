@@ -622,7 +622,7 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	// Use a subject that exists on most Windows machines in ROOT
 	subjects := []string{"Microsoft"}
 
-	certs, err := findCertificatesInStore(h, subjects, Config{})
+	certs, err := findCertificatesInStore(h, subjects, Config{}, compiledCertFilters{})
 	require.NoError(t, err)
 
 	// If the host has no matching certs, the test would be a no-op; ensure at least one.
@@ -633,6 +633,58 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 		require.NotEmpty(t, c.Thumbprint, "thumbprint should be populated on filtered path")
 		require.Equal(t, 40, len(c.Thumbprint), "thumbprint should be 40-char SHA1 hex")
 	}
+}
+
+func TestConfigureWithValidFilters(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^abc"
+  exclude:
+    subject_CN: "internal"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	require.Len(t, certCheck.certFilters.include, 1)
+	require.Len(t, certCheck.certFilters.exclude, 1)
+}
+
+func TestConfigureWithInvalidFilterRegex(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "["
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.Error(t, err)
+}
+
+func TestConfigureWithFiltersExcludesNonMatchingCerts(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^THISDOESNOTMATCH99999$"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	m.On("Commit").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
+	require.NoError(t, certCheck.Run())
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
 }
 
 func TestRun_WithSubjectFilters_EmitsThumbprintTag(t *testing.T) {

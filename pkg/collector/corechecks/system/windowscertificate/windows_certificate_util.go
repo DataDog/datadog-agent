@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -272,6 +273,72 @@ func appendOptionalTags(tags []string, cert *x509.Certificate, friendlyName stri
 		tags = append(tags, getSignatureAlgorithmTags(cert)...)
 	}
 	return tags
+}
+
+// applyTagFilters returns the subset of certs that satisfy the compiled
+// include/exclude rules.
+//
+// Include semantics: for each include rule (tagKey → pattern), at least one
+// tag on the cert with that key must have a value matching the pattern. A cert
+// must satisfy ALL include rules to pass. A cert with no tag for an include key
+// fails that rule.
+//
+// Exclude semantics: if ANY exclude rule matches any tag value on the cert,
+// the cert is dropped.
+//
+// Filtering uses cert.filterTags when non-nil (a full tag set built with all
+// optional groups enabled), so filter rules work regardless of the *_tag flags
+// that control which tags are emitted in metrics.
+func applyTagFilters(certs []certInfo, f compiledCertFilters) []certInfo {
+	if len(f.include) == 0 && len(f.exclude) == 0 {
+		return certs
+	}
+
+	var result []certInfo
+	for _, cert := range certs {
+		tagsForFiltering := cert.Tags
+		if len(cert.filterTags) > 0 {
+			tagsForFiltering = cert.filterTags
+		}
+		if !certMatchesFilters(tagsForFiltering, f) {
+			continue
+		}
+		result = append(result, cert)
+	}
+	return result
+}
+
+// certMatchesFilters returns true when the cert's tags satisfy all include
+// rules and none of the exclude rules.
+func certMatchesFilters(tags []string, f compiledCertFilters) bool {
+	// Include: every include key must match at least one tag value.
+	for key, re := range f.include {
+		if !anyTagMatchesRule(tags, key, re) {
+			return false
+		}
+	}
+	// Exclude: no exclude key may match any tag value.
+	for key, re := range f.exclude {
+		if anyTagMatchesRule(tags, key, re) {
+			return false
+		}
+	}
+	return true
+}
+
+// anyTagMatchesRule returns true when at least one tag with the given key has a
+// value that matches re.
+func anyTagMatchesRule(tags []string, key string, re *regexp.Regexp) bool {
+	prefix := key + ":"
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, prefix) {
+			value := tag[len(prefix):]
+			if re.MatchString(value) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // resolveTemplateOIDName resolves a V2 template OID to its display name via

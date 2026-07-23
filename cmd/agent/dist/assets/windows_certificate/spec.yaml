@@ -263,6 +263,36 @@ files:
         Set to `true` to attach a `signature_algorithm` tag describing the
         certificate's signature algorithm (e.g. `signature_algorithm:sha256-rsa`).
       required: false
+    - name: filters
+      fleet_configurable: true
+      value:
+        type: object
+        properties:
+          include:
+            type: object
+            additionalProperties:
+              type: string
+            example: {"certificate_thumbprint": "^3a7b9c"}
+            description: |
+              A mapping of tag key to Go regexp pattern. A certificate must match ALL include rules
+              to be reported. A certificate with no tag for a given include key is excluded.
+              Note: `certificate_store` and `server` are not available as filter keys.
+          exclude:
+            type: object
+            additionalProperties:
+              type: string
+            example: {"subject_CN": "internal\\.example\\.com$"}
+            description: |
+              A mapping of tag key to Go regexp pattern. A certificate is dropped if ANY exclude
+              rule matches one of its tag values.
+              Note: `certificate_store` and `server` are not available as filter keys.
+      description: |
+        Filter which collected certificates are reported to Datadog. Each rule maps a tag key
+        to a Go regexp pattern matched against the tag's value. Filter rules work independently
+        of the `*_tag` flags — opt-in tag keys (e.g. `subject_alt_name_dns`, `certificate_template_name`)
+        can be used in filters even when the corresponding flag is false. Invalid regexp patterns
+        cause the check to fail at configuration time.
+      required: false
     - name: tags
       fleet_configurable: true
       value:
