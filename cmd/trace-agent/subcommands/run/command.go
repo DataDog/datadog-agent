@@ -133,10 +133,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Invoke(func(tm coretelemetry.Component) {
 			api.InitTelemetry(tm)
 		}),
-		// Forces construction of the agenttelemetry component: fx only builds a
-		// provided type if something depends on it, and nothing else in this
-		// graph does. Without this invoke, agenttelemetryimpl.NewComponent's
-		// OnStart hook (buffer/flush runner) would never run for trace-agent.
+		// Forces construction of the agenttelemetry component, since fx only
+		// builds a provided type if something depends on it, and nothing
+		// else in this graph does.
 		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {

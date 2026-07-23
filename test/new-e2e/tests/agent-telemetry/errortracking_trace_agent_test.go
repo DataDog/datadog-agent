@@ -29,14 +29,9 @@ var errorTrackingTraceAgentEnabledConfig string
 //go:embed testdata/errortracking-trace-agent-disabled.yaml
 var errorTrackingTraceAgentDisabledConfig string
 
-// traceAgentReceiverErrorMessage is the text logged by HTTPReceiver.handleTraces
+// traceAgentReceiverErrorMessage is logged by HTTPReceiver.handleTraces
 // (pkg/trace/api/api.go) when a /v0.4/traces request carries a non-numeric
-// X-Datadog-Trace-Count header. It fires synchronously inside the HTTP handler
-// at request time, well after the trace-agent's fx lifecycle has finished
-// starting — unlike component-construction-time logs, which run before any
-// OnStart hook (including errortracking submitter registration) and so can
-// never reach the pipeline. Sending the request is a repeatable, on-demand way
-// to get a fresh error without restarting the process.
+// X-Datadog-Trace-Count header.
 const traceAgentReceiverErrorMessage = "Failed to count traces"
 
 type errorTrackingTraceAgentSuite struct {
@@ -61,11 +56,9 @@ func TestErrorTrackingTraceAgentSuite(t *testing.T) {
 	)
 }
 
-// triggerReceiverError sends a single malformed request to the trace-agent's
-// own HTTP receiver on localhost:8126, deterministically producing one ERROR
-// log from HTTPReceiver.handleTraces, and waits for it to appear in the
-// trace-agent's own log file before returning — confirming the error is
-// generated locally before the caller asserts anything about forwarding.
+// triggerReceiverError sends a malformed request to the trace-agent's own
+// HTTP receiver, producing one ERROR log, and waits for it to appear in the
+// trace-agent's log file before returning.
 func (s *errorTrackingTraceAgentSuite) triggerReceiverError() {
 	t := s.T()
 	_, err := s.Env().RemoteHost.Execute(
@@ -80,13 +73,9 @@ func (s *errorTrackingTraceAgentSuite) triggerReceiverError() {
 	}, 30*time.Second, 2*time.Second, "timed out waiting for receiver error to appear in trace-agent log")
 }
 
-// TestPayloadShape verifies the happy path: the trace-agent's own receiver
-// ERROR log reaches FakeIntake with the expected wire shape, and — critically
-// for a pipeline shared across many binaries — an agent.flavor tag identifying
-// the emitter as trace_agent rather than agent. Records are filtered by stack
-// trace rather than assumed exclusive, since the core agent on the same host
-// shares the same errortracking config and could in principle forward its own,
-// unrelated errors during the same window.
+// TestPayloadShape verifies the trace-agent's own receiver ERROR log reaches
+// FakeIntake with the expected wire shape, tagged agent.flavor:trace_agent
+// rather than agent.
 func (s *errorTrackingTraceAgentSuite) TestPayloadShape() {
 	// testify's suite.Run executes test methods in alphabetical order
 	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
