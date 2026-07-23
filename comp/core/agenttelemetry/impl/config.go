@@ -256,6 +256,13 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	if len(tags) == 0 {
 		tags = m.AggregateTags
 	}
+	if m.AggregateTotal {
+		for _, tag := range tags {
+			if tag == "total" {
+				return fmt.Errorf("profile '%s' metric '%s' cannot preserve reserved tag 'total' when aggregate_total is enabled", p.Name, m.Name)
+			}
+		}
+	}
 	if len(tags) == 0 {
 		m.preserveTagsExists = false
 	} else {

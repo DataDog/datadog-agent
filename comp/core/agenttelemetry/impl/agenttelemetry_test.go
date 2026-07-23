@@ -975,6 +975,91 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
 }
 
+func TestAggregateTotalRejectsReservedTotalPreserveTag(t *testing.T) {
+	const wantErr = "profile 'foo' metric 'bar.zoo' cannot preserve reserved tag 'total' when aggregate_total is enabled"
+
+	for _, tt := range []struct {
+		name                string
+		aggregateTotal      bool
+		tags                string
+		wantErr             bool
+		wantPreservedTags   []string
+		wantUnpreservedTags []string
+	}{
+		{
+			name:           "preserve_tags with aggregate total enabled",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags:
+              - total`,
+			wantErr: true,
+		},
+		{
+			name: "preserve_tags with aggregate total disabled",
+			tags: `
+            preserve_tags:
+              - total`,
+			wantPreservedTags: []string{"total"},
+		},
+		{
+			name:           "deprecated aggregate_tags with aggregate total enabled",
+			aggregateTotal: true,
+			tags: `
+            aggregate_tags:
+              - total`,
+			wantErr: true,
+		},
+		{
+			name:           "preserve_tags takes precedence over deprecated alias",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags:
+              - tag1
+            aggregate_tags:
+              - total`,
+			wantPreservedTags:   []string{"tag1"},
+			wantUnpreservedTags: []string{"total"},
+		},
+		{
+			name:           "empty preserve_tags falls back to deprecated alias",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags: []
+            aggregate_tags:
+              - total`,
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+            aggregate_total: %t%s
+`, tt.aggregateTotal, tt.tags))
+
+			atelCfg, err := parseConfig(cfg)
+			if tt.wantErr {
+				require.EqualError(t, err, wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
+			for _, tag := range tt.wantPreservedTags {
+				require.Contains(t, mCfg.preserveTagsMap, tag)
+			}
+			for _, tag := range tt.wantUnpreservedTags {
+				require.NotContains(t, mCfg.preserveTagsMap, tag)
+			}
+		})
+	}
+}
+
 // TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that the
 // aggregate_total counter delta remains correct when the number of timeseries
 // changes between collection cycles. This is a regression test for a bug where
