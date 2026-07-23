@@ -12,7 +12,6 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 inject_repo(
     go_deps,
     protobuf = "protobuf",
-    rules_proto = "rules_proto",
 )
 
 # TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
