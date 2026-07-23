@@ -28,6 +28,7 @@
 '@datadog/serverless-azure-gcp': SVLS
 '@datadog/remote-config': RC
 '@datadog/fleet': FA
+'@datadog/fleet-automation': FA
 '@datadog/agent-community-eng': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
 '@datadog/cloud-network-monitoring': CNM
@@ -37,6 +38,7 @@
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/sdlc-security': SINT
+'@datadog/sensitive-data-scanner': SDS
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI
 '@datadog/debugger': DEBUG
@@ -55,8 +57,7 @@
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
-'@datadog/agent-health': AGTHEAL
-'@datadog/fleet-remediation': AGTHEAL
+'@datadog/fleet-remediation': FLREM
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': DEFAULT_JIRA_PROJECT
 '@datadog/gpu-monitoring-agent': EBPF

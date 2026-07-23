@@ -1,17 +1,24 @@
 import os
 import re
 
-func_start_regex = r'^func (\w+)\(config pkgconfigmodel.Setup\)'
-declare_regex = r'^config.BindEnvAndSetDefault\((.*)\)'
-set_default_regex = r'^config.SetDefault\((.*)\)'
-proc_declare_regex = r'^procBindEnvAndSetDefault\(config, (.*)\)'
+func_start_regex = r'^func (\w+)\(\w+ pkgconfigmodel.Setup\)'
+declare_regex = r'^c\w+g\.BindEnvAndSetDefault\((.*)\)'
+set_default_regex = r'^c\w+g\.SetDefault\((.*)\)'
+proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
+event_monitor_regex = r'^eventMonitorBindEnvAndSetDefault\(\w+, (.*)\)'
+
+bind_env_logs = r'bindEnvAndSetLogsConfigKeys\(\w+, "([\w_\.]+)"'
+bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]*)"'
+
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
 # `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value), so we accumulate lines until the
 # parentheses balance and only then match the joined statement against the single-line regexes above.
 DECL_START_PREFIXES = (
     'config.BindEnvAndSetDefault(',
+    'cfg.BindEnvAndSetDefault(',
     'config.SetDefault(',
+    'cfg.SetDefault',
     'procBindEnvAndSetDefault(',
 )
 
@@ -56,7 +63,7 @@ MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover_settings.go")
 PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner_settings.go")
 PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process_settings.go")
 # system probe
-SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe.go")
+SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe_settings.go")
 
 
 def extract_imperative_code_hints():
@@ -152,19 +159,17 @@ class Processor:
                 self.dispatch(joined)
             return
 
-        # TODO: Handle these functions
         if line.startswith('bindEnvAndSetLogsConfigKeys'):
-            return
+            m = re.match(bind_env_logs, line)
+            if m:
+                self.register_pattern('pattern_logs_config', m.group(1))
+                return
+
         if line.startswith('bindDelegatedAuthConfig'):
-            return
-        if line.startswith('pkgconfigmodel.AddOverrideFunc'):
-            return
-        if line.startswith('config.ParseEnvAs'):
-            return
-        if line.startswith('setupProcesses'):
-            return
-        if line.startswith('setupPrivateActionRunner'):
-            return
+            m = re.match(bind_delegate, line)
+            if m:
+                self.register_pattern('pattern_delegate_auth', m.group(1))
+                return
 
         if not line.startswith(DECL_START_PREFIXES):
             return
@@ -194,17 +199,32 @@ class Processor:
             self.register_setting('proc', m.group(1))
             return
 
+        m = re.match(event_monitor_regex, line)
+        if m:
+            self.register_setting('eventmon', m.group(1))
+            return
+
     def append_internal_comment(self, text):
         text = text.strip()
         if text.startswith('//'):
             text = text[2:]
         text = text.strip()
+        # ignore this common case:
+        if re.match(r'^TODO: replace by .SetDefaultAndBindEnv.', text):
+            return
         self.internal_comment.append(text)
 
     def clean_param(self, params, index):
         if index >= len(params):
             return None
         return params[index].strip('" \'')
+
+    def register_pattern(self, pattern_kind, setting_prefix):
+        if not self.currfunc:
+            raise RuntimeError('not currently in a function')
+        internal_comment = '\n'.join(self.internal_comment)
+        self.internal_comment = []
+        self.settings.append([setting_prefix, pattern_kind, internal_comment])
 
     def register_setting(self, kind, params):
         if not self.currfunc:
@@ -219,13 +239,7 @@ class Processor:
         internal_comment = '\n'.join(self.internal_comment)
         self.internal_comment = []
 
-        if kind == 'declare':
-            keyname = self.clean_param(parts, 0)
-            _unused_default = self.clean_param(parts, 1)
-        elif kind == 'default':
-            keyname = self.clean_param(parts, 0)
-            _unused_default = self.clean_param(parts, 1)
-        elif kind == 'proc':
+        if kind in ['declare', 'default', 'proc', 'eventmon']:
             keyname = self.clean_param(parts, 0)
             _unused_default = self.clean_param(parts, 1)
         else:

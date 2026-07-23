@@ -8,23 +8,34 @@ package configfilesdiscoveryimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
+
+const testRedisIntegrationName = "redisdb"
+const testRedisConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF
 
 func TestResolveTargetDetectsRuntime(t *testing.T) {
 	tests := []struct {
@@ -414,8 +425,8 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 	collector.waitForRuns(t, 1)
 }
 
-func TestSchedulerReportsCollectedFiles(t *testing.T) {
-	reporter := &recordingConfigFileReporter{}
+func TestSchedulerSendsCollectedConfig(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
 	collector := &recordingConfigCollector{
 		files: []ConfigFile{
 			{
@@ -424,12 +435,15 @@ func TestSchedulerReportsCollectedFiles(t *testing.T) {
 				Truncated: true,
 			},
 		},
+		envVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+		},
 	}
 	s := newADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{"redisdb": collector},
-		reporter,
+		sender,
 	)
 	defer s.Stop()
 
@@ -437,15 +451,214 @@ func TestSchedulerReportsCollectedFiles(t *testing.T) {
 		checkConfig("redisdb", "docker://abc123"),
 	})
 
-	reports := reporter.waitForReports(t, 1)
-	assert.Equal(t, configFileReportCall{
-		integration: "redisdb",
-		file: ConfigFile{
-			Path:      "/etc/redis/redis.conf",
-			Content:   []byte("port 6379\n"),
-			Truncated: true,
+	collectedConfigs := sender.waitForCollectedConfigs(t, 1)
+	assert.Equal(t, CollectedConfig{
+		Integration: "redisdb",
+		Runtime:     RuntimeDocker,
+		RuntimeID:   "abc123",
+		ConfigFiles: []ConfigFile{
+			{
+				Path:      "/etc/redis/redis.conf",
+				Content:   []byte("port 6379\n"),
+				Truncated: true,
+			},
 		},
-	}, reports[0])
+		EnvVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+		},
+	}, collectedConfigs[0])
+}
+
+func TestSchedulerSendsEnvOnlyCollectedConfig(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		envVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+			{Name: "REDIS_TLS_ENABLED", Value: "true"},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{"redisdb": collector},
+		sender,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig("redisdb", "docker://abc123"),
+	})
+
+	collectedConfigs := sender.waitForCollectedConfigs(t, 1)
+	assert.Equal(t, CollectedConfig{
+		Integration: "redisdb",
+		Runtime:     RuntimeDocker,
+		RuntimeID:   "abc123",
+		EnvVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+			{Name: "REDIS_TLS_ENABLED", Value: "true"},
+		},
+	}, collectedConfigs[0])
+}
+
+func TestSchedulerSkipsEmptyCollectedConfig(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{"redisdb": collector},
+		sender,
+	)
+
+	s.Schedule([]integration.Config{
+		checkConfig("redisdb", "docker://abc123"),
+	})
+
+	collector.waitForRuns(t, 1)
+	s.Stop()
+	assert.Empty(t, sender.recordedBatches())
+}
+
+func TestSchedulerBatchesMultipleCompletedConfigCollections(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://abc123")})
+	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://def456")})
+
+	batches := sender.waitForBatches(t, 1)
+	require.Len(t, batches[0], 2)
+	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
+	assert.Equal(t, "def456", batches[0][1].RuntimeID)
+}
+
+func TestSchedulerFlushesConfigCollectionBatchOnTimeout(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://abc123")})
+
+	batches := sender.waitForBatches(t, 1)
+	require.Len(t, batches[0], 1)
+	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
+}
+
+func TestSchedulerFlushesConfigCollectionBatchOnMaxCollectedConfigs(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+
+	configs := make([]integration.Config, 0, configCollectionBatchMaxCollectedConfigs)
+	for i := 0; i < configCollectionBatchMaxCollectedConfigs; i++ {
+		configs = append(configs, checkConfig(testRedisIntegrationName, fmt.Sprintf("docker://container-%d", i)))
+	}
+	s.Schedule(configs)
+
+	batches := sender.waitForBatches(t, 1)
+	require.Len(t, batches[0], configCollectionBatchMaxCollectedConfigs)
+}
+
+func TestSchedulerFlushesOversizedConfigCollectionAlone(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: make([]byte, configCollectionBatchMaxRawConfigBytes+1),
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://abc123")})
+
+	batches := sender.waitForBatches(t, 1)
+	require.Len(t, batches[0], 1)
+	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
+	assert.Greater(t, collectedConfigRawBytes(batches[0][0]), configCollectionBatchMaxRawConfigBytes)
+}
+
+func TestSchedulerCountsEnvVarsInCollectedConfigRawBytes(t *testing.T) {
+	assert.Equal(t, len("REDIS_PORT")+len("6379")+len("REDIS_TLS_ENABLED")+len("true"), collectedConfigRawBytes(CollectedConfig{
+		EnvVars: []ConfigEnvVar{
+			{Name: "REDIS_PORT", Value: "6379"},
+			{Name: "REDIS_TLS_ENABLED", Value: "true"},
+		},
+	}))
+}
+
+func TestSchedulerFlushesPendingConfigCollectionBatchOnStop(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+
+	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://abc123")})
+	collector.waitForRuns(t, 1)
+	s.Stop()
+
+	batches := sender.waitForBatches(t, 1)
+	require.Len(t, batches[0], 1)
+	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
 }
 
 func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
@@ -455,6 +668,7 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	NewComponent(Requires{
 		Lifecycle:     lifecycle,
 		Autodiscovery: ac,
+		Hostname:      fakeHostname{hostname: "test-host"},
 	})
 
 	require.NotNil(t, lifecycle.hook.OnStart)
@@ -470,7 +684,7 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 
 func TestComponentRegistersProvidedCollectors(t *testing.T) {
 	collector := &recordingConfigCollector{}
-	c := newComponent(nil, targetResolver{}, map[string]ConfigCollector{"custom": collector})
+	c := newComponent(nil, targetResolver{}, noopCollectedConfigSender{}, map[string]ConfigCollector{"custom": collector})
 	adScheduler, ok := c.scheduler.(*adScheduler)
 	require.True(t, ok)
 
@@ -478,11 +692,182 @@ func TestComponentRegistersProvidedCollectors(t *testing.T) {
 }
 
 func TestComponentRegistersKubernetesConfigReader(t *testing.T) {
-	c := newComponent(nil, targetResolver{}, nil)
+	c := newComponent(nil, targetResolver{}, noopCollectedConfigSender{}, nil)
 	adScheduler, ok := c.scheduler.(*adScheduler)
 	require.True(t, ok)
 
 	assert.Contains(t, adScheduler.readers, RuntimeKubernetes)
+}
+
+func TestComponentUsesEventPlatformSenderWhenAvailable(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{}
+	c := newComponent(nil, targetResolver{}, newEventPlatformCollectedConfigSender(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	}, "test-host"), nil)
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
+
+	_, ok = adScheduler.sender.(*eventPlatformCollectedConfigSender)
+	require.True(t, ok)
+}
+
+func TestEventPlatformSenderSendsAgentDiscoveryPayload(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{}
+	sender := newEventPlatformCollectedConfigSender(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	}, "test-host")
+
+	beforeSend := time.Now()
+	err := sender.SendCollectedConfigs([]CollectedConfig{
+		{
+			Integration: testRedisIntegrationName,
+			Runtime:     RuntimeDocker,
+			RuntimeID:   "abc123",
+			ConfigFiles: []ConfigFile{
+				{
+					Path:          "/etc/redis/redis.conf",
+					Content:       []byte("port 6379\n"),
+					Truncated:     true,
+					PayloadFormat: testRedisConfigPayloadFormat,
+				},
+				{
+					Path:          "/etc/redis/redis-extra.conf",
+					Content:       []byte("appendonly no\n"),
+					Truncated:     false,
+					PayloadFormat: testRedisConfigPayloadFormat,
+				},
+			},
+			EnvVars: []ConfigEnvVar{
+				{Name: "REDIS_PORT", Value: "6379"},
+				{Name: "REDIS_TLS_ENABLED", Value: "true"},
+			},
+		},
+		{
+			Integration: testRedisIntegrationName,
+			Runtime:     RuntimeDocker,
+			RuntimeID:   "def456",
+			ConfigFiles: []ConfigFile{
+				{
+					Path:          "/etc/redis/redis.conf",
+					Content:       []byte("port 6380\n"),
+					PayloadFormat: testRedisConfigPayloadFormat,
+				},
+			},
+		},
+	})
+	afterSend := time.Now()
+
+	require.NoError(t, err)
+	sent := forwarder.recordedMessages()
+	require.Len(t, sent, 1)
+	assert.Equal(t, eventplatform.EventTypeAgentDiscovery, sent[0].eventType)
+
+	var batch agentdiscovery.AgentDiscoveryPayloadBatch
+	require.NoError(t, proto.Unmarshal(sent[0].message.GetContent(), &batch))
+	assert.Equal(t, "test-host", batch.GetHostId())
+	require.Len(t, batch.Payloads, 2)
+	ingestionTimestamps := make([]*timestamppb.Timestamp, 0, len(batch.Payloads))
+	for _, payload := range batch.Payloads {
+		ingestionTimestamp := payload.GetIngestionTimestamp()
+		require.NotNil(t, ingestionTimestamp)
+		require.NoError(t, ingestionTimestamp.CheckValid())
+		ingestionTime := ingestionTimestamp.AsTime()
+		assert.False(t, ingestionTime.Before(beforeSend), "ingestion timestamp %s before send start %s", ingestionTime, beforeSend)
+		assert.False(t, ingestionTime.After(afterSend), "ingestion timestamp %s after send end %s", ingestionTime, afterSend)
+		ingestionTimestamps = append(ingestionTimestamps, ingestionTimestamp)
+	}
+
+	want := &agentdiscovery.AgentDiscoveryPayloadBatch{
+		HostId: "test-host",
+		Payloads: []*agentdiscovery.AgentDiscoveryPayload{
+			{
+				Integration:        testRedisIntegrationName,
+				Runtime:            string(RuntimeDocker),
+				RuntimeId:          "abc123",
+				IngestionTimestamp: ingestionTimestamps[0],
+				ConfigFiles: []*agentdiscovery.AgentDiscoveryConfigFile{
+					{
+						Path:          "/etc/redis/redis.conf",
+						Content:       []byte("port 6379\n"),
+						Truncated:     true,
+						PayloadFormat: testRedisConfigPayloadFormat,
+					},
+					{
+						Path:          "/etc/redis/redis-extra.conf",
+						Content:       []byte("appendonly no\n"),
+						Truncated:     false,
+						PayloadFormat: testRedisConfigPayloadFormat,
+					},
+				},
+				EnvVars: []*agentdiscovery.AgentDiscoveryEnvVar{
+					{
+						Name:  "REDIS_PORT",
+						Value: "6379",
+					},
+					{
+						Name:  "REDIS_TLS_ENABLED",
+						Value: "true",
+					},
+				},
+			},
+			{
+				Integration:        testRedisIntegrationName,
+				Runtime:            string(RuntimeDocker),
+				RuntimeId:          "def456",
+				IngestionTimestamp: ingestionTimestamps[1],
+				ConfigFiles: []*agentdiscovery.AgentDiscoveryConfigFile{
+					{
+						Path:          "/etc/redis/redis.conf",
+						Content:       []byte("port 6380\n"),
+						PayloadFormat: testRedisConfigPayloadFormat,
+					},
+				},
+			},
+		},
+	}
+	assert.True(t, proto.Equal(want, &batch), "payload mismatch: got %v", &batch)
+}
+
+func TestEventPlatformSenderSkipsEmptyCollections(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{}
+	sender := newEventPlatformCollectedConfigSender(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	}, "test-host")
+
+	err := sender.SendCollectedConfigs([]CollectedConfig{
+		{
+			Integration: testRedisIntegrationName,
+			Runtime:     RuntimeDocker,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, forwarder.recordedMessages())
+}
+
+func TestEventPlatformSenderReturnsSendError(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{err: errors.New("queue unavailable")}
+	sender := newEventPlatformCollectedConfigSender(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	}, "test-host")
+
+	err := sender.SendCollectedConfigs([]CollectedConfig{
+		{
+			Integration: testRedisIntegrationName,
+			Runtime:     RuntimeDocker,
+			RuntimeID:   "abc123",
+			ConfigFiles: []ConfigFile{
+				{Path: "/etc/redis/redis.conf", Content: []byte("port 6379\n")},
+			},
+		},
+	})
+
+	require.ErrorContains(t, err, "send agent discovery payload to event platform")
+	require.ErrorContains(t, err, "queue unavailable")
 }
 
 func checkConfig(name string, serviceID string) integration.Config {
@@ -503,11 +888,30 @@ func (l *recordingLifecycle) Append(hook compdef.Hook) {
 	l.hook = hook
 }
 
+type fakeHostname struct {
+	hostname string
+}
+
+var _ hostname.Component = fakeHostname{}
+
+func (h fakeHostname) Get(context.Context) (string, error) {
+	return h.hostname, nil
+}
+
+func (h fakeHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: h.hostname, Provider: "test"}, nil
+}
+
+func (h fakeHostname) GetSafe(context.Context) string {
+	return h.hostname
+}
+
 type recordingConfigCollector struct {
 	mu      sync.Mutex
 	runs    []runCall
 	unblock chan struct{}
 	files   []ConfigFile
+	envVars []ConfigEnvVar
 	err     error
 }
 
@@ -515,11 +919,11 @@ type runCall struct {
 	reader ConfigReader
 }
 
-func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) ([]ConfigFile, error) {
+func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) (CollectedConfig, error) {
 	if c.unblock != nil {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return CollectedConfig{}, ctx.Err()
 		case <-c.unblock:
 		}
 	}
@@ -529,44 +933,119 @@ func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigRea
 	c.runs = append(c.runs, runCall{
 		reader: reader,
 	})
-	return c.files, c.err
+	if c.err != nil {
+		return CollectedConfig{}, c.err
+	}
+	return CollectedConfig{
+		ConfigFiles: c.files,
+		EnvVars:     c.envVars,
+	}, nil
 }
 
-type configFileReportCall struct {
-	integration string
-	file        ConfigFile
-}
-
-type recordingConfigFileReporter struct {
+type recordingCollectedConfigSender struct {
 	mu      sync.Mutex
-	reports []configFileReportCall
+	batches [][]CollectedConfig
 	err     error
 }
 
-func (r *recordingConfigFileReporter) ReportConfigFile(_ context.Context, integration string, file ConfigFile) error {
+func (r *recordingCollectedConfigSender) SendCollectedConfigs(configs []CollectedConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.reports = append(r.reports, configFileReportCall{
-		integration: integration,
-		file:        file,
-	})
+	copiedConfigs := make([]CollectedConfig, len(configs))
+	copy(copiedConfigs, configs)
+	r.batches = append(r.batches, copiedConfigs)
 	return r.err
 }
 
-func (r *recordingConfigFileReporter) waitForReports(t *testing.T, count int) []configFileReportCall {
+func (r *recordingCollectedConfigSender) waitForCollectedConfigs(t *testing.T, count int) []CollectedConfig {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		return len(r.reports) >= count
-	}, time.Second, 10*time.Millisecond)
+		return len(r.flattenCollectedConfigsLocked()) >= count
+	}, 2*time.Second, 10*time.Millisecond)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	reports := make([]configFileReportCall, len(r.reports))
-	copy(reports, r.reports)
-	return reports
+	return r.flattenCollectedConfigsLocked()
+}
+
+func (r *recordingCollectedConfigSender) waitForBatches(t *testing.T, count int) [][]CollectedConfig {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return len(r.batches) >= count
+	}, 2*time.Second, 10*time.Millisecond)
+
+	return r.recordedBatches()
+}
+
+func (r *recordingCollectedConfigSender) recordedBatches() [][]CollectedConfig {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	batches := make([][]CollectedConfig, len(r.batches))
+	for i, batch := range r.batches {
+		batches[i] = make([]CollectedConfig, len(batch))
+		copy(batches[i], batch)
+	}
+	return batches
+}
+
+func (r *recordingCollectedConfigSender) flattenCollectedConfigsLocked() []CollectedConfig {
+	var configs []CollectedConfig
+	for _, batch := range r.batches {
+		configs = append(configs, batch...)
+	}
+	return configs
+}
+
+type recordingEventPlatformComponent struct {
+	forwarder eventplatform.Forwarder
+	ok        bool
+}
+
+func (c recordingEventPlatformComponent) Get() (eventplatform.Forwarder, bool) {
+	return c.forwarder, c.ok
+}
+
+type eventPlatformSendCall struct {
+	message   *message.Message
+	eventType string
+}
+
+type recordingEventPlatformForwarder struct {
+	mu       sync.Mutex
+	messages []eventPlatformSendCall
+	err      error
+}
+
+func (f *recordingEventPlatformForwarder) SendEventPlatformEvent(msg *message.Message, eventType string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.messages = append(f.messages, eventPlatformSendCall{
+		message:   msg,
+		eventType: eventType,
+	})
+	return f.err
+}
+
+func (f *recordingEventPlatformForwarder) SendEventPlatformEventBlocking(_ *message.Message, _ string) error {
+	return errors.New("unexpected blocking Event Platform send")
+}
+
+func (f *recordingEventPlatformForwarder) Purge() map[string][]*message.Message {
+	return nil
+}
+
+func (f *recordingEventPlatformForwarder) recordedMessages() []eventPlatformSendCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	messages := make([]eventPlatformSendCall, len(f.messages))
+	copy(messages, f.messages)
+	return messages
 }
 
 func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {

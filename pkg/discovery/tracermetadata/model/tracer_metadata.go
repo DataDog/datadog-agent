@@ -28,6 +28,27 @@ type TracerMetadata struct {
 	ProcessTags    string `json:"process_tags,omitempty"`
 	ContainerID    string `json:"container_id,omitempty"`
 	LogsCollected  bool   `json:"logs_collected,omitempty"`
+	// ThreadlocalAttributeKeys is the ordered list of attribute key names for OTel
+	// Thread Local Context Records (per OTel spec PR #4947). Key indices in a thread's
+	// attrs_data section index into this list to resolve the full attribute name.
+	// The first entry is implicitly "datadog.local_root_span_id" (index 0).
+	ThreadlocalAttributeKeys []string `json:"threadlocal_attribute_keys,omitempty"`
+}
+
+// IsZero returns true if the TracerMetadata is empty (zero value).
+func (t TracerMetadata) IsZero() bool {
+	return t.SchemaVersion == 0 &&
+		t.RuntimeID == "" &&
+		t.TracerLanguage == "" &&
+		t.TracerVersion == "" &&
+		t.Hostname == "" &&
+		t.ServiceName == "" &&
+		t.ServiceEnv == "" &&
+		t.ServiceVersion == "" &&
+		t.ProcessTags == "" &&
+		t.ContainerID == "" &&
+		!t.LogsCollected &&
+		len(t.ThreadlocalAttributeKeys) == 0
 }
 
 // ShouldSkipServiceTagKV checks if a tracer service tag key-value pair should be

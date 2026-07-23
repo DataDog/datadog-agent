@@ -105,6 +105,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
 		Config       config.Component
+		RCClient     rcclient.Component
 		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(

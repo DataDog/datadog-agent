@@ -62,8 +62,8 @@ type Requires struct {
 	Forwarder forwarderdef.Component
 }
 
-// New creates the egress component and registers its lifecycle hooks.
-func New(reqs Requires) egressdef.Component {
+// NewComponent creates the egress component and registers its lifecycle hooks.
+func NewComponent(reqs Requires) egressdef.Component {
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		return &egress{}
 	}

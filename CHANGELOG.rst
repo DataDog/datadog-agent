@@ -2,6 +2,77 @@
 Release Notes
 =============
 
+.. _Release Notes_7.81.2:
+
+7.81.2
+======
+
+.. _Release Notes_7.81.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-22
+
+- Please refer to the `7.81.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7812>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.81.2_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Metrics now use the Datadog v3 intake by default for Datadog
+  destinations.
+  
+  Metric destinations configured with non-Datadog-looking URLs, such as
+  custom ``additional_endpoints`` and reverse proxies, continue to use the
+  v2 intake by default. To enable v3 for every destination, set
+  ``use_v3_api.series.enabled: "true"``. To keep using v2 intake, set
+  ``use_v3_api.series.enabled: "false"`` (global) or
+  ``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint).
+
+
+.. _Release Notes_7.81.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On macOS, opening the Datadog Agent GUI via the fallback launch method no longer
+  steals focus from the application the user is currently working in.
+
+
+.. _Release Notes_7.81.1:
+
+7.81.1
+======
+
+.. _Release Notes_7.81.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-14
+
+- Please refer to the `7.81.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7811>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.81.1_New Features:
+
+New Features
+------------
+
+- Add a new reflector-based Kubernetes event collection path, enabled via ``event_collection_mode: watch``.
+
+
+.. _Release Notes_7.81.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.26.5``.
+
+
 .. _Release Notes_7.81.0:
 
 7.81.0
@@ -17,16 +88,44 @@ Released on: 2026-07-08
 - Please refer to the `7.81.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7810>`_ for the list of changes on the Core Checks
 
 
-Metrics now use the Datadog v3 intake by default. The v3
-payload format is more compact, reducing outbound bandwidth from
-Agents to Datadog.
+Metrics are now forwarded to the new Datadog v3 API by default
+(``/api/intake/metrics/v3/series``). The v3 API payload format is more compact,
+reducing outbound bandwidth from Agents to Datadog.
+
+If you configure ``additional_endpoints`` to forward to a non-Datadog endpoint,
+you will likely need to disable v3 for this endpoint. Otherwise you will see
+404s. This can be done via:
+
+.. code-block:: yaml
+
+   use_v3_api:
+     series:
+       endpoints:
+         "<additional_endpoint>": false
+
+Example:
+
+.. code-block:: yaml
+
+   additional_endpoints:
+     "https://non-datadog-endpoint":
+       - apikey2
+
+will need:
+
+.. code-block:: yaml
+
+   use_v3_api:
+     series:
+       endpoints:
+         "https://non-datadog-endpoint": false
 
 Metrics sent to Observability Pipelines Worker continue to use
-the v2 intake by default.
+the v2 API by default.
 
-To keep using v2 intake, set
+To keep using v2 endpoint, set
 ``use_v3_api.series.enabled: "false"`` (global) or
-``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint).
+``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint; shown above).
 
 
 .. _Release Notes_7.81.0_Upgrade Notes:

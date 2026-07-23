@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -234,8 +233,6 @@ func (suite *KubeletTestSuite) getCustomKubeUtil() KubeUtilInterface {
 func (suite *KubeletTestSuite) SetupTest() {
 	ResetGlobalKubeUtil()
 	ResetCache()
-
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
@@ -933,6 +930,8 @@ func (suite *KubeletTestSuite) TestGetConfig() {
 	_, config, err := kubeutil.GetConfig(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), config)
+	require.Equal(suite.T(), "kubelet.config.k8s.io/v1beta1", config.KubeletConfig.APIVersion)
+	require.Equal(suite.T(), "KubeletConfiguration", config.KubeletConfig.Kind)
 }
 
 func (suite *KubeletTestSuite) TestGetConfigWithBrokenKubelet() {

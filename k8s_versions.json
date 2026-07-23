@@ -10,5 +10,15 @@
   "v1.36.1": {
     "tag": "v1.36.1",
     "digest": "sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
+  },
+  "v1.36.2": {
+    "tag": "v1.36.2",
+    "digest": "sha256:0ce766f2c31c54771255f79445cce3e3097ea293304227c792c60e3cd14365d6",
+    "kind_version": "v0.31.0"
+  },
+  "v1.36.3": {
+    "tag": "v1.36.3",
+    "digest": "sha256:a16e7786dbb06083ddd49e59a17f9cb36e75e85491b192d6977a674d5364b720",
+    "kind_version": "v0.31.0"
   }
 }

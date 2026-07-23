@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
+    "pkg/collector/sharedlibrary/rustchecks/core",
+    "pkg/collector/sharedlibrary/rustchecks/checks/datasecurity",
+    "pkg/collector/sharedlibrary/rustchecks/checks/example",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
@@ -35,7 +38,7 @@ memchr = "2.7.6"
 nom = "8.0"
 normalize-path = "0.2"
 phf = { version = "0.14", features = ["macros"] }
-rawzip = "0.4.4"
+rawzip = "0.5.0"
 xml-rs = "1.0"
 rmp-serde = "1.3"
 serde = { version = "1.0.219", features = ["derive", "std"] }
@@ -55,7 +58,7 @@ tonic-reflection = "0.14"
 ureq = { version = "3.0", default-features = false, features = ["json"] }
 uzers = "0.12"
 walkdir = "2"
-saphyr-parser = "0.0.6"
+saphyr-parser = "0.0.11"
 yaml-rust2 = "0.11"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"
@@ -77,3 +80,4 @@ tempfile = "3.0"
 [profile.release]
 lto = "fat"
 opt-level = "z"
+codegen-units = 1

@@ -4,9 +4,9 @@
 #
 #    bazel run //deps:py_agent_integrations_tool_requirements.update
 #
-hatchling==1.30.1 \
-    --hash=sha256:161eacafb3c6f91526e92116d21426369f2c36e98c36a864f11a96345ad4ee31 \
-    --hash=sha256:eee4fd45357f72ebb3d7a42e5d72cfb5e29ed426d79e8836288926c4258d5f2e
+hatchling==1.31.0 \
+    --hash=sha256:6b48ad4068a482ed7239b3a8215bc55b47aad3345d58dfc94e553c5d2d46211b \
+    --hash=sha256:aac80bec8b6fe35e8480f1c335be8910fa210a0e6f735a139be205dadcacb544
 installer==1.0.1 \
     --hash=sha256:011d045df8b954ced7dde3a7e42ae4418da40ecda7990f2d11d5ed7c146fd98b \
     --hash=sha256:052c7fc3721d54c696e2dea019be67539d7b144e924f559f54beb3121831c364

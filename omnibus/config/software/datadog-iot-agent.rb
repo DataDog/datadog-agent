@@ -10,7 +10,7 @@ name 'datadog-iot-agent'
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*"],
+         exclude: ["**/.cache/**/*", "**/.git/fsmonitor--daemon.ipc"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -52,12 +52,12 @@ build do
     delete 'bin/agent/dist/datadog.yaml'
 
     # Installs: bin/ and run/ dirs
-    command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
+    command "bazel run #{omnibazel_flags} -- " \
             "//packages/agent/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Installs: example yaml
-    command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
+    command "bazel run #{omnibazel_flags} -- " \
             "//packages/agent/iot:install_example_config --destdir=/", :live_stream => Omnibus.logger.live_stream(:info)
 
     # /var/log/datadog is a runtime directory; not managed by Bazel packaging.
