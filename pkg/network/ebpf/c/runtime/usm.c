@@ -32,6 +32,7 @@
 #include "protocols/tls/https.h"
 #include "protocols/tls/native-tls.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/llmo.h"
 
 // The entrypoint for all packets classification & decoding in universal service monitoring.
 SEC("socket/protocol_dispatcher")
@@ -163,6 +164,12 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write__return) {
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     log_debug("[go-tls-write] processing %s", buffer_ptr);
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
+    // LLMO PoC: capture the decrypted request body for LLM-flagged connections.
+    // This MUST run before tls_process(), which ends in an eBPF tail call and
+    // therefore never returns to this program. Use the raw tuple `t`
+    // (client->server at write time), which matches the orientation of the
+    // transaction's ConnTuple() that userspace flags with.
+    llmo_maybe_capture_body(t, buffer_ptr, bytes_written);
     conn_tuple_t copy = {0};
     bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
@@ -269,6 +276,10 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     normalize_tuple(&copy);
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
+    // LLMO PoC: capture the decrypted response body tail (where token usage
+    // lives) before tls_process()'s tail call. Use the raw tuple `t` so the
+    // key matches the request-side flag/capture.
+    llmo_maybe_capture_response(t, buffer_ptr, bytes_read);
     tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 

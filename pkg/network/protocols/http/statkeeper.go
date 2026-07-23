@@ -14,8 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/ringbuf"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -54,6 +59,139 @@ type StatKeeper struct {
 	buffer []byte
 
 	oversizedLogLimit *log.Limit
+
+	// LLMO PoC: eBPF map used to flag connections whose decrypted bodies the
+	// hooks should capture. nil unless EnableLLMO has been called (HTTP/2 only).
+	llmConnMap *ebpf.Map
+	// llmServiceExtractor resolves the span service name from the client PID in
+	// userspace, using the same inference as USM (process_service_inference).
+	llmServiceExtractor *parser.ServiceExtractor
+	// llmGenUsage caches, per connection, the token usage of the most recent
+	// tool-call generation seen on it (detected via finish_reason in the
+	// response tail, which — unlike the head — is reliably captured). A
+	// follow-up request on the same connection reads it back to give the
+	// workflow's first llm span its cost, surviving response-slot churn.
+	llmGenUsage   map[llmConnKey]llmUsage
+	llmGenUsageMu sync.Mutex
+	// llmRespReader consumes streamed response events (see llmo.go).
+	llmRespReader *ringbuf.Reader
+	// llmRespReasm reassembles a response across its reads, keyed by connection
+	// (a response's continuation reads start mid-frame and carry no usable stream
+	// id, so they can't be keyed per-stream; the response's stream id is recovered
+	// from its first, frame-aligned read and stored on the entry). Touched only by
+	// the response-consumer goroutine, so it needs no lock.
+	llmRespReasm map[llmConnKey]*llmRespReasm
+	// llmReqByStream holds each streamed, parsed request body keyed by its
+	// (conn, HTTP/2 stream) so the response consumer can pair a response with
+	// its exact request — correct even when one connection carries several
+	// conversations (sequentially or multiplexed). Written by the request
+	// consumer goroutine, read/deleted by the response consumer goroutine.
+	llmReqByStream map[llmStreamKey]llmReqParsed
+	llmReqMu       sync.Mutex
+	// llmReqReader consumes streamed request-body events (see llmo.go).
+	llmReqReader *ringbuf.Reader
+	// llmEmit emits a fully built span. Defaults to emitLLMSpan; overridable in
+	// tests to capture what got paired without starting the real tracer.
+	llmEmit func(string, Method, uint16, types.ConnectionKey, float64, llmSpanInfo)
+	// llmConvAgents holds one long-lived agent span per conversation thread
+	// (keyed by session id + the conversation's first user message, which is
+	// re-sent on every turn), so all the LLM/tool calls of one multi-turn
+	// conversation nest under a single agent flow. session_id is still tagged on
+	// the agent so the UI's Sessions view groups conversations. Finished by the
+	// reaper once the conversation goes idle. Guarded by llmConvMu.
+	llmConvAgents map[string]*llmConvAgent
+	llmConvMu     sync.Mutex
+}
+
+// llmStreamKey identifies one HTTP/2 request/response exchange: a connection
+// plus the stream id it was carried on. Keying by stream (not just connection)
+// pairs each response with its exact request even when one connection carries
+// several conversations.
+type llmStreamKey struct {
+	conn   llmConnKey
+	stream uint32
+}
+
+// llmStreamMapCap bounds the stream-keyed request/reassembly maps so orphaned
+// entries (a request with no response, or a response that never completes)
+// can't grow memory without bound (PoC-sized).
+const llmStreamMapCap = 8192
+
+// EnableLLMO wires up the eBPF connection-flag map used to gate body capture.
+// Once enabled, the request/response ring-buffer consumers (started separately)
+// parse the captured bodies, pair them by (conn, stream), and emit LLM spans
+// enriched with model, prompt, response, token usage, and a service name
+// resolved from the client PID.
+func (h *StatKeeper) EnableLLMO(connMap *ebpf.Map) {
+	h.llmConnMap = connMap
+	// Same inference USM uses for service names (enabled, non-Windows,
+	// improved algorithm).
+	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)
+	h.llmGenUsage = make(map[llmConnKey]llmUsage)
+	h.llmReqByStream = make(map[llmStreamKey]llmReqParsed)
+	h.llmRespReasm = make(map[llmConnKey]*llmRespReasm)
+	h.llmConvAgents = make(map[string]*llmConvAgent)
+}
+
+// storeReq records a streamed, parsed request body under its (conn, stream)
+// key for the response consumer to pair with. If the map is at capacity (an
+// orphaned request built up with no matching response), one arbitrary entry is
+// evicted first so memory stays bounded.
+func (h *StatKeeper) storeReq(key llmStreamKey, req llmReqParsed) {
+	if h.llmReqByStream == nil {
+		return
+	}
+	h.llmReqMu.Lock()
+	defer h.llmReqMu.Unlock()
+	if len(h.llmReqByStream) >= llmStreamMapCap {
+		for k := range h.llmReqByStream {
+			delete(h.llmReqByStream, k)
+			break
+		}
+	}
+	h.llmReqByStream[key] = req
+}
+
+// takeReq removes and returns the request stored for a (conn, stream); ok is
+// false when none was stored (e.g. warm-up, before the connection was flagged,
+// or the request event was lost).
+func (h *StatKeeper) takeReq(key llmStreamKey) (llmReqParsed, bool) {
+	if h.llmReqByStream == nil {
+		return llmReqParsed{}, false
+	}
+	h.llmReqMu.Lock()
+	defer h.llmReqMu.Unlock()
+	req, ok := h.llmReqByStream[key]
+	if ok {
+		delete(h.llmReqByStream, key)
+	}
+	return req, ok
+}
+
+// cacheGenUsage records, per connection, the token usage of a tool-call
+// generation, for later attribution to a workflow's first llm span.
+func (h *StatKeeper) cacheGenUsage(key llmConnKey, u llmUsage) {
+	if h.llmGenUsage == nil || u.total == 0 {
+		return
+	}
+	h.llmGenUsageMu.Lock()
+	defer h.llmGenUsageMu.Unlock()
+	// Bound the map; this is a PoC-sized cache.
+	if len(h.llmGenUsage) > 4096 {
+		h.llmGenUsage = make(map[llmConnKey]llmUsage)
+	}
+	h.llmGenUsage[key] = u
+}
+
+// lookupGenUsage returns the cached tool-call-generation usage for a connection.
+func (h *StatKeeper) lookupGenUsage(key llmConnKey) (llmUsage, bool) {
+	if h.llmGenUsage == nil {
+		return llmUsage{}, false
+	}
+	h.llmGenUsageMu.Lock()
+	defer h.llmGenUsageMu.Unlock()
+	u, ok := h.llmGenUsage[key]
+	return u, ok
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -149,6 +287,12 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
+	if h.llmRespReader != nil {
+		h.llmRespReader.Close()
+	}
+	if h.llmReqReader != nil {
+		h.llmReqReader.Close()
+	}
 }
 
 var (
@@ -168,6 +312,11 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.telemetry.emptyPath.Add(1)
 		return
 	}
+
+	// LLMO PoC: detect LLM API traffic by path (USM does not capture the
+	// Host/:authority header) and remember the un-quantized full path so we
+	// can emit it as the span resource below.
+	llmTraffic := isLLMPath(rawPath)
 
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
@@ -208,6 +357,15 @@ func (h *StatKeeper) add(tx Transaction) {
 			log.Warnf("invalid status code: %s", tx.String())
 		}
 		return
+	}
+
+	// LLMO PoC: flag the connection so the eBPF hooks capture its decrypted
+	// request/response bodies. Spans are no longer emitted here — the transaction
+	// is processed out of wire order and has no HTTP/2 stream id, so it can't pair
+	// a response to its request. Emission moved to the response consumer, which
+	// sees events in wire order and keys them by (conn, stream) — see pairAndEmit.
+	if llmTraffic {
+		h.flagLLMConn(tx.ConnTuple())
 	}
 
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
