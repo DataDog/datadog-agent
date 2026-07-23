@@ -589,6 +589,32 @@ func TestCompactStrings(t *testing.T) {
 	}
 }
 
+// TestCompactStrings_ContainerDebug verifies that ContainerDebug string refs survive
+// compaction: the referenced strings are retained and the refs are remapped correctly.
+func TestCompactStrings_ContainerDebug(t *testing.T) {
+	pbPayload := &TracerPayload{
+		// index 1 ("unused") is never referenced and should be dropped by compaction.
+		Strings:        []string{"", "unused", "container-1", "resolution timeout", "timeout"},
+		ContainerIDRef: 2,
+		ContainerDebug: &ContainerDebug{
+			ErrorRef:                3,
+			LatencyMs:               150,
+			WasBuffered:             true,
+			BufferMs:                200,
+			BufferEvictionReasonRef: 4,
+		},
+	}
+
+	pbPayload.CompactStrings()
+
+	// The unused string should have been dropped.
+	assert.NotContains(t, pbPayload.Strings, "unused")
+	// Refs must still resolve to their original values after remapping.
+	assert.Equal(t, "container-1", pbPayload.Strings[pbPayload.ContainerIDRef])
+	assert.Equal(t, "resolution timeout", pbPayload.Strings[pbPayload.ContainerDebug.ErrorRef])
+	assert.Equal(t, "timeout", pbPayload.Strings[pbPayload.ContainerDebug.BufferEvictionReasonRef])
+}
+
 // TestRemapAttributes_KeyOverlap demonstrates a bug where remapAttributes can lose
 // attributes when the new key of one attribute equals the old key of another attribute.
 func TestRemapAttributes_KeyOverlap(t *testing.T) {

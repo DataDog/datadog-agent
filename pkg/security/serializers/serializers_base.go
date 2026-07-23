@@ -392,7 +392,7 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	return mrs
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	ret := &DNSEventSerializer{
 		ID:    d.ID,
@@ -425,7 +425,7 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	return ret
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newAWSSecurityCredentialsSerializer(creds *model.AWSSecurityCredentials) *AWSSecurityCredentialsSerializer {
 	return &AWSSecurityCredentialsSerializer{
 		Code:        creds.Code,
@@ -436,7 +436,7 @@ func newAWSSecurityCredentialsSerializer(creds *model.AWSSecurityCredentials) *A
 	}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 	var aws *AWSIMDSEventSerializer
 	if e.CloudProvider == model.IMDSAWSCloudProvider {
@@ -459,7 +459,7 @@ func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 	}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	return IPPortSerializer{
 		IP:   utils.GetIPStringFromIPNet(c.IPNet),
@@ -467,7 +467,7 @@ func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFamilySerializer {
 	return IPPortFamilySerializer{
 		IP:     utils.GetIPStringFromIPNet(c.IPNet),

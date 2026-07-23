@@ -4,7 +4,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 def _impl(name, build_tags, linecomment, output, src, trimprefix, types, visibility):
     args = []
     if build_tags:
-        args.append("-tags={}".format(" ".join(build_tags)))
+        args.append("-tags={}".format(",".join(build_tags)))
     args.append("-type={}".format(",".join(types)))
     if linecomment:
         args.append("-linecomment")
