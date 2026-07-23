@@ -13,6 +13,8 @@
 // success or failure.
 package batchsize
 
+import "github.com/DataDog/datadog-agent/pkg/util/log"
+
 const (
 	onSuccessIncreaseValue  = 1
 	onFailureDecreaseFactor = 2
@@ -22,15 +24,19 @@ const (
 
 // Optimizer is a feedback controller on a positive integer batch size.
 type Optimizer struct {
+	name                    string
 	configBatchSize         int
 	batchSize               int
 	failuresByBatchSize     map[int]int
 	lastSuccessfulBatchSize int
 }
 
-// NewOptimizer returns an Optimizer starting at configBatchSize.
-func NewOptimizer(configBatchSize int) *Optimizer {
+// NewOptimizer returns an Optimizer starting at configBatchSize. The name is
+// used only to label the debug logs the optimizer emits when it adjusts the
+// batch size.
+func NewOptimizer(configBatchSize int, name string) *Optimizer {
 	return &Optimizer{
+		name:                name,
 		configBatchSize:     configBatchSize,
 		batchSize:           configBatchSize,
 		failuresByBatchSize: make(map[int]int),
@@ -57,6 +63,8 @@ func (o *Optimizer) OnFailure() bool {
 
 	o.batchSize = newBatchSize
 
+	log.Debugf("%s with batch size %d failed, new batch size is %d", o.name, oldBatchSize, newBatchSize)
+
 	return oldBatchSize != newBatchSize
 }
 
@@ -73,6 +81,8 @@ func (o *Optimizer) OnSuccess() {
 	if o.failuresByBatchSize[newBatchSize] >= maxFailuresPerWindow {
 		return
 	}
+
+	log.Debugf("%s with batch size %d succeeded, new batch size is %d", o.name, o.batchSize, newBatchSize)
 
 	o.batchSize = newBatchSize
 }

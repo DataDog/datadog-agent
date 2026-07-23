@@ -205,24 +205,45 @@ func TestColumnFilteringLogic(t *testing.T) {
 	assert.False(t, keptOIDs["1.3.6.1.2.1.2.2.1.3.3"], "Second ifType row should be filtered")
 }
 
-func TestCycleDetectionLogic(t *testing.T) {
-	// Test that cycle detection works correctly
-	visitedOIDs := make(map[string]bool)
-
-	oids := []string{
-		"1.3.6.1.2.1.1.1.0",
-		"1.3.6.1.2.1.1.2.0",
-		"1.3.6.1.2.1.1.1.0", // Repeat - cycle!
-	}
-
-	var cycleDetected bool
+// dataPacket returns a successful packet carrying the given OIDs as octet strings.
+func dataPacket(oids ...string) *gosnmp.SnmpPacket {
+	vars := make([]gosnmp.SnmpPDU, 0, len(oids))
 	for _, oid := range oids {
-		if visitedOIDs[oid] {
-			cycleDetected = true
-			break
-		}
-		visitedOIDs[oid] = true
+		vars = append(vars, gosnmp.SnmpPDU{Name: oid, Type: gosnmp.OctetString, Value: "x"})
+	}
+	return &gosnmp.SnmpPacket{Variables: vars}
+}
+
+func TestGatherPDUsWithBulk_StopsOnNonAdvancingOID(t *testing.T) {
+	// A misbehaving device that returns the same OID again (instead of a
+	// strictly greater one) must be detected as stuck rather than looping
+	// forever. This replaces the old visited-OID map with an O(1) monotonic
+	// check.
+	fake := &fakeBulkGetter{
+		responses: []bulkResponse{
+			{packet: dataPacket("1.3.6.1.2.1.1.1.0")},
+			{packet: dataPacket("1.3.6.1.2.1.1.1.0")}, // repeat - does not advance
+		},
 	}
 
-	assert.True(t, cycleDetected, "Should detect cycle when OID is repeated")
+	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, defaultBulkMaxRepetitions)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "did not advance")
+}
+
+func TestGatherPDUsWithBulk_TreatsSNMPErrorAsFailure(t *testing.T) {
+	// A packet with a non-NoError status must back the batch size off just
+	// like a transport error, then a clean packet lets the walk finish.
+	fake := &fakeBulkGetter{
+		responses: []bulkResponse{
+			{packet: &gosnmp.SnmpPacket{Error: gosnmp.TooBig}},
+			{packet: endOfMibPacket()},
+		},
+	}
+
+	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 10)
+	require.NoError(t, err)
+	require.Len(t, fake.calls, 2)
+	assert.Equal(t, uint32(10), fake.calls[0].maxRep)
+	assert.Equal(t, uint32(5), fake.calls[1].maxRep, "max-rep should halve after an SNMP error")
 }
