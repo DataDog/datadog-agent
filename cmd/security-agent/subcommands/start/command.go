@@ -142,7 +142,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, filterStore workloadfilter.Component, compression logscompression.Component, hostname hostnameinterface.Component, secretsComp secrets.Component) (status.InformationProvider, *compliance.Agent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, filterStore workloadfilter.Component, compression logscompression.Component, hostname hostnameinterface.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) (status.InformationProvider, *compliance.Agent, error) {
 					// Check if compliance should run in system-probe instead
 					if config.GetBool("compliance_config.run_in_system_probe") {
 						log.Info("compliance_config.run_in_system_probe is enabled, compliance will run in system-probe")
@@ -160,7 +160,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, filterStore, compression, sysProbeClient, secretsComp)
+					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, filterStore, compression, sysProbeClient, secretsComp, delegatedAuthComp)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}

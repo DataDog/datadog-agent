@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -38,7 +38,8 @@ type LogReporter struct {
 
 // NewLogReporter instantiates a new log LogReporter.
 // secretsComp enables API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
-func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component, secretsComp secrets.Component) *LogReporter {
+// delegatedAuthComp does the same for a delegated-auth (WIF) managed endpoint; pass a DelegatedAuthNoop when WIF isn't in use.
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) *LogReporter {
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()
 	pipelineProvider := pipeline.NewProvider(
@@ -55,9 +56,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsComp,
-		// Not wired to a real delegatedauth.Component: compliance-agent runs in a separate
-		// Fx graph from the logs agent this feature primarily targets.
-		delegatedauthnoopimpl.NewComponent().Comp,
+		delegatedAuthComp,
 	)
 	pipelineProvider.Start()
 

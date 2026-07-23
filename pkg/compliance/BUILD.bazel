@@ -34,7 +34,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/delegatedauth/noop-impl",
+        "//comp/core/delegatedauth/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/status",
@@ -202,6 +202,7 @@ dd_agent_go_test(
     ],
     embed = [":compliance"],
     deps = [
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",
         "//comp/logs/agent/config",
