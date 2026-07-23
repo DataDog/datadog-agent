@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    Staged startup gained an adaptive pacing mode. Instead of waiting a fixed
+    delay between startup steps, ``staged_start.mode: adaptive`` advances to the
+    next step as soon as the process's memory settles (the previous step has
+    finished allocating and its transient scratch has been reclaimed), bounded
+    by ``staged_start.step_max`` so a process under memory pressure proceeds and
+    logs a warning rather than hanging. Because steps run one at a time and each
+    waits for the previous to settle, startup order no longer affects the memory
+    peak. The default remains ``interval`` (fixed ``staged_start.stage_interval``).
