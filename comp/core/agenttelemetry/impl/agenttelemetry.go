@@ -306,24 +306,6 @@ type metricAggregationKey struct {
 	preservedTags string
 }
 
-// Prometheus preserves ':' in label values, so delimiter-only concatenation
-// can encode distinct sorted label sets identically. Length prefixes make each
-// name/value boundary unambiguous.
-func encodeSortedAggregationLabels(labels []*dto.LabelPair) string {
-	var key strings.Builder
-	for _, label := range labels {
-		name := label.GetName()
-		value := label.GetValue()
-		key.WriteString(strconv.Itoa(len(name)))
-		key.WriteByte(':')
-		key.WriteString(name)
-		key.WriteString(strconv.Itoa(len(value)))
-		key.WriteByte(':')
-		key.WriteString(value)
-	}
-	return key.String()
-}
-
 func effectiveEmitter(labels []*dto.LabelPair, localEmitter string) string {
 	for _, label := range labels {
 		if label.GetName() == "emitter" && label.GetValue() != "" {
@@ -362,7 +344,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 		key := metricAggregationKey{
 			emitter:       emitter,
-			preservedTags: encodeSortedAggregationLabels(preservedLabels),
+			preservedTags: encodeSortedLabels(preservedLabels),
 		}
 		if aggregate, ok := aggregates[key]; ok {
 			aggregateMetric(mt, aggregate, metric)
@@ -416,7 +398,8 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 		} else {
 			// A source-labeled MetricFamily has one metric per time series. Each time series needs a
 			// unique, stable previous-value key formed from its source label names and values.
-			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
+			sortedTags := cloneLabelsSorted(tags)
+			keyName = fmt.Sprintf("%s%s:", metricName, encodeSortedLabels(sortedTags))
 		}
 
 		if mt == dto.MetricType_HISTOGRAM {

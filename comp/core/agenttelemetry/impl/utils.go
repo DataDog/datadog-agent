@@ -6,8 +6,8 @@
 package agenttelemetryimpl
 
 import (
-	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
@@ -123,17 +123,20 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 	return sorted
 }
 
-// Make string key from LabelPair
-func makeLabelPairKey(l *dto.LabelPair) string {
-	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
-}
-
-// Sort and serialize labels into a string
-func convertLabelsToKey(labels []*dto.LabelPair) string {
-	sortedLabels := cloneLabelsSorted(labels)
-	var sb strings.Builder
-	for _, tag := range sortedLabels {
-		sb.WriteString(makeLabelPairKey(tag))
+// Prometheus preserves ':' in label values, so delimiter-only concatenation
+// can encode distinct sorted label sets identically. Length prefixes make each
+// name/value boundary unambiguous.
+func encodeSortedLabels(labels []*dto.LabelPair) string {
+	var key strings.Builder
+	for _, label := range labels {
+		name := label.GetName()
+		value := label.GetValue()
+		key.WriteString(strconv.Itoa(len(name)))
+		key.WriteByte(':')
+		key.WriteString(name)
+		key.WriteString(strconv.Itoa(len(value)))
+		key.WriteByte(':')
+		key.WriteString(value)
 	}
-	return sb.String()
+	return key.String()
 }
