@@ -86,7 +86,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Pacing mode between staged startup steps: "interval" (fixed stage_interval
 	// delay) or "adaptive" (advance as this process's memory settles, bounded by
 	// step_max so a process under memory pressure proceeds instead of hanging).
-	config.BindEnvAndSetDefault("staged_start.mode", "interval")
+	// NOTE: temporarily defaulted to "adaptive" on this branch so SMP exercises
+	// it; revisit the shipping default before merge.
+	config.BindEnvAndSetDefault("staged_start.mode", "adaptive")
 	// Adaptive mode: minimum wait per step (lets a step's async work begin).
 	config.BindEnvAndSetDefault("staged_start.step_min", 1*time.Second)
 	// Adaptive mode: hard cap per step. On timeout the next step proceeds anyway
