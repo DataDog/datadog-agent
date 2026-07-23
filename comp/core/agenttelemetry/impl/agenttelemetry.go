@@ -785,6 +785,8 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 // a producer with no retry expectation; retrying at flush time would
 // block subsequent ticks and require additional buffering complexity.
 func (a *atel) flushErrortracking(ctx context.Context) {
+	// TEMPORARY diagnostic for investigating CI failure; remove before merge.
+	a.logComp.Warnf("errortracking: flush tick (diagnostic) chnil=%v qdepth=%d", a.errLogsCh == nil, len(a.errLogsCh))
 	if a.errLogsCh == nil {
 		return
 	}
@@ -886,6 +888,9 @@ func (a *atel) start() error {
 				StartAfter: startAfterSec,
 			},
 		})
+		// TEMPORARY diagnostic for investigating CI failure; remove before merge.
+		a.logComp.Warnf("errortracking: flush job scheduled (diagnostic) period=%ds startAfter=%ds chnil=%v bufcap=%d",
+			flushPeriodSec, startAfterSec, a.errLogsCh == nil, cap(a.errLogsCh))
 	}
 
 	return nil
