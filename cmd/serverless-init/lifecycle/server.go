@@ -236,14 +236,13 @@ func NewServer(
 		s.child = c
 	}
 	// WriteTimeout must cover the full handler wall-clock for every path:
-	//   - No forwarder: flushTimeout (flush budget)
+	//   - No forwarder: flushTimeout (flush budget + write headroom)
 	//   - /run, /resume, /suspend, /terminate: forwardTimeout (default 1s)
 	//   - /ready: readyTimeout (default 60s, matching platform /ready timeout)
 	//   - /validate: validateTimeout (default 1s)
-	// plus writeTimeoutHeadroom (heartbeat.Stop() before /suspend and
-	// /terminate, and the final mirrored-response write). Use the largest of
-	// all applicable budgets so the HTTP server does not close the
-	// platform-facing connection before the handler writes the response.
+	// Use the largest of all applicable budgets so the HTTP server does not
+	// close the platform-facing connection before the handler writes the
+	// mirrored response.
 	maxTimeout := s.flushTimeout
 	if s.fwd != nil {
 		// /terminate uses flushSequential: flush runs after the forward, so its
@@ -440,7 +439,12 @@ func (s *Server) flushAll(flushCtx context.Context) {
 	flushDone := make(chan struct{}, flushWorkerCount)
 	go func() { s.metricFlusher.Flush(); flushDone <- struct{}{} }()
 	go func() { s.traceFlusher.Flush(); flushDone <- struct{}{} }()
-	go func() { s.logsFlusher.Flush(flushCtx); flushDone <- struct{}{} }()
+	go func() {
+		if s.logsFlusher != nil {
+			s.logsFlusher.Flush(flushCtx)
+		}
+		flushDone <- struct{}{}
+	}()
 	s.waitForFlushes(flushCtx, flushDone)
 }
 
