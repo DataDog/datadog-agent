@@ -7,7 +7,6 @@
 package preprocessor
 
 import (
-	"encoding/binary"
 	"math"
 	"strings"
 )
@@ -16,9 +15,9 @@ import (
 // Note: This must not exceed d10 or c10 below.
 const maxRun = 10
 
-// maxSpecialTokenLen is the maximum character run length eligible for special token
-// promotion. Longest critical keyword: "EMERGENCY" / "EXCEPTION" = 9 chars.
-const maxSpecialTokenLen = 9
+// maxSpecialTokenLen and the special-token/debug-string tables are generated
+// from the master list in gen_token_tables.go into token_tables_gen.go.
+//go:generate go run gen_token_tables.go
 
 // Clearing the ASCII case bit uppercases letters. The wider masks apply the
 // same operation to several packed bytes at once.
@@ -51,35 +50,8 @@ func makeTokenLookup() [256]Token {
 	lookup['\n'] = Space
 	lookup['\r'] = Space
 
-	// Special characters
-	lookup[':'] = Colon
-	lookup[';'] = Semicolon
-	lookup['-'] = Dash
-	lookup['_'] = Underscore
-	lookup['/'] = Fslash
-	lookup['\\'] = Bslash
-	lookup['.'] = Period
-	lookup[','] = Comma
-	lookup['\''] = Singlequote
-	lookup['"'] = Doublequote
-	lookup['`'] = Backtick
-	lookup['~'] = Tilda
-	lookup['*'] = Star
-	lookup['+'] = Plus
-	lookup['='] = Equal
-	lookup['('] = Parenopen
-	lookup[')'] = Parenclose
-	lookup['{'] = Braceopen
-	lookup['}'] = Braceclose
-	lookup['['] = Bracketopen
-	lookup[']'] = Bracketclose
-	lookup['&'] = Ampersand
-	lookup['!'] = Exclamation
-	lookup['@'] = At
-	lookup['#'] = Pound
-	lookup['$'] = Dollar
-	lookup['%'] = Percent
-	lookup['^'] = Uparrow
+	// Special characters (generated from the master token list).
+	addSpecialCharTokens(&lookup)
 
 	return lookup
 }
@@ -216,269 +188,6 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	t.emitToken(input, lastToken, start, inputLen)
 
 	return t.tsBuf, t.idxBuf
-}
-
-// getSpecialToken returns a case-insensitive special token, or End if the run is
-// not a recognized keyword. It matches a machine word at a time (SWAR):
-// binary.LittleEndian loads 2-8 bytes and an asciiCaseBit mask folds case,
-// avoiding a scratch buffer or string allocation, so it must stay
-// allocation-free. Constants are little-endian byte packings, e.g.
-// 'J'|'A'<<8|'N'<<16 == "JAN". The set is non-exhaustive; keep it in sync with
-// tokenToString.
-func getSpecialToken(input []byte) Token {
-	// Length-based dispatch for faster rejection
-	switch len(input) {
-	case 1:
-		folded := input[0] &^ asciiCaseBit
-		switch folded {
-		case 'T':
-			return T
-		case 'Z':
-			return Zone
-		}
-	case 2:
-		folded := uint64(binary.LittleEndian.Uint16(input) & asciiUpperMask16)
-		if folded == 'A'|'M'<<8 || folded == 'P'|'M'<<8 {
-			return Apm
-		}
-	case 3:
-		folded := uint64(binary.LittleEndian.Uint16(input)&asciiUpperMask16) |
-			uint64(input[2]&^asciiCaseBit)<<16
-		switch folded {
-		case 'J' | 'A'<<8 | 'N'<<16,
-			'F' | 'E'<<8 | 'B'<<16,
-			'M' | 'A'<<8 | 'R'<<16,
-			'A' | 'P'<<8 | 'R'<<16,
-			'M' | 'A'<<8 | 'Y'<<16,
-			'J' | 'U'<<8 | 'N'<<16,
-			'J' | 'U'<<8 | 'L'<<16,
-			'A' | 'U'<<8 | 'G'<<16,
-			'S' | 'E'<<8 | 'P'<<16,
-			'O' | 'C'<<8 | 'T'<<16,
-			'N' | 'O'<<8 | 'V'<<16,
-			'D' | 'E'<<8 | 'C'<<16:
-			return Month
-		case 'M' | 'O'<<8 | 'N'<<16,
-			'T' | 'U'<<8 | 'E'<<16,
-			'W' | 'E'<<8 | 'D'<<16,
-			'T' | 'H'<<8 | 'U'<<16,
-			'F' | 'R'<<8 | 'I'<<16,
-			'S' | 'A'<<8 | 'T'<<16,
-			'S' | 'U'<<8 | 'N'<<16:
-			return Day
-		case 'U' | 'T'<<8 | 'C'<<16,
-			'G' | 'M'<<8 | 'T'<<16,
-			'E' | 'S'<<8 | 'T'<<16,
-			'E' | 'D'<<8 | 'T'<<16,
-			'C' | 'S'<<8 | 'T'<<16,
-			'C' | 'D'<<8 | 'T'<<16,
-			'M' | 'S'<<8 | 'T'<<16,
-			'M' | 'D'<<8 | 'T'<<16,
-			'P' | 'S'<<8 | 'T'<<16,
-			'P' | 'D'<<8 | 'T'<<16,
-			'J' | 'S'<<8 | 'T'<<16,
-			'K' | 'S'<<8 | 'T'<<16,
-			'I' | 'S'<<8 | 'T'<<16,
-			'M' | 'S'<<8 | 'K'<<16,
-			'C' | 'E'<<8 | 'T'<<16,
-			'B' | 'S'<<8 | 'T'<<16,
-			'H' | 'S'<<8 | 'T'<<16,
-			'H' | 'D'<<8 | 'T'<<16,
-			'N' | 'S'<<8 | 'T'<<16,
-			'N' | 'D'<<8 | 'T'<<16:
-			return Zone
-		}
-	case 4:
-		folded := uint64(binary.LittleEndian.Uint32(input) & asciiUpperMask32)
-		switch folded {
-		case 'W' | 'A'<<8 | 'R'<<16 | 'N'<<24:
-			return Warn
-		case 'C' | 'R'<<8 | 'I'<<16 | 'T'<<24:
-			return Critical
-		case 'C' | 'E'<<8 | 'S'<<16 | 'T'<<24,
-			'N' | 'Z'<<8 | 'S'<<16 | 'T'<<24,
-			'N' | 'Z'<<8 | 'D'<<16 | 'T'<<24,
-			'A' | 'C'<<8 | 'S'<<16 | 'T'<<24,
-			'A' | 'C'<<8 | 'D'<<16 | 'T'<<24,
-			'A' | 'E'<<8 | 'S'<<16 | 'T'<<24,
-			'A' | 'E'<<8 | 'D'<<16 | 'T'<<24,
-			'A' | 'W'<<8 | 'S'<<16 | 'T'<<24,
-			'A' | 'W'<<8 | 'D'<<16 | 'T'<<24,
-			'A' | 'K'<<8 | 'S'<<16 | 'T'<<24,
-			'A' | 'K'<<8 | 'D'<<16 | 'T'<<24,
-			'C' | 'H'<<8 | 'S'<<16 | 'T'<<24,
-			'C' | 'H'<<8 | 'D'<<16 | 'T'<<24:
-			return Zone
-		}
-	case 5:
-		folded := uint64(binary.LittleEndian.Uint32(input)&asciiUpperMask32) |
-			uint64(input[4]&^asciiCaseBit)<<32
-		switch folded {
-		case 'F' | 'A'<<8 | 'T'<<16 | 'A'<<24 | 'L'<<32:
-			return Fatal
-		case 'E' | 'R'<<8 | 'R'<<16 | 'O'<<24 | 'R'<<32:
-			return Error
-		case 'P' | 'A'<<8 | 'N'<<16 | 'I'<<24 | 'C'<<32:
-			return Panic
-		case 'A' | 'L'<<8 | 'E'<<16 | 'R'<<24 | 'T'<<32:
-			return Alert
-		case 'E' | 'M'<<8 | 'E'<<16 | 'R'<<24 | 'G'<<32:
-			return Emergency
-		case 'C' | 'R'<<8 | 'A'<<16 | 'S'<<24 | 'H'<<32:
-			return Crash
-		}
-	case 6:
-		folded := uint64(binary.LittleEndian.Uint32(input)&asciiUpperMask32) |
-			uint64(binary.LittleEndian.Uint16(input[4:])&asciiUpperMask16)<<32
-		switch folded {
-		case 'S' | 'E'<<8 | 'V'<<16 | 'E'<<24 | 'R'<<32 | 'E'<<40:
-			return Severe
-		case 'F' | 'A'<<8 | 'I'<<16 | 'L'<<24 | 'E'<<32 | 'D'<<40:
-			return Failure
-		}
-	case 7:
-		folded := uint64(binary.LittleEndian.Uint32(input)&asciiUpperMask32) |
-			uint64(binary.LittleEndian.Uint16(input[4:])&asciiUpperMask16)<<32 |
-			uint64(input[6]&^asciiCaseBit)<<48
-		switch folded {
-		case 'W' | 'A'<<8 | 'R'<<16 | 'N'<<24 | 'I'<<32 | 'N'<<40 | 'G'<<48:
-			return Warn
-		case 'C' | 'R'<<8 | 'A'<<16 | 'S'<<24 | 'H'<<32 | 'E'<<40 | 'D'<<48:
-			return Crash
-		case 'F' | 'A'<<8 | 'I'<<16 | 'L'<<24 | 'U'<<32 | 'R'<<40 | 'E'<<48:
-			return Failure
-		case 'T' | 'I'<<8 | 'M'<<16 | 'E'<<24 | 'O'<<32 | 'U'<<40 | 'T'<<48:
-			return Timeout
-		}
-	case 8:
-		folded := binary.LittleEndian.Uint64(input) & asciiUpperMask64
-		switch folded {
-		case 'C' | 'R'<<8 | 'I'<<16 | 'T'<<24 | 'I'<<32 | 'C'<<40 | 'A'<<48 | 'L'<<56:
-			return Critical
-		case 'D' | 'E'<<8 | 'A'<<16 | 'D'<<24 | 'L'<<32 | 'O'<<40 | 'C'<<48 | 'K'<<56:
-			return Deadlock
-		}
-	case 9:
-		folded := binary.LittleEndian.Uint64(input) & asciiUpperMask64
-		switch folded {
-		case 'E' | 'M'<<8 | 'E'<<16 | 'R'<<24 | 'G'<<32 | 'E'<<40 | 'N'<<48 | 'C'<<56:
-			if input[8]&^asciiCaseBit == 'Y' {
-				return Emergency
-			}
-		case 'E' | 'X'<<8 | 'C'<<16 | 'E'<<24 | 'P'<<32 | 'T'<<40 | 'I'<<48 | 'O'<<56:
-			if input[8]&^asciiCaseBit == 'N' {
-				return Exception
-			}
-		}
-	}
-	return End
-}
-
-// tokenToString converts a single token to a debug string.
-func tokenToString(token Token) string {
-	if token >= D1 && token <= D10 {
-		return strings.Repeat("D", int(token-D1)+1)
-	} else if token >= C1 && token <= C10 {
-		return strings.Repeat("C", int(token-C1)+1)
-	}
-
-	switch token {
-	case Space:
-		return " "
-	case Colon:
-		return ":"
-	case Semicolon:
-		return ";"
-	case Dash:
-		return "-"
-	case Underscore:
-		return "_"
-	case Fslash:
-		return "/"
-	case Bslash:
-		return "\\"
-	case Period:
-		return "."
-	case Comma:
-		return ","
-	case Singlequote:
-		return "'"
-	case Doublequote:
-		return "\""
-	case Backtick:
-		return "`"
-	case Tilda:
-		return "~"
-	case Star:
-		return "*"
-	case Plus:
-		return "+"
-	case Equal:
-		return "="
-	case Parenopen:
-		return "("
-	case Parenclose:
-		return ")"
-	case Braceopen:
-		return "{"
-	case Braceclose:
-		return "}"
-	case Bracketopen:
-		return "["
-	case Bracketclose:
-		return "]"
-	case Ampersand:
-		return "&"
-	case Exclamation:
-		return "!"
-	case At:
-		return "@"
-	case Pound:
-		return "#"
-	case Dollar:
-		return "$"
-	case Percent:
-		return "%"
-	case Uparrow:
-		return "^"
-	case Month:
-		return "MTH"
-	case Day:
-		return "DAY"
-	case Apm:
-		return "PM"
-	case T:
-		return "T"
-	case Zone:
-		return "ZONE"
-	case Warn:
-		return "WARN"
-	case Fatal:
-		return "FATAL"
-	case Error:
-		return "ERROR"
-	case Panic:
-		return "PANIC"
-	case Alert:
-		return "ALERT"
-	case Severe:
-		return "SEVERE"
-	case Critical:
-		return "CRIT"
-	case Emergency:
-		return "EMERG"
-	case Exception:
-		return "EXCEPTION"
-	case Crash:
-		return "CRASH"
-	case Failure:
-		return "FAILURE"
-	case Deadlock:
-		return "DEADLOCK"
-	case Timeout:
-		return "TIMEOUT"
-	}
-	return ""
 }
 
 // tokensToString converts a list of tokens to a debug string.

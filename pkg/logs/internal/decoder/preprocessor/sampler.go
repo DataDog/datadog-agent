@@ -166,19 +166,6 @@ func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string, baseBytesEs
 	}
 }
 
-// isImportant reports whether the token sequence contains a critical severity keyword.
-// Logs matching this check are exempt from adaptive sampling and always passed through.
-func isImportant(tokens []Token) bool {
-	for _, t := range tokens {
-		switch t {
-		case Fatal, Error, Panic, Alert, Severe, Critical, Emergency, Warn,
-			Exception, Crash, Failure, Deadlock, Timeout:
-			return true
-		}
-	}
-	return false
-}
-
 func (f AdaptiveSamplerFilter) matches(msg *message.Message, tokens []Token, matchThreshold float64) bool {
 	matched := false
 	if f.Regex != nil {
