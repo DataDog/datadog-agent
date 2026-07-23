@@ -89,10 +89,18 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Patching the pod with the recommendations.
-	// In burstable mode, applyVerticalConstraints has already stamped the CPU-limit remove
-	// sentinel (-1) on each container recommendation, so ResourcesHash naturally encodes the
-	// burstable state — no extra suffix is needed here.
+	// Re-derive the burstable/constraint transformations here so they are applied consistently on
+	// every replica. The controller stamps the removeLimitSentinel only on the leader (and it is
+	// stripped from the DPA status), so a follower webhook would otherwise leave the CPU limit in
+	// place. Inputs come from the spec/annotations, available on all replicas; idempotent on the leader.
+	constrainedVertical := autoscaler.ScalingValues().Vertical.DeepCopy()
+	if _, err := applyVerticalConstraints(constrainedVertical, autoscaler.Spec().Constraints, autoscaler.IsBurstable()); err != nil {
+		log.Warnf("Autoscaler %s: failed to apply vertical constraints for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		return patched, nil
+	}
+
+	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
+	// identical across replicas; not the recomputed constrained hash.
 	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
 	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
 		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
@@ -100,7 +108,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
-	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
+	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
 	}
 
@@ -141,7 +149,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	// TODO: Implementation is slow
-	podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
+	podAutoscalers := pa.store.List(func(podAutoscaler model.PodAutoscalerInternal) bool {
 		if podAutoscaler.Namespace() == pod.Namespace &&
 			podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
 			podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&

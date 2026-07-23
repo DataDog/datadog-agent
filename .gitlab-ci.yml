@@ -13,7 +13,7 @@
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
 .if_pr_targeting_release_branch: &if_pr_targeting_release_branch
-  if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^[0-9]+\.[0-9]+\.x$/
+  if: $COMPARE_TO_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
@@ -21,10 +21,11 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
-# Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path 
-  # Windows-specific Go source files (by filename convention)
+# Windows-specific Go source files, pkg/, and cmd/ (26 paths), need to be split because Gitlab has a limit to 50 paths in a single rule
+.windows_path:
+  &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
+  - "**/*_windows_test.go"
 
   # Windows-specific packages in pkg/
   - pkg/util/winutil/**/*
@@ -43,6 +44,8 @@
 
   # Global packages likely to impact windows
   - pkg/config/**/*
+  # pkg/security: changes in platform-agnostic Go files can affect Windows behavior.
+  - pkg/security/**/*
 
   # cmd/
   - cmd/agent/**/*
@@ -57,11 +60,13 @@
   - cmd/otel-agent/**/*
 
 # Bazel build system paths - single source of truth for all Bazel-related change detection.
-# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion,
+# including nested BUILD.bazel files (a single "*" does not cross "/" in GitLab's changes:paths glob).
 .bazel_paths: &bazel_paths
-  - "*.bazel*"
+  - "**/*.bazel*"
   - deps/**/*
   - bazel/**/*
+  - tasks/build_tags.bzl
 
 # Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
 .windows_path_2: &windows_path_2 # Windows-specific comp/ components
@@ -114,6 +119,17 @@
   - test/new-e2e/tests/process/**/*
   - test/new-e2e/tests/agent-runtimes/**/*
 
+  # E2E framework
+  - test/e2e-framework/components/activedirectory/**/*
+
+# Process manager
+.windows_path_4: &windows_path_4
+  - pkg/procmgr/**/*
+  - pkg/proto/datadog/procmgr/**/*
+  - pkg/proto/pbgo/procmgr/**/*
+  - Cargo.toml
+  - Cargo.lock
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -141,6 +157,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *windows_path_4
           compare_to: main
       - changes:
           paths: *bazel_paths
@@ -261,11 +280,6 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
-  # This value is not used on windows, a specific value is provided to
-  # our build containers in the windows build jobs
-  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
-  ## comment out the line below to disable integration wheels cache
-  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   S3_DD_AGENT_OMNIBUS_JAVA_URI: s3://dd-agent-omnibus/openjdk
@@ -277,25 +291,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v116983866-e2293bec
+  CI_IMAGE_BTF_GEN: v125663755-498a6dee
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v116983866-e2293bec
+  CI_IMAGE_DOCKER_X64: v125663755-498a6dee
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v116983866-e2293bec
+  CI_IMAGE_DOCKER_ARM64: v125663755-498a6dee
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v116983866-e2293bec
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v125663755-498a6dee
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v116983866-e2293bec
+  CI_IMAGE_LINUX: v125663755-498a6dee
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v116983866-e2293bec
+  CI_IMAGE_RPM_X64: v125663755-498a6dee
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v116983866-e2293bec
+  CI_IMAGE_RPM_ARM64: v125663755-498a6dee
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v116983866-e2293bec
+  CI_IMAGE_RPM_ARMHF: v125663755-498a6dee
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v116983866-e2293bec
+  CI_IMAGE_WIN_LTSC2022_X64: v125663755-498a6dee
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v116983866-e2293bec
+  CI_IMAGE_WIN_LTSC2025_X64: v125663755-498a6dee
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -321,13 +335,8 @@ variables:
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2 # agent-devx
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
-  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
   CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
-  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
-  WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
 
   # Start vault variables
@@ -347,7 +356,9 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
+  VCPKG_BLOB_SAS_URL: vcpkg-blob-sas # windows-products
   VIRUS_TOTAL: virus-total # windows-products
+  WINGET_PAT: winget-pat # windows-products
   # End vault variables
 
   # dda configuration variables
@@ -362,7 +373,8 @@ variables:
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
-  GIT_STRATEGY: "s3"
+  GIT_STRATEGY: "fetch"
+  DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -460,6 +472,22 @@ variables:
     - .gitlab/deploy/container_build/fakeintake.yml
     - .gitlab/deploy/dev_container_deploy/fakeintake.yml
 
+# fakeintake changes that rebuild the published image (server binary only).
+# Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
+.fakeintake_server_paths: &fakeintake_server_paths
+  paths:
+    - test/fakeintake/cmd/server/**/*
+    - test/fakeintake/server/**/*
+    - test/fakeintake/aggregator/**/*
+    - test/fakeintake/api/**/*
+    - test/fakeintake/go.mod
+    - test/fakeintake/go.sum
+    - test/fakeintake/Dockerfile
+    - test/fakeintake/version/VERSION
+    - .gitlab/build/binary_build/fakeintake.yml
+    - .gitlab/deploy/container_build/fakeintake.yml
+    - .gitlab/deploy/dev_container_deploy/fakeintake.yml
+
 # Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
 # Used to conditionally skip expensive tests like SMP when only non-artifact files change
 # like documentation, CI config, e2e tests.
@@ -529,6 +557,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_4
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
@@ -904,6 +937,15 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
+  # A fakeintake server change rebuilds the image: run e2e against the built
+  # v<sha> image via the override. Must precede the run-all/main/release/rc cases
+  # (first-match-wins) so the override is never dropped. Needs publish_fakeintake.
+  - changes:
+      <<: *fakeintake_server_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      E2E_FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
   - <<: *if_run_all_e2e_tests
     when: on_success
   - <<: *if_main_branch
@@ -911,6 +953,12 @@ workflow:
   - <<: *if_release_branch
     when: on_success
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+  # Other fakeintake changes (client/CLI/docs) don't rebuild the image but do
+  # compile into the test binaries — run e2e against the pinned image (no override).
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - changes:
       paths:
@@ -957,14 +1005,9 @@ workflow:
   - <<: *if_windows_installer_changes
     when: on_success
 
+# fakeintake changes (and the override) are handled by .on_e2e_main_release_or_rc.
 .on_e2e_or_fakeintake_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-    variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
-    when: on_success
   - changes:
       paths:
         - test/new-e2e/test-infra-definition/*
@@ -1320,7 +1363,12 @@ workflow:
   - changes:
       paths:
         - pkg/security/**/*
-        - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+        - pkg/compliance/**/*
+        - test/new-e2e/tests/cspm/**/*
+        # The host-benchmark suite validates the bundled benchmark content, whose
+        # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
+        # policy bump must run the suite before it can break the main pipeline.
+        - release.json
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1329,6 +1377,7 @@ workflow:
   - changes:
       paths:
         - pkg/sbom/**/*
+        - pkg/security/resolvers/sbom/**/*
         - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
@@ -1363,6 +1412,18 @@ workflow:
       paths:
         - comp/healthplatform/**/*
         - test/new-e2e/tests/agent-health/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_agenttelemetry_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/agent/subcommands/run/**/*
+        - comp/core/agenttelemetry/**/*
+        - pkg/util/log/setup/**/*
+        - pkg/util/log/errortracking/**/*
+        - test/new-e2e/tests/agent-telemetry/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1438,17 +1499,19 @@ workflow:
         - .go-version
       compare_to: $COMPARE_TO_BRANCH
 
+# Gates build/publish/version-check jobs on image-rebuilding (server) changes.
+# The e2e override is set in .on_e2e_main_release_or_rc, not here.
 .on_fakeintake_changes:
   - changes:
-      <<: *fakeintake_paths
+      <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_fakeintake_changes_on_main:
   - changes:
-      <<: *fakeintake_paths
+      <<: *fakeintake_server_paths
     <<: *if_main_branch
 
-.fast_on_dev_branch_only:
+.fast_tests_variables_named_branches:
   - <<: *if_main_branch
     variables:
       FAST_TESTS: "false"
@@ -1470,10 +1533,28 @@ workflow:
     variables:
       FAST_TESTS: "false"
       COVERAGE_CACHE_FLAG: ""
+
+.fast_on_dev_branch_only:
+  - !reference [.fast_tests_variables_named_branches]
   - variables:
       FAST_TESTS: "true"
       # Pull coverage cache on dev branches
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+
+# macOS runners are scarce and queue for tens of minutes under load. These jobs stay
+# mandatory wherever they gate a merge (main/release/mergequeue/forced runs), but on
+# regular dev branches they become manual so they don't contend for runners on every push.
+.fast_tests_mergequeue_mandatory_manual_on_dev_branch:
+  - !reference [.fast_tests_variables_named_branches]
+  - <<: *if_mergequeue
+    variables:
+      FAST_TESTS: "true"
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+  - variables:
+      FAST_TESTS: "true"
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+    when: manual
+    allow_failure: true
 
 .on_gitlab_changes:
   changes:
@@ -1536,6 +1617,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_rtloader_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - rtloader/**
+        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

@@ -18,6 +18,24 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
+// baselineAnalysisDisabledYAML must be included in the agent config of any E2E
+// test that waits for anomaly output (reports, severity escalations, etc.).
+//
+// The default 10-minute baseline window (anomaly_detection.baseline_analysis.enabled=true)
+// silently drops all detector anomalies while it is active — tests will always time out
+// unless this snippet is embedded under the anomaly_detection: block.
+//
+// Usage:
+//
+//	agentConfig := `
+//	anomaly_detection:
+//	  enabled: true
+//	  ...
+//	` + baselineAnalysisDisabledYAML
+const baselineAnalysisDisabledYAML = `  baseline_analysis:
+    enabled: false
+`
+
 // Canonical observer telemetry names.
 const (
 	telemetrySeriesCount    = "observer.series.count"
@@ -25,6 +43,17 @@ const (
 	telemetryLogsIngested   = "observer.logs.ingested"
 	telemetryReportsEmitted = "observer.reports.emitted"
 	telemetryReportsOngoing = "observer.reports.ongoing"
+
+	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
+	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
+	// Logged at info level, captured by journald, and serves as the assertion target.
+	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
+	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
+
+	// scorerHelperRegisteredMarker is logged once at agent startup when the
+	// anomaly scorer is successfully wired with telemetry. Waiting for it
+	// before sending metrics ensures the scorer is active.
+	scorerHelperRegisteredMarker = "[observer] anomaly_scorer registered"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this
@@ -117,6 +146,21 @@ func waitForAgentStartup(s observerTestSuite) {
 			"agent.log should contain startup marker")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("agent started")
+}
+
+// waitForScorerHelperReady polls the agent journal until the scorer helper
+// registration log line appears, confirming the helper is subscribed and will
+// receive OnSeverityTransition callbacks before metrics are sent.
+func waitForScorerHelperReady(s observerTestSuite) {
+	s.T().Helper()
+	s.T().Log("waiting for anomaly scorer helper to be registered...")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
+		assert.NoError(c, err, "journalctl execution failed")
+		assert.Contains(c, out, scorerHelperRegisteredMarker,
+			"journal should contain the scorer helper registration log line")
+	}, 2*time.Minute, 3*time.Second)
+	s.T().Log("anomaly scorer helper registered")
 }
 
 func waitForReportsTelemetry(s observerTestSuite) {

@@ -97,7 +97,7 @@ func getLocalIntegrationConfigs(
 	ac autodiscovery.Component,
 	tagger tagger.Component,
 	config config.Component) ([]integration.Config, error) {
-	common.LoadComponents(ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.

@@ -37,7 +37,7 @@ import (
 func TestBuildTimelineMilestones(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
-	t.Run("returns four milestones", func(t *testing.T) {
+	t.Run("returns three milestones", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginWindowTime:  boot.Add(10 * time.Second),
 			LoginTime:        boot.Add(30 * time.Second),
@@ -46,11 +46,10 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		require.Len(t, milestones, 4)
+		require.Len(t, milestones, 3)
 		assert.Equal(t, "Boot Duration", milestones[0].Name)
 		assert.Equal(t, "Login Window Ready", milestones[1].Name)
-		assert.Equal(t, "User Logon", milestones[2].Name)
-		assert.Equal(t, "Logon Duration", milestones[3].Name)
+		assert.Equal(t, "Logon Duration", milestones[2].Name)
 	})
 
 	t.Run("computes correct offsets from boot start", func(t *testing.T) {
@@ -63,12 +62,11 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(boot, ts)
 
 		// The 20s idle gap (LoginWindowTime -> LoginTime) is collapsed out of the
-		// post-login offsets, so user_logon / logon_duration start where the
+		// post-login offsets, so logon_duration starts where the
 		// login window appeared.
 		assert.InDelta(t, 0.0, milestones[0].OffsetMs, 0.001)
 		assert.InDelta(t, 10000.0, milestones[1].OffsetMs, 0.001)
 		assert.InDelta(t, 10000.0, milestones[2].OffsetMs, 0.001)
-		assert.InDelta(t, 10000.0, milestones[3].OffsetMs, 0.001)
 	})
 
 	t.Run("computes correct durations between milestones", func(t *testing.T) {
@@ -83,7 +81,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.InDelta(t, 10000.0, milestones[0].DurationMs, 0.001)
 		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
 		assert.InDelta(t, 60000.0, milestones[2].DurationMs, 0.001)
-		assert.InDelta(t, 60000.0, milestones[3].DurationMs, 0.001)
 	})
 
 	t.Run("formats timestamps correctly", func(t *testing.T) {
@@ -98,7 +95,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.Equal(t, "2026-01-15T08:00:00.000Z", milestones[0].Timestamp)
 		assert.Equal(t, "2026-01-15T08:00:10.000Z", milestones[1].Timestamp)
 		assert.Equal(t, "2026-01-15T08:00:30.000Z", milestones[2].Timestamp)
-		assert.Equal(t, "2026-01-15T08:00:30.000Z", milestones[3].Timestamp)
 	})
 
 	t.Run("handles millisecond precision", func(t *testing.T) {
@@ -113,7 +109,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		// gap = 30.25s - 10.5s = 19.75s; collapsed offsets all land at 10500ms.
 		assert.InDelta(t, 10500.0, milestones[1].OffsetMs, 0.001)
 		assert.InDelta(t, 10500.0, milestones[2].OffsetMs, 0.001)
-		assert.InDelta(t, 10500.0, milestones[3].OffsetMs, 0.001)
 	})
 
 	t.Run("zero LoginWindowTime omits the login_window_ready milestone", func(t *testing.T) {
@@ -125,20 +120,19 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(boot, ts)
 
 		// Milestones with a zero timestamp are skipped: login_window_ready drops out.
-		require.Len(t, milestones, 3)
+		require.Len(t, milestones, 2)
 		assert.Equal(t, "boot_duration", milestones[0].ID)
-		assert.Equal(t, "user_logon", milestones[1].ID)
-		assert.Equal(t, "logon_duration", milestones[2].ID)
+		assert.Equal(t, "logon_duration", milestones[1].ID)
 
 		// Boot Duration depends on LoginWindowTime, so its duration is 0.
 		assert.InDelta(t, 0.0, milestones[0].DurationMs, 0.001)
-		// No gap can be computed without LoginWindowTime, so user_logon keeps its
+		// No gap can be computed without LoginWindowTime, so logon_duration keeps its
 		// wall-clock offset.
 		assert.InDelta(t, 30000.0, milestones[1].OffsetMs, 0.001)
 		assert.InDelta(t, 60000.0, milestones[1].DurationMs, 0.001)
 	})
 
-	t.Run("zero LoginTime omits user_logon and logon_duration milestones", func(t *testing.T) {
+	t.Run("zero LoginTime omits the logon_duration milestone", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginWindowTime:  boot.Add(10 * time.Second),
 			DesktopReadyTime: boot.Add(90 * time.Second),
@@ -162,14 +156,12 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		require.Len(t, milestones, 4)
-		// user_logon / logon_duration durations depend on DesktopReadyTime.
-		assert.Equal(t, "user_logon", milestones[2].ID)
+		require.Len(t, milestones, 3)
+		// logon_duration's duration depends on DesktopReadyTime.
+		assert.Equal(t, "logon_duration", milestones[2].ID)
 		assert.InDelta(t, 0.0, milestones[2].DurationMs, 0.001)
 		// The idle gap (LoginWindowTime -> LoginTime) is still collapsed.
 		assert.InDelta(t, 10000.0, milestones[2].OffsetMs, 0.001)
-		assert.Equal(t, "logon_duration", milestones[3].ID)
-		assert.InDelta(t, 0.0, milestones[3].DurationMs, 0.001)
 	})
 }
 
@@ -255,7 +247,7 @@ func TestBuildCustomPayload(t *testing.T) {
 
 		timeline, ok := custom["boot_timeline"].([]Milestone)
 		require.True(t, ok)
-		assert.Len(t, timeline, 4)
+		assert.Len(t, timeline, 3)
 	})
 
 	t.Run("zero LoginWindowTime yields 0 boot_duration_ms", func(t *testing.T) {

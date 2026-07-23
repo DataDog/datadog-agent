@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 )
 
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
@@ -54,6 +55,9 @@ type Program struct {
 	// AES instruction semantics (x86 AESENC vs arm64 AESE+AESMC) the BPF
 	// hash emulation uses for swiss table map lookups.
 	IsARM64 bool
+	// Redaction is the policy for scrubbing sensitive captured values. It is
+	// nil when no policy is configured, in which case nothing is redacted.
+	Redaction *redaction.Config `json:"-"`
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to

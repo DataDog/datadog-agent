@@ -14,7 +14,9 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -53,6 +55,21 @@ func newClientMock() client {
 // Sender mock
 type senderMock struct {
 	sentMetrics []*agentmetric
+
+	// Captures from the errortracking flush path. Protected by mu
+	// because the flush job may run concurrently with test setup and
+	// assertions; readers MUST take the lock or use a synchronisation
+	// barrier (e.g. wait on runner.stop().Done) that establishes
+	// happens-before with the job's completion.
+	//
+	// sendLogsCallCount counts sendLogsBatch invocations; sentLogs
+	// flattens every batch into one accumulating slice. The pair lets
+	// tests distinguish "1 call with N records" from "N calls with 1
+	// record each" — the latter would be a regression to per-batch
+	// dispatch that the flattened slice alone cannot detect.
+	sentLogsMu        sync.Mutex
+	sentLogs          []Log
+	sendLogsCallCount int
 }
 
 func (s *senderMock) startSession(_ context.Context) *senderSession {
@@ -66,6 +83,34 @@ func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentm
 }
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
+func (s *senderMock) sendLogsBatch(_ context.Context, logs []Log) error {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	s.sendLogsCallCount++
+	s.sentLogs = append(s.sentLogs, logs...)
+	return nil
+}
+
+// capturedLogs returns a thread-safe snapshot of the records captured
+// via sendLogsBatch. Tests should call this rather than reading
+// sentLogs directly.
+func (s *senderMock) capturedLogs() []Log {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	out := make([]Log, len(s.sentLogs))
+	copy(out, s.sentLogs)
+	return out
+}
+
+// sendLogsCalls returns a thread-safe snapshot of how many times
+// sendLogsBatch was invoked. Pair with capturedLogs to assert
+// "one HTTP call per flush" (N records via 1 call, not 1 record via N
+// calls).
+func (s *senderMock) sendLogsCalls() int {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	return s.sendLogsCallCount
+}
 
 // Runner mock (TODO: use use mock.Mock)
 type runnerMock struct {
@@ -75,7 +120,7 @@ type runnerMock struct {
 
 func (r *runnerMock) run() {
 	for _, j := range r.jobs {
-		j.a.run(j.profiles)
+		j.Run()
 	}
 }
 
@@ -186,6 +231,98 @@ func getCommonYAMLConfig(enabled bool, site string) string {
 		return fmt.Sprintf("agent_telemetry:\n  enabled: %t", enabled)
 	}
 	return fmt.Sprintf("site: %s\nagent_telemetry:\n  enabled: %t", site, enabled)
+}
+
+func findErrortrackingJob(t *testing.T, runner *runnerMock) job {
+	t.Helper()
+
+	for _, scheduledJob := range runner.jobs {
+		if scheduledJob.profiles == nil {
+			return scheduledJob
+		}
+	}
+
+	t.Fatal("errortracking job not found")
+	return job{}
+}
+
+func TestCreateAtel_NegativeErrortrackingBufferSizeDoesNotPanic(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    buffer_size: -1
+`)
+	log := makeLogMock(t)
+
+	var atel *atel
+	assert.NotPanics(t, func() {
+		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
+	})
+	require.NotNil(t, atel)
+	require.NotNil(t, atel.errLogsCh)
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+}
+
+func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
+	runner := &runnerMock{}
+	atel := getTestAtel(t, nil, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    flush_interval_seconds: -1
+    startup_jitter_seconds: -1
+    shutdown_drain_timeout_seconds: -1
+`, &senderMock{}, nil, runner)
+
+	assert.Equal(t, 60*time.Second, atel.errLogsFlushInterval)
+	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
+	assert.Equal(t, 5*time.Second, atel.shutdownDrainTimeout)
+
+	assert.NotPanics(t, func() {
+		require.NoError(t, atel.start())
+	})
+	t.Cleanup(func() {
+		atel.cancel()
+	})
+
+	errortrackingJob := findErrortrackingJob(t, runner)
+	assert.Equal(t, uint(defaultErrortrackingFlushIntervalSeconds), errortrackingJob.schedule.Period)
+	assert.Equal(t, uint(0), errortrackingJob.schedule.StartAfter)
+}
+
+func TestCreateAtel_ErrortrackingZeroValuesPreserveCurrentSemantics(t *testing.T) {
+	runner := &runnerMock{}
+	atel := getTestAtel(t, nil, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    buffer_size: 0
+    flush_interval_seconds: 0
+    startup_jitter_seconds: 0
+    shutdown_drain_timeout_seconds: 0
+`, &senderMock{}, nil, runner)
+
+	require.NotNil(t, atel.errLogsCh)
+	assert.Equal(t, 0, cap(atel.errLogsCh))
+	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
+	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
+	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
+
+	require.NoError(t, atel.start())
+	t.Cleanup(func() {
+		atel.cancel()
+	})
+
+	errortrackingJob := findErrortrackingJob(t, runner)
+	assert.Equal(t, uint(5), errortrackingJob.schedule.Period)
+	assert.Equal(t, uint(0), errortrackingJob.schedule.StartAfter)
 }
 
 func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error {
@@ -479,8 +616,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 17 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf)
-	assert.Equal(t, 17, totalProfiles)
+	// Default config has 20 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe)
+	assert.Equal(t, 20, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -1169,6 +1306,25 @@ func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
 	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigLogsNoSSL verifies that logs_no_ssl: true causes buildURL to
+// produce an http:// URL. Previously buildURL hardcoded "https" and ignored
+// Endpoint.UseSSL(), silently dropping all telemetry in no-SSL environments.
+func TestSenderConfigLogsNoSSL(t *testing.T) {
+	c := `
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      logs_dd_url: "localhost:19999"
+      logs_no_ssl: true
+    `
+	sndr := makeSenderImpl(t, nil, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "http://localhost:19999/api/v2/apmtelemetry", url)
 }
 
 func TestGetAsJSONScrub(t *testing.T) {

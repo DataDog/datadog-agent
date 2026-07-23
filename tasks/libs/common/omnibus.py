@@ -18,6 +18,7 @@ ENV_PASSHTROUGH = {
     'BAZELISK_HOME': "Runner-dependent cache path used by `bazelisk` to manage `bazel` installations",
     'BUILDBARN_ID_TOKEN': "OIDC token used by the Bazel credential helper to authenticate against the Buildbarn remote cache",
     'CI': "dda and `bazel` rely on this to be able to tell whether they're running on CI and adapt behavior",
+    'GITLAB_CI': "dda relies on this to be able to tell whether it's running on GitLab CI specifically and adapt behavior",
     'DD_CC': 'Points at c compiler',
     'DD_CXX': 'Points at c++ compiler',
     'GONOSUMDB': 'Go module checksum bypass, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
@@ -32,9 +33,7 @@ ENV_PASSHTROUGH = {
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'HOME': 'Home directory might be used by invoked programs such as git',
     'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
-    'INTEGRATION_WHEELS_CACHE_BUCKET': 'Bucket where integration wheels are cached',
     'INTEGRATIONS_WHEELS_STORAGE': 'Storage tier ("dev" or "stable") for integration dependency wheels, expanded by pip in lockfiles',
-    'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD': 'Setting that skips uploading integration wheels to cache',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'OMNIBUS_FORCE_PACKAGES': 'Force Omnibus to build actual packages',
     'OMNIBUS_GIT_CACHE_DIR': 'Local directory used by Omnibus for the local git cache',
@@ -53,7 +52,10 @@ ENV_PASSHTROUGH = {
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
-    'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
+    'CI_JOB_ID': 'CI Job ID',
+    'CI_PROJECT_NAME': 'CI Project Name',
+    'CI_JOB_NAME_SLUG': 'CI Job Name Slug',
+    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -69,8 +71,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'PROGRAMFILES(X86)': 'Standard Windows installation location',
         'PROGRAMFILESW6432': 'Standard Windows installation location',
         'SIGN_WINDOWS_DD_WCS': 'Determines whether to sign Windows artifacts',
-        'WINDOWS_SIGNING_CERT': 'S3 URL of the signing certificate to use with dd-wcs',
-        'WINDOWS_SIGNING_CONFIG': 'S3 URL of the signing config to use with dd-wcs',
+        'WINDOWS_SIGNING_CERT': 'S3 URL of the signing certificate to use with windows-code-signer.exe',
+        'WINDOWS_SIGNING_CONFIG': 'S3 URL of the signing config to use with windows-code-signer.exe',
         'SSL_CERT_FILE': 'Used to point Ruby at the certificate for OpenSSL',
         'SYSTEMDRIVE': "goes with SYSTEMROOT",
         'SYSTEMROOT': 'Solves git: fatal: getaddrinfo() thread failed to start',
@@ -96,10 +98,6 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'RPM_GPG_KEY': 'Used to sign packages',
         'RPM_GPG_KEY_NAME': 'Used to sign packages',
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
-        'AGENT_DATA_PLANE_HASH_LINUX_AMD64': 'Agent Data Plane Hash for Linux AMD64',
-        'AGENT_DATA_PLANE_HASH_LINUX_ARM64': 'Agent Data Plane Hash for Linux ARM64',
-        'AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64': 'Agent Data Plane Hash for FIPS Linux AMD64',
-        'AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64': 'Agent Data Plane Hash for FIPS Linux ARM64',
     },
     'darwin': {
         'APPLE_ACCOUNT': 'Apple developer account used for notarization',
@@ -122,6 +120,9 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'APPDATA',
         'BUILDBARN_ID_TOKEN',
         'BAZELISK_HOME',
+        'CI_JOB_ID',
+        'CI_JOB_NAME_SLUG',
+        'CI_PROJECT_NAME',
         'DEB_GPG_KEY',
         'DEB_GPG_KEY_NAME',
         'DEB_SIGNING_PASSPHRASE',
@@ -131,7 +132,6 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GOPRIVATE',
         'GOPROXY',
         'HOME',
-        'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD',
         'JARSIGN_JAR',
         'KEYCHAIN_NAME',
         'KEYCHAIN_PWD',
@@ -199,7 +199,7 @@ def _hash_paths(hasher, paths: list[str]):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'C:\\devtools\\ci-identities-gitlab-job-client.exe secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:

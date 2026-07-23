@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    [oracle] Removed the ``oracle_client_lib_dir`` instance configuration
+    option, which did not work as expected. The Oracle client library path must
+    be set before runtime for the dynamic linker to properly link the library,
+    so pointing to it from the check configuration is too late to take effect.
+    Configure the client library location through the runtime linker instead,
+    as described in the Oracle integration setup documentation:
+    https://docs.datadoghq.com/integrations/oracle/?tab=linux#prerequisite

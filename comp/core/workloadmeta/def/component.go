@@ -74,6 +74,19 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// GetKubernetesKueueQueue returns metadata about a Kubernetes Kueue queue. It fetches
+	// the entity with kind KindKubernetesKueueQueue and the given ID. The ID includes
+	// the queue type, so LocalQueue and ClusterQueue entities are distinct.
+	GetKubernetesKueueQueue(id string) (*KubernetesKueueQueue, error)
+
+	// GetKubernetesKueueResourceFlavor returns metadata about a Kubernetes Kueue ResourceFlavor.
+	// It fetches the entity with kind KindKubernetesKueueResourceFlavor and the given ID.
+	GetKubernetesKueueResourceFlavor(id string) (*KubernetesKueueResourceFlavor, error)
+
+	// GetKubernetesKueueWorkload returns metadata about a Kubernetes Kueue Workload.
+	// It fetches the entity with kind KindKubernetesKueueWorkload and the given ID.
+	GetKubernetesKueueWorkload(id string) (*KubernetesKueueWorkload, error)
+
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
 	GetKubernetesMetadata(id KubeMetadataEntityID) (*KubernetesMetadata, error)

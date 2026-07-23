@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 
@@ -28,6 +28,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	discovererPkg "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -70,7 +71,7 @@ type Requires struct {
 	WMeta          option.Option[workloadmeta.Component]
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
-	HealthPlatform option.Option[healthplatformdef.Component]
+	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
 }
 
@@ -85,6 +86,7 @@ type AutoConfig struct {
 	listenerRetryStop        chan struct{}
 	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
+	discoveryStop            chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
@@ -98,7 +100,7 @@ type AutoConfig struct {
 	logs                     logComp.Component
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
-	healthPlatform           option.Option[healthplatformdef.Component]
+	healthPlatform           healthplatformdef.Component
 	staticConfigIndex        *listeners.StaticConfigIndex
 	serviceTracker           adtypes.ServiceTracker
 
@@ -194,25 +196,21 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 
 // NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
 // Exported for use by the mock package.
-func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
+func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
 	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component], tracker adtypes.ServiceTracker) *AutoConfig {
-	var hpComp healthplatformdef.Component
-	if h, ok := hp.Get(); ok {
-		hpComp = h
-	} else {
-		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
-	}
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex)
+	telStore := acTelemetry.NewStore(telemetryComp)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
 		listenerRetryStop:        nil, // We'll open it if needed
 		listenerStop:             make(chan struct{}),
+		discoveryStop:            make(chan struct{}),
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
@@ -226,7 +224,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		filterStore:              filterStore,
-		telemetryStore:           acTelemetry.NewStore(telemetryComp),
+		telemetryStore:           telStore,
 		healthPlatform:           hp,
 		staticConfigIndex:        staticConfigIndex,
 		serviceTracker:           tracker,
@@ -370,6 +368,22 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
+	ac.cfgMgr.start()
+	go ac.discoveredChangesLoop(ac.cfgMgr.discoveredChanges())
+}
+
+// discoveredChangesLoop drains ConfigChanges produced asynchronously by the
+// configuration-discovery worker and forwards them to the scheduler. Exits
+// when discoveryStop is closed.
+func (ac *AutoConfig) discoveredChangesLoop(ch <-chan integration.ConfigChanges) {
+	for {
+		select {
+		case <-ac.discoveryStop:
+			return
+		case changes := <-ch:
+			ac.applyChanges(changes)
+		}
+	}
 }
 
 // stop just shuts down AutoConfig in a clean way.
@@ -383,6 +397,10 @@ func (ac *AutoConfig) stop() {
 
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
+
+	// stop the discovered-changes drain loop and then the worker itself.
+	close(ac.discoveryStop)
+	ac.cfgMgr.stop()
 
 	// stop the meta scheduler
 	ac.schedulerController.Stop()
@@ -481,10 +499,9 @@ func (ac *AutoConfig) AddConfigProviderFromCatalog(cp pkgconfigsetup.Configurati
 		return fmt.Errorf("unable to find this provider in the catalog: %v", cp.Name)
 	}
 
-	hp, _ := ac.healthPlatform.Get()
 	wmeta, _ := ac.wmeta.Get()
 
-	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, hp, ac.telemetryStore)
+	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, ac.healthPlatform, ac.telemetryStore)
 	if err != nil {
 		return fmt.Errorf("error while adding config provider %v: %w", cp.Name, err)
 	}

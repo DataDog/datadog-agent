@@ -8,9 +8,11 @@ package observerimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,9 +20,12 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -121,7 +126,7 @@ func (l *logObs) GetHostname() string {
 	return l.hostname
 }
 
-// Optionally, for logs that provide timestamp interface (if needed elsewhere)
+// GetTimestampUnixMilli implements observerdef.LogView.
 func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
@@ -143,6 +148,10 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
+		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.
+		if entry.name == "anomaly_scorer" {
+			continue
+		}
 		prefix := "anomaly_detection.detectors." + entry.name + "."
 		if cfg.IsConfigured(prefix + "enabled") {
 			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
@@ -154,6 +163,36 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 			settings.configs[entry.name] = entry.readConfig(cfg, prefix)
 		}
 	}
+
+	// Dedicated scorer read path under anomaly_detection.anomaly_scorer.*
+	const scorerPrefix = "anomaly_detection.anomaly_scorer."
+	if anomalydetectionconfig.ScorerRequired(cfg) {
+		settings.Enabled["anomaly_scorer"] = true
+		if settings.configs == nil {
+			settings.configs = make(map[string]any)
+		}
+		scorerCfg := readAnomalyScorerConfig(cfg, scorerPrefix)
+		if anomalydetectionconfig.AnomalyScorerDryRunEnabled(cfg) {
+			scorerCfg.CorrelationEvents = false
+		}
+		settings.configs["anomaly_scorer"] = scorerCfg
+	}
+
+	settings.Baseline = DefaultBaselineConfig()
+	const basePrefix = "anomaly_detection.baseline_analysis."
+	if cfg.IsConfigured(basePrefix + "enabled") {
+		settings.Baseline.Enabled = cfg.GetBool(basePrefix + "enabled")
+	}
+	if cfg.IsConfigured(basePrefix + "mute_noisy_metrics") {
+		settings.Baseline.MuteNoisyMetrics = cfg.GetBool(basePrefix + "mute_noisy_metrics")
+	}
+	if cfg.IsConfigured(basePrefix + "duration") {
+		settings.Baseline.DurationSec = int64(cfg.GetDuration(basePrefix + "duration").Seconds())
+	}
+	if cfg.IsConfigured(basePrefix + "verbose") {
+		settings.Baseline.Verbose = cfg.GetBool(basePrefix + "verbose")
+	}
+
 	return settings
 }
 
@@ -165,16 +204,35 @@ func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopOb
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
+func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
+}
+
+func (*disabledObserver) SubscribeSeverityEventsReader(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
+}
+
 // NewComponent creates an observer.Component.
-func NewComponent(deps Requires) Provides {
+func NewComponent(deps Requires) (Provides, error) {
 	cfg := deps.Config
 	if cfg == nil {
-		return Provides{Comp: &disabledObserver{}}
+		return Provides{Comp: &disabledObserver{}}, nil
+	}
+
+	// Off-by-default fast path: when neither analysis nor recording is active the
+	// live observer noops every handle (see handleFunc below) and installs no log
+	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
+	// dispatch goroutine — return the zero-allocation stub instead. The predicate
+	// mirrors the observerRequired/recorderEnabled gates used further down.
+	if !anomalydetectionconfig.ObserverRequired(cfg) {
+		if _, recorderEnabled := deps.Recorder.Get(); !recorderEnabled {
+			return Provides{Comp: &disabledObserver{}}, nil
+		}
 	}
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, scorers, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -184,29 +242,52 @@ func NewComponent(deps Requires) Provides {
 		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
 			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
 		}
-		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
-			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
+		if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
+			d := cfg.GetDuration("anomaly_detection.storage.point_retention")
+			if d < 0 {
+				pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s — using default", d)
+			} else {
+				storageCfg.PointRetentionSecs = int64(d.Seconds())
+			}
 		}
 	}
-	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorageWith(storageCfg),
-		extractors:  extractors,
-		detectors:   detectors,
-		correlators: correlators,
-		scorers:     scorers,
-		scheduler:   &currentBehaviorPolicy{},
-	})
+
+	compiledMetricFilter, err := loadMetricFilter(cfg)
+	if err != nil {
+		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
+	}
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 	obsTelemetry := newObserverTelemetry(telemetryComp)
+
+	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
+	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
+	// enabled so the live observer gets full telemetry. Replay enables the same
+	// watcher with nil gauges when settings are reset below.
+	var scorer *anomalyScorer
+	if rawScorer != nil {
+		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
+		pkglog.Infof("[observer] anomaly_scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
+			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
+	}
+
+	eng := newEngine(engineConfig{
+		storage:     newTimeSeriesStorageWith(storageCfg),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scorer:      scorer,
+		scheduler:   &currentBehaviorPolicy{},
+		baseline:    settings.Baseline,
+	})
+
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
-	eng.onScorerEWMA = obsTelemetry.recordScorerEWMA
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -237,6 +318,14 @@ func NewComponent(deps Requires) Provides {
 		obsCh:                make(chan observation, 1000),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
+		metricFilter:         compiledMetricFilter,
+	}
+
+	// When baseline muting is enabled, subscribe a sink that publishes the mute
+	// hash set to the shared filter on window end. Handles on all goroutines share
+	// the same *metricsFilterRules pointer, so the atomic Store is visible to all.
+	if settings.Baseline.Enabled && settings.Baseline.MuteNoisyMetrics {
+		eng.Subscribe(&baselineEventSink{filter: compiledMetricFilter})
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -244,16 +333,16 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
-	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := cfg.GetBool("anomaly_detection.enabled")
-	if analysisEnabled {
+	// Recording enables parquet writers. ObserverRequired enables the live
+	// anomaly-detection pipeline and its default metric/log ingestion paths.
+	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
+	if observerRequired {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)
 	}
 
 	obs.handleFunc = obs.noopHandle
-	if analysisEnabled {
+	if observerRequired {
 		obs.handleFunc = obs.innerHandle
 	}
 
@@ -294,15 +383,23 @@ func NewComponent(deps Requires) Provides {
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
-	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
+
+	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
+	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
+	if err != nil {
+		deps.Log.Warnf("[observer] %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logsRules = &logsfilter.Rules{}
+	}
+
+	if (observerRequired || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
 		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
 		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
-		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
-		})
+		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				pkglog.SetLogObserver(nil)
@@ -328,7 +425,7 @@ func NewComponent(deps Requires) Provides {
 		}()
 	}
 
-	return Provides{Comp: obs}
+	return Provides{Comp: obs}, nil
 }
 
 // observerImpl is the implementation of the observer component.
@@ -345,18 +442,19 @@ type observerImpl struct {
 	advanceLogCleanup func() // flushes advance log recording file
 
 	// ingestMetricsEnabled gates externally-ingested metrics at the handle
-	// factory. When false, "all-metrics" and HF handles return a wrapper
-	// that drops ObserveMetric calls. Logs and profiles still pass through,
-	// and log-derived virtual metrics produced inside the engine by
-	// LogMetricsExtractors are unaffected because they bypass the handle.
+	// factory. When false, handles return a metricDropHandle wrapper that drops
+	// ObserveMetric calls. ObserveLog still passes through, and log-derived
+	// virtual metrics produced inside the engine by LogMetricsExtractors are
+	// unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
+	metricFilter         *metricsFilterRules
 
 	// replayMu serialises engine access between the run() dispatch loop and
-	// the testbench's IngestLogSync/IngestMetricSync direct-ingest path.
-	// In production the sync methods are never called so this mutex is always
+	// the testbench's direct-ingest path (IngestLogForReplay, IngestMetricSync).
+	// In production these methods are never called so this mutex is always
 	// uncontended. In the testbench it prevents a data race between the
 	// agent-internal-log observer (which can post to obsCh while run() is
-	// processing) and a concurrent IngestLogSync call.
+	// processing) and a concurrent testbench ingest call.
 	replayMu sync.Mutex
 }
 
@@ -424,7 +522,7 @@ type seriesDetectorAdapter struct {
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
-	// are append-only (storage.go:217) so they remain stable for the lifetime
+	// are append-only (storage.go:305) so they remain stable for the lifetime
 	// of a series.
 	lastVisibleCount map[observerdef.SeriesRef]int
 }
@@ -555,12 +653,12 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 	return o.handleFunc(name)
 }
 
-// innerHandle creates the base handle without any middleware wrapping.
-// When anomaly_detection.metrics.enabled=false, the handle is wrapped with
+// innerHandle creates the base handle for a named source. When
+// anomaly_detection.metrics.enabled=false, the handle is wrapped with
 // metricDropHandle so external metrics are dropped at the edge, while
-// ObserveLog/ObserveProfile pass through.
+// ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry}
+	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -569,8 +667,8 @@ func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	return out
 }
 
-// metricDropHandle drops every ObserveMetric call but lets logs and
-// profiles through. Used when anomaly_detection.metrics.enabled=false so
+// metricDropHandle drops every ObserveMetric call but lets ObserveLog
+// through. Used when anomaly_detection.metrics.enabled=false so
 // external metric sources (DogStatsD, check samplers) do not feed the engine.
 // Virtual metrics produced by LogMetricsExtractors during engine.IngestLog are
 // unaffected because they bypass this handle path entirely.
@@ -613,6 +711,30 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
+// SubscribeSeverityEvents registers listener described by cfg. Delegates to
+// the engine scorer when one is configured.
+func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	o.engine.mu.RLock()
+	scorer := o.engine.scorer
+	o.engine.mu.RUnlock()
+	if scorer == nil {
+		return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
+	}
+	return scorer.SubscribeSeverityEvents(cfg, listener)
+}
+
+// SubscribeSeverityEventsReader is a convenience for pull-only consumers.
+// Delegates to the engine scorer when one is configured.
+func (o *observerImpl) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	o.engine.mu.RLock()
+	scorer := o.engine.scorer
+	o.engine.mu.RUnlock()
+	if scorer == nil {
+		return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
+	}
+	return scorer.SubscribeSeverityEventsReader(cfg)
+}
+
 // --- DebugView implementation ---
 
 // StateView returns a read-only window into engine state.
@@ -648,10 +770,78 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, scorers, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	// Catalog scorers are unwatched standalone instances. Replay needs the same
+	// transition watcher as the live observer so scorer correlation episodes open
+	// and close as severity changes; telemetry gauges are optional here.
+	if scorer != nil {
+		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
+	}
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
+	o.metricFilter.muted.Store(nil)
+	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
 	o.replayMu.Unlock()
+}
+
+// baselineEventSink publishes the mute hash set to the shared filter when the
+// baseline window ends.
+type baselineEventSink struct {
+	filter *metricsFilterRules
+}
+
+func (s *baselineEventSink) onEngineEvent(evt engineEvent) {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+		return
+	}
+	if len(evt.baselineCompleted.mutedHashes) > 0 {
+		s.filter.setMuted(evt.baselineCompleted.mutedHashes)
+	}
+}
+
+// Compile-time assertion: observerImpl satisfies the testbench-extended surface.
+// testbenchView in the bench package embeds DebugView and adds this method;
+// the assertion ensures it is never silently dropped from observerImpl.
+var _ interface{ DebugSubscribeBaselineCompleted(func(int64, []string)) } = (*observerImpl)(nil)
+
+// DebugSubscribeBaselineCompleted registers a one-time callback invoked when the
+// baseline window closes. Testbench-only — never called by the live agent.
+// The callback receives the freeze timestamp (Unix seconds) and sorted
+// "namespace/metricName" group keys for all muted series, resolved from
+// storage while series are still alive (before reclaim).
+func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int64, mutedGroups []string)) {
+	if o.engine.baseline == nil {
+		return
+	}
+	o.engine.Subscribe(&baselineCompletedCallbackSink{
+		engine:   o.engine,
+		callback: callback,
+	})
+}
+
+type baselineCompletedCallbackSink struct {
+	engine   *engine
+	callback func(int64, []string)
+}
+
+func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+		return
+	}
+	seen := make(map[string]struct{}, len(evt.baselineCompleted.mutedRefs))
+	var groups []string
+	for _, ref := range evt.baselineCompleted.mutedRefs {
+		meta := s.engine.storage.GetSeriesMeta(ref)
+		if meta == nil {
+			continue
+		}
+		key := meta.Namespace + "/" + meta.Name
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			groups = append(groups, key)
+		}
+	}
+	sort.Strings(groups)
+	s.callback(evt.timestamp, groups)
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
@@ -694,24 +884,17 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 	return o.engine.storage
 }
 
-// IngestLogSync feeds a log directly into the engine, bypassing the dispatch
-// channel. It replicates what the dispatcher run() loop does for a log
-// observation: build logObs, call engine.IngestLog, drive any advance
-// requests, and forward telemetry. Implements DebugView.
-func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
-	timestampMs := msg.GetTimestampUnixMilli()
-	lo := &logObs{
-		content:     msg.GetContent(),
-		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
-		hostname:    msg.GetHostname(),
-		timestampMs: timestampMs,
-	}
+// IngestLogForReplay feeds a log directly into the engine without driving any
+// scheduler-triggered advances. Implements DebugView. Used while pre-loading
+// retained data so that extractor state is built up
+// and log metrics are written to storage, but detector/correlator advances are
+// deferred to the subsequent ReplayStoredData call.
+func (o *observerImpl) IngestLogForReplay(source string, msg observerdef.LogView) {
+	lo := logObsFromView(msg)
 	o.replayMu.Lock()
-	requests := o.engine.IngestLog(source, lo)
-	for _, req := range requests {
-		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
-	}
+	// Advance requests are intentionally discarded.
+	_ = o.engine.IngestLog(source, lo)
+	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	if o.telemetry != nil {
 		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
@@ -719,53 +902,97 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	o.replayMu.Unlock()
 }
 
-// IngestLogNoAdvance feeds a log directly into the engine without driving any
-// scheduler-triggered advances. Implements DebugView. Used during batch
-// pre-loading in the testbench replay path so that extractor state is built up
-// and log metrics are written to storage, but detector/correlator advances are
-// deferred to the subsequent ReplayStoredData call.
-func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView) {
-	timestampMs := msg.GetTimestampUnixMilli()
-	lo := &logObs{
-		content:     msg.GetContent(),
-		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
-		hostname:    msg.GetHostname(),
-		timestampMs: timestampMs,
-	}
+// IngestLogAndAdvance feeds a log directly into the engine and executes any
+// scheduler-triggered advances before returning. Implements DebugView.
+func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogView) {
+	lo := logObsFromView(msg)
 	o.replayMu.Lock()
-	// Advance requests are intentionally discarded.
-	_ = o.engine.IngestLog(source, lo)
+	requests := o.engine.IngestLog(source, lo)
+	for _, req := range requests {
+		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.engine.replayAdvances.Add(1)
+	}
+	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
 		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
+}
+
+// FinishReplayStream flushes the scheduler at end-of-input without resetting
+// the analysis state accumulated by synchronous ingestion. Implements DebugView.
+func (o *observerImpl) FinishReplayStream() {
+	o.replayMu.Lock()
+	o.engine.FinishReplayStream()
+	o.replayMu.Unlock()
+}
+
+func logObsFromView(msg observerdef.LogView) *logObs {
+	return &logObs{
+		content:     msg.GetContent(),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.Tags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: msg.GetTimestampUnixMilli(),
+	}
+}
+
+func normalizeMetricSource(name, source string) string {
+	if strings.HasPrefix(name, "datadog.") {
+		return observerdef.AgentNamespace
+	}
+	return source
+}
+
+type metricIngestDecision struct {
+	source string
+	metric *metricObs
+}
+
+func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+	name := sample.GetName()
+	normalizedSource := normalizeMetricSource(name, source)
+	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
+	// storage, and downstream Add calls hit the tagsSorted fast path.
+	tags := canonicalizeTags(sample.GetRawTags())
+	if !filter.isAllowed(name, normalizedSource, tags) {
+		return metricIngestDecision{source: normalizedSource}
+	}
+
+	timestamp := sample.GetTimestampUnix()
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	return metricIngestDecision{
+		source: normalizedSource,
+		metric: &metricObs{
+			name:      name,
+			value:     sample.GetValue(),
+			tags:      tags,
+			timestamp: timestamp,
+		},
+	}
 }
 
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
-	name := sample.GetName()
-	if strings.HasPrefix(name, "datadog.") {
+	decision := prepareMetricIngest(source, sample, o.metricFilter)
+	if decision.metric == nil {
+		if o.telemetry != nil && decision.source != "" {
+			o.telemetry.recordFilteredMetric(decision.source)
+		}
 		return
 	}
-	timestamp := sample.GetTimestampUnix()
-	if timestamp == 0 {
-		timestamp = time.Now().Unix()
-	}
-	mo := &metricObs{
-		name:      name,
-		value:     sample.GetValue(),
-		tags:      copyTags(sample.GetRawTags()),
-		timestamp: timestamp,
-	}
 	o.replayMu.Lock()
-	requests := o.engine.IngestMetric(source, mo)
+	requests := o.engine.IngestMetric(decision.source, decision.metric)
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.engine.replayAdvances.Add(1)
 	}
+	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
@@ -779,6 +1006,7 @@ type handle struct {
 	source    string
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
+	filter    *metricsFilterRules
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -787,28 +1015,20 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 }
 
 // ObserveMetricAndReportDrop observes a metric and reports whether this
-// specific call was dropped by the observer channel.
+// specific call was dropped by observer backpressure (channel full).
+// Metrics rejected by processing rules are counted via telemetry but do not
+// report a channel drop.
 func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	timestamp := sample.GetTimestampUnix()
-	if timestamp == 0 {
-		timestamp = time.Now().Unix()
-	}
-
-	name := sample.GetName()
-
-	// filter internal Datadog Agent telemetry
-	if strings.HasPrefix(name, "datadog.") {
+	decision := prepareMetricIngest(h.source, sample, h.filter)
+	if decision.metric == nil {
+		if h.telemetry != nil && decision.source != "" {
+			h.telemetry.recordFilteredMetric(decision.source)
+		}
 		return false
 	}
-
 	obs := observation{
-		source: h.source,
-		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      copyTags(sample.GetRawTags()),
-			timestamp: timestamp,
-		},
+		source: decision.source,
+		metric: decision.metric,
 	}
 
 	// Non-blocking send - drop if channel is full.

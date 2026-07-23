@@ -21,11 +21,7 @@ namespace WixSetup.Datadog_Agent
         public string DdCompilePolicy => $@"{_binSource}\dd-compile-policy.exe";
         public string ProcmgrService => $@"{_binSource}\dd-procmgrd.exe";
         public string Procmgr => $@"{_binSource}\dd-procmgr.exe";
-
-        // AI usage Chrome native messaging host (Rust). Shipped alongside ddtray.exe under bin\agent.
-        // Chrome discovers it via the machine-wide HKLM NativeMessagingHosts registration.
-        public string AiPromptLoggerNativeHost => $@"{_binSource}\ai-prompt-logger-native-host.exe";
-        public Id AiPromptLoggerNativeHostId => new("ai_prompt_logger_native_host");
+        public string AgentDataPlane => $@"{_binSource}\agent-data-plane.exe";
 
         public AgentBinaries(string binSource, string installerSource)
         {

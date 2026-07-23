@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
@@ -39,7 +41,7 @@ var hostTrafficSystemProbeConfig string
 var hostTrafficDNSFiles embed.FS
 
 const (
-	hostTrafficDomain             = "httpbin.dynamic-netpath.test"
+	hostTrafficRemoteConfigDomain = "httpbin-rc.dynamic-netpath.test"
 	hostTrafficDNSRemotePath      = "/tmp/host_traffic_dns.py"
 	hostTrafficDNSLogPath         = "/tmp/host_traffic_dns.log"
 	hostTrafficDNSPIDPath         = "/tmp/host_traffic_dns.pid"
@@ -47,6 +49,9 @@ const (
 	hostTrafficResolverLinkPath   = "/tmp/host_traffic_resolv.conf.link"
 	hostTrafficCurlLogPath        = "/tmp/host_traffic_dynamic_path_curl.log"
 	hostTrafficCurlPIDPath        = "/tmp/host_traffic_dynamic_path_curl.pid"
+	hostTrafficRCProduct          = "NETWORK_PATH"
+	hostTrafficRCConfigID         = "test-config-dynamic-host-traffic"
+	hostTrafficRCConfigName       = "config"
 	hostTrafficHTTPBinComposeYAML = `version: '3.9'
 services:
   httpbin:
@@ -61,6 +66,20 @@ services:
 `
 )
 
+var hostTrafficDynamicRCConfig = []byte(`{
+  "type": "dynamic",
+  "test_config_id": "dynamic-host-traffic",
+  "config": {
+    "filters": [
+      {
+        "type": "include",
+        "match_domain": "httpbin-rc.dynamic-netpath.test",
+        "match_domain_strategy": "wildcard"
+      }
+    ]
+  }
+}`)
+
 type hostTrafficDynamicPathEnv struct {
 	environments.Host
 	HTTPBinHost *components.RemoteHost
@@ -68,6 +87,7 @@ type hostTrafficDynamicPathEnv struct {
 
 type hostTrafficDynamicPathSuite struct {
 	e2e.BaseSuite[hostTrafficDynamicPathEnv]
+	remoteConfigAdded bool
 }
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
@@ -101,7 +121,22 @@ func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
 			return err
 		}
 
-		dockerManager, err := docker.NewAWSManager(&awsEnv, httpbinHost)
+		// The Ubuntu e2e AMI installs apache2 (via the php meta-package) which binds to
+		// port 80 by default. Stop and disable it so the httpbin container below can
+		// claim the port during docker-compose up. `|| true` keeps this idempotent on
+		// hosts where apache2 is absent.
+		stopApache, err := httpbinHost.OS.Runner().Command(
+			"stop-apache2",
+			&command.Args{
+				Create: pulumi.String("systemctl disable --now apache2 || true"),
+				Sudo:   true,
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewAWSManager(&awsEnv, httpbinHost, utils.PulumiDependsOn(stopApache))
 		if err != nil {
 			return err
 		}
@@ -127,10 +162,27 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 
-	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	fakeintake := s.Env().FakeIntake.Client()
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		stats, err := fakeintake.RCStats()
+		assert.NoError(c, err)
+		assert.NotZero(c, stats.Polls, "agent did not poll fakeintake Remote Config")
+	}, 2*time.Minute, 5*time.Second)
+	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
+	s.remoteConfigAdded = true
+	statsAfterAdd, err := fakeintake.RCStats()
+	require.NoError(s.T(), err)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		stats, err := fakeintake.RCStats()
+		assert.NoError(c, err)
+		assert.Greater(c, stats.Polls, statsAfterAdd.Polls, "agent did not poll Remote Config after the dynamic config was added")
+	}, 2*time.Minute, 5*time.Second)
+
+	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
 
 func (s *hostTrafficDynamicPathSuite) TearDownSuite() {
+	s.deleteHostTrafficRemoteConfig()
 	s.stopHostTrafficGenerator()
 	s.restoreAgentResolver()
 	s.stopHostTrafficDNSServer()
@@ -149,7 +201,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	fakeintake := s.Env().FakeIntake.Client()
 	s.startHostTrafficGenerator(4 * time.Minute)
 
-	var matched *aggregator.Netpath
+	var remoteConfigMatch *aggregator.Netpath
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.schedule.pathtest_count")
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.flush.pathtest_count")
@@ -158,29 +210,49 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
-		match := findHostTrafficNetworkPath(netpaths)
-		require.NotNil(c, match, "no host-traffic network path event matched %s:80", hostTrafficDomain)
+		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no RC-admitted host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
 		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
-		assert.Equal(c, hostTrafficDomain, match.Destination.Hostname)
+		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
 		assert.Equal(c, uint16(80), match.Destination.Port)
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
-
-		matched = match
+		assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
+		assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
+		remoteConfigMatch = match
 	}, 5*time.Minute, 10*time.Second)
 
-	if matched != nil {
-		s.T().Logf("matched host traffic dynamic path destination=%s:%d test_run_id=%s",
-			matched.Destination.Hostname,
-			matched.Destination.Port,
-			matched.TestRunID,
+	if remoteConfigMatch != nil {
+		s.T().Logf("matched RC host traffic dynamic path destination=%s:%d test_run_id=%s",
+			remoteConfigMatch.Destination.Hostname,
+			remoteConfigMatch.Destination.Port,
+			remoteConfigMatch.TestRunID,
 		)
 	}
+}
+
+func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
+	if !s.remoteConfigAdded {
+		return
+	}
+	fakeintake := s.Env().FakeIntake.Client()
+	configs, err := fakeintake.RCListConfigs()
+	require.NoError(s.T(), err)
+	for _, config := range configs {
+		if config.Product != hostTrafficRCProduct || config.ConfigID != hostTrafficRCConfigID || config.ConfigName != hostTrafficRCConfigName {
+			continue
+		}
+		key := fmt.Sprintf("%s/%s/%s/%s", config.OrgID, config.Product, config.ConfigID, config.ConfigName)
+		require.NoError(s.T(), fakeintake.RCDeleteConfig(key))
+		s.remoteConfigAdded = false
+		return
+	}
+	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
 }
 
 func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
@@ -199,7 +271,7 @@ func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {
 		"nohup python3 %s %s %s %s %s >%s 2>&1 & echo $! >%s",
 		shellQuote(hostTrafficDNSRemotePath),
 		shellQuote(httpbinHost.Address),
-		shellQuote(hostTrafficDomain),
+		shellQuote(hostTrafficRemoteConfigDomain),
 		shellQuote(httpbinHost.Address),
 		shellQuote(upstream),
 		shellQuote(hostTrafficDNSLogPath),
@@ -267,10 +339,10 @@ fi
 }
 
 func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
-	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficDomain))
+	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficRemoteConfigDomain))
 	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
 
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL())))
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain))))
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {
@@ -278,7 +350,7 @@ func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Du
 	trafficCommand := fmt.Sprintf(
 		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
 		seconds,
-		shellQuote(hostTrafficURL()),
+		shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain)),
 	)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("nohup sh -c %s >%s 2>&1 & echo $! >%s",
 		shellQuote(trafficCommand),
@@ -311,14 +383,14 @@ func (s *hostTrafficDynamicPathSuite) logRemoteFile(host *components.RemoteHost,
 	}
 }
 
-func findHostTrafficNetworkPath(netpaths []*aggregator.Netpath) *aggregator.Netpath {
+func findHostTrafficNetworkPath(netpaths []*aggregator.Netpath, domain string) *aggregator.Netpath {
 	for _, np := range netpaths {
 		if np == nil {
 			continue
 		}
 		if np.Origin == payload.PathOriginNetworkTraffic &&
 			np.Protocol == payload.ProtocolTCP &&
-			np.Destination.Hostname == hostTrafficDomain &&
+			np.Destination.Hostname == domain &&
 			np.Destination.Port == 80 {
 			return np
 		}
@@ -335,8 +407,8 @@ func hasTracerouteDestinationIP(np *aggregator.Netpath) bool {
 	return false
 }
 
-func hostTrafficURL() string {
-	return "http://" + hostTrafficDomain + "/"
+func hostTrafficURL(domain string) string {
+	return "http://" + domain + "/"
 }
 
 func shellQuote(value string) string {

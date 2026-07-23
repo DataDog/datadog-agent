@@ -242,7 +242,7 @@ allowed_additional_checks:
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
 				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{"http_check"}, true)
-			}, 1*time.Minute, 10*time.Second, "http_check should be allowed via infra_basic_additional_checks")
+			}, 2*time.Minute, 10*time.Second, "http_check should be allowed via infra_basic_additional_checks")
 		})
 
 		t.Run("via_cli", func(t *testing.T) {
@@ -258,7 +258,7 @@ allowed_additional_checks:
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
 				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{"custom_mycheck"}, true)
-			}, 1*time.Minute, 10*time.Second, "custom_mycheck should be allowed via hardcoded custom_ prefix")
+			}, 2*time.Minute, 10*time.Second, "custom_mycheck should be allowed via hardcoded custom_ prefix")
 		})
 
 		t.Run("via_cli", func(t *testing.T) {

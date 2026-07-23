@@ -8,7 +8,6 @@
 package metrics
 
 import (
-	"math"
 	"sort"
 
 	// stdlib
@@ -21,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 // AssertPointsEqual evaluate if two list of point are equal (order doesn't matters).
@@ -83,90 +83,19 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	AssertPointsEqual(t, expected.Points, actual.Points)
 }
 
-// SketchesEqual checks whether two SketchData values are exactly equal.
-func SketchesEqual(exp, act SketchData) bool {
-	expCnt, expMin, expMax, expSum, expAvg := exp.BasicStats()
-	actCnt, actMin, actMax, actSum, actAvg := act.BasicStats()
-
-	if expCnt != actCnt || expMin != actMin || expMax != actMax || expSum != actSum || expAvg != actAvg {
-		return false
-	}
-
-	expK, expN := exp.Cols()
-	actK, actN := act.Cols()
-
-	if len(expK) != len(actK) {
-		return false
-	}
-	if len(expN) != len(actN) {
-		return false
-	}
-	for i := range expK {
-		if expK[i] != actK[i] || expN[i] != actN[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func almostEqual(a, b, e float64) bool {
-	return math.Abs((a-b)/a) <= e
-}
-
-// SketchesApproxEqual checks whether two SketchData values are approximately equal.
-func SketchesApproxEqual(exp, act SketchData, e float64) bool {
-	expCnt, expMin, expMax, expSum, expAvg := exp.BasicStats()
-	actCnt, actMin, actMax, actSum, actAvg := act.BasicStats()
-
-	if !almostEqual(expSum, actSum, e) {
-		return false
-	}
-	if !almostEqual(expAvg, actAvg, e) {
-		return false
-	}
-	if !almostEqual(expMax, actMax, e) {
-		return false
-	}
-	if !almostEqual(expMin, actMin, e) {
-		return false
-	}
-	if expCnt != actCnt {
-		return false
-	}
-
-	expK, expN := exp.Cols()
-	actK, actN := act.Cols()
-
-	if len(expK) != len(actK) {
-		return false
-	}
-	if len(expN) != len(actN) {
-		return false
-	}
-	for i := range expK {
-		if math.Abs(float64(actK[i]-expK[i])) > 1 {
-			return false
-		}
-		if actN[i] != expN[i] {
-			return false
-		}
-	}
-	return true
-}
-
-type sketchComparator func(exp, act SketchData) bool
+type sketchComparator func(exp, act *quantile.Sketch) bool
 
 // AssertSketchSeriesEqual checks whether two SketchSeries are equal
 func AssertSketchSeriesEqual(t assert.TestingT, exp, act *SketchSeries) {
-	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act SketchData) bool {
-		return SketchesEqual(exp, act)
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
+		return exp.Equals(act)
 	})
 }
 
 // AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
 func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act *SketchSeries, e float64) {
-	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act SketchData) bool {
-		return SketchesApproxEqual(exp, act, e)
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
+		return quantile.SketchesApproxEqual(exp, act, e)
 	})
 }
 
@@ -221,7 +150,6 @@ type tHelper interface {
 
 var _ SketchesSource = (*SketchesSourceTest)(nil)
 
-//nolint:revive // TODO(AML) Fix revive linter
 type SketchesSourceTest struct {
 	values       SketchSeriesList
 	currentIndex int
@@ -231,49 +159,43 @@ type SketchesSourceTest struct {
 func NewSketchesSourceTestWithSketch() *SketchesSourceTest {
 	return &SketchesSourceTest{
 		currentIndex: -1,
-		values:       SketchSeriesList{&SketchSeries{Name: "fakename", Host: "fakehost"}},
+		values: SketchSeriesList{
+			&SketchSeries{DistributionMetadata: DistributionMetadata{Name: "fakename", Host: "fakehost"}},
+		},
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func NewSketchesSourceTest() *SketchesSourceTest {
 	return &SketchesSourceTest{
 		currentIndex: -1,
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) MoveNext() bool {
 	s.currentIndex++
 	return s.currentIndex < len(s.values)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (s *SketchesSourceTest) Current() *SketchSeries {
+func (s *SketchesSourceTest) Current() Distribution {
 	return s.values[s.currentIndex]
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Count() uint64 {
 	return uint64(len(s.values))
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Append(sketches *SketchSeries) {
 	s.values = append(s.values, sketches)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Get(index int) *SketchSeries {
 	return s.values[index]
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Reset() {
 	s.currentIndex = -1
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) WaitForValue() bool {
 	return true
 }

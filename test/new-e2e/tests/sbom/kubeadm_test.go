@@ -28,8 +28,6 @@ import (
 	provkubeadm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kubeadm"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,6 +100,12 @@ type kubeadmSuite struct {
 	sbomTargetsSuite[environments.Kubernetes]
 }
 
+// sbomHostRetentionPeriod overrides fakeintake's 15m default: the host SBOM
+// emits its CycloneDX body only on the first scan (later scans are body-less
+// heartbeats), and TestHostSBOM runs after TestContainerSBOM's long per-image
+// Eventually, so the 15m default can purge that one payload before the read.
+const sbomHostRetentionPeriod = "1h"
+
 // TestSBOMKubeadmSuite provisions a RHEL 10 host running single-node Kubernetes
 // (kubeadm + containerd), installs the Agent (CI dev image) via Helm, runs four
 // target images, and asserts both host and container-image SBOMs in fakeintake.
@@ -112,7 +116,7 @@ func TestSBOMKubeadmSuite(t *testing.T) {
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
-			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048)),
+			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenkubeadm.WithDeploySBOMWorkloads(),
 			scenkubeadm.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
@@ -136,7 +140,7 @@ func TestSBOMKubeadmCrioSuite(t *testing.T) {
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
 			scenkubeadm.WithContainerRuntime(kubeComp.CRIO),
-			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048)),
+			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenkubeadm.WithDeploySBOMWorkloads(),
 			scenkubeadm.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
@@ -201,8 +205,11 @@ type containerTarget struct {
 	repo  string
 	// tag documents the version the digest pins; it is surfaced only when a
 	// runtime records a RepoTag, so it is verified opportunistically.
-	tag    string
-	digest string
+	tag          string
+	digest       string
+	imageID      string
+	diffIDs      []string
+	layerDigests []string
 	// componentCount is the exact total component count (OS + language) for the
 	// digest-pinned image; it is deterministic (identical across containerd and
 	// crio), so the test asserts it exactly.
@@ -213,7 +220,26 @@ type containerTarget struct {
 var containerTargets = []containerTarget{
 	{
 		short: "node", repo: "node", tag: "26.2.0",
-		digest:         "sha256:980c5420a7a2ddcb44037726977f2a349e5c7b64217516c7488dce4c74d71583",
+		digest:  "sha256:980c5420a7a2ddcb44037726977f2a349e5c7b64217516c7488dce4c74d71583",
+		imageID: "sha256:56122bfdab2ec6ccdfb5353a47d6a5ea08018cac6eb44e6a7cec699bdc038f2f",
+		diffIDs: []string{
+			"sha256:17d38572a7dcb03eff5bfd7354c717d7ee9c69b9d6a29f523722534201e411f4",
+			"sha256:47dffecc554065cd728ca9db016fb3b7f3b5577dc8964ac34256e3869ada8db9",
+			"sha256:8dc335c5db2d262d9c7a006c747d6102580d3797a3d3fc196b3690e61ba53022",
+			"sha256:0e6530456c980dd1b447066f1cb9c2b28e32b3ddde18b48ee25491efb38f0382",
+			"sha256:36f8b9c2a40fad592e5ede970f9160aff6a2b9e25b92fe056d777cb8abae641c",
+			"sha256:163caf682e98170ebec9be7b2488094b92b8388d7abd34e90971d39e7f68bbfb",
+			"sha256:3a2fd11428a5ec6ac86c3cf9de2ccd53bd6b38a2fb1ee0556386e47f9797e8c8",
+		},
+		layerDigests: []string{
+			"sha256:f32f49ce655a9cf7c1fd4ca1417ddb39a54cedf4b7ff35de20f8009c18dd7a96",
+			"sha256:8a7504cd2818ce40ac76c17886a03dff25ef0aa06ff6125bf0f0c7302cdc6471",
+			"sha256:b53089dca50590292ecc77bf803152a5799650e734717e4b706cb812a02073ba",
+			"sha256:8d6d44b254dab2063c4226fc8a0849d5527402d24d3bea80d644a1e4ac3a47e5",
+			"sha256:bacec82ae09bce2a0299189b9f5e4266a9ff43adbd55a9ca2ad3cfff82afc63f",
+			"sha256:9bc05f2fa3378d114b930cd832f8cb38b14a229fea9350e370ebb2c656361803",
+			"sha256:326172fd43b935cd35f1db120b1001ad613abdad67fa49eb70bb68bcf73a5a93",
+		},
 		componentCount: 602,
 		components: []expectedComponent{
 			{name: "node", version: "26.2.0"},                        // generic runtime
@@ -226,7 +252,22 @@ var containerTargets = []containerTarget{
 	},
 	{
 		short: "golang", repo: "golang", tag: "1.26.3-alpine",
-		digest:         "sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d",
+		digest:  "sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d",
+		imageID: "sha256:b8fbd9862b05789bb9e5462bf7d67300660e2ab5217aeb637b8db103ac45ea21",
+		diffIDs: []string{
+			"sha256:29df493baa13de438d6d2ece3a8333032e0b7b9b9d8cce4ee82194da255f61e1",
+			"sha256:a044995f677dc855dbd75a95d29117acba23684d7fac58182c25a8dbdd70d8f1",
+			"sha256:bf2ba1efee40f4bea5fc45e72a2c97e65e2302341d474f3d56beb1bfc3bd7480",
+			"sha256:307f40a40815bf428bac340faf5ad8c966e020c57797a0c9a32345eca6c1bb60",
+			"sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+		},
+		layerDigests: []string{
+			"sha256:6a0ac1617861a677b045b7ff88545213ec31c0ff08763195a70a4a5adda577bb",
+			"sha256:17423c887b377ec28c3923bc88337384a7a0c1f2b50b7faf4912760e8d503ebb",
+			"sha256:1a70bdedd442d430ea119cf8db8c0031b4eedeb5bde886892773876ded7629e8",
+			"sha256:1512b43389a873b0519ae3d6c1a3c4d9b19295b8e3330b040d95d73c50ba2f9e",
+			"sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+		},
 		componentCount: 186,
 		components: []expectedComponent{
 			{name: "alpine", version: "3.23.4"},               // OS component
@@ -241,8 +282,15 @@ var containerTargets = []containerTarget{
 		// ubi is a single-layer image: exercises the single-layer overlayfs scan
 		// (a single containerd bind mount, no lowerdir/upperdir).
 		short: "ubi", repo: "registry.access.redhat.com/ubi9/ubi", tag: "9.8-1780376557",
-		digest:         "sha256:80b1f4c34a7eed1b03a05d12b55768f3e522eef6ec294c6fbd5fa47b6b2892ee",
-		componentCount: 191,
+		digest:  "sha256:80b1f4c34a7eed1b03a05d12b55768f3e522eef6ec294c6fbd5fa47b6b2892ee",
+		imageID: "sha256:c04f6c0e54326101acce230068ad4783242335106d0ec2322660c0f8dd72089c",
+		diffIDs: []string{
+			"sha256:470f7d5ad4c7fdffde1c80a31b1722932d09adbd9fec6c41454ac84337d15783",
+		},
+		layerDigests: []string{
+			"sha256:9a785c83dc42af66688cf5d3dd8e0500ce65bad5a679b45744d62c2fffbb60d8",
+		},
+		componentCount: 189,
 		components: []expectedComponent{
 			{name: "glibc", layer: true},    // rpm (OS)
 			{name: "bash"},                  // rpm (OS)
@@ -252,8 +300,21 @@ var containerTargets = []containerTarget{
 	{
 		// ubi9/python-312 is a multi-layer RHEL image: rpm (OS) + pip (pypi) across layers.
 		short: "python-312", repo: "registry.access.redhat.com/ubi9/python-312", tag: "9.8-1779945122",
-		digest:         "sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663",
-		componentCount: 479,
+		digest:  "sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663",
+		imageID: "sha256:ad02b9631880f45ec370056476ceb23031d67069b598e50829df5983f95c641f",
+		diffIDs: []string{
+			"sha256:71275925ca13ef2f569403246b30b57d44ee7fe1d932461993c525a61ecddecd",
+			"sha256:24f9bb9093bd82585055c570f497aceff7363569a71199655e196d8809e68c98",
+			"sha256:34a244bf94d4b67b4158a52d8026dbf3bed78f17b201d2411f5479655deb5909",
+			"sha256:401bb44ee01c0f49978e8dac56f921e19fdd134c3de998672a9ba9a634139786",
+		},
+		layerDigests: []string{
+			"sha256:8669339e03904c8270fbf33fd1b3fcb3ef7c957a6e9c23dbaf342cfa06f86a8e",
+			"sha256:77af39e07c8772be94a5bbd590e288d7e5808598a5b8f657776376702d9f0d6b",
+			"sha256:3da9d5da9c0d150232a8d10166e9501729302ed14fd8716bcb813eba4f01132c",
+			"sha256:919d6b60d4b0380d56f4687d3bbe5d21add847eaf593a71049d4ff0aa6083007",
+		},
+		componentCount: 475,
 		components: []expectedComponent{
 			{name: "glibc", layer: true},    // rpm glibc (OS)
 			{purlPrefix: "pkg:rpm/redhat/"}, // rpm package
@@ -264,7 +325,26 @@ var containerTargets = []containerTarget{
 	},
 	{
 		short: "python", repo: "python", tag: "3.14.5",
-		digest:         "sha256:250e5c97be05e1eb2272fbdbd810dfd638f9012e1e6f65c99390ad3239943a08",
+		digest:  "sha256:250e5c97be05e1eb2272fbdbd810dfd638f9012e1e6f65c99390ad3239943a08",
+		imageID: "sha256:f494e154bc1f458228780ebfb2cef8654f0b0e9c860e8bf3ce24fa49f509670a",
+		diffIDs: []string{
+			"sha256:17d38572a7dcb03eff5bfd7354c717d7ee9c69b9d6a29f523722534201e411f4",
+			"sha256:47dffecc554065cd728ca9db016fb3b7f3b5577dc8964ac34256e3869ada8db9",
+			"sha256:8dc335c5db2d262d9c7a006c747d6102580d3797a3d3fc196b3690e61ba53022",
+			"sha256:0e6530456c980dd1b447066f1cb9c2b28e32b3ddde18b48ee25491efb38f0382",
+			"sha256:d733499dfbe122f0e7c4e2dfaf53abc6181c8c4ebf85c54cffc4ce7e0d647189",
+			"sha256:feefbf087553a613ca8cb9f3d9c1d71f22ea75cfcc766d2f16bc87d7d9675ee3",
+			"sha256:d87bf50b46d0c178e8de5d3d8bf51665c999dd671c0de38dc84cdd914228a5cf",
+		},
+		layerDigests: []string{
+			"sha256:f32f49ce655a9cf7c1fd4ca1417ddb39a54cedf4b7ff35de20f8009c18dd7a96",
+			"sha256:8a7504cd2818ce40ac76c17886a03dff25ef0aa06ff6125bf0f0c7302cdc6471",
+			"sha256:b53089dca50590292ecc77bf803152a5799650e734717e4b706cb812a02073ba",
+			"sha256:8d6d44b254dab2063c4226fc8a0849d5527402d24d3bea80d644a1e4ac3a47e5",
+			"sha256:0a4465cc9f09dc7bd8fce31cf033e53ff50a486cf15839bdc54eca5ac36b9eb2",
+			"sha256:c965dce520b37b106f5c288e74f6012e9b05c65468dc8c04ef822c46c6abdfc1",
+			"sha256:61719a06ef521afb108a06cdbdfebeaa93b146a042ebb781b7a728219a3108b3",
+		},
 		componentCount: 473,
 		components: []expectedComponent{
 			{name: "python", version: "3.14.5"},                                    // generic runtime
@@ -276,7 +356,26 @@ var containerTargets = []containerTarget{
 		// ruby:3.3.4-bookworm is a Debian image whose application packages are
 		// rubygems; the count and gem versions are calibrated from the first run.
 		short: "ruby", repo: "ruby", tag: "3.3.4-bookworm",
-		digest:         "sha256:d4233f4242ea25346f157709bb8417c615e7478468e2699c8e86a4e1f0156de8",
+		digest:  "sha256:d4233f4242ea25346f157709bb8417c615e7478468e2699c8e86a4e1f0156de8",
+		imageID: "sha256:94de028496f47434dc707899bb5d38489554c3d1cc88c2501052302f8d7250ee",
+		diffIDs: []string{
+			"sha256:8f4ceb8cc1a2056b98f0424fad4715dd334aecc9769186b3ea0394f131524e27",
+			"sha256:916d866d5b0dc17158c78e5a09717fcf619b04450125caafa9c1b8f7aa6a2c45",
+			"sha256:0d80db6a0977d5ade37d5d248772c0e9aaa1b6c898ddb31b26c803ee1a9f57a2",
+			"sha256:28e03088bc157bfe42d66970cf7f47de35821aabaece5f767804902a8fa1d779",
+			"sha256:dabae3068d73ee8ac585dcb1f8a5e92853c8b08848900c149c884206c3518ec9",
+			"sha256:1668f0142f52f4a99824f74fb149d5405eedb0415c55ca90e417ac45d2368bd4",
+			"sha256:3b09e2b7aceadb3fdd11fce389a5a315748d6a6542c4d3d21fab8946c5f84470",
+		},
+		layerDigests: []string{
+			"sha256:903681d87777d28dc56866a07a2774c3fd5bf65fd734b24c9d0ecd9a13c9f636",
+			"sha256:3cbbe86a28c2f6b3c3e0e8c6dcfba369e1ea656cf8daf69be789e0fe2105982b",
+			"sha256:6ed93aa58a52c9abc1ee472f1ac74b73d3adcccc2c30744498fd5f14f3f5d22c",
+			"sha256:787c78da43830be6d988d34c7ee091f98d828516ce5478ca10a4933d655191bf",
+			"sha256:1cd9229db862d463801f9e37a37ba49d4c1aa4b46e873cb3a3e31b736835f74b",
+			"sha256:0d01fe7cfd1e043c33f90fdd5048dec68165450638b1d977c7f20ac31ed9de7b",
+			"sha256:41b75ad313a6ea8772d1021a013072df0494022b5b7c77fe7df228fb662a8f20",
+		},
 		componentCount: 557,
 		components: []expectedComponent{
 			{name: "libc6", layer: true}, // Debian glibc (OS)
@@ -346,18 +445,12 @@ func (s *sbomTargetsSuite[Env]) TestContainerSBOM() {
 				}
 				require.NotEmptyf(c, payloads, "No successful container SBOM for %s yet", target.short)
 
-				// Ground truth from the real image config and manifest for the
-				// expected digest.
-				realDiffIDs, realDigests, realImageID, err := realImageRootFS(target.repo + "@" + target.digest)
-				if !assert.NoErrorf(c, err, "failed to fetch real image config for %s", target.short) {
-					return
-				}
-				diffIDSet := make(map[string]bool, len(realDiffIDs))
-				for _, d := range realDiffIDs {
+				diffIDSet := make(map[string]bool, len(target.diffIDs))
+				for _, d := range target.diffIDs {
 					diffIDSet[d] = true
 				}
-				digestSet := make(map[string]bool, len(realDigests))
-				for _, d := range realDigests {
+				digestSet := make(map[string]bool, len(target.layerDigests))
+				for _, d := range target.layerDigests {
 					digestSet[d] = true
 				}
 
@@ -385,8 +478,8 @@ func (s *sbomTargetsSuite[Env]) TestContainerSBOM() {
 					assert.NoErrorf(c, assertTags(p.GetTags(), expectedTags, optionalTags, true), "Tags mismatch for %s", target.short)
 
 					// Metadata must match the real image config exactly.
-					assert.Equalf(c, realDiffIDs, metaDiffIDs, "DiffID list does not match the real image config for %s", target.short)
-					assert.Containsf(c, propertyValues(metaProps, propImageID), realImageID, "ImageID does not match the real image config for %s", target.short)
+					assert.Equalf(c, target.diffIDs, metaDiffIDs, "DiffID list does not match the real image config for %s", target.short)
+					assert.Containsf(c, propertyValues(metaProps, propImageID), target.imageID, "ImageID does not match the real image config for %s", target.short)
 					if repoDigests := propertyValues(metaProps, propRepoDigest); assert.NotEmptyf(c, repoDigests, "no RepoDigest for %s", target.short) {
 						// A runtime may surface several RepoDigests (crio adds the platform
 						// manifest digest next to the pulled index digest); the pinned digest
@@ -655,36 +748,4 @@ func assertComponentLayer(c assert.TestingT, diffIDs, digests map[string]bool, c
 		assert.Truef(c, digests[digest[0]], "component %q LayerDigest %q is not a real manifest layer digest of %s", comp.GetName(), digest[0], image)
 		assert.NotEqualf(c, diffID[0], digest[0], "component %q LayerDigest must differ from its LayerDiffID in %s", comp.GetName(), image)
 	}
-}
-
-// realImageRootFS fetches, from the registry, the linux/amd64 ground truth for
-// an image: the ordered rootfs DiffIDs and image config ID (ImageID) from the
-// config blob, and the ordered per-layer compressed digests from the manifest
-// blob. The manifest digests are the LayerDigest values the Agent must report
-// for runtimes that expose them (containerd, CRI-O).
-func realImageRootFS(ref string) (diffIDs []string, digests []string, imageID string, err error) {
-	img, err := crane.Pull(ref, crane.WithPlatform(&v1.Platform{OS: "linux", Architecture: "amd64"}))
-	if err != nil {
-		return nil, nil, "", err
-	}
-	configName, err := img.ConfigName()
-	if err != nil {
-		return nil, nil, "", err
-	}
-	imageID = configName.String()
-	cfg, err := img.ConfigFile()
-	if err != nil {
-		return nil, nil, "", err
-	}
-	for _, d := range cfg.RootFS.DiffIDs {
-		diffIDs = append(diffIDs, d.String())
-	}
-	manifest, err := img.Manifest()
-	if err != nil {
-		return nil, nil, "", err
-	}
-	for _, l := range manifest.Layers {
-		digests = append(digests, l.Digest.String())
-	}
-	return diffIDs, digests, imageID, nil
 }

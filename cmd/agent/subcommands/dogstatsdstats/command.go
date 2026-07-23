@@ -70,8 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func requestDogstatsdStats(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string

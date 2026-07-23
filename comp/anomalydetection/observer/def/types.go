@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -288,6 +290,41 @@ type SeriesDetector interface {
 	Detect(series Series) DetectionResult
 }
 
+// CorrelatorEventKind identifies the type of a correlator lifecycle event.
+type CorrelatorEventKind int
+
+const (
+	// CorrelatorEventEpisodeStarted fires when the scorer enters its configured episode threshold.
+	CorrelatorEventEpisodeStarted CorrelatorEventKind = iota + 1
+	// CorrelatorEventEpisodeEnded fires when the scorer leaves its configured episode threshold.
+	CorrelatorEventEpisodeEnded
+	// CorrelatorEventCorrelationDetected fires when a correlator observes a
+	// pattern for the first time (or after it has gone inactive and recurred).
+	CorrelatorEventCorrelationDetected
+)
+
+// CorrelatorEvent is a typed lifecycle event produced by a correlator during Advance.
+// Reporters receive these via ReportOutput.CorrelatorEvents and can emit backend
+// notifications without relying on the one-shot dedup logic in ActiveCorrelations.
+// Correlators own recurrence detection and produce CorrelationDetected events via
+// a shared emitter; scorer-type correlators produce EpisodeStarted/EpisodeEnded.
+type CorrelatorEvent struct {
+	Kind CorrelatorEventKind
+	// CorrelatorName identifies the correlator that produced this event.
+	CorrelatorName string
+	// Timestamp is the data time (unix seconds) when the event occurred.
+	Timestamp int64
+	// Correlation is the pattern associated with this event.
+	// For EpisodeStarted: the newly opened episode (no end time yet).
+	// For EpisodeEnded: the closed episode with the final LastUpdated.
+	// For CorrelationDetected: the full active correlation at first-seen time.
+	Correlation ActiveCorrelation
+	// FromLevel and ToLevel carry the scorer severity transition.
+	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
+	FromLevel severityeventsdef.SeverityLevel
+	ToLevel   severityeventsdef.SeverityLevel
+}
+
 // Correlator accumulates anomaly events and produces correlated patterns.
 // Correlators are stateful and cluster/filter/summarize anomaly streams.
 //
@@ -305,12 +342,17 @@ type Correlator interface {
 	Advance(dataTime int64)
 	// ActiveCorrelations returns currently detected correlation patterns.
 	ActiveCorrelations() []ActiveCorrelation
+	// PendingEvents returns and drains typed lifecycle events accumulated during
+	// the last Advance call. The caller owns the returned slice; the correlator
+	// discards it after this call. Returns nil when no events are pending.
+	// Correlators with no lifecycle events (e.g. time-cluster) always return nil.
+	PendingEvents() []CorrelatorEvent
 	// Reset clears all internal state for reanalysis.
 	Reset()
 }
 
-// ScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
-type ScorerConfig struct {
+// AnomalyScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
+type AnomalyScorerConfig struct {
 	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
 	Alpha float64 `json:"alpha"`
 	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
@@ -321,15 +363,27 @@ type ScorerConfig struct {
 	// function is applied to the number of unique series in the window, not to the
 	// per-second event count.
 	WindowSecs int64 `json:"window_secs"`
+	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
+	LowThreshold float64 `json:"low_threshold"`
+	// HighThreshold is the EWMA level defining the Medium/High severity boundary.
+	HighThreshold float64 `json:"high_threshold"`
+	// MarginPct is the hysteresis margin as a fraction of HighThreshold.
+	// effectiveMargin = HighThreshold × MarginPct.
+	MarginPct float64 `json:"margin_pct"`
 	// DetectorThresholds overrides the default score-to-level boundaries for
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map default to level 2 (Medium) regardless of their score.
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+	// MaxBuckets overrides the number of AnomalyScoreBucket entries retained in
+	// ScoreState(). 0 (default) means "cap at WindowSecs", which is the
+	// correct behaviour for the live agent. Set to a large positive value
+	// (e.g. math.MaxInt64) to keep an unlimited history for offline replay.
+	MaxBuckets int64 `json:"max_buckets,omitempty"`
 }
 
-// ScoreBucket is the per-second telemetry unit emitted by the scorer.
+// AnomalyScoreBucket is the per-second telemetry unit emitted by the scorer.
 // One bucket is produced for every 1-second tick, even if it has no anomalies.
-type ScoreBucket struct {
+type AnomalyScoreBucket struct {
 	// Second is the Unix timestamp (floor) for this bucket.
 	Second int64 `json:"second"`
 	// Bins[L] is the number of deduplicated anomalies at level L (0=VeryLow … 4=XHigh).
@@ -342,31 +396,10 @@ type ScoreBucket struct {
 	Ewma float64 `json:"ewma"`
 }
 
-// ScoreState is the accumulated telemetry snapshot from the scorer.
-type ScoreState struct {
-	Buckets []ScoreBucket `json:"buckets"`
-	Config  ScorerConfig  `json:"config"`
-}
-
-// AnomalyScorer computes a smoothed anomaly intensity signal (EWMA) from the
-// stream of anomalies produced by the detection pipeline. It mirrors the
-// Correlator lifecycle: ProcessAnomaly → Advance (once per second tick) → ScoreState → Reset.
-type AnomalyScorer interface {
-	// Name returns the scorer name for debugging.
-	Name() string
-	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
-	ProcessAnomaly(a Anomaly)
-	// Advance finalises the bucket at dataTime (unix seconds) and runs the
-	// EWMA update for that second. Callers must invoke this after each
-	// 1-second detection cycle.
-	Advance(dataTime int64)
-	// LastScore returns the most recently computed EWMA score. Returns 0
-	// before the first Advance call.
-	LastScore() float64
-	// ScoreState returns the accumulated telemetry (all buckets so far).
-	ScoreState() ScoreState
-	// Reset clears all internal state for reanalysis.
-	Reset()
+// AnomalyScoreState is the accumulated telemetry snapshot from the scorer.
+type AnomalyScoreState struct {
+	Buckets []AnomalyScoreBucket `json:"buckets"`
+	Config  AnomalyScorerConfig  `json:"config"`
 }
 
 // Reporter receives reports and displays or delivers them.
@@ -398,6 +431,10 @@ type RawAnomalyState interface {
 // TelemetryNamespace is the storage namespace used for observer-internal debug
 // metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
 const TelemetryNamespace = "telemetry"
+
+// AgentNamespace is the storage namespace used for internal agent telemetry
+// while normalizing datadog.* metrics before they are dropped.
+const AgentNamespace = "agent"
 
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {

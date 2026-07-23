@@ -58,16 +58,6 @@ const (
 	installerSymlink = "/usr/bin/datadog-installer"
 )
 
-// getExtensionStoragePath returns the path where extension lists should be stored.
-// On Linux, for OCI packages use RootTmpDir (temporary storage under installer data),
-// otherwise use the package path itself.
-func getExtensionStoragePath(packagePath string) string {
-	if strings.HasPrefix(packagePath, paths.PackagesPath) {
-		return paths.RootTmpDir
-	}
-	return packagePath
-}
-
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
@@ -433,11 +423,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to uninstall filesystem: %s", err)
 		}
 	case true:
-		storagePath := ctx.PackagePath
-		if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-			storagePath = paths.RootTmpDir
-		}
-		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, storagePath); err != nil {
+		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -466,7 +452,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
-	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RootTmpDir); err != nil {
+	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 	if err := saveAgentExtensions(ctx, false); err != nil {
