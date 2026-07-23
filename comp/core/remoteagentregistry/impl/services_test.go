@@ -299,6 +299,115 @@ authoritative_emitter_metric{` + testCase.labels + `} 1
 	}
 }
 
+func TestGetTelemetryCoalescesCanonicalEmitterCollisions(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	require.NoError(t, lc.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, lc.Stop(context.Background()))
+	})
+
+	promText := `
+# HELP collision_counter Counter samples that collide after emitter canonicalization
+# TYPE collision_counter counter
+collision_counter{emitter="spoofed-one",source="same"} 2
+collision_counter{source="same",emitter="spoofed-two"} 3
+collision_counter{emitter="spoofed-three",source="different"} 7
+# HELP collision_gauge Gauge samples that collide after emitter canonicalization
+# TYPE collision_gauge gauge
+collision_gauge{emitter="spoofed-one",region="us",status="ok"} 11
+collision_gauge{status="ok",emitter="spoofed-two",region="us"} 13
+# HELP collision_histogram Histogram samples that collide after emitter canonicalization
+# TYPE collision_histogram histogram
+collision_histogram_bucket{emitter="spoofed-one",source="same",le="0.5"} 1
+collision_histogram_bucket{emitter="spoofed-one",source="same",le="1"} 2
+collision_histogram_bucket{emitter="spoofed-one",source="same",le="+Inf"} 3
+collision_histogram_sum{emitter="spoofed-one",source="same"} 2.5
+collision_histogram_count{emitter="spoofed-one",source="same"} 3
+collision_histogram_bucket{source="same",emitter="spoofed-two",le="0.5"} 4
+collision_histogram_bucket{source="same",emitter="spoofed-two",le="1"} 5
+collision_histogram_bucket{source="same",emitter="spoofed-two",le="+Inf"} 6
+collision_histogram_sum{source="same",emitter="spoofed-two"} 8.5
+collision_histogram_count{source="same",emitter="spoofed-two"} 6
+# HELP collision_key_gauge Distinct samples with delimiter-sensitive label layouts
+# TYPE collision_key_gauge gauge
+collision_key_gauge{emitter="spoofed-one",a="b:c",d="e"} 10
+collision_key_gauge{emitter="spoofed-two",a="b",c="d:e"} 20
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricsMap := metricsToMap(metrics)
+
+	counterFamily := metricsMap["collision_counter"]
+	require.NotNil(t, counterFamily)
+	require.Len(t, counterFamily.GetMetric(), 2)
+	counterValues := make(map[string]float64, 2)
+	for _, metric := range counterFamily.GetMetric() {
+		requireRegisteredEmitter(t, metric, "registered-agent")
+		counterValues[metricLabelValue(metric, "source")] = metric.GetCounter().GetValue()
+	}
+	require.Equal(t, map[string]float64{"same": 5, "different": 7}, counterValues)
+
+	gaugeFamily := metricsMap["collision_gauge"]
+	require.NotNil(t, gaugeFamily)
+	require.Len(t, gaugeFamily.GetMetric(), 1)
+	requireRegisteredEmitter(t, gaugeFamily.GetMetric()[0], "registered-agent")
+	require.Equal(t, float64(24), gaugeFamily.GetMetric()[0].GetGauge().GetValue())
+
+	histogramFamily := metricsMap["collision_histogram"]
+	require.NotNil(t, histogramFamily)
+	require.Len(t, histogramFamily.GetMetric(), 1)
+	histogramMetric := histogramFamily.GetMetric()[0]
+	requireRegisteredEmitter(t, histogramMetric, "registered-agent")
+	require.Equal(t, "same", metricLabelValue(histogramMetric, "source"))
+	require.Equal(t, uint64(9), histogramMetric.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(11), histogramMetric.GetHistogram().GetSampleSum())
+	bucketCounts := make(map[float64]uint64)
+	for _, bucket := range histogramMetric.GetHistogram().GetBucket() {
+		bucketCounts[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+	}
+	require.Equal(t, map[float64]uint64{0.5: 5, 1: 7, math.Inf(1): 9}, bucketCounts)
+
+	keyFamily := metricsMap["collision_key_gauge"]
+	require.NotNil(t, keyFamily)
+	require.Len(t, keyFamily.GetMetric(), 2)
+	labelsByValue := make(map[float64]map[string]string, 2)
+	for _, metric := range keyFamily.GetMetric() {
+		requireRegisteredEmitter(t, metric, "registered-agent")
+		labels := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			labels[label.GetName()] = label.GetValue()
+		}
+		labelsByValue[metric.GetGauge().GetValue()] = labels
+	}
+	require.Equal(t, map[string]string{"a": "b:c", "d": "e", emitterMetricTagName: "registered-agent"}, labelsByValue[10])
+	require.Equal(t, map[string]string{"a": "b", "c": "d:e", emitterMetricTagName: "registered-agent"}, labelsByValue[20])
+}
+
+func requireRegisteredEmitter(t *testing.T, metric *io_prometheus_client.Metric, expected string) {
+	t.Helper()
+	emitterCount := 0
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == emitterMetricTagName {
+			emitterCount++
+			require.Equal(t, expected, label.GetValue())
+		}
+	}
+	require.Equal(t, 1, emitterCount)
+}
+
+func metricLabelValue(metric *io_prometheus_client.Metric, name string) string {
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
+}
+
 func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
 	testCases := []struct {
 		name        string
