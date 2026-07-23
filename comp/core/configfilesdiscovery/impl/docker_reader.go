@@ -16,6 +16,7 @@ import (
 	"path"
 	"strings"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -39,13 +40,14 @@ func newDockerConfigClient() (dockerConfigClient, error) {
 type dockerConfigReader struct {
 	containerID string
 	client      dockerConfigClient
+	store       workloadmeta.Component
 }
 
-func newDockerConfigReader(t target) (ConfigReader, error) {
-	return newDockerConfigReaderWithClientFactory(t, newDockerConfigClient)
+func newDockerConfigReader(t target, store workloadmeta.Component) (ConfigReader, error) {
+	return newDockerConfigReaderWithClientFactory(t, store, newDockerConfigClient)
 }
 
-func newDockerConfigReaderWithClientFactory(t target, newClient func() (dockerConfigClient, error)) (ConfigReader, error) {
+func newDockerConfigReaderWithClientFactory(t target, store workloadmeta.Component, newClient func() (dockerConfigClient, error)) (ConfigReader, error) {
 	if t.runtime != RuntimeDocker {
 		return nil, fmt.Errorf("unsupported runtime %q", t.runtime)
 	}
@@ -58,10 +60,14 @@ func newDockerConfigReaderWithClientFactory(t target, newClient func() (dockerCo
 		return nil, err
 	}
 
-	return newDockerConfigReaderWithClient(t.entityID, client), nil
+	return &dockerConfigReader{
+		containerID: t.entityID,
+		client:      client,
+		store:       store,
+	}, nil
 }
 
-func newDockerConfigReaderWithClient(containerID string, client dockerConfigClient) ConfigReader {
+func newDockerConfigReaderWithClient(containerID string, client dockerConfigClient) *dockerConfigReader {
 	return &dockerConfigReader{
 		containerID: containerID,
 		client:      client,
@@ -102,13 +108,16 @@ func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, names []string) (m
 	return filterEnvVars(envEntries, names), nil
 }
 
-func (r *dockerConfigReader) ReadCommandline(ctx context.Context) (TargetCommandline, error) {
+func (r *dockerConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {
 	commandline, err := r.client.getCommandline(ctx, r.containerID)
 	if err != nil {
 		return TargetCommandline{}, fmt.Errorf("get docker container command line: %w", err)
 	}
-
 	return commandline, nil
+}
+
+func (r *dockerConfigReader) ReadLiveProcessCommandlines(ctx context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(ctx, r.store, r.containerID, readLiveProcessWorkingDir)
 }
 
 func readConfigFileFromDockerArchive(r io.Reader, requestedPath string) (ConfigFile, error) {

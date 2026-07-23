@@ -54,7 +54,7 @@ type CollectedConfig struct {
 	EnvVars     []ConfigEnvVar
 }
 
-// TargetCommandline is the command line used to start the target service.
+// TargetCommandline is a candidate process command line associated with the target.
 type TargetCommandline struct {
 	Args       []string
 	WorkingDir string
@@ -65,7 +65,8 @@ type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, string) (ConfigFile, error)
 	ReadEnvVars(context.Context, []string) (map[string]string, error)
-	ReadCommandline(context.Context) (TargetCommandline, error)
+	ReadRuntimeCommandline(context.Context) (TargetCommandline, error)
+	ReadLiveProcessCommandlines(context.Context) []TargetCommandline
 	Close()
 }
 
@@ -73,6 +74,8 @@ type configReaderFactory func(target) (ConfigReader, error)
 
 // ConfigCollector reads integration-specific config data through a collector reader.
 type ConfigCollector interface {
+	// MatchesCommandline returns whether a process command line can identify this integration's config file.
+	MatchesCommandline([]string) bool
 	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 

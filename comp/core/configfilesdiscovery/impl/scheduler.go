@@ -81,6 +81,17 @@ type watchedConfig struct {
 	nextCollection time.Time
 	// inFlight covers both collection and the subsequent batched send.
 	inFlight bool
+	// processRetryReady is set after a collection completes without config
+	// files. Until then, process events are remembered but cannot bypass the
+	// initial startup deadline.
+	processRetryReady bool
+	// processRetryDisabled is set once collection finds config files.
+	processRetryDisabled bool
+	// processEventSeen bounds the fallback to one matching process event.
+	processEventSeen bool
+	// processRetryPending requests a follow-up after the current collection or
+	// batched send completes.
+	processRetryPending bool
 }
 
 // pendingCollectedConfig holds a collected payload until its batch has been
@@ -304,12 +315,6 @@ func (s *adScheduler) isActiveWatchLocked(watch *watchedConfig) bool {
 	return watch != nil && s.watches[watch.key] == watch
 }
 
-func (s *adScheduler) isActiveWatch(watch *watchedConfig) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.isActiveWatchLocked(watch)
-}
-
 func (s *adScheduler) enqueueCollectionLocked(watch *watchedConfig) {
 	if watch.inFlight {
 		return
@@ -482,7 +487,7 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 		s.finishCollection(watch, s.clock.Now().Add(s.nextHeartbeatDelay()))
 		return pendingCollectedConfig{}, false
 	}
-	if !s.isActiveWatch(watch) {
+	if !s.prepareCollectedConfig(watch, len(collected.ConfigFiles) > 0) {
 		return pendingCollectedConfig{}, false
 	}
 
@@ -510,11 +515,38 @@ func (s *adScheduler) snapshotWatch(watch *watchedConfig) (string, string, targe
 	return watch.integration, watch.serviceID, watch.target, true
 }
 
+// prepareCollectedConfig updates the process fallback after collection produced
+// data. Returns false when the watch was unscheduled or replaced while the
+// collector was running.
+func (s *adScheduler) prepareCollectedConfig(watch *watchedConfig, hasConfigFiles bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.isActiveWatchLocked(watch) {
+		return false
+	}
+	if hasConfigFiles {
+		watch.processRetryDisabled = true
+		watch.processRetryPending = false
+	} else {
+		watch.processRetryReady = true
+	}
+	return true
+}
+
 func (s *adScheduler) finishCollection(watch *watchedConfig, nextCollection time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if !s.isActiveWatchLocked(watch) {
+		return
+	}
+	watch.processRetryReady = true
+	if watch.processRetryPending {
+		watch.processRetryPending = false
+		watch.nextCollection = time.Time{}
+		watch.inFlight = false
+		s.enqueueCollectionLocked(watch)
 		return
 	}
 	watch.nextCollection = nextCollection
@@ -546,6 +578,13 @@ func (s *adScheduler) finishSend(pendingConfigs []pendingCollectedConfig, succes
 			continue
 		}
 
+		if watch.processRetryPending {
+			watch.processRetryPending = false
+			watch.nextCollection = time.Time{}
+			watch.inFlight = false
+			s.enqueueCollectionLocked(watch)
+			continue
+		}
 		watch.nextCollection = nextCollection
 		watch.inFlight = false
 	}

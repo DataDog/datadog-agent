@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	criutil "github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,9 +58,10 @@ var newKubernetesConfigClient = func() (kubernetesConfigClient, error) {
 type kubernetesConfigReader struct {
 	containerID string
 	client      kubernetesConfigClient
+	store       workloadmeta.Component
 }
 
-func newKubernetesConfigReader(t target) (ConfigReader, error) {
+func newKubernetesConfigReader(t target, store workloadmeta.Component) (ConfigReader, error) {
 	if t.runtime != RuntimeKubernetes {
 		return nil, fmt.Errorf("unsupported runtime %q", t.runtime)
 	}
@@ -72,10 +74,14 @@ func newKubernetesConfigReader(t target) (ConfigReader, error) {
 		return nil, err
 	}
 
-	return newKubernetesConfigReaderWithClient(t.entityID, client), nil
+	return &kubernetesConfigReader{
+		containerID: t.entityID,
+		client:      client,
+		store:       store,
+	}, nil
 }
 
-func newKubernetesConfigReaderWithClient(containerID string, client kubernetesConfigClient) ConfigReader {
+func newKubernetesConfigReaderWithClient(containerID string, client kubernetesConfigClient) *kubernetesConfigReader {
 	return &kubernetesConfigReader{
 		containerID: containerID,
 		client:      client,
@@ -136,26 +142,27 @@ func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, names []string
 	return filterEnvVars(spec.Process.Env, names), nil
 }
 
-func (r *kubernetesConfigReader) ReadCommandline(ctx context.Context) (TargetCommandline, error) {
+func (r *kubernetesConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {
 	spec, err := r.client.containerSpec(ctx, r.containerID)
 	if err != nil {
 		return TargetCommandline{}, fmt.Errorf("get kubernetes container OCI spec: %w", err)
 	}
 
+	commandline := TargetCommandline{WorkingDir: "/"}
 	if spec == nil || spec.Process == nil {
-		return TargetCommandline{WorkingDir: "/"}, nil
+		return commandline, nil
 	}
 
-	args := append([]string(nil), spec.Process.Args...)
-	workingDir := spec.Process.Cwd
-	if workingDir == "" {
-		workingDir = "/"
+	commandline.Args = append([]string(nil), spec.Process.Args...)
+	if spec.Process.Cwd != "" {
+		commandline.WorkingDir = spec.Process.Cwd
 	}
 
-	return TargetCommandline{
-		Args:       args,
-		WorkingDir: workingDir,
-	}, nil
+	return commandline, nil
+}
+
+func (r *kubernetesConfigReader) ReadLiveProcessCommandlines(ctx context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(ctx, r.store, r.containerID, readLiveProcessWorkingDir)
 }
 
 func kubernetesExecExitError(exitCode int32, stderr []byte) error {
