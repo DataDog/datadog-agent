@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -134,7 +135,7 @@ var (
 	}
 
 	// agentServiceOCI are the services that are part of the agent package
-	agentService = datadogAgentService{
+	agentService datadogAgentServiceManager = &datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
 		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgr.service"},
@@ -227,10 +228,14 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 
 	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
-	if err = retireLegacyProcmgrUnits(ctx); err != nil {
-		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
-	}
+	warnIfLegacyProcmgrRetirementFails(ctx, retireLegacyProcmgrUnits)
 	return nil
+}
+
+func warnIfLegacyProcmgrRetirementFails(ctx HookContext, retire func(HookContext) error) {
+	if err := retire(ctx); err != nil {
+		log.Warnf("failed to retire legacy procmgr units, continuing with Agent service installation: %s", err)
+	}
 }
 
 // retireLegacyProcmgrUnits stops, disables, and deletes pre-rename procmgr systemd units.
@@ -319,41 +324,73 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	return packagemanager.RemovePackage(ctx, agentPackage)
 }
 
+type datadogAgentPostInstallDeps struct {
+	installFilesystem               func(HookContext) error
+	restoreCustomIntegrations       func(context.Context, string) error
+	fixRestoredIntegrationOwnership func(HookContext) error
+	restoreODBCConfig               func(string) error
+	getCurrentAgentVersion          func() string
+	setPackage                      func(context.Context, string, string, bool) error
+	restoreAgentExtensions          func(HookContext, string, bool) error
+	installAgentExtensions          func(HookContext, string, bool) error
+	writeDDOTProcmgrConfig          func(string) error
+	service                         datadogAgentServiceManager
+}
+
+func newDatadogAgentPostInstallDeps() datadogAgentPostInstallDeps {
+	return datadogAgentPostInstallDeps{
+		installFilesystem:               installFilesystem,
+		restoreCustomIntegrations:       integrations.RestoreCustomIntegrations,
+		fixRestoredIntegrationOwnership: fixRestoredIntegrationOwnership,
+		restoreODBCConfig:               restoreODBCConfig,
+		getCurrentAgentVersion:          getCurrentAgentVersion,
+		setPackage:                      extensionsPkg.SetPackage,
+		restoreAgentExtensions:          restoreAgentExtensions,
+		installAgentExtensions:          installAgentExtensions,
+		writeDDOTProcmgrConfig:          writeDDOTProcmgrConfig,
+		service:                         agentService,
+	}
+}
+
 // postInstallDatadogAgent performs post-installation steps for the agent
 func postInstallDatadogAgent(ctx HookContext) (err error) {
-	if err := installFilesystem(ctx); err != nil {
-		return err
+	return postInstallDatadogAgentWithDeps(ctx, newDatadogAgentPostInstallDeps())
+}
+
+func postInstallDatadogAgentWithDeps(ctx HookContext, deps datadogAgentPostInstallDeps) (err error) {
+	if err := deps.installFilesystem(ctx); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrFilesystemIssue, err)
 	}
-	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
+	if err := deps.restoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Errorf("failed to restore custom integrations: %s", err)
 	}
-	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
+	if err := deps.fixRestoredIntegrationOwnership(ctx); err != nil {
 		log.Warnf("failed to fix restored integration file ownership: %s", err)
 	}
-	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
+	if err := deps.restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
-	agentVersion := getCurrentAgentVersion()
-	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
-		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	agentVersion := deps.getCurrentAgentVersion()
+	if err := deps.setPackage(ctx, agentPackage, agentVersion, false); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrFilesystemIssue, fmt.Errorf("failed to set package version in extensions db: %w", err))
 	}
-	if err := restoreAgentExtensions(ctx, agentVersion, false); err != nil {
+	if err := deps.restoreAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
 	}
-	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
+	if err := deps.installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
 	}
-	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+	if err := deps.writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to write DDOT process manager config: %v", err)
 	}
-	if err := agentService.WriteStable(ctx); err != nil {
-		return fmt.Errorf("failed to write stable units: %s", err)
+	if err := deps.service.WriteStable(ctx); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrFilesystemIssue, fmt.Errorf("failed to write stable units: %w", err))
 	}
-	if err := agentService.EnableStable(ctx); err != nil {
-		return fmt.Errorf("failed to install stable unit: %s", err)
+	if err := deps.service.EnableStable(ctx); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrFilesystemIssue, fmt.Errorf("failed to install stable unit: %w", err))
 	}
-	if err := agentService.RestartStable(ctx); err != nil {
-		return fmt.Errorf("failed to restart stable unit: %s", err)
+	if err := deps.service.RestartStable(ctx); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrFilesystemIssue, fmt.Errorf("failed to restart stable unit: %w", err))
 	}
 	return nil
 }
@@ -617,6 +654,19 @@ type datadogAgentService struct {
 
 	SysvinitMainService string
 	SysvinitServices    []string
+}
+
+type datadogAgentServiceManager interface {
+	EnableStable(HookContext) error
+	DisableStable(HookContext) error
+	RestartStable(HookContext) error
+	StopStable(HookContext) error
+	WriteStable(HookContext) error
+	RemoveStable(HookContext) error
+	StartExperiment(HookContext) error
+	StopExperiment(HookContext) error
+	WriteExperiment(HookContext) error
+	RemoveExperiment(HookContext) error
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {

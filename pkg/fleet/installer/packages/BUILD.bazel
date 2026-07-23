@@ -22,6 +22,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/exec",
         "//pkg/fleet/installer/oci",
         "//pkg/fleet/installer/packages/extensions",
@@ -86,12 +87,15 @@ go_test(
     srcs = [
         "apm_inject_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_linux_test.go",
         "otel_config_common_test.go",
     ],
     embed = [":packages"],
     gotags = ["test"],
     deps = [
+        "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/packages/extensions",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v3//:yaml_v3",

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix Agent upgrades on systemd hosts so a failure while removing legacy
+    ``datadog-agent-procmgrd`` units no longer prevents installation of the
+    current Agent service units.
