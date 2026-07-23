@@ -17,6 +17,7 @@ go_library(
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
         "//comp/logs-library/diagnostic",
+        "//comp/logs-library/metrics",
         "//comp/logs-library/pipeline",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
