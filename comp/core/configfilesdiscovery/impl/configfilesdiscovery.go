@@ -24,6 +24,7 @@ import (
 const (
 	heartbeatIntervalConfigKey = "config_files_discovery.heartbeat_interval"
 	heartbeatJitterConfigKey   = "config_files_discovery.heartbeat_jitter"
+	startupJitterConfigKey     = "config_files_discovery.startup_jitter"
 )
 
 // Requires defines the dependencies for the config files discovery component.
@@ -122,6 +123,14 @@ func adSchedulerConfigFromAgentConfig(agentConfig config.Component) adSchedulerC
 		cfg.heartbeatJitter = jitterLimit
 	default:
 		cfg.heartbeatJitter = heartbeatJitter
+	}
+
+	startupJitter := agentConfig.GetDuration(startupJitterConfigKey)
+	if startupJitter < 0 {
+		log.Warnf("configured %s must be non-negative, using 0", startupJitterConfigKey)
+		cfg.startupJitter = 0
+	} else {
+		cfg.startupJitter = startupJitter
 	}
 
 	if cfg.heartbeatCheckInterval > cfg.heartbeatInterval/10 {

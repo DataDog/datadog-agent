@@ -27,6 +27,7 @@ const (
 	defaultHeartbeatInterval      = time.Hour
 	defaultHeartbeatJitter        = 10 * time.Minute
 	maxHeartbeatJitter            = time.Hour
+	defaultStartupJitter          = time.Minute
 	defaultHeartbeatRetryInterval = 5 * time.Minute
 	defaultHeartbeatCheckInterval = time.Minute
 )
@@ -37,8 +38,16 @@ type adScheduler struct {
 	collectors map[string]ConfigCollector
 	sender     collectedConfigSender
 
-	heartbeatInterval      time.Duration
-	heartbeatJitter        time.Duration
+	heartbeatInterval time.Duration
+	heartbeatJitter   time.Duration
+	// startupDelay is selected once and starts with the first valid AD config.
+	startupDelay time.Duration
+	// startupNotBefore is shared by configs discovered during Agent startup so
+	// their first collections stay batchable while Agents spread their sends.
+	startupNotBefore time.Time
+	// startupTimer releases startup configs at their shared deadline.
+	startupTimer *clock.Timer
+
 	heartbeatRetryInterval time.Duration
 	heartbeatCheckInterval time.Duration
 	clock                  clock.Clock
@@ -67,7 +76,7 @@ type watchedConfig struct {
 	serviceID string
 	// target identifies the runtime and entity to inspect on each collection.
 	target target
-	// nextCollection is either the next heartbeat or a retry deadline.
+	// nextCollection is the startup, heartbeat, or retry deadline.
 	nextCollection time.Time
 	// inFlight covers both collection and the subsequent batched send.
 	inFlight bool
@@ -139,6 +148,7 @@ func collectedConfigRawBytes(config collectedConfig) int {
 type adSchedulerConfig struct {
 	heartbeatInterval      time.Duration
 	heartbeatJitter        time.Duration
+	startupJitter          time.Duration
 	heartbeatRetryInterval time.Duration
 	heartbeatCheckInterval time.Duration
 	clock                  clock.Clock
@@ -149,6 +159,7 @@ func defaultADSchedulerConfig() adSchedulerConfig {
 	return adSchedulerConfig{
 		heartbeatInterval:      defaultHeartbeatInterval,
 		heartbeatJitter:        defaultHeartbeatJitter,
+		startupJitter:          defaultStartupJitter,
 		heartbeatRetryInterval: defaultHeartbeatRetryInterval,
 		heartbeatCheckInterval: defaultHeartbeatCheckInterval,
 		clock:                  clock.New(),
@@ -163,18 +174,23 @@ func randomJitter(maxJitter time.Duration) time.Duration {
 	return time.Duration(rand.Int63n(int64(2*maxJitter)+1)) - maxJitter //nolint:gosec // Jitter is for scheduling spread, not security.
 }
 
-// newADScheduler builds the long-lived config watcher registered with autodiscovery.
-// It collects configs when they are scheduled and retains them for periodic
-// heartbeats until autodiscovery unschedules them or the scheduler stops.
-func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]ConfigCollector, sender collectedConfigSender) *adScheduler {
-	return newADSchedulerWithConfig(resolver, readers, collectors, sender, defaultADSchedulerConfig())
+func startupDelay(maxDelay time.Duration, jitter func(time.Duration) time.Duration) time.Duration {
+	if maxDelay <= 0 {
+		return 0
+	}
+	halfDelay := maxDelay / 2
+	return halfDelay + jitter(halfDelay)
 }
 
+// newADSchedulerWithConfig builds the long-lived config watcher registered with autodiscovery.
+// It collects configs when they are scheduled and retains them for periodic
+// heartbeats until autodiscovery unschedules them or the scheduler stops.
 func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]ConfigCollector, sender collectedConfigSender, cfg adSchedulerConfig) *adScheduler {
 	if sender == nil {
 		sender = noopCollectedConfigSender{}
 	}
 	cfg = normalizeADSchedulerConfig(cfg)
+	initialDelay := startupDelay(cfg.startupJitter, cfg.jitter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &adScheduler{
@@ -184,6 +200,7 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 		sender:                 sender,
 		heartbeatInterval:      cfg.heartbeatInterval,
 		heartbeatJitter:        cfg.heartbeatJitter,
+		startupDelay:           initialDelay,
 		heartbeatRetryInterval: cfg.heartbeatRetryInterval,
 		heartbeatCheckInterval: cfg.heartbeatCheckInterval,
 		clock:                  cfg.clock,
@@ -208,6 +225,9 @@ func normalizeADSchedulerConfig(cfg adSchedulerConfig) adSchedulerConfig {
 	}
 	if jitterLimit := heartbeatJitterLimit(cfg.heartbeatInterval); cfg.heartbeatJitter > jitterLimit {
 		cfg.heartbeatJitter = jitterLimit
+	}
+	if cfg.startupJitter < 0 {
+		cfg.startupJitter = 0
 	}
 	if cfg.heartbeatRetryInterval <= 0 {
 		cfg.heartbeatRetryInterval = defaultHeartbeatRetryInterval
@@ -254,6 +274,12 @@ func (s *adScheduler) trackAndEnqueue(config integration.Config, target target) 
 
 	key := watchKey(config)
 	watch, ok := s.watches[key]
+	if s.startupNotBefore.IsZero() {
+		s.startupNotBefore = s.clock.Now().Add(s.startupDelay)
+		if s.startupDelay > 0 {
+			s.startupTimer = s.clock.AfterFunc(s.startupDelay, s.enqueueDueCollections)
+		}
+	}
 	if !ok {
 		watch = &watchedConfig{
 			key: key,
@@ -263,6 +289,10 @@ func (s *adScheduler) trackAndEnqueue(config integration.Config, target target) 
 	watch.integration = config.Name
 	watch.serviceID = config.ServiceID
 	watch.target = target
+	if !ok && s.clock.Now().Before(s.startupNotBefore) {
+		watch.nextCollection = s.startupNotBefore
+		return
+	}
 
 	if ok && (watch.inFlight || !watch.nextCollection.IsZero()) {
 		return
@@ -502,9 +532,17 @@ func (s *adScheduler) finishCollectionWithError(watch *watchedConfig) {
 	s.finishCollection(watch, s.clock.Now().Add(s.nextRetryDelay()))
 }
 
-// finishSend updates heartbeat or retry state after a batched send completes.
+// finishSend assigns every active watch in a batch the same heartbeat or retry
+// deadline so subsequent collections can remain batched.
 func (s *adScheduler) finishSend(pendingConfigs []pendingCollectedConfig, success bool) {
 	now := s.clock.Now()
+	var nextDelay time.Duration
+	if success {
+		nextDelay = s.nextHeartbeatDelay()
+	} else {
+		nextDelay = s.nextRetryDelay()
+	}
+	nextCollection := now.Add(nextDelay)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -515,11 +553,7 @@ func (s *adScheduler) finishSend(pendingConfigs []pendingCollectedConfig, succes
 			continue
 		}
 
-		if success {
-			watch.nextCollection = now.Add(s.nextHeartbeatDelay())
-		} else {
-			watch.nextCollection = now.Add(s.nextRetryDelay())
-		}
+		watch.nextCollection = nextCollection
 		watch.inFlight = false
 	}
 }
@@ -563,6 +597,11 @@ func (s *adScheduler) Unschedule(configs []integration.Config) {
 func (s *adScheduler) Stop() {
 	s.stopOnce.Do(func() {
 		s.cancel()
+		s.mu.Lock()
+		if s.startupTimer != nil {
+			s.startupTimer.Stop()
+		}
+		s.mu.Unlock()
 		s.workerDone.Wait()
 	})
 }

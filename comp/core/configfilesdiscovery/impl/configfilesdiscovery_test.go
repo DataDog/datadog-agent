@@ -276,7 +276,7 @@ func TestSchedulerDispatchesKubernetesOwnedContainerToKubernetesReader(t *testin
 
 	collector := &recordingConfigCollector{}
 	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeKubernetes}}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{store: store},
 		map[RuntimeType]configReaderFactory{RuntimeKubernetes: readerFactory.Build},
 		map[string]ConfigCollector{"redis": collector},
@@ -321,7 +321,7 @@ func TestSchedulerClosesReaderAfterCollection(t *testing.T) {
 					close(closed)
 				},
 			})
-			s := newADScheduler(
+			s := newTestADScheduler(
 				targetResolver{},
 				map[RuntimeType]configReaderFactory{RuntimeDocker: readerFactory},
 				map[string]ConfigCollector{"redis": collector},
@@ -349,7 +349,7 @@ func TestSchedulerClosesReaderAfterCollection(t *testing.T) {
 func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 	collector := &recordingConfigCollector{}
 	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
 		map[string]ConfigCollector{"redis": collector},
@@ -374,7 +374,7 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
 	collector := &recordingConfigCollector{}
 	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeDocker}}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: readerFactory.Build},
 		map[string]ConfigCollector{"redis": collector},
@@ -398,7 +398,7 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 		unblock: make(chan struct{}),
 	}
 	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
 		map[string]ConfigCollector{"redis": collector},
@@ -436,7 +436,7 @@ func TestSchedulerSendsCollectedConfig(t *testing.T) {
 			},
 		},
 	}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{"redisdb": collector},
@@ -473,7 +473,7 @@ func TestSchedulerBatchesMultipleCompletedConfigCollections(t *testing.T) {
 			},
 		},
 	}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{testRedisIntegrationName: collector},
@@ -500,7 +500,7 @@ func TestSchedulerFlushesConfigCollectionBatchOnTimeout(t *testing.T) {
 			},
 		},
 	}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{testRedisIntegrationName: collector},
@@ -536,7 +536,7 @@ func TestSchedulerFlushesOversizedConfigCollectionAlone(t *testing.T) {
 			},
 		},
 	}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{testRedisIntegrationName: collector},
@@ -562,7 +562,7 @@ func TestSchedulerFlushesPendingConfigCollectionBatchOnStop(t *testing.T) {
 			},
 		},
 	}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{testRedisIntegrationName: collector},
@@ -576,6 +576,109 @@ func TestSchedulerFlushesPendingConfigCollectionBatchOnStop(t *testing.T) {
 	batches := sender.waitForBatches(t, 1)
 	require.Len(t, batches[0], 1)
 	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
+}
+
+func TestSchedulerAppliesSharedStartupJitter(t *testing.T) {
+	mockClock := clock.NewMock()
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		nil,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        0,
+			startupJitter:          time.Minute,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Hour,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	firstConfig := checkConfig(testRedisIntegrationName, "docker://abc123")
+	secondConfig := checkConfig(testRedisIntegrationName, "docker://def456")
+	s.Schedule([]integration.Config{firstConfig, secondConfig})
+
+	wantStartup := mockClock.Now().Add(30 * time.Second)
+	for _, config := range []integration.Config{firstConfig, secondConfig} {
+		nextCollection, inFlight, ok := watchedConfigState(s, config)
+		require.True(t, ok)
+		assert.False(t, inFlight)
+		assert.Equal(t, wantStartup, nextCollection)
+	}
+	require.Never(t, func() bool {
+		return len(collector.recordedRuns()) > 0
+	}, 50*time.Millisecond, 5*time.Millisecond)
+
+	mockClock.Add(30 * time.Second)
+	collector.waitForRuns(t, 2)
+
+	thirdConfig := checkConfig(testRedisIntegrationName, "docker://ghi789")
+	s.Schedule([]integration.Config{thirdConfig})
+	collector.waitForRuns(t, 3)
+}
+
+func TestSchedulerSchedulesBatchHeartbeatsTogether(t *testing.T) {
+	mockClock := clock.NewMock()
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	var jitterMu sync.Mutex
+	jitterCalls := 0
+	jitter := func(time.Duration) time.Duration {
+		jitterMu.Lock()
+		defer jitterMu.Unlock()
+		jitterCalls++
+		return time.Duration(jitterCalls) * time.Minute
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        10 * time.Minute,
+			startupJitter:          0,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Minute,
+			clock:                  mockClock,
+			jitter:                 jitter,
+		},
+	)
+	defer s.Stop()
+
+	firstConfig := checkConfig(testRedisIntegrationName, "docker://abc123")
+	secondConfig := checkConfig(testRedisIntegrationName, "docker://def456")
+	s.Schedule([]integration.Config{firstConfig, secondConfig})
+	sender.waitForCollectedConfigs(t, 2)
+	waitForWatchScheduled(t, s, firstConfig)
+	waitForWatchScheduled(t, s, secondConfig)
+
+	firstHeartbeat, _, _ := watchedConfigState(s, firstConfig)
+	secondHeartbeat, _, _ := watchedConfigState(s, secondConfig)
+	assert.Equal(t, firstHeartbeat, secondHeartbeat)
+	assert.Equal(t, mockClock.Now().Add(time.Hour+time.Minute), firstHeartbeat)
+
+	jitterMu.Lock()
+	assert.Equal(t, 1, jitterCalls)
+	jitterMu.Unlock()
 }
 
 func TestSchedulerHeartbeatsCollectedFilesWithJitter(t *testing.T) {
@@ -686,7 +789,7 @@ func TestSchedulerIgnoresRescheduleReceivedInFlight(t *testing.T) {
 			},
 		},
 	}
-	s := newADScheduler(
+	s := newTestADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]ConfigCollector{testRedisIntegrationName: collector},
@@ -904,7 +1007,7 @@ func TestSchedulerRetriesFailedSendBeforeExistingHeartbeat(t *testing.T) {
 }
 
 func TestSchedulerRejectsCollectionFromReplacedWatch(t *testing.T) {
-	s := newADScheduler(targetResolver{}, nil, nil, nil)
+	s := newTestADScheduler(targetResolver{}, nil, nil, nil)
 	defer s.Stop()
 
 	config := checkConfig(testRedisIntegrationName, "docker://abc123")
@@ -950,6 +1053,7 @@ func TestADSchedulerConfigFromAgentConfigDefaultsAndClampsJitter(t *testing.T) {
 	cfg := adSchedulerConfigFromAgentConfig(config.NewMock(t))
 	assert.Equal(t, time.Hour, cfg.heartbeatInterval)
 	assert.Equal(t, 10*time.Minute, cfg.heartbeatJitter)
+	assert.Equal(t, time.Minute, cfg.startupJitter)
 
 	cfg = adSchedulerConfigFromAgentConfig(config.NewMockWithOverrides(t, map[string]interface{}{
 		heartbeatIntervalConfigKey: 4 * time.Hour,
@@ -963,6 +1067,11 @@ func TestADSchedulerConfigFromAgentConfigDefaultsAndClampsJitter(t *testing.T) {
 	}))
 	assert.Equal(t, 5*time.Minute, cfg.heartbeatInterval)
 	assert.Equal(t, 2*time.Minute+30*time.Second, cfg.heartbeatJitter)
+
+	cfg = adSchedulerConfigFromAgentConfig(config.NewMockWithOverrides(t, map[string]interface{}{
+		startupJitterConfigKey: -time.Minute,
+	}))
+	assert.Zero(t, cfg.startupJitter)
 }
 
 func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
@@ -1390,6 +1499,12 @@ func (f *recordingEventPlatformForwarder) recordedMessages() []eventPlatformSend
 	messages := make([]eventPlatformSendCall, len(f.messages))
 	copy(messages, f.messages)
 	return messages
+}
+
+func newTestADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]ConfigCollector, sender collectedConfigSender) *adScheduler {
+	cfg := defaultADSchedulerConfig()
+	cfg.startupJitter = 0
+	return newADSchedulerWithConfig(resolver, readers, collectors, sender, cfg)
 }
 
 func fixedJitter(d time.Duration) func(time.Duration) time.Duration {
