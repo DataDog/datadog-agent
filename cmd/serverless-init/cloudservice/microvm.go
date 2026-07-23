@@ -183,6 +183,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lc.FlushTimeout,
 		components.Handle,
 		components.Forwarder,
+		components.EnabledHooks,
 		heartbeat,
 	)
 	if lc.LogsTagSetter != nil {
