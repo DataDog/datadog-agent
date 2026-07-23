@@ -6,100 +6,71 @@
 package npm
 
 import (
+	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-
-	ec2windows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
-type hostHttpbinEnvWindows struct {
-	environments.WindowsHost
-	// Extra Components
-	HTTPBinHost *components.RemoteHost
-}
-
-type ec2VMWKitSuite struct {
+type ec2VMWKitDirectSuite struct {
 	e2e.BaseSuite[hostHttpbinEnvWindows]
+
+	installPath string
 }
 
-// TestEC2VMWKitSuite will validate running the agent on a single EC2 VM
-func TestEC2VMWKitSuite(t *testing.T) {
+// TestEC2VMWKitDirectSuite will validate running the agent on a single EC2 VM in direct sender mode
+func TestEC2VMWKitDirectSuite(t *testing.T) {
 	t.Parallel()
 
-	s := &ec2VMWKitSuite{}
+	s := &ec2VMWKitDirectSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisionerWindows(systemProbeConfigNPM), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisionerWindows(systemProbeConfigNPMDirect), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }
 
-func hostDockerHttpbinEnvProvisionerWindows(config string, opt ...ec2windows.RunOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnvWindows] {
-	return func(ctx *pulumi.Context, env *hostHttpbinEnvWindows) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-		opts := []ec2windows.RunOption{
-			ec2windows.WithAgentOptions(agentparams.WithSystemProbeConfig(config)),
-		}
-		if len(opt) > 0 {
-			opts = append(opts, opt...)
-		}
-		params := ec2windows.GetRunParams(opts...)
-		if err := ec2windows.RunWithEnv(ctx, awsEnv, &env.WindowsHost, params); err != nil {
-			return err
-		}
-
-		vmName := "httpbinvm"
-
-		nginxHost, err := ec2.NewVM(awsEnv, vmName)
-		if err != nil {
-			return err
-		}
-		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
-		if err != nil {
-			return err
-		}
-
-		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
-		if err != nil {
-			return err
-		}
-
-		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
-		_, err = manager.ComposeStrUp("httpbin", composeContents, pulumi.StringMap{})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
 // SetupSuite
-func (v *ec2VMWKitSuite) SetupSuite() {
+func (v *ec2VMWKitDirectSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
 	v.Require().NoError(windowscommon.PutOrDownloadFileWithRetry(v.Env().RemoteHost, "https://s3.amazonaws.com/dd-agent-mstesting/windows/pvt/nplanel/httpd-2.4.59-240404-win64-VS17.zip", "httpd.zip"))
 	v.Env().RemoteHost.MustExecute("Expand-Archive httpd.zip")
+
+	host := v.Env().RemoteHost
+	var err error
+
+	v.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
+	v.Require().NoError(err)
 }
 
 // BeforeTest will be called before each test
-func (v *ec2VMWKitSuite) BeforeTest(suiteName, testName string) {
+func (v *ec2VMWKitDirectSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
+
+	// TODO assert process-agent is not running once process checks have moved into system-probe
+
+	// Verify that the connections check is not running
+	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		status, err := v.execSubagentCommand("process-agent.exe", "status")
+		if assert.NoError(c, err) {
+			for line := range strings.SplitSeq(status, "\n") {
+				if strings.Contains(line, "Enabled Checks:") {
+					assert.NotContains(c, line, "connections")
+				}
+			}
+		}
+	}, 1*time.Minute, 5*time.Second)
 
 	// default is to reset the current state of the fakeintake aggregators
 	if !v.BaseSuite.IsDevMode() {
@@ -108,7 +79,7 @@ func (v *ec2VMWKitSuite) BeforeTest(suiteName, testName string) {
 }
 
 // AfterTest will be called after each test
-func (v *ec2VMWKitSuite) AfterTest(suiteName, testName string) {
+func (v *ec2VMWKitDirectSuite) AfterTest(suiteName, testName string) {
 	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
 
 	v.BaseSuite.AfterTest(suiteName, testName)
@@ -120,7 +91,7 @@ func (v *ec2VMWKitSuite) AfterTest(suiteName, testName string) {
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 //
 // The test start by 00 to validate the agent/system-probe is up and running
-func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
+func (v *ec2VMWKitDirectSuite) Test00FakeIntakeNPM_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)
@@ -132,7 +103,7 @@ func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
-func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
+func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
@@ -143,7 +114,7 @@ func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMWKitSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
+func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
@@ -151,4 +122,13 @@ func (v *ec2VMWKitSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 	v.Env().RemoteHost.MustExecute("Resolve-DnsName -Name www.google.ch -Server 8.8.8.8")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
+}
+
+func (v *ec2VMWKitDirectSuite) execSubagentCommand(executable, command string, options ...client.ExecuteOption) (string, error) {
+	host := v.Env().RemoteHost
+	v.Require().NotEmpty(v.installPath)
+
+	agentPath := filepath.Join(v.installPath, "bin", "agent", executable)
+	cmd := fmt.Sprintf(`& "%s" %s`, agentPath, command)
+	return host.Execute(cmd, options...)
 }
