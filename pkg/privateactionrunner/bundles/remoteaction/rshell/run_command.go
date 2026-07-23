@@ -248,6 +248,19 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task)
 	if envelope == nil {
 		return nil, errors.New("verified signed envelope is required for privileged execution")
 	}
+	verificationKey := task.Data.Attributes.VerificationKey
+	if verificationKey == nil {
+		return nil, errors.New("verified public key is required for privileged execution")
+	}
+	var requestKeyType privilegedhelper.KeyType
+	switch verificationKey.KeyType {
+	case types.KeyTypeX509RSA:
+		requestKeyType = privilegedhelper.KeyTypeX509RSA
+	case types.KeyTypeED25519:
+		requestKeyType = privilegedhelper.KeyTypeED25519
+	default:
+		return nil, fmt.Errorf("unsupported verification key type %s", verificationKey.KeyType)
+	}
 	signatures := make([]privilegedhelper.Signature, 0, len(envelope.Signatures))
 	for _, signature := range envelope.Signatures {
 		var keyType privilegedhelper.KeyType
@@ -261,9 +274,15 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task)
 		}
 		signatures = append(signatures, privilegedhelper.Signature{KeyType: keyType, KeyID: signature.KeyId, Signature: signature.Signature})
 	}
-	request := privilegedhelper.ExecuteRequest{Version: privilegedhelper.ProtocolVersion, Envelope: privilegedhelper.SignedEnvelope{
-		Data: envelope.Data, HashType: envelope.HashType.String(), Signatures: signatures,
-	}}
+	request := privilegedhelper.ExecuteRequest{
+		Version: privilegedhelper.ProtocolVersion,
+		Envelope: privilegedhelper.SignedEnvelope{
+			Data: envelope.Data, HashType: envelope.HashType.String(), Signatures: signatures,
+		},
+		VerificationKeys: []privilegedhelper.CredentialKey{{
+			ID: verificationKey.ID, Type: requestKeyType, PEM: verificationKey.PEM,
+		}},
+	}
 	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("privileged rshell helper: %w", err)
