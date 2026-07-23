@@ -18,10 +18,6 @@
 # * Note:
 # If you mute a parent test it will ignore all the subtests as well.
 
-# TODO: https://datadoghq.atlassian.net/browse/SVLS-4500
-"pkg/serverless/trace":
-  - test: TestStartEnabledTrueValidConfigValidPath
-
 # TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 test/new-e2e/tests/containers:
   - test: TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}

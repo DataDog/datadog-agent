@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -162,6 +163,10 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
+	// started is closed when Run() has initialized all components, allowing
+	// callers to wait for the agent to be ready to process traces.
+	started chan struct{}
+
 	// stopped is closed when Run() returns, allowing callers to wait for
 	// the agent's full shutdown sequence to complete.
 	stopped chan struct{}
@@ -215,6 +220,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		InV1:                  inV1,
 		conf:                  conf,
 		ctx:                   ctx,
+		started:               make(chan struct{}),
 		stopped:               make(chan struct{}),
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
@@ -249,6 +255,7 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
+	close(a.started)
 	go a.StatsWriter.Run()
 
 	// Having GOMAXPROCS processor threads is
@@ -290,6 +297,20 @@ func (a *Agent) FlushSync() {
 	if err := a.TraceWriterV1.FlushSync(); err != nil {
 		log.Errorf("Error flushing traces v1: %s", err.Error())
 		return
+	}
+}
+
+// WaitForStarted blocks until the agent's Run() method has finished initializing
+// all components and is ready to process traces. It returns an error if the agent
+// stopped before completing startup, or the context's error if ctx is done first.
+func (a *Agent) WaitForStarted(ctx context.Context) error {
+	select {
+	case <-a.started:
+		return nil
+	case <-a.stopped:
+		return errors.New("stopped before completing startup")
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
