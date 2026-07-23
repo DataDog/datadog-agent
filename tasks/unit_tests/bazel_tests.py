@@ -2,6 +2,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ from tasks.bazel import (
     _IMPORT_PREFIX,
     _bazel_test_funcs_from_bep,
     _go_test_packages,
+    _is_gotestsum_shaped,
     _label_to_import_path,
     _test_xml_candidates,
     _test_xml_funcs,
@@ -94,6 +96,23 @@ class TestTestXmlFuncs(unittest.TestCase):
             missing = Path(tmpdir) / "missing.xml"
             with self.assertRaises(FileNotFoundError):
                 _test_xml_funcs([missing])
+
+
+class TestIsGotestsumShaped(unittest.TestCase):
+    def test_true_when_every_testcase_has_classname(self):
+        suite = ET.fromstring(
+            '<testsuite tests="2">'
+            '<testcase name="TestFoo" classname="pkg/foo"></testcase>'
+            '<testcase name="TestBar" classname="pkg/foo"></testcase>'
+            "</testsuite>"
+        )
+        self.assertTrue(_is_gotestsum_shaped(suite))
+
+    def test_false_when_classname_missing(self):
+        # Shape Bazel synthesizes for a test rule with no JUnit XML of its own
+        # (diff_test, sh_test, rust tests, ...): one testcase, no classname.
+        suite = ET.fromstring('<testsuite tests="1"><testcase name="some_check" status="run"></testcase></testsuite>')
+        self.assertFalse(_is_gotestsum_shaped(suite))
 
 
 def _bep_line(event: dict) -> str:

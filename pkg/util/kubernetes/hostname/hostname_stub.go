@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver || kubelet
 
-package kubernetes
+package hostname
 
 import (
 	"context"
