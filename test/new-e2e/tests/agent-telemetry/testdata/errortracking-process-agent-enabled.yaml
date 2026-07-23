@@ -1,23 +1,14 @@
 process_config:
   # Adds a second, connection-refused submission target alongside the main
-  # process_dd_url (which the e2e host provisioner points at FakeIntake via
-  # ExtraAgentConfig, applied after this file and taking precedence over any
-  # process_dd_url set here). Every check submission — including the
-  # connections check's, run unconditionally on its own interval — fans out to
-  # every configured endpoint, so this additional endpoint fails
-  # deterministically without disturbing the main FakeIntake submission.
+  # process_dd_url (set by the e2e host provisioner). Every check submission
+  # fans out to every endpoint, so this one fails deterministically.
   additional_endpoints:
     "https://127.0.0.1:1":
       - "00000000000000000000000000000000"
   process_discovery:
-    # On Linux, process_discovery runs embedded in the core agent by default
-    # (coreagent.ProcessChecksRunInCoreAgent), not in the standalone
-    # process-agent — see ConnectionsCheck.IsEnabled's flavor gate for the
-    # contrast. Left enabled, it submits through this same additional_endpoints
-    # misconfiguration and produces a log with an identical
-    # pkg/process/runner/runner.go stack trace but agent.flavor:agent, which
-    # races with (and can beat) the connections check's own error below.
-    # Disabling it keeps the stack-trace filter exclusive to process-agent.
+    # Disabled: on Linux this runs embedded in the core agent by default,
+    # which would produce a competing agent.flavor:agent log via the same
+    # additional_endpoints misconfiguration.
     enabled: false
 agent_telemetry:
   enabled: true

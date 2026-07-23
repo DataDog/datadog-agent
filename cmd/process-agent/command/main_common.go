@@ -212,11 +212,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Supply(configstreamconsumer.NewParams("process-agent", globalParams.ConfFilePath)),
 		configstreamconsumerfx.Module(),
 		agenttelemetryfx.Module(),
-		// Forces construction of the agenttelemetry component: fx only builds a
-		// provided type if something depends on it, and nothing else in this
-		// graph does. Without this invoke, agenttelemetryimpl.NewComponent's
-		// OnStart hook (buffer/flush runner, errortracking submitter wiring)
-		// would never run for process-agent.
+		// Forces construction of the agenttelemetry component, since fx only
+		// builds a provided type if something depends on it, and nothing
+		// else in this graph does.
 		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 		// Set `HOST_PROC` and `HOST_SYS` environment variables
 		fx.Invoke(SetHostMountEnv),

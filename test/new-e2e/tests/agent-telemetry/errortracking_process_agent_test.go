@@ -32,16 +32,10 @@ var errorTrackingProcessAgentDisabledConfig string
 //go:embed testdata/errortracking-process-agent-npm.yaml
 var errorTrackingProcessAgentNPMConfig string
 
-// processAgentSubmissionErrorMessage is the text logged by
-// readResponseStatuses (pkg/process/runner/runner.go) whenever a check's
-// results fail to submit to process_config.process_dd_url. Both testdata
-// configs point that setting at a connection-refused address, and the
-// connections check — the one check IsEnabled() gates to
-// flavor.GetFlavor() == flavor.ProcessAgent, so it is guaranteed to run in
-// the standalone process-agent binary rather than embedded in the core agent
-// (pkg/process/util/coreagent) — submits its (possibly empty) results on a
-// fixed interval regardless of what it collected, so this fires
-// deterministically without needing a live network connection to trigger it.
+// processAgentSubmissionErrorMessage is logged by readResponseStatuses
+// (pkg/process/runner/runner.go) whenever the connections check — guaranteed
+// to run standalone in process-agent — fails to submit to the
+// connection-refused address configured in the testdata above.
 const processAgentSubmissionErrorMessage = "[connections] Error from"
 
 type errorTrackingProcessAgentSuite struct {
@@ -67,14 +61,9 @@ func TestErrorTrackingProcessAgentSuite(t *testing.T) {
 	)
 }
 
-// TestPayloadShape verifies the happy path: the process-agent's own
-// connections-check submission-error ERROR log reaches FakeIntake with the
-// expected wire shape, and — critically for a pipeline shared across many
-// binaries — an agent.flavor tag identifying the emitter as process_agent
-// rather than agent. Records are filtered by stack trace rather than assumed
-// exclusive, since the core agent on the same host shares the same
-// errortracking config and could in principle forward its own, unrelated
-// errors during the same window.
+// TestPayloadShape verifies the process-agent's connections-check
+// submission-error log reaches FakeIntake with the expected wire shape,
+// tagged agent.flavor:process_agent rather than agent.
 func (s *errorTrackingProcessAgentSuite) TestPayloadShape() {
 	// testify's suite.Run executes test methods in alphabetical order
 	// (TestDisabledByDefault before TestPayloadShape), and UpdateEnv
