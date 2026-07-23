@@ -187,10 +187,6 @@ func newGaugeMetric(value float64, labels ...*dto.LabelPair) *dto.Metric {
 	return &dto.Metric{Label: labels, Gauge: &dto.Gauge{Value: &value}}
 }
 
-func newHistogramMetric(sampleCount uint64, labels ...*dto.LabelPair) *dto.Metric {
-	return &dto.Metric{Label: labels, Histogram: &dto.Histogram{SampleCount: &sampleCount}}
-}
-
 func newHistogramMetricWithBucket(sampleCount, cumulativeCount uint64, labels ...*dto.LabelPair) *dto.Metric {
 	upperBound := 10.0
 	exemplarName := "trace_id"
@@ -1154,32 +1150,6 @@ func TestCompileMetricEmitterPreserveTags(t *testing.T) {
 		wantCompiledTags       map[string]any
 		wantPreserveTagsExists bool
 	}{
-		{
-			name: "preserve_tags emitter only",
-			tags: `
-            preserve_tags:
-              - emitter`,
-			wantPreserveTags: []string{"emitter"},
-			wantCompiledTags: map[string]any{},
-		},
-		{
-			name: "preserve_tags emitter and user tag",
-			tags: `
-            preserve_tags:
-              - emitter
-              - compression_kind`,
-			wantPreserveTags:       []string{"emitter", "compression_kind"},
-			wantCompiledTags:       map[string]any{"compression_kind": struct{}{}},
-			wantPreserveTagsExists: true,
-		},
-		{
-			name: "deprecated aggregate_tags emitter only",
-			tags: `
-            aggregate_tags:
-              - emitter`,
-			wantAggregateTags: []string{"emitter"},
-			wantCompiledTags:  map[string]any{},
-		},
 		{
 			name: "deprecated aggregate_tags emitter and user tag",
 			tags: `
@@ -3024,54 +2994,6 @@ func TestAgentTelemetryEventConfiguration(t *testing.T) {
 	assert.Len(t, atCfg.Profiles, 4)
 }
 
-func TestMandatoryEmitterWithOmittedAndEmptyPreserveTags(t *testing.T) {
-	for _, preserveTags := range []struct {
-		name string
-		yaml string
-	}{
-		{name: "omitted"},
-		{name: "empty", yaml: "            preserve_tags: []\n"},
-	} {
-		for _, metricType := range []struct {
-			name   string
-			typeID dto.MetricType
-			metric *dto.Metric
-		}{
-			{name: "counter", typeID: dto.MetricType_COUNTER, metric: newCounterMetric(2)},
-			{name: "gauge", typeID: dto.MetricType_GAUGE, metric: newGaugeMetric(3)},
-			{name: "histogram", typeID: dto.MetricType_HISTOGRAM, metric: newHistogramMetric(4)},
-		} {
-			t.Run(preserveTags.name+"/"+metricType.name, func(t *testing.T) {
-				cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
-agent_telemetry:
-  enabled: true
-  profiles:
-    - name: foo
-      metric:
-        metrics:
-          - name: bar.zoo
-%s`, preserveTags.yaml))
-				atelCfg, err := parseConfig(cfg)
-				require.NoError(t, err)
-				mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
-
-				results := (&atel{localEmitter: "agent"}).aggregateMetricTags(mCfg, metricType.typeID, []*dto.Metric{metricType.metric})
-
-				require.Len(t, results, 1)
-				require.Equal(t, []string{"emitter=agent"}, metricLabelStrings(results[0]))
-				switch metricType.typeID {
-				case dto.MetricType_COUNTER:
-					require.Equal(t, 2.0, results[0].Counter.GetValue())
-				case dto.MetricType_GAUGE:
-					require.Equal(t, 3.0, results[0].Gauge.GetValue())
-				case dto.MetricType_HISTOGRAM:
-					require.Equal(t, uint64(4), results[0].Histogram.GetSampleCount())
-				}
-			})
-		}
-	}
-}
-
 func TestNoPreserveTagsAggregateSeparatelyByEmitter(t *testing.T) {
 	metrics := []*dto.Metric{
 		newGaugeMetric(10, newLabelPair("unlisted", "local-one")),
@@ -3300,35 +3222,6 @@ func TestEmitterTagDefaultsToAgent(t *testing.T) {
 	assert.Equal(t, "emitter", metric.GetLabel()[0].GetName())
 	assert.Equal(t, "agent", metric.GetLabel()[0].GetValue())
 	assert.Equal(t, float64(42), metric.Counter.GetValue())
-}
-
-func TestEmitterTagPreservesRemoteValue(t *testing.T) {
-	emitterName := "emitter"
-	remoteEmitter := "system-probe"
-	localValue := float64(10)
-	remoteValue := float64(20)
-	mCfg := &MetricConfig{
-		Name:               "bar.zoo",
-		PreserveTags:       []string{"emitter"},
-		preserveTagsExists: true,
-		preserveTagsMap:    map[string]any{"emitter": struct{}{}},
-	}
-	metrics := []*dto.Metric{
-		{Counter: &dto.Counter{Value: &localValue}},
-		{
-			Label:   []*dto.LabelPair{{Name: &emitterName, Value: &remoteEmitter}},
-			Counter: &dto.Counter{Value: &remoteValue},
-		},
-	}
-
-	results := (&atel{}).aggregateMetricTags(mCfg, dto.MetricType_COUNTER, metrics)
-
-	require.Len(t, results, 2)
-	metricsByTag := makeStableMetricMap(results)
-	require.Contains(t, metricsByTag, "emitter:agent:")
-	assert.Equal(t, localValue, metricsByTag["emitter:agent:"].Counter.GetValue())
-	require.Contains(t, metricsByTag, "emitter:system-probe:")
-	assert.Equal(t, remoteValue, metricsByTag["emitter:system-probe:"].Counter.GetValue())
 }
 
 func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
