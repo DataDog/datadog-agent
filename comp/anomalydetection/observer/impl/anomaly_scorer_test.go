@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -31,6 +32,64 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 }
 
 func scorePtr(v float64) *float64 { return &v }
+
+func TestNormalizeCorrelationEventThreshold(t *testing.T) {
+	cases := []struct {
+		value string
+		want  string
+		valid bool
+	}{
+		{"", "high", true},
+		{"high", "high", true},
+		{" MEDIUM ", "medium", true},
+		{"low", "", false},
+		{"unexpected", "", false},
+	}
+
+	for _, tc := range cases {
+		got, err := normalizeCorrelationEventThreshold(tc.value)
+		if tc.valid && err != nil {
+			t.Errorf("normalizeCorrelationEventThreshold(%q) returned error: %v", tc.value, err)
+		}
+		if !tc.valid && err == nil {
+			t.Errorf("normalizeCorrelationEventThreshold(%q) expected error", tc.value)
+		}
+		if got != tc.want {
+			t.Errorf("normalizeCorrelationEventThreshold(%q) = %q, want %q", tc.value, got, tc.want)
+		}
+	}
+}
+
+func TestParseSettingsFromJSONCorrelationEventThreshold(t *testing.T) {
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"anomaly_scorer": json.RawMessage(`{"enabled":true}`),
+	})
+	if err != nil {
+		t.Fatalf("ParseSettingsFromJSON() returned error for omitted threshold: %v", err)
+	}
+	cfg := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	if cfg.CorrelationEventThreshold != "high" {
+		t.Errorf("default CorrelationEventThreshold = %q, want high", cfg.CorrelationEventThreshold)
+	}
+
+	settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
+		"anomaly_scorer": json.RawMessage(`{"enabled":true,"correlation_event_threshold":"medium"}`),
+	})
+	if err != nil {
+		t.Fatalf("ParseSettingsFromJSON() returned error: %v", err)
+	}
+	cfg = settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	if cfg.CorrelationEventThreshold != "medium" {
+		t.Errorf("CorrelationEventThreshold = %q, want medium", cfg.CorrelationEventThreshold)
+	}
+
+	_, err = ParseSettingsFromJSON(map[string]json.RawMessage{
+		"anomaly_scorer": json.RawMessage(`{"enabled":true,"correlation_event_threshold":"low"}`),
+	})
+	if err == nil {
+		t.Error("ParseSettingsFromJSON() accepted low correlation_event_threshold")
+	}
+}
 
 // TestAnomalyLevel verifies the score-to-level mapping for scored and fixed detectors.
 func TestAnomalyLevel(t *testing.T) {
@@ -419,7 +478,7 @@ func TestRawSeverityLevel(t *testing.T) {
 
 // TestNextSeverityLevelEscalation verifies upward transitions (no hysteresis).
 func TestNextSeverityLevelEscalation(t *testing.T) {
-	// margin = 0.060 * 0.20 = 0.012
+	// High exit margin = 0.060 * 0.20 = 0.012.
 	cases := []struct {
 		ewma    float64
 		current severityeventsdef.SeverityLevel
@@ -820,6 +879,34 @@ func TestEpisodeOpenClose(t *testing.T) {
 	}
 	if !foundEnded {
 		t.Error("expected an EpisodeEnded event in PendingEvents after de-escalation")
+	}
+}
+
+func TestEpisodeMediumCorrelationEventThreshold(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.LowThreshold = 0.1
+	cfg.HighThreshold = 0.9
+	cfg.MarginPct = 0.05 // high-relative margin remains below LowThreshold
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000) // seed at Low
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001) // Low -> Medium; the score remains below the High threshold
+
+	correlations := s.ActiveCorrelations()
+	if len(correlations) != 1 {
+		t.Fatalf("expected one Medium-threshold episode, got %d", len(correlations))
+	}
+	if got, want := correlations[0].Pattern, "anomaly_scorer_medium:1001"; got != want {
+		t.Errorf("episode pattern = %q, want %q", got, want)
+	}
+
+	_ = s.PendingEvents()
+	s.Advance(1002) // Medium -> Low; closes the episode
+	if got := s.ActiveCorrelations(); len(got) != 0 {
+		t.Errorf("expected Medium-threshold episode to close, got %d active correlations", len(got))
 	}
 }
 
