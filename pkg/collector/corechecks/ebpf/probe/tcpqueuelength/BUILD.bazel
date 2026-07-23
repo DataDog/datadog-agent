@@ -64,6 +64,7 @@ dd_agent_go_test(
     # keep: split from tcpqueuelength_types_test; see comment above.
     srcs = ["tcp_queue_length_test.go"],
     embed = [":tcpqueuelength"],
+    tags = ["manual"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",

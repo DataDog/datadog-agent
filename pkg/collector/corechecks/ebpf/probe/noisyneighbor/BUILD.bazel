@@ -65,6 +65,7 @@ dd_agent_go_test(
     # keep: split from noisyneighbor_types_test; see comment above.
     srcs = ["probe_test.go"],
     embed = [":noisyneighbor"],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [

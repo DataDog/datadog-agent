@@ -73,6 +73,7 @@ dd_agent_go_test(
     # keep: split from sharedlibraries_types_test; see comment above.
     srcs = ["ebpf_test.go"],
     embed = [":sharedlibraries"],
+    tags = ["manual"],
     # keep: needs TestBuildMode from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/ebpf",

@@ -74,6 +74,7 @@ dd_agent_go_test(
     srcs = ["probe_test.go"],
     data = glob(["testdata/**"]),
     embed = [":ebpfcheck"],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [

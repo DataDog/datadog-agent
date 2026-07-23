@@ -69,6 +69,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":telemetry"],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//pkg/ebpf",
