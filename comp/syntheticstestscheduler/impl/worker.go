@@ -374,6 +374,7 @@ func configRequestToResultRequest(req common.ConfigRequest) (common.ResultReques
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*common.TestResult, error) {
 	t := common.Test{
 		ID:      w.testCfg.cfg.PublicID,
+		Name:    w.testCfg.cfg.TestName,
 		SubType: strings.ToLower(string(w.testCfg.cfg.Config.Request.GetSubType())),
 		Type:    w.testCfg.cfg.Type,
 		Version: w.testCfg.cfg.Version,
@@ -444,8 +445,14 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 
 	return &common.TestResult{
 		Location: struct {
-			ID string `json:"id"`
-		}{ID: "agent:" + w.hostname},
+			ID          string `json:"id"`
+			Name        string `json:"name,omitempty"`
+			DisplayName string `json:"displayName,omitempty"`
+		}{
+			ID:          "agent:" + w.hostname,
+			Name:        w.testCfg.cfg.LocationName,
+			DisplayName: w.testCfg.cfg.LocationDisplayName,
+		},
 		DD:     make(map[string]interface{}),
 		Result: result,
 		Test:   t,
