@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
@@ -67,7 +66,6 @@ type KubeletConfigTestSuite struct {
 func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetInTest("cluster_agent.enabled", true)
 	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")

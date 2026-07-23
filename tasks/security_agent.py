@@ -573,8 +573,8 @@ def generate_utils_syscall_table(ctx):
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
-DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_arm64.json"
-DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_amd64.json"
+DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/constants_arm64.json"
+DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/constants_amd64.json"
 
 
 @task
