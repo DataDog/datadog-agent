@@ -8,6 +8,8 @@ package dd_agent_go_test
 import (
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -601,6 +603,7 @@ func TestApplicableTagSets(t *testing.T) {
 	linuxBpf := write("bpf_test.go", "//go:build linux_bpf")
 	requireFips := write("fips_test.go", "//go:build requirefips")
 	windowsOnly := write("win_test.go", "//go:build windows")
+	platformAlternative := write("platform_alternative_test.go", "//go:build trivy || windows")
 	notRequireFips := write("nofips_test.go", "//go:build !requirefips")
 	goVersion := write("ver_test.go", "//go:build go1.22")
 	tagCombined := write("combo_test.go", "//go:build kubeapiserver && linux")
@@ -615,6 +618,22 @@ func TestApplicableTagSets(t *testing.T) {
 	orchestrator := write("orchestrator_test.go", "//go:build orchestrator")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
 	kubernetesTagSet := "cel+clusterchecks+kubeapiserver+kubelet+orchestrator"
+	var manyTagNames []string
+	for tag := range AutoTestTags {
+		manyTagNames = append(manyTagNames, tag)
+	}
+	sort.Strings(manyTagNames)
+	if len(manyTagNames) <= maxEnumeratedAutoTestTags {
+		t.Fatalf("need more than %d auto test tags", maxEnumeratedAutoTestTags)
+	}
+	manyTagNames = manyTagNames[:maxEnumeratedAutoTestTags+1]
+	manyTagSet := strings.Join(manyTagNames, "+")
+	manyTags := write("many_tags_test.go", "//go:build "+strings.Join(manyTagNames, " && "))
+	manyPositiveTagSet := strings.Join(manyTagNames[:maxEnumeratedAutoTestTags], "+")
+	manyTagsWithNegative := write(
+		"many_tags_negative_test.go",
+		"//go:build "+strings.Join(manyTagNames[:maxEnumeratedAutoTestTags], " && ")+" && !"+manyTagNames[maxEnumeratedAutoTestTags],
+	)
 
 	for _, tc := range []struct {
 		name              string
@@ -643,6 +662,12 @@ func TestApplicableTagSets(t *testing.T) {
 			name:        "windows-only uses default",
 			srcs:        []string{windowsOnly},
 			wantDefault: true,
+		},
+		{
+			name:        "feature alternative to platform needs both targets",
+			srcs:        []string{platformAlternative},
+			wantDefault: true,
+			wantTagSets: []string{"trivy"},
 		},
 		{
 			name:        "negative feature uses default",
@@ -694,6 +719,22 @@ func TestApplicableTagSets(t *testing.T) {
 			name:        "or expression gets minimal alternatives",
 			srcs:        []string{alternatives},
 			wantTagSets: []string{"containerd", "docker"},
+		},
+		{
+			name:        "unreadable source does not hide later variants",
+			srcs:        []string{"missing_test.go", linuxBpf},
+			wantDefault: true,
+			wantTagSets: []string{"linux_bpf"},
+		},
+		{
+			name:        "large expression uses bounded combined variant",
+			srcs:        []string{manyTags},
+			wantTagSets: []string{manyTagSet},
+		},
+		{
+			name:        "large expression preserves negative tags",
+			srcs:        []string{manyTagsWithNegative},
+			wantTagSets: []string{manyPositiveTagSet},
 		},
 		{
 			name: "dependency-only tag does not create unit test",

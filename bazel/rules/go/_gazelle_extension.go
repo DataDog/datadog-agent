@@ -33,6 +33,9 @@ import (
 const extName = "dd_agent_go_test"
 const tagSetsDirective = "go_test_tag_sets"
 
+// Stopping at 12 tags avoids combinatorial explosion and maintains readability.
+const maxEnumeratedAutoTestTags = 12
+
 type ddAgentGoTestConfig struct {
 	enabled bool
 	tagSets []string
@@ -422,19 +425,23 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets []string, der
 		}
 		e, hasConstraint, err := readBuildConstraint(path)
 		if err != nil {
-			return true, tagSets
+			includeDefault = true
+			continue
 		}
 		if !hasConstraint {
 			includeDefault = true
 			continue
 		}
-		if canSatisfy(e, baseTags) {
-			includeDefault = true
-			expressions = append(expressions, e)
-			continue
-		}
 		expressions = append(expressions, e)
-		tagSets = append(tagSets, tagSetsForExpression(e, baseTags, configuredTagSets, deriveTagSets)...)
+		baseSatisfied := canSatisfy(e, baseTags)
+		if baseSatisfied {
+			includeDefault = true
+		}
+		if deriveTagSets {
+			tagSets = append(tagSets, tagSetsForExpression(e, baseTags, configuredTagSets, true)...)
+		} else if !baseSatisfied {
+			tagSets = append(tagSets, tagSetsForExpression(e, baseTags, configuredTagSets, false)...)
+		}
 	}
 	tagSets = pruneRedundantTagSets(mergeTagSets(tagSets), expressions, baseTags)
 	return includeDefault, coalesceRelatedTagSets(tagSets, expressions, baseTags)
@@ -445,10 +452,12 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 	configuredTags := make(map[string]bool)
 	for _, tagSet := range configuredTagSets {
 		tags := strings.Split(tagSet, "+")
+		tagSetTags := make(map[string]bool, len(tags))
 		for _, tag := range tags {
 			configuredTags[tag] = true
+			tagSetTags[tag] = true
 		}
-		if canSatisfy(expr, activeTagSet(baseTags, tags)) {
+		if referencesAnyTag(expr, tagSetTags) && canSatisfy(expr, activeTagSet(baseTags, tags)) {
 			matches = append(matches, tagSet)
 		}
 	}
@@ -477,6 +486,20 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
 	var referenced []string
 	collectAutoTestTags(expr, make(map[string]bool), &referenced)
 	sort.Strings(referenced)
+
+	if len(referenced) > maxEnumeratedAutoTestTags {
+		var positive []string
+		collectPositiveAutoTestTags(expr, false, make(map[string]bool), &positive)
+		sort.Strings(positive)
+		active := activeTagSet(baseTags, positive)
+		if canSatisfy(expr, active) {
+			return []string{strings.Join(positive, "+")}
+		}
+		if canSatisfy(expr, activeTagSet(baseTags, referenced)) {
+			return []string{strings.Join(referenced, "+")}
+		}
+		return nil
+	}
 
 	var candidates [][]string
 	for mask := 1; mask < (1 << len(referenced)); mask++ {
@@ -510,6 +533,24 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
 		}
 	}
 	return mergeTagSets(out)
+}
+
+func collectPositiveAutoTestTags(expr constraint.Expr, negated bool, seen map[string]bool, out *[]string) {
+	switch e := expr.(type) {
+	case *constraint.TagExpr:
+		if !negated && AutoTestTags[e.Tag] && !seen[e.Tag] {
+			seen[e.Tag] = true
+			*out = append(*out, e.Tag)
+		}
+	case *constraint.NotExpr:
+		collectPositiveAutoTestTags(e.X, !negated, seen, out)
+	case *constraint.AndExpr:
+		collectPositiveAutoTestTags(e.X, negated, seen, out)
+		collectPositiveAutoTestTags(e.Y, negated, seen, out)
+	case *constraint.OrExpr:
+		collectPositiveAutoTestTags(e.X, negated, seen, out)
+		collectPositiveAutoTestTags(e.Y, negated, seen, out)
+	}
 }
 
 func collectAutoTestTags(expr constraint.Expr, seen map[string]bool, out *[]string) {

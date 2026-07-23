@@ -2,8 +2,6 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
-
 exports_files([
     "tcp_queue_length_kern_types_linux.go",
     "tcp_queue_length_kern_types_linux_test.go",
@@ -40,19 +38,41 @@ go_library(
     ],
 )
 
+# tcp_queue_length_kern_types_linux_test.go and tcp_queue_length_test.go must be
+# separate because cgo_align and ebpftest share the same Go import path.
+
+dd_agent_go_test(
+    name = "tcpqueuelength_types_test",
+    # keep: split from tcpqueuelength_test; see comment above.
+    srcs = ["tcp_queue_length_kern_types_linux_test.go"],
+    embed = [":tcpqueuelength"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    # keep: cgo_align provides TestCgoAlignment.
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 dd_agent_go_test(
     name = "tcpqueuelength_test",
-    srcs = [
-        "tcp_queue_length_kern_types_linux_test.go",
-        "tcp_queue_length_test.go",
-    ],
+    # keep: split from tcpqueuelength_types_test; see comment above.
+    srcs = ["tcp_queue_length_test.go"],
     embed = [":tcpqueuelength"],
+    include_default = False,
     tag_sets = ["linux_bpf"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    # keep: main ebpftest provides TestBuildMode and build mode values.
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode/runtime",
-        "//pkg/ebpf/ebpftest:cgo_align",
+        "//pkg/ebpf/ebpftest",
         "//pkg/util/kernel",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
