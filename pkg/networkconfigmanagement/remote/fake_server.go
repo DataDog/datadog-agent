@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -234,11 +235,62 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: exitStatus}))
 			return
 
+		case "pty-req":
+			// The client asked for a pseudo-terminal. We don't emulate one, but
+			// we must accept the request or the shell path fails.
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
+		case "shell":
+			// The client is opening an interactive shell. Accept it, then read
+			// the commands it sends until it closes its side.
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
+			s.handleShell(ch, reqs)
+			return
+
 		default:
 			if req.WantReply {
 				_ = req.Reply(false, nil)
 			}
 		}
+	}
+}
+
+// handleShell emulates an interactive shell. It reads commands from the channel
+// one line at a time, records each (so tests can assert on Received()), and
+// writes that command's canned response back. It returns when the client closes
+// its side (EOF), which ends the shell — mirroring how ExecuteCommand closes
+// stdin when it is done sending commands.
+func (s *FakeSSHServer) handleShell(ch ssh.Channel, reqs <-chan *ssh.Request) {
+	// Keep answering any further channel requests so they never block us while
+	// we read shell input.
+	go func() {
+		for req := range reqs {
+			if req.WantReply {
+				_ = req.Reply(false, nil)
+			}
+		}
+	}()
+
+	reader := bufio.NewReader(ch)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		command := strings.TrimSpace(line)
+		if command == "" {
+			continue
+		}
+
+		s.mu.Lock()
+		s.received = append(s.received, command)
+		s.mu.Unlock()
+
+		shell := &ShellContext{command: command, stdin: reader, stdout: ch, stderr: ch.Stderr()}
+		s.getOutput(shell)
 	}
 }
 

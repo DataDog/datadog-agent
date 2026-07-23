@@ -8,8 +8,10 @@ package remote
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -29,6 +31,10 @@ type sshClient interface {
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
 func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (string, error) {
+	if len(cmd.SetupCommands) > 0 {
+		return executeShellCommand(ctx, client, cmd)
+	}
+
 	session, err := client.NewSession()
 	if err != nil {
 		return "", err
@@ -51,6 +57,92 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+}
+
+// executeShellCommand runs cmd.SetupCommands and then cmd.Command inside a single
+// interactive shell session, so a setting applied by a setup command (such as
+// disabling the pager) is still in effect when cmd.Command runs.
+func executeShellCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (string, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	stdinPipe, err := session.StdinPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+	stdoutPipe, err := session.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	// Many network devices only offer an interactive shell over a pseudo-terminal.
+	if err := session.RequestPty("xterm", 80, 32768, ssh.TerminalModes{ssh.ECHO: 0}); err != nil {
+		return "", fmt.Errorf("failed to request pty: %w", err)
+	}
+	if err := session.Shell(); err != nil {
+		return "", fmt.Errorf("failed to start shell: %w", err)
+	}
+
+	var commands []string
+	commands = append(commands, cmd.SetupCommands...)
+	commands = append(commands, cmd.Command)
+	for _, line := range commands {
+		if _, err := fmt.Fprintf(stdinPipe, "%s\n", line); err != nil {
+			return "", fmt.Errorf("failed to write command %q to stdin: %w", line, err)
+		}
+	}
+
+	if err := stdinPipe.Close(); err != nil {
+		return "", err
+	}
+
+	ch := make(chan result, 1)
+	go func() {
+		output, err := io.ReadAll(stdoutPipe)
+		ch <- result{string(output), err}
+	}()
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			return "", r.err
+		}
+		output := cleanShellOutput(r.message, commands)
+		return output, cmd.Validator.Validate(output)
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+var (
+	promptRE       = regexp.MustCompile(`^\S+[#>]\s*$`)
+	promptPrefixRE = regexp.MustCompile(`^\S+[#>]\s+`)
+)
+
+// cleanShellOutput strips device prompts and command echoes from a shell
+// transcript, leaving only the real command output.
+func cleanShellOutput(transcript string, sent []string) string {
+	echoed := make(map[string]struct{}, len(sent))
+	for _, c := range sent {
+		echoed[c] = struct{}{}
+	}
+	var kept []string
+	for _, line := range strings.Split(transcript, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if promptRE.MatchString(trimmed) {
+			continue
+		}
+		echo := trimmed
+		if loc := promptPrefixRE.FindStringIndex(echo); loc != nil {
+			echo = strings.TrimSpace(echo[loc[1]:])
+		}
+		if _, isEcho := echoed[echo]; isEcho {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n"
 }
 
 // We found experimentally that some systems silently fail with unexpected
