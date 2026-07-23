@@ -55,9 +55,30 @@ func (p *Params) HasAgent() bool {
 	return p.agentOptions != nil
 }
 
+// AgentOptions returns the agentparams.Options accumulated via WithAgentOptions, for
+// callers outside this package (the macOS pool provisioner) that need to resolve them
+// without going through NewVM/aws.Environment.
+func (p *Params) AgentOptions() []agentparams.Option {
+	return p.agentOptions
+}
+
+// AgentClientOptions returns the agentclientparams.Options accumulated via
+// WithAgentClientOptions, for callers outside this package (the macOS pool provisioner)
+// that need to resolve them without going through NewVM/aws.Environment.
+func (p *Params) AgentClientOptions() []agentclientparams.Option {
+	return p.agentClientOptions
+}
+
 // HasFakeIntake reports whether a FakeIntake was requested (i.e. WithoutFakeIntake was not used).
 func (p *Params) HasFakeIntake() bool {
 	return p.fakeintakeOptions != nil
+}
+
+// FakeIntakeOptions returns the fakeintake.Options accumulated via WithFakeIntakeOptions,
+// for callers outside this package (the macOS pool provisioner) that need to resolve them
+// without going through NewVM/aws.Environment.
+func (p *Params) FakeIntakeOptions() []fakeintake.Option {
+	return p.fakeintakeOptions
 }
 
 // InstallsUpdater reports whether the Datadog Updater was requested via WithUpdater.

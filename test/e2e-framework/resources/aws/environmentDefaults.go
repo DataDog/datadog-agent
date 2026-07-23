@@ -90,6 +90,27 @@ type DDInfraEKSPodSubnets struct {
 	SubnetID string `json:"subnet"`
 }
 
+// ECSFakeintakeNetworkDefaults resolves the ECS Fargate cluster ARN, IAM task-exec/task
+// role ARNs, VPC/subnet/security-group defaults, and the service-public-IP default for
+// the given short environment name (e.g. "sandbox", "agent-sandbox"), for callers that
+// have no *pulumi.Context to pull live stack-config overrides from — namely the
+// Pulumi-free macOS pool FakeIntake provisioner. It returns the same hardcoded defaults
+// aws.Environment falls back to when no live Pulumi config override is present; the
+// override path itself (e.InfraConfig, bound to a live pulumi.Context) is unavailable
+// here by construction.
+func ECSFakeintakeNetworkDefaults(envName string) (clusterArn, taskExecutionRole, taskRole, vpcID string, subnets, securityGroups []string, serviceAllocatePublicIP bool) {
+	d := getEnvironmentDefault("aws/" + envName)
+	if len(d.ddInfra.ecs.fargateFakeintakeClusterArn) > 0 {
+		clusterArn = d.ddInfra.ecs.fargateFakeintakeClusterArn[0]
+	}
+	for _, s := range d.ddInfra.defaultSubnets {
+		if !d.ddInfra.useMacosCompatibleSubnets || s.MacOSCompatible {
+			subnets = append(subnets, s.ID)
+		}
+	}
+	return clusterArn, d.ddInfra.ecs.taskExecutionRole, d.ddInfra.ecs.taskRole, d.ddInfra.defaultVPCID, subnets, d.ddInfra.defaultSecurityGroups, d.ddInfra.ecs.serviceAllocatePublicIP
+}
+
 func getEnvironmentDefault(envName string) environmentDefault {
 	switch envName {
 	case sandboxEnv:

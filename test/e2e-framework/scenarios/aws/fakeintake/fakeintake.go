@@ -129,7 +129,7 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 
 		// fail the deployment if the fakeintake is not healthy
 		e.Ctx().Log.Info(fmt.Sprintf("waiting for fakeintake at %s to be healthy", ipAddress), nil)
-		healthURL := buildFakeIntakeURL("http", ipAddress, "/fakeintake/health", httpPort)
+		healthURL := BuildFakeIntakeURL("http", ipAddress, "/fakeintake/health", httpPort)
 		_, err = backoff.Retry(ctx, func() (any, error) {
 			e.Ctx().Log.Debug(fmt.Sprintf("getting fakeintake health at %s", healthURL), nil)
 			resp, err := http.Get(healthURL)
@@ -149,7 +149,7 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 		}
 		e.Ctx().Log.Info(fmt.Sprintf("fakeintake healthy at %s", ipAddress), nil)
 
-		return []string{ipAddress, buildFakeIntakeURL("http", ipAddress, "", httpPort)}, nil
+		return []string{ipAddress, BuildFakeIntakeURL("http", ipAddress, "", httpPort)}, nil
 	}).(pulumi.StringArrayOutput)
 
 	fi.Scheme = pulumi.Sprintf("%s", "http")
@@ -219,7 +219,10 @@ func fargateSvcLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Fargate
 	return nil
 }
 
-func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, params *Params) *awsxEcs.TaskDefinitionContainerDefinitionArgs {
+// FakeIntakeContainerCommand returns the fakeintake container's command-line
+// arguments. Shared with the Pulumi-free macOS pool provisioner
+// (testing/provisioners/aws/host/macos_pool_fakeintake.go) so the two never drift apart.
+func FakeIntakeContainerCommand(params *Params) []string {
 	command := []string{}
 	if params.DDDevForwarding {
 		command = append(command, "--dddev-forward")
@@ -233,22 +236,49 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 	// deterministic and matches what the agent is configured with at provision time.
 	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
+	return command
+}
+
+// FakeIntakeContainerEnv returns the fakeintake container's environment variables as
+// ordered name/value pairs. Shared with the Pulumi-free macOS pool provisioner
+// (testing/provisioners/aws/host/macos_pool_fakeintake.go) so the two never drift apart.
+func FakeIntakeContainerEnv(params *Params) [][2]string {
+	return [][2]string{
+		{"GOMEMLIMIT", fmt.Sprintf("%dMiB", params.Memory)},
+		{"STORAGE_DRIVER", "memory"},
+	}
+}
+
+// FakeIntakeHealthCheckCommand, FakeIntakeHealthCheckIntervalSeconds,
+// FakeIntakeHealthCheckRetries and FakeIntakeHealthCheckTimeoutSeconds pin the
+// fakeintake container health check to fixed values (rather than left to defaults) so
+// `pulumi up` doesn't want to recreate the task definition when nothing changed. Shared
+// with the Pulumi-free macOS pool provisioner
+// (testing/provisioners/aws/host/macos_pool_fakeintake.go) so the two never drift apart.
+const (
+	FakeIntakeHealthCheckCommand         = "curl --fail http://localhost/fakeintake/health"
+	FakeIntakeHealthCheckIntervalSeconds = 30
+	FakeIntakeHealthCheckRetries         = 3
+	FakeIntakeHealthCheckTimeoutSeconds  = 5
+)
+
+func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, params *Params) *awsxEcs.TaskDefinitionContainerDefinitionArgs {
+	envPairs := FakeIntakeContainerEnv(params)
+	environment := make(awsxEcs.TaskDefinitionKeyValuePairArray, 0, len(envPairs))
+	for _, pair := range envPairs {
+		environment = append(environment, awsxEcs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr(pair[0]),
+			Value: pulumi.StringPtr(pair[1]),
+		})
+	}
+
 	return &awsxEcs.TaskDefinitionContainerDefinitionArgs{
 		Name:        pulumi.String(containerName),
 		Image:       pulumi.String(params.ImageURL),
 		Essential:   pulumi.BoolPtr(true),
-		Command:     pulumi.ToStringArray(command),
+		Command:     pulumi.ToStringArray(FakeIntakeContainerCommand(params)),
 		MountPoints: awsxEcs.TaskDefinitionMountPointArray{},
-		Environment: awsxEcs.TaskDefinitionKeyValuePairArray{
-			awsxEcs.TaskDefinitionKeyValuePairArgs{
-				Name:  pulumi.StringPtr("GOMEMLIMIT"),
-				Value: pulumi.StringPtr(fmt.Sprintf("%dMiB", params.Memory)),
-			},
-			awsxEcs.TaskDefinitionKeyValuePairArgs{
-				Name:  pulumi.StringPtr("STORAGE_DRIVER"),
-				Value: pulumi.StringPtr("memory"),
-			},
-		},
+		Environment: environment,
 		Secrets: awsxEcs.TaskDefinitionSecretArray{
 			awsxEcs.TaskDefinitionSecretArgs{
 				Name:      pulumi.String("DD_API_KEY"),
@@ -263,12 +293,10 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 			},
 		},
 		HealthCheck: &awsxEcs.TaskDefinitionHealthCheckArgs{
-			Command: pulumi.ToStringArray([]string{"CMD-SHELL", "curl --fail http://localhost/fakeintake/health"}),
-			// Explicitly set the following 3 parameters to their default values.
-			// Because otherwise, `pulumi up` wants to recreate the task definition even when it is not needed.
-			Interval: pulumi.IntPtr(30),
-			Retries:  pulumi.IntPtr(3),
-			Timeout:  pulumi.IntPtr(5),
+			Command:  pulumi.ToStringArray([]string{"CMD-SHELL", FakeIntakeHealthCheckCommand}),
+			Interval: pulumi.IntPtr(FakeIntakeHealthCheckIntervalSeconds),
+			Retries:  pulumi.IntPtr(FakeIntakeHealthCheckRetries),
+			Timeout:  pulumi.IntPtr(FakeIntakeHealthCheckTimeoutSeconds),
 		},
 		DockerLabels: pulumi.StringMap{
 			"com.datadoghq.ad.checks": pulumi.String(utils.JSONMustMarshal(
@@ -309,7 +337,10 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 	}
 }
 
-func buildFakeIntakeURL(scheme, host, path string, port int) string {
+// BuildFakeIntakeURL builds a fakeintake URL from its component parts. Shared with the
+// Pulumi-free macOS pool provisioner (testing/provisioners/aws/host/macos_pool_fakeintake.go)
+// so the two never drift apart.
+func BuildFakeIntakeURL(scheme, host, path string, port int) string {
 	url := &url.URL{
 		Scheme: scheme,
 		Host:   net.JoinHostPort(host, strconv.Itoa(port)),

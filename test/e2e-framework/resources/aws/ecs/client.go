@@ -33,6 +33,19 @@ func NewECSClient(ctx context.Context, e aws.Environment) (*Client, error) {
 	return &Client{Client: awsECS.NewFromConfig(cfg), ctx: ctx}, nil
 }
 
+// NewRawClient returns a Client built from a plain region/profile pair, for
+// Pulumi-free callers (the macOS pool provisioner) that have no aws.Environment.
+func NewRawClient(ctx context.Context, region, profile string) (*Client, error) {
+	cfg, err := awsConfig.LoadDefaultConfig(ctx,
+		awsConfig.WithRegion(region),
+		awsConfig.WithSharedConfigProfile(profile),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{Client: awsECS.NewFromConfig(cfg), ctx: ctx}, nil
+}
+
 func (c *Client) GetTaskPrivateIP(clusterArn, serviceName string) (string, error) {
 	taskArn, err := c.getTaskArn(clusterArn, serviceName)
 	if err != nil {

@@ -73,7 +73,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	runParams := ec2.GetParams(params.runOptions...)
 
 	if usesMacOSPool(runParams) {
-		return NewMacOSPoolProvisioner(runParams.Name, runParams.InstanceOptions()...)
+		return NewMacOSPoolProvisioner(runParams.Name, runParams)
 	}
 
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.Host) error {
@@ -100,13 +100,13 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	return provisioner
 }
 
-// usesMacOSPool reports whether runParams describes a bare macOS host (no Agent,
-// FakeIntake, or Updater requested) that the non-Pulumi macOS pool provisioner can serve
-// directly. Any other combination (non-macOS OS, or a macOS host that also wants an
-// Agent/FakeIntake/Updater deployed) falls back to the existing Pulumi path, since the
-// pool provisioner only ever imports a bare RemoteHost.
+// usesMacOSPool reports whether runParams describes a macOS host that the non-Pulumi
+// macOS pool provisioner can serve directly. Agent and FakeIntake are provisioned
+// Pulumi-free by macOSPoolProvisioner itself, so requesting them does not fall back to
+// the Pulumi path. The Updater is not supported Pulumi-free, so requesting it (or any
+// non-macOS OS) falls back to the existing Pulumi path.
 func usesMacOSPool(runParams *ec2.Params) bool {
-	if runParams.HasAgent() || runParams.HasFakeIntake() || runParams.InstallsUpdater() {
+	if runParams.InstallsUpdater() {
 		return false
 	}
 
