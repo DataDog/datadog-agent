@@ -1,5 +1,3 @@
-# TEMPORARY diagnostic for investigating CI failure; remove before merge.
-log_level: debug
 agent_telemetry:
   enabled: true
   errortracking:
