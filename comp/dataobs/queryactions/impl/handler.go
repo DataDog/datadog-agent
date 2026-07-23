@@ -17,7 +17,7 @@ import (
 )
 
 // A "base config" is a supported DB integration.Config emitted by another provider (typically the
-// file provider reading e.g. conf.d/postgres.d/conf.yaml or conf.d/sqlserver.d/conf.yaml) that a
+// file provider reading, for example, conf.d/postgres.d/conf.yaml) that a
 // DO query action matched against via findSupportedIntegrationConfig — i.e. the config as it
 // exists before DO touches it. A single base config can bundle several instances. Throughout this
 // file, "base config" always refers to this original, provider-emitted config, as distinct from
@@ -27,9 +27,15 @@ import (
 // was derived from and the host it targets, so reconcileBases can rebuild the set of integration
 // instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
-	checkConfig integration.Config
-	baseCfg     *integration.Config // the original matched integration config (full, all instances)
-	matchHost   string              // host this DO config targets (DBIdentifier.Host)
+	checkConfig   integration.Config
+	baseCfg       *integration.Config // the original matched integration config (full, all instances)
+	matchHost     string              // literal host or server value of the matched instance
+	matchDatabase string              // database for Azure SQL Database, empty for other deployments
+}
+
+type instanceMatch struct {
+	host     string
+	database string
 }
 
 // managedBaseEntry tracks a base integration config that has at least one instance targeted by a
@@ -156,11 +162,13 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		// Remove previous DO config version if this config_id was already active.
 		c.removeActiveConfig(configID, &changes)
 
+		matchDatabase, _ := azureSQLDatabase(instance)
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
-			checkConfig: checkConfig,
-			baseCfg:     baseCfg,
-			matchHost:   payload.DBIdentifier.Host,
+			checkConfig:   checkConfig,
+			baseCfg:       baseCfg,
+			matchHost:     instanceHost(instance),
+			matchDatabase: matchDatabase,
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -183,7 +191,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		c.removeActiveConfig(configID, &changes)
 	}
 
-	// Reconcile base postgres configs: schedule remainder configs for partially-managed bases
+	// Reconcile base integration configs: schedule remainder configs for partially-managed bases
 	// and restore originals for bases no longer targeted by any DO config.
 	c.reconcileBases(&changes)
 
@@ -226,25 +234,25 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	defer c.activeConfigsMu.Unlock()
 
-	// Group the hosts targeted by active DO configs per base config digest.
+	// Group the instances targeted by active DO configs per base config digest.
 	type baseGroup struct {
-		original integration.Config
-		hosts    map[string]bool
+		original  integration.Config
+		instances map[instanceMatch]bool
 	}
 	desired := make(map[string]*baseGroup)
 	for _, entry := range c.activeConfigs {
 		digest := entry.baseCfg.Digest()
 		g := desired[digest]
 		if g == nil {
-			g = &baseGroup{original: *entry.baseCfg, hosts: make(map[string]bool)}
+			g = &baseGroup{original: *entry.baseCfg, instances: make(map[instanceMatch]bool)}
 			desired[digest] = g
 		}
-		g.hosts[entry.matchHost] = true
+		g.instances[instanceMatch{host: entry.matchHost, database: entry.matchDatabase}] = true
 	}
 
 	// Newly-managed or changed bases.
 	for digest, g := range desired {
-		remainder := buildRemainder(&g.original, g.hosts)
+		remainder := buildRemainder(&g.original, g.instances)
 		managed, exists := c.managedBases[digest]
 		if !exists {
 			// First DO config to target this base: unschedule the original, schedule the remainder.
@@ -283,10 +291,9 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	}
 }
 
-// buildRemainder returns a copy of base containing only the instances whose host is NOT in
-// matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
-// whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
-func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
+// buildRemainder returns a copy of base containing only instances that are not DO-managed.
+// It keeps instances whose YAML cannot be parsed so they are never silently dropped.
+func buildRemainder(base *integration.Config, matchedInstances map[instanceMatch]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
 	for _, instanceData := range base.Instances {
 		var instance map[string]any
@@ -294,8 +301,9 @@ func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *int
 			kept = append(kept, instanceData)
 			continue
 		}
-		host, _ := instance["host"].(string)
-		if matchedHosts[host] {
+		database, _ := azureSQLDatabase(instance)
+		match := instanceMatch{host: instanceHost(instance), database: database}
+		if matchedInstances[match] {
 			continue
 		}
 		kept = append(kept, instanceData)

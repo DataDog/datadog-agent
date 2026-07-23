@@ -1076,46 +1076,49 @@ func TestMatchesIdentifier_SQLServer_HostOnly(t *testing.T) {
 // instances require both host and database equality.
 func TestMatchesIdentifier_AzureSQLDB_HostAndDatabase(t *testing.T) {
 	instance := map[string]any{
-		"host": "myserver.database.windows.net",
+		"host":     "myserver.database.windows.net",
+		"database": "MyDB",
 		"azure": map[string]any{
 			"deployment_type": "sql_database",
-			"database":        "app_db_1",
 		},
 	}
 
-	t.Run("host and database match", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "app_db_1"}
+	t.Run("host and exact mixed-case database match", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "MyDB"}
 		assert.True(t, matchesIdentifier(instance, dbID))
 	})
 
 	t.Run("host matches but database does not", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "app_db_2"}
-		assert.False(t, matchesIdentifier(instance, dbID), "payload for app_db_2 must not match app_db_1 instance")
+		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "OtherDB"}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("database matching is case-sensitive", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "mydb"}
+		assert.False(t, matchesIdentifier(instance, dbID), "MyDB must not match mydb")
 	})
 
 	t.Run("host does not match", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "otherserver.database.windows.net", Database: "app_db_1"}
+		dbID := &DBIdentifier{Type: "azure", Host: "otherserver.database.windows.net", Database: "MyDB"}
 		assert.False(t, matchesIdentifier(instance, dbID))
 	})
 }
 
 // TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload verifies that an RC payload targeting
-// app_db_2 cannot be injected into an app_db_1 instance sharing the same Azure SQL Server host.
+// another database cannot be injected into a MyDB instance sharing the same Azure SQL Server host.
 func TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload(t *testing.T) {
-	// Instance configured for app_db_1
 	sqlserverCfg := integration.Config{
 		Name:     "sqlserver",
 		Provider: "file",
 		Instances: []integration.Data{
-			integration.Data("host: myserver.database.windows.net\nazure:\n  deployment_type: sql_database\n  database: app_db_1\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: myserver.database.windows.net\ndatabase: MyDB\nazure:\n  deployment_type: sql_database\ndata_observability:\n  enabled: true\n"),
 		},
 	}
 	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
 
-	// Payload targets app_db_2 on the same host — must be rejected
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-wrongdb",
-		DBIdentifier: DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "app_db_2"},
+		DBIdentifier: DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "OtherDB"},
 		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
@@ -1125,10 +1128,56 @@ func TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload(t *testing.T) {
 		"path/cfg-wrongdb": {Config: payloadJSON},
 	})
 
-	assert.Equal(t, state.ApplyStateError, statuses["path/cfg-wrongdb"].State,
-		"payload for app_db_2 must not match app_db_1 instance")
+	assert.Equal(t, state.ApplyStateError, statuses["path/cfg-wrongdb"].State)
 	assert.Empty(t, changes.Schedule)
 	assert.Empty(t, c.activeConfigs)
+}
+
+// TestOnRCUpdate_AzureSQLDB_PreservesSiblingDatabase checks that targeting one Azure SQL
+// database does not remove another database that shares the server host.
+func TestOnRCUpdate_AzureSQLDB_PreservesSiblingDatabase(t *testing.T) {
+	const host = "myserver.database.windows.net"
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: " + host + "\ndatabase: MyDB\nazure:\n  deployment_type: sql_database\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: " + host + "\ndatabase: OtherDB\nazure:\n  deployment_type: sql_database\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-my-db",
+		DBIdentifier: DBIdentifier{Type: "azure", Host: host, Database: "MyDB"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-my-db": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-my-db"].State)
+	require.Len(t, changes.Unschedule, 1, "should unschedule the original two-instance config")
+	require.Len(t, changes.Schedule, 2, "should schedule the targeted check and the sibling remainder")
+
+	databasesWithQueries := make(map[string]bool)
+	for _, cfg := range changes.Schedule {
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+			database, _ := instance["database"].(string)
+			dataObservability, ok := instance["data_observability"].(map[string]any)
+			require.True(t, ok)
+			_, hasQueries := dataObservability["queries"]
+			databasesWithQueries[database] = hasQueries
+		}
+	}
+
+	assert.True(t, databasesWithQueries["MyDB"], "the targeted database must receive queries")
+	assert.False(t, databasesWithQueries["OtherDB"], "the sibling must remain unchanged")
 }
 
 // TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig verifies that sending an empty
