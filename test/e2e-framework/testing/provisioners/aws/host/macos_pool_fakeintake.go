@@ -119,7 +119,7 @@ func provisionMacOSPoolFakeIntake(ctx context.Context, logger io.Writer, region,
 		return fi, nil, fmt.Errorf("failed to obtain fakeintake task private ip: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s:%d", ip, fakeIntakeHTTPPort)
+	url := fakeintakescenario.BuildFakeIntakeURL("http", ip, "", fakeIntakeHTTPPort)
 	fmt.Fprintf(logger, "waiting for fakeintake at %s to be healthy\n", url)
 	if err := waitForFakeIntakeHealth(url, fakeIntakeHealthWaitTimeout); err != nil {
 		return fi, nil, fmt.Errorf("fakeintake at %s never became healthy: %w", url, err)
@@ -167,32 +167,26 @@ func (fi *macOSPoolFakeIntake) destroy(ctx context.Context) error {
 }
 
 func fakeIntakeContainerDefinition(params *fakeintakescenario.Params) ecsTypes.ContainerDefinition {
-	command := []string{}
-	if params.DDDevForwarding {
-		command = append(command, "--dddev-forward")
+	envPairs := fakeintakescenario.FakeIntakeContainerEnv(params)
+	environment := make([]ecsTypes.KeyValuePair, 0, len(envPairs))
+	for _, pair := range envPairs {
+		environment = append(environment, ecsTypes.KeyValuePair{Name: awssdk.String(pair[0]), Value: awssdk.String(pair[1])})
 	}
-	if params.RetentionPeriod != "" {
-		command = append(command, "-retention-period="+params.RetentionPeriod)
-	}
-	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
 	return ecsTypes.ContainerDefinition{
-		Name:      awssdk.String(fakeIntakeContainerName),
-		Image:     awssdk.String(params.ImageURL),
-		Essential: awssdk.Bool(true),
-		Command:   command,
-		Environment: []ecsTypes.KeyValuePair{
-			{Name: awssdk.String("GOMEMLIMIT"), Value: awssdk.String(fmt.Sprintf("%dMiB", params.Memory))},
-			{Name: awssdk.String("STORAGE_DRIVER"), Value: awssdk.String("memory")},
-		},
+		Name:        awssdk.String(fakeIntakeContainerName),
+		Image:       awssdk.String(params.ImageURL),
+		Essential:   awssdk.Bool(true),
+		Command:     fakeintakescenario.FakeIntakeContainerCommand(params),
+		Environment: environment,
 		PortMappings: []ecsTypes.PortMapping{
 			{ContainerPort: awssdk.Int32(fakeIntakeHTTPPort), HostPort: awssdk.Int32(fakeIntakeHTTPPort), Protocol: ecsTypes.TransportProtocolTcp},
 		},
 		HealthCheck: &ecsTypes.HealthCheck{
-			Command:  []string{"CMD-SHELL", "curl --fail http://localhost/fakeintake/health"},
-			Interval: awssdk.Int32(30),
-			Retries:  awssdk.Int32(3),
-			Timeout:  awssdk.Int32(5),
+			Command:  []string{"CMD-SHELL", fakeintakescenario.FakeIntakeHealthCheckCommand},
+			Interval: awssdk.Int32(fakeintakescenario.FakeIntakeHealthCheckIntervalSeconds),
+			Retries:  awssdk.Int32(fakeintakescenario.FakeIntakeHealthCheckRetries),
+			Timeout:  awssdk.Int32(fakeintakescenario.FakeIntakeHealthCheckTimeoutSeconds),
 		},
 	}
 }
