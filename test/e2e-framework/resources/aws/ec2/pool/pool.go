@@ -48,33 +48,6 @@ type leaseRecord struct {
 	LeasedAt int64  `json:"leased_at,omitempty"`
 }
 
-// FindInstanceByTag returns the first running or stopped EC2 instance carrying
-// tagKey=tagValue, or found=false if none exists.
-func FindInstanceByTag(ctx context.Context, client *awsec2.Client, tagKey, tagValue string) (instanceID string, found bool, err error) {
-	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
-		Filters: []awsec2types.Filter{
-			{
-				Name:   pointer.Ptr("tag:" + tagKey),
-				Values: []string{tagValue},
-			},
-			{
-				Name:   pointer.Ptr("instance-state-name"),
-				Values: []string{"running", "stopped"},
-			},
-		},
-	})
-	if err != nil {
-		return "", false, fmt.Errorf("failed to describe instances tagged %s=%s: %w", tagKey, tagValue, err)
-	}
-
-	for _, reservation := range out.Reservations {
-		for _, instance := range reservation.Instances {
-			return *instance.InstanceId, true, nil
-		}
-	}
-	return "", false, nil
-}
-
 // PoolInstance is one EC2 instance discovered by ListPoolInstances, with the
 // Dedicated Host it currently sits on.
 type PoolInstance struct {
@@ -119,6 +92,11 @@ func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagVa
 // token (new ETag), and image ID on success. It retries the whole-pool scan up to
 // maxAcquireRetries times, acquireRetryInterval apart. It does not reclaim leases
 // stranded by a non-graceful failure.
+//
+// TODO: leaseRecord.LeasedAt is written on acquire but never read back here, so a
+// lease stranded by a crashed job (before Destroy/the delete handler runs) stays
+// "in-use" forever, permanently shrinking the pool. Add a staleness/TTL check (or an
+// owner+age-based override) so such leases can be automatically reclaimed.
 func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {

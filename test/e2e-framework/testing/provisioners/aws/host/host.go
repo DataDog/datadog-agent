@@ -112,7 +112,7 @@ func usesMacOSPool(runParams *ec2.Params) bool {
 
 	family, err := ec2.InstanceOSFamily(runParams.InstanceOptions()...)
 	if err != nil {
-		return false
+		panic(fmt.Errorf("unable to determine OS family for macOS pool routing, err: %w", err))
 	}
 	return family == os.MacOSFamily
 }

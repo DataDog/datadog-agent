@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "ami.go",
         "asg.go",
-        "dedicated_host.go",
         "pool_release.go",
         "root_volume.go",
         "vm.go",

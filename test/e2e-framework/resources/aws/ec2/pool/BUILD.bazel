@@ -2,12 +2,14 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "pool",
-    srcs = ["pool.go"],
+    srcs = [
+        "macos_host.go",
+        "pool.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/pointer",
-        "//test/e2e-framework/resources/aws",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_config//:config",
         "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",

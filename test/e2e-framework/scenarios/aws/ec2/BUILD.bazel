@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "ec2",
     srcs = [
+        "macos_pool_args.go",
         "os_resolver.go",
         "os_win.go",
         "run.go",
@@ -31,7 +32,6 @@ go_library(
         "//test/e2e-framework/scenarios/outputs",
         "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
         "//test/e2e-framework/testing/utils/optional",
-        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
         "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
