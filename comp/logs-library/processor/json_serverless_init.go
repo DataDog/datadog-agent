@@ -85,6 +85,11 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 		// and prime it for subsequent calls. All callers compute the same
 		// static tags in a serverless-init environment, so a plain Store is
 		// fine even if multiple goroutines race here.
+		//
+		// This assumes every message primes the cache with the same tags. That's
+		// only true because SetServerlessInitTagCache is the sole path for changing
+		// tags after startup; if a caller ever needs per-message tags, this cache
+		// needs to go away, not be patched.
 		tagsStr = msg.TagsToString()
 		j.cachedTags.Store(&tagsStr)
 	}

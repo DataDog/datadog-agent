@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "initcontainer_mode.go",
         "mode.go",
+        "mode_windows.go",
         "sidecarcontainer_mode.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/mode",
@@ -86,13 +87,19 @@ go_library(
             "//pkg/util/log",
             "@com_github_spf13_afero//:afero",
         ],
+        "@rules_go//go/platform:windows": [
+            "//cmd/serverless-init/log",
+        ],
         "//conditions:default": [],
     }),
 )
 
 dd_agent_go_test(
     name = "mode_test",
-    srcs = ["initcontainer_mode_test.go"],
+    srcs = [
+        "initcontainer_mode_test.go",
+        "mode_windows_test.go",
+    ],
     embed = [":mode"],
     deps = select({
         "@rules_go//go/platform:aix": [
@@ -168,6 +175,9 @@ dd_agent_go_test(
         "@rules_go//go/platform:solaris": [
             "//cmd/serverless-init/log",
             "@com_github_spf13_afero//:afero",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
