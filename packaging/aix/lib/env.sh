@@ -11,7 +11,7 @@
 # any variable before sourcing this file.
 
 # ── Python version ────────────────────────────────────────────────────────────
-PYTHON_VERSION="3.13.12"
+PYTHON_VERSION="3.13.14"
 PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"   # e.g. 3.13
 export PYTHON_VERSION PYTHON_MAJ_MIN
 

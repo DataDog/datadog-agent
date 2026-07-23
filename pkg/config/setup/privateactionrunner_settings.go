@@ -12,13 +12,10 @@ import (
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
-	// Enable/disable private action runner
 	config.BindEnvAndSetDefault("private_action_runner.enabled", false)
 
-	// Log file
 	config.BindEnvAndSetDefault("private_action_runner.log_file", "${log_path}/private-action-runner.log")
 
-	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault("private_action_runner.self_enroll", true)
 	config.BindEnvAndSetDefault("private_action_runner.api_key_only_enrollment", false)
 	config.BindEnvAndSetDefault("private_action_runner.identity_file_path", "")
@@ -28,20 +25,16 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.urn", "")
 	config.BindEnvAndSetDefault("private_action_runner.skip_connection_creation", false)
 
-	// General config
 	config.BindEnvAndSetDefault("private_action_runner.task_concurrency", 5)
 	config.BindEnvAndSetDefault("private_action_runner.task_timeout_seconds", 60)
 	config.BindEnvAndSetDefault("private_action_runner.actions_allowlist", []string{})
-	config.BindEnvAndSetDefault("private_action_runner.default_actions_enabled", true)
 	config.ParseEnvSplitComma("private_action_runner.actions_allowlist")
-
-	// Executor mode (split deployment)
-	config.BindEnvAndSetDefault(PARExecutorSocketPath, GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("private_action_runner.default_actions_enabled", true)
+	config.BindEnvAndSetDefault("private_action_runner.executor.socket_path", GetPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\dd-par-executor`,
 		"other":   "${run_path}/par-executor.sock",
 	}))
 
-	// HTTP action
 	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
 	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.http_allowlist")

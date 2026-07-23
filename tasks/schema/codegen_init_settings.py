@@ -7,6 +7,8 @@ file_header = """// Unless explicitly stated otherwise all files in this reposit
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
+
 package setup
 """
 
@@ -392,6 +394,11 @@ def dict_to_gotype(inp):
 
 
 def to_vartype(node, setting_default):
+    if node.get('type') == 'array':
+        tags = node.get('tags')
+        if tags:
+            if 'golang_type:[]int' in tags:
+                return f"[]int{setting_default}"
     return f"{dict_to_gotype(node)}{setting_default}"
 
 
@@ -435,7 +442,6 @@ def get_suffixes_for_pattern(pattern):
             'delegated_auth.refresh_interval_mins',
             'delegated_auth.provider',
             'delegated_auth.aws.region',
-            'api_key',
         ]
     else:
         raise RuntimeError(f"unknown pattern: {pattern}")
@@ -555,6 +561,7 @@ config_setup_func_names = [
     'remoteflags',
     'OTLP',
     'setupProcesses',
+    'setupPrivateActionRunner',
     'anomalyDetection',
     'initMainSystemProbeConfig',
     'initCWSSystemProbeConfig',

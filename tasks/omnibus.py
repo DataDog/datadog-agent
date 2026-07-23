@@ -8,6 +8,7 @@ import tempfile
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import NamedTuple
 
 import requests
@@ -115,13 +116,13 @@ def get_omnibus_env(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
     custom_config_dir=None,
     fips_mode=False,
+    *,
+    install_dir,
 ):
     env = get_effective_dependencies_env()
 
@@ -168,6 +169,7 @@ def get_omnibus_env(
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
+    env['INSTALL_DIR'] = install_dir
 
     if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
@@ -233,8 +235,6 @@ def build(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -258,20 +258,6 @@ def build(
     base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
     cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
-    env = get_omnibus_env(
-        ctx,
-        skip_sign=skip_sign,
-        hardened_runtime=hardened_runtime,
-        system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
-        with_dd_procmgrd=with_dd_procmgrd,
-        go_mod_cache=go_mod_cache,
-        flavor=flavor,
-        pip_config_file=pip_config_file,
-        custom_config_dir=config_directory,
-        fips_mode=fips_mode,
-    )
-
     if not target_project:
         target_project = "agent"
 
@@ -280,6 +266,19 @@ def build(
         raise Exit(code=1)
     if flavor.is_iot():
         target_project = "iot-agent"
+
+    env = get_omnibus_env(
+        ctx,
+        skip_sign=skip_sign,
+        hardened_runtime=hardened_runtime,
+        system_probe_bin=system_probe_bin,
+        go_mod_cache=go_mod_cache,
+        flavor=flavor,
+        pip_config_file=pip_config_file,
+        custom_config_dir=config_directory,
+        fips_mode=fips_mode,
+        install_dir=install_directory or install_dir_for_project(target_project),
+    )
 
     # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
@@ -316,8 +315,8 @@ def build(
             install_directory = install_dir_for_project(target_project)
         # Is the path starts with a /, it's considered the new root for the joined path
         # which effectively drops whatever was in omnibus_cache_dir
-        install_directory = install_directory.lstrip('/')
-        omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
+        native_path = (PureWindowsPath if sys.platform == "win32" else PurePosixPath)(install_directory)
+        omnibus_cache_dir = os.path.join(omnibus_cache_dir, native_path.relative_to(native_path.anchor).as_posix())
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
@@ -410,8 +409,6 @@ def manifest(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,
-    with_dd_procmgrd=False,
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
@@ -419,22 +416,21 @@ def manifest(
     base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
     cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
-    env = get_omnibus_env(
-        ctx,
-        skip_sign=skip_sign,
-        hardened_runtime=hardened_runtime,
-        system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
-        with_dd_procmgrd=with_dd_procmgrd,
-        go_mod_cache=go_mod_cache,
-        flavor=flavor,
-    )
-
     target_project = "agent"
     if flavor.is_iot():
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
+
+    env = get_omnibus_env(
+        ctx,
+        skip_sign=skip_sign,
+        hardened_runtime=hardened_runtime,
+        system_probe_bin=system_probe_bin,
+        go_mod_cache=go_mod_cache,
+        flavor=flavor,
+        install_dir=install_dir_for_project(target_project, for_platform=platform),
+    )
 
     bundle_install_omnibus(ctx, gem_path, env)
 
@@ -489,7 +485,7 @@ def build_repackaged_agent(ctx, log_level="info"):
             key=_pipeline_id_of_package,
         )
 
-    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base)
+    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base, install_dir=install_dir_for_project("agent"))
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
