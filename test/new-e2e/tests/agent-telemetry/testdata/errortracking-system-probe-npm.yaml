@@ -1,2 +1,4 @@
+# TEMPORARY diagnostic for investigating CI failure; remove before merge.
+log_level: debug
 network_config:
   enabled: true
