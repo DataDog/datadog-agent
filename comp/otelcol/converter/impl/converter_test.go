@@ -179,7 +179,7 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "processors/no-changes",
 			provided:       "processors/no-changes/config.yaml",
-			expectedResult: "processors/no-changes/config.yaml",
+			expectedResult: "processors/no-changes/config-result.yaml",
 		},
 		{
 			name:           "receivers/empty-receivers",
@@ -194,17 +194,17 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "receivers/no-changes",
 			provided:       "receivers/no-changes/config.yaml",
-			expectedResult: "receivers/no-changes/config.yaml",
+			expectedResult: "receivers/no-changes/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-changes-multiple-dd",
 			provided:       "receivers/no-changes-multiple-dd/config.yaml",
-			expectedResult: "receivers/no-changes-multiple-dd/config.yaml",
+			expectedResult: "receivers/no-changes-multiple-dd/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-changes-multiple-dd-same-pipeline",
 			provided:       "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
-			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
+			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-prometheus-receiver",
@@ -332,7 +332,7 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "dd-core-cfg/all/no-overrides",
 			provided:       "dd-core-cfg/all/no-overrides/config.yaml",
-			expectedResult: "dd-core-cfg/all/no-overrides/config.yaml",
+			expectedResult: "dd-core-cfg/all/no-overrides/config-result.yaml",
 			agentConfig:    "dd-core-cfg/all/no-overrides/acfg.yaml",
 		},
 		{
@@ -455,6 +455,49 @@ func TestConvert(t *testing.T) {
 			provided:       "extensions/standalone/dogtel-wired/config.yaml",
 			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
 			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
+		},
+		// cumulativetodelta auto-injection (OTAGENT-1128).
+		{
+			name:           "cumulativetodelta/injected",
+			provided:       "cumulativetodelta/injected/config.yaml",
+			expectedResult: "cumulativetodelta/injected/config-result.yaml",
+			agentConfig:    "cumulativetodelta/injected/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/dedup",
+			provided:       "cumulativetodelta/dedup/config.yaml",
+			expectedResult: "cumulativetodelta/dedup/config.yaml",
+			agentConfig:    "cumulativetodelta/dedup/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/metrics-only",
+			provided:       "cumulativetodelta/metrics-only/config.yaml",
+			expectedResult: "cumulativetodelta/metrics-only/config-result.yaml",
+			agentConfig:    "cumulativetodelta/metrics-only/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/no-dd-exporter",
+			provided:       "cumulativetodelta/no-dd-exporter/config.yaml",
+			expectedResult: "cumulativetodelta/no-dd-exporter/config.yaml",
+			agentConfig:    "cumulativetodelta/no-dd-exporter/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/multiple-metrics-pipelines",
+			provided:       "cumulativetodelta/multiple-metrics-pipelines/config.yaml",
+			expectedResult: "cumulativetodelta/multiple-metrics-pipelines/config-result.yaml",
+			agentConfig:    "cumulativetodelta/multiple-metrics-pipelines/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/feature-disabled",
+			provided:       "cumulativetodelta/feature-disabled/config.yaml",
+			expectedResult: "cumulativetodelta/feature-disabled/config-result.yaml",
+			agentConfig:    "cumulativetodelta/feature-disabled/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/no-processors-section",
+			provided:       "cumulativetodelta/no-processors-section/config.yaml",
+			expectedResult: "cumulativetodelta/no-processors-section/config-result.yaml",
+			agentConfig:    "cumulativetodelta/no-processors-section/acfg.yaml",
 		},
 	}
 
