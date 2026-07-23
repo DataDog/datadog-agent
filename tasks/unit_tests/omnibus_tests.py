@@ -10,6 +10,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 from invoke.runners import Result
 
 from tasks import omnibus
+from tasks.libs.common.omnibus import install_dir_for_project
 
 
 class MockContextRaising(MockContext):
@@ -263,6 +264,34 @@ class TestOmnibusEnvPassthrough(unittest.TestCase):
             env = omnibus._passthrough_env_for_os({'OMNIBUS_BASE_DIR': '/var/cache/dd/omnibus'}, 'linux')
 
         self.assertNotIn('OMNIBUS_BASE_DIR', env)
+
+
+class TestInstallDirForProject(unittest.TestCase):
+    def test_install_dir_for_project(self):
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Linux"):
+            self.assertEqual(install_dir_for_project("agent"), "/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("ddot"), "/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("dogstatsd"), "/opt/datadog-dogstatsd")
+            self.assertEqual(install_dir_for_project("eudm"), "/opt/datadog-agent-eudm")
+            self.assertEqual(install_dir_for_project("installer"), "/opt/datadog-installer")
+            self.assertEqual(install_dir_for_project("iot-agent"), "/opt/datadog-agent")
+        with self.assertRaises(NotImplementedError):
+            install_dir_for_project("not-a-real-project")
+
+    def test_install_dir_for_project_on_windows(self):
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Windows"):
+            self.assertEqual(install_dir_for_project("agent"), "C:/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("ddot"), "C:/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("dogstatsd"), "C:/opt/datadog-dogstatsd")
+            self.assertEqual(install_dir_for_project("eudm"), "C:/opt/datadog-agent-eudm")
+            self.assertEqual(install_dir_for_project("installer"), "C:/opt/datadog-installer")
+            self.assertEqual(install_dir_for_project("iot-agent"), "C:/opt/datadog-agent")
+
+    def test_install_dir_for_project_for_platform_overrides_host_platform(self):
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Linux"):
+            self.assertEqual(install_dir_for_project("agent", for_platform="windows"), "C:/opt/datadog-agent")
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Windows"):
+            self.assertEqual(install_dir_for_project("agent", for_platform="linux"), "/opt/datadog-agent")
 
 
 class TestOmnibusInstall(unittest.TestCase):
