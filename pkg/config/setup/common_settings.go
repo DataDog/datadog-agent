@@ -83,6 +83,21 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("staged_start.stage_interval", 30*time.Second)
 	// If true, transient memory is returned to the OS between staged startup stages.
 	config.BindEnvAndSetDefault("staged_start.free_os_memory", true)
+	// Pacing mode between staged startup steps: "interval" (fixed stage_interval
+	// delay) or "adaptive" (advance as this process's memory settles, bounded by
+	// step_max so a process under memory pressure proceeds instead of hanging).
+	config.BindEnvAndSetDefault("staged_start.mode", "interval")
+	// Adaptive mode: minimum wait per step (lets a step's async work begin).
+	config.BindEnvAndSetDefault("staged_start.step_min", 1*time.Second)
+	// Adaptive mode: hard cap per step. On timeout the next step proceeds anyway
+	// (and a warning is logged) so startup never hangs on memory that won't settle.
+	config.BindEnvAndSetDefault("staged_start.step_max", 15*time.Second)
+	// Adaptive mode: a step is "settled" once retained memory grows less than
+	// settle_threshold_bytes over this window.
+	config.BindEnvAndSetDefault("staged_start.settle_window", 2*time.Second)
+	config.BindEnvAndSetDefault("staged_start.settle_threshold_bytes", int64(2*1024*1024))
+	// Adaptive mode: how often to sample memory while waiting for a step to settle.
+	config.BindEnvAndSetDefault("staged_start.poll_interval", 250*time.Millisecond)
 
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the python version of disk check will be used.

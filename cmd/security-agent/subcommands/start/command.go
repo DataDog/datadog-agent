@@ -15,8 +15,6 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
-	"runtime"
-	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -77,6 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/util/stagedstart"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -211,23 +210,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // stagedStartPace spreads security-agent subsystem startup when staged startup
-// is enabled: it reclaims the transient memory allocated by prior initialization
-// and pauses briefly before starting the next subsystem, so their startup memory
-// peaks do not stack into a single spike (both within this process and relative
-// to the other agent processes starting at the same time). When staged startup
-// is disabled this is a no-op.
+// is enabled: before starting the named subsystem it reclaims transient memory
+// from prior initialization and waits (a fixed interval, or until this process's
+// memory settles in adaptive mode) so their startup memory peaks do not stack
+// into a single spike, both within this process and relative to the other agent
+// processes starting at the same time. When staged startup is disabled this is a
+// no-op.
 func stagedStartPace(cfg config.Component, logger log.Component, name string) {
-	if !cfg.GetBool("staged_start.enabled") {
-		return
-	}
-	if cfg.GetBool("staged_start.free_os_memory") {
-		runtime.GC()
-		debug.FreeOSMemory()
-	}
-	if interval := cfg.GetDuration("staged_start.stage_interval"); interval > 0 {
-		logger.Infof("staged startup: pacing %s startup by %s", name, interval)
-		time.Sleep(interval)
-	}
+	pacer := stagedstart.NewPacer(stagedstart.ConfigFromReader(cfg),
+		func(f string, a ...interface{}) { logger.Infof(f, a...) },
+		func(f string, a ...interface{}) { logger.Warnf(f, a...) },
+	)
+	pacer.Pace(context.Background(), name)
 }
 
 // start will start the security-agent.

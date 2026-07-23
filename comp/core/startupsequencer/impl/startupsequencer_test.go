@@ -17,19 +17,21 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	startupsequencer "github.com/DataDog/datadog-agent/comp/core/startupsequencer/def"
+	"github.com/DataDog/datadog-agent/pkg/util/stagedstart"
 )
 
+// newTestSequencer builds a sequencer whose pacer is a no-op (no delay, no
+// reclaim) so ordering/inline tests run instantly.
 func newTestSequencer(t *testing.T, enabled bool) *sequencer {
+	cfg := stagedstart.Config{Enabled: enabled}
 	return &sequencer{
-		log:          logmock.New(t),
-		enabled:      enabled,
-		interval:     time.Millisecond,
-		freeOSMemory: false,
+		log:     logmock.New(t),
+		enabled: enabled,
+		pacer:   stagedstart.NewPacer(cfg, nil, nil),
 	}
 }
 
-// When disabled, Defer must run the work synchronously and propagate its error,
-// so a Defer call from an OnStart hook is identical to running the work inline.
+// When disabled, Defer must run the work synchronously and propagate its error.
 func TestDisabledRunsInline(t *testing.T) {
 	s := newTestSequencer(t, false)
 
@@ -45,7 +47,6 @@ func TestDisabledRunsInline(t *testing.T) {
 	err = s.Defer(startupsequencer.StageChecks, "y", func(context.Context) error { return sentinel })
 	assert.ErrorIs(t, err, sentinel, "error must propagate when staging is disabled")
 
-	// Begin is a no-op when disabled.
 	s.Begin(context.Background())
 }
 
@@ -66,7 +67,6 @@ func TestEnabledRunsInStageOrder(t *testing.T) {
 	}
 
 	done := make(chan struct{})
-	// Register out of stage order to prove the sequencer orders by stage.
 	require.NoError(t, s.Defer(startupsequencer.StageBackground, "background", func(ctx context.Context) error {
 		_ = record("background")(ctx)
 		close(done)
@@ -75,7 +75,6 @@ func TestEnabledRunsInStageOrder(t *testing.T) {
 	require.NoError(t, s.Defer(startupsequencer.StageCritical, "critical", record("critical")))
 	require.NoError(t, s.Defer(startupsequencer.StageIngest, "ingest", record("ingest")))
 
-	// Nothing should have run before Begin.
 	mu.Lock()
 	assert.Empty(t, order, "no deferred work should run before Begin")
 	mu.Unlock()
@@ -93,8 +92,7 @@ func TestEnabledRunsInStageOrder(t *testing.T) {
 	assert.Equal(t, []string{"critical", "ingest", "background"}, order)
 }
 
-// Work registered after the sequence has begun must still run (inline), not be
-// silently dropped.
+// Work registered after the sequence has begun must still run (inline).
 func TestLateRegistrationRunsInline(t *testing.T) {
 	s := newTestSequencer(t, true)
 	s.Begin(context.Background())
@@ -107,10 +105,12 @@ func TestLateRegistrationRunsInline(t *testing.T) {
 	assert.True(t, ran, "work registered after Begin should run inline")
 }
 
-// A cancelled context must stop the sequence rather than running later stages.
+// A cancelled context must stop the sequence rather than running later items.
 func TestContextCancellationStops(t *testing.T) {
 	s := newTestSequencer(t, true)
-	s.interval = time.Hour // ensure we block between stages
+	// A long pacer interval makes the sequencer block between items so we can
+	// cancel mid-sequence.
+	s.pacer = stagedstart.NewPacer(stagedstart.Config{Enabled: true, Interval: time.Hour}, nil, nil)
 
 	first := make(chan struct{})
 	require.NoError(t, s.Defer(startupsequencer.StageCritical, "first", func(context.Context) error {
@@ -126,11 +126,9 @@ func TestContextCancellationStops(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.Begin(ctx)
 
-	<-first  // first stage ran; sequencer now sleeping before stage 2
-	cancel() // cancel during the inter-stage wait
+	<-first  // first item ran; sequencer now paused before the second
+	cancel() // cancel during the inter-item wait
 
-	// The second stage is gated behind a one-hour inter-stage wait, so the only
-	// way it could run is if cancellation were ignored.
 	time.Sleep(50 * time.Millisecond)
-	assert.False(t, secondRan, "later stage must not run after cancellation")
+	assert.False(t, secondRan, "later item must not run after cancellation")
 }

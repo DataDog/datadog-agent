@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"runtime"
-	"runtime/debug"
 	"runtime/pprof"
 	"sync"
 	"time"
@@ -21,6 +19,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/stagedstart"
 )
 
 var l *loader
@@ -90,24 +89,25 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 	// Staged startup: creating a module loads its eBPF assets, which allocates a
 	// large but transient amount of scratch (BTF parsing, bytecode, CO-RE
 	// relocations). Loading every module back-to-back stacks those transients
-	// into a single startup memory peak. When enabled, reclaim each module's
-	// scratch and pause briefly between modules so the peak stays close to the
-	// steady-state footprint. The total added delay is bounded by one stage
-	// interval regardless of how many modules are enabled.
-	stagedStart := deps.CoreConfig.GetBool("staged_start.enabled")
-	freeOSMemory := deps.CoreConfig.GetBool("staged_start.free_os_memory")
-	var moduleDelay time.Duration
-	if stagedStart && len(enabledModulesFactories) > 1 {
-		moduleDelay = deps.CoreConfig.GetDuration("staged_start.stage_interval") / time.Duration(len(enabledModulesFactories))
+	// into a single startup memory peak. When enabled, the pacer reclaims each
+	// module's scratch and waits between modules (a fixed slice of the stage
+	// interval, or until memory settles in adaptive mode) so the peak stays
+	// close to the steady-state footprint.
+	pacerCfg := stagedstart.ConfigFromReader(deps.CoreConfig)
+	// In fixed-interval mode, spread the whole stage interval across the modules
+	// (rather than waiting a full interval per module). Adaptive mode self-bounds
+	// per step via step_max and ignores this.
+	if !pacerCfg.Adaptive && len(enabledModulesFactories) > 1 {
+		pacerCfg.Interval /= time.Duration(len(enabledModulesFactories))
 	}
+	pacer := stagedstart.NewPacer(pacerCfg,
+		func(f string, a ...interface{}) { log.Infof(f, a...) },
+		func(f string, a ...interface{}) { log.Warnf(f, a...) },
+	)
 
 	for i, factory := range enabledModulesFactories {
-		if stagedStart && i > 0 {
-			if freeOSMemory {
-				runtime.GC()
-				debug.FreeOSMemory()
-			}
-			time.Sleep(moduleDelay)
+		if i > 0 {
+			pacer.Pace(context.Background(), string(enabledModulesFactories[i-1].Name))
 		}
 
 		var err error
