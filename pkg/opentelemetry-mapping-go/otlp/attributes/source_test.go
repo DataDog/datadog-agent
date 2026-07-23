@@ -243,20 +243,14 @@ func TestSourceFromAttrs(t *testing.T) {
 			},
 		},
 		{
-			name: "Azure Container Apps (no replica name, no name, still detected with empty Primary)",
+			name: "Azure Container Apps (missing identifying attributes, falls through unidentified)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
 				string(conventions.CloudPlatformKey): conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureResourceGroupName:      "my-rg",
 			}),
-			ok: true,
-			src: source.Source{
-				Kind:       source.AzureContainerAppsKind,
-				Identifier: "",
-				SourceIdentifier: source.SourceIdentifier{
-					Primary:    "",
-					Dimensions: map[string]string{},
-				},
-			},
+			ok:  false,
+			src: source.Source{},
 		},
 		{
 			name: "GCP",
