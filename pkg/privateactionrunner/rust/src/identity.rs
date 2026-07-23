@@ -42,7 +42,6 @@ impl RunnerUrn {
     }
 }
 
-/// The runner's identity: its signing key and enrolled URN fields.
 #[derive(Clone)]
 pub struct Identity {
     pub urn: String,
@@ -53,7 +52,6 @@ pub struct Identity {
 }
 
 impl Identity {
-    /// Build an identity from the persisted URN and encoded private key.
     pub fn new(urn: String, private_key: String) -> Result<Self> {
         if private_key.trim().is_empty() {
             bail!("runner private key is empty; the runner is not enrolled");
@@ -86,7 +84,10 @@ impl Identity {
         let persisted: PersistedIdentity = serde_json::from_slice(&data)
             .with_context(|| format!("parsing identity file {}", path.display()))?;
         if persisted.urn.is_empty() || persisted.private_key.is_empty() {
-            bail!("identity file {} is missing urn or private_key", path.display());
+            bail!(
+                "identity file {} is missing urn or private_key",
+                path.display()
+            );
         }
         Ok(Some(Identity::new(persisted.urn, persisted.private_key)?))
     }

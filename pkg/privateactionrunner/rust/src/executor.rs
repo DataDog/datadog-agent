@@ -26,9 +26,7 @@ pub struct Health {
 /// Dispatch operations against the executor. A trait so the orchestrator can be
 /// tested without a real executor gRPC server.
 pub trait Dispatcher: Send + Sync + 'static {
-    /// Query executor readiness/liveness.
     fn health(&self) -> impl std::future::Future<Output = Result<Health>> + Send;
-    /// Run one action (raw task bytes) and return its terminal outcome.
     fn run_action(&self, raw: Vec<u8>)
     -> impl std::future::Future<Output = Result<Outcome>> + Send;
 }

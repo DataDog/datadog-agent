@@ -15,18 +15,13 @@ use anyhow::{Context, Result};
 use std::path::Path;
 use tonic::transport::Channel;
 
-// (constructor is synchronous; the channel connects lazily on first RPC)
-
 /// Executor lifecycle operations the orchestrator relies on. A trait so the
 /// orchestrator can be tested without a real process manager.
 pub trait ExecutorLifecycle: Send + Sync + 'static {
-    /// Start the executor if it is not already running.
     fn ensure_started(&self) -> impl std::future::Future<Output = Result<()>> + Send;
-    /// Whether the executor process is currently running.
     fn is_running(&self) -> impl std::future::Future<Output = Result<bool>> + Send;
-    /// Whether the executor process has exited/crashed/failed (for fail-and-report).
+    /// For fail-and-report: exited/crashed/failed.
     fn has_exited(&self) -> impl std::future::Future<Output = Result<bool>> + Send;
-    /// Gracefully stop the executor.
     fn stop(&self) -> impl std::future::Future<Output = Result<()>> + Send;
 }
 

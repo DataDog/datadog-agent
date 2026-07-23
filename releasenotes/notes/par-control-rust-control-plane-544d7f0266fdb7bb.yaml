@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Add an internal Rust control-plane binary (``par-control``) for the Private Action Runner.

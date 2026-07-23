@@ -36,9 +36,9 @@ pub struct Params {
     pub loop_interval: Duration,
     pub ready_timeout: Duration,
     pub idle_timeout: Duration,
-    /// OPMS heartbeat cadence while an action's result stream is open.
+    /// Only while an action's result stream is open.
     pub heartbeat_interval: Duration,
-    /// Dequeue retry backoff (mirrors the Go circuit breaker).
+    /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
     pub wait_before_retry: Duration,
@@ -63,7 +63,9 @@ impl Params {
 
 /// Exponential dequeue backoff: `min_backoff * 2^(attempt-1)`, capped at `max_backoff`.
 fn backoff_delay(attempt: u32, min: Duration, max: Duration) -> Duration {
-    let factor = 2u32.checked_pow(attempt.saturating_sub(1)).unwrap_or(u32::MAX);
+    let factor = 2u32
+        .checked_pow(attempt.saturating_sub(1))
+        .unwrap_or(u32::MAX);
     min.saturating_mul(factor).min(max)
 }
 
@@ -168,7 +170,6 @@ where
                             }
                         };
 
-                        // Stream closed: stop heartbeats promptly.
                         let _ = stop_hb.send(());
                         let _ = hb_done.await;
 
@@ -176,7 +177,6 @@ where
                             error!("failed to publish result for task {}: {e:#}", task.task_id);
                         }
                         inflight.fetch_sub(1, Ordering::SeqCst);
-                        // Permit released here, freeing the pool slot.
                         drop(permit);
                     });
                 }
@@ -235,7 +235,10 @@ where
         }
         match self.lifecycle.is_running().await {
             Ok(true) => {
-                info!("executor idle for {:?}; stopping it", self.params.idle_timeout);
+                info!(
+                    "executor idle for {:?}; stopping it",
+                    self.params.idle_timeout
+                );
                 if let Err(e) = self.lifecycle.stop().await {
                     warn!("failed to stop idle executor: {e:#}");
                 }
@@ -273,7 +276,10 @@ fn spawn_heartbeats<O: Opms + 'static>(
     opms: Arc<O>,
     task: Task,
     interval: Duration,
-) -> (tokio::sync::oneshot::Sender<()>, tokio::task::JoinHandle<()>) {
+) -> (
+    tokio::sync::oneshot::Sender<()>,
+    tokio::task::JoinHandle<()>,
+) {
     let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
         let mut ticker = tokio::time::interval(interval);
@@ -475,7 +481,10 @@ mod tests {
             s.max_concurrent,
             pool
         );
-        assert_eq!(s.published, tasks, "every dequeued task should be published");
+        assert_eq!(
+            s.published, tasks,
+            "every dequeued task should be published"
+        );
     }
 
     #[tokio::test]
@@ -513,7 +522,10 @@ mod tests {
         let after_close = fakes.state.lock().unwrap().heartbeats;
         tokio::time::sleep(Duration::from_millis(40)).await;
         let later = fakes.state.lock().unwrap().heartbeats;
-        assert_eq!(after_close, later, "heartbeats must stop once the stream closes");
+        assert_eq!(
+            after_close, later,
+            "heartbeats must stop once the stream closes"
+        );
 
         let _ = tx.send(());
         let _ = handle.await;
@@ -549,7 +561,10 @@ mod tests {
         let _ = handle.await;
 
         let s = fakes.state.lock().unwrap();
-        assert_eq!(s.dequeued, 1, "the crashing task is dequeued once, not retried");
+        assert_eq!(
+            s.dequeued, 1,
+            "the crashing task is dequeued once, not retried"
+        );
         assert_eq!(s.failures, 1, "a crash publishes exactly one failure");
     }
 }

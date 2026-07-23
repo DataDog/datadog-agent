@@ -20,7 +20,6 @@ pub const JWT_HEADER_NAME: &str = "X-Datadog-OnPrem-JWT";
 /// Mints signed JWTs for OPMS requests. A trait so orchestration/OPMS tests can
 /// inject a fake without real keys (PRD testing seam 2).
 pub trait JwtSigner: Send + Sync {
-    /// Return a signed compact JWT for a single OPMS request.
     fn sign(&self) -> Result<String>;
 }
 

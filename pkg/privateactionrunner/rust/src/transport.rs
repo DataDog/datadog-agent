@@ -24,11 +24,7 @@ pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
     tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT).connect_with_connector_lazy(
         tower::service_fn(move |_| {
             let p = path.clone();
-            async move {
-                tokio::net::UnixStream::connect(p)
-                    .await
-                    .map(hyper_util::rt::TokioIo::new)
-            }
+            async move { connect_stream(p).await.map(hyper_util::rt::TokioIo::new) }
         }),
     )
 }
@@ -46,7 +42,7 @@ pub fn connect_lazy_tls(
             let p = path.clone();
             let connector = Arc::clone(&connector);
             async move {
-                let stream = tokio::net::UnixStream::connect(p).await?;
+                let stream = connect_stream(p).await?;
                 // Domain is ignored: hostname verification is disabled for the
                 // local socket (see tls::build_ipc_client_connector).
                 let tls = connector
@@ -57,4 +53,17 @@ pub fn connect_lazy_tls(
             }
         }),
     )
+}
+
+#[cfg(unix)]
+async fn connect_stream(path: PathBuf) -> std::io::Result<tokio::net::UnixStream> {
+    tokio::net::UnixStream::connect(path).await
+}
+
+#[cfg(windows)]
+async fn connect_stream(_path: PathBuf) -> std::io::Result<tokio::net::TcpStream> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Windows named-pipe transport is not yet implemented",
+    ))
 }
