@@ -106,7 +106,6 @@ go_test(
         "//comp/core/secrets/mock",
         "//comp/core/tagger/fx-mock",
         "//comp/core/workloadfilter/fx-mock",
-        "//comp/core/workloadmeta/collectors/catalog-core",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//pkg/util/fxutil",
