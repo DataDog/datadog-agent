@@ -268,15 +268,13 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 			}
 		}
 	}
-	if len(tags) == 0 {
-		m.preserveTagsExists = false
-	} else {
-		m.preserveTagsExists = true
-		m.preserveTagsMap = make(map[string]any)
-		for _, t := range tags {
+	m.preserveTagsMap = make(map[string]any, len(tags))
+	for _, t := range tags {
+		if t != "emitter" {
 			m.preserveTagsMap[t] = struct{}{}
 		}
 	}
+	m.preserveTagsExists = len(m.preserveTagsMap) > 0
 
 	return nil
 }

@@ -1145,6 +1145,97 @@ func TestAggregateTotalHistogramPerEmitterHasIndependentOutputs(t *testing.T) {
 	}
 }
 
+func TestCompileMetricEmitterPreserveTags(t *testing.T) {
+	for _, tt := range []struct {
+		name                   string
+		tags                   string
+		wantPreserveTags       []string
+		wantAggregateTags      []string
+		wantCompiledTags       map[string]any
+		wantPreserveTagsExists bool
+	}{
+		{
+			name: "preserve_tags emitter only",
+			tags: `
+            preserve_tags:
+              - emitter`,
+			wantPreserveTags: []string{"emitter"},
+			wantCompiledTags: map[string]any{},
+		},
+		{
+			name: "preserve_tags emitter and user tag",
+			tags: `
+            preserve_tags:
+              - emitter
+              - compression_kind`,
+			wantPreserveTags:       []string{"emitter", "compression_kind"},
+			wantCompiledTags:       map[string]any{"compression_kind": struct{}{}},
+			wantPreserveTagsExists: true,
+		},
+		{
+			name: "deprecated aggregate_tags emitter only",
+			tags: `
+            aggregate_tags:
+              - emitter`,
+			wantAggregateTags: []string{"emitter"},
+			wantCompiledTags:  map[string]any{},
+		},
+		{
+			name: "deprecated aggregate_tags emitter and user tag",
+			tags: `
+            aggregate_tags:
+              - emitter
+              - compression_kind`,
+			wantAggregateTags:      []string{"emitter", "compression_kind"},
+			wantCompiledTags:       map[string]any{"compression_kind": struct{}{}},
+			wantPreserveTagsExists: true,
+		},
+		{
+			name: "preserve_tags precedence retains both source fields",
+			tags: `
+            preserve_tags:
+              - emitter
+            aggregate_tags:
+              - compression_kind`,
+			wantPreserveTags:  []string{"emitter"},
+			wantAggregateTags: []string{"compression_kind"},
+			wantCompiledTags:  map[string]any{},
+		},
+		{
+			name: "empty preserve_tags falls back and retains both source fields",
+			tags: `
+            preserve_tags: []
+            aggregate_tags:
+              - emitter
+              - compression_kind`,
+			wantPreserveTags:       []string{},
+			wantAggregateTags:      []string{"emitter", "compression_kind"},
+			wantCompiledTags:       map[string]any{"compression_kind": struct{}{}},
+			wantPreserveTagsExists: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo%s
+`, tt.tags))
+
+			atelCfg, err := parseConfig(cfg)
+			require.NoError(t, err)
+			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
+			require.Equal(t, tt.wantPreserveTags, mCfg.PreserveTags)
+			require.Equal(t, tt.wantAggregateTags, mCfg.AggregateTags)
+			require.Equal(t, tt.wantCompiledTags, mCfg.preserveTagsMap)
+			require.Equal(t, tt.wantPreserveTagsExists, mCfg.preserveTagsExists)
+		})
+	}
+}
+
 func TestAggregateTotalRejectsReservedTotalPreserveTag(t *testing.T) {
 	const wantErr = "profile 'foo' metric 'bar.zoo' cannot preserve reserved tag 'total' when aggregate_total is enabled"
 
@@ -3056,13 +3147,20 @@ func TestNonEmitterPreserveTagFiltersAndDropsUnlistedLabels(t *testing.T) {
 }
 
 func TestEmitterPreserveTagIsCompatibilityNoOp(t *testing.T) {
-	mCfg := &MetricConfig{
-		Name:               "bar.zoo",
-		PreserveTags:       []string{"emitter"},
-		preserveTagsExists: true,
-		preserveTagsMap:    map[string]any{"emitter": struct{}{}},
-	}
-	profile := &Profile{metricsMap: map[string]*MetricConfig{"bar_zoo": mCfg}}
+	cfg := configmock.NewFromYAML(t, `
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+            preserve_tags:
+              - emitter
+`)
+	atelCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+	profile := atelCfg.Profiles[0]
 	metricType := dto.MetricType_GAUGE
 	metricName := "bar__zoo"
 	family := &dto.MetricFamily{
@@ -3086,16 +3184,21 @@ func TestEmitterPreserveTagIsCompatibilityNoOp(t *testing.T) {
 }
 
 func TestEmitterAndNonEmitterPreserveTagsUseOnlyNonEmitterForFiltering(t *testing.T) {
-	mCfg := &MetricConfig{
-		Name:               "bar.zoo",
-		PreserveTags:       []string{"emitter", "compression_kind"},
-		preserveTagsExists: true,
-		preserveTagsMap: map[string]any{
-			"emitter":          struct{}{},
-			"compression_kind": struct{}{},
-		},
-	}
-	profile := &Profile{metricsMap: map[string]*MetricConfig{"bar_zoo": mCfg}}
+	cfg := configmock.NewFromYAML(t, `
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+            preserve_tags:
+              - emitter
+              - compression_kind
+`)
+	atelCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+	profile := atelCfg.Profiles[0]
 	metricType := dto.MetricType_GAUGE
 	metricName := "bar__zoo"
 	family := &dto.MetricFamily{

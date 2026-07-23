@@ -513,28 +513,11 @@ func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.
 		return false
 	}
 
-	if !mCfg.preserveTagsExists {
-		return true
+	if mCfg.preserveTagsExists && !areTagsMatching(m.GetLabel(), mCfg.preserveTagsMap) {
+		return false
 	}
 
-	hasNonEmitterPreserveTag := false
-	for tagName := range mCfg.preserveTagsMap {
-		if tagName != "emitter" {
-			hasNonEmitterPreserveTag = true
-			break
-		}
-	}
-	if !hasNonEmitterPreserveTag {
-		return true
-	}
-
-	labels := m.GetLabel()
-	for i, label := range labels {
-		if label.GetName() != "emitter" && areTagsMatching(labels[i:i+1], mCfg.preserveTagsMap) {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentmetric {
