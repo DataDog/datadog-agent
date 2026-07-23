@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -100,4 +101,28 @@ func TestPatternTable(t *testing.T) {
 	assert.Equal(t, "no_aggregate", dump[2].LabelString)
 	assert.Equal(t, "aggregate", dump[3].LabelString)
 	assert.Equal(t, "start_group", dump[4].LabelString)
+}
+
+// TestPatternTableClonesBorrowedTokens is a regression test for the borrowed-token
+// pipeline: the labeler forwards tokens that alias the tokenizer's reusable scratch
+// buffer, and insert() retains them in a table row that outlives the call (and is
+// read by the status command). If insert does not clone, the next line's
+// tokenization overwrites the stored row in place, corrupting the pattern stats.
+func TestPatternTableClonesBorrowedTokens(t *testing.T) {
+	pt := NewPatternTable(5, 1, status.NewInfoRegistry())
+	tokenizer := NewTokenizer(0)
+
+	// First line: insert using borrowed tokens (aliasing the scratch buffer).
+	tokens, indices := tokenizer.tokenizeBorrowed([]byte("abc 123 !"))
+	pt.insert(&messageContext{tokens: tokens, tokenIndicies: indices, label: aggregate})
+
+	// A structurally different line reuses the same scratch buffer, overwriting
+	// the bytes the first line's tokens pointed at.
+	tokenizer.tokenizeBorrowed([]byte("zzzzzzz 9999 @ % ^ & *"))
+
+	// The stored row must still reflect the first pattern, not the second.
+	dump := pt.DumpTable()
+	require.Len(t, dump, 1)
+	assert.Equal(t, "CCC DDD !", dump[0].TokenString,
+		"stored pattern was corrupted by scratch-buffer reuse; insert must clone borrowed tokens")
 }

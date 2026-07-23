@@ -91,8 +91,11 @@ func (p *PatternTable) insert(context *messageContext) int {
 		p.evictLRU()
 	}
 
+	// context.tokens is borrowed from the tokenizer's scratch buffer and is
+	// overwritten by the next log line. This row outlives the current call (and
+	// is read by the status command via DumpTable), so it must own its tokens.
 	p.table = append(p.table, &row{
-		tokens:          context.tokens,
+		tokens:          cloneTokens(context.tokens),
 		label:           context.label,
 		labelAssignedBy: context.labelAssignedBy,
 		count:           1,
