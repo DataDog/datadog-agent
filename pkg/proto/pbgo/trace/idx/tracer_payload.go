@@ -108,6 +108,11 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				return
 			}
 		default:
+			o, err = harvestUnknownFieldStrings(o, tp.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown tracer payload field")
+				return
+			}
 		}
 	}
 	return
@@ -330,8 +335,11 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		default:
-			fmt.Printf("Unknown trace chunk field number %d\n", fieldNum)
-			return
+			o, err = harvestUnknownFieldStrings(o, tc.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown trace chunk field")
+				return
+			}
 		}
 	}
 	return
