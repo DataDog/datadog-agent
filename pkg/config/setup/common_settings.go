@@ -943,6 +943,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
 	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
 	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
+	// GKE AppSec callouts default to external-managed single-cluster GatewayClasses only.
+	// Internal (gke-l7-rilb / *-internal-managed) and classic (gke-l7-gxlb) classes are excluded because they do not support GCPTrafficExtension callouts.
+	// Multi-cluster -mc classes are excluded because they require a net.gke.io ServiceImport backendRef, which this reconciler does not emit. Override via this key.
+	config.BindEnvAndSetDefault("appsec.proxy.gke.gateway_classes", []string{"gke-l7-global-external-managed", "gke-l7-regional-external-managed"})
 
 	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")

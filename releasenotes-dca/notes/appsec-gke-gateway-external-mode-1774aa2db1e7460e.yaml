@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    Add AppSec injection support for GKE managed Gateways (EXTERNAL mode only). The Cluster
+    Agent now auto-detects GKE managed Gateways whose GatewayClass uses an
+    external-managed controller (``gke-l7-global-external-managed``,
+    ``gke-l7-regional-external-managed``) and reconciles one
+    ``GCPTrafficExtension`` (``networking.gke.io/v1``) per Gateway to route edge traffic
+    through a user-deployed Datadog AppSec callout service. SIDECAR mode is not supported
+    because managed GKE has no in-cluster Envoy data plane. The callout
+    Deployment, Service, and HealthCheckPolicy must be deployed by the user following the
+    public GKE service-extensions documentation. Cluster-agent RBAC for
+    ``gcptrafficextensions.networking.gke.io`` (get/list/watch/create/delete) is required.
+    The GatewayClass allowlist is configurable via ``appsec.proxy.gke.gateway_classes``.
