@@ -252,7 +252,7 @@ func (ra *remoteAgentRegistry) ReportRemoteAgentEvent(sessionID string, events [
 		log.Debugf("Remote agent '%s' reported event (type: %s): %s", agent.DisplayName, eventType, event.Message)
 	}
 
-	// For each subscriber, dispatch the events through `dispatchEvent` which provides panic recovery behavior so
+	// For each subscriber, dispatch the events through `dispatchEvents` which provides panic recovery behavior so
 	// that we don't bork the entire gRPC handler.
 	for _, subscriber := range ra.eventSubscribers {
 		if subscriber == nil || subscriber.Callback == nil {
