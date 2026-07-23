@@ -32,10 +32,10 @@ def _fetch(url):
 
 def _latest_version():
     html = _fetch(CAEXTRACT_URL)
-    dates = sorted(set(re.findall(r"cacert-(\d{4}-\d{2}-\d{2})\.pem\b", html)))
+    dates = re.findall(r"cacert-(\d{4}-\d{2}-\d{2})\.pem\b", html)
     if not dates:
         sys.exit("could not find any cacert-YYYY-MM-DD.pem references on caextract page")
-    return dates[-1]
+    return max(dates)
 
 
 def _sha256_for(version):
