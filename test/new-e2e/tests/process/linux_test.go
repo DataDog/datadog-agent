@@ -48,7 +48,6 @@ func (s *linuxTestSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// Start a process and keep it running
-	s.Env().RemoteHost.MustExecute("sudo apt-get -y install stress")
 	s.Env().RemoteHost.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
@@ -157,9 +156,9 @@ func (s *linuxTestSuite) TestProcessCheck() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress")
+		assertProcessCollected(c, payloads, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
@@ -200,9 +199,9 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, true, "stress")
+		assertProcessCollected(c, payloads, true, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestProcessChecksWithNPM() {
@@ -224,16 +223,16 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress")
+		assertProcessCollected(c, payloads, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
+		check := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent processchecks process --json")
 		assertManualProcessCheck(c, check, false, "stress")
 	}, 2*time.Minute, 10*time.Second)
 }
@@ -242,14 +241,14 @@ func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks rtprocess --json")
+		check := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent processchecks rtprocess --json")
 		assertManualRTProcessCheck(c, check)
 	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process_discovery --json")
+		check := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent processchecks process_discovery --json")
 		assertManualProcessDiscoveryCheck(c, check, "stress")
 	}, 2*time.Minute, 10*time.Second)
 }
@@ -263,7 +262,7 @@ func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
+		check := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent processchecks process --json")
 		assertManualProcessCheck(c, check, true, "stress")
 	}, 2*time.Minute, 10*time.Second)
 }

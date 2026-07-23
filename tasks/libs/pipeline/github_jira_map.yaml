@@ -21,6 +21,7 @@
 '@datadog/agent-log-pipelines': AGNTLOG
 '@datadog/agent-runtimes': AGENTRUN
 '@datadog/agent-configuration': AGENTCFG
+'@datadog/agent-supply-chain': SPPL
 '@datadog/kubernetes-experiences': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
@@ -36,6 +37,7 @@
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/sdlc-security': SINT
+'@datadog/sensitive-data-scanner': SDS
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI
 '@datadog/debugger': DEBUG
@@ -54,6 +56,7 @@
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
-'@datadog/agent-health': AGTHEAL
+'@datadog/fleet-remediation': AGTHEAL
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': DEFAULT_JIRA_PROJECT
+'@datadog/gpu-monitoring-agent': EBPF

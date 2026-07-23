@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -432,6 +432,36 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDepl
 	return entity.(*wmdef.KubernetesDeployment), nil
 }
 
+// GetKubernetesKueueQueue implements Store#GetKubernetesKueueQueue
+func (w *workloadmeta) GetKubernetesKueueQueue(id string) (*wmdef.KubernetesKueueQueue, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueQueue, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueQueue), nil
+}
+
+// GetKubernetesKueueResourceFlavor implements Store#GetKubernetesKueueResourceFlavor
+func (w *workloadmeta) GetKubernetesKueueResourceFlavor(id string) (*wmdef.KubernetesKueueResourceFlavor, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueResourceFlavor, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueResourceFlavor), nil
+}
+
+// GetKubernetesKueueWorkload implements Store#GetKubernetesKueueWorkload
+func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesKueueWorkload, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueWorkload, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueWorkload), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)
@@ -667,7 +697,7 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	_, err := backoff.Retry(ctx, func() (any, error) {
 		select {
 		case <-ctx.Done():
-			return nil, &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
+			return nil, backoff.Permanent(fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates))
 		default:
 		}
 

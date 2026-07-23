@@ -6,118 +6,30 @@ This script fixes the OS differences in the schema that are hard to capture auto
 decided at runtime by the Agent, OS based description and more.
 """
 
-# Available Variables
-#
-# Most of those can be change by customers and are resolved at runtime when the Agent start. The following are the most
-# likely values.
-#
-# conf_path:
-#     linux: /etc/datadog-agent/
-#     windows: programdata Dir, likely c:\programdata\datadog
-#     darwin: /opt/datadog-agent/etc/
-# install_path:
-#     linux: /opt/datadog-agent/
-#     windows: likely c:\Program Files\Datadog\Datadog Agent
-#     darwin: /opt/datadog-agent
-# run_path:
-#    linux: {install_path}/run
-#    darwin: /opt/datadog-agent/run
-#    windows: {conf_path}\run
-# log_path:
-#     linux: /var/log/datadog
-#     darwin: /opt/datadog-agent/logs
-#     windows: c:\programdata\datadog\logs
+import os
+import re
 
-core_defaults = {
-    "api_key": "",
-    "container_cgroup_root": "/host/sys/fs/cgroup/",
-    "container_proc_root": "/host/proc",
-    "sbom.cache_directory": "${run_path}/sbom-agent",
-    "agent_ipc.socket_path": "${run_path}/agent_ipc.socket",
-    "logs_config.open_files_limit": {
-        "darwin": 200,
-        "other": 500,
-    },
-    "use_networkv2_check": {"darwin": False, "other": True},
-    "network_check.use_core_loader": {"darwin": False, "other": True},
-    "kubernetes_kubelet_podresources_socket": {
-        "windows": "\\\\.\\pipe\\kubelet-pod-resources",
-        "other": "/var/lib/kubelet/pod-resources/kubelet.sock",
-    },
-    "kubernetes_kubelet_deviceplugins_socketdir": {
-        "windows": "\\\\.\\pipe\\kubelet-device-plugins",
-        "other": "/var/lib/kubelet/device-plugins",
-    },
-    "logs_config.run_path": "${run_path}",
-    "run_path": "${run_path}",
-    "process_config.dd_agent_bin": {
-        "linux": "${install_path}/bin/agent/agent",
-        "darwin": "${install_path}/bin/agent/agent",
-        "windows": "${install_path}/bin/agent.exe",
-    },
-    "confd_path": "${conf_path}/conf.d",
-    "shared_library_check.library_folder_path": "${conf_path}/checks.d",
-    "additional_checksd": "${conf_path}/checks.d",
-    "GUI_port": {
-        "linux": -1,
-        "other": 5002,
-    },
-    "security_agent.log_file": "${log_path}/security-agent.log",
-    "process_config.log_file": "${log_path}/process-agent.log",
-    "private_action_runner.log_file": "${log_path}/private-action-runner.log",
-    "dogstatsd_socket": {
-        "linux": "/var/run/datadog/dsd.socket",
-        "other": "",
-    },
-    "apm_config.receiver_socket": {
-        "linux": "/var/run/datadog/apm.socket",
-        "other": "",
-    },
-    "logs_config.streaming.streamlogs_log_file": "${log_path}/streamlogs_info/streamlogs.log",
-    "system_tray.log_file": "${conf_path}/logs/ddtray.log",
-    # setting duplicated for some reasons between system-probe and core-agent config
-    "runtime_security_config.socket": {
-        "windows": "localhost:3335",
-        "other": "${install_path}/run/runtime-security.sock",
-    },
+# Directory holding the Go config setup package, relative to this file.
+SETUP_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "pkg", "config", "setup"))
+
+# Some GetPlatformDefault map values are Go identifiers or function calls rather than literals. They are
+# platform-independent constants resolved at build time; map each to the value it returns on the matching platform.
+GO_VALUE_RESOLUTIONS = {
+    "defaultpaths.GetDefaultReceiverSocket()": "/var/run/datadog/apm.socket",
+    "defaultpaths.GetDefaultStatsdSocket()": "/var/run/datadog/dsd.socket",
+    "DefaultRuntimePoliciesDir": "/etc/datadog-agent/runtime-security.d",
 }
 
-sysprobe_defaults = {
-    "log_file": "${log_path}/system-probe.log",
-    "system_probe_config.bpf_dir": "${install_path}/embedded/share/system-probe/ebpf",
-    "system_probe_config.process_service_inference.enabled": {
-        "windows": True,
-        "other": False,
-    },
-    "system_probe_config.sysprobe_socket": {
-        "linux": "${run_path}/sysprobe.sock",
-        "darwin": "/opt/datadog-agent/run/sysprobe.sock",
-        "windows": "\\\\.\\pipe\\dd_system_probe",
-    },
-    "runtime_security_config.security_profile.dir": "${run_path}/runtime-security/profiles",
-    "runtime_security_config.activity_dump.local_storage.output_directory": "${run_path}/runtime-security/profiles",
-    "runtime_security_config.policies.dir": {
-        "windows": "${conf_path}/runtime-security.d",
-        "other": "/etc/datadog-agent/runtime-security.d",  # hardcoded for both, probably doesn't work on darwin
-    },
-    # setting duplicated for some reasons between system-probe and core-agent config
-    "runtime_security_config.socket": {
-        "windows": "localhost:3335",
-        "other": "${install_path}/run/runtime-security.sock",
-    },
-    "network_config.direct_send": {
-        "linux": True,
-        "other": False,
-    },
-    "discovery.enabled": {
-        "linux": True,
-        "other": False,
-    },
-    "discovery.use_system_probe_lite": {
-        "linux": True,
-        "other": False,
-    },
-}
+# Matches `"<config.key>", GetPlatformDefault(map[string]interface{}{ <body> })`, allowing the key and the
+# GetPlatformDefault call to be on separate lines. The body stops at the first `})` which closes the map literal;
+# `${...}` substitutions inside string values never produce a `})`, so this stays unambiguous.
+PLATFORM_DEFAULT_RE = re.compile(
+    r'"(?P<key>[\w.]+)"\s*,\s*GetPlatformDefault\(map\[string\]interface\{\}\{(?P<body>.*?)\}\)',
+    re.DOTALL,
+)
+
+# Matches a single `"platform": value` entry inside a GetPlatformDefault map literal.
+PLATFORM_ENTRY_RE = re.compile(r'^"(?P<platform>\w+)"\s*:\s*(?P<value>.+?),?$')
 
 # Settings used by full agent but not by serverless
 
@@ -287,6 +199,10 @@ full_agent_only_paths = [
     "metadata_ip_resolution_from_hostname",
     "metric_filterlist",
     "metric_filterlist_match_prefix",
+    "metric_lookback",
+    "metric_lookback.collection_interval",
+    "metric_lookback.enabled",
+    "metric_lookback.enabled_checks",
     "metric_tag_filterlist",
     "metric_tag_filterlist_adp_only",
     "metrics_port",
@@ -384,22 +300,90 @@ def fetch_node(root, key):
     return curr
 
 
-def fix_defaults(core_schema, sysprobe_schema):
-    for schema, custom_defaults in [[core_schema, core_defaults], [sysprobe_schema, sysprobe_defaults]]:
-        for key, default in custom_defaults.items():
-            node = fetch_node(schema, key)
+def try_fetch_node(root, key):
+    try:
+        return fetch_node(root, key)
+    except KeyError:
+        return None
 
+
+def _strip_go_comment(line):
+    """Strip a trailing `// ...` Go comment, ignoring `//` inside string or raw-string literals."""
+    in_str = None  # '"' for interpreted strings, '`' for raw strings
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if in_str == '"' and c == '\\':
+            i += 2
+            continue
+        if in_str:
+            if c == in_str:
+                in_str = None
+        elif c in '"`':
+            in_str = c
+        elif c == '/' and line[i + 1 : i + 2] == '/':
+            return line[:i]
+        i += 1
+    return line
+
+
+def _parse_go_value(value):
+    """Resolve a single Go map value (literal, identifier, or call) to its Python equivalent."""
+    value = value.strip()
+    if value in ("true", "false"):
+        return value == "true"
+    if re.fullmatch(r"-?\d+", value):
+        return int(value)
+    if value.startswith('"') and value.endswith('"'):
+        # Interpreted string literal. The values used here only ever escape backslashes and quotes.
+        return value[1:-1].replace('\\\\', '\\').replace('\\"', '"')
+    if value.startswith('`') and value.endswith('`'):
+        # Raw string literal: content is taken verbatim.
+        return value[1:-1]
+    if value in GO_VALUE_RESOLUTIONS:
+        return GO_VALUE_RESOLUTIONS[value]
+    raise RuntimeError(f"cannot resolve Go GetPlatformDefault value {value!r}; add it to GO_VALUE_RESOLUTIONS")
+
+
+def parse_platform_defaults():
+    """Parse the GetPlatformDefault calls in pkg/config/setup into a {config_key: {platform: value}} mapping."""
+    platform_defaults = {}
+    for fname in sorted(os.listdir(SETUP_DIR)):
+        if not fname.endswith(".go") or fname.endswith("_test.go"):
+            continue
+        with open(os.path.join(SETUP_DIR, fname)) as f:
+            content = f.read()
+
+        for match in PLATFORM_DEFAULT_RE.finditer(content):
+            key = match.group("key")
+            values = {}
+            for line in match.group("body").splitlines():
+                line = _strip_go_comment(line).strip()
+                if not line:
+                    continue
+                entry = PLATFORM_ENTRY_RE.match(line)
+                if entry:
+                    values[entry.group("platform")] = _parse_go_value(entry.group("value"))
+            if values:
+                platform_defaults[key] = values
+
+    return platform_defaults
+
+
+def fix_defaults(core_schema, sysprobe_schema):
+    # Platform-specific defaults pulled from the GetPlatformDefault calls in pkg/config/setup. A setting can live in
+    # the core schema, the system-probe schema, or both (some are duplicated), so apply to whichever schemas have it.
+    for key, values in parse_platform_defaults().items():
+        for schema in (core_schema, sysprobe_schema):
+            node = try_fetch_node(schema, key)
+            if node is None:
+                continue
             if "example" in node:
                 del node["example"]
+            if "default" in node:
+                del node["default"]
+            node["platform_default"] = values
 
-            if isinstance(default, str):
-                node["default"] = default
-            elif isinstance(default, dict):
-                if "default" in node:
-                    del node["default"]
-                node["platform_default"] = default
-            else:
-                raise RuntimeError(f"unknown custom default type {type(default)} for {key}")
     return core_schema, sysprobe_schema
 
 
@@ -429,10 +413,73 @@ def fix_missing_env_doc(core_schema, sysprobe_schema):
 
 def fix_full_agent_only(core_schema, sysprobe_schema):
     for key in full_agent_only_paths:
-        node = fetch_node(core_schema, key)
+        node = try_fetch_node(core_schema, key)
+        if not node:
+            continue
         if "tags" not in node:
             node["tags"] = []
         node["tags"].append("full-agent-only:true")
+    return core_schema, sysprobe_schema
+
+
+# A `template_section:<value>` tag records which config template a node belongs to.
+TEMPLATE_SECTION_PREFIX = "template_section:"
+
+
+def _template_section_values(node):
+    """Return the set of `template_section:<value>` values carried by *node*'s tags."""
+    return {
+        tag[len(TEMPLATE_SECTION_PREFIX) :]
+        for tag in node.get("tags", [])
+        if isinstance(tag, str) and tag.startswith(TEMPLATE_SECTION_PREFIX)
+    }
+
+
+def _strip_redundant_template_section_tags(setting, parent_section_values):
+    """Drop `template_section:<value>` tags from *setting* whose value is already
+    carried by its parent section, then remove the `tags` list if it becomes empty."""
+    tags = setting.get("tags")
+    if not isinstance(tags, list):
+        return
+    kept = [
+        tag
+        for tag in tags
+        if not (
+            isinstance(tag, str)
+            and tag.startswith(TEMPLATE_SECTION_PREFIX)
+            and tag[len(TEMPLATE_SECTION_PREFIX) :] in parent_section_values
+        )
+    ]
+    if kept:
+        setting["tags"] = kept
+    else:
+        del setting["tags"]
+
+
+def _clean_template_section_tags(section):
+    """Recursively clean redundant `template_section` tags under *section*.
+
+    A direct setting child's `template_section:<value>` tag is redundant when the
+    enclosing section already carries the same value, so it is removed."""
+    parent_values = _template_section_values(section)
+    props = section.get("properties")
+    if not isinstance(props, dict):
+        return
+    for child in props.values():
+        if not isinstance(child, dict):
+            continue
+        if child.get("node_type") == "setting":
+            _strip_redundant_template_section_tags(child, parent_values)
+        elif child.get("node_type") == "section":
+            _clean_template_section_tags(child)
+
+
+def fix_redundant_template_section_tags(core_schema, sysprobe_schema):
+    # A setting that repeats its parent section's `template_section:<value>` tag adds no
+    # information — it is already implied by the enclosing section. Remove those redundant
+    # tags, and drop any `tags` list left empty as a result.
+    for schema in (core_schema, sysprobe_schema):
+        _clean_template_section_tags(schema)
     return core_schema, sysprobe_schema
 
 
@@ -442,6 +489,7 @@ def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_env_parsers(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_redundant_template_section_tags(core_schema, sysprobe_schema)
 
     # special edge case for api_key
     core_schema["properties"]["api_key"]["type"] = "string"

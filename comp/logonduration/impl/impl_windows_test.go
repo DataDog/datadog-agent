@@ -123,7 +123,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(tl)
 
-		require.Len(t, milestones, 12)
+		require.Len(t, milestones, 11)
 
 		// gap = SessionLogon(29s) - LoginUIDone(10s) = 19000ms; milestones
 		// at/after SessionLogon have their offset collapsed by the idle gap.
@@ -135,7 +135,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 			{"Login UI Start", 8000},
 			{"Computer Group Policy", 12000},
 			{"User Group Policy", 13000},
-			{"User Logon", 10000},
 			{"Logon Duration", 10000},
 			{"Profile Loaded", 12000},
 			{"Profile Created", 14000},

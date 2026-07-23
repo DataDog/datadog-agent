@@ -66,7 +66,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Orchestrator Explorer DCA and core agent
   extra_tags:
     node_type: setting
     type: array
@@ -83,14 +82,13 @@ properties:
         default: true
         env_vars:
         - DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED
-        tags: []
   manifest_collection:
     node_type: section
     type: object
     properties:
       buffer_flush_interval:
         node_type: setting
-        type: number
+        type: string
         default: 20s
         format: duration
         tags:
@@ -122,7 +120,6 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   orchestrator_dd_url:
     node_type: setting
     type: string
@@ -130,7 +127,6 @@ properties:
     env_vars:
     - DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
     - DD_ORCHESTRATOR_URL
-    tags: []
   terminated_pods:
     node_type: section
     type: object

@@ -72,7 +72,8 @@ func (v *ec2TCPCongestionSuite) SetupSuite() {
 
 	host := v.Env().RemoteHost
 
-	// Docker and docker-compose are installed by ec2.WithDocker() in the provisioner.
+	// Docker and docker-compose are pre-baked into the AWS e2e AMI; ec2.WithDocker()
+	// in the provisioner wires up the docker.Manager.
 	// Write compose file and start containers.
 	host.MustExecute(fmt.Sprintf("mkdir -p /tmp/tcp-congestion && cat > /tmp/tcp-congestion/docker-compose.yaml << 'EOFCOMPOSE'\n%sEOFCOMPOSE", dockerTCPCongestionComposeYaml))
 	host.MustExecute("cd /tmp/tcp-congestion && docker-compose up -d")

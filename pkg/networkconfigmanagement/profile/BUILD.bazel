@@ -58,7 +58,6 @@ go_test(
         "default_profiles_test.go",
         "profile_processing_test.go",
     ],
-    data = ["//pkg/networkconfigmanagement/test/conf.d/network_config_management.d/default_profiles"],
     embed = [":profile"],
     gotags = ["test"],
     deps = [

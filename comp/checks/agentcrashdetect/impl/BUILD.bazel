@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agentcrashdetect.go",
+        "empty.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/checks/agentcrashdetect/def",
+            "//comp/core/agenttelemetry/def",
+            "//comp/core/autodiscovery/integration",
+            "//comp/core/sysprobeconfig/def",
+            "//comp/def",
+            "//pkg/aggregator/sender",
+            "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/collector/corechecks/system/wincrashdetect/probe",
+            "//pkg/util/crashreport",
+            "//pkg/util/log",
+            "//pkg/util/option",
+            "@in_yaml_go_yaml_v2//:yaml",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)

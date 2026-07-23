@@ -30,6 +30,12 @@ const (
 	// InjectionMode specifies the injection mode (e.g. init_container, csi).
 	// Example value: csi
 	InjectionMode = "admission.datadoghq.com/apm-inject.injection-mode"
+	// TracerConfigs sets tracer configuration options (injected as environment variables) during
+	// Local SDK Injection. It is the annotation-based equivalent of the targets[].ddTraceConfigs
+	// config option. The value is a JSON array of objects matching the ddTraceConfigs schema, and
+	// every entry's name must start with the DD_ prefix.
+	// Example value: [{"name":"DD_PROFILING_ENABLED","value":"true"}]
+	TracerConfigs = "admission.datadoghq.com/apm-inject.tracer-configs"
 	// LibraryVersion sets the library to use during Local SDK Injection.
 	// Example annotation: admission.datadoghq.com/python-lib.version
 	// Example value: v3

@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
@@ -45,7 +46,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 		}
 	}
 
-	proposedDistribution := newConfigsDistribution(currentDistribution.runnerWorkers())
+	proposedDistribution := newConfigsDistribution(currentDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
 	for _, digest := range currentDistribution.configsSortedByWorkersNeeded() {
 		if digest == isolateDigest {

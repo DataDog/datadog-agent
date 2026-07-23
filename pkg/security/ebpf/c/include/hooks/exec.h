@@ -226,12 +226,10 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
-    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
-    // the child the ppid is the parent PID.
+    event->pid_entry.ppid = ppid;
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
     event->process.pid = pid;
     event->process.tid = pid;
-    event->process.ppid = ppid;
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 
@@ -414,6 +412,17 @@ int hook_exit_itimers(ctx_t *ctx) {
     }
 
     void *signal = (void *)CTX_PARM1(ctx);
+
+    // Since kernel 5.19, exit_itimers takes a struct task_struct* instead of a struct signal_struct*,
+    // so we need to read the signal_struct pointer from the task_struct first
+    u64 exit_itimers_takes_task_struct;
+    LOAD_CONSTANT("exit_itimers_takes_task_struct", exit_itimers_takes_task_struct);
+    if (exit_itimers_takes_task_struct) {
+        u64 task_struct_signal_offset;
+        LOAD_CONSTANT("task_struct_signal_offset", task_struct_signal_offset);
+        bpf_probe_read(&signal, sizeof(signal), (char *)signal + task_struct_signal_offset);
+    }
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -667,11 +676,16 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
 
     bpf_printk("interpreter file: %llx", interpreter);
 
+    u64 binprm_filename_offset;
+    LOAD_CONSTANT("linux_binprm_filename_offset", binprm_filename_offset);
+    u64 binprm_interp_offset;
+    LOAD_CONSTANT("linux_binprm_interp_offset", binprm_interp_offset);
+
     const char *s;
-    bpf_probe_read(&s, sizeof(s), &bprm->filename);
+    bpf_probe_read(&s, sizeof(s), (char *)bprm + binprm_filename_offset);
     bpf_printk("*filename from binprm: %s", s);
 
-    bpf_probe_read(&s, sizeof(s), &bprm->interp);
+    bpf_probe_read(&s, sizeof(s), (char *)bprm + binprm_interp_offset);
     bpf_printk("*interp from binprm: %s", s);
 #endif
 

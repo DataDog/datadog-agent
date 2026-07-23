@@ -11,7 +11,7 @@ import (
 	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
-// TestbenchReporter implements reporter.Component for the testbench.
+// TestbenchReporter implements reporter.Reporter for the testbench.
 // On each Report call it pushes a lightweight "advance" SSE event so connected
 // browser clients know to refresh their state via the API.
 // It also satisfies SSEAccess so the testbench HTTP API can subscribe clients.

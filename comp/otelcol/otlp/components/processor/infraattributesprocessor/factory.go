@@ -27,6 +27,7 @@ import (
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -56,7 +57,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 			return pkgconfigsetup.Datadog()
 		}),
 		fx.Provide(func(_ config.Component) log.Params {
-			return log.ForDaemon("otelcol", "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return log.ForDaemon("otelcol", "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		logfx.Module(),
 		telemetryModule(),
@@ -106,7 +107,8 @@ func newFactoryForAgent(data *data) xprocessor.Factory {
 
 func (f *factory) createDefaultConfig() component.Config {
 	return &Config{
-		Cardinality: taggerTypes.LowCardinality,
+		Cardinality:                taggerTypes.LowCardinality,
+		TraceContainerTagPromotion: ContainerTagPromotionOff,
 	}
 }
 

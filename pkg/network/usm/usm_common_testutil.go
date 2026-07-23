@@ -24,7 +24,7 @@ func NewUSMEmptyConfig() *config.Config {
 	cfg.EnableIstioMonitoring = false
 	cfg.EnableNodeJSMonitoring = false
 	cfg.EnableGoTLSSupport = false
-	cfg.HTTPUseDirectConsumer = false
+	cfg.HTTPUseDirectConsumer = true
 
 	return cfg
 }

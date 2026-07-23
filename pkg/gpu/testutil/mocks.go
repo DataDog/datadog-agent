@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && nvml
+//go:build linux && nvml && test
 
 package testutil
 
@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,6 +62,13 @@ var DefaultNvidiaDriverVersion = "470.57.02"
 
 // DefaultMemoryBusWidth is the memory bus width for the default device returned by the mock
 var DefaultMemoryBusWidth = uint32(256)
+
+// DefaultPCIBusIDFields are the PCI bus ID fields for the default device returned by the mock.
+var DefaultPCIBusIDFields = nvml.PciInfo{
+	Domain: 0,
+	Bus:    0,
+	Device: 0x1e,
+}
 
 // DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMajor = 7
@@ -133,6 +141,7 @@ var DefaultFieldValues = map[uint32]MockFieldValue{
 	nvml.FI_DEV_NVLINK_GET_SPEED:                             NewFieldValue(25000),
 	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON:                     NewFieldValue(24000),
 	nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT:                NewFieldValue(16),
+	nvml.FI_DEV_GET_GPU_RECOVERY_ACTION:                      NewFieldValue(uint64(nvml.GPU_RECOVERY_ACTION_NONE)),
 	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL:            NewFieldValue(1),
 	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL:            NewFieldValue(2),
 	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL:            NewFieldValue(3),
@@ -340,6 +349,7 @@ func getMIGDeviceMockWithOptions(deviceIdx int, migDeviceIdx int, opts deviceOpt
 
 func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Device {
 	fieldValuesCounter := uint64(0)
+	fieldValuesCounterMu := sync.Mutex{}
 	arch, major, minor := opts.effectiveArchitecture()
 	isMIGUnsupported := opts.shouldMarkMIGUnsupported()
 	isMIGOrVGPUUnsupported := opts.shouldMarkMIGOrVGPUUnsupported()
@@ -536,6 +546,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 16, nvml.SUCCESS
 		},
+		GetPciInfoFunc: func() (nvml.PciInfo, nvml.Return) {
+			return DefaultPCIBusIDFields, nvml.SUCCESS
+		},
 		GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
 			if isMIGOrVGPUUnsupported {
 				return 0, 0, false, false, nvml.ERROR_NOT_SUPPORTED
@@ -645,6 +658,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
 		},
 		GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
+			fieldValuesCounterMu.Lock()
+			defer fieldValuesCounterMu.Unlock()
+
 			if opts.fieldValuesReturn != nil {
 				return *opts.fieldValuesReturn
 			}

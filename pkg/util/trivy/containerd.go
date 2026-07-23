@@ -19,13 +19,13 @@ import (
 	"time"
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/content"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/images/archive"
-	"github.com/containerd/containerd/mount"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/snapshots"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/core/images/archive"
+	"github.com/containerd/containerd/v2/core/mount"
+	"github.com/containerd/containerd/v2/core/snapshots"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	refdocker "github.com/distribution/reference"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
@@ -283,8 +283,36 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	return report, err
 }
 
+// verifyLayersInContentStore returns an error when any layer of img is missing
+// from the content store. Exporting the image to a tarball needs every layer
+// present. A remote snapshotter such as nydus keeps them elsewhere, so this is
+// how we tell that an export cannot succeed without attempting it first.
+func verifyLayersInContentStore(ctx context.Context, img containerd.Image) error {
+	manifest, err := images.Manifest(ctx, img.ContentStore(), img.Target(), img.Platform())
+	if err != nil {
+		return fmt.Errorf("read manifest: %w", err)
+	}
+	store := img.ContentStore()
+	for _, layer := range manifest.Layers {
+		if _, err := store.Info(ctx, layer.Digest); err != nil {
+			return fmt.Errorf("layer %s not in content store: %w", layer.Digest, err)
+		}
+	}
+	return nil
+}
+
 // ScanContainerdImage scans containerd image by exporting it and scanning the tarball
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	// Exporting the image to a tarball reads every layer blob from the content
+	// store. Images unpacked by a remote snapshotter (nydus, stargz, soci, ...)
+	// keep their layers outside it, so the export fails on a missing blob. Detect
+	// that up front and refuse as a terminal error rather than stream the whole
+	// image only to fail, which the scanner would otherwise retry forever.
+	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
+	if err := verifyLayersInContentStore(ctx, img); err != nil {
+		return nil, fmt.Errorf("%w: image %s: %v", sbom.ErrScanNotSupported, imgMeta.ID, err)
+	}
+
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
 		defer cleanup()

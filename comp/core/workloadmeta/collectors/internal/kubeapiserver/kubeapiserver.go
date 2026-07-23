@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -261,6 +262,58 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
+	}
+
+	if shouldHaveKueueMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue queue resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				queueType, err := kubernetesresourceparsers.QueueTypeForKueueResource(gvr.Resource)
+				if err != nil {
+					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
+					continue
+				}
+				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				if err != nil {
+					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueResourceFlavorGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueResourceFlavorStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueWorkloadGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue Workload resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueWorkloadStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
 	}
 
 	if c.config.GetBool("cluster_checks.crd_collection") {

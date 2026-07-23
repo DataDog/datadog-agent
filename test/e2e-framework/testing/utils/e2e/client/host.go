@@ -20,8 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/pkg/sftp"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -211,6 +212,22 @@ func (h *sshExecutor) MustExecute(command string, options ...ExecuteOption) stri
 	if err != nil {
 		h.context.FailNow("%v", err)
 	}
+	return stdout
+}
+
+// MustExecuteOn runs Execute and requires no error on tb.
+//
+// Use this instead of [sshExecutor.MustExecute] inside require.EventuallyWithT (or similar) when the
+// closure receives a *assert.CollectT: [MustExecute] fails via the suite context and aborts the
+// whole test on the first error instead of letting the poll retry.
+//
+// tb must satisfy [require.TestingT] (e.g. *testing.T or *assert.CollectT).
+func (h *sshExecutor) MustExecuteOn(tb require.TestingT, command string, options ...ExecuteOption) string {
+	if hh, ok := tb.(interface{ Helper() }); ok {
+		hh.Helper()
+	}
+	stdout, err := h.Execute(command, options...)
+	require.NoError(tb, err)
 	return stdout
 }
 

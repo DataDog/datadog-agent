@@ -23,15 +23,28 @@ common --experimental_proto_descriptor_sets_include_source_info # Preserve comme
 common --experimental_strict_repo_env # Do not leak uncontrolled environment variables into repository rules
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
+common --incompatible_default_to_explicit_init_py # https://github.com/bazel-contrib/rules_python/issues/2945
+common --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
+common --nobuild_event_json_file_path_conversion # don't fail the build on a transient BEP-upload error (no such host)
+common --remote_instance_name=ci/datadog-agent # entries missing from datadog-agent will be searched in remote-caching
+common --remote_local_fallback # best-effort on transient connection errors (no such host)
+common --remote_retries=1
+common --remote_timeout=60
+common --rewind_lost_inputs # https://github.com/bazelbuild/bazel/pull/25477
 common --repo_env=DEPLOY_AGENT # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=FORCED_PACKAGE_COMPRESSION_LEVEL # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
 common --repo_env=GOMODCACHE # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
 common --repo_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to Go SDK patching rules
 common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=REPIN=1 # Reduce MODULE.bazel.lock churn when --lockfile_mode=[update|refresh] trigger
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
+# Variables to override release.json values
+common --repo_env=INTEGRATIONS_CORE_VERSION
+common --repo_env=INTEGRATIONS_WHEELS_STORAGE
 common --run_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to `bazel run //:go`
+common --run_env=RULES_PYTHON_ADDITIONAL_INTERPRETER_ARGS=-I # Prevent user env, path, and site from shadowing runfiles
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
@@ -69,6 +82,7 @@ common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed b
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
 common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --run_env=__COMPAT_LAYER=RunAsInvoker # install*.exe may otherwise fail claiming unneeded admin elevation
+common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
 # Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
@@ -76,25 +90,22 @@ common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
 
 # Remote cache config --------------------------------------------------------------------------------------------------
-# datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
-# If entry isn't found in datadog-agent, it will be searched in remote-caching.
-common:cache --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us1.ddbuild.io:443
-common:cache --remote_instance_name=ci/datadog-agent
-common:cache --remote_local_fallback # best-effort on transient connection errors (no such host)
-common:cache --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
-common:cache --remote_retries=1
-common:cache --remote_timeout=60
+# Available remote cache endpoints - only Linux CI runs in k8s and can reach the in-cluster edge cache
+common:cache:edge --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog:443
+common:cache:frontend --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us1.ddbuild.io:443
+
+# Developer cache config, kept as `--config=cache` for backward compatibility
+common:cache --config=cache:frontend
+common:cache --noremote_upload_local_results
 
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
-common:ci --config=cache
 common:ci --config=lint
-# Opt-in override: only Linux CI runs in k8s and can reach the in-cluster edge cache.
-# tools/bazel adds `--config=ci-edge-cache` when `uname -s = Linux`.
-common:ci-edge-cache --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog:443
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
+common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
 
 # Project/Language configs --------------------------------------------------------------------------------------
+import %workspace%/bazel/configs/flavors.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------

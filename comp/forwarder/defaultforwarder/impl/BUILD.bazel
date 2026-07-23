@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -8,9 +9,9 @@ go_library(
         "domain_forwarder.go",
         "forwarder.go",
         "forwarder_health.go",
+        "otel_sync_forwarder.go",
         "shared_connection.go",
         "status.go",
-        "sync_forwarder.go",
         "telemetry.go",
         "test_common.go",
         "worker.go",
@@ -49,10 +50,11 @@ go_library(
         "@com_github_stretchr_testify//mock",
         "@org_golang_x_sync//semaphore",
         "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_multierr//:multierr",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "blocked_endpoints_test.go",
@@ -60,11 +62,11 @@ go_test(
         "domain_forwarder_test.go",
         "forwarder_health_test.go",
         "forwarder_test.go",
+        "otel_sync_forwarder_test.go",
         "status_test.go",
         "worker_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

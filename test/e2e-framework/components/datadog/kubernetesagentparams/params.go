@@ -36,6 +36,7 @@ const (
 //   - [WithHelmChartPath]
 //   - [WithHelmValues]
 //   - [WithNamespace]
+//   - [WithOpenShiftControlPlaneMonitoring]
 //   - [WithDeployWindows]
 //   - [WithFakeintake]
 //   - [WithoutLogsContainerCollectAll]
@@ -88,6 +89,8 @@ type Params struct {
 	// HelmChartVersion overrides the default Helm chart version for this installation.
 	// When empty, the framework default HelmVersion is used.
 	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type Option = func(*Params) error
@@ -203,6 +206,19 @@ func WithHelmChartPath(chartPath string) func(*Params) error {
 func WithHelmValues(values string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
+		return nil
+	}
+}
+
+// WithOpenShiftControlPlaneMonitoring configures OpenShift control plane monitoring.
+func WithOpenShiftControlPlaneMonitoring() func(*Params) error {
+	return func(p *Params) error {
+		p.OpenShiftControlPlaneMonitoring = true
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(`
+providers:
+  openshift:
+    controlPlaneMonitoring: true
+`))
 		return nil
 	}
 }

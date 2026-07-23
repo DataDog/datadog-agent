@@ -39,7 +39,7 @@ var (
 		"python": "v4",
 		"ruby":   "v2",
 		"dotnet": "v3",
-		"js":     "v5",
+		"js":     "v6",
 		"php":    "v1",
 	}
 
@@ -166,6 +166,21 @@ func TestMutatePod(t *testing.T) {
 					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
 				},
 			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		// CSI mode has no init container, so the guard relies on the instrumentation volume that
+		// every mode adds. Without this, a webhook reinvocation (e.g. on GKE Autopilot) would
+		// re-mutate the pod and append the injector to LD_PRELOAD twice.
+		"re-admission with CSI mode instrumentation volume already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: func() *corev1.Pod {
+				pod := mutatecommon.FakePodWithNamespace("foo-service", "application")
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: libraryinjection.InstrumentationVolumeName})
+				return pod
+			}(),
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
@@ -496,6 +511,93 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: nil,
 		},
+		"a pod with a lib annotation and tracer-configs gets env vars": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+				envVars: []corev1.EnvVar{
+					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+					{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"a pod with the inject-all annotation and tracer-configs gets env vars": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version":           "latest",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				envVars: []corev1.EnvVar{
+					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"tracer-configs entries without a DD_ prefix are skipped": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"NOT_DD","value":"true"},{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+				envVars: []corev1.EnvVar{
+					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"malformed tracer-configs json is ignored": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `not json`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
@@ -526,7 +628,13 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				require.NotNil(t, actual.target)
+				// Some cases (e.g. inject-all) populate libVersions with the default
+				// libraries, which we don't assert on here; only check when set.
+				if test.expected.libVersions != nil {
+					require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				}
+				require.Equal(t, test.expected.envVars, actual.target.envVars)
 			}
 		})
 	}
@@ -690,7 +798,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -746,7 +854,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),

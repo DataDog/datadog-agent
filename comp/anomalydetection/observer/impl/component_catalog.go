@@ -8,11 +8,12 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// componentKind distinguishes detectors from correlators in the catalog.
+// componentKind distinguishes detectors from correlators and extractors in the catalog.
 type componentKind int
 
 const (
@@ -67,6 +68,7 @@ type ConfigReader interface {
 	GetInt(key string) int
 	GetFloat64(key string) float64
 	GetString(key string) string
+	GetDuration(key string) time.Duration
 	IsConfigured(key string) bool
 }
 
@@ -77,6 +79,9 @@ type ComponentSettings struct {
 	// Enabled maps component name to whether it should be active.
 	// Components not listed use their catalog default.
 	Enabled map[string]bool
+
+	// Baseline controls the baseline analysis window.
+	Baseline BaselineConfig
 
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
@@ -93,7 +98,7 @@ type ComponentSettings struct {
 //
 //	catalog := defaultCatalog()
 //	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
-//	detectors, correlators, extractors, components := catalog.Instantiate(settings)
+//	detectors, correlators, scorer, extractors, components := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
@@ -273,6 +278,27 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
 			},
+			// ---- Anomaly Scorer (treated as a Correlator by the engine) ----
+			{
+				name:           "anomaly_scorer",
+				displayName:    "AnomalyScorer",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultAnomalyScorerConfig(),
+				factory:        func(cfg any) any { return NewAnomalyScorer(cfg.(AnomalyScorerConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(AnomalyScorerConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: failed to parse JSON config: %w", err)
+					}
+					threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold)
+					if err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: invalid correlation_event_threshold: %w", err)
+					}
+					cfg.CorrelationEventThreshold = threshold
+					return cfg, nil
+				},
+			},
 		},
 	}
 }
@@ -280,9 +306,14 @@ func defaultCatalog() *componentCatalog {
 // Instantiate creates component instances. Settings provides per-component
 // config and enabled values; anything not specified falls back to catalog
 // defaults.
+//
+// scorer is the typed anomaly scorer pointer (may be nil when disabled or absent).
+// It is NOT included in correlators — the engine handles that separately so it
+// can set the typed engine.scorer pointer at the same time.
 func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	detectors []observerdef.Detector,
 	correlators []observerdef.Correlator,
+	scorer *anomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
 	components map[string]*componentInstance,
 ) {
@@ -320,7 +351,12 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 				detectors = append(detectors, newSeriesDetectorAdapter(sd, defaultAggregations))
 			}
 		case componentCorrelator:
-			if cor, ok := instance.(observerdef.Correlator); ok {
+			// The anomaly_scorer entry is a componentCorrelator but returns an
+			// *anomalyScorer, so we capture it separately instead of adding it to
+			// correlators here. The engine/observer wires it in with telemetry.
+			if sc, ok := instance.(*anomalyScorer); ok {
+				scorer = sc
+			} else if cor, ok := instance.(observerdef.Correlator); ok {
 				correlators = append(correlators, cor)
 			}
 		case componentExtractor:
@@ -329,7 +365,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			}
 		}
 	}
-	return detectors, correlators, extractors, components
+	return detectors, correlators, scorer, extractors, components
 }
 
 // CatalogEntry is a public view of a catalog component.

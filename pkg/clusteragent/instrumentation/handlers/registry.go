@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-// Package handlers provide product-specific handlers for the Datadog Instrumentation CRD controller.
+// Package handlers provides product-specific handlers for the Datadog Instrumentation CRD controller.
 package handlers
 
 import (
@@ -22,11 +22,16 @@ type Deps struct {
 
 	// CheckStore is used as a shared store for check configurations between the AD handler and cluster agent API.
 	CheckStore *CheckStore
+
+	// ServiceCheckTemplateStore holds check templates for Service-targeted DDI CRs.
+	// Shared with the endpoint slices CR config provider that resolves templates into endpoint configs.
+	ServiceCheckTemplateStore *ServiceCheckTemplateStore
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.
 func DefaultHandlers(deps *Deps) []instrumentation.Handler {
 	return []instrumentation.Handler{
-		NewAutodiscoveryHandler(deps),
+		NewChecksHandler(deps),
+		NewLogsHandler(deps),
 	}
 }

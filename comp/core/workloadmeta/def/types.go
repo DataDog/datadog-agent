@@ -43,18 +43,21 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer              Kind = "container"
-	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesMetadata     Kind = "kubernetes_metadata"
-	KindKubeletMetrics         Kind = "kubelet_metrics"
-	KindKubeCapabilities       Kind = "kubernetes_capabilities"
-	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindECSTask                Kind = "ecs_task"
-	KindContainerImageMetadata Kind = "container_image_metadata"
-	KindProcess                Kind = "process"
-	KindGPU                    Kind = "gpu"
-	KindKubelet                Kind = "kubelet"
-	KindCRD                    Kind = "crd"
+	KindContainer                     Kind = "container"
+	KindKubernetesPod                 Kind = "kubernetes_pod"
+	KindKubernetesMetadata            Kind = "kubernetes_metadata"
+	KindKubeletMetrics                Kind = "kubelet_metrics"
+	KindKubeCapabilities              Kind = "kubernetes_capabilities"
+	KindKubernetesDeployment          Kind = "kubernetes_deployment"
+	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
+	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
+	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindECSTask                       Kind = "ecs_task"
+	KindContainerImageMetadata        Kind = "container_image_metadata"
+	KindProcess                       Kind = "process"
+	KindGPU                           Kind = "gpu"
+	KindKubelet                       Kind = "kubelet"
+	KindCRD                           Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -549,10 +552,11 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID        string
-	Name      string
-	Image     ContainerImage
-	Resources ContainerResources `proto:"ignore"`
+	ID           string
+	Name         string
+	Image        ContainerImage
+	Resources    ContainerResources    `proto:"ignore"`
+	ResizePolicy ContainerResizePolicy `proto:"ignore"`
 }
 
 // String returns a string representation of OrchestratorContainer.
@@ -564,6 +568,7 @@ func (o OrchestratorContainer) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
 		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+		_, _ = fmt.Fprint(&sb, o.ResizePolicy.String())
 	}
 	return sb.String()
 }
@@ -830,12 +835,13 @@ type KubernetesPod struct {
 	FinishedAt                 time.Time           `proto:"ignore"`
 	SecurityContext            *PodSecurityContext `proto:"ignore"`
 	Resources                  ContainerResources  `proto:"ignore"`
+	DeletionTimestamp          *time.Time          `proto:"ignore"`
+	ReadyTimestamp             *time.Time          `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
 	CreationTimestamp          time.Time                   `proto:"ignore"`
-	DeletionTimestamp          *time.Time                  `proto:"ignore"`
 	StartTime                  *time.Time                  `proto:"ignore"`
 	NodeName                   string                      `proto:"ignore"`
 	HostIP                     string                      `proto:"ignore"`
@@ -1261,6 +1267,8 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
@@ -1418,6 +1426,176 @@ func (d KubernetesDeployment) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesDeployment{}
+
+// KueueQueueType identifies the Kueue queue resource type.
+type KueueQueueType string
+
+const (
+	// KueueLocalQueue is a namespaced Kueue LocalQueue.
+	KueueLocalQueue KueueQueueType = "localqueue"
+	// KueueClusterQueue is a cluster-scoped Kueue ClusterQueue.
+	KueueClusterQueue KueueQueueType = "clusterqueue"
+)
+
+// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
+func GenerateKueueQueueEntityID(queueType KueueQueueType, namespace, name string) (string, error) {
+	switch queueType {
+	case KueueLocalQueue:
+		return string(queueType) + "/" + namespace + "/" + name, nil
+	case KueueClusterQueue:
+		return string(queueType) + "//" + name, nil
+	default:
+		return "", fmt.Errorf("unsupported Kueue queue type %q", queueType)
+	}
+}
+
+// KubernetesKueueQueue is an Entity representing a Kueue LocalQueue or ClusterQueue.
+type KubernetesKueueQueue struct {
+	EntityID
+	EntityMeta
+	QueueType        KueueQueueType
+	ClusterQueueName string
+}
+
+// GetID implements Entity#GetID.
+func (q *KubernetesKueueQueue) GetID() EntityID {
+	return q.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (q *KubernetesKueueQueue) Merge(e Entity) error {
+	qq, ok := e.(*KubernetesKueueQueue)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueQueue with different kind %T", e)
+	}
+
+	return merge(q, qq)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (q KubernetesKueueQueue) DeepCopy() Entity {
+	cq := deepcopy.Copy(q).(KubernetesKueueQueue)
+	return &cq
+}
+
+// String implements Entity#String.
+func (q KubernetesKueueQueue) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, q.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, q.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Queue -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue Type:", q.QueueType)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", q.ClusterQueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueQueue{}
+
+// GenerateKueueResourceFlavorEntityID returns the workloadmeta entity ID for a Kueue ResourceFlavor.
+func GenerateKueueResourceFlavorEntityID(name string) string {
+	return name
+}
+
+// KubernetesKueueResourceFlavor is an Entity representing a Kueue ResourceFlavor.
+type KubernetesKueueResourceFlavor struct {
+	EntityID
+	EntityMeta
+	NodeAffinityLabels map[string]string
+}
+
+// GetID implements Entity#GetID.
+func (rf *KubernetesKueueResourceFlavor) GetID() EntityID {
+	return rf.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (rf *KubernetesKueueResourceFlavor) Merge(e Entity) error {
+	rrf, ok := e.(*KubernetesKueueResourceFlavor)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueResourceFlavor with different kind %T", e)
+	}
+
+	return merge(rf, rrf)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (rf KubernetesKueueResourceFlavor) DeepCopy() Entity {
+	crf := deepcopy.Copy(rf).(KubernetesKueueResourceFlavor)
+	return &crf
+}
+
+// String implements Entity#String.
+func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, rf.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, rf.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Resource Flavor -----------")
+	_, _ = fmt.Fprintln(&sb, "Node Affinity Labels:", rf.NodeAffinityLabels)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueResourceFlavor{}
+
+// GenerateKueueWorkloadEntityID returns the workloadmeta entity ID for a Kueue Workload.
+func GenerateKueueWorkloadEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KueuePodSetAssignment is a Kueue Workload pod set assignment.
+type KueuePodSetAssignment struct {
+	Name    string
+	Flavors map[string]string
+}
+
+// KubernetesKueueWorkload is an Entity representing a Kueue Workload.
+type KubernetesKueueWorkload struct {
+	EntityID
+	EntityMeta
+	QueueName         string
+	ClusterQueueName  string
+	PodSetAssignments []KueuePodSetAssignment
+}
+
+// GetID implements Entity#GetID.
+func (w *KubernetesKueueWorkload) GetID() EntityID {
+	return w.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (w *KubernetesKueueWorkload) Merge(e Entity) error {
+	ww, ok := e.(*KubernetesKueueWorkload)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueWorkload with different kind %T", e)
+	}
+
+	return merge(w, ww)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (w KubernetesKueueWorkload) DeepCopy() Entity {
+	cw := deepcopy.Copy(w).(KubernetesKueueWorkload)
+	return &cw
+}
+
+// String implements Entity#String.
+func (w KubernetesKueueWorkload) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, w.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, w.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Workload -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
+	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueWorkload{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
@@ -2072,6 +2250,9 @@ type GPU struct {
 
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
+
+	// PCIBusID is the PCI bus ID of the GPU in domain:bus:device.function format.
+	PCIBusID string
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType

@@ -33,9 +33,10 @@ Read both files before writing anything:
 **`$MODULE_PATH/module.go`** — extract:
 - `IssueID` constant → used as `const issueID` in the test
 - `IssueName` constant → asserted as `issue.IssueName` in the test
+- `IssueType` constant → asserted as `issue.IssueType` in the test. It is a fixed const set explicitly by the module (`IssueName` lowercased, spaces replaced by underscores) — not computed by the agent at runtime, so read it directly rather than deriving it yourself.
 - Whether `BuiltInPeriodicHealthCheck()` returns non-nil → agent runs the check on a schedule
 - Whether `BuiltInStartupHealthCheck()` returns non-nil → check runs once at startup
-- Both returning `nil` → issues are pushed externally by the collector (like `checkfailure`)
+- Both returning `nil` → issues are pushed externally by another component (like `admissionprobe`)
 
 **`$MODULE_PATH/issue.go`** — extract the exact values returned by `BuildIssue()`:
 - `Category`, `Source`, `Location`, `Severity`, `Tags` → assert these in `IssueDetection`
@@ -54,7 +55,7 @@ If a `check.go` file exists in the module, read it to understand how the issue i
 
 Do **not** implement `Diagnose()` on the env — all assertions go through fakeintake only.
 
-The `healthPlatformAgentConfig` const is already defined in `check_failure_test.go` (same package) — do not redefine it.
+Check whether another test file in this package already embeds a suitable base agent config (e.g. a short forwarder interval) before adding your own — reuse it if so, following the fixture rules in Step 4 otherwise.
 
 ---
 
@@ -89,11 +90,12 @@ type {module}Suite struct {
 }
 
 func Test{Module}Suite(t *testing.T) {
+    t.Parallel()
     e2e.Run(t, &{module}Suite{},
         e2e.WithProvisioner(awshost.Provisioner(
             awshost.WithRunOptions(
                 ec2.WithAgentOptions(
-                    agentparams.WithAgentConfig(healthPlatformAgentConfig),
+                    agentparams.WithAgentConfig({module}AgentConfig),
                     // add agentparams here to pre-configure the issue trigger if needed
                 ),
             ),
@@ -123,18 +125,19 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
             issues = nil
             for _, p := range payloads {
                 for _, iss := range findIssuesByID(t, p, issueID) {
-                    if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+                    if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
                         issues = append(issues, iss)
                     }
                 }
             }
-            assert.NotEmpty(ct, issues, "issue not found as NEW in fakeintake")
-        }, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as NEW in fakeintake")
+            assert.NotEmpty(ct, issues, "issue not found as ACTIVE in fakeintake")
+        }, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as ACTIVE in fakeintake")
 
         require.NotEmpty(t, issues)
         issue := issues[0]
         // assert values read from issue.go:
         assert.Equal(t, "<IssueName>", issue.IssueName)
+        assert.Equal(t, "<issue_type>", issue.IssueType) // IssueName lowercased, spaces -> underscores
         assert.Equal(t, "<Category>", issue.Category)
         assert.Equal(t, "<Source>", issue.Source)
         // assert.Equal(t, "<Location>", issue.Location)  // if Location is set
@@ -148,7 +151,7 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
         suite.UpdateEnv(awshost.Provisioner(
             awshost.WithRunOptions(
                 ec2.WithAgentOptions(
-                    agentparams.WithAgentConfig(healthPlatformAgentConfig),
+                    agentparams.WithAgentConfig({module}AgentConfig),
                     // agentparams that represent the fixed state
                 ),
             ),
@@ -179,8 +182,8 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
 }
 ```
 
-**If the issue ID includes a runtime-generated suffix** (e.g. `check-execution-failure:broken_check:<hash>`):
-replace `findIssuesByID(t, p, issueID)` with `findIssuesByPrefix(p, issueID)` and drop the `t` parameter.
+**If the issue ID includes a runtime-generated suffix** (e.g. an issue ID with a hash appended per instance):
+add a `findIssuesByPrefix` helper to `helpers_test.go` (mirroring `findIssuesByID` but using `strings.HasPrefix`) and use it in place of `findIssuesByID(t, p, issueID)`.
 
 ---
 
@@ -192,7 +195,7 @@ replace `findIssuesByID(t, p, issueID)` with `findIssuesByPrefix(p, issueID)` an
 | Python file | `//go:embed fixtures/{module}.py` → `var {module}Py string` |
 | Long YAML | `//go:embed fixtures/{module}_config.yaml` → `var {module}Config string` |
 
-Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `check_failure_test.go`.
+Before adding a new agent config fixture, check whether an existing one in the package already fits — reuse it instead of declaring a near-duplicate.
 
 ---
 
@@ -200,20 +203,22 @@ Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `che
 
 - **Flush order**: restart or `UpdateEnv` first → wait for agent ready → `FlushServerAndResetAggregators()`. Never flush before restarting.
 - **No resilience phase**: `RestartResilience` is covered once in `TestResilienceSuite`. Do not add it here.
-- **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`).
+- **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_ACTIVE`, `ISSUE_STATE_RESOLVED`).
 - **No shared lifecycle driver**: phases (`IssueDetection`, `Resolution`) are always inline in the test method.
 - **No agent-ready wait at suite start**: the framework guarantees the agent is ready before the first test method runs.
 - **No `Diagnose()` on the env struct**.
+- **Always call `t.Parallel()`**: the first line of every `Test{Module}Suite` function must be `t.Parallel()` so the suite can run concurrently with others.
 
 ---
 
 ## Step 6 — Verify and report
 
 ```bash
-cd test/new-e2e && go vet ./tests/agent-health/...
+dda inv linter.go --targets=test/new-e2e/tests/agent-health
+dda inv new-e2e-tests.run --targets=./tests/agent-health/... --run=^Test{Module}Suite$
 ```
 
 Tell the user:
 - The file that was created
-- How to run the test locally: `dda inv new-e2e-tests.run --targets=./tests/agent-health/...`
+- How to run the test locally: `dda inv new-e2e-tests.run --targets=./tests/agent-health/... --run=^Test{Module}Suite$`
 - Any fixtures that need to be created in `fixtures/`

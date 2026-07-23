@@ -7,6 +7,7 @@ package procmgr
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +43,10 @@ type platformConfig struct {
 	// the given arguments (handles quoting differences between bash and
 	// PowerShell).
 	cliCmd func(args string) string
+
+	// killPIDCmd returns a shell command that force-kills the given PID
+	// (simulates an external crash, not dd-procmgr stop).
+	killPIDCmd func(pid uint32) string
 }
 
 type baseProcmgrSuite struct {
@@ -84,18 +89,16 @@ func (s *baseProcmgrSuite) TestBinariesExist() {
 }
 
 func (s *baseProcmgrSuite) TestServiceRunning() {
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(s.platform.checkSvcRunning)
-		assert.NoError(t, err)
-		assert.Equal(t, s.platform.svcRunningOutput, strings.TrimSpace(out))
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.checkSvcRunning)
+		assert.Equal(ct, s.platform.svcRunningOutput, strings.TrimSpace(out))
 	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestCLIStatus() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("status"))
-		require.NoError(ct, err)
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("status"))
 		assertHasField(ct, out, "Version")
 		assertHasField(ct, out, "Uptime")
 	}, 30*time.Second, 2*time.Second)
@@ -104,8 +107,7 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("list"))
-		require.NoError(ct, err)
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "test-sleep", map[string]string{
 			"STATE":   "Running",
 			"COMMAND": s.platform.sleepCommand,
@@ -116,8 +118,7 @@ func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 func (s *baseProcmgrSuite) TestCLIDescribe() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("describe test-sleep"))
-		require.NoError(ct, err)
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
 		assertField(ct, out, "Name", "test-sleep")
 		assertField(ct, out, "State", "Running")
 		assertField(ct, out, "Command", s.platform.sleepCommand)
@@ -127,12 +128,57 @@ func (s *baseProcmgrSuite) TestCLIDescribe() {
 func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("list"))
-		require.NoError(ct, err)
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "missing-binary", map[string]string{
 			"STATE": "Created",
 			"PID":   "-",
 		})
+	}, 30*time.Second, 2*time.Second)
+}
+
+// TestCLIStopStartThenKillRestarts verifies that after an explicit stop/start
+// cycle, an external kill still triggers the configured restart policy. A bug
+// in dd-procmgrd left stop_requested set after handle_stop, so the next crash
+// was treated as intentional and on-failure/always restart did not run.
+func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
+	s.requireCLI()
+	const procName = "test-sleep"
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
+	}, 30*time.Second, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("stop " + procName))
+	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("start " + procName))
+
+	var pidBeforeKill uint64
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		assertField(ct, out, "State", "Running")
+		pidStr := fieldValue(out, "PID")
+		require.NotEmpty(ct, pidStr)
+		require.NotEqual(ct, "-", pidStr)
+		var err error
+		pidBeforeKill, err = strconv.ParseUint(pidStr, 10, 32)
+		require.NoError(ct, err)
+	}, 30*time.Second, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute(s.platform.killPIDCmd(uint32(pidBeforeKill)))
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
+		desc := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+procName))
+		pidAfter := fieldValue(desc, "PID")
+		require.NotEmpty(ct, pidAfter)
+		require.NotEqual(ct, "-", pidAfter)
+		assert.NotEqual(ct, strconv.FormatUint(pidBeforeKill, 10), pidAfter, "PID should change after crash restart")
+		restarts := fieldValue(desc, "Restarts")
+		require.NotEmpty(ct, restarts)
+		restartCount, err := strconv.ParseUint(restarts, 10, 32)
+		require.NoError(ct, err)
+		assert.GreaterOrEqual(ct, restartCount, uint64(1), "restart count should reflect crash restart")
 	}, 30*time.Second, 2*time.Second)
 }
 

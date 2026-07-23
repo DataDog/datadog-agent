@@ -11,6 +11,7 @@ package reporterimpl
 import (
 	"time"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -61,14 +62,14 @@ func NewComponent(req Requires) (Provides, error) {
 	)
 
 	reporters := []reporterdef.Reporter{&stdoutReporter{
-		logger:          req.Log,
-		ongoingCounter:  ongoingCounter,
-		emittedCounter:  emittedCounter,
-		seenCorrelation: make(map[string]bool),
-		activeBefore:    make(map[string]bool),
+		logger:         req.Log,
+		ongoingCounter: ongoingCounter,
+		emittedCounter: emittedCounter,
+		stdoutEnabled:  req.Config.GetBool("anomaly_detection.reporting.stdout.enabled"),
+		stdoutVerbose:  req.Config.GetBool("anomaly_detection.reporting.stdout.verbose"),
 	}}
 
-	if req.Config.GetBool("anomaly_detection.reporting.enabled") {
+	if req.Config.GetBool("anomaly_detection.reporting.events.enabled") {
 		forwarder, ok := req.EventPlatform.Get()
 		if !ok {
 			req.Log.Warnf("[reporter] event_reporter disabled: event-platform forwarder is not running")
@@ -77,7 +78,7 @@ func NewComponent(req Requires) (Provides, error) {
 			if err != nil {
 				req.Log.Warnf("[reporter] event_reporter disabled: %v", err)
 			} else {
-				reporters = append(reporters, &EventReporter{sender: sender, logger: req.Log})
+				reporters = append(reporters, &EventReporter{sender: sender, logger: req.Log, maxRetries: defaultMaxRetryAttempts})
 			}
 		}
 	}
@@ -89,41 +90,68 @@ type stdoutReporter struct {
 	logger         log.Component
 	ongoingCounter telemetryComp.Counter
 	emittedCounter telemetryComp.Counter
-	// seenCorrelation tracks patterns reported at info level (first-seen). Mirrors
-	// EventReporter.seenCorrelations: driven by CorrelationHistory, cleaned up when
-	// a pattern leaves ActiveCorrelations.
-	seenCorrelation map[string]bool
-	// activeBefore holds patterns that were in ActiveCorrelations last advance,
-	// used to detect when a pattern goes inactive for recurrence cleanup.
-	activeBefore map[string]bool
+	// stdoutEnabled gates all [observer] stdout log lines.
+	// Controlled by anomaly_detection.reporting.stdout.enabled (default: true).
+	stdoutEnabled bool
+	// stdoutVerbose prints individual anomaly series lines after the title.
+	// Controlled by anomaly_detection.reporting.stdout.verbose (default: false).
+	stdoutVerbose bool
 }
 
 func (r *stdoutReporter) Name() string { return "stdout_reporter" }
 
 func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
-	currentlyActive := make(map[string]bool, len(output.ActiveCorrelations))
-	for _, ac := range output.ActiveCorrelations {
-		currentlyActive[ac.Pattern] = true
-	}
+	emitted := false
 
-	// Info log for new correlations (first time seen, mirrors EventReporter semantics).
-	newlyEmitted := make(map[string]bool)
-	for _, ac := range output.CorrelationHistory {
-		if !r.seenCorrelation[ac.Pattern] {
-			r.logger.Infof("[observer] anomaly detection report: pattern=%s title=%q members=%d",
-				ac.Pattern, ac.Title, len(ac.Members))
+	// Build the set of newly-detected patterns from this cycle so they can be
+	// excluded from the "ongoing" telemetry path below.
+	newlyDetected := make(map[string]struct{}, len(output.CorrelatorEvents))
+
+	// Log all correlator events at info level and drive the emitted counter.
+	// emittedCounter counts only CorrelationDetected events (new pattern first-seen
+	// or recurrence); episode events are not counted.
+	for _, ce := range output.CorrelatorEvents {
+		switch ce.Kind {
+		case observerdef.CorrelatorEventEpisodeStarted:
+			if r.stdoutEnabled {
+				r.logger.Infof("[observer] scorer episode started: scorer=%s pattern=%s t=%d",
+					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp)
+			}
+		case observerdef.CorrelatorEventEpisodeEnded:
+			if r.stdoutEnabled {
+				r.logger.Infof("[observer] scorer episode ended: scorer=%s pattern=%s t=%d duration=%ds",
+					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp,
+					ce.Correlation.LastUpdated-ce.Correlation.FirstSeen)
+			}
+		case observerdef.CorrelatorEventCorrelationDetected:
+			newlyDetected[ce.Correlation.Pattern] = struct{}{}
 			r.emittedCounter.Add(1)
-			r.seenCorrelation[ac.Pattern] = true
-			newlyEmitted[ac.Pattern] = true
+			emitted = true
+			if r.stdoutEnabled {
+				r.logger.Infof("[observer] anomaly detection report: pattern=%s title=%q members=%d",
+					ce.Correlation.Pattern, ce.Correlation.Title, len(ce.Correlation.Members))
+				if r.stdoutVerbose {
+					for _, a := range ce.Correlation.Anomalies {
+						ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
+						r.logger.Infof("[observer]   - %s [%s] at %s",
+							a.Source.DisplayName(), a.DetectorName, ts)
+					}
+				}
+			}
 		}
 	}
 
-	// Debug log for ongoing correlations (active but already seen this run).
+	// Ongoing counter: fires when at least one active correlation was already
+	// seen in a prior cycle (i.e. not newly detected this cycle). This mirrors
+	// the pre-refactor semantics where ongoingCounter incremented once per
+	// advance that had any pattern not in the freshly-emitted set.
 	hasOngoing := false
 	for _, ac := range output.ActiveCorrelations {
-		if !newlyEmitted[ac.Pattern] {
-			r.logger.Debugf("[observer] ongoing anomaly correlation: pattern=%s members=%d",
-				ac.Pattern, len(ac.Members))
+		if _, isNew := newlyDetected[ac.Pattern]; !isNew {
+			if r.stdoutEnabled {
+				r.logger.Debugf("[observer] ongoing anomaly correlation: pattern=%s members=%d",
+					ac.Pattern, len(ac.Members))
+			}
 			hasOngoing = true
 		}
 	}
@@ -132,24 +160,13 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	}
 
 	// Debug log for raw new anomalies detected this cycle.
-	for _, a := range output.NewAnomalies {
-		ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
-		r.logger.Debugf("[observer] anomaly detected: source=%s detector=%s at=%s",
-			a.Source.DisplayName(), a.DetectorName, ts)
-	}
-
-	// Recurrence cleanup: a pattern that was active before and is no longer active
-	// is removed from seenCorrelation so it can fire at info level if it recurs.
-	// Patterns that only ever appeared in CorrelationHistory (never active) are kept.
-	for pattern := range r.activeBefore {
-		if !currentlyActive[pattern] {
-			delete(r.seenCorrelation, pattern)
-			delete(r.activeBefore, pattern)
+	if r.stdoutEnabled {
+		for _, a := range output.NewAnomalies {
+			ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
+			r.logger.Debugf("[observer] anomaly detected: source=%s detector=%s at=%s",
+				a.Source.DisplayName(), a.DetectorName, ts)
 		}
 	}
-	for pattern := range currentlyActive {
-		r.activeBefore[pattern] = true
-	}
 
-	return len(newlyEmitted) > 0 || hasOngoing
+	return emitted || len(output.ActiveCorrelations) > 0
 }

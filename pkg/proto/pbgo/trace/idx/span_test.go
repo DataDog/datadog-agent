@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric documents a
@@ -250,4 +251,181 @@ func TestSafeReadHeaderBytesLimitsSize(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "too long payload")
 	})
+}
+
+// buildNestedArrayAnyValue builds a msgpack AnyValue that is an array nested
+// `depth` levels deep, terminating in a bool. Each level is a type tag (6 =
+// array) + a 1-element-shaped array header (encoded as 2, since the decoder
+// reads 2 wire slots per logical element).
+func buildNestedArrayAnyValue(depth int) []byte {
+	var b []byte
+	for i := 0; i < depth; i++ {
+		b = msgp.AppendUint32(b, 6)      // arrayValue type
+		b = msgp.AppendArrayHeader(b, 2) // numElements=2 -> one nested AnyValue
+	}
+	// Innermost terminal value: a bool.
+	b = msgp.AppendUint32(b, 2)
+	b = msgp.AppendBool(b, true)
+	return b
+}
+
+// TestUnmarshalAnyValueShallowNestingDecodes is a control: a payload nested
+// below the depth limit still decodes without error.
+func TestUnmarshalAnyValueShallowNestingDecodes(t *testing.T) {
+	payload := buildNestedArrayAnyValue(maxAnyValueDepth - 1)
+	_, _, err := UnmarshalAnyValue(payload, NewStringTable())
+	assert.NoError(t, err)
+}
+
+// TestUnmarshalAnyValueDeepNestingReturnsError verifies that a deeply nested
+// array payload is rejected with an error at the depth limit instead of
+// recursing unboundedly and crashing the process with a stack overflow.
+func TestUnmarshalAnyValueDeepNestingReturnsError(t *testing.T) {
+	// Far exceeds the depth limit; without the guard this overflowed the stack.
+	payload := buildNestedArrayAnyValue(2_000_000) // ~4 MB on the wire
+
+	var err error
+	assert.NotPanics(t, func() {
+		_, _, err = UnmarshalAnyValue(payload, NewStringTable())
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "depth")
+}
+
+// v0StringAnyValue builds a v0.x msgpack AttributeAnyValue holding a string.
+func v0StringAnyValue(s string) []byte {
+	b := msgp.AppendMapHeader(nil, 2)
+	b = msgp.AppendString(b, "type")
+	b = msgp.AppendInt32(b, 0) // stringValueType
+	b = msgp.AppendString(b, "string_value")
+	b = msgp.AppendString(b, s)
+	return b
+}
+
+// TestSpanEventUnmarshalMsgConvertedDropsNilEntries ensures the v0.x -> idx
+// converted unmarshal never stores nil AnyValue entries: a nil array element and
+// a nil attribute-map value are dropped rather than kept. Several consumers
+// (getAttributeAsString, SpanEvent.Msgsize/MarshalMsg, AnyValue.AsString) iterate
+// every entry and would panic on a nil.
+func TestSpanEventUnmarshalMsgConvertedDropsNilEntries(t *testing.T) {
+	// array_value AttributeAnyValue whose values are [nil, "x", nil].
+	arrayAV := msgp.AppendMapHeader(nil, 2)
+	arrayAV = msgp.AppendString(arrayAV, "type")
+	arrayAV = msgp.AppendInt32(arrayAV, 4) // arrayValueType
+	arrayAV = msgp.AppendString(arrayAV, "array_value")
+	arrayAV = msgp.AppendMapHeader(arrayAV, 1)
+	arrayAV = msgp.AppendString(arrayAV, "values")
+	arrayAV = msgp.AppendArrayHeader(arrayAV, 3)
+	arrayAV = msgp.AppendNil(arrayAV)
+	arrayAV = append(arrayAV, v0StringAnyValue("x")...)
+	arrayAV = msgp.AppendNil(arrayAV)
+
+	// Span event map with a single "attributes" map holding three keys:
+	// a kept string, a nil value, and the array-with-nil-elements above.
+	bts := msgp.AppendMapHeader(nil, 1)
+	bts = msgp.AppendString(bts, "attributes")
+	bts = msgp.AppendMapHeader(bts, 3)
+	bts = msgp.AppendString(bts, "keepStr")
+	bts = append(bts, v0StringAnyValue("keep")...)
+	bts = msgp.AppendString(bts, "nilAttr")
+	bts = msgp.AppendNil(bts)
+	bts = msgp.AppendString(bts, "arr")
+	bts = append(bts, arrayAV...)
+
+	strings := NewStringTable()
+	spanEvent := &SpanEvent{}
+	var err error
+	assert.NotPanics(t, func() {
+		_, err = spanEvent.UnmarshalMsgConverted(strings, bts)
+	})
+	assert.NoError(t, err)
+
+	// The nil attribute value is dropped; only "keepStr" and "arr" remain.
+	assert.Len(t, spanEvent.Attributes, 2)
+	nilKey := strings.Lookup("nilAttr")
+	if nilKey != 0 {
+		_, present := spanEvent.Attributes[nilKey]
+		assert.False(t, present, "nil attribute value must not be stored")
+	}
+
+	// The array retains only its non-nil element.
+	arrAV := spanEvent.Attributes[strings.Lookup("arr")]
+	arr, ok := arrAV.Value.(*AnyValue_ArrayValue)
+	assert.True(t, ok)
+	assert.Len(t, arr.ArrayValue.Values, 1)
+
+	// Consumers that iterate every entry must not panic and must round-trip.
+	assert.NotPanics(t, func() {
+		_ = spanEvent.Msgsize()
+		serStrings := NewSerializedStrings(uint32(strings.Len()))
+		_, err = spanEvent.MarshalMsg(nil, strings, serStrings)
+		assert.NoError(t, err)
+		_ = arrAV.AsString(strings)
+	})
+}
+
+// TestSpanUnmarshalMsgConvertedDropsNilLinksAndEvents ensures the v0.x -> idx
+// converted unmarshal never stores nil span-link or span-event entries: a nil
+// element in either array is dropped rather than kept. Every downstream V1 path
+// (normalization, replacement, InternalSpan.Msgsize, InternalSpan.MarshalMsg)
+// iterates each entry and would panic on a nil.
+func TestSpanUnmarshalMsgConvertedDropsNilLinksAndEvents(t *testing.T) {
+	// A span map carrying span_links: [nil, {}] and span_events: [nil, {}].
+	bts := msgp.AppendMapHeader(nil, 2)
+	bts = msgp.AppendString(bts, "span_links")
+	bts = msgp.AppendArrayHeader(bts, 2)
+	bts = msgp.AppendNil(bts)
+	bts = msgp.AppendMapHeader(bts, 0)
+	bts = msgp.AppendString(bts, "span_events")
+	bts = msgp.AppendArrayHeader(bts, 2)
+	bts = msgp.AppendNil(bts)
+	bts = msgp.AppendMapHeader(bts, 0)
+
+	strings := NewStringTable()
+	span := NewInternalSpan(strings, &Span{})
+	convertedFields := NewSpanConvertedFields()
+	var err error
+	assert.NotPanics(t, func() {
+		_, err = span.UnmarshalMsgConverted(bts, convertedFields)
+	})
+	assert.NoError(t, err)
+
+	// The nil link and event entries are dropped; only the non-nil ones remain,
+	// and no surviving entry is nil.
+	assert.Len(t, span.span.Links, 1)
+	assert.Len(t, span.span.Events, 1)
+	assert.NotNil(t, span.span.Links[0])
+	assert.NotNil(t, span.span.Events[0])
+
+	// Downstream V1 paths iterate every entry and must not panic / must round-trip.
+	assert.NotPanics(t, func() {
+		_ = span.Msgsize()
+		serStrings := NewSerializedStrings(uint32(strings.Len()))
+		_, err = span.MarshalMsg(nil, serStrings)
+		assert.NoError(t, err)
+	})
+}
+
+// TestChunkUnmarshalMsgConvertedDropsNilSpans ensures the v0.x -> idx converted
+// unmarshal of a trace chunk never stores nil span entries. A nil element in the
+// span array is dropped rather than kept; every downstream V1 path
+// (normalizeTraceChunkV1, GetRootV1, ProcessV1) dereferences each span and would
+// panic on a nil, and ProcessV1 has no recover.
+func TestChunkUnmarshalMsgConvertedDropsNilSpans(t *testing.T) {
+	// A span array carrying [nil, {}, nil] (one valid empty span between nils).
+	bts := msgp.AppendArrayHeader(nil, 3)
+	bts = msgp.AppendNil(bts)
+	bts = msgp.AppendMapHeader(bts, 0)
+	bts = msgp.AppendNil(bts)
+
+	chunk := &InternalTraceChunk{Strings: NewStringTable()}
+	var err error
+	assert.NotPanics(t, func() {
+		_, err = chunk.UnmarshalMsgConverted(bts, &ChunkConvertedFields{})
+	})
+	assert.NoError(t, err)
+
+	// The nil spans are dropped; only the single valid span remains, non-nil.
+	assert.Len(t, chunk.Spans, 1)
+	assert.NotNil(t, chunk.Spans[0])
 }

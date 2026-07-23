@@ -1,0 +1,34 @@
+load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
+
+# Rust shared-library checks are Linux-only.
+_LINUX = ["@platforms//os:linux"]
+
+# cdylib loaded by the shared-library check loader.
+rust_shared_library(
+    name = "datasecurity",
+    srcs = glob(["src/**/*.rs"]),
+    # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`
+    aliases = {
+        "@crates//:dd-sensitive-data-scanner": "dd_sds",
+    },
+    crate_name = "datasecurity",
+    edition = "2024",
+    target_compatible_with = _LINUX,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/sharedlibrary/rustchecks/core",
+        "@crates//:anyhow",
+        "@crates//:dd-sensitive-data-scanner",
+        "@crates//:libc",
+        "@crates//:serde",
+        "@crates//:serde_json",
+    ],
+)
+
+# Unit tests embedded in the crate sources (run with `bazel test`).
+rust_test(
+    name = "datasecurity_test",
+    crate = ":datasecurity",
+    edition = "2024",
+    target_compatible_with = _LINUX,
+)

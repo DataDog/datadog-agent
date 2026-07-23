@@ -193,6 +193,9 @@ func Run(service Service) {
 	var s controlHandler
 	s.service = service
 
+	stopStartupTrace := startStartupTrace(s.service.Name())
+	defer stopStartupTrace()
+
 	s.eventlog(messagestrings.MSG_SERVICE_STARTING, s.service.Name())
 
 	// golang svc.Run calls StartServiceCtrlDispatcher, which does not return until the service

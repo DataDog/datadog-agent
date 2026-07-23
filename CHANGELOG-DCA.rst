@@ -2,6 +2,216 @@
 Release Notes
 =============
 
+.. _Release Notes_7.81.2:
+
+7.81.2
+======
+
+.. _Release Notes_7.81.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-22
+Pinned to datadog-agent v7.81.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7812>`_.
+
+
+.. _Release Notes_7.81.1:
+
+7.81.1
+======
+
+.. _Release Notes_7.81.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-14
+Pinned to datadog-agent v7.81.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7811>`_.
+
+
+.. _Release Notes_7.81.0:
+
+7.81.0
+======
+
+.. _Release Notes_7.81.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-08
+Pinned to datadog-agent v7.81.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7810>`_.
+
+
+.. _Release Notes_7.81.0_New Features:
+
+New Features
+------------
+
+- The admission controller can now automatically pick the Datadog CSI
+  driver as the library injection mechanism for APM single step
+  instrumentation when the ``auto`` injection mode is selected, the
+  Datadog CSI driver is installed in the cluster and APM support is
+  advertised on its annotations. Otherwise, the admission controller
+  falls back to the init container injection mechanism. This
+  auto-detection is disabled by default.
+
+- The admission webhook now writes a set of APM Single Step Instrumentation
+  (SSI) observability annotations directly on mutated pods, making the full
+  injection outcome inspectable via ``kubectl get pod -o yaml`` without
+  requiring cluster-level access.
+  
+  New annotations written by the webhook:
+  
+  - ``internal.apm.datadoghq.com/injection-status``: overall outcome —
+    ``injected``, ``partial``, ``skipped``, or ``error``.
+  - ``internal.apm.datadoghq.com/injected-libraries``: JSON array listing
+    every component the webhook attempted to inject (injector + per-language
+    libraries), each with its name, image, and individual status.
+  - ``internal.apm.datadoghq.com/effective-injection-mode``: the injection
+    mode actually used (e.g. ``csi``, ``init_container``, ``csi (auto)``),
+    set immediately after provider selection so it is present even when
+    injection is subsequently skipped.
+  - ``internal.apm.datadoghq.com/injection-error``: human-readable reason
+    when injection was skipped or errored.
+  - ``internal.apm.datadoghq.com/csi-driver-status``: observed state of the
+    Datadog CSI driver at injection time — ``apm-enabled``, ``apm-disabled``
+    (driver present but APM SSI not advertised), or ``not-installed``. Set
+    independently of the configured injection mode.
+  
+  Per-library failures (unsupported language, library injection error) no
+  longer prevent the webhook patch from being applied. The webhook now logs
+  a warning and reflects the partial outcome in the annotations instead of
+  discarding the entire mutation.
+
+- Add support for ``CPURequestsRemoveLimitsMemoryRequestsAndLimits`` as a container
+  ``controlledValues`` in ``DatadogPodAutoscaler`` and ``DatadogPodAutoscalerClusterProfile``.
+  When set, CPU requests are controlled and any existing CPU limits are removed,
+  allowing containers to burst freely. Memory requests and limits are controlled as usual.
+
+- A ``DatadogInstrumentation`` custom resource can now target a Kubernetes
+  ``Service`` to run checks against each of its endpoints.
+
+- Add ``external_metrics_provider.autoscaler_autogen_label_selector`` configuration option to the Cluster Agent.
+  When set, only HPAs and WPAs matching the label selector trigger autogeneration of ``DatadogMetric`` objects.
+  Autoscalers with explicit ``datadogmetric@`` references are always tracked regardless of the selector.
+  This allows filtering out autoscalers managed by other controllers (e.g. KEDA) to avoid creating unwanted ``DatadogMetric`` objects.
+
+
+.. _Release Notes_7.81.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent now reports its own pod name as ``pod_name`` in its
+  inventory metadata payload (``datadog_cluster_agent_metadata``), providing
+  a stable per-replica identifier for each Cluster Agent.
+
+- Added ``kubernetes_apiserver_client_qps`` and ``kubernetes_apiserver_client_burst``
+  configuration options to control the rate limiter for the Cluster Agent's Kubernetes
+  API server client. Default QPS and burst values are increased.
+
+- Add ``datadog-cluster-agent rotate-par-identity`` to rotate the Private
+  Action Runner credentials. The new identity is written to the shared
+  Kubernetes secret. Run a Kubernetes rollout restart of the Cluster Agent
+  deployment to apply the new identity.
+
+- Cluster checks now keep the same check ID across Cluster Agent restarts when
+  their configuration is unchanged.
+
+
+.. _Release Notes_7.81.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed the Cluster Agent's cluster check rebalancing algorithm to operate
+  on configuration digests rather than individual instance IDs. Previously,
+  multi-instance configurations could be incorrectly split across different
+  runners, causing inaccurate workload estimates and suboptimal rebalancing
+  decisions.
+
+- Fix APM auto-injection being blocked when a container has no CPU or memory
+  limit and requests below the minimum threshold. The Admission Controller now correctly distinguishes between "no limit
+  set" (unlimited resources) and "low limit", preventing the request value from
+  being incorrectly used as the effective limit.
+
+- Fixed an issue in the algorithm used to rebalance cluster checks
+  that could cause unnecessary check moves between runners.
+
+- Fix nginx AppSec init container image having the controller version tag
+  appended even when ``admission_controller.appsec.nginx.init_image`` is
+  set to a fully-qualified image reference that already includes a tag.
+
+
+.. _Release Notes_7.80.4:
+
+7.80.4
+======
+
+.. _Release Notes_7.80.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-01
+Pinned to datadog-agent v7.80.4: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7804>`_.
+
+
+.. _Release Notes_7.80.3:
+
+7.80.3
+======
+
+.. _Release Notes_7.80.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-24
+Pinned to datadog-agent v7.80.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7803>`_.
+
+
+.. _Release Notes_7.80.2:
+
+7.80.2
+======
+
+.. _Release Notes_7.80.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-17
+Pinned to datadog-agent v7.80.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7802>`_.
+
+
+.. _Release Notes_7.80.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue where the admission controller connectivity probe webhook
+  did not include the AKS selector requirements when
+  ``admission_controller.add_aks_selectors`` was enabled, which could cause
+  repeated webhook reconciliation conflicts on AKS.
+
+
+.. _Release Notes_7.80.1:
+
+7.80.1
+======
+
+.. _Release Notes_7.80.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-12
+Pinned to datadog-agent v7.80.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7801>`_.
+
+
 .. _Release Notes_7.80.0:
 
 7.80.0

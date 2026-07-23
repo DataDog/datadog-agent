@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -46,6 +47,8 @@ func SetupHandlers(r *http.ServeMux, wmeta workloadmeta.Component, ac autodiscov
 	})
 	r.HandleFunc("POST /stop", stopAgent)
 	r.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) })
+	r.HandleFunc("GET /status/section/{component}", func(w http.ResponseWriter, r *http.Request) { getStatusSection(w, r, statusComponent) })
+	r.HandleFunc("GET /status/sections", func(w http.ResponseWriter, r *http.Request) { getStatusSections(w, r, statusComponent) })
 	r.HandleFunc("GET /status/health", getHealth)
 	r.HandleFunc("GET /config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
@@ -70,10 +73,24 @@ func SetupHandlers(r *http.ServeMux, wmeta workloadmeta.Component, ac autodiscov
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
+	writeStatus(w, r, statusComponent, "")
+}
+
+func getStatusSection(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
+	writeStatus(w, r, statusComponent, r.PathValue("component"))
+}
+
+func writeStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section string) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
-	s, err := statusComponent.GetStatus(format, verbose)
+	var s []byte
+	var err error
+	if section == "" {
+		s, err = statusComponent.GetStatus(format, verbose)
+	} else {
+		s, err = statusComponent.GetStatusBySections([]string{section}, format, verbose)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
@@ -81,6 +98,13 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		return
 	}
 	w.Write(s)
+}
+
+func getStatusSections(w http.ResponseWriter, _ *http.Request, statusComponent status.Component) {
+	log.Info("Got a request for the status sections.")
+	w.Header().Set("Content-Type", "application/json")
+	sections, _ := json.Marshal(statusComponent.GetSections())
+	_, _ = w.Write(sections)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -161,9 +185,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.DCALogFile
+		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
-	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent, diagnoseComponent, ipc)
+	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, flaretypes.FlareArgs{}, statusComponent, diagnoseComponent, ipc)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "backend",
+    srcs = [
+        "forwarder.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/security/metrics",
+        "//pkg/security/seclog",
+        "//pkg/security/utils",
+        "//pkg/util/http",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "backend_test",
+    srcs = ["forwarder_test.go"],
+    embed = [":backend"],
+    gotags = ["test"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

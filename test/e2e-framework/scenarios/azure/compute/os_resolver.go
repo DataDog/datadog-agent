@@ -79,7 +79,7 @@ func resolveUbuntuURN(_ azure.Environment, osInfo os.Descriptor) (string, error)
 	}
 
 	switch osInfo.Version {
-	case os.Ubuntu2204.Version:
+	case os.Ubuntu2204.Version, os.Ubuntu2204E2E.Version:
 		return "canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest", nil
 	default:
 		return "", fmt.Errorf("unsupported Ubuntu version %s", osInfo.Version)

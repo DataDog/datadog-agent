@@ -1,16 +1,18 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
-    "constraints": {
-      "go": "1.26.4"
-    },
-    "constraintsFiltering": "strict",
+    "timezone": "Europe/Paris",
+    "updateNotScheduled": false,
+    "ignorePaths": [],
     "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
+    "prCreation": "not-pending",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
+    "postUpdateOptions": ["gomodUpdateImportPaths"],
     "packageRules": [
       {
         "matchDepNames": ["*"],
@@ -84,6 +86,12 @@
         "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
+        "description": "Require Dependency Dashboard approval for major Go dependency updates",
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["major"],
+        "dependencyDashboardApproval": true
+      },
+      {
         "matchManagers": ["gomod"],
         "matchDepNames": [
           "github.com/DataDog/datadog-agent/**",
@@ -97,11 +105,13 @@
         "enabled": false
       },
       {
+        "description": "Disable Go directives, toolchain (go update is managed independently) or replace (->fork)",
         "matchManagers": ["gomod"],
-        "matchDepTypes": ["replace"],
+        "matchDepTypes": ["golang", "toolchain", "replace"],
         "enabled": false
       },
       {
+        "description": "Disable when pinned on a commit (->forks)",
         "matchManagers": ["gomod"],
         "matchUpdateTypes": ["digest"],
         "enabled": false
@@ -165,6 +175,11 @@
         "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["rules_rust", "rules_rust_prost"],
+        "groupName": "rules_rust"
       },
       {
         "matchManagers": ["bundler"],
@@ -260,6 +275,61 @@
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "test/new-e2e/tests/installer/unix/package_definitions.go"
+        ],
+        "matchStrings": [
+          "func pinnedApmInjectVersion\\(\\) string \\{[\\s\\S]*?\\n\\s*return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+)\""
+        ],
+        "depNameTemplate": "DataDog/dd-apm-inject",
+        "datasourceTemplate": "custom.dd-apm-inject",
+        "versioningTemplate": "loose"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "test/new-e2e/tests/installer/unix/package_definitions.go"
+        ],
+        "matchStrings": [
+          "func pinnedApmLibraryPythonVersion\\(\\) string \\{[\\s\\S]*?\\n\\s*return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "DataDog/dd-apm-library-python",
+        "datasourceTemplate": "custom.dd-apm-library-python",
+        "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "test/new-e2e/tests/installer/unix/all_packages_test.go"
+        ],
+        "matchStrings": [
+          "collectionVersion = \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "datadog.dd",
+        "datasourceTemplate": "custom.ansible-galaxy-datadog-dd",
+        "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\"npm:(?<depName>[^\"]+)\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "datasourceTemplate": "npm",
+        "versioningTemplate": "npm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\\bnode\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "node",
+        "datasourceTemplate": "node",
+        "versioningTemplate": "node"
       }
     ],
     "customDatasources": {
@@ -273,6 +343,24 @@
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-windows_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "dd-apm-inject": {
+        "defaultRegistryUrlTemplate": "https://api.github.com/repos/DataDog/dd-apm-inject/releases",
+        "transformTemplates": [
+          "{\"releases\": $map($, function($v) { {\"version\": $replace($v.tag_name, /^v/, \"\") & \"-1\", \"releaseTimestamp\": $v.published_at, \"isStable\": $not($v.prerelease) } }) }"
+        ]
+      },
+      "ansible-galaxy-datadog-dd": {
+        "defaultRegistryUrlTemplate": "https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/index/datadog/dd/versions/?limit=50",
+        "transformTemplates": [
+          "{\"releases\": $map(data, function($v) { {\"version\": $v.version, \"releaseTimestamp\": $v.created_at } }) }"
+        ]
+      },
+      "dd-apm-library-python": {
+        "defaultRegistryUrlTemplate": "https://api.github.com/repos/DataDog/dd-trace-py/releases",
+        "transformTemplates": [
+          "{\"releases\": $map($, function($v) { {\"version\": $replace($v.tag_name, /^v/, \"\"), \"releaseTimestamp\": $v.published_at, \"isStable\": $not($v.prerelease) } }) }"
         ]
       }
     }

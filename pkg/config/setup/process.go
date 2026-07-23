@@ -10,9 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
-	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,103 +63,6 @@ const (
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
 // we need to make sure it is only applied once
 var processesAddOverrideOnce sync.Once
-
-// procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
-// We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
-	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
-	// variable convention as the core agent.
-	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
-	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
-
-	envs := []string{processConfigKey, processAgentKey}
-	config.BindEnvAndSetDefault(key, val, envs...)
-}
-
-func setupProcesses(config pkgconfigmodel.Setup) {
-	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
-	// or container_collection.enabled and process_collection.enabled.
-	//
-	// It's a string as the possible values are "disabled", "false", "true"...
-	procBindEnvAndSetDefault(config, "process_config.enabled", "false")
-
-	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
-	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
-
-	config.BindEnvAndSetDefault("process_config.process_dd_url", "",
-		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
-		"DD_PROCESS_AGENT_PROCESS_DD_URL",
-		"DD_PROCESS_AGENT_URL",
-		"DD_PROCESS_CONFIG_URL",
-	)
-	procBindEnvAndSetDefault(config, "process_config.dd_agent_env", "")
-	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
-	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
-	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
-	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
-	procBindEnvAndSetDefault(config, "process_config.max_message_bytes", DefaultProcessMaxMessageBytes)
-	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
-	procBindEnvAndSetDefault(config, "process_config.blacklist_patterns", []string{})
-
-	// The interval, in seconds, at which we will run each check. If you want consistent
-	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
-	// Defaults to 10s for normal checks and 2s for others.
-	procBindEnvAndSetDefault(config, "process_config.intervals.process", 10)
-	procBindEnvAndSetDefault(config, "process_config.intervals.process_realtime", 2)
-	procBindEnvAndSetDefault(config, "process_config.intervals.container", 10)
-	procBindEnvAndSetDefault(config, "process_config.intervals.container_realtime", 2)
-	procBindEnvAndSetDefault(config, "process_config.intervals.connections", 30)
-
-	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
-	config.BindEnvAndSetDefault("process_config.custom_sensitive_words", []string{},
-		"DD_CUSTOM_SENSITIVE_WORDS",
-		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
-		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
-	pkgconfighelper.ParseEnvJSONOrComma("process_config.custom_sensitive_words", config)
-
-	config.BindEnvAndSetDefault("process_config.scrub_args", true,
-		"DD_SCRUB_ARGS",
-		"DD_PROCESS_CONFIG_SCRUB_ARGS",
-		"DD_PROCESS_AGENT_SCRUB_ARGS")
-	config.BindEnvAndSetDefault("process_config.strip_proc_arguments", false,
-		"DD_STRIP_PROCESS_ARGS",
-		"DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
-		"DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS")
-	// Use PDH API to collect performance counter data for process check on Windows
-	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
-	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
-		"DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS",
-		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
-		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
-	)
-	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
-	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
-	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
-	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
-	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
-	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
-
-	// Process Discovery Check
-	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,
-		"DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
-		"DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED",
-		"DD_PROCESS_CONFIG_DISCOVERY_ENABLED", // Also bind old environment variables
-		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
-	)
-	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
-
-	procBindEnvAndSetDefault(config, "process_config.process_discovery.hint_frequency", DefaultProcessDiscoveryHintFrequency)
-
-	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
-
-	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
-
-	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
-
-	processesAddOverrideOnce.Do(func() {
-		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
-	})
-}
 
 // loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config pkgconfigmodel.Config) {

@@ -86,10 +86,9 @@ const (
 	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
 	tcpSendProbe0 = "kprobe__tcp_send_probe0"
 
-	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall (kernels < 6.10)
-	inetCskAcceptReturn = "inet_csk_accept_exit"
-	// inetCskAcceptReturn610 is the 6.10+ variant where inet_csk_accept takes proto_accept_arg
-	inetCskAcceptReturn610 = "inet_csk_accept_exit_610"
+	// inetCskAcceptReturn traces the return value for inet_csk_accept
+	inetCskAcceptReturn        = "inet_csk_accept_exit"
+	inetCskAcceptReturnPre6100 = "inet_csk_accept_exit_pre_6_10_0"
 
 	// inetBind traces the bind() syscall for IPv4
 	inetBind = "inet_bind_enter"
@@ -113,46 +112,46 @@ const (
 )
 
 var programs = map[string]struct{}{
-	inetBind:                  {},
-	inet6Bind:                 {},
-	inet6BindRet:              {},
-	inetBindRet:               {},
-	inetCskAcceptReturn:       {},
-	inetCskAcceptReturn610:    {},
-	inetCskListenStop:         {},
-	tcpRecvMsgReturn:          {},
-	tcpClose:                  {},
-	tcpCloseReturn:            {},
-	tcpConnect:                {},
-	tcpFinishConnect:          {},
-	tcpRetransmit:             {},
-	tcpRetransmitRet:          {},
-	tcpEnterLoss:              {},
-	tcpEnterRecovery:          {},
-	tcpSendProbe0:             {},
-	tcpSendMsgReturn:          {},
-	tcpSendPageReturn:         {},
-	tcpDone:                   {},
-	tcpReadSockReturn:         {},
-	udpDestroySock:            {},
-	udpRecvMsg:                {},
-	udpRecvMsgPre5190:         {},
-	udpRecvMsgReturn:          {},
-	udpSendMsgReturn:          {},
-	udpSendPageReturn:         {},
-	udpSendSkb:                {},
-	udpv6RecvMsg:              {},
-	udpv6RecvMsgPre5190:       {},
-	udpv6RecvMsgReturn:        {},
-	udpv6SendMsgReturn:        {},
-	udpv6SendSkb:              {},
-	udpv6DestroySock:          {},
-	skbFreeDatagramLocked:     {},
-	__skbFreeDatagramLocked:   {},
-	skbConsumeUDP:             {},
-	tcpRecvMsgPre5190Return:   {},
-	udpRecvMsgPre5190Return:   {},
-	udpv6RecvMsgPre5190Return: {},
+	inetBind:                   {},
+	inet6Bind:                  {},
+	inet6BindRet:               {},
+	inetBindRet:                {},
+	inetCskAcceptReturn:        {},
+	inetCskAcceptReturnPre6100: {},
+	inetCskListenStop:          {},
+	tcpRecvMsgReturn:           {},
+	tcpClose:                   {},
+	tcpCloseReturn:             {},
+	tcpConnect:                 {},
+	tcpFinishConnect:           {},
+	tcpRetransmit:              {},
+	tcpRetransmitRet:           {},
+	tcpEnterLoss:               {},
+	tcpEnterRecovery:           {},
+	tcpSendProbe0:              {},
+	tcpSendMsgReturn:           {},
+	tcpSendPageReturn:          {},
+	tcpDone:                    {},
+	tcpReadSockReturn:          {},
+	udpDestroySock:             {},
+	udpRecvMsg:                 {},
+	udpRecvMsgPre5190:          {},
+	udpRecvMsgReturn:           {},
+	udpSendMsgReturn:           {},
+	udpSendPageReturn:          {},
+	udpSendSkb:                 {},
+	udpv6RecvMsg:               {},
+	udpv6RecvMsgPre5190:        {},
+	udpv6RecvMsgReturn:         {},
+	udpv6SendMsgReturn:         {},
+	udpv6SendSkb:               {},
+	udpv6DestroySock:           {},
+	skbFreeDatagramLocked:      {},
+	__skbFreeDatagramLocked:    {},
+	skbConsumeUDP:              {},
+	tcpRecvMsgPre5190Return:    {},
+	udpRecvMsgPre5190Return:    {},
+	udpv6RecvMsgPre5190Return:  {},
 	// Protocol classification
 	protocolClassifierEntry:     {},
 	protocolClassifierTLSClient: {},
@@ -223,7 +222,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
-		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn610, inetCskAcceptReturn, kernel.VersionCode(6, 10, 0)))
+		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn, inetCskAcceptReturnPre6100, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
