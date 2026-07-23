@@ -252,6 +252,46 @@ func TestGenerateRules_OffDirectiveRevertsExistingConversion(t *testing.T) {
 	}
 }
 
+// TestGenerateRules_OffDirectiveWithLinuxBPFKeepsTestTag guards a rule that
+// reverts from dd_agent_go_test while dd_linux_bpf is also enabled: gotags is
+// not mergeable, so once applyLinuxBPF writes linux_bpf directly onto the
+// existing (reverted) rule, merge keeps that value verbatim -- if
+// revertDdAgentGoTests hadn't already put "test" on that same rule, it would
+// never make it into the merged file.
+func TestGenerateRules_OffDirectiveWithLinuxBPFKeepsTestTag(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "pkg_test.go", "//go:build linux_bpf")
+
+	old := rule.NewRule("dd_agent_go_test", "pkg_test")
+	old.SetAttr("srcs", []string{"pkg_test.go"})
+	old.SetAttr("embed", []string{":pkg"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	old.Insert(file)
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: false},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file, Dir: dir})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	if got := file.Rules[0].AttrStrings("gotags"); !stringSlicesEqual(got, []string{"test", linuxBPFTag}) {
+		t.Errorf("gotags after merge = %v, want [test %s]", got, linuxBPFTag)
+	}
+}
+
 // TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion guards the
 // already-working case (e.g. cmd/cluster-agent/subcommands/coverage): a
 // package that was never converted keeps its plain go_test untouched when

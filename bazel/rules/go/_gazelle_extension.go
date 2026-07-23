@@ -281,6 +281,7 @@ func (l *lang) revertDdAgentGoTests(result language.GenerateResult, file *rule.F
 		}
 		r.DelAttr("flavors")
 		r.SetKind("go_test")
+		addStringToListIfMissing(r, "gotags", "test")
 	}
 	return result
 }
