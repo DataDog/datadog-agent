@@ -568,14 +568,12 @@ go_deps.module_override(
 # the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
 # path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
 # (a separate module pulled in by the OTel collector components) need the same treatment.
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//bazel/rules/go_zstd:zstd-ndebug.patch"],
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd",
 )
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//bazel/rules/go_zstd:zstd_0-ndebug.patch"],
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd_0",
 )
 
