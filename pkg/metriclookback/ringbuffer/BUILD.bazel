@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ringbuffer",
+    srcs = [
+        "buffer.go",
+        "sketch_buffer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback/ringbuffer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "//pkg/util/quantile",
+    ],
+)
+
+go_test(
+    name = "ringbuffer_test",
+    srcs = [
+        "buffer_test.go",
+        "sketch_buffer_test.go",
+    ],
+    embed = [":ringbuffer"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "//pkg/util/quantile",
+        "@com_github_stretchr_testify//require",
+    ],
+)

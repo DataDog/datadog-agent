@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v6"
+	backoffticker "github.com/cenkalti/backoff/v7"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -315,7 +315,7 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 	}
 }
 
-//nolint:unused,deadcode
+//nolint:unused
 func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 	if pkgconfigsetup.Datadog().GetString("runtime_security_config.event_grpc_server") == "security-agent" {
 		socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")

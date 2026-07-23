@@ -492,17 +492,21 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 
 	npCollector.runTracerouteForPath(&pathteststore.PathtestContext{
 		Pathtest: &common.Pathtest{
-			Hostname:  "10.0.0.2",
-			Port:      443,
-			Protocol:  payload.ProtocolTCP,
-			Namespace: "netflow-ns",
-			Origin:    payload.PathOriginNetflow,
+			Hostname:         "10.0.0.2",
+			Port:             443,
+			Protocol:         payload.ProtocolTCP,
+			Namespace:        "netflow-ns",
+			Origin:           payload.PathOriginNetflow,
+			TestConfigID:     "dynamic-a",
+			TestConfigSource: payload.TestConfigSourceRemote,
 		},
 	})
 
 	assert.Equal(t, payload.PathOriginNetflow, emittedPath.Origin)
 	assert.Equal(t, payload.SourceProductNetflow, emittedPath.SourceProduct)
 	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
+	assert.Equal(t, "dynamic-a", emittedPath.TestConfigID)
+	assert.Equal(t, payload.TestConfigSourceRemote, emittedPath.TestConfigSource)
 }
 
 func Test_NpCollector_runTracerouteForPath_RequiresOrigin(t *testing.T) {
@@ -1168,6 +1172,45 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.filters":              []map[string]any{},
+	}
+	_, collector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
+	filter, errs := connfilter.NewConnFilter([]connfilter.Config{{
+		Type:         connfilter.FilterTypeInclude,
+		MatchDomain:  "remote.example.com",
+		TestConfigID: "dynamic-a",
+	}}, "", false)
+	require.Empty(t, errs)
+	collector.filter = filter
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+		{
+			Domain:    "remote.example.com",
+			Dest:      netip.MustParseAddrPort("10.0.0.4:443"),
+			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_tcp,
+		},
+		{
+			Domain:    "local.example.com",
+			Dest:      netip.MustParseAddrPort("10.0.0.5:443"),
+			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_tcp,
+		},
+	}))
+
+	remote := <-collector.pathtestInputChan
+	local := <-collector.pathtestInputChan
+	assert.Equal(t, "remote.example.com", remote.Hostname)
+	assert.Equal(t, "dynamic-a", remote.TestConfigID)
+	assert.Equal(t, payload.TestConfigSourceRemote, remote.TestConfigSource)
+	assert.Equal(t, "local.example.com", local.Hostname)
+	assert.Empty(t, local.TestConfigID)
+	assert.Empty(t, local.TestConfigSource)
 }
 
 func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
@@ -1935,7 +1978,7 @@ var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricNa
 var cidrExcludedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_cidr_excluded"}, Rate: 1}
 var netflowAgentSourceSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_netflow_agent_source"}, Rate: 1}
 
-func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
+func Test_npCollectorImpl_evaluateNetworkPathForConn(t *testing.T) {
 	tests := []struct {
 		name                   string
 		conn                   npmodel.NetworkPathConnection
@@ -2310,7 +2353,7 @@ network_path:
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets))
+			require.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets).shouldSchedule)
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -2332,7 +2375,7 @@ func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
 	return ipNet
 }
 
-func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T) {
+func Test_npCollectorImpl_evaluateNetworkPathForConn_subnets(t *testing.T) {
 	tests := []struct {
 		name           string
 		conn           npmodel.NetworkPathConnection
@@ -2376,7 +2419,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil))
+			assert.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil).shouldSchedule)
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)

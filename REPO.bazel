@@ -2,6 +2,7 @@
 ignore_directories([
     "**/build",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
     ".*_cache",  # .mypy_cache, .pytest_cache, .ruff_cache
+    ".agents",  # provider-agnostic AI agent config
     ".c*",  # .cache, .claude, .cursor
     ".d*",  # .dda, .ddqa
     ".g*",  # .git, .github, .gitlab
