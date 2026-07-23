@@ -441,6 +441,13 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				if d.performRefreshAttempt(instance, ticker) {
 					return
 				}
+				// ticker.Reset (inside performRefreshAttempt) doesn't drain an already-buffered
+				// tick, so if one landed at ~the same instant as this trigger, the next loop
+				// iteration would otherwise immediately fire a second, redundant fetch attempt.
+				select {
+				case <-ticker.C:
+				default:
+				}
 			case <-ticker.C:
 				if d.performRefreshAttempt(instance, ticker) {
 					return
@@ -505,24 +512,29 @@ func (d *delegatedAuthComponent) performRefreshAttempt(instance *authInstance, t
 	return false
 }
 
-// Refresh nudges any not-yet-resolved instances to retry sooner than their normal backoff,
-// throttled per-instance (minTriggerRefreshInterval) so a burst of calls can't cause repeated real
-// fetch attempts. Never performs the fetch itself - only wakes up the existing background refresh
-// goroutine (see startBackgroundRefresh's triggerRefresh case) - so this never blocks the caller
-// on network I/O. Mirrors comp/core/secrets.Component.Refresh()'s contract.
+// Refresh nudges every instance to retry sooner than its normal backoff, throttled per-instance
+// (minTriggerRefreshInterval) so a burst of calls can't cause repeated real fetch attempts. Never
+// performs the fetch itself - only wakes up the existing background refresh goroutine (see
+// startBackgroundRefresh's triggerRefresh case) - so this never blocks the caller on network I/O.
+// Mirrors comp/core/secrets.Component.Refresh()'s contract.
+//
+// Deliberately does NOT skip instances that already have a resolved key: the caller (the
+// forwarder, on a 403) has no way to know which specific instance's key just went bad - and the
+// most common real-world 403 on a running system is exactly a previously-good key that's now
+// expired or been revoked, not a cold-start instance. Skipping resolved instances would make the
+// nudge a no-op for that case. This also matches the ticker path (startBackgroundRefresh already
+// force-refreshes resolved instances on every tick for rotation), so Refresh() isn't introducing a
+// new "resolved instances don't need refreshing" assumption the rest of the component doesn't share.
 func (d *delegatedAuthComponent) Refresh() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	nudged := false
+	if len(d.instances) == 0 {
+		return false
+	}
+
 	now := time.Now()
 	for _, instance := range d.instances {
-		if instance.apiKey != nil {
-			// Already resolved - don't force a healthy instance to re-authenticate just because
-			// some unrelated domain's transaction got a 403.
-			continue
-		}
-		nudged = true
 		if now.Sub(instance.lastTriggeredRefresh) < minTriggerRefreshInterval {
 			continue
 		}
@@ -533,7 +545,7 @@ func (d *delegatedAuthComponent) Refresh() bool {
 			// A trigger is already pending for this instance; nothing more to do.
 		}
 	}
-	return nudged
+	return true
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key

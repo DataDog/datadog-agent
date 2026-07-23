@@ -989,3 +989,102 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	require.NotNil(t, instance)
 	instance.refreshCancel()
 }
+
+func TestRefreshReturnsFalseWhenNoInstances(t *testing.T) {
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+	assert.False(t, comp.Refresh())
+}
+
+func TestRefreshNudgesResolvedAndUnresolvedInstances(t *testing.T) {
+	// Regression test: Refresh() must nudge instances regardless of whether they already have a
+	// resolved key. The most common real-world 403 is a previously-good key that's now expired or
+	// revoked, not a cold-start instance - skipping resolved instances would make the nudge a
+	// no-op for that case (see the comment on Refresh() itself).
+	resolvedKey := "already-have-a-key"
+	resolved := &authInstance{apiKey: &resolvedKey, triggerRefresh: make(chan struct{}, 1)}
+	unresolved := &authInstance{triggerRefresh: make(chan struct{}, 1)}
+
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{
+			"resolved":   resolved,
+			"unresolved": unresolved,
+		},
+	}
+
+	require.True(t, comp.Refresh())
+
+	select {
+	case <-resolved.triggerRefresh:
+	default:
+		t.Fatal("expected a trigger to be sent to the already-resolved instance")
+	}
+	select {
+	case <-unresolved.triggerRefresh:
+	default:
+		t.Fatal("expected a trigger to be sent to the unresolved instance")
+	}
+}
+
+func TestRefreshThrottlesRepeatedCalls(t *testing.T) {
+	instance := &authInstance{triggerRefresh: make(chan struct{}, 1)}
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{"instance": instance},
+	}
+
+	require.True(t, comp.Refresh())
+	select {
+	case <-instance.triggerRefresh:
+	default:
+		t.Fatal("expected first Refresh() call to send a trigger")
+	}
+
+	// Immediately calling Refresh() again is within minTriggerRefreshInterval, so no second
+	// trigger should be sent even though the channel is now empty again.
+	require.True(t, comp.Refresh())
+	select {
+	case <-instance.triggerRefresh:
+		t.Fatal("second Refresh() call within the throttle window should not send another trigger")
+	default:
+	}
+}
+
+func TestRefreshAllowsAnotherTriggerAfterThrottleWindow(t *testing.T) {
+	instance := &authInstance{
+		triggerRefresh:       make(chan struct{}, 1),
+		lastTriggeredRefresh: time.Now().Add(-minTriggerRefreshInterval - time.Second),
+	}
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{"instance": instance},
+	}
+
+	require.True(t, comp.Refresh())
+	select {
+	case <-instance.triggerRefresh:
+	default:
+		t.Fatal("expected a trigger once the throttle window has elapsed")
+	}
+}
+
+func TestRefreshDoesNotBlockWhenTriggerAlreadyPending(t *testing.T) {
+	instance := &authInstance{triggerRefresh: make(chan struct{}, 1)}
+	// Fill the buffered channel so a non-blocking send must hit the default branch.
+	instance.triggerRefresh <- struct{}{}
+
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{"instance": instance},
+	}
+
+	require.True(t, comp.Refresh())
+	// Draining once should find the pre-filled value; Refresh() must not have blocked or panicked
+	// trying to send a second one.
+	select {
+	case <-instance.triggerRefresh:
+	default:
+		t.Fatal("expected the pre-existing pending trigger to still be there")
+	}
+	select {
+	case <-instance.triggerRefresh:
+		t.Fatal("Refresh() should not have queued a second trigger while one was already pending")
+	default:
+	}
+}
