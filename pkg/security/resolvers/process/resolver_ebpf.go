@@ -30,6 +30,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -308,7 +309,7 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
-	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
@@ -327,6 +328,14 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
 	p.Lock()
 	defer p.Unlock()
+
+	// Mirror AddForkEntry: if fill_span_context captured a span at
+	// prepare_binprm (e.g. the parent had a legacy or Go tracer active when
+	// it execve'd), persist it on the new PCE so the process serializer can
+	// surface it as process.span_context. This is a no-op for the fork+exec
+	// case where the child's tgid has no correlation entry — event.SpanContext
+	// is zero there and ancestor lineage still carries the parent's span.
+	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	var err error
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
@@ -1186,7 +1195,7 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 	}
 }
 
-// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry
+// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1196,15 +1205,44 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 		return fmt.Errorf("failed to read tracer metadata: %w", err)
 	}
 
-	p.Lock()
-	defer p.Unlock()
+	p.applyTracerMetadata(pid, tmeta)
+	return nil
+}
 
-	entry := p.entryCache[pid]
-	if entry != nil {
-		entry.TracerMetadata = tmeta
+// SnapshotTracer detects whether a pre-existing process (one that started
+// before the agent) is running a Datadog tracer and, if so, populates the
+// user-space tracer metadata the same way the runtime tracer_memfd_seal
+// event handler does.
+//
+// Called from the startup snapshot for every pid; processes without a tracer
+// memfd return cheaply via the GetTracerMetadata error path.
+func (p *EBPFResolver) SnapshotTracer(pid uint32) {
+	// Only do the (mildly expensive) /proc/<pid>/fd scan for pids that
+	// SyncCache actually entered into the cache — anything else can't be
+	// updated downstream anyway.
+	p.RLock()
+	hasEntry := p.entryCache[pid] != nil
+	p.RUnlock()
+	if !hasEntry {
+		return
 	}
 
-	return nil
+	tmeta, err := tracermetadata.GetTracerMetadata(int(pid), kernel.HostProc())
+	if err != nil {
+		// The common case for non-tracer processes — silent.
+		return
+	}
+
+	p.applyTracerMetadata(pid, tmeta)
+}
+
+// applyTracerMetadata stores tracer metadata on the process cache entry.
+func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil {
+		entry.Tracer.Metadata = tmeta
+	}
+	p.Unlock()
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
