@@ -9,7 +9,9 @@ import (
 	"regexp"
 	"time"
 
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
@@ -189,6 +191,47 @@ func resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection *bool) bool {
 
 const disabledSourcesConfigKey = "logs_config.experimental_adaptive_sampling.disabled_sources"
 
+const (
+	smartSeverityProfilesEnabledConfigKey         = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+	smartSeverityProfilesMediumRateLimitConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit"
+	smartSeverityProfilesMediumBurstSizeConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size"
+	smartSeverityProfilesHighRateLimitConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit"
+	smartSeverityProfilesHighBurstSizeConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size"
+)
+
+// resolveSmartSeverityProfiles builds the Low/Medium/High profile triple. Each field of
+// Medium/High cascades independently from the level below when left unconfigured (Low ->
+// Medium -> High), so no combination of partially-configured fields can leave a higher
+// severity level less permissive than the one below it.
+func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile {
+	cfg := pkgconfigsetup.Datadog()
+
+	profiles := [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile{
+		severityeventsdef.SeverityLow:    low,
+		severityeventsdef.SeverityMedium: low,
+		severityeventsdef.SeverityHigh:   low,
+	}
+
+	if cfg.IsConfigured(smartSeverityProfilesMediumRateLimitConfigKey) {
+		profiles[severityeventsdef.SeverityMedium].RateLimit = cfg.GetFloat64(smartSeverityProfilesMediumRateLimitConfigKey)
+	}
+	if cfg.IsConfigured(smartSeverityProfilesMediumBurstSizeConfigKey) {
+		profiles[severityeventsdef.SeverityMedium].BurstSize = clampBurstSize(cfg.GetFloat64(smartSeverityProfilesMediumBurstSizeConfigKey))
+	}
+
+	// High starts from Medium's already-resolved profile, then applies its own
+	// overrides per field.
+	profiles[severityeventsdef.SeverityHigh] = profiles[severityeventsdef.SeverityMedium]
+	if cfg.IsConfigured(smartSeverityProfilesHighRateLimitConfigKey) {
+		profiles[severityeventsdef.SeverityHigh].RateLimit = cfg.GetFloat64(smartSeverityProfilesHighRateLimitConfigKey)
+	}
+	if cfg.IsConfigured(smartSeverityProfilesHighBurstSizeConfigKey) {
+		profiles[severityeventsdef.SeverityHigh].BurstSize = clampBurstSize(cfg.GetFloat64(smartSeverityProfilesHighBurstSizeConfigKey))
+	}
+
+	return profiles
+}
+
 func newDisabledSet() map[string]struct{} {
 	entries := pkgconfigsetup.Datadog().GetStringSlice(disabledSourcesConfigKey)
 	m := make(map[string]struct{}, len(entries))
@@ -276,7 +319,15 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		}
 	}
 
-	return validateAdaptiveSamplerConfig(c)
+	c = validateAdaptiveSamplerConfig(c)
+
+	c.SmartSeverityProfilesEnabled = pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey)
+	if c.SmartSeverityProfilesEnabled {
+		c.Profiles = resolveSmartSeverityProfiles(preprocessor.SamplerProfile{RateLimit: c.RateLimit, BurstSize: c.BurstSize})
+		c.SeverityProvider = severityprovider.Current
+	}
+
+	return c
 }
 
 func resolveNoisyLogDetectionConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
@@ -425,11 +476,17 @@ func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preproc
 		c.MaxPatterns = 1
 	}
 
-	if c.BurstSize <= 0 {
-		c.BurstSize = 1
-	}
+	c.BurstSize = clampBurstSize(c.BurstSize)
 
 	return c
+}
+
+// clampBurstSize floors burstSize at 1, avoiding negative starting credits.
+func clampBurstSize(burstSize float64) float64 {
+	if burstSize <= 0 {
+		return 1
+	}
+	return burstSize
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
