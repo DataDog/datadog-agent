@@ -44,17 +44,16 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
+		// datadog needs a core-agent API key; without one, neither reuse nor add it.
+		if extension.Name == datadogName && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
+			continue
+		}
+		// Reuse before building the datadog config below, whose hostname lookup is a
+		// blocking core-agent RPC in connected mode.
+		if reuseExtension(conf, extension.Name) {
+			continue
+		}
 		if extension.Name == datadogName {
-			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
-				continue
-			}
-			// User already defined a datadog extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second datadog/dd-autoconfigured.
-			if existingID := findExistingExtensionID(conf, datadogName); existingID != "" {
-				wireExtensionIDToPipeline(conf, existingID)
-				continue
-			}
 			site := defaultSite
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")
@@ -85,12 +84,7 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		if existingID := findExistingExtensionID(conf, dogtelName); existingID != "" {
-			// User already defined a dogtel extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second dogtel/dd-autoconfigured with empty config.
-			wireExtensionIDToPipeline(conf, existingID)
-		} else {
+		if !reuseExtension(conf, dogtelName) {
 			addComponentToConfig(conf, dogtelComponent)
 			addExtensionToPipeline(conf, dogtelComponent)
 		}
