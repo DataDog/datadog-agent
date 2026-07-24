@@ -40,4 +40,12 @@ type ServerlessLogsAgent interface {
 
 	// Flush flushes synchronously the pipelines managed by the Logs Agent.
 	Flush(ctx context.Context)
+
+	// DrainTailers stops the source launchers (e.g. the file tailers) so each
+	// in-flight tailer performs a final read to EOF and flushes its decoder
+	// into the pipeline. Bounded by ctx: if the launchers don't finish in
+	// time, DrainTailers returns anyway rather than blocking shutdown. Call
+	// before Flush so lines written during the last (sub-millisecond) request
+	// - while CPU was throttled - are read during the SIGTERM grace window.
+	DrainTailers(ctx context.Context)
 }

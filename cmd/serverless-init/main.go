@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -92,8 +93,13 @@ const (
 	// to exit. Best-effort; logs a warning on overrun and continues shutdown.
 	traceStopTimeout = 2500 * time.Millisecond
 
-	// logsFlushTimeout bounds the flush of buffered customer log records via
-	// flushLogsAgent. Strict ctx; cancels in-progress sends on overrun.
+	// logsFlushTimeout bounds flushLogsAgent's combined drain-then-flush of
+	// buffered customer log records: DrainTailers stops the file/channel
+	// tailers so each performs one final EOF read into the pipeline, then
+	// Flush ships it. Strict ctx shared by both steps; cancels in-progress
+	// work on overrun. The drain step is normally sub-millisecond (one final
+	// read of the small cold-start file), so the budget is unchanged from
+	// when this bounded only the flush.
 	logsFlushTimeout = 1500 * time.Millisecond
 
 	// metricsAggregatorStopTimeoutSeconds bounds the demux Stop: forces a
@@ -205,6 +211,48 @@ func preloadEarly() {
 	// hardcodes forceFlushAll=false on ticks, so bucket-aligned flushes during
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
+
+	// The non-atomic registry writer MkdirAll's logs_config.run_path, so the
+	// file-tailer registry directory doesn't need to pre-exist. Unlike the
+	// overrides above this one is meant to remain user-overridable (see
+	// registryRunPathDefault), so it can't use setOverride's fixed
+	// SourceAgentRuntime.
+	setOverride("logs_config.atomic_registry_write", false)
+	if runPath := registryRunPathDefault(); runPath != "" {
+		cfg := pkgconfigsetup.Datadog()
+		// Only replace the built-in default: a user-configured run_path
+		// (DD_LOGS_CONFIG_RUN_PATH, or logs_config.run_path in datadog.yaml,
+		// loaded after preloadEarly) must still win. Setting our value at
+		// SourceDefault - rather than setOverride's SourceAgentRuntime -
+		// keeps it below both of those priorities.
+		if cfg.GetSource("logs_config.run_path") == model.SourceDefault {
+			cfg.Set("logs_config.run_path", runPath, model.SourceDefault)
+		}
+	}
+}
+
+// registryRunPathDefault returns the directory the file-tailer registry
+// should persist into, so its offsets survive a restart within the same
+// instance and "beginning" tailing (cmd/serverless-init/log/log.go) doesn't
+// re-ship the whole file. Cloud Run, Cloud Run Jobs and Container Apps tail
+// the path in DD_SERVERLESS_LOG_PATH, which sits on the same volume the
+// customer app writes to - so the registry goes into that path's directory.
+// Azure App Service doesn't use that env var (its log source is
+// origin=="appservice" && DD_AAS_INSTANCE_LOGGING_ENABLED, resolved later via
+// cloudservice.GetCloudServiceType, too late for preloadEarly); it's detected
+// here directly via the same WEBSITE_STACK env var cloudservice/appservice.go
+// uses, and pointed at serverlessInitLog.AASPersistentLogDir - the directory
+// AAS persists across instance restarts - so "beginning" is safe there too.
+// Returns "" when neither signal is present, leaving logs_config.run_path at
+// its built-in default.
+func registryRunPathDefault() string {
+	if logPath := os.Getenv("DD_SERVERLESS_LOG_PATH"); logPath != "" {
+		return filepath.Dir(logPath)
+	}
+	if _, isAppService := os.LookupEnv(cloudservice.WebsiteStack); isAppService {
+		return serverlessInitLog.AASPersistentLogDir
+	}
+	return ""
 }
 
 // setOverride sets key to val with SourceAgentRuntime priority, logging a
@@ -384,8 +432,9 @@ func run(
 	//      time-sampler workers during step 5's demux drain.
 	//   3. trace agent stops (drains traces, flushes stats, sends) — bounded
 	//      by traceStopTimeout (2.5 s).
-	//   4. logs agent flushes any buffered records — bounded by
-	//      logsFlushTimeout (1.5 s).
+	//   4. logs agent drains its tailers (forcing a final EOF read of any
+	//      line written just before SIGTERM) and then flushes any buffered
+	//      records — both bounded together by logsFlushTimeout (1.5 s).
 	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
 	//      and the metrics pipeline flushes itself (no external orchestration):
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
@@ -624,15 +673,20 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 	otlpAgent.Start()
 }
 
-// flushLogsAgent flushes the logs agent with a bounded timeout. Metrics are
-// flushed by the demultiplexer's Fx OnStop hook (demux.Stop()), so this
-// helper is logs-only.
+// flushLogsAgent drains the logs agent's tailers and flushes it, bounded by
+// a single timeout. Draining first forces the file tailer's final EOF read
+// (see ServerlessLogsAgent.DrainTailers) so a line written right before
+// SIGTERM - which the CPU-throttled tailer never got scheduled to read - is
+// captured before the pipeline is flushed and shipped. Metrics are flushed
+// by the demultiplexer's Fx OnStop hook (demux.Stop()), so this helper is
+// logs-only.
 func flushLogsAgent(flushTimeout time.Duration, agent logsAgent.ServerlessLogsAgent) {
 	if agent == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
+	agent.DrainTailers(ctx)
 	agent.Flush(ctx)
 }
 

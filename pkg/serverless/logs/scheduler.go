@@ -21,9 +21,12 @@ import (
 // the serverless agent's `chan *ChannelMessaage`.
 var logsScheduler *channel.Scheduler
 
-// SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (logsAgent.ServerlessLogsAgent, error) {
-	agent := agentimpl.NewServerlessLogsAgent(tagger, compression, hostname)
+// SetupLogAgent sets up the logs agent to handle messages on the given
+// channel. useRegistryAuditor is threaded straight through to
+// agentimpl.NewServerlessLogsAgent; see that function's doc comment for why
+// callers must choose explicitly.
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component, useRegistryAuditor bool) (logsAgent.ServerlessLogsAgent, error) {
+	agent := agentimpl.NewServerlessLogsAgent(tagger, compression, hostname, useRegistryAuditor)
 	err := agent.Start()
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
