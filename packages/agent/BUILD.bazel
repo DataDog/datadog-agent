@@ -24,26 +24,22 @@ alias(
 
 config_setting(
     name = "base_flavor",
-    # buildifier: disable=canonical-repository
-    flag_values = {"@@//packages/agent:flavor": "base"},
+    flag_values = {"//packages/agent:flavor": "base"},
 )
 
 config_setting(
     name = "fips_flavor",
-    # buildifier: disable=canonical-repository
-    flag_values = {"@@//packages/agent:flavor": "fips"},
+    flag_values = {"//packages/agent:flavor": "fips"},
 )
 
 config_setting(
     name = "heroku_flavor",
-    # buildifier: disable=canonical-repository
-    flag_values = {"@@//packages/agent:flavor": "heroku"},
+    flag_values = {"//packages/agent:flavor": "heroku"},
 )
 
 config_setting(
     name = "iot_flavor",
-    # buildifier: disable=canonical-repository
-    flag_values = {"@@//packages/agent:flavor": "iot"},
+    flag_values = {"//packages/agent:flavor": "iot"},
 )
 
 selects.config_setting_group(
