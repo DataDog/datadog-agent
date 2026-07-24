@@ -3,7 +3,9 @@ use shlib_core::*;
 
 use crate::backend;
 use crate::config::{CheckConfig, SubTask};
-use crate::payload::{Match, ScanEventPayload, ScanStatus};
+use crate::constants::SDS_RESULT_EVENT_TYPE;
+use crate::proto::{self, Status as ScanStatus, TableMatch};
+use crate::result::build_sds_result;
 use crate::scanning::Scanner;
 
 /// Check entrypoint.
@@ -45,6 +47,7 @@ fn run_sub_task(
         sub_task.sub_task_id, sub_task.entity.platform
     );
 
+    // TODO(DSEC-180): time the scan and populate task metadata started_at / ended_at
     // A sub task failure is reported inside the payload (status=ERROR) rather
     // than aborting the check, so every sub task produces exactly one event.
     let (status, failure_reason, matches) = match run_scan(scanner, sub_task) {
@@ -65,36 +68,19 @@ fn run_sub_task(
         }
     };
 
-    let payload = ScanEventPayload {
-        task_id: config.task_id.clone(),
-        sub_task_id: sub_task.sub_task_id.clone(),
-        status,
-        failure_reason,
-        matches,
-    };
+    // Build the SDS result protobuf for this sub task.
+    let payload = build_sds_result(config, sub_task, status, &failure_reason, &matches);
 
-    // TODO(DSEC-140): send sdsresult rather than an event
-    let payload_json =
-        serde_json::to_string(&payload).context("failed to serialize scan event payload")?;
-    check.event(
-        "datasecurity scan result",
-        &payload_json,
-        0,
-        "normal",
-        "",
-        &[],
-        "info",
-        "",
-        "datasecurity",
-        "",
-    )?;
+    // Emit the protobuf on the `sds-result` event platform track.
+    check.event_platform_event_bytes(&proto::encode(&payload), SDS_RESULT_EVENT_TYPE)?;
 
     Ok(())
 }
 
 /// Fetches the sub task's data and scans it, returning the matches.
 /// TODO(dsec-161): add tests for the scan.
-fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<Vec<Match>> {
+/// TODO(dsec-179): Return the number of rows scanned and additional info
+fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<Vec<TableMatch>> {
     let data = backend::fetch_data(sub_task).context("fetching sub task data")?;
     scanner.scan(data).context("scanning sub task data")
 }
