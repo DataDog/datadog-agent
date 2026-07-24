@@ -36,6 +36,7 @@ go_library(
         "@com_github_prometheus_client_model//go",
         "@com_github_robfig_cron_v3//:cron",
         "@in_yaml_go_yaml_v2//:yaml",
+        "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -45,6 +46,7 @@ dd_agent_go_test(
     srcs = [
         "agenttelemetry_test.go",
         "errortracking_sender_test.go",
+        "utils_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -63,6 +65,8 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
         "@org_uber_go_atomic//:atomic",
     ],
 )
