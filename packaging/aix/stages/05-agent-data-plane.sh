@@ -191,7 +191,6 @@ log "ADP license artifacts staged under $ADP_LICENSES_DEST"
 
 log "Verifying agent-data-plane binary is XCOFF64"
 MAGIC=$(od -A x -t x1 "$ADP_BIN_DEST" | head -1 | awk '{print $2 $3}')
-# ($ADP_BIN_DEST is the real binary; $ADP_WRAPPER_DEST is a shell wrapper script.)
 if [ "$MAGIC" != "01f7" ]; then
     log "ERROR: agent-data-plane binary is not XCOFF64 (got: $MAGIC)"
     log "       Expected magic bytes: 01 f7"
