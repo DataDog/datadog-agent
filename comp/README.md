@@ -111,7 +111,7 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
@@ -124,31 +124,31 @@ Package configfilesdiscovery defines the config files discovery component.
 
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package configstream implements a component to handle streaming configuration events to subscribers.
 
 ### [comp/core/configstreamconsumer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstreamconsumer)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package configstreamconsumer implements a component that consumes config streams from the core agent.
 
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package configsync implements synchronizing the configuration using the core agent config API
 
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package diagnose provides the diagnose suite for the agent.
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package flare implements a component to generate flares from the agent.
 
@@ -158,7 +158,7 @@ Package fxinstrumentation enables the Fx initialization spans to be sent to Data
 
 ### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package gui provides the GUI server component for the Datadog Agent.
 
@@ -194,7 +194,7 @@ doesn't exist or doesn't contain a PID for a running process.
 
 ### [comp/core/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/profiler)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
@@ -209,25 +209,25 @@ status and emit flare data
 
 ### [comp/core/remoteflags](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteflags)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package secrets decodes secret values by invoking the configured executable command
 
 ### [comp/core/settings](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/settings)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package settings defines the interface for the component that manage settings that can be changed at runtime
 
 ### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package status displays information about the agent.
 
@@ -434,7 +434,7 @@ Package kubehealth provides a dependency-injectible health object for kubernetes
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.

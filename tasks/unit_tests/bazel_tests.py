@@ -1,10 +1,9 @@
 import json
-import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tasks.bazel import (
     _IMPORT_PREFIX,
@@ -176,16 +175,15 @@ class TestBazelTestFuncsFromBep(unittest.TestCase):
 
 
 class TestGoTestPackages(unittest.TestCase):
-    def test_empty_import_paths_skips_subprocess(self):
-        with patch("tasks.bazel.subprocess.run") as mock_run:
-            self.assertEqual(_go_test_packages(["race"], set()), {})
-            mock_run.assert_not_called()
+    def test_empty_import_paths_skips_bazel(self):
+        with patch("tasks.bazel.bazel") as mock_bazel:
+            self.assertEqual(_go_test_packages(MagicMock(), ["race"], set()), {})
+            mock_bazel.assert_not_called()
 
-    def test_nonzero_returncode_raises(self):
-        with patch("tasks.bazel.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="boom")
-            with self.assertRaises(ChildProcessError):
-                _go_test_packages(["race"], {"example.com/pkg/foo"})
+    def test_bazel_failure_raises(self):
+        with patch("tasks.bazel.bazel", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                _go_test_packages(MagicMock(), ["race"], {"example.com/pkg/foo"})
 
     def test_parses_concatenated_json_and_filters_by_import_path(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -210,9 +208,8 @@ class TestGoTestPackages(unittest.TestCase):
                 ]
             )
 
-            with patch("tasks.bazel.subprocess.run") as mock_run:
-                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
-                result = _go_test_packages(["race"], {"example.com/pkg/foo"})
+            with patch("tasks.bazel.bazel", return_value=stdout):
+                result = _go_test_packages(MagicMock(), ["race"], {"example.com/pkg/foo"})
 
             # "example.com/pkg/bar" is filtered out: not in import_paths.
             # TestMain is discarded even though it matched the Test* pattern.

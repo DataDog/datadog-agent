@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestCommand(t *testing.T) {
@@ -24,6 +26,22 @@ func TestCommand(t *testing.T) {
 		[]string{"run"},
 		run,
 		func() {})
+}
+
+// TestAgentTelemetryWired confirms the fx graph provides a real
+// agenttelemetry.Component (via agenttelemetryfx.Module()) instead of the
+// option.None it used to be hardcoded to, so the errortracking submitter
+// installed by that module (see comp/core/agenttelemetry/fx.Module) actually
+// runs for this binary.
+func TestAgentTelemetryWired(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(newGlobalParamsTest(t)),
+		[]string{"run"},
+		run,
+		func(at option.Option[agenttelemetry.Component]) {
+			_, isSet := at.Get()
+			require.True(t, isSet, "agenttelemetry.Component must be provided, not option.None")
+		})
 }
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {

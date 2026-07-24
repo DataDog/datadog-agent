@@ -195,8 +195,20 @@ func (nc *NetworkContext) IsZero() bool {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
+	SpanID        uint64            `field:"-"`
+	TraceID       utils.TraceID     `field:"-"`
+	HasExtraAttrs bool              `field:"-"`
+	ExtraAttrsID  uint64            `field:"-"`
+	Attributes    map[string]string `field:"-"`
+}
+
+// Tracer bundles the per-process APM tracer state: static metadata captured
+// from the tracer-info memfd, plus the most recent span context observed for
+// this process. Cross-platform so the model.go-level accessors compile on
+// both Linux and Windows builds.
+type Tracer struct {
+	Metadata tracermetadata.TracerMetadata
+	Trace    SpanContext
 }
 
 // RuleContext defines a rule context
@@ -398,7 +410,7 @@ func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
 		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerMetadata
+	return e.BaseEvent.ProcessContext.Process.Tracer.Metadata
 }
 
 // UserSessionContext describes the user session context

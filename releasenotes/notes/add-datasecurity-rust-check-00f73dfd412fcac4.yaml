@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Linux Agent packages now ship a built-in ``datasecurity`` Rust-based
+    check as a shared library under ``/etc/datadog-agent/checks.d``. This is an
+    initial scaffold and is not enabled by default.
+  - |
+    Rust artifacts are now built with ``codegen-units = 1`` to minimize the
+    size of the produced binaries and shared libraries.

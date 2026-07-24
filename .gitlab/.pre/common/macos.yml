@@ -76,7 +76,7 @@
 
 .macos_gitlab:
   extends: [".bazel:defs:cache:macos"]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version"]
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
@@ -95,6 +95,4 @@
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
     - export GOCACHE="$TMPDIR/go-build"
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools --verbose

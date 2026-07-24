@@ -41,6 +41,16 @@ const (
 	customAttributeValue = "true"
 	log1Body             = "getting random date"
 	log2Body             = "random date"
+
+	// customLabelKey is a pod label on the calendar app that the base Helm
+	// values (see kubernetesResourcesLabelsAsTags in buildLinuxHelmValues) map
+	// to the "domain" tag via labels-as-tags -- i.e. a tag that is NOT part of
+	// the curated OTel resource attribute conventions the infraattributes
+	// processor always keeps as resource attributes. This is used to validate
+	// the logs_tags_as_ddtags option, which only affects tags like this one.
+	customLabelKey   = "x-parent-type"
+	customLabelValue = "e2e-test"
+	customLabelTag   = "domain"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -59,6 +69,19 @@ type IAParams struct {
 
 	// Cardinality represents the tag cardinality used by this test
 	Cardinality types.TagCardinality
+
+	// LogsTagsAsDDTags indicates whether the infraattributes processor's
+	// logs_tags_as_ddtags option is enabled for this test, i.e. whether
+	// custom tagger-derived tags (e.g. customLabelTag) are expected as real
+	// log tags instead of log attributes.
+	LogsTagsAsDDTags bool
+
+	// SkipCustomLabelTag skips testCustomLabelAsTag. Set this for deployments
+	// that don't configure kubernetesResourcesLabelsAsTags (e.g. the
+	// standalone otel-agent DaemonSet, which has no Helm chart / Cluster
+	// Agent backing the tagger's labels-as-tags mapping), where customLabelTag
+	// is never produced regardless of LogsTagsAsDDTags.
+	SkipCustomLabelTag bool
 }
 
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
@@ -334,6 +357,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
 			testInfraTags(s.T(), tags, iaParams)
+			if !iaParams.SkipCustomLabelTag {
+				testCustomLabelAsTag(s.T(), log, iaParams.LogsTagsAsDDTags)
+			}
 		}
 	}
 }
@@ -725,6 +751,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 						"app.kubernetes.io/instance":   name,
 						"app.kubernetes.io/version":    "0.15",
 						"app.kubernetes.io/managed-by": "Helm",
+						customLabelKey:                 customLabelValue,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -848,6 +875,28 @@ func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	if iaParams.Cardinality == types.HighCardinality && iaParams.EKS {
 		assert.NotNil(t, tags["display_container_name"])
 	}
+}
+
+// testCustomLabelAsTag verifies that the custom tagger-derived tag
+// customLabelTag (from labels-as-tags on the calendar app's customLabelKey
+// pod label) is surfaced as a real log tag when logsTagsAsDDTags is enabled,
+// and as a log attribute (not a tag) otherwise -- this is the default,
+// unchanged behavior of the infraattributes processor.
+func testCustomLabelAsTag(t *testing.T, log *aggregator.Log, logsTagsAsDDTags bool) {
+	tagMap := getTagMapFromSlice(t, log.Tags)
+	var attrs map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(log.Message), &attrs))
+
+	if logsTagsAsDDTags {
+		assert.Equal(t, customLabelValue, tagMap[customLabelTag])
+		_, hasAttr := attrs[customLabelTag]
+		assert.False(t, hasAttr, "expected %q to not be a log attribute when logs_tags_as_ddtags is enabled", customLabelTag)
+		return
+	}
+
+	_, hasTag := tagMap[customLabelTag]
+	assert.False(t, hasTag, "expected %q to not be a log tag by default", customLabelTag)
+	assert.Equal(t, customLabelValue, fmt.Sprint(attrs[customLabelTag]))
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {

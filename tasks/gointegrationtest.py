@@ -80,7 +80,7 @@ def containerized_integration_tests(
 
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(integration_tests_config.go_build_tags),
+        "go_build_tags": ",".join(integration_tests_config.go_build_tags),
         "race_opt": "-race" if race else "",
         "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }

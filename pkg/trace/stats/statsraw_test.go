@@ -291,7 +291,7 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 	assert.Equal(t, []string{"customer_id:a"}, spanAAgain.matchingAdditionalMetricTags)
 
 	require.Len(t, sb.data, 3)
-	assert.Equal(t, 2, sb.additionalTagsEntries)
+	assert.Len(t, sb.distinctAdditionalTagHashes, 2)
 	assert.True(t, sb.warnedThisBucket)
 
 	spanAAggr := NewAggregationFromSpan(spanA, "", aggKey)
@@ -313,6 +313,39 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, maskedStats.additionalMetricTags)
 }
 
+// TestRawBucketAdditionalMetricTagsCardinalityLimitIgnoresResourceCardinality
+// is a regression test: the additional_metric_tags limit must count distinct
+// tag-value combinations, not distinct full aggregations. A service with high
+// resource cardinality but a single tag-value combination must never collapse,
+// no matter how far resource count exceeds the limit.
+func TestRawBucketAdditionalMetricTagsCardinalityLimitIgnoresResourceCardinality(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{AdditionalTags: 2})
+
+	// 100 spans, each with a distinct resource but the SAME tag value.
+	// Distinct tag combinations = 1, well under the limit of 2.
+	const resourceCount = 100
+	for i := 0; i < resourceCount; i++ {
+		span := &StatSpan{
+			service:                      "checkout-service",
+			name:                         "checkout.process",
+			resource:                     "POST /checkout/" + strconv.Itoa(i),
+			isTopLevel:                   true,
+			duration:                     int64(time.Millisecond),
+			matchingAdditionalMetricTags: []string{"customer_id:same"},
+		}
+		res := sb.HandleSpan(span, 1, "", aggKey)
+		assert.Equal(t, SpanCollapseResult{}, res, "resource %d should not collapse additional_metric_tags", i)
+		assert.Equal(t, []string{"customer_id:same"}, span.matchingAdditionalMetricTags)
+	}
+
+	// One tag combination seen, so exactly one slot consumed and nothing masked.
+	assert.Len(t, sb.distinctAdditionalTagHashes, 1)
+	assert.False(t, sb.warnedThisBucket)
+	// Each distinct resource still produces its own aggregation.
+	require.Len(t, sb.data, resourceCount)
+}
+
 func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) {
 	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
 	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
@@ -327,7 +360,7 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) 
 	}
 
 	require.Len(t, sb.data, 3)
-	assert.Zero(t, sb.additionalTagsEntries)
+	assert.Empty(t, sb.distinctAdditionalTagHashes)
 	assert.False(t, sb.warnedThisBucket)
 	assert.Equal(t, []string{"customer_id:c"}, spans[2].matchingAdditionalMetricTags)
 }
@@ -365,9 +398,9 @@ func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *
 	secondBucket, ok := sc.buckets[bsize]
 	require.True(t, ok)
 
-	assert.Equal(t, 1, firstBucket.additionalTagsEntries)
+	assert.Len(t, firstBucket.distinctAdditionalTagHashes, 1)
 	assert.True(t, firstBucket.warnedThisBucket)
-	assert.Equal(t, 1, secondBucket.additionalTagsEntries)
+	assert.Len(t, secondBucket.distinctAdditionalTagHashes, 1)
 	assert.True(t, secondBucket.warnedThisBucket)
 	assert.Equal(t, BlockCounts{CapBlocks: 2}, sc.DrainBlockCounts())
 	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())

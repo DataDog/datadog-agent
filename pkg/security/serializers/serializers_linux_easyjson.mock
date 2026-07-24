@@ -54,3 +54,19 @@ func (v *UserSessionContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v UserSessionContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 }
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v TraceSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *TraceSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v TracerSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *TracerSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+}

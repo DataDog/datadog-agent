@@ -71,7 +71,7 @@ Relevant config keys under `desktop_monitoring`:
 
 Broad runtime names such as `node.exe`/`node`, `python.exe`/`python`, and `conhost.exe` are not direct AI-tool matches by default because they need command-line or path inspection to avoid false positives.
 
-Desktop events use the extension-compatible field semantics: tool display name, provider, user ID, and approved flag. The event source is `desktop_app`.
+Desktop events use the extension-compatible field semantics: tool display name, provider, and approved flag. The event source is `desktop_app`.
 
 On Windows, `--desktop-monitor` detaches from the scheduler-created console after startup. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `C:\ProgramData\Datadog\logs\ai-usage-desktop-monitor.log`, falling back to `%LOCALAPPDATA%\Datadog\logs\ai-usage-desktop-monitor.log` if the ProgramData log path is unavailable. Each record includes the process ID and user. The log rotates at 10 MB with one `.1` backup.
 
@@ -104,7 +104,6 @@ Request (shape used by the AI usage extension):
 {
   "type": "SEND_USAGE_EVENT",
   "tool": "example",
-  "user_id": "user-1",
   "approved": true
 }
 ```

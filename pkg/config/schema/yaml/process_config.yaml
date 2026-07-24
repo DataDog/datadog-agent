@@ -151,9 +151,6 @@ properties:
         visibility: public
         description: Toggles the `process_discovery` check. If enabled, this check
           gathers information about running integrations.
-        comment: |-
-          Process Discovery Check
-          We also bind old environment variables for this setting
       interval:
         node_type: setting
         type: string

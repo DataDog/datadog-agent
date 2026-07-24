@@ -77,3 +77,12 @@ func TestAgentUser(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Println("NetIsServiceAccount:", netIsServiceAccount)
 }
+
+// TestAgentUserKeepRightsFromRegistry prints the DDAGENTUSER_KEEP_RIGHTS value stored in the
+// registry, if any. Run after installing with DDAGENTUSER_KEEP_RIGHTS=1 to verify it was stored,
+// and again after a full uninstall to verify it was cleared.
+func TestAgentUserKeepRightsFromRegistry(t *testing.T) {
+	keepRights, err := GetAgentUserKeepRightsFromRegistry()
+	assert.NoError(t, err)
+	fmt.Println("keepRights: ", keepRights)
+}

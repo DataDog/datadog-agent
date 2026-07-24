@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Upgrade OpenTelemetry Collector dependencies from v0.156.0 to v0.157.0
+    (core v1.62.0 to v1.63.0).
+
+    See the full upstream changelogs:
+    `collector-contrib v0.157.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.157.0>`_,
+    `collector core v0.157.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.157.0>`_.

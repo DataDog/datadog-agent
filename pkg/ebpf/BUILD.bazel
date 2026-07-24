@@ -288,7 +288,7 @@ go_test(
         "//comp/core/telemetry/impl/noops",
         "//pkg/config/remote/data",
         "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/ebpftest",  # keep
+        "//pkg/ebpf/ebpftest",
         "//pkg/ebpf/maps",
         "//pkg/ebpf/names",
         "//pkg/remoteconfig/state",

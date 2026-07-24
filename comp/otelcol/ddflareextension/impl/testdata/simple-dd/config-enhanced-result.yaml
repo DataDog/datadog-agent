@@ -108,6 +108,7 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
+    logs_tags_as_ddtags: false
     trace_container_tag_promotion: "off"
 receivers:
   otlp:

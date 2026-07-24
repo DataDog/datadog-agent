@@ -60,6 +60,7 @@ dd_agent_go_test(
     srcs = [
         "config_test.go",
         "factory_test.go",
+        "logs_ddtags_test.go",
         "logs_test.go",
         "metrics_test.go",
         "profiles_test.go",

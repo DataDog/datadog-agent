@@ -253,9 +253,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Proxy Setup from config
-	if ddc.ProxyURL != "" {
-		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
-		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+	if ddc.ClientConfig.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
 	// Always load proxy env vars (DD_PROXY_HTTP, DD_PROXY_HTTPS, DD_PROXY_NO_PROXY,

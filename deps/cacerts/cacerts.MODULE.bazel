@@ -8,9 +8,9 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 # https://app.datadoghq.com/synthetics/details/pya-ptn-xnv
 # When you update this, you probably have to update the alert.
 # https://app.datadoghq.com/synthetics/edit/pya-ptn-xnv?from_details=true
-version = "2026-05-14"
+version = "2026-07-16"
 
-sha = "86a1f3366afac7c6f8ae9f3c779ac221129328c43f0ab2b8817eb2f362a5025c"
+sha = "3ff344e30b9b1ed2971044eabb438a08f2e2245ddb5f8ab1a3ad8b63ab4eaf91"
 
 # TODO(ABLD-169).  This is a mess. We pick up the file from curl.se, with a license from the upstream source.
 

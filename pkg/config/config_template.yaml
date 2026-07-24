@@ -5257,6 +5257,18 @@ api_key:
 #
 #     enabled: true
 
+#     # @param infra_attributes - custom object - optional
+#     # Controls whether infrastructure attributes (host tags, container tags) are attached to OTLP logs ingested by the Agent.
+#
+#     infra_attributes:
+
+#       # @param tags_as_ddtags - boolean - optional - default: false
+#       # @env DD_OTLP_CONFIG_LOGS_INFRA_ATTRIBUTES_TAGS_AS_DDTAGS - boolean - optional - default: false
+#       # Controls whether the Infra-Attribute-Processor writes custom tags (for example, from
+#       # kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log tags instead of log attributes.
+#
+#       tags_as_ddtags: false
+
 #     # @param batch - custom object - optional
 #     # Configuration for OTLP sending queue batch.
 #     # See https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/exporterhelper#sending-queue-batch-settings for more details.

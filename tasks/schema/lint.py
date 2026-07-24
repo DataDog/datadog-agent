@@ -36,7 +36,7 @@ VALID_ENV_PARSERS = {
     "json_list_or_space_separated",
 }
 
-SLACK_HINT = "If you have any question please reach out on #agent-configuration"
+SLACK_HINT = "If you have any question please reach out on #fleet-automation"
 
 
 # ---------------------------------------------------------------------------

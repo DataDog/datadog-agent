@@ -45,8 +45,6 @@ build do
     add_msgo_to_env(env)
   end
 
-  bazel_flags = "--//:install_dir=#{install_dir}"
-
   if linux_target?
     command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
@@ -60,9 +58,9 @@ build do
     end
 
     # Build both packages and dump them where gitlab will upload them.
-    command "bazel build #{bazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel build #{omnibazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
-    command "bazel cquery #{bazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
+    command "bazel cquery #{omnibazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
     command "tar tvf $(bazel info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Copy both the .deb and .rpm out to artifact outputs
@@ -75,7 +73,7 @@ build do
       omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
     end
     if omnibus_package_dir
-      command "bazel run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}",
+      command "bazel run #{omnibazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}",
         :live_stream => Omnibus.logger.live_stream(:info)
     end
   elsif windows_target?

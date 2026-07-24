@@ -5,6 +5,8 @@
     "updateNotScheduled": false,
     "ignorePaths": [],
     "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
+    "prCreation": "not-pending",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
@@ -68,7 +70,7 @@
       },
       {
         "matchManagers": ["cargo"],
-        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
+        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
         "matchManagers": ["cargo"],
@@ -171,7 +173,21 @@
       },
       {
         "matchManagers": ["bazel-module"],
+        "matchDepTypes": ["archive_override"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchPackageNames": [
+          "package_metadata",
+          "rules_license",
+          "supply_chain_tools"
+        ],
         "enabled": false
       },
       {

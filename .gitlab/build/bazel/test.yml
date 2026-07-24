@@ -1,6 +1,3 @@
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .bazel:test:
   stage: source_test
   needs:
@@ -98,7 +95,6 @@ bazel:test:windows-amd64:
   extends: .bazel:test:flavor
   script:
     - !reference [.install_python_dependencies]
-    - !reference [.macos_setup_go]
     - !reference [.bazel:test:flavor, script]
   after_script:
     - !reference [.install_python_dependencies]

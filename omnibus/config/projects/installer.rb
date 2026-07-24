@@ -20,12 +20,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-if windows_target?
-  INSTALL_DIR = 'C:/opt/datadog-installer/'
-else
-  INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
-end
-
+INSTALL_DIR = ENV['INSTALL_DIR'] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
 install_dir INSTALL_DIR
 
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")

@@ -32,10 +32,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-# Dedicated install_dir so the produced ZIP unzips to the flat ext/eudm/ layout the extension
-# hook expects (binary + example config at the root). Must not contain spaces (Omnibus does not
-# quote the Git commands it launches). Matches EUDM_ARTIFACT_DIR in tasks/msi.py.
-INSTALL_DIR = 'C:/opt/datadog-agent-eudm'
+INSTALL_DIR = ENV['INSTALL_DIR'] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
 install_dir INSTALL_DIR
 
 third_party_licenses_path "LICENSES-eudm"

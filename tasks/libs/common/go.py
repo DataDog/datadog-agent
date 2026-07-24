@@ -163,7 +163,7 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{' '.join(build_tags)}\""
+        cmd += f" -tags \"{','.join(build_tags)}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:

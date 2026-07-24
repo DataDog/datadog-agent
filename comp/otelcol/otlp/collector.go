@@ -146,6 +146,11 @@ type PipelineConfig struct {
 	// custom container tags into `_dd.tags.container` for the Traces pipeline.
 	// Valid values: "off", "duplicate", "rename" (empty is treated as "off").
 	TracesContainerTagPromotion string
+	// LogsTagsAsDDTags controls whether the InfraAttributes processor writes custom
+	// tags (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as a
+	// `ddtags` log record attribute (real Datadog log tags) instead of resource
+	// attributes (log attributes) for the Logs pipeline.
+	LogsTagsAsDDTags bool
 	// Logs contains configuration options for the logs
 	Logs map[string]interface{}
 	// Debug contains debug configurations.
