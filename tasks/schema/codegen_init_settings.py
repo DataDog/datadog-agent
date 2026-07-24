@@ -1,6 +1,8 @@
+import ast
 import os
 import re
 import subprocess
+import sys
 
 file_header = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -78,6 +80,10 @@ class CodeGeneratorTarget:
             sourcecode = self.filesystem[filename]
             output_func_header(funcname, sourcecode)
             for row in settings:
+                # blank
+                if row[0] == '' and row[1] == '':
+                    sourcecode = sourcecode + ['']
+                    continue
                 # pattern
                 if row[1].startswith('pattern_'):
                     suffix_list = get_suffixes_for_pattern(row[1])
@@ -116,17 +122,22 @@ class CodeGeneratorTarget:
         self.filesystem[filename] = self.header_text.split('\n')
         # Determine if the target file needs to import pkgconfighelper
         need_pkgconfighelper = False
+        need_time = False
         for row in settings:
             keyname = row[0]
             setting = self.buffer.get(keyname)
             if setting:
-                for line in setting.sourcecode:
-                    if 'pkgconfighelper.' in line:
-                        need_pkgconfighelper = True
-        self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
+                if contains_import(setting.sourcecode, 'time'):
+                    need_time = True
+                if contains_import(setting.sourcecode, 'pkgconfighelper'):
+                    need_pkgconfighelper = True
+        self.filesystem[filename] += self._add_imports(need_pkgconfighelper, need_time)
 
-    def _add_imports(self, need_pkgconfighelper):
+    def _add_imports(self, need_pkgconfighelper, need_time):
         sourcecode = ['import (']
+        if need_time:
+            sourcecode += ['\t"time"']
+            sourcecode += ['']
         if need_pkgconfighelper:
             sourcecode += ['\tpkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"']
         sourcecode += ['\tpkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"']
@@ -140,7 +151,7 @@ class CodeGeneratorTarget:
 
     def output_result_for_sysprobe_settings(self):
         res = self.header_text.split('\n')
-        res += self._add_imports(False)
+        res += self._add_imports(False, contains_import(self.output_everything, 'time'))
         res += ['func initSystemProbeConfig(config pkgconfigmodel.Setup) {']
         res += self.output_everything
         res += ['}']
@@ -148,7 +159,7 @@ class CodeGeneratorTarget:
 
     def output_result_for_core_agent_settings(self):
         res = self.header_text.split('\n')
-        res += self._add_imports(False)
+        res += self._add_imports(False, contains_import(self.output_full_agent, 'time'))
         res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
         res += self.output_full_agent
         res += ['}', '']
@@ -165,7 +176,7 @@ class CodeGeneratorTarget:
             print('Output %s' % filename)
             out_filename = os.path.join(out_dir, filename)
             with open(out_filename, "w") as f:
-                f.write('\n'.join(self.filesystem[filename]))
+                f.write(gofmt('\n'.join(self.filesystem[filename])))
 
 
 def join_key(prefix, field):
@@ -174,6 +185,16 @@ def join_key(prefix, field):
     if prefix.endswith('.'):
         return f"{prefix}{field}"
     return f"{prefix}.{field}"
+
+
+def contains_import(sourcecode, symbol):
+    if not isinstance(sourcecode, list) and not isinstance(sourcecode[0], str):
+        raise RuntimeError('sourcecode must be a list of strings')
+    needle = f"{symbol}."
+    for line in sourcecode:
+        if needle in line:
+            return True
+    return False
 
 
 def _is_node_leaf(node):
@@ -202,17 +223,37 @@ def walk_schema(schema, curr_path, callback):
 def retrieve_hint(hints_obj, keyname):
     if hints_obj is None:
         return None
+
     for perFilenameFuncSettings in hints_obj:
         for row in perFilenameFuncSettings['settings']:
+            extra_info = {}
             if row[0] == keyname:
                 return {'kind': row[1], 'internal_comment': row[2]}
-            elif row[1].startswith('pattern_') and keyname.startswith(row[0]):
+            elif matches_bind_pattern(row, keyname, extra_info):
                 # When multiple settings are created for a prefix, only add the
                 # comment to the first such setting.
-                internal_comment = row[2]
-                row[2] = ''
+                internal_comment = None
+                if extra_info['is_first']:
+                    internal_comment = row[2]
+                    row[2] = ''
                 return {'kind': row[1], 'internal_comment': internal_comment}
     return None
+
+
+def matches_bind_pattern(row, keyname, extra_info):
+    extra_info['is_first'] = False
+    if not row[1].startswith('pattern_'):
+        return False
+    if not keyname.startswith(row[0]):
+        return False
+    suffix_list = get_suffixes_for_pattern(row[1])
+    for i, suffix in enumerate(suffix_list):
+        targetkey = join_key(row[0], suffix)
+        if targetkey == keyname:
+            if i == 0:
+                extra_info['is_first'] = True
+            return True
+    return False
 
 
 def retrieve_func_order(hints_obj, func):
@@ -237,13 +278,14 @@ def output_func_footer(_, sourcecode):
 def try_parse_duration(text):
     if not isinstance(text, str):
         return None
-    m = re.fullmatch(r'(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?', text)
+    m = re.fullmatch(r'(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?(?:(\d+)µs)?', text)
     if not m or not any(m.groups()):
         return None
     hours = int(m.group(1) or 0)
     minutes = int(m.group(2) or 0)
     seconds = int(m.group(3) or 0)
     millis = int(m.group(4) or 0)
+    micros = int(m.group(5) or 0)
     parts = []
     if hours:
         parts.append('%d*time.Hour' % hours)
@@ -253,20 +295,49 @@ def try_parse_duration(text):
         parts.append('%d*time.Second' % seconds)
     if millis:
         parts.append('%d*time.Millisecond' % millis)
+    if micros:
+        parts.append('%d*time.Microsecond' % micros)
     if not parts:
-        return '0'
+        return 'time.Duration(0)'
     return ' + '.join(parts)
 
 
-def as_go_value(text):
+def value_to_gostr(obj):
+    if isinstance(obj, str) and '\\.' in obj:
+        # regex-like strings need to use backtick (`) quotes
+        return f"`{obj}`"
+    if isinstance(obj, str):
+        return f"\"{obj}\""
+    if isinstance(obj, bool) and obj:
+        return 'true'
+    if isinstance(obj, bool) and not obj:
+        return 'false'
+    if isinstance(obj, int):
+        return str(obj)
+    return obj
+
+
+def as_go_value(text, split_lines=False):
     if not isinstance(text, str):
         text = str(text)
-    text = text.replace('[', '{')
-    text = text.replace(']', '}')
-    text = text.replace('\'', '"')
-    text = text.replace('True', 'true')
-    text = text.replace('False', 'false')
-    return text
+
+    obj = ast.literal_eval(text)
+    res = []
+
+    if isinstance(obj, list):
+        if len(text) >= 60 or len(obj) > 6:
+            split_lines = True
+        for elem in obj:
+            res.append(value_to_gostr(elem))
+    else:  # assume dict/map
+        for k, v in obj.items():
+            key = value_to_gostr(k)
+            val = value_to_gostr(v)
+            res.append(f"{key}: {val}")
+
+    if split_lines:
+        return f"{{\n{',\n '.join(res)},\n}}"
+    return f"{{{', '.join(res)}}}"
 
 
 def get_golang_type_tag(curr):
@@ -305,7 +376,7 @@ def retrieve_default_value(keypath, schema):
         return 'nil'
 
     if node.get('platform_default'):
-        platform_default = as_go_value(node['platform_default'])
+        platform_default = as_go_value(node['platform_default'], split_lines=True)
         return f"GetPlatformDefault(map[string]interface{{}}{platform_default})"
 
     if settingType == 'array' or settingType == 'object':
@@ -347,6 +418,11 @@ def retrieve_default_value(keypath, schema):
             return str(settingDefault)
 
     elif settingType == 'string':
+        if node.get('format') == 'duration':
+            # time.Duration are specially rendered
+            durationValue = try_parse_duration(settingDefault)
+            if durationValue is not None:
+                return str(durationValue)
         if settingDefault is None:
             return '""'
         if isinstance(settingDefault, str):
@@ -540,6 +616,7 @@ config_setup_func_names = [
     'autoscaling',
     'fips',
     'remoteconfig',
+    'remoteflags',
     'autoconfig',
     'containerSyspath',
     'debugging',
@@ -558,7 +635,6 @@ config_setup_func_names = [
     'podman',
     'setupAPM',
     'setupMultiRegionFailover',
-    'remoteflags',
     'OTLP',
     'setupProcesses',
     'setupPrivateActionRunner',
@@ -670,13 +746,17 @@ def gofmt(source):
     """
     Format Go source code with gofmt and return the result.
     """
-    return subprocess.run(
-        ["gofmt"],
-        input=source,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    try:
+        return subprocess.run(
+            ["gofmt"],
+            input=source,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except subprocess.CalledProcessError as e:
+        print(e.stderr)
+        sys.exit(1)
 
 
 def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
