@@ -163,6 +163,7 @@ gazelle(
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+        "-remove_noop_keep_comments",  # drop dead `# keep` directives
         "-strict",  # don't swallow syntax errors or unknown directives
     ],
     gazelle = ":gazelle_binary",
