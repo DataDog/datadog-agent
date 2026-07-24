@@ -1,0 +1,32 @@
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load(":pkg_mac_pkg.bzl", "pkg_mac_pkg")
+
+package(default_visibility = ["//visibility:private"])
+
+sh_binary(
+    name = "build_mac_pkg",
+    srcs = ["build_mac_pkg.sh"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["pkg_mac_pkg.bzl"])
+
+# Manual smoke test: exercises the full materialize+pkgbuild pipeline against
+# real pkg_files srcs. Not wired into any real package yet.
+pkg_files(
+    name = "smoketest_files",
+    srcs = ["build_mac_pkg.sh"],
+    prefix = "bin",
+    tags = ["manual"],
+)
+
+pkg_mac_pkg(
+    name = "smoketest",
+    srcs = [":smoketest_files"],
+    identifier = "com.datadoghq.smoketest",
+    install_location = "/opt/datadog-agent",
+    tags = ["manual"],
+    version = "0.0.1",
+)

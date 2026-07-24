@@ -37,7 +37,6 @@ pkg_filegroup(
         # TODO: sysprobe - windows
         # TODO: systray - windows
         # TODO: installer
-        "//cmd/loader:trace_loader",
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
         ":dda_built_privateactionrunner_binary",
@@ -53,6 +52,12 @@ pkg_filegroup(
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
+        # //cmd/loader:trace_loader is target_compatible_with linux-only; it
+        # must be select()-guarded rather than listed unconditionally above,
+        # or any non-linux consumer of :all_files becomes incompatible too.
+        "@platforms//os:linux": ["//cmd/loader:trace_loader"],
+        "//conditions:default": [],
+    }) + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
