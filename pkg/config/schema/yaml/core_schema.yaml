@@ -7308,6 +7308,17 @@ properties:
         default: true
     tags:
     - full-agent-only:true
+  data_security:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: single enablement flag gating both the autodiscovery provider
+          and the sds-result event platform pipeline.
   data_streams:
     node_type: section
     type: object
@@ -9689,14 +9700,6 @@ properties:
     default: ${run_path}
   runtime_security_config:
     $ref: runtime_security_config.yaml
-  data_security:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
   sds_result:
     node_type: section
     type: object
