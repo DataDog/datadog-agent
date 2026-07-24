@@ -94,6 +94,7 @@ dd_agent_go_test(
         "apm_inject_windows_test.go",
         "datadog_agent_ddot_linux_test.go",
         "datadog_agent_eudm_windows_test.go",
+        "datadog_agent_par_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
     ],
