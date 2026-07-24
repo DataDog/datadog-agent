@@ -269,6 +269,13 @@ func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Cons
 	if m.Type() != pmetric.MetricTypeHistogram {
 		return
 	}
+	if m.Histogram().AggregationTemporality() != pmetric.AggregationTemporalityDelta {
+		// The DD SDK always emits this metric as delta. A cumulative datapoint would need to be
+		// diffed against the prior one to avoid double-counting hits/errors/duration; since we have
+		// no such state here, skip it rather than silently over-reporting.
+		logger.Debug("Skipping non-delta SDK trace metric", zap.String(metricName, m.Name()))
+		return
+	}
 	unit := m.Unit()
 	dps := m.Histogram().DataPoints()
 	for i := 0; i < dps.Len(); i++ {
@@ -311,6 +318,17 @@ func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer C
 		logger.Debug("Failed to convert DDSketch into Sketch",
 			zap.String(metricName, name), zap.Error(err))
 		return
+	}
+	// CreateDDSketchFromHistogramOfDuration reconstructs values from bucket midpoints, so
+	// Basic.Sum/Avg only approximate the true distribution. OTLP gives us the exact count
+	// and sum, so overwrite them to keep trace.<op>.duration averages/sums accurate.
+	agentSketch.Basic.Cnt = int64(dp.Count())
+	if dp.HasSum() {
+		scaleToNanos := getTimeUnitScaleToNanos(unit)
+		agentSketch.Basic.Sum = dp.Sum() * scaleToNanos
+		if agentSketch.Basic.Cnt > 0 {
+			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
+		}
 	}
 	dims := baseDims.AddTags(sdkTagStrings(tags)...)
 	dims.name = name

@@ -205,6 +205,19 @@ func TestRemapSDKTraceMetric_OTelSemanticsFallback(t *testing.T) {
 	assert.Equal(t, "GET /users/:id", got.sums["trace.http.server.request.hits"].tags["resource"])
 }
 
+// TestRemapSDKTraceMetric_CumulativeSkipped verifies a cumulative-temporality
+// datapoint is dropped rather than mishandled as delta, since we have no state
+// here to diff it against the prior cumulative value.
+func TestRemapSDKTraceMetric_CumulativeSkipped(t *testing.T) {
+	m := sdkTraceMetric("s", 5, 2.0, map[string]string{
+		"datadog.operation.name": "op",
+	})
+	m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	got := remapSDK(t, m)
+	assert.Empty(t, got.sums)
+	assert.Empty(t, got.durations)
+}
+
 // TestRemapSDKTraceMetric_SpanKindCasing verifies every span kind is lowercased.
 func TestRemapSDKTraceMetric_SpanKindCasing(t *testing.T) {
 	for in, want := range map[string]string{
@@ -250,7 +263,14 @@ func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, consumer.data.Metrics.Sketches, 1, "duration must be a single DDSketch series")
-	assert.Equal(t, "trace.http.request.duration", consumer.data.Metrics.Sketches[0].Name)
+	sketch := consumer.data.Metrics.Sketches[0]
+	assert.Equal(t, "trace.http.request.duration", sketch.Name)
+
+	// dp.Sum() (1.5s) and dp.Count() (3) are exact; the sketch's bucket-midpoint
+	// approximation must not be allowed to override them.
+	assert.Equal(t, int64(3), sketch.Summary.Cnt)
+	assert.InDelta(t, 1.5e9, sketch.Summary.Sum, 1, "duration sum must match the exact histogram sum scaled to nanoseconds")
+	assert.InDelta(t, 5e8, sketch.Summary.Avg, 1)
 
 	var names []string
 	for _, ts := range consumer.data.Metrics.TimeSeries {
