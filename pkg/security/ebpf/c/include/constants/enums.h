@@ -92,6 +92,7 @@ enum
     // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
     EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1 << 4, // event is an anomaly detection event
     EVENT_FLAGS_INTERNAL = 1 << 5, // event used to keep track of internal caches & resources
+    EVENT_FLAGS_PIDFD = 1 << 6, // event originates from a pidfd syscall (pidfd_getfd, pidfd_send_signal)
 };
 
 enum file_flags

@@ -83,7 +83,8 @@ type Event struct {
 	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
-	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	Async   bool `field:"event.async,handler:ResolveAsync"`      // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	IsPIDFD bool `field:"event.is_pidfd,handler:ResolveIsPIDFD"` // SECLDoc[event.is_pidfd] Definition:`True if the event originates from a pidfd syscall (e.g. pidfd_getfd, pidfd_send_signal)`
 
 	// context
 	SpanContext    SpanContext    `field:"-"`

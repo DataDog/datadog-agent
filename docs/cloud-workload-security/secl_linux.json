@@ -18,6 +18,11 @@
           "property_doc_link": "event-hostname-doc"
         },
         {
+          "name": "event.is_pidfd",
+          "definition": "True if the event originates from a pidfd syscall (e.g. pidfd_getfd, pidfd_send_signal)",
+          "property_doc_link": "event-is_pidfd-doc"
+        },
+        {
           "name": "event.origin",
           "definition": "Origin of the event",
           "property_doc_link": "event-origin-doc"
@@ -15799,6 +15804,18 @@
       "link": "event-hostname-doc",
       "type": "string",
       "definition": "Hostname associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.is_pidfd",
+      "link": "event-is_pidfd-doc",
+      "type": "bool",
+      "definition": "True if the event originates from a pidfd syscall (e.g. pidfd_getfd, pidfd_send_signal)",
       "prefixes": [
         ""
       ],

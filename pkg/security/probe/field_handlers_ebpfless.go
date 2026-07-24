@@ -211,6 +211,9 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *mode
 // ResolveAsync resolves the async flag
 func (fh *EBPFLessFieldHandlers) ResolveAsync(ev *model.Event) bool { return ev.Async }
 
+// ResolveIsPIDFD resolves the is_pidfd flag of the event
+func (fh *EBPFLessFieldHandlers) ResolveIsPIDFD(ev *model.Event) bool { return ev.IsPIDFD }
+
 // ResolveChownGID resolves the ResolveProcessCacheEntry group id of a chown event to a username
 func (fh *EBPFLessFieldHandlers) ResolveChownGID(_ *model.Event, e *model.ChownEvent) string {
 	return e.Group
