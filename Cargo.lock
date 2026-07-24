@@ -700,6 +700,9 @@ dependencies = [
  "dd-sensitive-data-scanner",
  "libc",
  "postgres",
+ "prost",
+ "prost-build",
+ "prost-types",
  "serde",
  "serde_json",
 ]
