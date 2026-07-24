@@ -62,6 +62,7 @@ def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str,
         text = bazel(
             ctx,
             "run",
+            "--@rules_go//go/config:race",  # avoid thrashing the analysis cache right after `bazel test`
             "//:go",
             "--",
             "list",
