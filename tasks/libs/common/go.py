@@ -212,7 +212,9 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     # worst case it's already installed and nothing happens
     with ctx.cd("internal/tools"):
         # pass the env to the command so that it can check GOPATH/GOBIN if provided
-        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
+        # remove GOOS and GOARCH from the env to avoid cross-compiling whydeadcode itself
+        trimmed_env = env and {k: v for k, v in env.items() if k not in {"GOOS", "GOARCH"}}
+        ctx.run("go install github.com/aarzilli/whydeadcode", env=trimmed_env)
 
     # whydeadcode prints unexpected input on stderr (eg. build warnings), and
     # dead code call stack on stdout
