@@ -147,8 +147,7 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
         gotags = gotags or set()
         kwargs["gotags"] = select({
             "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
-            "//packages/agent:macos_default": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
-            "//packages/agent:macos_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
+            "//packages/agent:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
             "//packages/agent:windows_default": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//packages/agent:windows_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//conditions:default": sorted(COMMON_TAGS | gotags),
