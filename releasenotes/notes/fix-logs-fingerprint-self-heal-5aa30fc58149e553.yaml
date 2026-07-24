@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Logs Agent: fixed an issue where a log source could stop collecting permanently
+    (``Bytes Read: 0``) after a log rotation. When a file's ``registry.json`` entry
+    held a fingerprint that could not be recomputed to a real value (for example an
+    entry written before ``fingerprint_config`` was added to the source, or with a
+    disabled fingerprint strategy), the Agent treated the unverifiable offset as valid
+    and reused it across restarts, seeking past the end of the freshly rotated file.
+    The Agent now restarts such a source from the beginning of the file when it has an
+    active fingerprint configuration, allowing it to self-heal without a manual
+    ``registry.json`` edit. Sources with fingerprinting disabled are unaffected and
+    continue to resume from their stored offset.

@@ -468,7 +468,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, file)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -537,7 +537,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, file)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}

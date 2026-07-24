@@ -16,7 +16,7 @@ import (
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter, file *tailer.File) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -33,13 +33,27 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
-			newFingerprint, err := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
-			if err != nil {
-				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
-				// If fingerprint computation fails, assume fingerprints don't align to be safe
-				fingerprintsAlign = true
-			} else {
-				fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
+			switch {
+			case prevFingerprint.ValidFingerprint():
+				// The stored fingerprint carries a real value, so recompute using the *stored*
+				// config to keep the comparison apples-to-apples, then trust the saved offset only
+				// if the recomputed fingerprint still matches.
+				newFingerprint, ferr := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
+				if ferr != nil {
+					log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, ferr)
+					// The file identity could not be verified, so do not trust the stored offset.
+					fingerprintsAlign = false
+				} else {
+					fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
+				}
+			case file != nil && fingerprinter.ShouldFileFingerprint(file):
+				// The stored fingerprint is invalid (Value 0) because it predates the source's
+				// fingerprint_config or was written with a disabled strategy, yet the source now has
+				// active fingerprinting. Its Value cannot be meaningfully compared against a freshly
+				// computed one (0 trivially equals 0), so the offset cannot be verified. Treat it as
+				// misaligned so the tailer restarts from the beginning of the (possibly rotated)
+				// file, letting the source self-heal instead of reusing a stale, out-of-range offset.
+				fingerprintsAlign = false
 			}
 		}
 	}
