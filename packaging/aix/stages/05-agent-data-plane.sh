@@ -39,7 +39,8 @@ ADP_SPDX_LICENSES_ARCHIVE="$BUILD_DIR/agent-data-plane-spdx-licenses.tar.gz"
 ADP_SPDX_LICENSES_EXTRACT_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses-extract"
 ADP_SPDX_LICENSES_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses"
 ADP_THIRD_PARTY_GENERATED_DIR="$BUILD_DIR/agent-data-plane-third-party-licenses"
-ADP_BIN_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
+ADP_BIN_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane-bin"
+ADP_WRAPPER_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
 ADP_LICENSES_DEST="$STAGING/opt/datadog-agent/LICENSES"
 
 # --- Pre-flight ---
@@ -55,7 +56,7 @@ log "Building Agent Data Plane from saluki commit $(git -C "$SALUKI_SRC" rev-par
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
-        rm -f "$ADP_BIN_DEST"
+        rm -f "$ADP_BIN_DEST" "$ADP_WRAPPER_DEST"
         rm -f "$ADP_LICENSES_DEST/LICENSE-agent-data-plane-3rdparty.csv"
         rm -f "$ADP_SPDX_LICENSES_ARCHIVE"
         rm -rf "$ADP_LICENSES_DEST"/THIRD-PARTY-*
@@ -121,6 +122,13 @@ cp "$ADP_AIX_BINARY_PATH" "$ADP_BIN_DEST"
 strip -X64 "$ADP_BIN_DEST"
 chmod 755 "$ADP_BIN_DEST"
 log "agent-data-plane binary staged at $ADP_BIN_DEST"
+
+# The SRC subsystem execs the installed path directly (no shell involved), so
+# without this wrapper LIBPATH is never set and the AIX loader cannot find
+# bundled libraries (e.g. libunwind), causing an immediate load failure.
+cp "$SCRIPT_DIR/../agent-data-plane-wrapper.sh" "$ADP_WRAPPER_DEST"
+chmod 755 "$ADP_WRAPPER_DEST"
+log "agent-data-plane wrapper staged at $ADP_WRAPPER_DEST"
 
 # ─── Step 3: Stage license artifacts ──────────────────────────────────────────
 

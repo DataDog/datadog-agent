@@ -5842,6 +5842,27 @@ properties:
               Set to true to enable logs support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
             example: 'true'
+          infra_attributes:
+            node_type: section
+            type: object
+            visibility: public
+            description: Controls whether infrastructure attributes (host tags, container
+              tags) are attached to OTLP logs ingested by the Agent.
+            tags:
+            - template_section:CoreAgent
+            properties:
+              tags_as_ddtags:
+                node_type: setting
+                type: boolean
+                default: false
+                visibility: public
+                description: |-
+                  Controls whether the Infra-Attribute-Processor writes custom tags (for example, from
+                  kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log tags instead of log attributes.
+                comment: |-
+                  tags_as_ddtags controls whether the infraattributes processor writes custom tags
+                  (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log
+                  tags instead of log attributes.
           batch:
             node_type: section
             type: object
