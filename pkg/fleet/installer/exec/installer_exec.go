@@ -24,6 +24,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -380,7 +381,24 @@ func (iCmd *installerCmd) Run() error {
 		return fmt.Errorf("run failed: %w", err)
 	}
 
-	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
+	trimmedOutput := strings.TrimSpace(errBuf.String())
+
+	// A structured installer error (see installerErrors.FromJSON) takes priority over crash
+	// detection: a genuine Go-runtime crash never emits valid JSON, so if the subprocess output
+	// parses as JSON it must be a real installer error, however its message happens to be
+	// worded. Checking this first prevents us from misclassifying a structured error whose
+	// message field incidentally contains one of the un-anchored diagnostic substrings below
+	// (e.g. "cannot allocate memory", "VirtualAlloc") as a resource-exhaustion crash and
+	// dropping its real error code/details.
+	if !json.Valid([]byte(trimmedOutput)) && isResourceExhaustionCrash(errBuf.Bytes()) {
+		// The full Go-runtime crash output can be a multi-KB stack trace with no actionable
+		// signal beyond "the host ran out of memory/threads". Keep that off the primary error
+		// (which surfaces to users and Error Tracking) and only log it at debug level.
+		log.Debugf("installer subprocess crashed due to host resource exhaustion, full output:\n%s", errBuf.String())
+		return fmt.Errorf("run failed: %w: %w", ErrResourceExhausted, err)
+	}
+
+	installerError := installerErrors.FromJSON(trimmedOutput)
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
 
