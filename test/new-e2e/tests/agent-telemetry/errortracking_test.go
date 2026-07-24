@@ -47,11 +47,13 @@ var errorCheckConfig string
 //go:embed testdata/error_check.py
 var errorCheckPy string
 
-// processAgentSubmissionErrorMessage is logged by readResponseStatuses
-// (pkg/process/runner/runner.go) whenever the connections check — guaranteed
-// to run standalone in process-agent — fails to submit to the
-// connection-refused address configured in the testdata above.
-const processAgentSubmissionErrorMessage = "[connections] Error from"
+// processAgentSubmissionErrorMessage is logged by
+// (*DefaultForwarder).submitProcessLikePayload (comp/forwarder/defaultforwarder/impl)
+// whenever the connections check's payload submission to the connection-refused
+// endpoint configured in the testdata above times out waiting for a response,
+// rather than failing immediately — that's the observed behavior for a
+// security-group-blocked port rather than a genuinely closed one.
+const processAgentSubmissionErrorMessage = "timed out waiting for responses"
 
 // securityAgentCWSConnectionErrorMessage is logged by startEventStreamListener
 // (pkg/security/agent/agent.go) whenever the CWS event-stream client fails to
@@ -181,17 +183,25 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 
 		pythonLogs, coreLogs, processLogs, securityLogs, systemProbeLogs = nil, nil, nil, nil, nil
 		for _, l := range logs {
+			// process-agent/security-agent/system-probe each emit exactly one
+			// kind of error here, so agent.flavor alone disambiguates them —
+			// more robust than pinning to an internal call site (e.g. the
+			// connections check's submission error can surface from more than
+			// one function in comp/forwarder/defaultforwarder/impl depending
+			// on whether the bad endpoint fails fast or times out). The core
+			// agent shares flavor.DefaultAgent across two distinct origins
+			// (Python vs Go-core), so those two still need a stack-trace split.
 			switch {
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.ProcessAgent):
+				processLogs = append(processLogs, l)
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.SecurityAgent):
+				securityLogs = append(securityLogs, l)
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.SystemProbe):
+				systemProbeLogs = append(systemProbeLogs, l)
 			case strings.Contains(l.StackTrace, "datadog_agent.go"):
 				pythonLogs = append(pythonLogs, l)
 			case strings.Contains(l.StackTrace, "check_logger.go"):
 				coreLogs = append(coreLogs, l)
-			case strings.Contains(l.StackTrace, "pkg/process/runner/runner.go"):
-				processLogs = append(processLogs, l)
-			case strings.Contains(l.StackTrace, "pkg/security/agent/agent.go"):
-				securityLogs = append(securityLogs, l)
-			case strings.Contains(l.StackTrace, "comp/networkpath/npcollector/impl/config.go"):
-				systemProbeLogs = append(systemProbeLogs, l)
 			}
 		}
 		assert.NotEmpty(c, pythonLogs, "no core-agent Python-path error logs received yet")
