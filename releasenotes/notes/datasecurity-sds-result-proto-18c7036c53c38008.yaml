@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    The ``datasecurity`` shared-library check now embeds the ``datadog.sds``
+    protobuf definitions used to report scan results. This is internal wiring;
+    no scan results are emitted yet.

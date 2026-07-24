@@ -280,6 +280,8 @@ core_env_parsers = {
     "apm_config.obfuscation.credit_cards.keep_values": "json_list_or_space_separated",
     "otelcollector.converter.features": "comma_and_space_separated",
     "process_config.custom_sensitive_words": "json_list_or_comma_separated",
+    "private_action_runner.restricted_shell.allowed_paths": "json_list_or_comma_separated",
+    "private_action_runner.restricted_shell.allowed_commands": "json_list_or_comma_separated",
 }
 
 # fix custom env vars

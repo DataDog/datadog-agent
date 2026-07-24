@@ -84,7 +84,7 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName stri
 	assert.Equal(t, expRetCode, code, "return code error: %v, please check the kernel structure offset of raw_packet_event", err)
 }
 
-func testRawPacketDropAction(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {
+func testRawPacketDropAction(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool, withDropStats bool) {
 	var ctx baloum.StdContext
 
 	vm := newVM(t)
@@ -100,6 +100,12 @@ func testRawPacketDropAction(t *testing.T, filters []rawpacket.Filter, progName 
 	inactiveName := "raw_packet_classifier_router_0"
 	routerMap, err := vm.LoadMap(inactiveName)
 	assert.Nil(t, err, "map not found")
+
+	if withDropStats {
+		droppedPacketsMap, err := vm.LoadMap("dropped_packets")
+		assert.Nil(t, err, "dropped_packets map not found")
+		opts.WithDropStatsMapFd(droppedPacketsMap.FD())
+	}
 
 	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
 	if err != nil {
@@ -293,7 +299,7 @@ func TestRawPacketDropAction(t *testing.T) {
 				Pid:       123,
 			},
 		}
-		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true)
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true, false)
 	})
 
 	t.Run("syn-port-std-pid-ko", func(t *testing.T) {
@@ -305,7 +311,7 @@ func TestRawPacketDropAction(t *testing.T) {
 				Pid:       999,
 			},
 		}
-		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true, false)
 	})
 
 	t.Run("syn-port-std-cgroup-ok", func(t *testing.T) {
@@ -319,7 +325,7 @@ func TestRawPacketDropAction(t *testing.T) {
 				},
 			},
 		}
-		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true)
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true, false)
 	})
 
 	t.Run("syn-port-std-cgroup-ko", func(t *testing.T) {
@@ -333,7 +339,19 @@ func TestRawPacketDropAction(t *testing.T) {
 				},
 			},
 		}
-		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true, false)
+	})
+
+	t.Run("syn-port-std-drop-stats", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+				Policy:    rawpacket.PolicyDrop,
+				Pid:       123,
+			},
+		}
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true, true)
 	})
 }
 
@@ -362,5 +380,5 @@ func TestRawPacketActionWithInvalidFilter(t *testing.T) {
 
 	// catchCompilerError is false: the invalid filter is expected to fail compilation and
 	// be skipped, but the valid filter should still produce a single program (and match).
-	testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), false)
+	testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), false, false)
 }
