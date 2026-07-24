@@ -108,6 +108,7 @@ go_test(
         "tagfilter_cache_test.go",
         "tagset_telem_test.go",
         "time_sampler_test.go",
+        "time_sampler_worker_test.go",
     ],
     embed = [":aggregator"],
     gotags = ["test"],
