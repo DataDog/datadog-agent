@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build windows
+//go:build windows || darwin
 
 package notableeventsimpl
 
@@ -22,11 +22,12 @@ import (
 
 // eventPayload represents a notable event to be submitted
 type eventPayload struct {
-	Timestamp time.Time
-	EventType string                 // Category for grouping (e.g., "Unexpected reboot")
-	Title     string                 // Short title for display
-	Message   string                 // Detailed message
-	Custom    map[string]interface{} // Event-specific data (e.g., windows_event_log JSON)
+	Timestamp  time.Time
+	EventType  string                 // Category for grouping (e.g., "Unexpected reboot")
+	Title      string                 // Short title for display
+	Message    string                 // Detailed message
+	Custom     map[string]interface{} // Event-specific data (e.g., windows_event_log or macos_diagnostic_report)
+	completion chan<- error           // Optional forwarding result for collectors requiring acknowledgement
 }
 
 // submitter receives event payloads from a channel and forwards them to the event platform
@@ -64,8 +65,12 @@ func (s *submitter) run() {
 	defer s.wg.Done()
 
 	for payload := range s.inChan {
-		if err := s.submitEvent(payload); err != nil {
+		err := s.submitEvent(payload)
+		if err != nil {
 			log.Warnf("Failed to submit notable event: %v", err)
+		}
+		if payload.completion != nil {
+			payload.completion <- err
 		}
 	}
 
@@ -112,7 +117,12 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 	msg := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
 
 	// Submit to event platform using the eventsv2 event type
-	if err := s.eventPlatformForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventManagement); err != nil {
+	if payload.completion != nil {
+		err = s.eventPlatformForwarder.SendEventPlatformEvent(msg, eventplatform.EventTypeEventManagement)
+	} else {
+		err = s.eventPlatformForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventManagement)
+	}
+	if err != nil {
 		return fmt.Errorf("failed to send event to platform: %w", err)
 	}
 
