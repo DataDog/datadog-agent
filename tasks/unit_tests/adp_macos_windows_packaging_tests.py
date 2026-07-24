@@ -22,7 +22,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
             self.assertIn(f'"{hash_key}"', module_bazel)
 
     def test_macos_archive_selection_has_no_fips_variant(self):
-        archives = (REPO_ROOT / "deps/agent_data_plane/archives.bzl").read_text()
+        archives = (REPO_ROOT / "deps/agent_data_plane/BUILD.bazel").read_text()
         packages_agent = (REPO_ROOT / "packages/agent/BUILD.bazel").read_text()
 
         # Agent Data Plane has no FIPS build for macOS: base_flavor (not fips_flavor)
