@@ -60,7 +60,10 @@ dd_agent_go_test(
         "decoder_test.go",
         "line_handler_benchmark_test.go",
         "line_handler_test.go",
+        "line_parser_proptest_test.go",
         "line_parser_test.go",
+        "multiline_handler_proptest_test.go",
+        "single_line_handler_proptest_test.go",
         "single_line_handler_test.go",
     ],
     embed = [":decoder"],
@@ -83,5 +86,6 @@ dd_agent_go_test(
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@net_pgregory_rapid//:rapid",
     ],
 )

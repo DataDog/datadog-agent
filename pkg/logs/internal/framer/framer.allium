@@ -1,0 +1,300 @@
+-- allium: 3
+-- framer.allium
+
+-- Scope: The truncation-related behaviour of the Framer at
+--   pkg/logs/internal/framer. The Framer extracts frames from an
+--   input byte stream (per a Framing-selected FrameMatcher) and
+--   may set the IsTruncated flag on emitted frames. This spec
+--   covers ONLY the truncation behaviour. The Framer's frame-
+--   extraction, newline-detection, encoding-specific decoding,
+--   and buffer-management responsibilities are out of scope and
+--   not pinned down here.
+--
+--   The Framer does NOT declare fulfilment of the
+--   TruncationDetector contract. Its truncation behaviour varies
+--   per Framing — some matchers enforce content_len_limit
+--   internally, others do not — so the Framer as a whole cannot
+--   uniformly satisfy the strict "cut at threshold" contract.
+--   The observable behaviour is pinned by the per-matcher
+--   @guarantees below rather than by contract fulfilment.
+-- Includes: The Framer entity (truncation-relevant configuration),
+--   the Framing enum, the FramerTruncation surface and its
+--   @guarantees covering: the framer's response to matcher
+--   outputs (truncated, found, nil), the buffer-overflow
+--   force-cut fallback path, end-of-stream Flush behaviour, the
+--   per-framing categorisation (enforcing vs non-enforcing
+--   matchers), the datagram-mode end-of-Process flush behaviour,
+--   metadata inheritance on emitted frames, the no-marker-bytes
+--   property.
+-- Excludes:
+--   - Frame-extraction logic specific to each matcher. How
+--     onebyte locates a newline, how docker_stream skips header
+--     bytes, how syslog distinguishes octet-counted from
+--     non-transparent framing — these are matcher-specific
+--     behaviours not pinned down at this surface. Their
+--     truncation-relevant outputs (FindFrame's return values)
+--     are pinned, but how those values are computed is not.
+--   - The buffer state held by the Framer across Process calls
+--     (fr.buffer, fr.bytesFramed). The truncation behaviour is
+--     described at emission boundaries; the internal buffer
+--     management is implementation.
+--   - The frame counter (fr.frames). Observability only.
+--   - UTF-16 alignment of content_len_limit at construction.
+--     Transparent at the surface boundary; the stored
+--     content_len_limit value is the post-alignment one.
+--   - The character encodings underlying each Framing value
+--     (UTF-8, UTF-16-BE/LE, SHIFT-JIS). Each is a framing
+--     selecting a matcher; the truncation behaviour is captured
+--     through the matcher's categorisation, not through
+--     encoding semantics.
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum Framing {
+    -- The framing type selected at Framer construction. Each
+    -- variant maps to a specific FrameMatcher implementation.
+    -- Framings are categorised by whether their matcher enforces
+    -- content_len_limit internally — see FramingCategorisation
+    -- guarantee.
+    utf8_newline
+    utf16_be_newline
+    utf16_le_newline
+    shift_jis_newline
+    no_framing
+    docker_stream
+    syslog_framing
+    utf8_newline_datagram
+    utf8_newline_stream
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity Framer {
+    -- A configured Framer instance. Only fields relevant to
+    -- truncation behaviour are captured.
+    --
+    -- content_len_limit:   the byte threshold above which the
+    --                      framer's force-cut path emits a
+    --                      truncated frame, and (for enforcing
+    --                      framings) the threshold at which the
+    --                      matcher itself cuts. Set at
+    --                      construction; immutable for the
+    --                      Framer's lifetime. For UTF-16
+    --                      framings, normalised at construction
+    --                      to a 2-byte alignment with a minimum
+    --                      of 2 bytes.
+    -- framing:             the framing type, selecting the
+    --                      FrameMatcher used internally and
+    --                      thus determining whether the matcher
+    --                      enforces content_len_limit itself.
+    -- flush_after_process: when true, Process emits any
+    --                      remaining unframed buffer content as
+    --                      a single frame at the end of each
+    --                      Process call. Set automatically for
+    --                      utf8_newline_datagram framing only;
+    --                      false for all other framings.
+    content_len_limit: Integer
+    framing: Framing
+    flush_after_process: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface FramerTruncation {
+    -- The truncation-related boundary of the Framer. Describes
+    -- when and how IsTruncated is set on emitted frames, the
+    -- framer's response to FrameMatcher outputs, the
+    -- buffer-overflow force-cut fallback, and end-of-stream
+    -- Flush behaviour.
+    --
+    -- Does NOT declare fulfils TruncationDetector. The framer's
+    -- truncation behaviour is matcher-dependent and therefore
+    -- cannot uniformly satisfy the strict "cut at threshold"
+    -- contract — see the per-framing FramingCategorisation
+    -- guarantee.
+
+    context fr: Framer
+
+    @guarantee EmissionFromMatcherTruncated
+        -- When the FrameMatcher's FindFrame returns a non-nil
+        -- content with wasTruncated=true, the framer emits that
+        -- content unchanged on the emitted frame's
+        -- MessageContent and sets ParsingExtra.IsTruncated=true.
+        -- The framer does not re-validate the matcher's choice
+        -- or re-cut the content.
+
+    @guarantee EmissionFromMatcherFound
+        -- When the FrameMatcher's FindFrame returns a non-nil
+        -- content with wasTruncated=false, the framer emits
+        -- that content unchanged on the emitted frame's
+        -- MessageContent and sets ParsingExtra.IsTruncated=false.
+        -- This holds REGARDLESS of len(content): the framer does
+        -- NOT cross-check the matcher's emission against
+        -- content_len_limit at this point. Responsibility for
+        -- limit enforcement on a found frame lies entirely with
+        -- the matcher.
+
+    @guarantee ForceCutOnMatcherNil
+        -- When the FrameMatcher's FindFrame returns nil content,
+        -- the framer checks whether the un-framed portion of
+        -- the buffer has length >= content_len_limit. If so,
+        -- the framer cuts the first content_len_limit bytes of
+        -- the un-framed portion and emits them with
+        -- ParsingExtra.IsTruncated=true. If not, the framer
+        -- breaks out of the Process loop and waits for more
+        -- data. This force-cut path applies UNIFORMLY across
+        -- all framings — it is in Framer.Process, not in any
+        -- matcher — and is the safety net that prevents
+        -- unbounded buffer growth for non-enforcing matchers.
+
+    @guarantee FramingCategorisation
+        -- Each Framing value falls into one of two
+        -- categories according to whether its FrameMatcher
+        -- enforces content_len_limit internally (i.e. whether
+        -- FindFrame can return a non-nil content with
+        -- wasTruncated=true).
+        --
+        -- Enforcing framings (matcher returns wasTruncated=true
+        -- on over-limit frames, cutting the content at
+        -- content_len_limit):
+        --   - utf8_newline
+        --   - utf16_be_newline
+        --   - utf16_le_newline
+        --   - shift_jis_newline
+        --   - utf8_newline_datagram
+        --   - utf8_newline_stream
+        --   - syslog_framing
+        --
+        -- Non-enforcing framings (matcher returns content with
+        -- wasTruncated=false regardless of size, emitting
+        -- whatever frame it locates including oversized ones):
+        --   - docker_stream
+        --   - no_framing
+        --
+        -- For non-enforcing framings, the ONLY way the framer
+        -- produces a truncated emission is via the
+        -- ForceCutOnMatcherNil path — i.e. when the matcher
+        -- cannot find a frame at all and the buffer reaches
+        -- content_len_limit. Oversized frames that the matcher
+        -- DOES find for non-enforcing framings are emitted
+        -- with IsTruncated=false. Changing a matcher's category
+        -- would alter the emitted-frame distribution for that
+        -- framing and is a deliberate behaviour change requiring
+        -- its own justification.
+
+    @guarantee FlushEndOfStreamTruncation
+        -- At end-of-stream, Framer.Flush() calls the matcher's
+        -- FlushFrame in a loop. For each iteration:
+        --
+        --   - If FlushFrame returns nil, the loop terminates.
+        --   - If FlushFrame returns content with
+        --     rawDataLen >= len(buf), the framer emits that
+        --     content with ParsingExtra.IsTruncated=false
+        --     (the full remaining buffer was consumed).
+        --   - If FlushFrame returns content with
+        --     rawDataLen < len(buf), the framer emits that
+        --     content with ParsingExtra.IsTruncated=true
+        --     (the matcher chose to emit less than the full
+        --     buffer, so something was truncated).
+        --
+        -- Two matchers produce non-nil Flush-time content:
+        --   - syslogFrameMatcher's FlushFrame (always, when
+        --     buffer is non-empty)
+        --   - oneByteNewLineMatcher's FlushFrame when constructed
+        --     with flushPartial=true (utf8_newline_stream framing
+        --     only). With flushPartial=false (utf8_newline,
+        --     shift_jis_newline, utf8_newline_datagram), it
+        --     returns nil.
+        -- The other matchers (twoByteNewLineMatcher,
+        -- dockerStreamMatcher, noFramingMatcher) all return nil
+        -- and produce no Flush-time emissions.
+
+    @guarantee DatagramEndOfProcessFlush
+        -- When fr.flush_after_process is true (set
+        -- automatically for utf8_newline_datagram framing
+        -- only) and Process completes with a non-empty
+        -- un-framed buffer, the framer emits the remaining
+        -- buffer as a single frame with
+        -- ParsingExtra.IsTruncated=false. This emission
+        -- bypasses the FindFrame loop and the force-cut
+        -- safety check, so the remaining buffer can be ANY
+        -- size up to (but typically less than)
+        -- content_len_limit (it is less than content_len_limit
+        -- in practice because the force-cut loop would have
+        -- consumed any prefix at or above the limit).
+        --
+        -- Consequence: a single Process call on a datagram
+        -- framer can emit multiple frames, some of which
+        -- carry IsTruncated=true (from the force-cut path) and
+        -- the final one (if any) carrying IsTruncated=false
+        -- via this end-of-Process flush.
+
+    @guarantee IsTruncatedOnEmittedFrame
+        -- The IsTruncated flag is set on the EMITTED frame's
+        -- ParsingExtra.IsTruncated field, on a new
+        -- *message.Message constructed by emitFrame. The
+        -- emitted frame inherits Origin, Status,
+        -- IngestionTimestamp, and ServerlessExtra from the
+        -- input message, but its ParsingExtra is a copy with
+        -- IsTruncated overwritten to the value determined by
+        -- the emission path. The original input message's
+        -- IsTruncated flag is not modified by the framer.
+        -- Each emitted frame's flag is independent of any
+        -- other frame's flag emitted from the same Process
+        -- call.
+
+    @guarantee NoMarkerBytesAdded
+        -- The framer never adds the `...TRUNCATED...` marker
+        -- byte sequence to any emitted frame's content,
+        -- regardless of which emission path produced the
+        -- frame and regardless of whether IsTruncated is
+        -- true or false. Marker decoration is exclusively a
+        -- downstream Truncatable concern; the framer's
+        -- responsibility ends at setting the IsTruncated
+        -- flag on the emitted frame's ParsingExtra.
+
+    @guarantee NoCarryOverBetweenEmissions
+        -- The truncation flag on emission N+1 is
+        -- independent of the truncation flag on emission N.
+        -- Each emitted frame's IsTruncated is determined
+        -- solely by the buffer state and matcher response
+        -- at the time of that emission. There is no "carry"
+        -- state for truncation analogous to Truncatable's
+        -- prior_carryover; the framer holds no truncation-
+        -- specific state across emissions.
+
+    @guidance
+        -- Configuration immutability: content_len_limit is
+        -- set during NewFramer and is not modified
+        -- subsequently. The Framer holds no other
+        -- truncation-relevant configuration that changes
+        -- after construction. UTF-16 framings have their
+        -- content_len_limit rounded down to a 2-byte
+        -- alignment (and clamped to a minimum of 2) at
+        -- construction time, but this normalisation is
+        -- complete by the time the surface is observable.
+        -- This is a structural property enforced by Go-level
+        -- package privacy (the field has no exported setter)
+        -- rather than a runtime invariant.
+        --
+        -- The framer is the upstream signal source for
+        -- truncation in the logs pipeline. Its emitted
+        -- frame's ParsingExtra.IsTruncated is later
+        -- consumed by Truncatable fulfillers downstream
+        -- (legacy decoder handlers, preprocessor
+        -- aggregators) via their upstream_truncated input.
+        -- The framer itself does not add marker bytes;
+        -- downstream Truncatable fulfillers do.
+        --
+        -- The asymmetry between enforcing and non-enforcing
+        -- matchers (FramingCategorisation guarantee) is
+        -- observable and load-bearing: changing a matcher's
+        -- category alters the emitted-frame distribution for
+        -- that framing.
+}

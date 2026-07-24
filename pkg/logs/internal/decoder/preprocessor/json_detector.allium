@@ -1,0 +1,130 @@
+-- allium: 3
+-- json_detector.allium
+
+-- Scope: A stateless labelling heuristic that recognises log lines
+--   whose content begins with the structural shape of a top-level
+--   JSON object. When such a line arrives in a labelling chain
+--   before any other heuristic has claimed the label, JSONDetector
+--   claims it as "no aggregate" — instructing downstream
+--   aggregators to emit the line directly without grouping it with
+--   neighbouring lines.
+-- Includes: The JSONDetector entity, fulfilment of the Heuristic
+--   contract at the JSONDetection surface, the shape pattern
+--   JSONDetector recognises, and the conditional behaviour around
+--   prior-heuristic deference.
+-- Excludes:
+--   - JSON aggregation itself. JSONDetector is purely a labelling
+--     heuristic; the upstream JSONAggregator stage that combines
+--     pretty-printed multi-line JSON into single-line messages is
+--     a separate concern with its own spec (json_aggregator.allium).
+--     The detector and the aggregator do not depend on each other —
+--     they cooperate only by pipeline order.
+--   - The position of JSONDetector within any specific labeller's
+--     chain. JSONDetector satisfies the Heuristic contract; how a
+--     particular labeller orders it relative to other heuristics is
+--     that labeller's configuration concern.
+
+use "./labeler.allium" as labeler
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity JSONDetector {
+    -- A stateless instance of the JSON-shape heuristic. The Go
+    -- implementation has no per-instance state; every JSONDetector
+    -- instance behaves identically. The single field below is the
+    -- identifier the detector writes into context.label_assigned_by
+    -- when it claims the label — observable downstream as the
+    -- "this label was set by the JSON detector" provenance signal.
+    assigner_id: String
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface JSONDetection {
+    -- The boundary between a labelling chain and one JSONDetector
+    -- instance. The chain invokes process_and_continue on the
+    -- detector with the chain's shared HeuristicContext; this
+    -- surface supplies the detector's contribution to the labelling
+    -- decision.
+
+    context detector: JSONDetector
+
+    contracts:
+        fulfils Heuristic
+
+    @guarantee InputImmutability
+        -- JSONDetector reads context.raw_message but never modifies
+        -- it. It does not read or modify context.tokens or
+        -- context.token_indices. Honours the Heuristic contract's
+        -- InputImmutability invariant.
+
+    @guarantee LabelDomain
+        -- When JSONDetector claims the label, it sets
+        -- context.label to no_aggregate — a value in the Label
+        -- enum. JSONDetector never produces any other label value
+        -- and never leaves context.label in an invalid state.
+
+    @guarantee LabelAssignedByConsistency
+        -- When JSONDetector sets context.label, it also sets
+        -- context.label_assigned_by to its assigner_id (identifying
+        -- itself as the assigner). When JSONDetector does NOT set
+        -- context.label, it leaves context.label_assigned_by
+        -- unchanged. Honours the Heuristic contract's
+        -- LabelAssignedByConsistency invariant.
+
+    @guarantee TerminationSemantics
+        -- process_and_continue returns false when JSONDetector
+        -- claims the label, terminating the labelling chain.
+        -- It returns true when JSONDetector does NOT claim the
+        -- label, allowing the chain to continue evaluating
+        -- subsequent heuristics.
+
+    @guidance
+        -- Detection condition: JSONDetector recognises content
+        -- whose first non-whitespace bytes form the structural
+        -- shape of a top-level JSON object opening — specifically,
+        -- an opening brace `{` followed (possibly with intervening
+        -- whitespace) by either an opening string quote `"` or a
+        -- closing brace `}`. The first form matches an object with
+        -- at least one key; the second form matches the empty
+        -- object `{}`. Leading whitespace before the opening brace
+        -- is permitted. This is a fast structural check, not a
+        -- full JSON parse: content that begins with this shape but
+        -- is malformed further on is still recognised as
+        -- "JSON-shaped" by the detector.
+        --
+        -- Conditional behaviour when process_and_continue is
+        -- invoked:
+        --
+        -- 1. If context.label_assigned_by indicates that a prior
+        --    heuristic has already claimed the label (i.e.,
+        --    label_assigned_by is not the default sentinel),
+        --    JSONDetector takes no action: it returns true and
+        --    yields to subsequent heuristics. The detector defers
+        --    to whatever the prior heuristic decided.
+        --
+        -- 2. Otherwise, if context.raw_message matches the
+        --    detection shape described above, JSONDetector claims
+        --    the label by setting context.label to no_aggregate
+        --    and context.label_assigned_by to its assigner_id.
+        --    It returns false to terminate the labelling chain;
+        --    subsequent labelling heuristics do not run.
+        --
+        -- 3. Otherwise (no prior claim AND no shape match),
+        --    JSONDetector takes no action: it returns true and
+        --    yields to subsequent heuristics.
+        --
+        -- Choosing no_aggregate is deliberate: a JSON-shaped log
+        -- line is treated as an atomic unit, not grouped with
+        -- neighbouring lines into a multi-line aggregate. This
+        -- complements the upstream JSONAggregator stage, which
+        -- handles the case of pretty-printed JSON split across
+        -- multiple input lines — by the time the labelling stage
+        -- sees the message, JSON aggregation has already happened
+        -- (or been declined), and a single line containing JSON
+        -- content should pass through unaggregated.
+}
