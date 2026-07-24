@@ -10,8 +10,10 @@ _FEATURES = ["engine-postgres"]
 rust_shared_library(
     name = "datasecurity",
     srcs = glob(["src/**/*.rs"]),
-    # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`
+    # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`; `core` is aliased to
+    # `shlib_core` to mirror the crate's Cargo.toml (avoids shadowing std `core`).
     aliases = {
+        "//pkg/collector/sharedlibrary/rustchecks/core": "shlib_core",
         "@crates//:dd-sensitive-data-scanner": "dd_sds",
     },
     crate_features = _FEATURES,

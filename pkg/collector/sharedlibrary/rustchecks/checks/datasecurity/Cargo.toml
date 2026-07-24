@@ -15,7 +15,10 @@ engine-postgres = [
 
 [dependencies]
 anyhow.workspace = true
-core = { path = "../../core" }
+# Aliased to `shlib_core` so the crate name does not shadow the std `core`
+# crate (`::core::` paths), which matters once the prost-generated proto code
+# is added.
+shlib_core = { path = "../../core", package = "core" }
 # Keep only the `dd-sds` feature and disable default features so we pull in just
 # the necessary dependencies and avoid shipping the third-party checkers.
 dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260715-fcd8f9716b61", default-features = false, features = ["dd-sds"] }

@@ -1,4 +1,4 @@
-use core::Config;
+use shlib_core::Config;
 use dd_sds::{
     Labels, ProximityKeywordsConfig, RegexRuleConfig, RootRuleConfig, SecondaryValidator,
     Suppressions,

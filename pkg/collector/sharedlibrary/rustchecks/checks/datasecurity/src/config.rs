@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use core::AgentCheck;
+use shlib_core::AgentCheck;
 use serde::{Deserialize, Deserializer};
 
 use crate::scanning::ScanningRule;

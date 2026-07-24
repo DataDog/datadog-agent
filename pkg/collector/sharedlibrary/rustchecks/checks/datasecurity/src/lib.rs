@@ -1,4 +1,4 @@
-use core::generate_ffi;
+use shlib_core::generate_ffi;
 
 mod backend;
 mod check;
