@@ -155,7 +155,7 @@ scan_data: []
         ]
     });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     // `alice@example.com` is suppressed; the other two rows match.
     assert_eq!(
@@ -190,7 +190,7 @@ scan_data: []
         ]
     });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     // Only the row with the `token` keyword nearby matches.
     assert_eq!(
@@ -225,7 +225,7 @@ scan_data: []
         ]
     });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     // The row preceded by the `test` keyword is excluded.
     assert_eq!(
@@ -254,7 +254,7 @@ scan_data: []
     // same row path, so the row is counted once.
     let data = json!({ "email": ["alice@corp.io and bob@corp.io"] });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     assert_eq!(
         matches,
@@ -287,7 +287,7 @@ scan_data: []
         ]
     });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     // Only the Luhn-valid number is kept.
     assert_eq!(
@@ -314,7 +314,7 @@ scan_data: []
 
     let data = json!({ "name": ["alice", "bob"] });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     assert!(matches.is_empty());
 }
@@ -335,7 +335,7 @@ scan_data: []
     // `foo[bar][0]`; only the trailing row subscript should be stripped.
     let data = json!({ "foo[bar]": ["alice@corp.io"] });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     assert_eq!(
         matches,
@@ -363,7 +363,7 @@ scan_data: []
     // so it survives verbatim even though `.` is the Path segment separator.
     let data = json!({ "first.last": ["alice@corp.io", "bob@corp.io"] });
 
-    let matches = scanner.scan(&data).expect("failed to scan data");
+    let matches = scanner.scan(data).expect("failed to scan data");
 
     assert_eq!(
         matches,
