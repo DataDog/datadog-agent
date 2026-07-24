@@ -61,6 +61,7 @@ go_test(
         "metric_sample_test.go",
         "metric_test.go",
         "metric_with_timestamp_test.go",
+        "metricsource_test.go",
         "monotonic_count_test.go",
         "rate_test.go",
         "set_test.go",

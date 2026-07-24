@@ -52,6 +52,7 @@ go_library(
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
+        "//pkg/serverless/env",
         "//pkg/status/health",
         "//pkg/tagger/types",
         "//pkg/tagset",
@@ -72,6 +73,7 @@ dd_agent_go_test(
     srcs = [
         "batch_test.go",
         "convert_bench_test.go",
+        "default_serverless_test.go",
         "enrich_bench_test.go",
         "enrich_fuzz_test.go",
         "enrich_serverless_test.go",
@@ -131,6 +133,7 @@ dd_agent_go_test(
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
+        "//pkg/serverless/env",
         "//pkg/tagger/types",
         "//pkg/util/fxutil",
         "//pkg/util/hostname",

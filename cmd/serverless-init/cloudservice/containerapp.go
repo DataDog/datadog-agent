@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -174,6 +176,11 @@ func NewContainerApp() *ContainerApp {
 		SubscriptionId: "",
 		ResourceGroup:  "",
 	}
+}
+
+// Run uses the default run behaviour for ContainerApp.
+func (c *ContainerApp) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
 }
 
 // Init initializes ContainerApp specific code
