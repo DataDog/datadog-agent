@@ -44,7 +44,7 @@ type Reader struct {
 }
 
 type readerImpl interface {
-	parseCgroups() (map[string]Cgroup, error)
+	parseCgroups() (map[string]Cgroup, map[uint64]string, error)
 }
 
 // ReaderFilter allows to filter cgroups based on their path + folder name
@@ -234,14 +234,22 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		return nil
 	}
 
-	newCgroups, err := r.impl.parseCgroups()
+	newCgroups, subInodes, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
 	}
 
-	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
+	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups)+len(subInodes))
 	for _, cg := range newCgroups {
 		if inode := cg.Inode(); inode != unknownInode {
+			r.cgroupByInode[inode] = cg
+		}
+	}
+	// Also register inodes of sub-cgroups (e.g. CRI-O's .scope/container/ on cgroupv2).
+	// DogStatsD clients running inside a cgroup namespace report the inode of their
+	// namespace root, which is the sub-cgroup directory, not the parent .scope/.
+	for inode, id := range subInodes {
+		if cg, ok := newCgroups[id]; ok {
 			r.cgroupByInode[inode] = cg
 		}
 	}
