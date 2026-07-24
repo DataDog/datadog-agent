@@ -14,3 +14,8 @@ process_config:
       - "00000000000000000000000000000000"
   process_discovery:
     enabled: false
+# system-probe trigger; must live here, not in system-probe.yaml — see
+# errortracking-enabled.yaml for why.
+network_path:
+  collector:
+    filters: "not-a-valid-filter"
