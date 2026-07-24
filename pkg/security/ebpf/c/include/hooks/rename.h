@@ -42,6 +42,15 @@ int hook_do_renameat2(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_renameat2")
+int hook_filename_renameat2(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
+    if (!syscall) {
+        return trace__sys_rename(ctx, ASYNC_SYSCALL, NULL, NULL);
+    }
+    return 0;
+}
+
 HOOK_ENTRY("vfs_rename")
 int hook_vfs_rename(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
@@ -175,6 +184,12 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
 
 HOOK_EXIT("do_renameat2")
 int rethook_do_renameat2(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_renameat2")
+int rethook_filename_renameat2(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_rename_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
