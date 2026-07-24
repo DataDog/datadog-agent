@@ -86,6 +86,7 @@ go_test(
     srcs = [
         "apm_inject_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
     ],
     embed = [":packages"],
