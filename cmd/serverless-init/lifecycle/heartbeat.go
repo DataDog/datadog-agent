@@ -227,6 +227,6 @@ func (h *Heartbeat) tagsForEmit() []string {
 	h.mu.Unlock()
 	tags := make([]string, 0, len(h.baseTags)+1)
 	tags = append(tags, h.baseTags...)
-	tags = append(tags, lambdaMicroVMID+id)
+	tags = append(tags, lambdaMicroVMIDPrefix+id)
 	return tags
 }

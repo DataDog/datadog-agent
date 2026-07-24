@@ -516,12 +516,12 @@ func (d *AgentDemultiplexer) Stop() {
 // ForceFlushToSerializer triggers the execution of a flush from all data of samplers
 // and the BufferedAggregator to the serializer.
 // Safe to call from multiple threads.
-func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
+func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
 	trigger := trigger{
 		time:              start,
 		waitForSerializer: waitForSerializer,
 		blockChan:         make(chan struct{}),
-		forceFlushAll:     false,
+		forceFlushAll:     forceFlushAll,
 	}
 	d.flushChan <- trigger
 	<-trigger.blockChan
