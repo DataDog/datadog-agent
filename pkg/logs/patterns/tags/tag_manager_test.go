@@ -6,7 +6,6 @@
 package tags
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -21,115 +20,16 @@ func TestNewTagManager(t *testing.T) {
 	assert.Equal(t, 0, tm.Count())
 }
 
-func TestTagManager_EncodeTagStrings_NewEntries(t *testing.T) {
-	tm := NewTagManager()
-
-	encoded, newEntries := tm.EncodeTagStrings([]string{"env:production"})
-
-	require.Len(t, encoded, 1)
-	require.Len(t, newEntries, 2) // key + value strings
-
-	keyID := encoded[0].GetKey().GetDictIndex()
-	valID := encoded[0].GetValue().GetDictIndex()
-
-	assert.NotZero(t, keyID)
-	assert.NotZero(t, valID)
-	assert.NotEqual(t, keyID, valID)
-	assert.Equal(t, "env", newEntries[keyID])
-	assert.Equal(t, "production", newEntries[valID])
-	assert.Equal(t, 2, tm.Count())
-}
-
-func TestTagManager_EncodeTagStrings_ReusesIDs(t *testing.T) {
-	tm := NewTagManager()
-
-	first, firstEntries := tm.EncodeTagStrings([]string{"env:production"})
-	require.Len(t, first, 1)
-	require.Len(t, firstEntries, 2)
-
-	second, secondEntries := tm.EncodeTagStrings([]string{"env:production"})
-	require.Len(t, second, 1)
-	assert.Len(t, secondEntries, 0, "no new dictionary entries expected")
-
-	assert.Equal(t, first[0].GetKey().GetDictIndex(), second[0].GetKey().GetDictIndex())
-	assert.Equal(t, first[0].GetValue().GetDictIndex(), second[0].GetValue().GetDictIndex())
-	assert.Equal(t, 2, tm.Count())
-}
-
-func TestTagManager_EncodeTagStrings_MixedNewAndExisting(t *testing.T) {
-	tm := NewTagManager()
-
-	_, firstEntries := tm.EncodeTagStrings([]string{"env:production"})
-	require.Len(t, firstEntries, 2)
-
-	_, secondEntries := tm.EncodeTagStrings([]string{"env:production", "service:api"})
-	assert.Len(t, secondEntries, 2)
-	assert.Contains(t, mapValues(secondEntries), "service")
-	assert.Contains(t, mapValues(secondEntries), "api")
-	assert.Equal(t, 4, tm.Count())
-}
-
-func mapValues[K comparable, V any](values map[K]V) []V {
-	out := make([]V, 0, len(values))
+func addStrings(tm *TagManager, values ...string) {
 	for _, value := range values {
-		out = append(out, value)
+		tm.AddString(value)
 	}
-	return out
-}
-
-func TestTagManager_EncodeTagStrings_InvalidFormats(t *testing.T) {
-	tm := NewTagManager()
-
-	encoded, newEntries := tm.EncodeTagStrings([]string{
-		"valid:tag",
-		"",         // empty string should be skipped
-		":novalue", // colon should not be used as a delimiter for key-only tags, skip it
-	})
-
-	assert.Len(t, encoded, 1)
-	assert.Len(t, newEntries, 2)
-	assert.Equal(t, 2, tm.Count())
-}
-
-func TestTagManager_EncodeTagStrings_KeyOnly(t *testing.T) {
-	tm := NewTagManager()
-
-	encoded, newEntries := tm.EncodeTagStrings([]string{
-		"env",
-		"service:", // assume colon is mistyped, result in a key-only tag
-	})
-
-	require.Len(t, encoded, 2)
-	require.Len(t, newEntries, 2)
-
-	keyOnly := encoded[0]
-	assert.NotNil(t, keyOnly.GetKey())
-	assert.Nil(t, keyOnly.GetValue())
-
-	keyWithEmptyValue := encoded[1]
-	assert.NotNil(t, keyWithEmptyValue.GetKey())
-	assert.Nil(t, keyWithEmptyValue.GetValue())
-
-	fmt.Println(newEntries)
-
-	assert.Equal(t, 2, tm.Count())
-}
-
-func TestTagManager_EncodeTagStrings_EmptyInput(t *testing.T) {
-	tm := NewTagManager()
-
-	encoded, newEntries := tm.EncodeTagStrings(nil)
-
-	assert.Len(t, encoded, 0)
-	assert.Len(t, newEntries, 0)
-	assert.Equal(t, 0, tm.Count())
 }
 
 func TestTagManager_GetStringID(t *testing.T) {
 	tm := NewTagManager()
 
-	_, newEntries := tm.EncodeTagStrings([]string{"env:production"})
-	require.Len(t, newEntries, 2)
+	addStrings(tm, "env", "production")
 
 	id, exists := tm.GetStringID("env")
 	assert.True(t, exists)
@@ -213,8 +113,7 @@ func TestTagManager_Concurrency(t *testing.T) {
 		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < tagsPerGoroutine; j++ {
-				encoded, _ := tm.EncodeTagStrings([]string{"env:production", "service:api", "team:platform"})
-				assert.Len(t, encoded, 3)
+				addStrings(tm, "env", "production", "service", "api", "team", "platform")
 			}
 		}(i)
 	}
@@ -229,11 +128,11 @@ func TestTagManager_EvictLowestScoringStrings(t *testing.T) {
 	tm := NewTagManager()
 
 	// Add some tag entries
-	tm.EncodeTagStrings([]string{"env:production", "service:api", "team:platform"})
+	addStrings(tm, "env", "production", "service", "api", "team", "platform")
 
 	// Add more entries with varied usage
 	for i := 0; i < 5; i++ {
-		tm.EncodeTagStrings([]string{"env:production"}) // Increases usage count
+		addStrings(tm, "env", "production") // Increases usage count
 	}
 
 	initialCount := tm.Count()
@@ -256,7 +155,7 @@ func TestTagManager_EvictToMemoryTarget(t *testing.T) {
 	tm := NewTagManager()
 
 	// Add entries
-	tm.EncodeTagStrings([]string{"env:production", "service:api", "team:platform", "region:us-east-1"})
+	addStrings(tm, "env", "production", "service", "api", "team", "platform", "region", "us-east-1")
 
 	initialMemory := tm.EstimatedMemoryBytes()
 	require.Greater(t, initialMemory, int64(0))
@@ -278,13 +177,13 @@ func TestTagManager_EstimatedMemoryBytes(t *testing.T) {
 	assert.Equal(t, int64(0), tm.EstimatedMemoryBytes())
 
 	// Add some entries
-	tm.EncodeTagStrings([]string{"env:production"})
+	addStrings(tm, "env", "production")
 
 	memory := tm.EstimatedMemoryBytes()
 	assert.Greater(t, memory, int64(0), "should have positive memory usage")
 
 	// Add more entries
-	tm.EncodeTagStrings([]string{"service:api"})
+	addStrings(tm, "service", "api")
 
 	newMemory := tm.EstimatedMemoryBytes()
 	assert.Greater(t, newMemory, memory, "memory should increase with more entries")
@@ -293,7 +192,7 @@ func TestTagManager_EstimatedMemoryBytes(t *testing.T) {
 func TestTagManager_EvictZero(t *testing.T) {
 	tm := NewTagManager()
 
-	tm.EncodeTagStrings([]string{"env:production"})
+	addStrings(tm, "env", "production")
 
 	// Evicting 0 or negative should do nothing
 	evictedIDs := tm.EvictLowestScoringStrings(0, 1.0)

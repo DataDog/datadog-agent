@@ -4,7 +4,7 @@
 
 This document describes the new gRPC-based stateful transport layer introduced in `pkg/logs/sender/grpc/`. This transport provides a bidirectional streaming alternative to the existing HTTP and TCP transports, with support for stateful encoding, delta compression, and stream lifecycle management.
 
-> **Companion document:** The pattern extraction pipeline (tokenization, clustering, eviction, tags) that produces `PatternDefine`, `DictEntryDefine`, and `StructuredLog` datums is documented in [`pkg/logs/patterns/DESIGN.md`](../../patterns/DESIGN.md).
+> **Companion document:** The pattern extraction pipeline (tokenization, clustering, eviction, tags) that produces `PatternDefine`, `DictEntryDefine`, and `Log` datums is documented in [`pkg/logs/patterns/DESIGN.md`](../../patterns/DESIGN.md).
 
 ## Architecture Summary
 
@@ -50,7 +50,7 @@ Each pipeline has its own dedicated processing chain connected 1:1 to a streamWo
                                        ▼
                             ┌──────────────────────┐
                             │    Intake Server     │
-                            │ (StatefulLogsService)│
+                            │   (StatefulIntake)   │
                             └──────────────────────┘
 ```
 
@@ -85,7 +85,7 @@ Each pipeline has its own dedicated processing chain connected 1:1 to a streamWo
                                         ▼             ▼
                             ┌───────────────────────────────────────┐
                             │     Bidirectional gRPC Stream         │
-                            │   (StatefulLogsService.LogsStream)    │
+                            │    (StatefulIntake.StatefulStream)    │
                             └───────────────────────────────────────┘
 ```
 
@@ -219,7 +219,7 @@ Collects `StatefulMessage` datums and creates compressed `Payload` objects. The 
 1. Collect message metadata and datums
 2. Reset delta encoding state for next batch
 3. Extract state changes for snapshot management
-4. Create `DatumSequence` protobuf
+4. Create `LogDatumSequence` protobuf
 5. Marshal and compress
 6. Create `Payload` with `StatefulExtra` containing state changes
 
@@ -227,22 +227,24 @@ Collects `StatefulMessage` datums and creates compressed `Payload` objects. The 
 
 **Service Definition:**
 ```protobuf
-service StatefulLogsService {
-  rpc LogsStream(stream StatefulBatch) returns (stream BatchStatus);
+service StatefulIntake {
+  rpc StatefulStream(stream StatefulBatch) returns (stream BatchStatus);
 }
 ```
 
 **Message Hierarchy:**
 ```
 StatefulBatch (batch_id, compressed data)
-  └── DatumSequence (ordered array)
-        └── Datum (oneof)
-              ├── PatternDefine (pattern_id, template, param_count, pos_list)
+  └── LogDatumSequence (ordered array)
+        └── LogDatum (oneof)
+              ├── PatternDefine (pattern_id, template, pos_list)
               ├── PatternDelete
               ├── DictEntryDefine (id, value)
               ├── DictEntryDelete
-              └── Log (timestamp, structured/raw content, tags)
-                    └── StructuredLog (pattern_id, dynamic_values, json_context)
+              ├── JsonSchemaDefine (schema_id, keys, message_key_id, value_kinds)
+              ├── JsonSchemaDelete
+              ├── DeltaEncodingSync
+              └── Log (delta fields, pattern/raw content, typed JSON columns)
 ```
 
 ## streamWorker Concurrency Model
@@ -288,7 +290,7 @@ Supervisor owns:
 
 Shared (thread-safe):
 ├── grpc.ClientConn (shared across all workers, thread-safe by design)
-└── StatefulLogsServiceClient (derived from conn, thread-safe)
+└── StatefulIntakeClient (derived from conn, thread-safe)
 
 Per-stream (owned by streamInfo):
 ├── stream (gRPC bidirectional stream)

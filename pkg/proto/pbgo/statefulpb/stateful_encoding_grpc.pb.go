@@ -19,27 +19,27 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	StatefulLogsService_LogsStream_FullMethodName = "/datadog.intake.stateful.StatefulLogsService/LogsStream"
+	StatefulIntake_StatefulStream_FullMethodName = "/datadog.intake.stateful.StatefulIntake/StatefulStream"
 )
 
-// StatefulLogsServiceClient is the client API for StatefulLogsService service.
+// StatefulIntakeClient is the client API for StatefulIntake service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type StatefulLogsServiceClient interface {
-	LogsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[StatefulBatch, BatchStatus], error)
+type StatefulIntakeClient interface {
+	StatefulStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[StatefulBatch, BatchStatus], error)
 }
 
-type statefulLogsServiceClient struct {
+type statefulIntakeClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewStatefulLogsServiceClient(cc grpc.ClientConnInterface) StatefulLogsServiceClient {
-	return &statefulLogsServiceClient{cc}
+func NewStatefulIntakeClient(cc grpc.ClientConnInterface) StatefulIntakeClient {
+	return &statefulIntakeClient{cc}
 }
 
-func (c *statefulLogsServiceClient) LogsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[StatefulBatch, BatchStatus], error) {
+func (c *statefulIntakeClient) StatefulStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[StatefulBatch, BatchStatus], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &StatefulLogsService_ServiceDesc.Streams[0], StatefulLogsService_LogsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &StatefulIntake_ServiceDesc.Streams[0], StatefulIntake_StatefulStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -48,65 +48,65 @@ func (c *statefulLogsServiceClient) LogsStream(ctx context.Context, opts ...grpc
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type StatefulLogsService_LogsStreamClient = grpc.BidiStreamingClient[StatefulBatch, BatchStatus]
+type StatefulIntake_StatefulStreamClient = grpc.BidiStreamingClient[StatefulBatch, BatchStatus]
 
-// StatefulLogsServiceServer is the server API for StatefulLogsService service.
-// All implementations must embed UnimplementedStatefulLogsServiceServer
+// StatefulIntakeServer is the server API for StatefulIntake service.
+// All implementations must embed UnimplementedStatefulIntakeServer
 // for forward compatibility.
-type StatefulLogsServiceServer interface {
-	LogsStream(grpc.BidiStreamingServer[StatefulBatch, BatchStatus]) error
-	mustEmbedUnimplementedStatefulLogsServiceServer()
+type StatefulIntakeServer interface {
+	StatefulStream(grpc.BidiStreamingServer[StatefulBatch, BatchStatus]) error
+	mustEmbedUnimplementedStatefulIntakeServer()
 }
 
-// UnimplementedStatefulLogsServiceServer must be embedded to have
+// UnimplementedStatefulIntakeServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedStatefulLogsServiceServer struct{}
+type UnimplementedStatefulIntakeServer struct{}
 
-func (UnimplementedStatefulLogsServiceServer) LogsStream(grpc.BidiStreamingServer[StatefulBatch, BatchStatus]) error {
-	return status.Errorf(codes.Unimplemented, "method LogsStream not implemented")
+func (UnimplementedStatefulIntakeServer) StatefulStream(grpc.BidiStreamingServer[StatefulBatch, BatchStatus]) error {
+	return status.Errorf(codes.Unimplemented, "method StatefulStream not implemented")
 }
-func (UnimplementedStatefulLogsServiceServer) mustEmbedUnimplementedStatefulLogsServiceServer() {}
-func (UnimplementedStatefulLogsServiceServer) testEmbeddedByValue()                             {}
+func (UnimplementedStatefulIntakeServer) mustEmbedUnimplementedStatefulIntakeServer() {}
+func (UnimplementedStatefulIntakeServer) testEmbeddedByValue()                        {}
 
-// UnsafeStatefulLogsServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to StatefulLogsServiceServer will
+// UnsafeStatefulIntakeServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StatefulIntakeServer will
 // result in compilation errors.
-type UnsafeStatefulLogsServiceServer interface {
-	mustEmbedUnimplementedStatefulLogsServiceServer()
+type UnsafeStatefulIntakeServer interface {
+	mustEmbedUnimplementedStatefulIntakeServer()
 }
 
-func RegisterStatefulLogsServiceServer(s grpc.ServiceRegistrar, srv StatefulLogsServiceServer) {
-	// If the following call pancis, it indicates UnimplementedStatefulLogsServiceServer was
+func RegisterStatefulIntakeServer(s grpc.ServiceRegistrar, srv StatefulIntakeServer) {
+	// If the following call pancis, it indicates UnimplementedStatefulIntakeServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&StatefulLogsService_ServiceDesc, srv)
+	s.RegisterService(&StatefulIntake_ServiceDesc, srv)
 }
 
-func _StatefulLogsService_LogsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(StatefulLogsServiceServer).LogsStream(&grpc.GenericServerStream[StatefulBatch, BatchStatus]{ServerStream: stream})
+func _StatefulIntake_StatefulStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(StatefulIntakeServer).StatefulStream(&grpc.GenericServerStream[StatefulBatch, BatchStatus]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type StatefulLogsService_LogsStreamServer = grpc.BidiStreamingServer[StatefulBatch, BatchStatus]
+type StatefulIntake_StatefulStreamServer = grpc.BidiStreamingServer[StatefulBatch, BatchStatus]
 
-// StatefulLogsService_ServiceDesc is the grpc.ServiceDesc for StatefulLogsService service.
+// StatefulIntake_ServiceDesc is the grpc.ServiceDesc for StatefulIntake service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var StatefulLogsService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.intake.stateful.StatefulLogsService",
-	HandlerType: (*StatefulLogsServiceServer)(nil),
+var StatefulIntake_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "datadog.intake.stateful.StatefulIntake",
+	HandlerType: (*StatefulIntakeServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "LogsStream",
-			Handler:       _StatefulLogsService_LogsStream_Handler,
+			StreamName:    "StatefulStream",
+			Handler:       _StatefulIntake_StatefulStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

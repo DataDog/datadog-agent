@@ -317,18 +317,69 @@ func TestFillDynamicValue_JSONNumberUsesFloatWhenLossless(t *testing.T) {
 	assert.False(t, dv.RenderAsString)
 }
 
+func TestCompactJSONContextUsesProtoValueKindsAndPackedBooleans(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+
+	compact, _ := mt.compactJSONContextValues([]interface{}{
+		nil,
+		true,
+		false,
+		json.Number("42"),
+		json.Number("1.5"),
+		"42",
+		"hello",
+		map[string]interface{}{"nested": true},
+	})
+
+	assert.Equal(t, []byte{
+		jsonValueKindNull,
+		jsonValueKindBool,
+		jsonValueKindBool,
+		jsonValueKindInt,
+		jsonValueKindFloat,
+		jsonValueKindString,
+		jsonValueKindString,
+		jsonValueKindRaw,
+	}, compact.kinds)
+	assert.Equal(t, []byte{0x01}, compact.boolValues)
+	assert.Equal(t, []int64{42}, compact.ints)
+	assert.Equal(t, []float64{1.5}, compact.floats)
+	assert.Equal(t, []string{"42", "hello"}, compact.stringValues)
+	require.Len(t, compact.rawValues, 1)
+	assert.JSONEq(t, `{"nested":true}`, string(compact.rawValues[0]))
+}
+
+func TestJsonSchemaValueKindsArePartOfSchemaIdentity(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 10)
+	msg := message.NewMessage([]byte("request done"), nil, "", 0)
+
+	stringSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"value"}, []byte{jsonValueKindString})
+	intSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"value"}, []byte{jsonValueKindInt})
+	require.NotEqual(t, stringSchemaID, intSchemaID)
+
+	valueKindsByID := make(map[uint64][]byte)
+	for len(outputChan) > 0 {
+		if schema := (<-outputChan).Datum.GetJsonSchemaDefine(); schema != nil {
+			valueKindsByID[schema.SchemaId] = schema.ValueKinds
+		}
+	}
+	assert.Equal(t, []byte{jsonValueKindString}, valueKindsByID[stringSchemaID])
+	assert.Equal(t, []byte{jsonValueKindInt}, valueKindsByID[intSchemaID])
+}
+
 func TestJsonSchemaReuseRefreshesReferencedDictEntries(t *testing.T) {
 	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
 	outputChan := make(chan *message.StatefulMessage, 10)
 	msg := message.NewMessage([]byte("request done"), nil, "", 0)
 
-	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"}, []byte{jsonValueKindString, jsonValueKindString})
 	require.NotZero(t, schemaID)
 	firstSchema := mt.jsonSchemaByID[schemaID]
 	require.NotNil(t, firstSchema)
 
 	time.Sleep(20 * time.Millisecond)
-	_, reusedSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	reusedSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"}, []byte{jsonValueKindString, jsonValueKindString})
 	require.Equal(t, schemaID, reusedSchemaID)
 
 	evictedIDs := mt.tagManager.EvictStaleEntries(10 * time.Millisecond)
@@ -343,7 +394,7 @@ func TestJsonSchemaDeletedWhenReferencedDictEntryEvicted(t *testing.T) {
 	outputChan := make(chan *message.StatefulMessage, 10)
 	msg := message.NewMessage([]byte("request done"), nil, "", 0)
 
-	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"}, []byte{jsonValueKindString, jsonValueKindString})
 	require.NotZero(t, schemaID)
 	firstSchema := mt.jsonSchemaByID[schemaID]
 	require.NotNil(t, firstSchema)
@@ -377,7 +428,7 @@ func TestJsonSchemaRedefinedWhenReferencedDictIDsChange(t *testing.T) {
 	outputChan := make(chan *message.StatefulMessage, 20)
 	msg := message.NewMessage([]byte("request done"), nil, "", 0)
 
-	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"}, []byte{jsonValueKindString, jsonValueKindString})
 	require.NotZero(t, schemaID)
 	firstSchema := mt.jsonSchemaByID[schemaID]
 	require.NotNil(t, firstSchema)
@@ -387,7 +438,7 @@ func TestJsonSchemaRedefinedWhenReferencedDictIDsChange(t *testing.T) {
 	// Simulate a stale schema cache where the dictionary entries were evicted
 	// without the corresponding json schema cache entry being invalidated.
 
-	_, redefinedSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	redefinedSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"}, []byte{jsonValueKindString, jsonValueKindString})
 	require.NotEqual(t, schemaID, redefinedSchemaID)
 	redefinedSchema := mt.jsonSchemaByID[redefinedSchemaID]
 	require.NotNil(t, redefinedSchema)
@@ -413,7 +464,7 @@ func TestJsonSchemaDefineKeepsEmptyKeysAlignedWithCompactValues(t *testing.T) {
 	outputChan := make(chan *message.StatefulMessage, 10)
 	msg := message.NewMessage([]byte("request done"), nil, "", 0)
 
-	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "message", []string{"", "level"})
+	schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "message", []string{"", "level"}, []byte{jsonValueKindString, jsonValueKindString})
 	require.NotZero(t, schemaID)
 	schema := mt.jsonSchemaByID[schemaID]
 	require.NotNil(t, schema)
@@ -436,7 +487,7 @@ func TestMessageOnlyJSONSendsZeroKeySchema(t *testing.T) {
 	var msgKeyID uint64
 	var sawMsgKey bool
 	var schemaID uint64
-	var flatLog *statefulpb.FlatLog
+	var logDatum *statefulpb.Log
 	for len(outputChan) > 0 {
 		datum := (<-outputChan).Datum
 		if define := datum.GetDictEntryDefine(); define != nil && define.Value == "msg" {
@@ -448,17 +499,17 @@ func TestMessageOnlyJSONSendsZeroKeySchema(t *testing.T) {
 			assert.Empty(t, schema.Keys)
 			assert.Equal(t, msgKeyID, schema.MessageKeyId)
 		}
-		if log := datum.GetFlatLog(); log != nil {
-			flatLog = log
+		if log := datum.GetLog(); log != nil {
+			logDatum = log
 		}
 	}
 
 	require.True(t, sawMsgKey)
 	require.NotZero(t, schemaID)
-	require.NotNil(t, flatLog)
-	assert.Equal(t, flatLogDictIndex(schemaID), flatLog.JsonSchemaId)
-	assert.Empty(t, flatLog.JsonContextValueKinds)
-	assert.Empty(t, flatLog.JsonContextValues)
+	require.NotNil(t, logDatum)
+	assert.Equal(t, logDictIndex(schemaID), logDatum.JsonSchemaId)
+	assert.Empty(t, logDatum.JsonContextIntValues)
+	assert.Empty(t, logDatum.JsonContextStringValues)
 }
 
 func ptrInt64(v int64) *int64       { return &v }

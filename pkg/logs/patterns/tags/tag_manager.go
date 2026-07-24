@@ -8,13 +8,9 @@
 package tags
 
 import (
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -24,9 +20,8 @@ const (
 	maxDynamicStringLength           = 128
 )
 
-// TagManager manages a dictionary of unique tag strings (keys and values) to dictionary IDs.
-// It provides thread-safe operations for retrieving/creating IDs and building Tag proto messages
-// that reference those IDs.
+// TagManager manages a dictionary of unique strings to dictionary IDs.
+// It provides thread-safe operations for retrieving and creating IDs.
 type TagManager struct {
 	stringToEntry     map[string]*tagEntry
 	idToEntry         map[uint64]*tagEntry
@@ -43,7 +38,7 @@ func NewTagManager() *TagManager {
 		idToEntry:      make(map[uint64]*tagEntry),
 		pendingDynamic: make(map[string]uint16),
 	}
-	// Stateful FlatLog reserves dict index 1 as the empty/omit sentinel.
+	// Stateful Log reserves dict index 1 as the explicit-absence sentinel.
 	tm.nextID.Store(1)
 	return tm
 }
@@ -135,64 +130,6 @@ func (tm *TagManager) ObserveDynamicString(s string) (dictID uint64, isNew bool,
 	return id, true, true
 }
 
-// EncodeTagStrings converts a slice of "key:value" tag strings into Tag proto messages
-// backed by dictionary indices. It returns the encoded tags plus the dictionary entries
-// that must be flushed upstream (ID -> string) for any newly-seen key/value strings.
-func (tm *TagManager) EncodeTagStrings(tagStrings []string) (tag []*statefulpb.Tag, dict map[uint64]string) {
-	if len(tagStrings) == 0 {
-		return []*statefulpb.Tag{}, map[uint64]string{}
-	}
-
-	encoded := make([]*statefulpb.Tag, 0, len(tagStrings))
-	newEntries := map[uint64]string{}
-
-	for _, tagStr := range tagStrings {
-		if tagStr == "" {
-			continue
-		}
-
-		key, value, hasDelimiter := strings.Cut(tagStr, ":")
-
-		switch {
-		case !hasDelimiter:
-			// Treat bare value tags as key-only tags.
-			keyID, keyNew := tm.AddString(tagStr)
-			if keyNew {
-				newEntries[keyID] = tagStr
-			}
-			encoded = append(encoded, &statefulpb.Tag{
-				Key: dictIndexValue(keyID),
-			})
-		case key == "":
-			// Assume that user mistype the tag string, skip it.
-			log.Warnf("Invalid tag string: %s", tagStr)
-			continue
-		default:
-			keyID, keyNew := tm.AddString(key)
-			if keyNew {
-				newEntries[keyID] = key
-			}
-
-			tag := &statefulpb.Tag{
-				Key: dictIndexValue(keyID),
-			}
-
-			// Only add value to dictionary if it's not empty
-			if value != "" {
-				valueID, valueNew := tm.AddString(value)
-				if valueNew {
-					newEntries[valueID] = value
-				}
-				tag.Value = dictIndexValue(valueID)
-			}
-
-			encoded = append(encoded, tag)
-		}
-	}
-
-	return encoded, newEntries
-}
-
 // GetStringID returns the dictionary ID for a string, if it exists
 // Returns the ID and a boolean indicating if the string was found
 func (tm *TagManager) GetStringID(s string) (uint64, bool) {
@@ -260,15 +197,6 @@ func (tm *TagManager) HasDictID(id uint64) bool {
 	defer tm.mu.RUnlock()
 	_, ok := tm.idToEntry[id]
 	return ok
-}
-
-// dictIndexValue converts a dictionary ID to a DynamicValue proto message
-func dictIndexValue(id uint64) *statefulpb.DynamicValue {
-	return &statefulpb.DynamicValue{
-		Value: &statefulpb.DynamicValue_DictIndex{
-			DictIndex: id,
-		},
-	}
 }
 
 func isDynamicStringDictionaryCandidate(s string) bool {

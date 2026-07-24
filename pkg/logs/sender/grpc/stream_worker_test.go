@@ -51,8 +51,8 @@ func (m *mockSink) Channel() chan *message.Payload {
 	return m.outputChan
 }
 
-// mockLogsStream implements StatefulLogsService_LogsStreamClient for testing
-type mockLogsStream struct {
+// mockStatefulStream implements StatefulIntake_StatefulStreamClient for testing
+type mockStatefulStream struct {
 	grpc.ClientStream
 
 	mu sync.Mutex
@@ -73,8 +73,8 @@ type mockLogsStream struct {
 	ctx context.Context
 }
 
-func newMockLogsStream(ctx context.Context) *mockLogsStream {
-	return &mockLogsStream{
+func newMockStatefulStream(ctx context.Context) *mockStatefulStream {
+	return &mockStatefulStream{
 		sendCh:      make(chan *statefulpb.StatefulBatch, 10),
 		recvCh:      make(chan *statefulpb.BatchStatus, 10),
 		errCh:       make(chan error, 1),
@@ -121,7 +121,7 @@ func TestHeaderCredentialsSendsAdditionalHeadersWithoutOverridingRequiredHeaders
 	require.Equal(t, "zstd", headers["dd-content-encoding"])
 }
 
-func (m *mockLogsStream) Send(batch *statefulpb.StatefulBatch) error {
+func (m *mockStatefulStream) Send(batch *statefulpb.StatefulBatch) error {
 	m.mu.Lock()
 	if m.sendErr != nil {
 		err := m.sendErr
@@ -141,7 +141,7 @@ func (m *mockLogsStream) Send(batch *statefulpb.StatefulBatch) error {
 	}
 }
 
-func (m *mockLogsStream) Recv() (*statefulpb.BatchStatus, error) {
+func (m *mockStatefulStream) Recv() (*statefulpb.BatchStatus, error) {
 	m.mu.Lock()
 	if m.recvErr != nil {
 		err := m.recvErr
@@ -160,38 +160,38 @@ func (m *mockLogsStream) Recv() (*statefulpb.BatchStatus, error) {
 	}
 }
 
-func (m *mockLogsStream) CloseSend() error {
+func (m *mockStatefulStream) CloseSend() error {
 	return nil
 }
 
 // Helper to set send error
-func (m *mockLogsStream) setSendError(err error) {
+func (m *mockStatefulStream) setSendError(err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sendErr = err
 }
 
 // Helper to send an ack to the client
-func (m *mockLogsStream) sendAck(batchID uint32) {
+func (m *mockStatefulStream) sendAck(batchID uint32) {
 	m.recvCh <- &statefulpb.BatchStatus{
 		BatchId: batchID,
 	}
 }
 
 // Helper to inject an error immediately (unblocks Recv())
-func (m *mockLogsStream) injectRecvError(err error) {
+func (m *mockStatefulStream) injectRecvError(err error) {
 	m.errCh <- err
 }
 
 // Helper to get sent batch count
-func (m *mockLogsStream) getSentBatchCount() int {
+func (m *mockStatefulStream) getSentBatchCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.sentBatches)
 }
 
 // Helper to get a specific sent batch by index
-func (m *mockLogsStream) getSentBatch(index int) *statefulpb.StatefulBatch {
+func (m *mockStatefulStream) getSentBatch(index int) *statefulpb.StatefulBatch {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if index < 0 || index >= len(m.sentBatches) {
@@ -200,14 +200,14 @@ func (m *mockLogsStream) getSentBatch(index int) *statefulpb.StatefulBatch {
 	return m.sentBatches[index]
 }
 
-// mockLogsClient implements StatefulLogsServiceClient for testing
+// mockLogsClient implements StatefulIntakeClient for testing
 type mockLogsClient struct {
 	mu sync.Mutex
 
 	// Control stream creation
-	createStreamErr       error // If set, LogsStream() will return this error
+	createStreamErr       error // If set, StatefulStream() will return this error
 	failStreamCreationFor int   // Fail the next N stream creation attempts
-	currentStream         *mockLogsStream
+	currentStream         *mockStatefulStream
 	streamCtx             context.Context
 	streamCancel          context.CancelFunc
 }
@@ -216,7 +216,7 @@ func newMockLogsClient() *mockLogsClient {
 	return &mockLogsClient{}
 }
 
-func (m *mockLogsClient) LogsStream(ctx context.Context, _ ...grpc.CallOption) (statefulpb.StatefulLogsService_LogsStreamClient, error) {
+func (m *mockLogsClient) StatefulStream(ctx context.Context, _ ...grpc.CallOption) (statefulpb.StatefulIntake_StatefulStreamClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -238,7 +238,7 @@ func (m *mockLogsClient) LogsStream(ctx context.Context, _ ...grpc.CallOption) (
 
 	// Create a new stream with a child context
 	m.streamCtx, m.streamCancel = context.WithCancel(ctx)
-	m.currentStream = newMockLogsStream(m.streamCtx)
+	m.currentStream = newMockStatefulStream(m.streamCtx)
 	return m.currentStream, nil
 }
 
@@ -251,7 +251,7 @@ func (m *mockLogsClient) failNextStreamCreations(count int, err error) {
 }
 
 // Helper to get current stream
-func (m *mockLogsClient) getCurrentStream() *mockLogsStream {
+func (m *mockLogsClient) getCurrentStream() *mockStatefulStream {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.currentStream
@@ -419,7 +419,7 @@ func TestStreamWorkerSendReceive(t *testing.T) {
 
 	// Wait for message to be sent to stream
 	require.Eventually(t, func() bool {
-		return stream.getSentBatchCount() == 1
+		return stream.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval)
 
 	// Send ack for batch 1
@@ -458,7 +458,7 @@ func TestStreamWorkerAckUpdatesPreCompressionBytesMetric(t *testing.T) {
 	fixture.inputChan <- payload
 
 	require.Eventually(t, func() bool {
-		return stream.getSentBatchCount() == 1
+		return stream.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval)
 
 	stream.sendAck(1)
@@ -496,7 +496,7 @@ func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
 
 	// Wait for message to be sent to stream1
 	require.Eventually(t, func() bool {
-		return stream1.getSentBatchCount() == 1
+		return stream1.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval)
 
 	// Give receiverLoop time to enter Recv() and block
@@ -508,7 +508,7 @@ func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
 
 	// Wait for rotation to complete (stream changes and state is active again)
 	// Recv failure triggers backoff, so advance clock to allow rotation
-	var stream2 *mockLogsStream
+	var stream2 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
@@ -517,7 +517,7 @@ func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
 
 	// The inflight message should be re-sent on the new stream (after rotation reset, it's batch 1 again)
 	require.Eventually(t, func() bool {
-		return stream2.getSentBatchCount() == 1
+		return stream2.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Inflight message should be re-sent on new stream")
 
 	// Send ack for batch 1 on new stream
@@ -552,7 +552,7 @@ func TestStreamWorkerStreamTimeout(t *testing.T) {
 	fixture.mockClock.Add(fixture.streamLifetime + time.Second)
 
 	// Wait for rotation to complete (new stream created and active)
-	var stream2 *mockLogsStream
+	var stream2 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		stream2 = fixture.mockClient.getCurrentStream()
 		return stream2 != nil && stream2 != stream1 && worker.streamState == active
@@ -564,7 +564,7 @@ func TestStreamWorkerStreamTimeout(t *testing.T) {
 
 	// Wait for message to be sent on stream2
 	require.Eventually(t, func() bool {
-		return stream2.getSentBatchCount() == 1
+		return stream2.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Message should be sent on new stream")
 
 	// Send ack
@@ -601,7 +601,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 
 	// Wait for message to be sent on stream1
 	require.Eventually(t, func() bool {
-		return stream1.getSentBatchCount() == 1
+		return stream1.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval)
 
 	// Step 2 & 3: Advance clock to trigger stream timeout, verify draining state
@@ -620,7 +620,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 	time.Sleep(testShortWait)
 
 	// stream1 should still only have 1 batch sent
-	require.Equal(t, 1, stream1.getSentBatchCount(), "Message 2 should be buffered, not sent on stream1")
+	require.Equal(t, 2, stream1.getSentBatchCount(), "Message 2 should be buffered, not sent on stream1")
 
 	// Step 5 & 6 & 7: Send ack for batch 1, verify it appears in output
 	stream1.sendAck(1)
@@ -633,7 +633,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 	}
 
 	// Step 8: Verify stream2 is created (draining → connecting → active)
-	var stream2 *mockLogsStream
+	var stream2 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		stream2 = fixture.mockClient.getCurrentStream()
 		return stream2 != nil && stream2 != stream1 && worker.streamState == active
@@ -641,7 +641,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 
 	// Step 9: Verify message 2 is sent on stream2 (batch ID resets to 1 after rotation)
 	require.Eventually(t, func() bool {
-		return stream2.getSentBatchCount() == 1
+		return stream2.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Buffered message 2 should be sent on new stream")
 
 	// Send ack for batch 1 on stream2 to verify it's the second message
@@ -677,7 +677,7 @@ func TestStreamWorkerDrainTimeout(t *testing.T) {
 
 	// Wait for message to be sent on stream1
 	require.Eventually(t, func() bool {
-		return stream1.getSentBatchCount() == 1
+		return stream1.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval)
 
 	// Step 2: Advance clock to trigger stream timeout → enter draining
@@ -691,7 +691,7 @@ func TestStreamWorkerDrainTimeout(t *testing.T) {
 	fixture.mockClock.Add(drainTimeout + time.Second)
 
 	// Step 4: Verify stream2 is created (draining → connecting → active)
-	var stream2 *mockLogsStream
+	var stream2 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		stream2 = fixture.mockClient.getCurrentStream()
 		return stream2 != nil && stream2 != stream1 && worker.streamState == active
@@ -699,7 +699,7 @@ func TestStreamWorkerDrainTimeout(t *testing.T) {
 
 	// Step 5: Verify batch 1 is re-sent on stream2 (inflight message replayed)
 	require.Eventually(t, func() bool {
-		return stream2.getSentBatchCount() == 1
+		return stream2.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Inflight message should be re-sent on new stream")
 
 	// Send ack for batch 1 on stream2
@@ -738,7 +738,7 @@ func TestStreamWorkerBackoff(t *testing.T) {
 
 	// Advance clock gradually to trigger backoff timer and verify stream is established
 	// For first error, backoff is between 1-2 seconds (base=1s, factor=2, jitter)
-	var stream *mockLogsStream
+	var stream *mockStatefulStream
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond)
 		stream = fixture.mockClient.getCurrentStream()
@@ -750,7 +750,7 @@ func TestStreamWorkerBackoff(t *testing.T) {
 	fixture.inputChan <- payload
 
 	require.Eventually(t, func() bool {
-		return stream.getSentBatchCount() == 1
+		return stream.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Message should be sent on new stream")
 
 	stream.sendAck(1)
@@ -814,7 +814,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	worker.start()
 
 	// Wait for initial stream to be active
-	var stream1 *mockLogsStream
+	var stream1 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		stream1 = fixture.mockClient.getCurrentStream()
 		return stream1 != nil && worker.streamState == active
@@ -829,7 +829,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 
 	// Wait for stream rotation (new stream created)
 	// Send failure triggers backoff, so advance clock to allow rotation
-	var stream2 *mockLogsStream
+	var stream2 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
@@ -838,7 +838,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 
 	// New stream should have retried the message (batch 1)
 	require.Eventually(t, func() bool {
-		return stream2.getSentBatchCount() == 1
+		return stream2.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Message should be retried on new stream")
 
 	// Send ack on new stream
@@ -862,7 +862,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 
 	// Wait for stream rotation (new stream created)
 	// Recv failure triggers backoff, so advance clock to allow rotation
-	var stream3 *mockLogsStream
+	var stream3 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream3 = fixture.mockClient.getCurrentStream()
@@ -871,7 +871,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 
 	// New stream should have retried the message (batch 1 - reset after rotation)
 	require.Eventually(t, func() bool {
-		return stream3.getSentBatchCount() == 1
+		return stream3.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Message should be retried on new stream after recv error")
 
 	// Send ack on new stream
@@ -886,10 +886,10 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	}
 }
 
-// Helper functions to create Datum objects for testing
-func createPatternDefine(id uint64, template string) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_PatternDefine{
+// Helper functions to create LogDatum objects for testing
+func createPatternDefine(id uint64, template string) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_PatternDefine{
 			PatternDefine: &statefulpb.PatternDefine{
 				PatternId: id,
 				Template:  template,
@@ -898,9 +898,9 @@ func createPatternDefine(id uint64, template string) *statefulpb.Datum {
 	}
 }
 
-func createPatternDelete(id uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_PatternDelete{
+func createPatternDelete(id uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_PatternDelete{
 			PatternDelete: &statefulpb.PatternDelete{
 				PatternId: id,
 			},
@@ -908,9 +908,9 @@ func createPatternDelete(id uint64) *statefulpb.Datum {
 	}
 }
 
-func createDictEntryDefine(id uint64, value string) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_DictEntryDefine{
+func createDictEntryDefine(id uint64, value string) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_DictEntryDefine{
 			DictEntryDefine: &statefulpb.DictEntryDefine{
 				Id:    id,
 				Value: value,
@@ -919,9 +919,9 @@ func createDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 	}
 }
 
-func createDictEntryDelete(id uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_DictEntryDelete{
+func createDictEntryDelete(id uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_DictEntryDelete{
 			DictEntryDelete: &statefulpb.DictEntryDelete{
 				Id: id,
 			},
@@ -930,7 +930,7 @@ func createDictEntryDelete(id uint64) *statefulpb.Datum {
 }
 
 // createPayloadWithState creates a payload with state changes in StatefulExtra
-func createPayloadWithState(content string, stateChanges []*statefulpb.Datum) *message.Payload {
+func createPayloadWithState(content string, stateChanges []*statefulpb.LogDatum) *message.Payload {
 	payload := createWorkerTestPayload(content)
 	if len(stateChanges) > 0 {
 		payload.StatefulExtra = &StatefulExtra{
@@ -945,8 +945,8 @@ func verifySnapshotContents(t *testing.T, batch *statefulpb.StatefulBatch, expec
 	require.NotNil(t, batch)
 	require.Equal(t, uint32(0), batch.BatchId, "Snapshot should have batch ID 0")
 
-	// Deserialize the snapshot data (it's a DatumSequence)
-	var datumSeq statefulpb.DatumSequence
+	// Deserialize the snapshot data (it's a LogDatumSequence)
+	var datumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(batch.Data, &datumSeq)
 	require.NoError(t, err)
 
@@ -956,9 +956,9 @@ func verifySnapshotContents(t *testing.T, batch *statefulpb.StatefulBatch, expec
 
 	for _, datum := range datumSeq.Data {
 		switch d := datum.Data.(type) {
-		case *statefulpb.Datum_PatternDefine:
+		case *statefulpb.LogDatum_PatternDefine:
 			foundPatterns[d.PatternDefine.PatternId] = d.PatternDefine.Template
-		case *statefulpb.Datum_DictEntryDefine:
+		case *statefulpb.LogDatum_DictEntryDefine:
 			foundDictEntries[d.DictEntryDefine.Id] = d.DictEntryDefine.Value
 		default:
 			t.Fatalf("Snapshot should only contain PatternDefine and DictEntryDefine, got: %T", datum.Data)
@@ -980,14 +980,14 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	worker.start()
 
 	// Wait for initial stream to be ready
-	var stream1 *mockLogsStream
+	var stream1 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		stream1 = fixture.mockClient.getCurrentStream()
 		return stream1 != nil && worker.streamState == active
 	}, testTimeout, testTickInterval, "Initial stream should be established")
 
 	// === Step 1: Send Batch 1 (5 entries) ===
-	batch1StateChanges := []*statefulpb.Datum{
+	batch1StateChanges := []*statefulpb.LogDatum{
 		createPatternDefine(1, "pattern1"),
 		createDictEntryDefine(1, "value1"),
 		createPatternDefine(2, "pattern2"),
@@ -998,7 +998,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 
 	// Wait for batch 1 to be sent
 	require.Eventually(t, func() bool {
-		return stream1.getSentBatchCount() == 1
+		return stream1.getSentBatchCount() == 2
 	}, testTimeout, testTickInterval, "Batch 1 should be sent")
 
 	// === Step 2: Ack Batch 1 ===
@@ -1013,7 +1013,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	}
 
 	// === Step 3: Send Batch 2 (6 entries) ===
-	batch2StateChanges := []*statefulpb.Datum{
+	batch2StateChanges := []*statefulpb.LogDatum{
 		createPatternDelete(1),
 		createDictEntryDelete(1),
 		createPatternDefine(3, "pattern3"),
@@ -1024,7 +1024,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 
 	// Wait for batch 2 to be sent
 	require.Eventually(t, func() bool {
-		return stream1.getSentBatchCount() == 2
+		return stream1.getSentBatchCount() == 3
 	}, testTimeout, testTickInterval, "Batch 2 should be sent")
 
 	// === Step 4: Cut stream with recv failure (before acking batch 2) ===
@@ -1032,7 +1032,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 
 	// Wait for stream rotation
 	// Recv failure triggers backoff, so advance clock to allow rotation
-	var stream2 *mockLogsStream
+	var stream2 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
@@ -1079,7 +1079,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	}
 
 	// === Step 9: Send Batch 3 (3 entries) ===
-	batch3StateChanges := []*statefulpb.Datum{
+	batch3StateChanges := []*statefulpb.LogDatum{
 		createPatternDefine(4, "pattern4"),
 		createDictEntryDefine(4, "value4"),
 	}
@@ -1103,7 +1103,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	fixture.mockClock.Add(5 * time.Second) // drainTimeout is 5 seconds
 
 	// Wait for new stream to be created
-	var stream3 *mockLogsStream
+	var stream3 *mockStatefulStream
 	require.Eventually(t, func() bool {
 		stream3 = fixture.mockClient.getCurrentStream()
 		return stream3 != nil && stream3 != stream2 && worker.streamState == active
@@ -1163,10 +1163,12 @@ func TestStreamWorkerSupervisorResponsiveWhileSenderBlocked(t *testing.T) {
 
 	// Wait for it to be sent (should go through batchToSendCh to senderLoop to stream.sendCh)
 	require.Eventually(t, func() bool {
-		return stream.getSentBatchCount() >= 1
+		return stream.getSentBatchCount() >= 2
 	}, testTimeout, testTickInterval, "First message should be sent")
 
-	// Consume from stream.sendCh to confirm sender is working
+	// Consume the initial snapshot and first data batch from stream.sendCh to
+	// confirm the sender is working and reset the mock buffer for this test.
+	<-stream.sendCh
 	<-stream.sendCh
 
 	// Step 2: Block the sender by filling stream.sendCh (capacity 10)

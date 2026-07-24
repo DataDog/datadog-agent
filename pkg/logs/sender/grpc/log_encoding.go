@@ -5,15 +5,15 @@
 
 package grpc
 
-const flatLogEmptyDictIndex uint64 = 1
+const emptyDictIndex uint64 = 1
 
-func flatLogDictIndex(id uint64) uint64 {
+func logDictIndex(id uint64) uint64 {
 	if id == 0 {
-		return flatLogEmptyDictIndex
+		return emptyDictIndex
 	}
 	return id
 }
 
-func isFlatLogEmptyDictIndex(id uint64) bool {
-	return id == 0 || id == flatLogEmptyDictIndex
+func isEmptyDictIndex(id uint64) bool {
+	return id == 0 || id == emptyDictIndex
 }

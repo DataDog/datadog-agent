@@ -176,7 +176,7 @@ func (t *inflightTracker) nextToSendEncoded(compressor compression.Compressor) (
 	}
 	datums = deltaEncodeDatumsForWire(datums)
 
-	serialized, err := proto.Marshal(&statefulpb.DatumSequence{Data: datums})
+	serialized, err := proto.Marshal(&statefulpb.LogDatumSequence{Data: datums})
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (t *inflightTracker) resetOnRotation() {
 }
 
 // getSnapshot returns the current snapshot state for stream bootstrapping
-// Returns serialized bytes (marshaled DatumSequence) or nil if empty
+// Returns serialized bytes (marshaled LogDatumSequence) or nil if empty
 func (t *inflightTracker) getSnapshot() []byte {
 	refs, ok := t.inflightReferences()
 	if !ok {

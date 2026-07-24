@@ -2,214 +2,21 @@ syntax = "proto3";
 
 package datadog.intake.stateful;
 option go_package = "pkg/proto/pbgo/statefulpb";
+option java_multiple_files = true;
+option java_package = "com.dd.foldspace.proto";
 
 // ---------------------------------------------------------------------------
-// Dictionary-encoded
+// Transport Layer
 // ---------------------------------------------------------------------------
 
-message DictEntryDefine {
-  uint64 id = 1;
-  string value = 2;
-}
-
-message DictEntryDelete {
-  uint64 id = 1;
-}
-
-// ---------------------------------------------------------------------------
-// Pattern dictionary
-// ---------------------------------------------------------------------------
-
-// pos_list is used to indicate where dynamic values should be inserted
-// it's more accurate than a marker
-// PatternDefine is also used to signal a update to an existing pattern.
-message PatternDefine {
-  uint64 pattern_id = 1;
-  string template = 2;
-  uint32 param_count = 3;
-  repeated uint32 pos_list = 4;
-}
-
-message PatternDelete {
-  uint64 pattern_id = 1;
-}
-
-// ---------------------------------------------------------------------------
-// Log payload
-// ---------------------------------------------------------------------------
-
-message TagSet {
-  DynamicValue tagset = 1;
-}
-
-message Tag {
-  DynamicValue key = 1;
-  DynamicValue value = 2;
-}
-
-message FlatLog {
-  // Delta encoded timestamp: add this to previous timestamp (or DeltaEncodingSync.timestamp) to get the absolute timestamp.
-  sint64 timestamp = 1;
-  // Delta encoded status: when 0 use last status.
-  // Use 1 to indicate no status.
-  uint64 status = 2;
-  // Delta encoded service: when 0 use last service. Otherwise use service in this dict entry.
-  // Use 1 to indicate no status.
-  uint64 service = 3;
-  // Delta encoded tags: when 0 use last tags. Otherwise use tags in this dict entry.
-  uint64 tags = 4;
-
-
-  // Delta encoded pattern_id: when 0 use last pattern_id. Otherwise use pattern_id in this dict entry.
-  uint64 pattern_id = 5;
-  // Values for the pattern.
-  repeated DynamicValue dynamic_values = 6;
-  // Optional - used instead of pattern_id and dynamic_values for e.g. larger logs.
-  string raw_log = 7;
-
-  // Delta encoded json_schema_id: when 0 use last json_schema_id. Otherwise use json_schema_id in this dict entry.
-  // Use 1 to indicate no json_schema_id.
-  uint64 json_schema_id = 8;
-  // Deprecated fallback values for the json schema.
-  repeated DynamicValue json_context_values = 9;
-  // Compact values for the json schema. json_context_value_kinds has one byte per schema key.
-  // Each kind consumes the next value from the corresponding packed value field.
-  // Kind values are defined by the JsonValueKind constants in the encoder/decoder.
-  bytes json_context_value_kinds = 10;
-  repeated int64 json_context_int_values = 11;
-  repeated double json_context_float_values = 12;
-  repeated uint64 json_context_dict_values = 13;
-  repeated bytes json_context_raw_values = 14;
-  repeated string json_context_string_values = 15;
-
-  // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
-  optional string uuid = 100;
-}
-
-message Log {
-  sint64 timestamp = 1;
-  oneof content {
-    StructuredLog structured = 2;
-    string raw = 3;
-  }
-  // Tags identifying the log source (hostname, service, ddsource, container tags).
-  // Excludes status which varies per log because status is sent separately to improve delta encoding.
-  // All tags are joined together and sent as a single tagset.
-  TagSet tags = 4;
-
-  // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
-  optional string uuid = 5;
-
-  // Log severity level (e.g. "info", "warn", "error"). Sent separately from tags because
-  // status changes per log while other tags remain stable, which would defeat delta encoding.
-  DynamicValue status = 6;
-
-  // Service is sent separately because sometimes it is a top-level JSON field and also in ddtags,
-  // and sometimes it only exists as a top-level field.
-  DynamicValue service = 7;
-}
-
-
-message JsonSchemaDefine {
-  uint64 schema_id = 1;
-  // Dictionary IDs for escaped JSON paths. Dots separate nested fields; literal dots
-  // and backslashes inside field names are backslash-escaped.
-  repeated uint64 keys = 2;
-  uint64 message_key_id = 3;
-}
-
-message JsonSchemaDelete {
-  uint64 schema_id = 1;
-}
-
-message StructuredLog {
-  uint64 pattern_id = 1;
-  repeated DynamicValue dynamic_values = 2;
-  // JSON structured log fields. Example:
-  // Input log: {"msg":"Evicted user tags","agent":"core","time":"2026-03-31","level":"INFO"}
-  // With schema-based encoding, converts to:
-  //     json_context_schema 44 (points to "agent,level,time" in dictionary)
-  //     json_context_values ["core", "INFO", "2026-03-31"]
-  //     json_message_key "msg"
-  //     pattern_id 123 (points to "Evicted {} tags")
-  //     dynamic_values ["user"]
-
-  // The key of the JSON object to put the message back into (e.g. "msg", "message", "log").
-  DynamicValue json_message_key = 4;
-
-  // Schema-based JSON context encoding separates repeating key structure from per-log values.
-  // json_context_schema_id references a DictEntryDefine whose value is a comma-separated sorted
-  // list of JSON keys (e.g. "level,service,timestamp"). Delta-encoded across batches.
-  uint64 json_context_schema_id = 5;
-
-  // json_context_values contains the leaf values in the same order as the schema keys.
-  // Each value is encoded as a DynamicValue (int64 for numbers, dict_index for repeated strings).
-  // Nested objects and arrays are serialized as JSON strings.
-  repeated DynamicValue json_context_values = 6;
-
-  // Deprecated: use json_context_schema_id and json_context_values instead.
-  bytes json_context = 3;
-}
-
-message DynamicValue {
-  oneof value {
-    int64 int_value = 1;
-    double float_value = 2;
-    bool bool_value = 6;
-    string string_value = 3;
-    uint64 dict_index = 4;
-    bytes raw_json_value = 7;
-  }
-
-  // When set to true, renders int_value, float_value, and bool_value back to JSON strings instead of JSON numbers/booleans.
-  // This preserves string-vs-number JSON typing for numeric-looking strings while keeping a numeric
-  // on-wire representation.
-  bool render_as_string = 5;
-}
-
-// Restores delta encoding state before replayed datums, for example when the
-// agent prepends lazy snapshot definitions ahead of already-encoded payload data.
-message DeltaEncodingSync {
-  uint64 timestamp = 1;
-  uint64 pattern_id = 2;
-  TagSet tags = 3;
-  uint64 status = 4;
-  uint64 service = 5;
-  uint64 flat_log_tags = 6;
-  uint64 json_schema_id = 7;
-}
-
-// ---------------------------------------------------------------------------
-// Streaming envelope
-// ---------------------------------------------------------------------------
-
-message Datum {
-  oneof data {
-    PatternDefine pattern_define = 1;
-    PatternDelete pattern_delete = 2;
-    DictEntryDefine dict_entry_define = 3;
-    DictEntryDelete dict_entry_delete = 4;
-    DeltaEncodingSync delta_encoding_sync = 5;
-    Log logs = 6;
-    FlatLog flat_log = 7;
-    JsonSchemaDefine json_schema_define = 8;
-    JsonSchemaDelete json_schema_delete = 9;
-  }
-}
-
-// DatumSequence wraps a sequence of Datum messages
-// Used for serialization in application-level compression
-message DatumSequence {
-  repeated Datum data = 1;
-}
-
-// data is sequence of pattern/dictionary changes + logs
-// the ordering is significant, must be processed in order
 message StatefulBatch {
+  // Monotonically increasing batch id for the stream, starting at 0.
+  // Generally batch 0 is a snapshot batch of built up client state and subsequent batches are actual data plus incremental state changes.
   uint32 batch_id = 1;
 
-  // Bytes of a serialized and compressed DatumSequence.
+  // Bytes of a serialized and compressed *DatumSequence.
   // This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
+  // The generic bytes also allows for us to use the same streaming method (and thus code) for both logs and metrics.
   bytes data = 2;
 }
 
@@ -224,10 +31,390 @@ message BatchStatus {
   Status status = 2;
 }
 
+service StatefulIntake {
+  rpc StatefulStream(stream StatefulBatch) returns (stream BatchStatus);
+}
+
+
 // ---------------------------------------------------------------------------
-// gRPC service definition (bi-directional streaming)
+// Streaming envelope
 // ---------------------------------------------------------------------------
 
-service StatefulLogsService {
-  rpc LogsStream(stream StatefulBatch) returns (stream BatchStatus);
+message LogDatum {
+  oneof data {
+    DictEntryDefine dict_entry_define = 1;
+    PatternDefine pattern_define = 2;
+    JsonSchemaDefine json_schema_define = 3;
+
+    // TODO: today, logs are encoded 1 at a time. We should consider switching to the metrics strategy of columnar encoding batches.
+    // This requires putting all state changes at the front of batches (and agent ensuring those state changes are valid for whole batch).
+    Log log = 4;
+
+    DeltaEncodingSync delta_encoding_sync = 5;
+
+    DictEntryDelete dict_entry_delete = 6;
+    PatternDelete pattern_delete = 7;
+    JsonSchemaDelete json_schema_delete = 8;
+  }
+}
+
+// DatumSequence wraps a sequence of Datum messages
+// Used for serialization in application-level compression
+message LogDatumSequence {
+  repeated LogDatum data = 1;
+}
+
+// Metric datum envelope
+//
+// One element in a metric stream's batch payload.
+//
+// Ordering within a MetricDatumSequence is significant (define before
+// reference):
+//   - Define datums must precede any datum that references their ID.
+//   - Composite defines (MetricTagsetDefine → MetricTagStringDefine,
+//     MetricResourceDefine → MetricResourceStringDefine) must follow the
+//     entries they reference, defined earlier in this or a previous batch.
+//   - MetricSeriesBatch typically appears last.
+//
+// Field numbers 9-15 are reserved for future define/delete datums; eviction is
+// currently handled by full-dictionary re-emission on stream rotation.
+message MetricDatum {
+  oneof data {
+    MetricNameDefine            metric_name_define             = 1;
+    MetricTagStringDefine       metric_tag_string_define       = 2;
+    MetricSourceTypeNameDefine  metric_source_type_name_define = 3;
+    MetricResourceStringDefine  metric_resource_string_define  = 4;
+    MetricResourceDefine        metric_resource_define         = 5;
+    MetricOriginDefine          metric_origin_define           = 6;
+    MetricTagsetDefine          metric_tagset_define           = 7;
+
+    MetricSeriesBatch           metric_series_batch            = 8;
+
+    // 9-15  reserved for define/delete additions within the
+    //       single-byte varint field-tag range.
+  }
+}
+
+// MetricDatumSequence wraps a sequence of MetricDatum messages.
+message MetricDatumSequence {
+  repeated MetricDatum data = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Logs State
+// ---------------------------------------------------------------------------
+
+// Define / update a dictionary entry.
+message DictEntryDefine {
+  // 0 is reserved for delta encoding.
+  // 1 is reserved for explicit absence in optional fields (status, service, tags)
+  uint64 id = 1;
+  string value = 2;
+}
+
+message DictEntryDelete {
+  uint64 id = 1;
+}
+
+// Define / update a log pattern.
+message PatternDefine {
+  // 0 is reserved for delta encoding.
+  uint64 pattern_id = 1;
+  // The text template of the pattern
+  string template = 2;
+  // Indices of the dynamic values in the template string to be replaced by the dynamic values.
+  repeated uint32 pos_list = 4;
+
+  // Example: template=" error decoding source=: " pos_list=[0, 23, 25]
+  // Dynamic values: ["MyDecoder", "MySource", "malformed payload"]
+  // Resulting log: "MyDecoder error decoding source=MySource: malformed payload"
+}
+
+message PatternDelete {
+  uint64 pattern_id = 1;
+}
+
+// Physical value kind for a JSON schema leaf.
+//
+// These enum values are encoded as individual bytes in
+// JsonSchemaDefine.value_kinds. The enum is defined to make the byte values
+// explicit; the wire field remains bytes to avoid one varint per schema key.
+enum JsonValueKind {
+  JSON_VALUE_KIND_INVALID = 0;
+  JSON_VALUE_KIND_NULL = 1;
+  JSON_VALUE_KIND_BOOL = 2;
+  JSON_VALUE_KIND_INT = 3;
+  JSON_VALUE_KIND_FLOAT = 4;
+  JSON_VALUE_KIND_DICT_STRING = 5;
+  JSON_VALUE_KIND_STRING = 6;
+  JSON_VALUE_KIND_RAW_JSON = 7;
+}
+
+// Define / update a JSON schema.
+// TODO(jsaf): this schema definition assumes that the core log message field is the only one worth doing pattern extraction for.
+message JsonSchemaDefine {
+  // 0 is reserved for delta encoding.
+  // 1 is reserved for explicit absence (Log.json_schema_id uses 1 to indicate no schema).
+  uint64 schema_id = 1;
+  // Dictionary IDs for escaped JSON paths. Dots separate nested fields; literal dots
+  // and backslashes inside field names are backslash-escaped.
+  repeated uint64 keys = 2;
+
+  // The key of the JSON object to put the pattern encoded message into (e.g. "msg", "message", "log").
+  uint64 message_key_id = 3;
+
+  // One JsonValueKind byte per key, in keys order. Each byte declares which
+  // typed value column a log using this schema consumes for that key. NULL
+  // consumes no per-log value. The datum is malformed if value_kinds.len() does
+  // not equal keys.len(), if any byte is JSON_VALUE_KIND_INVALID or unknown, or
+  // if the corresponding Log has too few or too many values in any typed column.
+  //
+  // Example:
+  //   keys: ["host", "status", "retries", "duration", "payload", "sampled", "missing"]
+  //   logical values:
+  //     host     = "web-1"           // dictionary id 101
+  //     status   = "ok"              // dictionary id 202
+  //     retries  = 3
+  //     duration = 12.5
+  //     payload  = {"nested": true}  // raw JSON bytes
+  //     sampled  = true
+  //     missing  = null
+  //
+  //   value_kinds = [
+  //     JSON_VALUE_KIND_DICT_STRING,
+  //     JSON_VALUE_KIND_DICT_STRING,
+  //     JSON_VALUE_KIND_INT,
+  //     JSON_VALUE_KIND_FLOAT,
+  //     JSON_VALUE_KIND_RAW_JSON,
+  //     JSON_VALUE_KIND_BOOL,
+  //     JSON_VALUE_KIND_NULL,
+  //   ]
+  //
+  // A Log for this schema would carry:
+  //   json_context_dict_values = [101, 202]
+  //   json_context_int_values = [3]
+  //   json_context_float_values = [12.5]
+  //   json_context_raw_values = ["{\"nested\":true}"]
+  //   json_context_bool_values = [0x01]
+  bytes value_kinds = 4;
+
+
+  // TODO(jsaf): I have yet to try this out but one futurue optimiztion we could make for JSON schemas with values that don't change per log is
+  // encoding them on the schema itself.
+  // // Optional schema-level constants for fields that do not consume per-log values.
+  // repeated uint32 constant_key_indexes = 5;
+  // repeated uint64 constant_dict_values = 6;
+}
+
+message JsonSchemaDelete {
+  uint64 schema_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Logs Payload
+// ---------------------------------------------------------------------------
+
+message Log {
+  // Delta encoded timestamp: add this to previous timestamp (or DeltaEncodingSync.timestamp) to get the absolute timestamp.
+  sint64 timestamp = 1;
+  // Delta encoded status: when 0 use last status.
+  // Use 1 to indicate no status.
+  uint64 status = 2;
+  // Delta encoded service: when 0 use last service. Otherwise use service in this dict entry.
+  // Use 1 to indicate no service.
+  uint64 service = 3;
+  // Delta encoded tags: when 0 use last tags. Otherwise use tags in this dict entry.
+  // Use 1 to indicate no tags (unlikely in practice but valid).
+  uint64 tags = 4;
+
+
+  // Delta encoded pattern_id: when 0 use last pattern_id. Otherwise use pattern_id in this dict entry.
+  // 1 isn't used to set no pattern_id since no pattern_id is assumed when raw_log is present.
+  uint64 pattern_id = 5;
+  // Values for the pattern.
+  repeated DynamicValue dynamic_values = 6;
+  // Optional - used instead of pattern_id and dynamic_values for e.g. larger logs.
+  string raw_log = 7;
+
+  // Delta encoded json_schema_id: when 0 use last json_schema_id. Otherwise use json_schema_id in this dict entry.
+  // Use 1 to indicate no json_schema_id.
+  uint64 json_schema_id = 8;
+
+  // Compact values for the JSON schema. Decode by walking the referenced
+  // JsonSchemaDefine.value_kinds in key order and keeping a cursor per typed
+  // value field. DICT_STRING consumes the next dict value, INT consumes the next
+  // int value, BOOL consumes the next bit from json_context_bool_values, and so
+  // on. NULL consumes no value.
+  repeated sint64 json_context_int_values = 9;
+  repeated double json_context_float_values = 10;
+  repeated uint64 json_context_dict_values = 11;
+  repeated bytes json_context_raw_values = 12;
+  repeated string json_context_string_values = 13;
+  // Bit-packed boolean values in JSON_VALUE_KIND_BOOL order. The least
+  // significant bit of the first byte is the first bool value.
+  bytes json_context_bool_values = 14;
+
+  // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
+  optional string uuid = 100;
+}
+
+message DynamicValue {
+  oneof value {
+    int64 int_value = 1;
+    double float_value = 2;
+    bool bool_value = 6;
+    string string_value = 3;
+    uint64 dict_index = 4;
+    bytes raw_json_value = 7;
+  }
+
+  // When set to true, renders int_value, float_value, and bool_value back to JSON strings instead of JSON numbers/booleans.
+  // This preserves string-vs-number JSON typing for numeric-looking strings while keeping a numeric
+  // on-wire representation for byte-efficient encoding.
+  bool render_as_string = 5;
+}
+
+// Restores delta encoding state before replayed datums, for example when the
+// agent prepends lazy snapshot definitions ahead of already-encoded payload data.
+message DeltaEncodingSync {
+  uint64 timestamp = 1; // ms timestamp to sync to. Unsigned since this is never a delta.
+  uint64 pattern_id = 2;
+  uint64 tags = 3;
+  uint64 status = 4;
+  uint64 service = 5;
+  uint64 json_schema_id = 6;
+}
+
+// ===========================================================================
+// Metric stateful encoding
+//
+// Mirrors the columnar v3 metrics wire format (apiv3.payload.proto)
+// but lifts the dictionary out of each payload into stream scope.
+// Dict entries persist across batches until stream rotation; each batch
+// carries the per-series + per-point columns referencing the stream's
+// accumulated dict.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Dictionary entry definitions
+//
+// Each kind mirrors one of the six interner kinds in the v3
+// dictionaryBuilder (pkg/serializer/internal/metrics/iterable_series_v3.go).
+// IDs are stream-scoped, monotonic, per-kind (each kind has its own ID
+// space — id=1 in MetricNameDefine and id=1 in MetricTagStringDefine
+// refer to different entries). Id=0 is the "absent" sentinel (matches
+// v3 dict semantics; e.g. internName("") returns 0).
+// ---------------------------------------------------------------------------
+
+message MetricNameDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message MetricTagStringDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message MetricSourceTypeNameDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+// Resource strings are interned in one pool but referenced as either
+// resource-type ("host", "device") or resource-name ("agent-dev-docker")
+// from MetricResourceDefine. Mirrors apiv3 dictResourceStr.
+message MetricResourceStringDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+// A resource set: parallel arrays of (type_string_id, name_string_id).
+// type_string_ids[i] and name_string_ids[i] together identify the i-th
+// resource in this set.
+//
+// Mirrors apiv3 dictResourceLen + dictResourceType + dictResourceName
+// columns combined for one resource set, in proto-idiomatic form
+// (not the v3 packed/delta-encoded form).
+//
+// INVARIANTS (wire-level):
+//   - len(type_string_ids) == len(name_string_ids). A length mismatch
+//     is a malformed-batch wire violation.
+//   - All referenced string IDs must already be defined via
+//     MetricResourceStringDefine earlier on the stream (in this batch
+//     OR a previous batch on this stream).
+message MetricResourceDefine {
+  uint64 id = 1;
+  repeated uint64 type_string_ids = 2;
+  repeated uint64 name_string_ids = 3;
+}
+
+// Origin info tuple, mirroring apiv3 dictOriginInfo. Triples of
+// (product, category, service) enum codes (not strings).
+message MetricOriginDefine {
+  uint64 id = 1;
+  int32 product = 2;
+  int32 category = 3;
+  int32 service = 4;
+}
+
+// Tagset definition with prefix-sharing, mirroring apiv3 dictTagsets
+// semantics. The full tag set for this tagset is the union of:
+//   - the tagset referenced by prefix_id (if prefix_id != 0)
+//   - the tag strings listed in tag_string_ids
+//
+// INVARIANTS (wire-level):
+//   - prefix_id == 0 is the "no prefix" sentinel: this tagset stands
+//     alone, the full tag set is just tag_string_ids.
+//   - prefix_id != 0 MUST reference a MetricTagsetDefine already
+//     defined earlier on the stream. Self-reference (id == prefix_id)
+//     is a wire violation.
+//   - All tag_string_ids MUST already be defined via
+//     MetricTagStringDefine earlier on the stream.
+message MetricTagsetDefine {
+  uint64 id = 1;
+  uint64 prefix_id = 2;
+  repeated uint64 tag_string_ids = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Metric series batch
+//
+// Carries the per-series + per-point columns of a v3 columnar payload,
+// with dict columns lifted out into the dict-define datums above.
+// References in the ref columns resolve against the stream's accumulated
+// dict.
+//
+// metric_data layout: identical to apiv3 MetricData encoding (per-column
+// streaming compression, concatenated with compressed protobuf field
+// headers — see pkg/serializer/internal/metrics/iterable_series_v3.go),
+// EXCEPT that dict columns 1-9 are absent (empty). Columns present
+// (series only, no sketches):
+//
+//   10  types               16  timestamps
+//   11  nameRefs            17  valsSint64
+//   12  tagsetRefs          18  valsFloat32
+//   13  resourcesRefs       19  valsFloat64
+//   14  intervals           23  sourceTypeNameRefs
+//   15  numPoints           24  originInfoRefs
+//
+// Ref column encoding (nameRefs, tagsetRefs, resourcesRefs,
+// sourceTypeNameRefs, originInfoRefs) is delta-zigzag-varint within the
+// column, reset at the start of each batch (batch-scoped delta state).
+//
+// metric_data is opaque bytes at the proto level, already containing
+// per-column compressed streams; outer MetricDatumSequence compression is benign.
+//
+// Sketches (columns 20-22), unit columns (25/26), and legacy-origin columns
+// (27/28) are not written.
+//
+// INVARIANTS (wire-level):
+//   - All ref-column IDs (nameRefs, tagsetRefs, resourcesRefs,
+//     sourceTypeNameRefs, originInfoRefs) MUST resolve to dict entries
+//     already defined on the stream (earlier in this MetricDatumSequence or
+//     a previous batch). Forward refs and unresolved refs are wire violations.
+//   - The inner protobuf layout is the apiv3.MetricData schema; column
+//     additions there require a coordinated agent + intake update.
+message MetricSeriesBatch {
+  bytes metric_data = 1;
 }

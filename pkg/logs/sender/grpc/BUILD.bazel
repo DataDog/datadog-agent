@@ -6,8 +6,8 @@ go_library(
     srcs = [
         "batch_strategy.go",
         "dual_strategy.go",
-        "flat_log.go",
         "inflight.go",
+        "log_encoding.go",
         "mock_encoder.go",
         "mock_state.go",
         "sender.go",
