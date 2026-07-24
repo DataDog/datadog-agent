@@ -1441,7 +1441,7 @@ func TestHandleRun_StartsHeartbeat(t *testing.T) {
 
 // /run must extract the MicroVM ID from the JSON body and apply it to the
 // heartbeat before Start so the very first emission carries the correct
-// microvm_id. The test calls handleRun then inspects the tags that the
+// lambda_microvm_id. The test calls handleRun then inspects the tags that the
 // heartbeat would emit on its next tick.
 func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
@@ -1451,7 +1451,7 @@ func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	body := strings.NewReader(`{"microvmId":"vm-from-body"}`)
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
-	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:vm-from-body")
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "lambda_microvm_id:vm-from-body")
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-from-body", id)
 }
@@ -1465,7 +1465,7 @@ func TestHandleRun_MissingBodyIDUsesUnknown(t *testing.T) {
 
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 
-	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:unknown")
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "lambda_microvm_id:unknown")
 }
 
 // traced_invocations is emitted by the Heartbeat on each tick, not directly by

@@ -569,7 +569,7 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 // (when a forwarder is configured) mirrors the user app's response.
 // handleRun is the only hook that reads r.Body and is therefore not
 // collapsed into dispatchHook directly. The ID is captured before Start
-// so the first heartbeat emission already carries the correct microvm_id tag.
+// so the first heartbeat emission already carries the correct lambda_microvm_id tag.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
