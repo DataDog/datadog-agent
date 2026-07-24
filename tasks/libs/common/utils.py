@@ -245,6 +245,51 @@ def get_xcode_version(ctx):
     return xcode_version
 
 
+_GOOS_TO_SYS_PLATFORM = {
+    "windows": "win32",
+}
+
+
+def _resolve_target_platform(platform: str | None = None) -> str:
+    """Return the effective target platform as a sys.platform-style string.
+
+    If platform is explicitly provided, normalize it from GOOS format to
+    sys.platform format (e.g. "windows" -> "win32"). Otherwise fall back to
+    the GOOS env var, then sys.platform.
+    """
+    if platform is None:
+        platform = os.getenv("GOOS") or sys.platform
+    return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+
+
+def _find_cross_compiler(target_platform: str, *compilers) -> str:
+    # remove empty/None values
+    compilers = list(filter(lambda cc: cc, compilers))
+
+    # find the first compiler that is available on PATH
+    for cc in compilers:
+        if shutil.which(cc):
+            return cc
+
+    # fail with a clear error message
+    if target_platform == "darwin":
+        instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
+    elif target_platform == "win32":
+        instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+    elif target_platform == "aix":
+        instr = "the AIX cross-compiler from dd/experimental/teams/agent-build/aix/toolchain/build-aix-cross.sh (requires an AIX sysroot)"
+    else:
+        instr = "the appropriate cross-compilation toolchain"
+    print(
+        color_message(
+            f"Error: Couldn't find any of the following compilers on PATH: {', '.join(compilers)}. "
+            f"Cross-linting for {target_platform} requires {instr}, or explicitly setting DD_CC and DD_CXX.",
+            "red",
+        )
+    )
+    raise Exit(code=1)
+
+
 def get_build_flags(
     ctx: Context,
     static=False,
@@ -255,6 +300,8 @@ def get_build_flags(
     python_home_3=None,
     headless_mode=False,
     arch: Arch | None = None,
+    include_python: bool = False,
+    platform: str | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -263,7 +310,8 @@ def get_build_flags(
     Context object.
     """
     if arch is None:
-        arch = Arch.local()
+        arch = Arch.from_str(os.getenv("GOARCH") or "local")
+    target_platform = _resolve_target_platform(platform)
 
     gcflags = ""
     ldflags = get_version_ldflags(ctx, install_path=install_path)
@@ -271,7 +319,7 @@ def get_build_flags(
     extldflags = ""
     env = {"GO111MODULE": "on"}
 
-    if sys.platform == 'win32':
+    if target_platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
     else:
         # for pkg/ebpf/compiler on linux
@@ -287,29 +335,29 @@ def get_build_flags(
         python_home_3 = get_bazel_python_home(rtloader_lib)
 
     # setting the install path, allowing the agent to be installed in a custom location
-    if sys.platform.startswith('linux') and install_path:
+    if target_platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
 
     # setting the run path
-    if sys.platform.startswith('linux') and run_path:
+    if target_platform.startswith('linux') and run_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.runPath={run_path} "
 
     # lock down the agent to only use the symbols in the datadog-agent.map file
     # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
-    if sys.platform.startswith('linux'):
+    if target_platform.startswith('linux'):
         extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
 
     # setting python homes in the code
-    if python_home_3:
+    if include_python and python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
     # adding rtloader libs and headers to the env
-    if rtloader_lib:
+    if include_python and rtloader_lib:
         if not headless_mode:
             print(
                 f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
             )
-        if sys.platform == "aix":
+        if target_platform == "aix":
             env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
@@ -319,24 +367,24 @@ def get_build_flags(
     # Python is installed alongside rtloader under the same embedded prefix.
     # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
     # os.environ, so placing this before it would cause the python flag to be dropped.
-    if sys.platform == 'aix':
+    if include_python and target_platform == 'aix':
         aix_python_lib_path = python_home_3 or embedded_path
         if aix_python_lib_path:
             env['CGO_LDFLAGS'] = (
                 env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{aix_python_lib_path}/lib -lpython3"
             )
 
-    if sys.platform == 'win32':
+    if target_platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
-    if rtloader_headers:
+    if include_python and rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
-    if rtloader_common_headers:
+    if include_python and rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
-    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+    if sys.platform == 'linux' and target_platform == "win32":
         # fake the minimum windows version
         env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"
 
@@ -344,10 +392,10 @@ def get_build_flags(
     if static:
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
-    elif rtloader_lib:
-        if sys.platform == "darwin":
+    elif include_python and rtloader_lib:
+        if target_platform == "darwin":
             extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
-        elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+        elif target_platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
@@ -362,7 +410,7 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    if sys.platform == "darwin":
+    if target_platform == "darwin":
         # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
         # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
         # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
@@ -379,24 +427,48 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
-    elif sys.platform.startswith('linux'):
+    elif target_platform.startswith('linux'):
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 
-    if os.getenv("DD_CC"):
-        env["CC"] = os.getenv("DD_CC")
-    if os.getenv("DD_CXX"):
-        env["CXX"] = os.getenv("DD_CXX")
-
-    if arch.is_cross_compiling():
-        # For cross-compilation we need to be explicit about certain Go settings
-        env["GOARCH"] = arch.go_arch
-        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
-        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
+
+    if dd_cc := os.getenv("DD_CC"):
+        env["CC"] = dd_cc
+    if dd_cxx := os.getenv("DD_CXX"):
+        env["CXX"] = dd_cxx
+
+    # Cross-OS lint/build setup: configure cross-compilation environment
+    if target_platform != sys.platform or arch.is_cross_compiling():
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["GOARCH"] = arch.go_arch
+
+        env["CC"] = _find_cross_compiler(
+            target_platform,
+            os.getenv("DD_CC"),
+            arch.compiler_name("gcc", target_platform),
+            arch.compiler_name("clang", target_platform),
+        )
+        env["CXX"] = _find_cross_compiler(
+            target_platform,
+            os.getenv("DD_CXX"),
+            arch.compiler_name("g++", target_platform),
+            arch.compiler_name("clang++", target_platform),
+        )
+        print(f"Using CC {env['CC']} and CXX {env['CXX']} for cross-compilation")
+
+        if target_platform == "aix":
+            # Set the sysroot flag for the cross compiler
+            sysroot = "/opt/aix-cross/sysroot"
+            env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" --sysroot={sysroot} -maix64"
+            env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" --sysroot={sysroot} -maix64 -Wl,-brtl -Wl,-bbigtoc"
+
+            # Go's DWARF-on-AIX support probes the external linker but fails to parse the output of
+            # our gcc based cross compiler. -w skips the probe outright
+            ldflags += "-w "
+            # Ignore multiple definition errors
+            ldflags += "-extldflags=-Wl,--allow-multiple-definition "
 
     return ldflags, gcflags, env
 

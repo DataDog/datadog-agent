@@ -45,6 +45,15 @@ type ConfigEnvVar struct {
 	Value string
 }
 
+// CollectedConfig is the config data collected for one integration target.
+type CollectedConfig struct {
+	Integration string
+	Runtime     RuntimeType
+	RuntimeID   string
+	ConfigFiles []ConfigFile
+	EnvVars     []ConfigEnvVar
+}
+
 // TargetCommandline is the command line used to start the target service.
 type TargetCommandline struct {
 	Args       []string
@@ -62,9 +71,9 @@ type ConfigReader interface {
 
 type configReaderFactory func(target) (ConfigReader, error)
 
-// ConfigCollector reads integration-specific config files through a collector reader.
+// ConfigCollector reads integration-specific config data through a collector reader.
 type ConfigCollector interface {
-	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
+	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 
 type targetResolver struct {

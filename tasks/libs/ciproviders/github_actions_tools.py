@@ -34,7 +34,7 @@ def trigger_windows_bump_workflow(
     # Hack: get current time to only fetch workflows that started after now
     now = datetime.utcnow()
 
-    gh = GithubAPI(f"DataDog/{repo}")
+    gh = GithubAPI(f"ddoghq/{repo}")
     result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     if not result:

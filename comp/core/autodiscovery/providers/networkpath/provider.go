@@ -29,7 +29,7 @@ import (
 const (
 	scheduledType = "scheduled"
 	dynamicType   = "dynamic"
-	configSource  = names.NetworkPathRemoteConfig + ":scheduled"
+	configSource  = names.NetworkPathRemoteConfig + ":" + scheduledType
 )
 
 // Provider receives scheduled Network Path tests from Remote Configuration.
@@ -45,7 +45,8 @@ type Provider struct {
 }
 
 type remoteConfigEnvelope struct {
-	Type         string           `json:"type"`
+	Type string `json:"type"`
+	// TestConfigID identifies the scheduled test definition shared by all endpoints in Config.
 	TestConfigID string           `json:"test_config_id"`
 	Config       *scheduledConfig `json:"config"`
 }
@@ -149,6 +150,19 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		// are treated as deleted after the snapshot has been processed.
 		seenPaths[path] = struct{}{}
 
+		configType, err := getConfigType(rawConfig.Config)
+		if err == nil && configType == dynamicType {
+			// Dynamic configs are owned by the Network Path Collector listener.
+			// Do not overwrite its apply status from the scheduled provider.
+			// A path is not expected to change types, but defensively remove any
+			// scheduled state so a malformed snapshot cannot leave a stale test
+			// running indefinitely.
+			changes.Unschedule = append(changes.Unschedule, p.activeByPath[path]...)
+			delete(p.activeByPath, path)
+			delete(p.configErrors, path)
+			continue
+		}
+
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
 			// Keep the last valid configs active when a replacement payload is invalid.
@@ -195,6 +209,16 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 
 	p.stateMutex.Unlock()
 	p.sendChanges(changes)
+}
+
+func getConfigType(raw []byte) (string, error) {
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return "", err
+	}
+	return envelope.Type, nil
 }
 
 func (p *Provider) sendChanges(changes integration.ConfigChanges) {
