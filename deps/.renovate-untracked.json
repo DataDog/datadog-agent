@@ -63,6 +63,6 @@
     "agent_data_plane_darwin-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
-    "agent_data_plane_fips-windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
+    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
   }
 }
