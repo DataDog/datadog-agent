@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import shutil
 import subprocess
@@ -110,7 +111,7 @@ def bazel(
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise Exit(bazel_not_found_message("red"))
-    cmd = (("sudo",) if sudo else ()) + (bazelisk,) + args
+    cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
     cmdline = (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
     kwargs = {}
@@ -126,10 +127,28 @@ def bazel(
         kwargs["hide"] = "err"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
-    result = ctx.run(cmdline, in_stream=False, warn=ignore_errors, **kwargs)
+    result = ctx.run(cmdline, echo=False, in_stream=False, warn=ignore_errors, **kwargs)
     captured = []
     if capture_output and result.ok:
         captured.append(result.stdout)
     if capture_stderr:
         captured.append(result.stderr)
     return "".join(captured)
+
+
+def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
+    """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
+    omnibus build environment variables.
+    💡 Mirrors `omnibazel_flags` in omnibus/lib/ostools.rb.
+    """
+    flags = []
+    if agent_flavor := os.environ.get("AGENT_FLAVOR"):
+        flags.append(f"--//packages/agent:flavor={agent_flavor}")
+    if install_dir := os.environ.get("INSTALL_DIR"):
+        flags.append(f"--//:install_dir={install_dir}")
+        flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
+    if not flags:
+        return args
+    # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
+    index = next((i for i, a in enumerate(args, 1) if not a.startswith("-")), len(args))
+    return (*args[:index], *flags, *args[index:])

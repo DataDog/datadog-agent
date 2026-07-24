@@ -82,29 +82,21 @@ type watchedConfig struct {
 	inFlight bool
 }
 
-type collectedConfig struct {
-	Integration string
-	Runtime     RuntimeType
-	RuntimeID   string
-	ConfigFiles []ConfigFile
-	EnvVars     []ConfigEnvVar
-}
-
 // pendingCollectedConfig holds a collected payload until its batch has been
 // sent. The watch pointer lets delivery update the originating watch while
 // rejecting results from a watch that has since been replaced.
 type pendingCollectedConfig struct {
 	watch  *watchedConfig
-	config collectedConfig
+	config CollectedConfig
 }
 
 type collectedConfigSender interface {
-	SendCollectedConfigs([]collectedConfig) error
+	SendCollectedConfigs([]CollectedConfig) error
 }
 
 type noopCollectedConfigSender struct{}
 
-func (noopCollectedConfigSender) SendCollectedConfigs([]collectedConfig) error {
+func (noopCollectedConfigSender) SendCollectedConfigs([]CollectedConfig) error {
 	return nil
 }
 
@@ -137,10 +129,13 @@ func (b *collectedConfigBatch) takeConfigs() []pendingCollectedConfig {
 	return configs
 }
 
-func collectedConfigRawBytes(config collectedConfig) int {
+func collectedConfigRawBytes(config CollectedConfig) int {
 	var size int
 	for _, file := range config.ConfigFiles {
 		size += len(file.Content)
+	}
+	for _, envVar := range config.EnvVars {
+		size += len(envVar.Name) + len(envVar.Value)
 	}
 	return size
 }
@@ -373,7 +368,7 @@ func (s *adScheduler) runCollectionWorker() {
 			case <-s.ctx.Done():
 				return false
 			default:
-				log.Warnf("failed to send collected config files batch with %d collected configs: %v", len(configs), err)
+				log.Warnf("failed to send collected config batch with %d collected configs: %v", len(configs), err)
 				s.finishSend(pendingConfigs, false)
 				return true
 			}
@@ -410,8 +405,8 @@ func (s *adScheduler) runCollectionWorker() {
 	}
 }
 
-func collectedConfigsFromPending(pendingConfigs []pendingCollectedConfig) []collectedConfig {
-	configs := make([]collectedConfig, 0, len(pendingConfigs))
+func collectedConfigsFromPending(pendingConfigs []pendingCollectedConfig) []CollectedConfig {
+	configs := make([]CollectedConfig, 0, len(pendingConfigs))
 	for _, pendingConfig := range pendingConfigs {
 		configs = append(configs, pendingConfig.config)
 	}
@@ -452,8 +447,8 @@ func (w *watchedConfig) hasDueCollection(now time.Time) bool {
 	return !w.nextCollection.IsZero() && !w.nextCollection.After(now)
 }
 
-// runCollection executes one queued config collection. Returns a pending
-// config and true when collection produces at least one config file to send.
+// runCollection executes one queued config collection. Returns a pending config
+// and true when collection produces config data to send.
 // Returns an empty config and false when there is nothing to add to the batch.
 func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfig, bool) {
 	integration, serviceID, target, ok := s.snapshotWatch(watch)
@@ -471,19 +466,19 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 	defer reader.Close()
 
 	collector := s.collectors[integration]
-	files, err := collector.Collect(s.ctx, reader)
+	collected, err := collector.Collect(s.ctx, reader)
 	if err != nil {
 		select {
 		case <-s.ctx.Done():
 			return pendingCollectedConfig{}, false
 		default:
-			log.Warnf("failed to collect config files for integration %q service %q: %v", integration, serviceID, err)
+			log.Warnf("failed to collect config data for integration %q service %q: %v", integration, serviceID, err)
 			s.finishCollectionWithError(watch)
 			return pendingCollectedConfig{}, false
 		}
 	}
 
-	if len(files) == 0 {
+	if len(collected.ConfigFiles) == 0 && len(collected.EnvVars) == 0 {
 		s.finishCollection(watch, s.clock.Now().Add(s.nextHeartbeatDelay()))
 		return pendingCollectedConfig{}, false
 	}
@@ -491,17 +486,15 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 		return pendingCollectedConfig{}, false
 	}
 
+	collected.Integration = integration
+	collected.Runtime = target.runtime
+	collected.RuntimeID = target.entityID
 	pendingConfig := pendingCollectedConfig{
-		watch: watch,
-		config: collectedConfig{
-			Integration: integration,
-			Runtime:     target.runtime,
-			RuntimeID:   target.entityID,
-			ConfigFiles: files,
-		},
+		watch:  watch,
+		config: collected,
 	}
 
-	for _, file := range files {
+	for _, file := range collected.ConfigFiles {
 		log.Debugf("config files discovery collected config file: integration %q path %q size_bytes %d truncated %t", pendingConfig.config.Integration, file.Path, len(file.Content), file.Truncated)
 	}
 	return pendingConfig, true
