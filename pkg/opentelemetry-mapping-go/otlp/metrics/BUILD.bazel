@@ -54,6 +54,7 @@ go_test(
         "histograms_test.go",
         "key_hash_cache_test.go",
         "lossless_mapper_test.go",
+        "metrics_remapping_sdk_test.go",
         "metrics_remapping_test.go",
         "metrics_translator_benchmark_test.go",
         "metrics_translator_test.go",

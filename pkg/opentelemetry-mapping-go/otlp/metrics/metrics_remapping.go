@@ -270,9 +270,8 @@ func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Cons
 		return
 	}
 	if m.Histogram().AggregationTemporality() != pmetric.AggregationTemporalityDelta {
-		// The DD SDK always emits this metric as delta. A cumulative datapoint would need to be
-		// diffed against the prior one to avoid double-counting hits/errors/duration; since we have
-		// no such state here, skip it rather than silently over-reporting.
+		// Diffing a cumulative datapoint against a stored prior value would need state we
+		// don't keep here; skip rather than double-count hits/errors/duration.
 		logger.Debug("Skipping non-delta SDK trace metric", zap.String(metricName, m.Name()))
 		return
 	}
@@ -320,27 +319,21 @@ func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer C
 		return
 	}
 	// CreateDDSketchFromHistogramOfDuration reconstructs values from bucket midpoints, so
-	// Basic.Sum/Avg only approximate the true distribution. OTLP gives us the exact count
-	// and sum, so overwrite them to keep trace.<op>.duration averages/sums accurate.
+	// Basic.Sum/Avg only approximate the distribution; overwrite with the exact OTLP count/sum.
 	agentSketch.Basic.Cnt = int64(dp.Count())
 	if dp.HasSum() {
-		scaleToNanos := getTimeUnitScaleToNanos(unit)
-		agentSketch.Basic.Sum = dp.Sum() * scaleToNanos
+		agentSketch.Basic.Sum = dp.Sum() * getTimeUnitScaleToNanos(unit)
 		if agentSketch.Basic.Cnt > 0 {
 			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
 		}
 	}
-	dims := baseDims.AddTags(sdkTagStrings(tags)...)
+	tagStrings := make([]string, 0, len(tags))
+	for _, t := range tags {
+		tagStrings = append(tagStrings, t.K+":"+t.V)
+	}
+	dims := baseDims.AddTags(tagStrings...)
 	dims.name = name
 	consumer.ConsumeSketch(ctx, dims, uint64(dp.Timestamp()), 0, agentSketch)
-}
-
-func sdkTagStrings(tags []kv) []string {
-	out := make([]string, 0, len(tags))
-	for _, t := range tags {
-		out = append(out, t.K+":"+t.V)
-	}
-	return out
 }
 
 func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.Timestamp, value float64, tags []kv) {
@@ -358,7 +351,6 @@ func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.T
 	}
 }
 
-// sdkOperationName prefers datadog.operation.name; falls back to semconv-derived operation.
 func sdkOperationName(attrs pcommon.Map) string {
 	if op := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name"); op != "" {
 		return op
@@ -370,7 +362,8 @@ func sdkOperationName(attrs pcommon.Map) string {
 	return "unknown"
 }
 
-// sdkIsError gates on status.code only; HTTP heuristics used by the SMC path don't apply here.
+// sdkIsError gates on status.code only; the HTTP-status/error.type heuristics used by the
+// SMC path don't apply to this metric.
 func sdkIsError(attrs pcommon.Map) bool {
 	switch attributes.GetOTelAttrVal(attrs, false, "status.code") {
 	case "ERROR", "STATUS_CODE_ERROR", "2":
@@ -392,18 +385,16 @@ func sdkTraceTags(attrs pcommon.Map) []kv {
 	spanKind := spanKindFromAttr(attrs)
 	tags := []kv{
 		{"resource", sdkResourceName(attrs)},
-		{"span.kind", sdkSpanKindName(spanKind)},
+		{"span.kind", strings.ToLower(spanKind.String())},
 	}
 	if status := attributes.GetStatusCode(attrs); status != 0 {
-		tags = append(tags, kv{"http.status_code", uintToStr(status)})
+		tags = append(tags, kv{"http.status_code", strconv.FormatUint(uint64(status), 10)})
 	}
-	for _, m := range []struct{ key, attr string }{
-		{"span.type", "datadog.span.type"},
-		{"origin", "datadog.origin"},
-	} {
-		if v := attributes.GetOTelAttrVal(attrs, false, m.attr); v != "" {
-			tags = append(tags, kv{m.key, v})
-		}
+	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); v != "" {
+		tags = append(tags, kv{"span.type", v})
+	}
+	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.origin"); v != "" {
+		tags = append(tags, kv{"origin", v})
 	}
 	return tags
 }
@@ -415,28 +406,19 @@ func sdkResourceName(attrs pcommon.Map) string {
 	return "unspecified"
 }
 
-// sdkSpanKindName lowercases SpanKind.String(); inlined to avoid importing pkg/trace/transform.
-func sdkSpanKindName(k ptrace.SpanKind) string {
-	return strings.ToLower(k.String())
-}
-
 func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
 	switch strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")) {
-	case "SERVER", "SPAN_KIND_SERVER":
+	case "SERVER":
 		return ptrace.SpanKindServer
-	case "CLIENT", "SPAN_KIND_CLIENT":
+	case "CLIENT":
 		return ptrace.SpanKindClient
-	case "PRODUCER", "SPAN_KIND_PRODUCER":
+	case "PRODUCER":
 		return ptrace.SpanKindProducer
-	case "CONSUMER", "SPAN_KIND_CONSUMER":
+	case "CONSUMER":
 		return ptrace.SpanKindConsumer
-	case "INTERNAL", "SPAN_KIND_INTERNAL":
+	case "INTERNAL":
 		return ptrace.SpanKindInternal
 	default:
 		return ptrace.SpanKindUnspecified
 	}
-}
-
-func uintToStr(v uint32) string {
-	return strconv.FormatUint(uint64(v), 10)
 }
