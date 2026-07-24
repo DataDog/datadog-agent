@@ -2,7 +2,7 @@
 generator: []
 
 blackhole:
-  - tcp_rr:
+  - tcp_crr:
       addr: "0.0.0.0"
       threads: 16
       flows: 64

@@ -3,7 +3,7 @@ observer:
   enable_smaps_rollup: false
 
 generator:
-  - tcp_rr:
+  - tcp_crr:
       addr: "127.0.0.1"
       threads: 16
       no_delay: true
