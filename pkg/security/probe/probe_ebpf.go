@@ -766,7 +766,6 @@ func (p *EBPFProbe) applyAllowFiltersOnRouterBuffer(allowFilters []rawpacket.Fil
 
 	seclog.Debugf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
-	// Here we always write in the inactive buffer since it's a new ruleset
 	rawPacketEventMap, routerMap, err := p.getRawPacketMaps(writeInactiveBuffer)
 	if err != nil {
 		return err
