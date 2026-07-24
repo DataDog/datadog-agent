@@ -40,85 +40,36 @@ func processNodes(n int) []*activity_tree.ProcessNode {
 	return nodes
 }
 
-// loadFromStorageRoundTrip builds a profile with the given process nodes, encodes it to the
-// security-profile protobuf format and decodes it back into a fresh profile. This mirrors
-// what ManagerV2.loadProfileFromStorage does on a workload restart: the returned profile has
-// its process nodes populated but its Stats are not yet computed (decode does not recompute
-// them), exactly like a profile freshly read from disk.
-func loadFromStorageRoundTrip(t *testing.T, image, tag string, nodes []*activity_tree.ProcessNode) *Profile {
-	t.Helper()
+// TestProfile_DisabledStateIsPersisted verifies the disabled state round-trips through the
+// SecurityProfile protobuf: a profile disabled before encoding decodes back as disabled, and an
+// enabled one decodes back as enabled. This is what lets a max-size-disabled workload reload as
+// disabled instead of coming back enabled and re-learning.
+func TestProfile_DisabledStateIsPersisted(t *testing.T) {
+	selector := cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}
 
-	selector := cgroupModel.WorkloadSelector{Image: image, Tag: tag}
-	src := New(WithWorkloadSelector(selector))
-	src.ActivityTree.ProcessNodes = nodes
-	src.ActivityTree.ComputeActivityTreeStats()
+	t.Run("disabled survives encode/decode", func(t *testing.T) {
+		src := New(WithWorkloadSelector(selector))
+		src.Disable()
+		require.False(t, src.IsEnabled())
 
-	buf, err := src.Encode(config.Profile)
-	require.NoError(t, err)
+		buf, err := src.Encode(config.Profile)
+		require.NoError(t, err)
 
-	loaded := New(WithWorkloadSelector(selector))
-	require.NoError(t, loaded.DecodeFromReader(buf, config.Profile))
-	return loaded
-}
-
-// TestProfile_SelfHealsAfterLoad covers the safeguard that lets the agent re-disable a
-// workload that was already over the max dump size before a restart, without persisting any
-// "disabled" state in the profile. The profile is reloaded from storage, its in-memory size
-// is recomputed, and the size check disables it again. This is the behaviour we rely on
-// instead of serializing the enabled flag into the protobuf schema.
-func TestProfile_SelfHealsAfterLoad(t *testing.T) {
-	// recompute is load-bearing: straight after decode the tree has nodes but its stats are
-	// zero, so the size check reads 0. loadProfileFromStorage MUST call ComputeActivityTreeStats
-	// for the safeguard to see the real footprint — if it ever stops, an over-limit profile
-	// would silently come back enabled after a restart.
-	t.Run("size is invisible until stats are recomputed", func(t *testing.T) {
-		loaded := loadFromStorageRoundTrip(t, "img", "v1", processNodes(128))
-		require.False(t, loaded.ActivityTree.IsEmpty(), "decode should restore the process nodes")
-		require.Equal(t, int64(0), loaded.ComputeHeapSize(),
-			"before recompute the size check is blind to the loaded tree")
-
-		loaded.ActivityTree.ComputeActivityTreeStats()
-		require.Greater(t, loaded.ComputeHeapSize(), int64(0),
-			"recompute must surface the loaded tree's footprint")
+		loaded := New(WithWorkloadSelector(selector))
+		require.NoError(t, loaded.DecodeFromReader(buf, config.Profile))
+		assert.False(t, loaded.IsEnabled(), "a disabled profile must decode as disabled")
 	})
 
-	// An over-limit profile reloaded from storage is disabled by the size check and its tree
-	// is dropped, so the workload stops counting against RAM again — same outcome as before
-	// the restart.
-	t.Run("over-limit profile is disabled and freed", func(t *testing.T) {
-		loaded := loadFromStorageRoundTrip(t, "img", "v1", processNodes(128))
-		loaded.ActivityTree.ComputeActivityTreeStats()
+	t.Run("enabled survives encode/decode", func(t *testing.T) {
+		src := New(WithWorkloadSelector(selector))
+		require.True(t, src.IsEnabled())
 
-		size := loaded.ComputeHeapSize()
-		require.Greater(t, size, int64(0))
-		maxSize := size - 1 // profile sits above the limit
+		buf, err := src.Encode(config.Profile)
+		require.NoError(t, err)
 
-		require.True(t, loaded.IsEnabled())
-		// Mirrors the check in ManagerV2.insertEventIntoProfile.
-		if loaded.ComputeHeapSize() >= maxSize {
-			loaded.Disable()
-		}
-
-		assert.False(t, loaded.IsEnabled(), "an over-limit reloaded profile must be disabled")
-		assert.True(t, loaded.ActivityTree.IsEmpty(), "disabling must drop the activity tree")
-		assert.Equal(t, int64(0), loaded.ComputeHeapSize(), "disabling must free the tracked size")
-	})
-
-	// A profile that loads back under the limit keeps running and keeps its tree.
-	t.Run("under-limit profile stays enabled", func(t *testing.T) {
-		loaded := loadFromStorageRoundTrip(t, "img", "v1", processNodes(1))
-		loaded.ActivityTree.ComputeActivityTreeStats()
-
-		size := loaded.ComputeHeapSize()
-		require.Greater(t, size, int64(0))
-		maxSize := size * 1000 // far above the loaded footprint
-
-		if loaded.ComputeHeapSize() >= maxSize {
-			loaded.Disable()
-		}
-
-		assert.True(t, loaded.IsEnabled(), "an under-limit reloaded profile must stay enabled")
-		assert.False(t, loaded.ActivityTree.IsEmpty(), "an enabled profile must keep its tree")
+		loaded := New(WithWorkloadSelector(selector))
+		require.NoError(t, loaded.DecodeFromReader(buf, config.Profile))
+		assert.True(t, loaded.IsEnabled(), "an enabled profile must decode as enabled")
 	})
 }
 
