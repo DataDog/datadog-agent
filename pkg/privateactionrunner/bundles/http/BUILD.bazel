@@ -12,6 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/http",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/fips",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/tmpl",
