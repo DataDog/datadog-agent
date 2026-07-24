@@ -12,7 +12,7 @@ import os
 import re
 import sys
 from enum import Enum
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Generic, NamedTuple, TypeVar
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -72,6 +72,13 @@ class KubernetesRelease:
         if self.semver.prerelease and self.semver.prerelease.startswith("rc"):
             self.release_type = ReleaseType.RC
 
+    @classmethod
+    def from_dict(cls, data) -> KubernetesRelease:
+        tag = data.get('tag')
+        if not tag:
+            raise Exit(f"KubernetesRelease.from_dict: 'tag' is required (got {data!r})", code=1)
+        return cls(tag)
+
     def as_dict(self):
         return {'tag': self.tag, 'rc': self.release_type == ReleaseType.RC}
 
@@ -114,13 +121,16 @@ class KindKubernetesImage(KubernetesRelease):
         return tmp
 
 
+_KVT = TypeVar('_KVT', KubernetesRelease, KindKubernetesImage)
+
+
 # KubernetesVersions is a collection of either KubernetesReleases or KindKubernetesImages.
-class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
+class KubernetesVersions(Generic[_KVT]):
     def __init__(self):
-        self.versions: list[T] = []
+        self.versions: list[_KVT] = []
 
     @classmethod
-    def from_dict(cls, data, *, type_: type[T]) -> KubernetesVersions[T]:
+    def from_dict(cls, data, *, type_: type[_KVT]) -> KubernetesVersions[_KVT]:
         versions = cls()
         for _, version in data.items():
             kv = type_.from_dict(version)
@@ -139,7 +149,7 @@ class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
     def __iter__(self):
         return iter(self.versions)
 
-    def add(self, version: T):
+    def add(self, version: _KVT):
         """Add a version. If a version with the same tag already exists, replace it."""
         for i, existing in enumerate(self.versions):
             if existing.tag == version.tag:
@@ -147,7 +157,7 @@ class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
                 return
         self.versions.append(version)
 
-    def latest(self, release_type: ReleaseType) -> T | None:
+    def latest(self, release_type: ReleaseType) -> _KVT | None:
         filtered = [r for r in self.versions if r.release_type == release_type]
         if filtered:
             return max(filtered, key=lambda x: x.semver)
