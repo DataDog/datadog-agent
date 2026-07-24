@@ -166,16 +166,18 @@ func ReleaseInstance(ctx context.Context, region, profile string, instanceID str
 	}
 
 	key := leasePrefix + instanceID
-	var imageID string
-	if getOut, getErr := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)}); getErr == nil {
-		var current leaseRecord
-		if json.NewDecoder(getOut.Body).Decode(&current) == nil {
-			imageID = current.ImageID
-		}
-		getOut.Body.Close()
+	getOut, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
+	if err != nil {
+		return fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
+	}
+	var current leaseRecord
+	decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
+	getOut.Body.Close()
+	if decodeErr != nil {
+		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
 	}
 
-	body, err := json.Marshal(leaseRecord{Status: "idle", ImageID: imageID})
+	body, err := json.Marshal(leaseRecord{Status: "idle", ImageID: current.ImageID})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
 	}
@@ -246,8 +248,9 @@ func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, 
 
 // BuildReleaseScript returns a shell script that reverts instanceID's root volume to
 // imageID's snapshot, then releases the lease at leasePrefix+instanceID conditioned on
-// leaseToken. If imageID is empty, the root-volume replacement is skipped and the
-// lease is released directly.
+// leaseToken. If imageID is empty, or no longer resolves to an existing AMI/snapshot,
+// the root-volume replacement is skipped, IMAGE_ID is cleared to "" before it's written
+// back to the lease, and the lease is released directly.
 //
 // This runs as a Pulumi local.Command's Delete handler, since `pulumi destroy` never
 // re-invokes the Go provisioner program.
@@ -262,22 +265,28 @@ LEASE_KEY=%q
 if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
   echo "no baseline image published for instance ${INSTANCE_ID}, skipping root volume replacement" >&2
 else
-  SNAPSHOT_ID=$(aws ec2 describe-images --image-ids "$IMAGE_ID" \
-    --query 'Images[0].BlockDeviceMappings[0].Ebs.SnapshotId' --output text)
+  if ! SNAPSHOT_ID=$(aws ec2 describe-images --image-ids "$IMAGE_ID" \
+    --query 'Images[0].BlockDeviceMappings[0].Ebs.SnapshotId' --output text 2>&1); then
+    echo "error: baseline image ${IMAGE_ID} for instance ${INSTANCE_ID} could not be described (${SNAPSHOT_ID}), skipping root volume replacement" >&2
+    IMAGE_ID=""
+  elif [ -z "$SNAPSHOT_ID" ] || [ "$SNAPSHOT_ID" = "None" ]; then
+    echo "error: baseline image ${IMAGE_ID} for instance ${INSTANCE_ID} has no snapshot, skipping root volume replacement" >&2
+    IMAGE_ID=""
+  else
+    TASK_ID=$(aws ec2 create-replace-root-volume-task \
+      --instance-id "$INSTANCE_ID" --snapshot-id "$SNAPSHOT_ID" \
+      --query 'ReplaceRootVolumeTask.ReplaceRootVolumeTaskId' --output text)
 
-  TASK_ID=$(aws ec2 create-replace-root-volume-task \
-    --instance-id "$INSTANCE_ID" --snapshot-id "$SNAPSHOT_ID" \
-    --query 'ReplaceRootVolumeTask.ReplaceRootVolumeTaskId' --output text)
-
-  for i in $(seq 1 60); do
-    STATE=$(aws ec2 describe-replace-root-volume-tasks --replace-root-volume-task-ids "$TASK_ID" \
-      --query 'ReplaceRootVolumeTasks[0].TaskState' --output text)
-    case "$STATE" in
-      succeeded) break ;;
-      failed|failing) echo "replace-root-volume-task ${TASK_ID} ended in state ${STATE}" >&2; exit 1 ;;
-      *) sleep 10 ;;
-    esac
-  done
+    for i in $(seq 1 60); do
+      STATE=$(aws ec2 describe-replace-root-volume-tasks --replace-root-volume-task-ids "$TASK_ID" \
+        --query 'ReplaceRootVolumeTasks[0].TaskState' --output text)
+      case "$STATE" in
+        succeeded) break ;;
+        failed|failing) echo "replace-root-volume-task ${TASK_ID} ended in state ${STATE}" >&2; exit 1 ;;
+        *) sleep 10 ;;
+      esac
+    done
+  fi
 fi
 
 BODY=$(printf '{"status":"idle","imageId":"%%s"}' "$IMAGE_ID")
