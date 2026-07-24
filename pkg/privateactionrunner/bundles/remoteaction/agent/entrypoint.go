@@ -24,6 +24,7 @@ func NewAgent(client ipc.HTTPClient) types.Bundle {
 			"getDiagnose":          NewGetDiagnoseHandler(client),
 			"getConfig":            NewGetConfigHandler(client),
 			"getRemoteConfigState": NewGetRemoteConfigStateHandler(client),
+			"generateFlare":        NewGenerateFlareHandler(client),
 		},
 	}
 }
