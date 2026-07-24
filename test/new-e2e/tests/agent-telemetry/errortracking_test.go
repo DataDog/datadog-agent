@@ -124,6 +124,22 @@ var commitSHARe = regexp.MustCompile(`git\.commit\.sha:[0-9a-f]{40}`)
 func (s *errorTrackingSuite) TestPayloadShape() {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
+	// system-probe's network_path.collector.filters error is a startup-only
+	// trigger fired once by npcollector's newConfig — unlike the other three
+	// binaries' errors, which recur (checks and submission retries keep
+	// firing, so even if an earlier delivery is flushed away, a fresh one
+	// arrives within the wait below). BeforeTest already reset to the
+	// suite's original (enabled) provisioner before this method ran, which
+	// may have restarted system-probe and delivered its one-shot error
+	// BEFORE the flush above wiped it, leaving nothing left to fire again.
+	// Explicitly re-provisioning here, AFTER the flush, guarantees system-probe
+	// restarts and its one-shot error survives to be queried below.
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(errorTrackingAgentOptions(errorTrackingEnabledConfig)...),
+		),
+	))
+
 	var pythonLogs, coreLogs, processLogs, securityLogs, systemProbeLogs []*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
