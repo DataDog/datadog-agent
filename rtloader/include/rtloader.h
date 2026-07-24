@@ -522,6 +522,15 @@ public:
     */
     virtual void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t) = 0;
 
+    //! setEmitAgentTelemetryWithLabelsCb member.
+    /*!
+      \param A cb_emit_agent_telemetry_with_labels_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow emitting a labeled metric for
+      specific check instances.
+    */
+    virtual void setEmitAgentTelemetryWithLabelsCb(cb_emit_agent_telemetry_with_labels_t) = 0;
+
     //! setReportIssueCb member.
     /*!
       \param A cb_report_issue_t function pointer to the CGO callback.

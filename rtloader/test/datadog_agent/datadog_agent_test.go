@@ -732,6 +732,8 @@ func TestObfuscateMongoDBString(t *testing.T) {
 func TestEmitAgentTelemetry(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
+	emitAgentTelemetryCalls = 0
+	emitAgentTelemetryWithLabelsCalls = 0
 
 	cases := []string{"counter", "histogram", "gauge"}
 	for _, tc := range cases {
@@ -743,9 +745,97 @@ func TestEmitAgentTelemetry(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	requireEqual(t, 3, emitAgentTelemetryCalls)
+	requireEqual(t, 0, emitAgentTelemetryWithLabelsCalls)
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
+}
+
+func TestEmitAgentTelemetryWithLabels(t *testing.T) {
+	helpers.ResetMemoryStats()
+	emitAgentTelemetryCalls = 0
+	emitAgentTelemetryWithLabelsCalls = 0
+
+	cases := []string{"counter", "histogram", "gauge"}
+	for _, tc := range cases {
+		code := fmt.Sprintf(`
+	datadog_agent.emit_agent_telemetry_with_labels(
+			"test_check",
+			"test_metric",
+			1.0,
+			"%s",
+			{"state": "limited", "check_name": "openmetrics"},
+		)
+		`, tc)
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out != "" {
+			t.Fatalf("expected no output, got %q", out)
+		}
+	}
+	requireEqual(t, 0, emitAgentTelemetryCalls)
+	requireEqual(t, 3, emitAgentTelemetryWithLabelsCalls)
+
+	badInputs := []struct {
+		name      string
+		call      string
+		expected  string
+		callCount int
+	}{
+		{
+			name:     "non-mapping labels",
+			call:     `datadog_agent.emit_agent_telemetry_with_labels("test_check", "test_metric", 1.0, "gauge", [("check_name", "openmetrics")])`,
+			expected: "TypeError",
+		},
+		{
+			name:     "non-string key",
+			call:     `datadog_agent.emit_agent_telemetry_with_labels("test_check", "test_metric", 1.0, "gauge", {1: "openmetrics"})`,
+			expected: "TypeError",
+		},
+		{
+			name:     "non-string value",
+			call:     `datadog_agent.emit_agent_telemetry_with_labels("test_check", "test_metric", 1.0, "gauge", {"check_name": 1})`,
+			expected: "TypeError",
+		},
+		{
+			name:     "serialization failure",
+			call:     `datadog_agent.emit_agent_telemetry_with_labels("test_check", "test_metric", 1.0, "gauge", {"check_name": b"openmetrics"})`,
+			expected: "TypeError",
+		},
+		{
+			name:      "callback failure",
+			call:      `datadog_agent.emit_agent_telemetry_with_labels("error_check", "test_metric", 1.0, "gauge", {"state": "limited", "check_name": "openmetrics"})`,
+			expected:  "RuntimeError: stub labeled telemetry failure",
+			callCount: 1,
+		},
+	}
+	for _, testCase := range badInputs {
+		t.Run(testCase.name, func(t *testing.T) {
+			emitAgentTelemetryCalls = 0
+			emitAgentTelemetryWithLabelsCalls = 0
+			out, err := run(testCase.call)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out, testCase.expected) {
+				t.Fatalf("expected %q in output, got %q", testCase.expected, out)
+			}
+			requireEqual(t, 0, emitAgentTelemetryCalls)
+			requireEqual(t, testCase.callCount, emitAgentTelemetryWithLabelsCalls)
+		})
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func requireEqual(t *testing.T, expected int, actual int) {
+	t.Helper()
+	if expected != actual {
+		t.Fatalf("expected %d, got %d", expected, actual)
+	}
 }
 
 func TestReportIssue(t *testing.T) {

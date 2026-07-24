@@ -16,10 +16,12 @@ import (
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v2"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -94,6 +96,8 @@ func testSetExternalTags(t *testing.T) {
 }
 
 func testEmitAgentTelemetry(t *testing.T) {
+	resetAgentTelemetryForTest()
+
 	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
 
 	// Test second time for laziness check
@@ -125,7 +129,101 @@ func testEmitAgentTelemetry(t *testing.T) {
 	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("counter"))
 	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("gauge"))
 
-	assert.True(t, true)
+	mf := requireTelemetryFamily(t, "test_check__test_metric")
+	require.Len(t, mf.Metric, 1)
+	assert.Empty(t, mf.Metric[0].GetLabel())
+	assert.Equal(t, 1.0, mf.Metric[0].GetGauge().GetValue())
+}
+
+func resetAgentTelemetryForTest() {
+	telemetryLock.Lock()
+	telemetryMap = map[agentTelemetryMetricKey]*agentTelemetryMetric{}
+	telemetryLock.Unlock()
+	telemetryimpl.GetCompatComponent().Reset()
+}
+
+func callEmitAgentTelemetryWithLabels(checkName string, metricName string, metricValue float64, metricType string, labelsJSON string) string {
+	var errOut *C.char
+	EmitAgentTelemetryWithLabels(C.CString(checkName), C.CString(metricName), C.double(metricValue), C.CString(metricType), C.CString(labelsJSON), &errOut)
+	if errOut == nil {
+		return ""
+	}
+	return C.GoString(errOut)
+}
+
+func requireTelemetryFamily(t *testing.T, name string) *dto.MetricFamily {
+	t.Helper()
+	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() == name {
+			return family
+		}
+	}
+	t.Fatalf("metric family %s not found", name)
+	return nil
+}
+
+func metricLabels(metricIndex int, family *dto.MetricFamily) map[string]string {
+	labels := map[string]string{}
+	for _, label := range family.Metric[metricIndex].GetLabel() {
+		labels[label.GetName()] = label.GetValue()
+	}
+	return labels
+}
+
+func testAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t *testing.T) {
+	resetAgentTelemetryForTest()
+
+	leftKey := newAgentTelemetryMetricKey("a.b", "c")
+	rightKey := newAgentTelemetryMetricKey("a", "b.c")
+	telemetryMap[leftKey] = &agentTelemetryMetric{
+		metric:     "left-value",
+		metricType: "counter",
+		labelNames: []string{"check_name"},
+	}
+	telemetryMap[rightKey] = &agentTelemetryMetric{
+		metric:     "right-value",
+		metricType: "gauge",
+		labelNames: []string{"state"},
+	}
+
+	require.Len(t, telemetryMap, 2)
+	assert.Equal(t, "counter", telemetryMap[leftKey].metricType)
+	assert.Equal(t, []string{"check_name"}, telemetryMap[leftKey].labelNames)
+	assert.Equal(t, "left-value", telemetryMap[leftKey].metric)
+	assert.Equal(t, "gauge", telemetryMap[rightKey].metricType)
+	assert.Equal(t, []string{"state"}, telemetryMap[rightKey].labelNames)
+	assert.Equal(t, "right-value", telemetryMap[rightKey].metric)
+}
+
+func testEmitAgentTelemetryWithLabels(t *testing.T) {
+	resetAgentTelemetryForTest()
+
+	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 1, "counter", `{"check_name":"openmetrics","state":"limited"}`))
+	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 2, "counter", `{"state":"limited","check_name":"openmetrics"}`))
+	counterFamily := requireTelemetryFamily(t, "test_check__test_counter")
+	require.Len(t, counterFamily.Metric, 1)
+	assert.Equal(t, map[string]string{"check_name": "openmetrics", "state": "limited"}, metricLabels(0, counterFamily))
+	assert.Equal(t, 3.0, counterFamily.Metric[0].GetCounter().GetValue())
+
+	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_gauge", 7, "gauge", `{"check_name":"openmetrics"}`))
+	gaugeFamily := requireTelemetryFamily(t, "test_check__test_gauge")
+	require.Len(t, gaugeFamily.Metric, 1)
+	assert.Equal(t, map[string]string{"check_name": "openmetrics"}, metricLabels(0, gaugeFamily))
+	assert.Equal(t, 7.0, gaugeFamily.Metric[0].GetGauge().GetValue())
+
+	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_histogram", 25, "histogram", `{"check_name":"openmetrics"}`))
+	histogramFamily := requireTelemetryFamily(t, "test_check__test_histogram")
+	require.Len(t, histogramFamily.Metric, 1)
+	assert.Equal(t, map[string]string{"check_name": "openmetrics"}, metricLabels(0, histogramFamily))
+	assert.Equal(t, uint64(1), histogramFamily.Metric[0].GetHistogram().GetSampleCount())
+
+	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "bad_json", 1, "counter", `{bad`), "invalid labels JSON")
+	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "bad_labels", 1, "counter", `{"check_name":1}`), "invalid labels JSON")
+	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 1, "counter", `{"check_name":"openmetrics"}`), "already emitted with labels")
+	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 1, "gauge", `{"state":"limited","check_name":"openmetrics"}`), "already emitted as counter")
+	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "invalid_type", 1, "rate", `{"check_name":"openmetrics"}`), "unsupported metric type")
 }
 
 func testObfuscaterConfig(t *testing.T) {

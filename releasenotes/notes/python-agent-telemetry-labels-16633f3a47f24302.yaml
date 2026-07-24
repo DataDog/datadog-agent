@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Allow Python integrations to emit labeled Agent telemetry data.

@@ -27,6 +27,7 @@ static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
+static cb_emit_agent_telemetry_with_labels_t cb_emit_agent_telemetry_with_labels = NULL;
 static cb_report_issue_t cb_report_issue = NULL;
 static cb_resolve_issue_t cb_resolve_issue = NULL;
 
@@ -49,6 +50,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *emit_agent_telemetry_with_labels(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs);
 
@@ -71,6 +73,7 @@ static PyMethodDef methods[] = {
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
+    { "emit_agent_telemetry_with_labels", (PyCFunction)emit_agent_telemetry_with_labels, METH_VARARGS|METH_KEYWORDS, "Emit labeled agent telemetry." },
     { "report_issue", (PyCFunction)report_issue, METH_VARARGS|METH_KEYWORDS, "Report a health platform issue." },
     { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS|METH_KEYWORDS, "Resolve a health platform issue by issue id." },
     { NULL, NULL } // guards
@@ -164,6 +167,10 @@ void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
 
 void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
     cb_emit_agent_telemetry = cb;
+}
+
+void _set_emit_agent_telemetry_with_labels_cb(cb_emit_agent_telemetry_with_labels_t cb) {
+    cb_emit_agent_telemetry_with_labels = cb;
 }
 
 void _set_report_issue_cb(cb_report_issue_t cb)
@@ -980,6 +987,106 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
 
     PyGILState_Release(gstate);
 
+    Py_RETURN_NONE;
+}
+
+static int validate_string_mapping(PyObject *mapping)
+{
+    if (!PyMapping_Check(mapping) || !PyObject_HasAttrString(mapping, "items")) {
+        PyErr_SetString(PyExc_TypeError, "labels must be a mapping of string keys to string values");
+        return 0;
+    }
+
+    PyObject *items = PyMapping_Items(mapping);
+    if (items == NULL) {
+        return 0;
+    }
+
+    Py_ssize_t size = PySequence_Size(items);
+    if (size < 0) {
+        Py_DECREF(items);
+        return 0;
+    }
+
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *item = PySequence_GetItem(items, i);
+        if (item == NULL) {
+            Py_DECREF(items);
+            return 0;
+        }
+
+        if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
+            Py_DECREF(item);
+            Py_DECREF(items);
+            PyErr_SetString(PyExc_TypeError, "labels must be a mapping of string keys to string values");
+            return 0;
+        }
+
+        PyObject *key = PyTuple_GetItem(item, 0);
+        PyObject *value = PyTuple_GetItem(item, 1);
+        if (!(PyUnicode_Check(key) || PyBytes_Check(key)) || !(PyUnicode_Check(value) || PyBytes_Check(value))) {
+            Py_DECREF(item);
+            Py_DECREF(items);
+            PyErr_SetString(PyExc_TypeError, "labels must be a mapping of string keys to string values");
+            return 0;
+        }
+
+        Py_DECREF(item);
+    }
+
+    Py_DECREF(items);
+    return 1;
+}
+
+/*! \fn PyObject *emit_agent_telemetry_with_labels(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.emit_agent_telemetry_with_labels` method, emitting labeled agent telemetry
+    for the provided check, metric, value, type, and labels mapping.
+*/
+static PyObject *emit_agent_telemetry_with_labels(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_emit_agent_telemetry_with_labels == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *check_name = NULL;
+    char *metric_name = NULL;
+    double metric_value;
+    char *metric_type = NULL;
+    PyObject *labels = NULL;
+    if (!PyArg_ParseTuple(args, "ssdsO", &check_name, &metric_name, &metric_value, &metric_type, &labels)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    if (!validate_string_mapping(labels)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *labels_json = as_json(labels);
+    if (labels_json == NULL) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *err = NULL;
+    cb_emit_agent_telemetry_with_labels(check_name, metric_name, metric_value, metric_type, labels_json, &err);
+
+    int has_err = err != NULL;
+    if (has_err) {
+        PyErr_SetString(PyExc_RuntimeError, err);
+    }
+
+    _free(labels_json);
+    cgo_free(err);
+    PyGILState_Release(gstate);
+
+    if (has_err) {
+        return NULL;
+    }
     Py_RETURN_NONE;
 }
 

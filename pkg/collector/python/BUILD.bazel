@@ -166,6 +166,7 @@ go_library(
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_mohae_deepcopy//:deepcopy",
+        "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
