@@ -66,6 +66,7 @@ dd_agent_go_test(
         "@com_github_open_telemetry_opentelemetry_collector_contrib_connector_spanmetricsconnector//:spanmetricsconnector",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension//:healthcheckextension",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_pprofextension//:pprofextension",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor//:cumulativetodeltaprocessor",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_transformprocessor//:transformprocessor",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver//:prometheusreceiver",
         "@com_github_stretchr_testify//assert",

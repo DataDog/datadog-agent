@@ -22,6 +22,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.157.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.157.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.157.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.157.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.157.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.157.0
 	github.com/stretchr/testify v1.11.1
