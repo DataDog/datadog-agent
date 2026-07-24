@@ -145,9 +145,16 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 //     because the user has already chosen a different wrapper for go_test
 //     (e.g. rtloader_go_test that sets up dlopen runfiles) and dd_agent_go_test
 //     doesn't compose with such wrappers.
+//   - dd_linux_bpf is enabled for this package: linux_bpf is not a flavor, and
+//     the two are mutually exclusive, so this wins over an explicit local "on"
+//     directive. A package that wants dd_agent_go_test back must turn
+//     dd_linux_bpf off for itself instead.
 func shouldReplace(c *config.Config) bool {
 	cfg, ok := c.Exts[extName].(ddAgentGoTestConfig)
 	if !ok || !cfg.enabled {
+		return false
+	}
+	if linuxBPFEnabled(c) {
 		return false
 	}
 	if _, mapped := c.KindMap["go_test"]; mapped {
@@ -274,6 +281,7 @@ func (l *lang) revertDdAgentGoTests(result language.GenerateResult, file *rule.F
 		}
 		r.DelAttr("flavors")
 		r.SetKind("go_test")
+		addStringToListIfMissing(r, "gotags", "test")
 	}
 	return result
 }

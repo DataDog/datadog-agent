@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_linux_bpf on
+
 go_library(
     name = "procnet",
     srcs = [
@@ -7,6 +9,7 @@ go_library(
         "procnet.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/procnet",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/kernel",
@@ -21,7 +24,11 @@ go_test(
         "procnet_test.go",
     ],
     embed = [":procnet"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//assert",

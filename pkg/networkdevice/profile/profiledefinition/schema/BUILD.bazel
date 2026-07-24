@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "schema",
@@ -16,7 +17,12 @@ go_library(
     ],
 )
 
-go_test(
+filegroup(
+    name = "testcases",
+    srcs = glob(["testcases/**"]),
+)
+
+dd_agent_go_test(
     name = "schema_test",
     srcs = [
         "generate_test.go",
@@ -24,15 +30,9 @@ go_test(
     ],
     data = [":testcases"],
     embed = [":schema"],
-    gotags = ["test"],
     deps = [
         "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
-)
-
-filegroup(
-    name = "testcases",
-    srcs = glob(["testcases/**"]),
 )

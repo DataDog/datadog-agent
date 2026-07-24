@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "setup",
@@ -26,11 +27,10 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "setup_test",
     srcs = ["setup_windows_test.go"],
     embed = [":setup"],
-    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [

@@ -33,6 +33,7 @@ func TestRequiresLinuxBPF(t *testing.T) {
 		{"//go:build linux_bpf", true},
 		{"//go:build linux_bpf && linux", true},
 		{"//go:build linux && linux_bpf", true},
+		{"//go:build linux_bpf && test", true},
 		{"//go:build !linux_bpf", false},
 		{"//go:build linux", false},
 		{"//go:build windows", false},

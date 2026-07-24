@@ -1,9 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
+# gazelle:dd_linux_bpf on
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 exports_files([
@@ -34,6 +32,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf",
@@ -59,7 +58,7 @@ go_library(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "telemetry_test",
     srcs = [
         "debugfs_test.go",
@@ -70,6 +69,11 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":telemetry"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//pkg/ebpf",

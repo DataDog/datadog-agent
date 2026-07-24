@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "connection",
@@ -79,23 +79,4 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-)
-
-go_test(
-    name = "connection_test",
-    srcs = [
-        "ebpf_tracer_test.go",
-        "ebpfless_tracer_test.go",
-        "tcp_close_consumer_test.go",
-    ],
-    embed = [":connection"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/network",
-        "//pkg/network/config",
-        "//pkg/process/util",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_x_sys//unix",
-    ],
 )

@@ -1,6 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
+# gazelle:dd_linux_bpf on
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 exports_files([
@@ -45,6 +46,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf",
@@ -144,7 +146,11 @@ go_test(
         "types_linux_test.go",
     ],
     embed = [":http"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network/config",

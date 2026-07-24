@@ -4,8 +4,6 @@ load("//pkg/config/schema:template.bzl", "schema_template_config")
 
 package(default_visibility = ["//visibility:public"])
 
-# gazelle:dd_agent_go_test on
-
 # Target OS for the rendered config. The legacy `render_config` Go binary
 # used `runtime.GOOS` of the build host; the schema-template equivalent
 # is a Bazel `select()` on `@platforms//os` so cross-platform builds

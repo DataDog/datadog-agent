@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_linux_bpf on
+
 go_library(
     name = "postgres",
     srcs = [
@@ -14,6 +16,7 @@ go_library(
         "testutils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf",
@@ -67,7 +70,11 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":postgres"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/config",
         "//pkg/network/protocols/postgres/ebpf",

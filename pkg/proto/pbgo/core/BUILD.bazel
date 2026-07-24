@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
@@ -95,10 +96,9 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "core_test",
     srcs = ["remoteconfig_gen_test.go"],
     embed = [":core"],
-    gotags = ["test"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

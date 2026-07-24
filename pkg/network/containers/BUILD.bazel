@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_linux_bpf on
+
 go_library(
     name = "containers",
     srcs = [
@@ -7,6 +9,7 @@ go_library(
         "container_store_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/containers",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -56,6 +59,7 @@ go_test(
         "test",
         "linux_bpf",
     ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/network",

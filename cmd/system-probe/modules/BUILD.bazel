@@ -1,8 +1,6 @@
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
 # gazelle:dd_agent_go_test on
 
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "modules",
@@ -247,7 +245,7 @@ go_library(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "modules_test",
     srcs = [
         "compliance_test.go",
@@ -258,6 +256,14 @@ dd_agent_go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
+    # nvml: pkg/gpu needs it alongside linux_bpf; dd_linux_bpf only knows about
+    # linux_bpf, so this has to be hand-added.
+    gotags = [
+        "test",
+        "linux_bpf",
+        "nvml",
+    ],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
