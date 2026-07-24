@@ -6,7 +6,7 @@
 package com_datadoghq_remoteaction_pcap
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
