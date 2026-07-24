@@ -1,22 +1,35 @@
 """Set a binary's rpath to the provided value."""
 
-load("@bazel_lib//lib:paths.bzl", "relative_file")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
 _RPATH_REWRITER_TOOLCHAIN = "//bazel/toolchains/rpath_rewriter"
 
-def _relative_rpath(destination, rpath):
-    """Returns the rpath relative to destination's containing directory."""
-    destination_dir = paths.dirname(destination)
+def _path_segments(path):
+    """Returns normalized path segments, ignoring the leading slash."""
+    return [segment for segment in paths.normalize(path).split("/") if segment]
 
-    if not (paths.is_absolute(rpath) and paths.is_absolute(destination_dir)):
-        fail("Cannot compute relative rpath between '{}' and '{}', they both must be absolute paths".format(destination_dir, rpath))
+def _relative_dir(to_dir, from_dir):
+    """Returns the relative path from from_dir to to_dir."""
+    if not (paths.is_absolute(to_dir) and paths.is_absolute(from_dir)):
+        fail("Cannot compute relative path between '{}' and '{}', they both must be absolute paths".format(from_dir, to_dir))
 
-    # bazel_lib's relative_file assumes files; append a dummy filename to both
-    # directories, then remove it from the computed file-relative path.
-    relative = paths.dirname(relative_file(paths.join(rpath, "_"), paths.join(destination_dir, "_")))
-    return "./" + paths.normalize(relative)
+    to_segments = _path_segments(to_dir)
+    from_segments = _path_segments(from_dir)
+
+    common_segments = 0
+    for i in range(min(len(to_segments), len(from_segments))):
+        if to_segments[i] != from_segments[i]:
+            break
+        common_segments += 1
+
+    relative = [".."] * (len(from_segments) - common_segments) + to_segments[common_segments:]
+    return "/".join(relative) if relative else "."
+
+def _relative_rpath(input, rpath):
+    """Returns the appropriate relative rpath from the input to the given rpath."""
+    from_dir = input.destination if input.target.is_directory else paths.dirname(input.destination)
+    return "./" + _relative_dir(rpath, from_dir)
 
 def rewrite_rpaths(ctx, inputs, rpath, relative = False):
     """Creates actions to apply an rpath rewriter to files and TreeArtifacts.
@@ -62,7 +75,7 @@ def rewrite_rpaths(ctx, inputs, rpath, relative = False):
         else:
             output = ctx.actions.declare_file("patched/" + target.basename)
 
-        resolved_rpath = _relative_rpath(input.destination, rpath) if relative else rpath
+        resolved_rpath = _relative_rpath(input, rpath) if relative else rpath
 
         args = ctx.actions.args()
         args.add(target.path)
