@@ -29,6 +29,8 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -74,6 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -193,6 +196,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fxinstrumentation.Module(),
 				fx.Supply(configstreamconsumer.NewParams("security-agent", params.ConfigFilePaths[0])),
 				configstreamconsumerfx.Module(),
+				agenttelemetryfx.Module(),
+				// Forces construction of the agenttelemetry component, since fx
+				// only builds a provided type if something depends on it, and
+				// nothing else in this graph does.
+				fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 			)
 		},
 	}

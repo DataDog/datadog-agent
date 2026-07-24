@@ -14,6 +14,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryimpl "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -34,7 +35,7 @@ func Module() fxutil.Module {
 // installErrortrackingHandler is a no-op when errortracking is disabled.
 // Registers synchronously (not via OnStart) so construction-time errors
 // (e.g. npcollector's) logged before app.Start() aren't dropped.
-func installErrortrackingHandler(cfg config.Component, at agenttelemetry.Component) {
+func installErrortrackingHandler(cfg config.Component, at agenttelemetry.Component, logComp log.Component) {
 	if !configUtils.IsErrorTrackingEnabled(cfg) {
 		return
 	}
@@ -48,4 +49,6 @@ func installErrortrackingHandler(cfg config.Component, at agenttelemetry.Compone
 
 	pkglogsetup.RegisterErrortrackingSubmitter(submitter)
 	pkglogsetup.RegisterErrortrackingBouncer(bouncer)
+	// TEMPORARY diagnostic for investigating https://github.com/DataDog/datadog-agent CI failure; remove before merge.
+	logComp.Warnf("errortracking: submitter and bouncer registered (diagnostic)")
 }

@@ -514,6 +514,10 @@ func (s *senderImpl) sendPayloadBytes(ctx context.Context, reqBodyRaw []byte, re
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
 		status, sendErr := s.sendPayloadBody(ctx, reqBody, reqType, ep.GetAPIKey(), url, compressed)
+		if reqType == logsPayloadType {
+			// TEMPORARY diagnostic for investigating CI failure; remove before merge.
+			s.logComp.Warnf("errortracking: POST result (diagnostic) url=%s status=%d err=%v", url, status, sendErr)
+		}
 		if sendErr != nil {
 			errs = errors.Join(errs, sendErr)
 			continue

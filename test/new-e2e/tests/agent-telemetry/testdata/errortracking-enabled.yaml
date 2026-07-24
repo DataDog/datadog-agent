@@ -5,3 +5,24 @@ agent_telemetry:
     flush_interval_seconds: 1
     bouncer_window_seconds: 0
     startup_jitter_seconds: 0
+# process-agent trigger: additional_endpoints fans out every check submission,
+# including "connections", to this connection-refused address.
+process_config:
+  additional_endpoints:
+    "https://127.0.0.1:1":
+      - "00000000000000000000000000000000"
+  process_discovery:
+    # Disabled: on Linux this runs embedded in the core agent by default,
+    # which would produce a competing agent.flavor:agent log via the same
+    # additional_endpoints misconfiguration.
+    enabled: false
+# system-probe trigger: network_path.collector.filters expects a list of
+# filter objects; a plain string fails to unmarshal and triggers a
+# deterministic ERROR log from comp/networkpath/npcollector/impl/config.go's
+# newConfig, on every system-probe startup, without needing real network
+# activity or a live connections check. Must live here (agent config), not
+# in system-probe.yaml — system-probe's own config schema logs "Unknown key
+# in config file" for it and silently drops the value there.
+network_path:
+  collector:
+    filters: "not-a-valid-filter"

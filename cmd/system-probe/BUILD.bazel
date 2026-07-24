@@ -82,6 +82,7 @@ go_library(
             "//cmd/system-probe/command",
             "//cmd/system-probe/subcommands",
             "//cmd/system-probe/windows/service",
+            "//pkg/util/flavor",
             "//pkg/util/log",
             "//pkg/util/winutil/servicemain",
         ],
