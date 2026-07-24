@@ -1063,6 +1063,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
+	// Remote Queries POC
+	config.BindEnvAndSetDefault("remote_queries.match_check.enabled", false)
+	config.BindEnvAndSetDefault("remote_queries.execute.enabled", false)
+	config.BindEnvAndSetDefault("remote_queries.execute.enable_query_allowlist", true)
+
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
 	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
