@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
 
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -61,23 +62,60 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			VolumeThroughput:   vmArgs.volumeThroughput,
 		}
 
-		if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
-			dedicatedHost, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{
-				InstanceType: vmArgs.instanceType,
-			})
+		// isMacOSPoolMember/poolAcquired drive the pool-release wiring below, once
+		// the instance itself has been imported.
+		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
+		var poolAcquired pool.AcquireResult
+
+		if isMacOSPoolMember {
+			poolClient, err := pool.NewEC2Client(e.Ctx().Context(), e.Region(), e.Profile())
 			if err != nil {
 				return err
 			}
-			instanceArgs.HostID = dedicatedHost.Arn.ApplyT(func(arn string) pulumi.StringInput {
-				splitted := strings.Split(arn, "/")
-				return pulumi.String(splitted[len(splitted)-1])
-			}).(pulumi.StringInput)
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID())
+			if err != nil {
+				return err
+			}
+
+			// Deleting a Dedicated Host requires it to have lived for at least 24
+			// hours, so a pooled instance/host is never actually destroyed by
+			// Pulumi; the pool manager releases it back to idle instead (see the
+			// ScheduleReleaseOnDestroy call below).
+			opts = append(opts, pulumi.RetainOnDelete(true))
+
+			// Import the existing pool member instead of creating a new instance,
+			// and pin HostID/Tenancy/SubnetID to what it's actually running on.
+			// SubnetID must be pinned: the instance's AZ is fixed by its Dedicated
+			// Host, and AWS doesn't support moving an existing instance to a subnet
+			// in a different AZ, so leaving it on the environment's random subnet
+			// pick would make this resource non-importable or replace-triggering.
+			// Instance creation is owned by an external provisioning job, never by
+			// NewVM.
+			opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
+			instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
+			instanceArgs.Tenancy = "host"
+			instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
+
+			// Tags (e.g. the pool-membership tag pool.PoolTagKey) are also owned
+			// externally: NewInstance's Tags only ever declares "Name", so without
+			// this, importing the pool member would make Pulumi reconcile the
+			// instance's real tags down to just that, stripping the pool tag and
+			// making the instance invisible to future Acquire calls.
+			opts = append(opts, pulumi.IgnoreChanges([]string{"tags"}))
 		}
 
 		// Create the EC2 instance
 		instance, err := ec2.NewInstance(e, name, instanceArgs, opts...)
 		if err != nil {
 			return err
+		}
+
+		if isMacOSPoolMember {
+			releaseOpts := []pulumi.ResourceOption{pulumi.Parent(c), pulumi.DependsOn([]pulumi.Resource{instance}), e.WithProviders(config.ProviderCommand)}
+
+			if _, err := ec2.ScheduleReleaseOnDestroy(e, name, poolAcquired.InstanceID, poolAcquired.LeaseToken, poolAcquired.ImageID, releaseOpts...); err != nil {
+				return err
+			}
 		}
 
 		// Create connection
