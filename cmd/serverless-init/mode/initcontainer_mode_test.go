@@ -136,6 +136,8 @@ func TestJavaTracerIsAutoInstrumented(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Create("/dd_tracer/java/")
 
+	t.Setenv("JAVA_TOOL_OPTIONS", "")
+
 	autoInstrumentTracer(fs)
 
 	assert.Equal(t, "-javaagent:/dd_tracer/java/dd-java-agent.jar", os.Getenv("JAVA_TOOL_OPTIONS"))
