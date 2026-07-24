@@ -123,9 +123,9 @@ func (h *RunCaptureHandler) Run(
 type pcapLogEntry struct {
 	Message   string `json:"message"`
 	Source    string `json:"ddsource"`
-	Service  string `json:"service"`
-	Hostname string `json:"hostname,omitempty"`
-	Tags     string `json:"ddtags"`
+	Service   string `json:"service"`
+	Hostname  string `json:"hostname,omitempty"`
+	Tags      string `json:"ddtags"`
 	CaptureID string `json:"capture_id"`
 	Interface string `json:"interface,omitempty"`
 	Filter    string `json:"bpf_filter"`
@@ -171,9 +171,9 @@ func (h *RunCaptureHandler) uploadPcap(ctx context.Context, captureID string, pc
 	entry := pcapLogEntry{
 		Message:   fmt.Sprintf("pcap capture complete: %s filter=%q", captureID, inputs.BPFFilter),
 		Source:    "pcap",
-		Service:  "remote-pcap",
-		Hostname: hostname,
-		Tags:     tags,
+		Service:   "remote-pcap",
+		Hostname:  hostname,
+		Tags:      tags,
 		CaptureID: captureID,
 		Interface: inputs.Interface,
 		Filter:    inputs.BPFFilter,

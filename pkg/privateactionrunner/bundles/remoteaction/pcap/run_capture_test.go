@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -21,13 +20,6 @@ import (
 type stubEventPlatform struct{}
 
 func (s *stubEventPlatform) Get() (eventplatform.Forwarder, bool) { return nil, false }
-
-// stubForwarder satisfies eventplatform.Forwarder; used when testing send paths.
-type stubForwarder struct{}
-
-func (s *stubForwarder) SendEventPlatformEvent(_ *message.Message, _ string) error        { return nil }
-func (s *stubForwarder) SendEventPlatformEventBlocking(_ *message.Message, _ string) error { return nil }
-func (s *stubForwarder) Purge() map[string][]*message.Message                              { return nil }
 
 // newTask builds a minimal *types.Task with the given inputs map.
 func newTask(inputs map[string]interface{}) *types.Task {
