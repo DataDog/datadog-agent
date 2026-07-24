@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "networkdevices",
+    srcs = [
+        "connectivity_check.go",
+        "entrypoint.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkdevices",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkdevice/pinger",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/snmp/gosnmplib",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
