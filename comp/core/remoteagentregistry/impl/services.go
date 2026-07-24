@@ -9,8 +9,6 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -163,166 +161,72 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			help = *mf.Help
 		}
 
-		metricType := mf.GetType()
-		if metricType == dto.MetricType_SUMMARY {
-			for _, metric := range mf.Metric {
-				if metric != nil {
-					log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
-				}
+		for _, metric := range mf.Metric {
+			if metric == nil {
+				continue
 			}
-			continue
-		}
-		if metricType != dto.MetricType_COUNTER && metricType != dto.MetricType_GAUGE && metricType != dto.MetricType_HISTOGRAM {
-			for _, metric := range mf.Metric {
-				if metric != nil {
-					log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, metricType)
-				}
-			}
-			continue
-		}
 
-		for _, aggregate := range coalesceCanonicalMetrics(mf.Metric, metricType, mf.GetName(), remoteAgentName) {
-			desc := prometheus.NewDesc(*mf.Name, help, aggregate.labelNames, nil)
+			labelNames, labelValues := canonicalMetricLabels(metric.Label, remoteAgentName)
 
-			switch metricType {
+			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
+
+			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, aggregate.value, aggregate.labelValues...)
+				value := *metric.Counter.Value
+
+				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
 			case dto.MetricType_GAUGE:
-				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, aggregate.value, aggregate.labelValues...)
+				value := *metric.Gauge.Value
+
+				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, value, labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
+
+			case dto.MetricType_SUMMARY:
+				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
+				continue
+
 			case dto.MetricType_HISTOGRAM:
-				metric, err := prometheus.NewConstHistogram(desc, aggregate.sampleCount, aggregate.sampleSum, aggregate.buckets, aggregate.labelValues...)
+				count := metric.Histogram.GetSampleCount()
+				sum := metric.Histogram.GetSampleSum()
+				buckets := make(map[float64]uint64)
+				for _, bucket := range metric.Histogram.GetBucket() {
+					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
+				}
+
+				metric, err := prometheus.NewConstHistogram(desc, count, sum, buckets, labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
+
+			default:
+				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())
 			}
 		}
 	}
 }
 
-// canonicalMetricLabelsAndKey returns canonical labels and an order-independent, length-prefixed key.
-func canonicalMetricLabelsAndKey(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string, string) {
+func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {
 	labelNames := make([]string, 0, len(incoming)+1)
 	labelValues := make([]string, 0, len(incoming)+1)
-	labels := make([]canonicalLabel, 0, len(incoming)+1)
-	appendLabel := func(name, value string) {
-		labelNames = append(labelNames, name)
-		labelValues = append(labelValues, value)
-		labels = append(labels, canonicalLabel{name: name, value: value})
-	}
-
-	appendLabel(emitterMetricTagName, registeredEmitter)
+	labelNames = append(labelNames, emitterMetricTagName)
+	labelValues = append(labelValues, registeredEmitter)
 	for _, label := range incoming {
 		if label.GetName() == emitterMetricTagName {
 			continue
 		}
-		appendLabel(label.GetName(), label.GetValue())
+		labelNames = append(labelNames, label.GetName())
+		labelValues = append(labelValues, label.GetValue())
 	}
-
-	sort.Slice(labels, func(i, j int) bool {
-		return labels[i].name < labels[j].name ||
-			(labels[i].name == labels[j].name && labels[i].value < labels[j].value)
-	})
-
-	var key strings.Builder
-	for _, label := range labels {
-		key.WriteString(strconv.Itoa(len(label.name)))
-		key.WriteByte(':')
-		key.WriteString(label.name)
-		key.WriteString(strconv.Itoa(len(label.value)))
-		key.WriteByte(':')
-		key.WriteString(label.value)
-	}
-	return labelNames, labelValues, key.String()
-}
-
-type canonicalMetricAggregate struct {
-	labelNames   []string
-	labelValues  []string
-	value        float64
-	sampleCount  uint64
-	sampleSum    float64
-	bucketBounds []float64
-	buckets      map[float64]uint64
-}
-
-type canonicalLabel struct {
-	name  string
-	value string
-}
-
-func coalesceCanonicalMetrics(metrics []*dto.Metric, metricType dto.MetricType, metricName, registeredEmitter string) []*canonicalMetricAggregate {
-	aggregatesByLabels := make(map[string]*canonicalMetricAggregate, len(metrics))
-	aggregates := make([]*canonicalMetricAggregate, 0, len(metrics))
-	for _, metric := range metrics {
-		if metric == nil {
-			continue
-		}
-
-		labelNames, labelValues, key := canonicalMetricLabelsAndKey(metric.Label, registeredEmitter)
-		aggregate, found := aggregatesByLabels[key]
-		if !found {
-			aggregate = &canonicalMetricAggregate{
-				labelNames:  labelNames,
-				labelValues: labelValues,
-			}
-			if metricType == dto.MetricType_HISTOGRAM {
-				aggregate.bucketBounds = histogramBucketBounds(metric.GetHistogram())
-				aggregate.buckets = make(map[float64]uint64)
-			}
-			aggregatesByLabels[key] = aggregate
-			aggregates = append(aggregates, aggregate)
-		}
-
-		switch metricType {
-		case dto.MetricType_COUNTER:
-			aggregate.value += metric.GetCounter().GetValue()
-		case dto.MetricType_GAUGE:
-			aggregate.value += metric.GetGauge().GetValue()
-		case dto.MetricType_HISTOGRAM:
-			histogram := metric.GetHistogram()
-			bucketBounds := histogramBucketBounds(histogram)
-			if found && !equalHistogramBucketBounds(aggregate.bucketBounds, bucketBounds) {
-				log.Warnf("Dropping colliding histogram metric %q from remote agent %q with incompatible bucket layout %v; keeping first layout %v", metricName, registeredEmitter, bucketBounds, aggregate.bucketBounds)
-				continue
-			}
-			aggregate.sampleCount += histogram.GetSampleCount()
-			aggregate.sampleSum += histogram.GetSampleSum()
-			for _, bucket := range histogram.GetBucket() {
-				aggregate.buckets[bucket.GetUpperBound()] += bucket.GetCumulativeCount()
-			}
-		}
-	}
-	return aggregates
-}
-
-func histogramBucketBounds(histogram *dto.Histogram) []float64 {
-	bounds := make([]float64, 0, len(histogram.GetBucket()))
-	for _, bucket := range histogram.GetBucket() {
-		bounds = append(bounds, bucket.GetUpperBound())
-	}
-	return bounds
-}
-
-func equalHistogramBucketBounds(first, second []float64) bool {
-	if len(first) != len(second) {
-		return false
-	}
-	for i := range first {
-		if first[i] != second[i] {
-			return false
-		}
-	}
-	return true
+	return labelNames, labelValues
 }

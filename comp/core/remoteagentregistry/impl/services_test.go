@@ -7,7 +7,6 @@
 package remoteagentregistryimpl
 
 import (
-	"bytes"
 	"context"
 	"math"
 	"testing"
@@ -22,7 +21,6 @@ import (
 
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
@@ -258,7 +256,7 @@ func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
 			{Name: proto.String("status"), Value: proto.String("ok")},
 		}
 
-		labelNames, labelValues, _ := canonicalMetricLabelsAndKey(incoming, "registered-agent")
+		labelNames, labelValues := canonicalMetricLabels(incoming, "registered-agent")
 		require.Equal(t, []string{emitterMetricTagName, "source", "status"}, labelNames)
 		require.Equal(t, []string{"registered-agent", "remote", "ok"}, labelValues)
 	})
@@ -299,167 +297,6 @@ authoritative_emitter_metric{` + testCase.labels + `} 1
 			require.Equal(t, testCase.expectedNonEmitter, actualNonEmitter)
 		})
 	}
-}
-
-func TestGetTelemetryCoalescesCanonicalEmitterCollisions(t *testing.T) {
-	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	require.NoError(t, lc.Start(context.Background()))
-	t.Cleanup(func() {
-		require.NoError(t, lc.Stop(context.Background()))
-	})
-
-	promText := `
-# HELP collision_counter Counter samples that collide after emitter canonicalization
-# TYPE collision_counter counter
-collision_counter{emitter="spoofed-one",source="same"} 2
-collision_counter{source="same",emitter="spoofed-two"} 3
-collision_counter{emitter="spoofed-three",source="different"} 7
-# HELP collision_gauge Gauge samples that collide after emitter canonicalization
-# TYPE collision_gauge gauge
-collision_gauge{emitter="spoofed-one",region="us",status="ok"} 11
-collision_gauge{status="ok",emitter="spoofed-two",region="us"} 13
-# HELP collision_histogram Histogram samples that collide after emitter canonicalization
-# TYPE collision_histogram histogram
-collision_histogram_bucket{emitter="spoofed-one",source="same",le="0.5"} 1
-collision_histogram_bucket{emitter="spoofed-one",source="same",le="1"} 2
-collision_histogram_bucket{emitter="spoofed-one",source="same",le="+Inf"} 3
-collision_histogram_sum{emitter="spoofed-one",source="same"} 2.5
-collision_histogram_count{emitter="spoofed-one",source="same"} 3
-collision_histogram_bucket{source="same",emitter="spoofed-two",le="0.5"} 4
-collision_histogram_bucket{source="same",emitter="spoofed-two",le="1"} 5
-collision_histogram_bucket{source="same",emitter="spoofed-two",le="+Inf"} 6
-collision_histogram_sum{source="same",emitter="spoofed-two"} 8.5
-collision_histogram_count{source="same",emitter="spoofed-two"} 6
-# HELP collision_key_gauge Distinct samples with delimiter-sensitive label layouts
-# TYPE collision_key_gauge gauge
-collision_key_gauge{emitter="spoofed-one",a="b:c",d="e"} 10
-collision_key_gauge{emitter="spoofed-two",a="b",c="d:e"} 20
-`
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
-		withTelemetryProvider(promText),
-	)
-
-	metrics, err := telemetryComp.Gather(false)
-	require.NoError(t, err)
-	metricsMap := metricsToMap(metrics)
-
-	counterFamily := metricsMap["collision_counter"]
-	require.NotNil(t, counterFamily)
-	require.Len(t, counterFamily.GetMetric(), 2)
-	counterValues := make(map[string]float64, 2)
-	for _, metric := range counterFamily.GetMetric() {
-		requireRegisteredEmitter(t, metric, "registered-agent")
-		counterValues[metricLabelValue(metric, "source")] = metric.GetCounter().GetValue()
-	}
-	require.Equal(t, map[string]float64{"same": 5, "different": 7}, counterValues)
-
-	gaugeFamily := metricsMap["collision_gauge"]
-	require.NotNil(t, gaugeFamily)
-	require.Len(t, gaugeFamily.GetMetric(), 1)
-	requireRegisteredEmitter(t, gaugeFamily.GetMetric()[0], "registered-agent")
-	require.Equal(t, float64(24), gaugeFamily.GetMetric()[0].GetGauge().GetValue())
-
-	histogramFamily := metricsMap["collision_histogram"]
-	require.NotNil(t, histogramFamily)
-	require.Len(t, histogramFamily.GetMetric(), 1)
-	histogramMetric := histogramFamily.GetMetric()[0]
-	requireRegisteredEmitter(t, histogramMetric, "registered-agent")
-	require.Equal(t, "same", metricLabelValue(histogramMetric, "source"))
-	require.Equal(t, uint64(9), histogramMetric.GetHistogram().GetSampleCount())
-	require.Equal(t, float64(11), histogramMetric.GetHistogram().GetSampleSum())
-	bucketCounts := make(map[float64]uint64)
-	for _, bucket := range histogramMetric.GetHistogram().GetBucket() {
-		bucketCounts[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
-	}
-	require.Equal(t, map[float64]uint64{0.5: 5, 1: 7, math.Inf(1): 9}, bucketCounts)
-
-	keyFamily := metricsMap["collision_key_gauge"]
-	require.NotNil(t, keyFamily)
-	require.Len(t, keyFamily.GetMetric(), 2)
-	labelsByValue := make(map[float64]map[string]string, 2)
-	for _, metric := range keyFamily.GetMetric() {
-		requireRegisteredEmitter(t, metric, "registered-agent")
-		labels := make(map[string]string, len(metric.GetLabel()))
-		for _, label := range metric.GetLabel() {
-			labels[label.GetName()] = label.GetValue()
-		}
-		labelsByValue[metric.GetGauge().GetValue()] = labels
-	}
-	require.Equal(t, map[string]string{"a": "b:c", "d": "e", emitterMetricTagName: "registered-agent"}, labelsByValue[10])
-	require.Equal(t, map[string]string{"a": "b", "c": "d:e", emitterMetricTagName: "registered-agent"}, labelsByValue[20])
-}
-
-func TestGetTelemetryKeepsFirstIncompatibleHistogramCollision(t *testing.T) {
-	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	require.NoError(t, lc.Start(context.Background()))
-	t.Cleanup(func() {
-		require.NoError(t, lc.Stop(context.Background()))
-	})
-
-	promText := `
-# HELP incompatible_collision_histogram Histogram samples with incompatible layouts
-# TYPE incompatible_collision_histogram histogram
-incompatible_collision_histogram_bucket{emitter="first",source="same",le="0.5"} 100
-incompatible_collision_histogram_bucket{emitter="first",source="same",le="+Inf"} 100
-incompatible_collision_histogram_sum{emitter="first",source="same"} 50
-incompatible_collision_histogram_count{emitter="first",source="same"} 100
-incompatible_collision_histogram_bucket{emitter="second",source="same",le="1"} 1
-incompatible_collision_histogram_bucket{emitter="second",source="same",le="+Inf"} 1
-incompatible_collision_histogram_sum{emitter="second",source="same"} 1
-incompatible_collision_histogram_count{emitter="second",source="same"} 1
-`
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
-		withTelemetryProvider(promText),
-	)
-
-	var logBuffer bytes.Buffer
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.WarnLvl)
-	require.NoError(t, err)
-	log.SetupLogger(logger, "warn")
-	t.Cleanup(func() {
-		log.SetupLogger(log.Default(), "debug")
-	})
-
-	metrics, err := telemetryComp.Gather(false)
-	require.NoError(t, err)
-	metricFamily := metricsToMap(metrics)["incompatible_collision_histogram"]
-	require.NotNil(t, metricFamily)
-	require.Len(t, metricFamily.GetMetric(), 1)
-
-	metric := metricFamily.GetMetric()[0]
-	requireRegisteredEmitter(t, metric, "registered-agent")
-	require.Equal(t, "same", metricLabelValue(metric, "source"))
-	require.Empty(t, cmp.Diff(&io_prometheus_client.Histogram{
-		SampleCount: proto.Uint64(100),
-		SampleSum:   proto.Float64(50),
-		Bucket: []*io_prometheus_client.Bucket{
-			{CumulativeCount: proto.Uint64(100), UpperBound: proto.Float64(0.5)},
-			{CumulativeCount: proto.Uint64(100), UpperBound: proto.Float64(math.Inf(1))},
-		},
-	}, metric.GetHistogram(), protocmp.Transform()))
-	require.Equal(t, `[WARN] Dropping colliding histogram metric "incompatible_collision_histogram" from remote agent "registered-agent" with incompatible bucket layout [1 +Inf]; keeping first layout [0.5 +Inf]
-`, logBuffer.String())
-}
-
-func requireRegisteredEmitter(t *testing.T, metric *io_prometheus_client.Metric, expected string) {
-	t.Helper()
-	emitterCount := 0
-	for _, label := range metric.GetLabel() {
-		if label.GetName() == emitterMetricTagName {
-			emitterCount++
-			require.Equal(t, expected, label.GetValue())
-		}
-	}
-	require.Equal(t, 1, emitterCount)
-}
-
-func metricLabelValue(metric *io_prometheus_client.Metric, name string) string {
-	for _, label := range metric.GetLabel() {
-		if label.GetName() == name {
-			return label.GetValue()
-		}
-	}
-	return ""
 }
 
 func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
