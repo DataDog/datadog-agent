@@ -50,7 +50,7 @@ pub(crate) fn build_sds_result(
     };
 
     SdsResultPayload {
-        // TODO(DSEC-180): populate the payload timestamp.
+        timestamp: now_unix_millis(),
         resource: Some(proto::Resource {
             r#type: "postgres_table".to_string(),
             name: resource_name(sub_task),
@@ -70,6 +70,17 @@ pub(crate) fn build_sds_result(
         scan_results: vec![scan_result],
         ..Default::default()
     }
+}
+
+/// Current Unix time in milliseconds, clamped to zero if the system clock is
+/// set before the Unix epoch.
+fn now_unix_millis() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 /// Resource name (`<instance_name>.<database>.<schema>.<table>`), following the
