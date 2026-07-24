@@ -19,6 +19,7 @@ package com_datadoghq_remoteaction_agent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -26,11 +27,17 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // agentBaseURL returns the base URL (scheme + host + port) of the local agent's
 // IPC command API, e.g. "https://127.0.0.1:5001".
 func agentBaseURL() (string, error) {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return "", errors.New("com.datadoghq.remoteaction.agent must not run in the Cluster Agent: " +
+			"it targets the local agent via pkgconfigsetup.GetIPCAddress, which would resolve to the " +
+			"Cluster Agent itself rather than a node's core agent")
+	}
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("failed to get agent IPC address: %w", err)

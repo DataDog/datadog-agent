@@ -19,6 +19,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
+        "//pkg/util/flavor",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
