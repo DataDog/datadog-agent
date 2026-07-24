@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The logs Agent now sends payloads at a higher static concurrency by default
+    instead of scaling the number of concurrent senders dynamically with intake
+    latency. This improves throughput for high-latency workloads without requiring
+    manual tuning of ``logs_config.batch_max_concurrent_send``. The previous dynamic
+    (RTT-fairness) behavior can be restored by setting
+    ``logs_config.enable_rtt_fairness`` to ``true``.

@@ -45,7 +45,13 @@ checks:
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
     bounds:
       series: "connection.current"
-      upper_bound: 6
+      # Retiring RTT fairness pins the HTTP sender at a static concurrency of
+      # numberOfPipelines * maxConcurrencyPerPipeline (4 * 10 = 40 here) instead of scaling
+      # with latency. This SMP target is plaintext HTTP/1.1 (logs_no_ssl: true), so each
+      # concurrent sender holds its own connection (~18 observed under load); production
+      # sends over HTTPS/HTTP2 and multiplexes these into far fewer connections. Bound set
+      # to the static cap (40) plus margin for connection-reset churn.
+      upper_bound: 44
 
   - name: missed_bytes
     description: "Allowable bytes not processed by Agent"

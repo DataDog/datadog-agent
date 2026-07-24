@@ -1789,6 +1789,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
+	// enable dynamic RTT-fairness sender scaling (retired by default; a static send concurrency is used instead)
+	config.BindEnvAndSetDefault("logs_config.enable_rtt_fairness", false)
 
 	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", 0)

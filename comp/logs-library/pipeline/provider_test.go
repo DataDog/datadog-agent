@@ -102,6 +102,7 @@ func TestProviderConfigurations(t *testing.T) {
 		expectedMinConcurrency int
 		expectedMaxConcurrency int
 		batchMaxConcurrentSend int
+		enableRTTFairness      bool
 	}{
 		{
 			name:                   "TCP sender default",
@@ -128,7 +129,21 @@ func TestProviderConfigurations(t *testing.T) {
 			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		},
 		{
+			// RTT fairness retired by default: concurrency is pinned static at the cap (min == max).
 			name:                   "HTTP sender default",
+			useHTTP:                true,
+			legacyMode:             false,
+			numberOfPipelines:      3,
+			serverless:             false,
+			expectedQueues:         sender.DefaultQueuesCount,     // 1
+			expectedWorkers:        sender.DefaultWorkersPerQueue, // 1
+			expectedMinConcurrency: 30,                            // pinned at pipelines * maxConcurrencyPerPipeline
+			expectedMaxConcurrency: 30,
+			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		},
+		{
+			// enable_rtt_fairness=true restores the dynamic scaling range (min < max).
+			name:                   "HTTP sender with RTT fairness enabled",
 			useHTTP:                true,
 			legacyMode:             false,
 			numberOfPipelines:      3,
@@ -138,6 +153,7 @@ func TestProviderConfigurations(t *testing.T) {
 			expectedMinConcurrency: 3,
 			expectedMaxConcurrency: 30,
 			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			enableRTTFairness:      true,
 		},
 		{
 			name:                   "HTTP sender with batch_max_concurrent_send",
@@ -205,6 +221,7 @@ func TestProviderConfigurations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup
 			cfg := configmock.New(t)
+			cfg.SetInTest("logs_config.enable_rtt_fairness", tc.enableRTTFairness)
 
 			endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 				"use_http":                  tc.useHTTP,
