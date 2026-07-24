@@ -80,6 +80,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
 		getAgentDiscoveryPipelines,
+		getDataSecurityPipelines,
 	}
 	var descs []passthroughPipelineDesc
 	for _, get := range getters {
@@ -120,6 +121,9 @@ func Diagnose() []diagnose.Diagnosis {
 
 	for _, desc := range getPassthroughPipelines() {
 		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
+			continue
+		}
+		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
 			continue
 		}
 		//nolint:misspell
