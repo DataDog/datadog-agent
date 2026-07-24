@@ -13,6 +13,46 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSplitRepoTag(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		source   string
+		repo     string
+		tag      string
+	}{
+		{"empty", "", "", ""},
+		{"no tag", "alpine", "alpine", ""},
+		{"simple", "nginx:latest", "nginx", "latest"},
+		{"with org", "datadog/agent:7.41.1-rc.1", "datadog/agent", "7.41.1-rc.1"},
+		{"public registry no port", "gcr.io/datadoghq/agent:7-rc", "gcr.io/datadoghq/agent", "7-rc"},
+		{"public registry no port no tag", "gcr.io/datadoghq/agent", "gcr.io/datadoghq/agent", ""},
+		{
+			"registry with port",
+			"myregistry.local:5000/foo/bar:1.2.3",
+			"myregistry.local:5000/foo/bar",
+			"1.2.3",
+		},
+		{
+			"registry with port no tag",
+			"myregistry.local:5000/foo/bar",
+			"myregistry.local:5000/foo/bar",
+			"",
+		},
+		{
+			"deeply nested registry with port",
+			"artifactory.local:443/team/sub-team/project/service:2.54.3",
+			"artifactory.local:443/team/sub-team/project/service",
+			"2.54.3",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, tag := SplitRepoTag(tc.source)
+			assert.Equal(t, tc.repo, repo)
+			assert.Equal(t, tc.tag, tag)
+		})
+	}
+}
+
 func TestSplitImageName(t *testing.T) {
 	for nb, tc := range []struct {
 		source    string
