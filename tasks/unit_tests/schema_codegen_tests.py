@@ -129,6 +129,5 @@ class TestCodegenInitSettings(unittest.TestCase):
                 self.assertEqual(c['expect'], actual, c['describe'])
 
 
-
 if __name__ == "__main__":
     unittest.main()
