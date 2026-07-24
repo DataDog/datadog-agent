@@ -22,7 +22,10 @@ import (
 )
 
 const (
-	// AttributeResourceGroupName is the Azure resource group name attribute
+	// AttributeResourceGroupName is the Azure resource group name attribute,
+	// Not the same attribute as otlp/attributes.AttributeAzureResourceGroupName
+	// (azure.resource_group.name — newer OTel semconv v1.43.0).
+	// See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/49079.
 	AttributeResourceGroupName = "azure.resourcegroup.name"
 )
 

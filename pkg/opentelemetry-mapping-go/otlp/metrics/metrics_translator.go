@@ -96,7 +96,7 @@ var _ source.Provider = (*noSourceProvider)(nil)
 type noSourceProvider struct{}
 
 func (*noSourceProvider) Source(context.Context) (source.Source, error) {
-	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
+	return source.Source{Kind: source.HostnameKind, Identifier: "", SourceIdentifier: source.SourceIdentifier{Primary: ""}}, nil
 }
 
 // defaultTranslator is the default metrics translator implementation.
@@ -387,6 +387,15 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
+// tagsFromDimensions converts a Source.SourceIdentifier.Dimensions map into a "key:value" tag slice
+func tagsFromDimensions(dims map[string]string) []string {
+	tags := make([]string, 0, len(dims))
+	for k, v := range dims {
+		tags = append(tags, k+":"+v)
+	}
+	return tags
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
@@ -516,7 +525,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -611,8 +620,12 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeHost(host)
 				}
 			case source.AWSECSFargateKind:
-				if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("fargate", []string{src.Tag()})
+				}
+			case source.AzureContainerAppsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
 			}
 		}

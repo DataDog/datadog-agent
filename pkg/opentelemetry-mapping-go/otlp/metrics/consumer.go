@@ -148,7 +148,23 @@ type HostConsumer interface {
 // It is an optional interface that can be implemented by a Consumer.
 // Consumed tags are used for running metrics, and should represent
 // some resource running a Collector (e.g. Fargate task).
+//
+// Deprecated: use TagSetConsumer instead. This interface remains for
+// consumers that haven't migrated yet; translators no longer call it.
 type TagsConsumer interface {
 	// ConsumeTag consumes a tag
 	ConsumeTag(tag string)
+}
+
+// TagSetConsumer is a multi-tag source consumer.
+// It is an optional interface that can be implemented by a Consumer.
+// Use it for any source that needs one or more tags on its own dedicated
+// running metric (e.g. Fargate, Azure Container Apps).
+type TagSetConsumer interface {
+	// ConsumeTagSet consumes a multi-tag source for running metric emission.
+	// metricSuffix names the workload-specific metric: the resulting metric
+	// is "otel.datadog_exporter.metrics.running.<metricSuffix>" (e.g. "fargate",
+	// "azurecontainerapps").
+	// tags is the full slice of "key:value" strings to attach to the metric.
+	ConsumeTagSet(metricSuffix string, tags []string)
 }
