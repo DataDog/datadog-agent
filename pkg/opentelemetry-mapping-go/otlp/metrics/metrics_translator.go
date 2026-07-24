@@ -107,6 +107,7 @@ type defaultTranslator struct {
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               mapper
+	unitMapper           *attributes.UnitMapper
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
@@ -147,6 +148,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
+		unitMapper:           attributes.NewUnitMapper(),
 	}
 	// Use custom mapper if provided, otherwise create a defaultMapper
 	if cfg.customMapper != nil {
@@ -572,7 +574,8 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 							mapHistogramRuntimeMetricWithAttributes(md, newMetrics, mp)
 						}
 					}
-				} else if !(md.Name() == sdkTraceMetricName && t.cfg.withRemapping) {
+				}
+				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && t.cfg.withRemapping) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					// The SDK trace metric is APM-only, so it does not mark the host as billable.
@@ -637,6 +640,11 @@ func (t *defaultTranslator) baseDimensions(name string, additionalTags []string,
 
 func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
 	baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
+	if t.cfg.withUnits {
+		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
+			baseDims.unit = unit
+		}
+	}
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:
 		t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())

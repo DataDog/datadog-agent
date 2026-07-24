@@ -85,6 +85,7 @@ func TestBuildAnnotationIssue(t *testing.T) {
 
 			assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
 			assert.Equal(t, annotationIssueName, issue.IssueName)
+			assert.Equal(t, annotationIssueType, issue.IssueType)
 			assert.Equal(t, tt.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
 			assert.Equal(t, category, issue.Category)

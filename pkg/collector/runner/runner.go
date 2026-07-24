@@ -16,7 +16,6 @@ import (
 	"go.uber.org/atomic"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -44,13 +43,14 @@ var (
 type Runner struct {
 	senderManager       sender.SenderManager
 	haAgent             haagent.Component
-	healthPlatform      healthplatform.Component // Health platform component for reporting issues
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
+	shadowWorkers       map[int]*worker.Worker        // Shadow workers currently under this Runner's management
 	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
 	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 	pendingChecksChan   chan check.Check              // The channel where checks come from
+	shadowChecksChan    chan check.Check              // The channel where shadow checks come from
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
@@ -63,7 +63,7 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component) *Runner {
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,12 +71,13 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 	r := &Runner{
 		senderManager:       senderManager,
 		haAgent:             haAgent,
-		healthPlatform:      healthPlatform,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
+		shadowWorkers:       make(map[int]*worker.Worker),
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
+		shadowChecksChan:    make(chan check.Check),
 		checksTracker:       tracker.NewRunningChecksTracker(),
 		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
 		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
@@ -110,7 +111,7 @@ func (r *Runner) ensureMinWorkers(desiredNumWorkers int) {
 
 	workersToAdd := desiredNumWorkers - currentWorkers
 	for idx := 0; idx < workersToAdd; idx++ {
-		worker, err := r.newWorker()
+		worker, err := r.newWorker(r.pendingChecksChan, false)
 		if err == nil {
 			r.workers[worker.ID] = worker
 		}
@@ -129,23 +130,38 @@ func (r *Runner) AddWorker() {
 	r.workersLock.Lock()
 	defer r.workersLock.Unlock()
 
-	worker, err := r.newWorker()
+	worker, err := r.newWorker(r.pendingChecksChan, false)
 	if err == nil {
 		r.workers[worker.ID] = worker
 	}
 }
 
+// AddShadowWorker adds a single shadow worker to the runner.
+func (r *Runner) AddShadowWorker() {
+	r.workersLock.Lock()
+	defer r.workersLock.Unlock()
+
+	worker, err := r.newWorker(r.shadowChecksChan, true)
+	if err == nil {
+		r.shadowWorkers[worker.ID] = worker
+	}
+}
+
 // newWorker adds a new worker running in a separate goroutine
-func (r *Runner) newWorker() (*worker.Worker, error) {
+func (r *Runner) newWorker(pendingChecksChan chan check.Check, isShadowWorker bool) (*worker.Worker, error) {
 	watchdogWarningTimeout := pkgconfigsetup.Datadog().GetDuration("check_watchdog_warning_timeout")
 
-	worker, err := worker.NewWorker(
+	newWorker := worker.NewWorker
+	if isShadowWorker {
+		newWorker = worker.NewShadowWorker
+	}
+
+	worker, err := newWorker(
 		r.senderManager,
 		r.haAgent,
-		r.healthPlatform,
 		r.id,
 		int(workerIDGenerator.Inc()),
-		r.pendingChecksChan,
+		pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
 		watchdogWarningTimeout,
@@ -156,7 +172,7 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 	}
 
 	go func() {
-		defer r.removeWorker(worker.ID)
+		defer r.removeWorker(worker.ID, isShadowWorker)
 
 		worker.Run(r.ctx)
 	}()
@@ -164,10 +180,14 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 	return worker, nil
 }
 
-func (r *Runner) removeWorker(id int) {
+func (r *Runner) removeWorker(id int, isShadowWorker bool) {
 	r.workersLock.Lock()
 	defer r.workersLock.Unlock()
 
+	if isShadowWorker {
+		delete(r.shadowWorkers, id)
+		return
+	}
 	delete(r.workers, id)
 }
 
@@ -211,6 +231,7 @@ func (r *Runner) Stop() {
 
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)
+	close(r.shadowChecksChan)
 
 	wg := sync.WaitGroup{}
 
@@ -256,6 +277,11 @@ func (r *Runner) Stop() {
 // GetChan returns a write-only version of the pending channel
 func (r *Runner) GetChan() chan<- check.Check {
 	return r.pendingChecksChan
+}
+
+// GetShadowChan returns a write-only version of the pending shadow check channel.
+func (r *Runner) GetShadowChan() chan<- check.Check {
+	return r.shadowChecksChan
 }
 
 // SetScheduler sets the scheduler for the runner

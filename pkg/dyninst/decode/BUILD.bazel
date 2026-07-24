@@ -14,6 +14,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/decode",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/exprlang",
@@ -35,6 +36,7 @@ go_test(
     name = "decode_test",
     srcs = [
         "decoder_test.go",
+        "go_context_trace_test.go",
         "redaction_test.go",
         "return_marshal_test.go",
         "template_test.go",
@@ -43,7 +45,12 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":decode"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/gotype",
         "//pkg/dyninst/ir",

@@ -76,7 +76,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger, tt.extendedMetrics)
+			mockSender, processor, _ := CreateTestProcessor(t, containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger, tt.extendedMetrics)
 			err := processor.Run(mockSender, 0)
 			assert.NoError(t, err)
 
@@ -184,7 +184,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger, false)
+	mockSender, processor, _ := CreateTestProcessor(t, containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger, false)
 	err := processor.Run(mockSender, 0)
 	assert.NoError(t, err)
 

@@ -430,7 +430,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			c.ReceiverHost = host
 		}
 
-		if core.IsConfigured("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
+		// Gate on the value (not IsConfigured) so the Kubernetes binary default — applied at
+		// SourceDefault by applyKubernetesContainerDefaults — still forces 0.0.0.0 over an explicit
+		// bind_host, matching the historical datadog-kubernetes.yaml behavior. An explicit
+		// apm_non_local_traffic: false (file/env) sets the value false and releases the override.
+		if core.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {

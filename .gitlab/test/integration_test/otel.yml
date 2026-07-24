@@ -145,6 +145,7 @@ docker_image_build_otel:
       BUILD_ARGS="\
         --build-arg AGENT_VERSION=$AGENT_VERSION \
         --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+        --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
         --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
@@ -214,6 +215,7 @@ ddot_byoc_binary_build_test_ubuntu2004:
       BUILD_ARGS="\
         --build-arg AGENT_VERSION=$AGENT_VERSION \
         --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+        --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
         --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg UBUNTU_VERSION=20.04 \

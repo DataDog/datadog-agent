@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux || darwin || windows
+
 package com_datadoghq_remoteaction_rshell
 
 import (
-	"os"
 	"slices"
 	"testing"
 
@@ -14,10 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestOnlyRshellPrefixedCommands pins the namespace-scoping the wildcard
-// branch of filterAllowedCommands relies on. Without it, the wildcard
-// sentinel would either admit arbitrary backend entries (security
-// weakness) or admit nothing (kill-switch).
+// TestOnlyRshellPrefixedCommands pins the namespace-scoping applied to the
+// signed backend command list before it is handed to rshell.
 func TestOnlyRshellPrefixedCommands(t *testing.T) {
 	cases := []struct {
 		name string
@@ -69,90 +68,6 @@ func TestOnlyRshellPrefixedCommands(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := onlyRshellPrefixedCommands(tc.in)
 			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// TestCommonPath pins every shape of the (a, b) pair commonPath can see.
-// Pre-condition: both inputs are cleaned and end with "/". Tests follow that
-// contract, since callers always pass cleaned forms.
-func TestCommonPath(t *testing.T) {
-	cases := []struct {
-		name         string
-		a            string
-		b            string
-		wantDeepest  string
-		wantBroadest string
-	}{
-		{
-			name:         "equal paths",
-			a:            "/var/log/",
-			b:            "/var/log/",
-			wantDeepest:  "/var/log/",
-			wantBroadest: "/var/log/",
-		},
-		{
-			name:         "a deeper than b",
-			a:            "/var/log/nginx/",
-			b:            "/var/log/",
-			wantDeepest:  "/var/log/nginx/",
-			wantBroadest: "/var/log/",
-		},
-		{
-			name:         "b deeper than a",
-			a:            "/var/log/",
-			b:            "/var/log/nginx/",
-			wantDeepest:  "/var/log/nginx/",
-			wantBroadest: "/var/log/",
-		},
-		{
-			name:         "root contains everything",
-			a:            "/",
-			b:            "/var/log/",
-			wantDeepest:  "/var/log/",
-			wantBroadest: "/",
-		},
-		{
-			name:         "everything is contained by root",
-			a:            "/var/log/",
-			b:            "/",
-			wantDeepest:  "/var/log/",
-			wantBroadest: "/",
-		},
-		{
-			name:         "both root",
-			a:            "/",
-			b:            "/",
-			wantDeepest:  "/",
-			wantBroadest: "/",
-		},
-		{
-			name:         "no relation: prefix siblings (var/log vs var/logger)",
-			a:            "/var/log/",
-			b:            "/var/logger/",
-			wantDeepest:  "",
-			wantBroadest: "",
-		},
-		{
-			name:         "no relation: prefix siblings reversed",
-			a:            "/var/logger/",
-			b:            "/var/log/",
-			wantDeepest:  "",
-			wantBroadest: "",
-		},
-		{
-			name:         "no relation: disjoint paths",
-			a:            "/var/log/",
-			b:            "/etc/",
-			wantDeepest:  "",
-			wantBroadest: "",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			deepest, broadest := commonPath(tc.a, tc.b)
-			assert.Equal(t, tc.wantDeepest, deepest, "deepest")
-			assert.Equal(t, tc.wantBroadest, broadest, "broadest")
 		})
 	}
 }
@@ -221,6 +136,26 @@ func TestCleanPathList(t *testing.T) {
 			in:   []string{"/var/../etc/../usr/local"},
 			want: []string{"/usr/local/"},
 		},
+		{
+			name: "read-only suffix remains at end after path normalization",
+			in:   []string{"/host/var/log:ro"},
+			want: []string{"/host/var/log/:ro"},
+		},
+		{
+			name: "read-write suffix remains at end after path normalization",
+			in:   []string{"/host/datadog:rw"},
+			want: []string{"/host/datadog/:rw"},
+		},
+		{
+			name: "path cleanup happens before access suffix is reattached",
+			in:   []string{"/host/./datadog/../datadog:rw"},
+			want: []string{"/host/datadog/:rw"},
+		},
+		{
+			name: "different access overlays are preserved independently",
+			in:   []string{"/var/log:ro", "/var/log/datadog:rw"},
+			want: []string{"/var/log/:ro", "/var/log/datadog/:rw"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -241,16 +176,90 @@ func TestCleanPathListDoesNotMutateInput(t *testing.T) {
 	assert.Equal(t, original, in, "input must not be mutated")
 }
 
-// TestReducePathListToBroadest covers single-input cases, full-domination
-// scenarios (one entry absorbs others), prefix-sibling preservation, and
-// the multi-domination case (regression: an earlier draft only absorbed
-// the first dominated entry).
-//
-// Pre-condition: inputs are already cleaned (path.Clean + trailing "/").
-//
-// Post-condition: output is deduplicated, sorted (the implementation uses
-// slices.Sort + slices.Compact), and contains no two entries where one
-// contains the other.
+func TestPathSpecPathStripsAccessSuffixForLocalStat(t *testing.T) {
+	assert.Equal(t, "/host/datadog/", pathSpecPath("/host/datadog/:rw"))
+	assert.Equal(t, "/host/var/log/", pathSpecPath("/host/var/log/:ro"))
+	assert.Equal(t, "/etc/", pathSpecPath("/etc/"))
+}
+
+func TestNarrowerPathWithSameAccessRootAllowsAbsolutePaths(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "posix absolute",
+			path: "/var/log/:ro",
+			want: true,
+		},
+		{
+			name: "windows drive-rooted absolute",
+			path: "C:/Users/ContainerAdministrator/AppData/Local/Temp/:rw",
+			want: true,
+		},
+		{
+			name: "windows drive-relative",
+			path: "C:Users/ContainerAdministrator/AppData/Local/Temp/:rw",
+			want: false,
+		},
+		{
+			name: "relative",
+			path: "var/log/:ro",
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pathToKeep, ok := narrowerPathWithSameAccess("/", tc.path)
+
+			assert.Equal(t, tc.want, ok)
+			if tc.want {
+				assert.Equal(t, tc.path, pathToKeep)
+			}
+		})
+	}
+}
+
+func TestIsWindowsAbsolutePathSpecPath(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "uppercase drive letter with slash separator",
+			path: "C:/Windows/",
+			want: true,
+		},
+		{
+			name: "lowercase drive letter with slash separator",
+			path: "z:/tmp/",
+			want: true,
+		},
+		{
+			name: "non-letter drive",
+			path: "1:/tmp/",
+			want: false,
+		},
+		{
+			name: "drive-relative path",
+			path: "C:Windows/",
+			want: false,
+		},
+		{
+			name: "backslash separators are not rshell path specs",
+			path: `C:\Windows\`,
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isWindowsAbsolutePathSpecPath(tc.path))
+		})
+	}
+}
+
 func TestReducePathListToBroadest(t *testing.T) {
 	cases := []struct {
 		name string
@@ -258,304 +267,137 @@ func TestReducePathListToBroadest(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "nil",
+			name: "nil input",
 			in:   nil,
 			want: []string{},
 		},
 		{
-			name: "empty",
+			name: "empty input",
 			in:   []string{},
 			want: []string{},
 		},
 		{
-			name: "single entry",
-			in:   []string{"/var/log/"},
+			name: "read-only paths reduce to broadest prefix",
+			in:   []string{"/var/log/", "/var/log/datadog/", "/etc/"},
+			want: []string{"/etc/", "/var/log/"},
+		},
+		{
+			name: "read-only paths reduce when broadest appears last",
+			in:   []string{"/var/log/datadog/", "/var/log/datadog/agent/", "/var/log/"},
 			want: []string{"/var/log/"},
 		},
 		{
-			name: "exact duplicates collapse",
-			in:   []string{"/var/log/", "/var/log/"},
+			name: "read-only paths reduce through multiple replacements",
+			in:   []string{"/var/log/datadog/agent/", "/var/log/datadog/", "/var/log/"},
 			want: []string{"/var/log/"},
 		},
 		{
-			name: "broader entry first absorbs deeper",
-			in:   []string{"/var/", "/var/log/"},
-			want: []string{"/var/"},
+			name: "unrelated read-only sibling prefixes are preserved",
+			in:   []string{"/var/log/", "/var/logger/", "/var/logs/"},
+			want: []string{"/var/log/", "/var/logger/", "/var/logs/"},
 		},
 		{
-			name: "deeper entry first is absorbed by broader",
-			in:   []string{"/var/log/", "/var/"},
-			want: []string{"/var/"},
+			name: "read-write paths reduce independently",
+			in:   []string{"/var/log/:rw", "/var/log/datadog/:rw", "/etc/"},
+			want: []string{"/etc/", "/var/log/:rw"},
 		},
 		{
-			name: "broader at the end absorbs MULTIPLE deeper entries",
-			in:   []string{"/var/log/a/", "/var/log/b/", "/var/"},
-			want: []string{"/var/"},
+			name: "read-write paths reduce when broadest appears last",
+			in:   []string{"/var/log/datadog/agent/:rw", "/var/log/datadog/:rw", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
 		},
 		{
-			name: "broader at the beginning absorbs MULTIPLE deeper entries",
-			in:   []string{"/var/", "/var/log/a/", "/var/log/b/"},
-			want: []string{"/var/"},
+			name: "unrelated read-write sibling prefixes are preserved",
+			in:   []string{"/var/log/:rw", "/var/logger/:rw", "/var/logs/:rw"},
+			want: []string{"/var/log/:rw", "/var/logger/:rw", "/var/logs/:rw"},
 		},
 		{
-			name: "broader in the middle absorbs MULTIPLE deeper entries",
-			in:   []string{"/var/log/a/", "/var/", "/var/log/b/"},
-			want: []string{"/var/"},
+			name: "read-only path does not swallow read-write descendant",
+			in:   []string{"/var/log/", "/var/log/datadog/:rw"},
+			want: []string{"/var/log/", "/var/log/datadog/:rw"},
 		},
 		{
-			name: "root absorbs everything",
+			name: "read-write path does not swallow read-only descendant",
+			in:   []string{"/var/log/:rw", "/var/log/datadog/"},
+			want: []string{"/var/log/:rw", "/var/log/datadog/"},
+		},
+		{
+			name: "read-write path replaces unsuffixed read-only path with same path",
+			in:   []string{"/var/log/", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
+		},
+		{
+			name: "read-write path replaces explicit read-only path with same path",
+			in:   []string{"/var/log/:ro", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
+		},
+		{
+			name: "explicit read-only suffix is preserved",
+			in:   []string{"/var/log/:ro", "/var/log/datadog/:ro"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "explicit read-only suffix is preserved when broadest appears after unsuffixed descendant",
+			in:   []string{"/var/log/datadog/", "/var/log/:ro"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "unsuffixed broadest path wins over explicit read-only descendant",
+			in:   []string{"/var/log/datadog/:ro", "/var/log/"},
+			want: []string{"/var/log/"},
+		},
+		{
+			name: "duplicate read-only path keeps explicit read-only suffix",
+			in:   []string{"/var/log/", "/var/log/:ro"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "duplicate read-only path keeps explicit read-only suffix regardless of order",
+			in:   []string{"/var/log/:ro", "/var/log/"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "duplicates are removed across access buckets",
+			in:   []string{"/var/log/:rw", "/var/log/:rw", "/var/log/", "/var/log/"},
+			want: []string{"/var/log/:rw"},
+		},
+		{
+			name: "root read-only reduces all read-only paths only",
 			in:   []string{"/var/log/", "/etc/", "/"},
 			want: []string{"/"},
 		},
 		{
-			name: "prefix siblings are kept separately",
-			in:   []string{"/var/log/", "/var/logger/"},
-			want: []string{"/var/log/", "/var/logger/"},
+			name: "root read-write replaces read-only root with same path",
+			in:   []string{"/var/log/:rw", "/etc/:rw", "/:rw", "/"},
+			want: []string{"/:rw"},
 		},
 		{
-			name: "disjoint paths kept and sorted",
-			in:   []string{"/var/log/", "/etc/", "/tmp/"},
-			want: []string{"/etc/", "/tmp/", "/var/log/"},
+			name: "mixed access reductions stay isolated",
+			in: []string{
+				"/var/log/datadog/:rw",
+				"/var/log/:rw",
+				"/var/log/datadog/agent/",
+				"/var/log/datadog/:ro",
+				"/opt/datadog/:rw",
+				"/opt/",
+			},
+			want: []string{
+				"/opt/",
+				"/opt/datadog/:rw",
+				"/var/log/:rw",
+				"/var/log/datadog/:ro",
+			},
 		},
 		{
-			name: "three siblings under one parent collapse to parent",
-			in:   []string{"/var/a/", "/var/b/", "/var/c/", "/var/"},
-			want: []string{"/var/"},
-		},
-		{
-			name: "interleaved related and unrelated",
-			in:   []string{"/var/log/", "/etc/foo/", "/var/", "/etc/"},
-			want: []string{"/etc/", "/var/"},
+			name: "output is sorted after reduction",
+			in:   []string{"/zeta/", "/alpha/:rw", "/alpha/beta/:rw", "/beta/"},
+			want: []string{"/alpha/:rw", "/beta/", "/zeta/"},
 		},
 	}
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := reducePathListToBroadest(tc.in)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// TestReducePathListToBroadestIsIdempotent pins the property that running
-// reduce on an already-reduced list is a no-op. The post-condition implies
-// this, but a direct check guards against subtle bugs where a second pass
-// drops or reorders entries.
-func TestReducePathListToBroadestIsIdempotent(t *testing.T) {
-	in := []string{"/var/log/a/", "/var/log/b/", "/var/", "/etc/foo/"}
-	once := reducePathListToBroadest(in)
-	twice := reducePathListToBroadest(slices.Clone(once))
-
-	assert.Equal(t, once, twice, "reduce(reduce(x)) must equal reduce(x)")
-}
-
-// TestReducePathListToBroadestIsOrderIndependent pins the property that
-// the same set of input paths yields the same reduced output regardless of
-// iteration order. The implementation sorts at the end, but order can still
-// matter inside the loop (e.g. if an early reduction would have absorbed a
-// later entry differently).
-func TestReducePathListToBroadestIsOrderIndependent(t *testing.T) {
-	permutations := [][]string{
-		{"/var/", "/var/log/a/", "/var/log/b/", "/etc/"},
-		{"/var/log/a/", "/var/", "/var/log/b/", "/etc/"},
-		{"/var/log/a/", "/var/log/b/", "/var/", "/etc/"},
-		{"/var/log/b/", "/var/log/a/", "/etc/", "/var/"},
-		{"/etc/", "/var/log/a/", "/var/log/b/", "/var/"},
-	}
-	expected := reducePathListToBroadest(permutations[0])
-	for i := 1; i < len(permutations); i++ {
-		got := reducePathListToBroadest(permutations[i])
-		assert.Equal(t, expected, got, "permutation #%d must match the canonical reduction", i)
-	}
-}
-
-// TestIntersectPathLists pins the "narrower side wins" semantics of the
-// containment-based intersection. Pre-condition: both inputs are cleaned
-// AND reduced (no two entries on the same side dominate each other).
-//
-// The matrix below covers: empty inputs, equal lists, single-entry
-// containment in either direction, multiple narrower entries under one
-// broader entry (regression: an earlier draft broke too eagerly out of the
-// inner loop), prefix siblings, fully disjoint, and a multi-element
-// real-world-shaped case.
-func TestIntersectPathLists(t *testing.T) {
-	cases := []struct {
-		name         string
-		list1, list2 []string
-		want         []string
-	}{
-		{
-			name:  "both empty",
-			list1: []string{},
-			list2: []string{},
-			want:  []string{},
-		},
-		{
-			name:  "list1 empty",
-			list1: []string{},
-			list2: []string{"/var/log/"},
-			want:  []string{},
-		},
-		{
-			name:  "list2 empty",
-			list1: []string{"/var/log/"},
-			list2: []string{},
-			want:  []string{},
-		},
-		{
-			name:  "equal single-entry lists",
-			list1: []string{"/var/log/"},
-			list2: []string{"/var/log/"},
-			want:  []string{"/var/log/"},
-		},
-		{
-			name:  "list1 contains list2 (narrower wins; list2 admitted)",
-			list1: []string{"/var/"},
-			list2: []string{"/var/log/"},
-			want:  []string{"/var/log/"},
-		},
-		{
-			name:  "list2 contains list1 (narrower wins; list1 admitted)",
-			list1: []string{"/var/log/"},
-			list2: []string{"/var/"},
-			want:  []string{"/var/log/"},
-		},
-		{
-			name:  "list1 broader admits MULTIPLE list2 narrower entries",
-			list1: []string{"/var/"},
-			list2: []string{"/var/log/", "/var/spool/"},
-			want:  []string{"/var/log/", "/var/spool/"},
-		},
-		{
-			name:  "list2 broader admits MULTIPLE list1 narrower entries",
-			list1: []string{"/var/log/", "/var/spool/"},
-			list2: []string{"/var/"},
-			want:  []string{"/var/log/", "/var/spool/"},
-		},
-		{
-			name:  "prefix siblings produce no intersection",
-			list1: []string{"/var/log/"},
-			list2: []string{"/var/logger/"},
-			want:  []string{},
-		},
-		{
-			name:  "disjoint paths produce no intersection",
-			list1: []string{"/var/log/"},
-			list2: []string{"/etc/"},
-			want:  []string{},
-		},
-		{
-			name:  "root in list1 admits all list2 entries",
-			list1: []string{"/"},
-			list2: []string{"/var/log/", "/etc/"},
-			want:  []string{"/var/log/", "/etc/"},
-		},
-		{
-			name:  "two-by-two: each side has unrelated entries; only related pair admits",
-			list1: []string{"/var/", "/etc/"},
-			list2: []string{"/var/log/", "/opt/"},
-			want:  []string{"/var/log/"},
-		},
-		{
-			name:  "root in list2 admits all list1 entries (symmetry)",
-			list1: []string{"/var/log/", "/etc/"},
-			list2: []string{"/"},
-			want:  []string{"/var/log/", "/etc/"},
-		},
-		{
-			name:  "two-by-two: each list1 entry has a containing list2 entry",
-			list1: []string{"/var/log/", "/etc/foo/"},
-			list2: []string{"/var/", "/etc/"},
-			want:  []string{"/var/log/", "/etc/foo/"},
-		},
-		{
-			name:  "three-by-three with mixed disjoint, contained, and matching pairs",
-			list1: []string{"/var/", "/etc/", "/opt/"},
-			list2: []string{"/var/log/", "/etc/", "/srv/"},
-			want:  []string{"/var/log/", "/etc/"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := intersectPathLists(tc.list1, tc.list2)
-			assert.ElementsMatch(t, tc.want, got, "set of admitted paths")
-		})
-	}
-}
-
-// TestBackendPathsForEnv pins the env-driven dispatch and the failure
-// modes when the relevant key is missing.
-func TestBackendPathsForEnv(t *testing.T) {
-	cases := []struct {
-		name          string
-		containerized bool
-		in            map[string][]string
-		want          []string
-	}{
-		{
-			name:          "nil map → nil slice (kill-switch downstream)",
-			containerized: false,
-			in:            nil,
-			want:          nil,
-		},
-		{
-			name:          "empty map → nil slice (kill-switch downstream)",
-			containerized: false,
-			in:            map[string][]string{},
-			want:          nil,
-		},
-		{
-			name:          "bare-metal runner picks the default key",
-			containerized: false,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey:       {"/var/log", "/etc"},
-				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-			},
-			want: []string{"/var/log", "/etc"},
-		},
-		{
-			name:          "containerized runner picks the containerized key",
-			containerized: true,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey:       {"/var/log", "/etc"},
-				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-			},
-			want: []string{"/host/var/log"},
-		},
-		{
-			name:          "bare-metal runner with only the containerized key → nil (kill-switch)",
-			containerized: false,
-			in: map[string][]string{
-				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-			},
-			want: nil,
-		},
-		{
-			name:          "containerized runner with only the default key → nil (kill-switch)",
-			containerized: true,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
-			},
-			want: nil,
-		},
-		{
-			name:          "unknown keys are ignored",
-			containerized: false,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
-				"some_future_env":                  {"/some/path"},
-			},
-			want: []string{"/var/log"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.containerized {
-				t.Setenv("DOCKER_DD_AGENT", "true")
-			} else {
-				os.Unsetenv("DOCKER_DD_AGENT")
-			}
-			got := selectBackendPathsFromEnv(tc.in)
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, reducePathListToBroadest(tc.in))
 		})
 	}
 }

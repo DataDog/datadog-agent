@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 // Sender allows sending metrics from checks/a check
@@ -45,6 +46,8 @@ type Sender interface {
 	GetSenderStats() stats.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
+	// SetInfraTagger sets the Tagger that appends infra_mode tags to every metric sample.
+	SetInfraTagger(tagger *infratags.Tagger)
 	SetCheckService(service string)
 	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()

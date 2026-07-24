@@ -50,7 +50,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	loadAvg = Avg
 	cpuInfo = CPUInfo
 	loadCheck := new(LoadCheck)
-	mock := mocksender.NewMockSender(loadCheck.ID())
+	mock := mocksender.NewMockSender(t, loadCheck.ID())
 	loadCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	var nbCPU float64

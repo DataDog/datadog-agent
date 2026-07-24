@@ -114,7 +114,7 @@ func Test_resourcequotaTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -188,7 +188,7 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := tt.args.now()
@@ -233,7 +233,7 @@ func Test_cronJobLastScheduleTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := tt.args.now()
@@ -278,7 +278,7 @@ func Test_cronJobLastSuccessfulTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := tt.args.now()
@@ -354,7 +354,7 @@ func Test_jobCompleteTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -430,7 +430,7 @@ func Test_jobDurationTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -521,7 +521,7 @@ func Test_jobFailedTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -603,7 +603,7 @@ func Test_jobStatusSucceededTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -813,7 +813,7 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -870,7 +870,7 @@ func Test_pvPhaseTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -929,7 +929,7 @@ func Test_serviceTypeTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -988,7 +988,7 @@ func Test_podPhaseTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1158,7 +1158,7 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1244,7 +1244,7 @@ func Test_containerTerminatedReasonTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1333,7 +1333,7 @@ func Test_limitrangeTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1406,7 +1406,7 @@ func Test_nodeUnschedulableTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1738,7 +1738,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1891,7 +1891,7 @@ func Test_initContainerResourceRequestsTransformer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -1993,7 +1993,7 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -2059,7 +2059,7 @@ func Test_initContainerResourceLimitsTransformer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -2244,7 +2244,7 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -2471,7 +2471,7 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -2698,7 +2698,7 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
@@ -2752,7 +2752,7 @@ func Test_timestampTransformers(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := argsTemplate.now()
@@ -2787,7 +2787,7 @@ func Test_removeSecret(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()

@@ -10,6 +10,12 @@ copy_file(
     out = "gazelle_extension.go",
 )
 
+copy_file(
+    name = "dd_linux_bpf_src",
+    src = "_dd_linux_bpf.go",
+    out = "dd_linux_bpf.go",
+)
+
 py_binary(
     name = "gen_tags_go",
     srcs = ["gen_tags_go.py"],
@@ -37,12 +43,20 @@ copy_file(
     visibility = ["//visibility:private"],
 )
 
+copy_file(
+    name = "dd_linux_bpf_test_src",
+    src = "_dd_linux_bpf_test.go",
+    out = "dd_linux_bpf_test.go",
+    visibility = ["//visibility:private"],
+)
+
 # prevent `bazel run //:gazelle` from removing @gazelle deps (reentrancy guard)
 # gazelle:ignore
 go_library(
     name = "gazelle_extension",
     srcs = [
         "tags.go",
+        ":dd_linux_bpf_src",
         ":gazelle_extension_src",
     ],
     importpath = "github.com/DataDog/datadog-agent/bazel/rules/go",
@@ -60,7 +74,10 @@ go_library(
 
 go_test(
     name = "gazelle_extension_test",
-    srcs = [":gazelle_extension_test_src"],
+    srcs = [
+        ":dd_linux_bpf_test_src",
+        ":gazelle_extension_test_src",
+    ],
     embed = [":gazelle_extension"],
     deps = [
         "@@gazelle++go_deps+com_github_bazelbuild_buildtools//build",

@@ -2,13 +2,13 @@
 
 -----
 
-This site is built by [MkDocs](https://github.com/mkdocs/mkdocs) and uses the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
+This site is built by [Zensical](https://zensical.org), using its classic theme variant for compatibility with Material for MkDocs.
 
 You can serve documentation locally with the `dda run docs serve` command.
 
 ## Organization
 
-The site structure is defined by the [`nav`](https://www.mkdocs.org/user-guide/configuration/#nav) key in the [`mkdocs.yml`](https://github.com/DataDog/datadog-agent/blob/main/mkdocs.yml) file.
+The site structure is defined by the [`nav`](https://zensical.org/docs/setup/navigation/) key in the [`mkdocs.yml`](https://github.com/DataDog/datadog-agent/blob/main/mkdocs.yml) file.
 
 We strive to follow the principles of the Diátaxis [documentation framework](https://diataxis.fr).
 

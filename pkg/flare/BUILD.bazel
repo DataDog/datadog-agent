@@ -58,9 +58,11 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/system-probe/config",
+            "//pkg/util/defaultpaths",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/system-probe/config",
+            "//pkg/util/defaultpaths",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",

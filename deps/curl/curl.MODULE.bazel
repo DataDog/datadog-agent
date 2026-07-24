@@ -10,7 +10,7 @@ http_archive(
         "lib_contents.bzl": "//deps/curl:overlay/lib_contents.bzl",
         "linux/lib/curl_config.h": "//deps/curl:overlay/linux/lib/curl_config.h",
     },
-    sha256 = "fc5819cad3f9f5482669adcdc49a782c15f36d2a0715b395b06d9173593d2dc0",
-    strip_prefix = "curl-8.20.0",
-    url = "https://curl.haxx.se/download/curl-8.20.0.tar.gz",
+    sha256 = "d9b327997999045a24cda50f3983e69e51c516bd8be6ef9842fc7f99135e33bb",
+    strip_prefix = "curl-8.21.0",
+    url = "https://curl.haxx.se/download/curl-8.21.0.tar.gz",
 )

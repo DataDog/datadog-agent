@@ -6,7 +6,11 @@ import shutil
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import (
+    get_commit_sha,
+    get_common_ancestor,
+    get_current_branch,
+)
 from tasks.libs.types.arch import Arch
 
 try:
@@ -36,12 +40,20 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, get_ebpf_build_dir, is_root
+from .system_probe import (
+    build_cws_object_files,
+    build_object_files,
+    get_ebpf_build_dir,
+    is_root,
+)
 
 VERIFIER_DATA_DIR = Path("ebpf-calculator")
 LOGS_DIR = VERIFIER_DATA_DIR / "logs"
 VERIFIER_STATS = VERIFIER_DATA_DIR / "verifier_stats.json"
 COMPLEXITY_DATA_DIR = VERIFIER_DATA_DIR / "complexity-data"
+GITHUB_COMMENT_MAX_LENGTH = 65536
+GITHUB_COMMENT_SAFETY_MARGIN = 512
+GITHUB_COMMENT_TRUNCATION_NOTICE = "\n\n> ⚠️ This report was truncated to stay under GitHub's comment size limit."
 
 headers = [
     "Filename/Program",
@@ -359,7 +371,7 @@ def get_complexity_for_function(object_file: str, function: str, debug=False) ->
     if debug:
         object_file += "_debug"
 
-    function = function.replace('/', '__')
+    function = function.replace("/", "__")
     func_name = f"{object_file}/{function}"
     complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
@@ -487,7 +499,7 @@ def annotate_complexity(
 
                                 if show_raw_register_state:
                                     total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
-                                    raw_state = asm_line['register_state_raw'].split(':', 1)[1].strip()
+                                    raw_state = asm_line["register_state_raw"].split(":", 1)[1].strip()
                                     print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
 
                                 for reg in registers:
@@ -617,15 +629,15 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
 
         # Define the complexity level for all assembly instructions
         for insn in complexity_data["insn_map"].values():
-            if insn['times_processed'] <= COMPLEXITY_THRESHOLD_LOW:
-                level = 'low'
-            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_MEDIUM:
-                level = 'medium'
-            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_HIGH:
-                level = 'high'
+            if insn["times_processed"] <= COMPLEXITY_THRESHOLD_LOW:
+                level = "low"
+            elif insn["times_processed"] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                level = "medium"
+            elif insn["times_processed"] <= COMPLEXITY_THRESHOLD_HIGH:
+                level = "high"
             else:
-                level = 'extreme'
-            insn['complexity_level'] = level  # type: ignore
+                level = "extreme"
+            insn["complexity_level"] = level  # type: ignore
 
         all_files = _get_sorted_list_of_files(complexity_data)
         file_contents = {}
@@ -641,16 +653,16 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
                     compl = complexity_data["source_map"].get(lineid)
                     linedata = {"line": line, "complexity": compl}
                     if compl is not None:
-                        if compl['num_instructions'] <= COMPLEXITY_THRESHOLD_LOW:
-                            linedata['complexity_level'] = 'low'
-                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_MEDIUM:
-                            linedata['complexity_level'] = 'medium'
-                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_HIGH:
-                            linedata['complexity_level'] = 'high'
+                        if compl["num_instructions"] <= COMPLEXITY_THRESHOLD_LOW:
+                            linedata["complexity_level"] = "low"
+                        elif compl["num_instructions"] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                            linedata["complexity_level"] = "medium"
+                        elif compl["num_instructions"] <= COMPLEXITY_THRESHOLD_HIGH:
+                            linedata["complexity_level"] = "high"
                         else:
-                            linedata['complexity_level'] = 'extreme'
+                            linedata["complexity_level"] = "extreme"
                     else:
-                        linedata['complexity_level'] = 'none'
+                        linedata["complexity_level"] = "none"
 
                     file_contents[f].append(linedata)
 
@@ -714,7 +726,7 @@ def generate_complexity_summary_for_pr(
     else:
         commit_sha = get_commit_sha(ctx, branch_name)
 
-    pr_comment_head = 'eBPF complexity changes'
+    pr_comment_head = "eBPF complexity changes"
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
     has_prs = len(prs) > 0
@@ -762,7 +774,12 @@ def generate_complexity_summary_for_pr(
     common_ancestor = get_common_ancestor(ctx, commit_sha, base_branch_ref)
     main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
     print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
-    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path, gitlab_config_file=gitlab_config_file)
+    download_complexity_data(
+        ctx,
+        common_ancestor,
+        main_branch_complexity_path,
+        gitlab_config_file=gitlab_config_file,
+    )
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
     if len(main_complexity_files) == 0:
@@ -777,7 +794,7 @@ def generate_complexity_summary_for_pr(
     successful_programs, errored_programs, skipped_programs = 0, 0, 0
 
     for file in complexity_files:
-        folder_name = file.name.replace('.tar.gz', '')
+        folder_name = file.name.replace(".tar.gz", "")
         target_dir = current_branch_artifacts_path / folder_name
         ctx.run(f"mkdir -p {target_dir}")
         ctx.run(f"tar -xzf {file} -C {target_dir}")
@@ -795,7 +812,7 @@ def generate_complexity_summary_for_pr(
             continue
 
         # Don't care about the splits at the last part of the name (security-agent, system-probe, etc)
-        name_parts = folder_name.split('-', 4)
+        name_parts = folder_name.split("-", 4)
         if len(name_parts) != 5:
             print(f"Error: Invalid folder name {folder_name}, skipping")
             errored_programs += 1
@@ -858,7 +875,8 @@ def generate_complexity_summary_for_pr(
     for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):
         avg_new_complexity, avg_old_complexity = 0, 0
         highest_new_complexity, highest_old_complexity = 0, 0
-        lowest_new_complexity, lowest_old_complexity = 1e9, 1e9  # instruction limit is always < 1e9
+        # instruction limit is always < 1e9
+        lowest_new_complexity, lowest_old_complexity = 1e9, 1e9
         highest_complexity_platform, lowest_complexity_platform = "", ""
 
         for arch, distro, new_complexity, old_complexity, limit in entries:
@@ -914,7 +932,12 @@ def generate_complexity_summary_for_pr(
         max_complexity_abs_change = 0
         max_complexity_rel_change = 0
 
-    headers = ["Program", "Avg. complexity", "Distro with highest complexity", "Distro with lowest complexity"]
+    headers = [
+        "Program",
+        "Avg. complexity",
+        "Distro with highest complexity",
+        "Distro with lowest complexity",
+    ]
     summarized_complexity_changes = sorted(summarized_complexity_changes, key=lambda x: x[0])
 
     if max_complexity_rel_change < 0 and max_complexity_abs_change < 0 and programs_now_above_limit == 0:
@@ -935,11 +958,17 @@ def generate_complexity_summary_for_pr(
     msg += f"* Programs that were below the {threshold_for_max_limit * 100}% limit of instructions and are now above: {programs_now_above_limit}\n"
     msg += "\n\n"
 
+    max_comment_length = (
+        GITHUB_COMMENT_MAX_LENGTH - GITHUB_COMMENT_SAFETY_MARGIN - len(GITHUB_COMMENT_TRUNCATION_NOTICE)
+    )
     has_any_changes = False
+    report_sections: list[str] = []
+    groups_without_changes: list[str] = []
     for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
         rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
 
         if not any(row[-1] for row in rows):
+            groups_without_changes.append(group)
             continue
 
         def _build_table(orig_rows):
@@ -949,19 +978,34 @@ def generate_complexity_summary_for_pr(
             return tabulate(changed_rows, headers=headers, tablefmt="github")
 
         with_changes = [row for row in rows if row[-1]]
-        without_changes = [row for row in rows if not row[-1]]
-
-        msg += f"\n<details><summary>{group} details</summary>\n\n"
-        msg += f"## {group} [programs with changes]\n\n"
-        msg += _build_table(with_changes)
-        msg += f"\n\n## {group} [programs without changes]\n\n"
-        msg += _build_table(without_changes)
-        msg += "\n\n</details>\n"
+        section = f"\n<details><summary>{group} details</summary>\n\n"
+        section += f"## {group} [programs with changes]\n\n"
+        section += _build_table(with_changes)
+        section += "\n\n</details>\n"
+        report_sections.append(section)
         has_any_changes = True
 
+    if groups_without_changes:
+        msg += "Groups without changes:\n"
+        msg += "\n".join(f"- `{group}`" for group in groups_without_changes)
+        msg += "\n\n"
+
+    omitted_sections = 0
+    for section in report_sections:
+        if len(msg) + len(section) <= max_comment_length:
+            msg += section
+        else:
+            omitted_sections += 1
+
+    if omitted_sections > 0:
+        msg += f"\n\n> ⚠️ Omitted {omitted_sections} section(s) from this comment to stay under GitHub's comment size limit."
+
     curr_commit = get_commit_sha(ctx, short=False)
-    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are summarized by group only. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
+
+    if len(msg) > max_comment_length:
+        msg = msg[: max_comment_length - len(GITHUB_COMMENT_TRUNCATION_NOTICE)] + GITHUB_COMMENT_TRUNCATION_NOTICE
 
     print(msg)
 

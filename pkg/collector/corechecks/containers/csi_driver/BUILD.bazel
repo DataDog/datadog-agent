@@ -13,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
@@ -30,6 +31,8 @@ dd_agent_go_test(
     embed = [":csi_driver"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks",
         "@com_github_stretchr_testify//assert",

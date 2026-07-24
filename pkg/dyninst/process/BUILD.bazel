@@ -7,6 +7,7 @@ go_library(
         "info.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/process",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = ["//pkg/dyninst/ir"],
 )

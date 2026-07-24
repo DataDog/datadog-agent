@@ -627,7 +627,7 @@ func (l *loader) parseBool(v string) *bool {
 	return &b
 }
 
-//nolint:unused,deadcode
+//nolint:unused
 func (l *loader) parseFloat(v string) *float64 {
 	if v == "" {
 		return nil

@@ -7,9 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/structure",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/helper",
         "//pkg/config/model",
-        "//pkg/config/nodetreemodel",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )

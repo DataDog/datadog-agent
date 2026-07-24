@@ -70,10 +70,6 @@ func (b *builder) ParseEnvJSON(key string, _ any) {
 	b.setEnvParser(key, "json")
 }
 
-func (b *builder) SetKnown(key string) {
-	b.addToSchema(key, nil, nil, true)
-}
-
 func (b *builder) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
 	b.addToSchema(key, val, env, false)
 }
@@ -173,11 +169,6 @@ func (b *builder) GetSource(_ string) model.Source {
 }
 
 func (b *builder) GetAllSources(_ string) []model.ValueWithSource {
-	b.notImplemented()
-	return nil
-}
-
-func (b *builder) GetSubfields(_ string) []string {
 	b.notImplemented()
 	return nil
 }

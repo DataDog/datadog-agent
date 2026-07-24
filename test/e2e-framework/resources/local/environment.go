@@ -17,6 +17,9 @@ const (
 	// local Infra (local)
 	DDInfraDefaultPublicKeyPath    = "local/defaultPublicKeyPath"
 	DDInfraOpenShiftPullSecretPath = "local/openshift/pullSecretPath"
+	DDInfraOpenShiftCPUs           = "local/openshift/cpus"
+	DDInfraOpenShiftMemory         = "local/openshift/memory"
+	DDInfraOpenShiftDisk           = "local/openshift/disk"
 	DDInfraVMCPUs                  = "local/vm/cpus"
 	DDInfraVMMemory                = "local/vm/memory"
 	DDInfraVMDisk                  = "local/vm/disk"
@@ -109,4 +112,28 @@ func (e *Environment) VMHostname() string {
 		return v
 	}
 	return e.Ctx().Stack()
+}
+
+// OpenShiftCPUs returns the number of CPUs to allocate to the CRC cluster (default: 8).
+func (e *Environment) OpenShiftCPUs() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftCPUs); v != "" {
+		return v
+	}
+	return "8"
+}
+
+// OpenShiftMemory returns the memory in MB to allocate to the CRC cluster (default: 16384).
+func (e *Environment) OpenShiftMemory() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftMemory); v != "" {
+		return v
+	}
+	return "16384"
+}
+
+// OpenShiftDisk returns the disk size in GB to allocate to the CRC cluster (default: 50).
+func (e *Environment) OpenShiftDisk() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftDisk); v != "" {
+		return v
+	}
+	return "50"
 }

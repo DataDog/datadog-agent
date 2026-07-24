@@ -20,7 +20,6 @@
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
-      --storage-opt "size=100GB"
       -v "$(Get-Location):c:\mnt"
       -e DD_ENV=prod
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
@@ -88,6 +87,7 @@ tests_windows-x64:
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true
@@ -117,6 +117,7 @@ tests_windows-x64:
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true

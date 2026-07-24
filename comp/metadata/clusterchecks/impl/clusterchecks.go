@@ -231,7 +231,7 @@ func (cc *clusterChecksImpl) SetClusterHandler(handler *pkgclusterchecks.Handler
 // Returns true only when the cluster agent is the leader (NotRunning == StateLeader).
 // Assumes the caller already holds a read lock on cc.m
 func (cc *clusterChecksImpl) isLeader(handler *pkgclusterchecks.Handler) bool {
-	state, err := handler.GetState(true)
+	state, err := handler.GetState(false)
 	if err != nil {
 		return false
 	}

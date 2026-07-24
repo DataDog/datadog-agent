@@ -475,7 +475,7 @@ excluded_filesystems:
 func TestGivenADiskCheckWithExcludedFileSystemsIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 excluded_filesystems:
   - tmpfs(.*

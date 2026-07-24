@@ -9,6 +9,7 @@ package apminject
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,89 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeServiceManager is a test double for systemdServiceManager that records
+// Uninstall calls and returns canned results.
+type fakeServiceManager struct {
+	installerPath     string
+	serviceFileExists bool
+	setupErr          error
+	uninstallCalls    int
+}
+
+func (f *fakeServiceManager) InstallerPath() string             { return f.installerPath }
+func (f *fakeServiceManager) ServiceFileExists() bool           { return f.serviceFileExists }
+func (f *fakeServiceManager) Setup(_ context.Context) error     { return f.setupErr }
+func (f *fakeServiceManager) Uninstall(_ context.Context) error { f.uninstallCalls++; return nil }
+
+// TestSetupSystemdPreloadUnit covers the fallback branches: the function must
+// return true (use the tmpfs link) only when an installer is present AND Setup
+// succeeds, and must clean up the unit on every failure path so a unit that
+// cannot start is never left enabled.
+func TestSetupSystemdPreloadUnit(t *testing.T) {
+	tests := []struct {
+		name              string
+		installerPath     string
+		serviceFileExists bool
+		setupErr          error
+		wantRunning       bool
+		wantRollback      bool
+		wantUninstall     int
+	}{
+		{
+			name:          "no supported installer, nothing to clean up",
+			installerPath: "",
+			wantRunning:   false,
+			wantRollback:  false,
+			wantUninstall: 0,
+		},
+		{
+			name:              "no supported installer, stale unit removed",
+			installerPath:     "",
+			serviceFileExists: true,
+			wantRunning:       false,
+			wantRollback:      false,
+			wantUninstall:     1,
+		},
+		{
+			name:          "setup succeeds, rollback registered",
+			installerPath: "/usr/bin/datadog-installer",
+			wantRunning:   true,
+			wantRollback:  true,
+			wantUninstall: 0,
+		},
+		{
+			name:              "setup fails, unit cleaned up and falls back",
+			installerPath:     "/usr/bin/datadog-installer",
+			serviceFileExists: true,
+			setupErr:          errors.New("start failed"),
+			wantRunning:       false,
+			wantRollback:      false,
+			wantUninstall:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeServiceManager{
+				installerPath:     tt.installerPath,
+				serviceFileExists: tt.serviceFileExists,
+				setupErr:          tt.setupErr,
+			}
+			a := &InjectorInstaller{}
+
+			running := a.setupSystemdPreloadUnit(context.TODO(), fake)
+
+			assert.Equal(t, tt.wantRunning, running, "serviceRunning return")
+			assert.Equal(t, tt.wantUninstall, fake.uninstallCalls, "Uninstall call count")
+			if tt.wantRollback {
+				assert.Len(t, a.rollbacks, 1, "a rollback must be registered when the unit is running")
+			} else {
+				assert.Empty(t, a.rollbacks, "no rollback must be registered on the fallback paths")
+			}
+		})
+	}
+}
 
 func TestSetLDPreloadConfig(t *testing.T) {
 	a := &InjectorInstaller{
@@ -102,6 +186,44 @@ func TestRemoveLDPreloadConfig(t *testing.T) {
 
 }
 
+func TestSetLDPreloadConfig_TmpfsMigratesPersistentPath(t *testing.T) {
+	// When the active entry is the tmpfs symlink path, a stale persistent OCI
+	// entry must be migrated in place (not left behind, which would re-create
+	// the reboot hazard).
+	a := &InjectorInstaller{
+		installPath:    "/opt/datadog-packages/datadog-apm-inject/stable",
+		tmpfsInjectDir: "/run/datadog-apm-inject",
+		launcherPath:   "/run/datadog-apm-inject/launcher.preload.so",
+	}
+
+	out, err := a.setLDPreloadConfigContent(context.TODO(),
+		[]byte("/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "/run/datadog-apm-inject/launcher.preload.so\n", string(out))
+
+	// Idempotent: the tmpfs entry already present returns unchanged.
+	out, err = a.setLDPreloadConfigContent(context.TODO(), out)
+	require.NoError(t, err)
+	assert.Equal(t, "/run/datadog-apm-inject/launcher.preload.so\n", string(out))
+}
+
+func TestRemoveLDPreloadConfig_TmpfsPath(t *testing.T) {
+	a := &InjectorInstaller{
+		installPath:    "/opt/datadog-packages/datadog-apm-inject/stable",
+		tmpfsInjectDir: "/run/datadog-apm-inject",
+	}
+	for input, expected := range map[string]string{
+		"/run/datadog-apm-inject/launcher.preload.so\n":                              "",
+		"/abc/def/preload.so\n/run/datadog-apm-inject/launcher.preload.so\n":         "/abc/def/preload.so\n",
+		"/run/datadog-apm-inject/$lib/launcher.preload.so":                           "",
+		"/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so": "",
+	} {
+		output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
+		assert.NoError(t, err)
+		assert.Equal(t, expected, string(output))
+	}
+}
+
 func TestShouldInstrumentHost(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -145,7 +267,7 @@ func TestInstrumentLDPreload_MissingLibrary(t *testing.T) {
 
 	a := newInstallerWithPaths(tmpDir, preloadFile)
 
-	err := a.InstrumentLDPreload(context.TODO())
+	err := a.InstrumentLDPreload(context.TODO(), ViaPersistentPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "launcher library not found")
 

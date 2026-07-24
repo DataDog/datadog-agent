@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -37,10 +38,11 @@ const CheckName = "network_path"
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	config        *CheckConfig
-	lastCheckTime time.Time
-	traceroute    traceroute.Component
-	telemetryComp telemetryComp.Component
+	config           *CheckConfig
+	lastCheckTime    time.Time
+	traceroute       traceroute.Component
+	telemetryComp    telemetryComp.Component
+	testConfigSource payload.TestConfigSource
 }
 
 // Run executes the check
@@ -78,8 +80,10 @@ func (c *Check) Run() error {
 	}
 
 	path.Namespace = c.config.Namespace
+	path.TestConfigID = c.config.TestConfigID
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
+	path.TestConfigSource = c.testConfigSource
 	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
 	path.CollectorType = payload.CollectorTypeAgent
 
@@ -143,6 +147,15 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	config, err := NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return err
+	}
+	switch provider {
+	case names.NetworkPathRemoteConfig:
+		c.testConfigSource = payload.TestConfigSourceRemote
+	default:
+		c.testConfigSource = ""
+	}
+	if provider != names.NetworkPathRemoteConfig {
+		config.TestConfigID = ""
 	}
 	c.config = config
 	return nil

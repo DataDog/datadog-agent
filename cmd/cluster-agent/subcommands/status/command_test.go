@@ -20,5 +20,36 @@ func TestStatusCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"status"},
 		run,
-		func() {})
+		func(cliParams *cliParams) {
+			if len(cliParams.args) != 0 {
+				t.Fatalf("expected no status section, got %v", cliParams.args)
+			}
+			if cliParams.list {
+				t.Fatal("expected list flag to be false")
+			}
+		})
+}
+
+func TestStatusSectionCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"status", "admission controller"},
+		run,
+		func(cliParams *cliParams) {
+			if len(cliParams.args) != 1 || cliParams.args[0] != "admission controller" {
+				t.Fatalf("unexpected status section arguments: %v", cliParams.args)
+			}
+		})
+}
+
+func TestStatusListCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"status", "-l"},
+		run,
+		func(cliParams *cliParams) {
+			if !cliParams.list {
+				t.Fatal("expected list flag to be true")
+			}
+		})
 }

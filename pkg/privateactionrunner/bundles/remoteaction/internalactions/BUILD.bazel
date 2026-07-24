@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "internalactions",
+    srcs = [
+        "entrypoint.go",
+        "prepare_encryption.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
+
+go_test(
+    name = "internalactions_test",
+    srcs = ["prepare_encryption_test.go"],
+    embed = [":internalactions"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)
