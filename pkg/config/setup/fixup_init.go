@@ -8,10 +8,13 @@ package setup
 
 import (
 	"os"
+	"path"
 	"runtime"
+	"strings"
 
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 func fixupContainerSyspath(config pkgconfigmodel.Config) {
@@ -89,11 +92,19 @@ func fixupLogsAgent(config pkgconfigmodel.Config) {
 	}
 }
 
+func fixupLinuxSockets(config pkgconfigmodel.Config) {
+	if runtime.GOOS == "linux" || runtime.GOOS == "aix" {
+		config.Set("dogstatsd_socket", defaultpaths.GetDefaultStatsdSocket(), pkgconfigmodel.SourceDefault)
+		config.Set("apm_config.receiver_socket", defaultpaths.GetDefaultReceiverSocket(), pkgconfigmodel.SourceDefault)
+	}
+}
+
 // always called, for both full-agent and serverless-init, after declaring settings
 func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 	fixupContainerSyspath(config)
 	fixupLogsAgent(config)
+	fixupLinuxSockets(config)
 	pkgconfigmodel.AddOverrideFunc(applyKubernetesContainerDefaults)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
@@ -107,5 +118,18 @@ func fixupInitFullAgentOnlyComponents(_ pkgconfigmodel.Config) {
 }
 
 // called only for system-probe, after declaring settings
-func fixupInitSystemProbe(_ pkgconfigmodel.Config) {
+func fixupInitSystemProbe(config pkgconfigmodel.Config) {
+	if value, _ := os.LookupEnv("HOST_ETC"); value != "" {
+		for _, name := range []string{
+			"system_probe_config.apt_config_dir",
+			"system_probe_config.yum_repos_dir",
+			"system_probe_config.zypper_repos_dir",
+		} {
+			if config.GetSource(name) == pkgconfigmodel.SourceDefault {
+				oldVal := config.GetString(name)
+				newVal := path.Join(value, strings.TrimPrefix(oldVal, "/etc"))
+				config.Set(name, newVal, pkgconfigmodel.SourceDefault)
+			}
+		}
+	}
 }

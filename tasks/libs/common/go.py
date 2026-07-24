@@ -16,6 +16,7 @@ from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
 from tasks.libs.build.bazel import bazel
+from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
 
@@ -132,6 +133,10 @@ def go_build(
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
+    if check_deadcode and sys.platform == "aix":
+        print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
+        check_deadcode = False
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
@@ -163,7 +168,7 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{' '.join(build_tags)}\""
+        cmd += f" -tags \"{','.join(build_tags)}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:
@@ -206,24 +211,24 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     _ = runner.input_sleep  # please linters
 
     # -dumpdep is very verbose so we hide that
-    # any unrecognized log line is shown by whydeadcode anyway
     result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
 
-    # worst case it's already installed and nothing happens
-    with ctx.cd("internal/tools"):
-        # pass the env to the command so that it can check GOPATH/GOBIN if provided
-        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
-
-    # whydeadcode prints unexpected input on stderr (eg. build warnings), and
-    # dead code call stack on stdout
-    # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
+    # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
+    # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
-    whydeadcoderes = cast(
-        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
+    whydeadcode_out = bazel(
+        runner,
+        "run",
+        *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
+        "@com_github_aarzilli_whydeadcode//:whydeadcode",
+        "--",
+        "--ignore-unrecognized-input",
+        input_stream=CustomReader(result.stderr),
+        capture_output=True,
     )
-    if whydeadcoderes.stdout:
+    if whydeadcode_out:
         print(
-            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
         )
 
     return result

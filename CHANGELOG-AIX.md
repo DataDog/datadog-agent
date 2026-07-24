@@ -10,7 +10,9 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Set `NLSPATH` in the agent wrapper so the IBM MQ client library can locate its own message catalogs. Previously, `ibm_mq` check errors and other MQ client errors rendered as unreadable generic text (e.g. `AMQ9211E: Failed to find error message id`) instead of the real message, because the agent process only had AIX's default `NLSPATH` (`/usr/lib/nls/msg/...`), which doesn't include MQ's catalog directory.
 - Bump the embedded Python from 3.13.12 to 3.13.14, matching the version used by the Linux omnibus/bazel build
+- Build embedded OpenSSL with the same hardening flags as the Linux omnibus/bazel build (`no-idea no-mdc2 no-rc5 no-ssl3 no-gost no-filenames`, dynamic zlib loading) — the AIX build previously shipped OpenSSL with default settings, retaining legacy/weak algorithms and the GOST engine that Linux deliberately strips
 - Add a `/usr/bin/datadog-agent` convenience symlink to the agent wrapper on install, matching the Linux packages
 - Fix `/var/log/datadog` permissions: it was left world-readable (default `0755`) after install instead of the restrictive `0750` (owner/group `dd-agent`) used on other platforms
 - Disable Python's `dbm` C-extension backends (`dbm.gnu`/`dbm.ndbm`) to match the Linux omnibus/bazel build, which links no dbm backend either; `gdbm` is no longer staged into the embedded tree

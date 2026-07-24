@@ -4,7 +4,6 @@ import json
 import os
 import platform
 import re
-import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -15,9 +14,9 @@ from invoke import task
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 
-REPO_ROOT = Path(__file__).parent.parent
 # Top-level Test* declarations in Go source files — Go side of the parity comparison.
 _TEST_FUNC_RE = re.compile(r'^func (Test\w*)\(', re.MULTILINE)
 # Matches json.decoder.WHITESPACE, an undocumented/unstubbed cpython internal.
@@ -52,7 +51,7 @@ def _chunk_import_paths(import_paths: list[str]) -> list[list[str]]:
     return chunks
 
 
-def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
+def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
     """Return {import_path: {Test* func names}} for the given import paths
     compiled under the given build tags."""
     if not import_paths:
@@ -60,21 +59,20 @@ def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[
     pkgs: dict[str, set[str]] = {}
     decoder = json.JSONDecoder()
     for chunk in _chunk_import_paths(sorted(import_paths)):
-        # shell=False (the default value, which we still pass explicitly) is
-        # required: cmd.exe on Windows has an 8191-char command-line limit.
-        result = subprocess.run(
-            ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *chunk],
-            cwd=REPO_ROOT,
+        text = bazel(
+            ctx,
+            "run",
+            "--@rules_go//go/config:race",  # avoid thrashing the analysis cache right after `bazel test`
+            "//:go",
+            "--",
+            "list",
+            "-json",
+            "-e",
+            f"-tags={','.join(sorted(tags))}",
+            *chunk,
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            shell=False,
         )
-        if result.returncode != 0:
-            # -e reports per-package errors inside the JSON output without failing the
-            # command; a non-zero exit means `go list` itself failed to run at all.
-            raise ChildProcessError(f"go list failed with exit code {result.returncode}: {result.stderr}")
-        text, pos = result.stdout, 0
+        pos = 0
         while pos < len(text):
             pos = _JSON_WHITESPACE_RE.match(text, pos).end()
             if pos >= len(text):
@@ -271,7 +269,7 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False)
     # by `!race` must be excluded from the expected test set too.
     tags = [*compute_build_tags_for_flavor("unit-tests", None, None, flavor), "race"]
     coverage = _bazel_test_funcs_from_bep(bep_path)
-    test_pkgs = _go_test_packages(tags, set(coverage))
+    test_pkgs = _go_test_packages(ctx, tags, set(coverage))
 
     go_pkgs = set(test_pkgs)
     extra_in_bazel = {p for p, funcs in coverage.items() if funcs} - go_pkgs
@@ -333,6 +331,17 @@ def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
                     if uri.startswith("file://"):
                         xml_paths.append(Path(uri[len("file://") :]))
     return xml_paths, cache_status
+
+
+def _is_gotestsum_shaped(suite: ET.Element) -> bool:
+    """True if every testcase in this testsuite has a classname attribute.
+
+    Bazel synthesizes a minimal single-testcase XML (no classname) for test
+    rules that don't emit their own JUnit report (diff_test, sh_test, rust
+    tests, ...); downstream JUnit processing assumes gotestsum's schema,
+    where classname is always present.
+    """
+    return all("classname" in tc.attrib for tc in suite.iter("testcase"))
 
 
 def _annotate_junit_cache_status(xml_path: Path, cache_status: dict[str, bool]) -> None:
@@ -407,6 +416,8 @@ def collect_junit(ctx, flavor, output_tgz, bep_file):
             )
             for ts in suites:
                 if int(ts.get("tests", "0")) == 0:
+                    continue
+                if not _is_gotestsum_shaped(ts):
                     continue
                 merged.append(ts)
                 collected += 1

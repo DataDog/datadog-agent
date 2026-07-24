@@ -8,7 +8,7 @@ proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
 event_monitor_regex = r'^eventMonitorBindEnvAndSetDefault\(\w+, (.*)\)'
 
 bind_env_logs = r'bindEnvAndSetLogsConfigKeys\(\w+, "([\w_\.]+)"'
-bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]+)"'
+bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]*)"'
 
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
@@ -44,6 +44,7 @@ def analyze_file(sourcefile):
             continue
 
         if line == '':
+            p.blank()
             continue
 
         if within_func_init_config:
@@ -99,6 +100,11 @@ class Processor:
         self.currfunc = ''
         self.settings = []
         self.internal_comment = []
+
+    def blank(self):
+        if len(self.settings) and self.settings[len(self.settings) - 1][0] == '':
+            return
+        self.settings.append(['', '', '-blank-'])
 
     def clearfunc(self):
         if not self.settings:

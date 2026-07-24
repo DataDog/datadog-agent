@@ -2480,6 +2480,16 @@ api_key:
 #
 # dogstatsd_port: 8125
 
+## @param dogstatsd_require_listener - boolean - optional - default: false
+## @env DD_DOGSTATSD_REQUIRE_LISTENER - boolean - optional - default: false
+## When enabled, DogStatsD fails to start (the process exits with a non-zero status) if it
+## cannot create any listener (UDP port, Unix socket, or named pipe), which would leave
+## DogStatsD with no way to receive metrics. When disabled, this failure is only logged and
+## the process keeps running. Enable this so a process supervisor can detect and restart a
+## non-functional DogStatsD.
+#
+# dogstatsd_require_listener: false
+
 ## @param bind_host - string - optional - default: ""
 ## @env DD_BIND_HOST - string - optional - default: ""
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
@@ -5246,6 +5256,18 @@ api_key:
 #     # To enable the OTLP ingest, the otlp_config.receiver section must be set.
 #
 #     enabled: true
+
+#     # @param infra_attributes - custom object - optional
+#     # Controls whether infrastructure attributes (host tags, container tags) are attached to OTLP logs ingested by the Agent.
+#
+#     infra_attributes:
+
+#       # @param tags_as_ddtags - boolean - optional - default: false
+#       # @env DD_OTLP_CONFIG_LOGS_INFRA_ATTRIBUTES_TAGS_AS_DDTAGS - boolean - optional - default: false
+#       # Controls whether the Infra-Attribute-Processor writes custom tags (for example, from
+#       # kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log tags instead of log attributes.
+#
+#       tags_as_ddtags: false
 
 #     # @param batch - custom object - optional
 #     # Configuration for OTLP sending queue batch.
