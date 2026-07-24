@@ -31,6 +31,44 @@ PLATFORM_DEFAULT_RE = re.compile(
 # Matches a single `"platform": value` entry inside a GetPlatformDefault map literal.
 PLATFORM_ENTRY_RE = re.compile(r'^"(?P<platform>\w+)"\s*:\s*(?P<value>.+?),?$')
 
+# A `generate_const:<name>` tag records that a setting's default value comes from the Go constant
+# `<name>` declared in pkg/config/setup, so the constant can be generated from the schema.
+GENERATE_CONST_PREFIX = "generate_const:"
+
+generate_const_settings = {
+    "dynamic_instrumentation.debug_info_disk_cache.dir": "defaultDynamicInstrumentationDebugInfoDir",
+    "forwarder_apikey_validation_interval": "DefaultAPIKeyValidationInterval",
+    "forwarder_recovery_interval": "DefaultForwarderRecoveryInterval",
+    "logs_config.auditor_ttl": "DefaultAuditorTTL",
+    "logs_config.max_message_size_bytes": "DefaultMaxMessageSizeBytes",
+    "network_path.collector.e2e_queries": "DefaultNetworkPathStaticPathE2eQueries",
+    "network_path.collector.max_ttl": "DefaultNetworkPathMaxTTL",
+    "network_path.collector.timeout": "DefaultNetworkPathTimeout",
+    "network_path.collector.traceroute_queries": "DefaultNetworkPathStaticPathTracerouteQueries",
+    "security_agent.cmd_port": "DefaultSecurityAgentCmdPort",
+    "security_agent.internal_profiling.site": "DefaultSite",
+    "serializer_compressor_kind": "DefaultCompressorKind",
+    "serializer_zstd_compressor_level": "DefaultZstdCompressionLevel",
+    "service_monitoring_config.tls.istio.envoy_path": "defaultEnvoyPath",
+    "site": "DefaultSite",
+    "system_probe_config.btf_output_dir": "defaultBTFOutputDir",
+    "system_probe_config.internal_profiling.site": "DefaultSite",
+    "system_probe_config.max_conns_per_message": "defaultConnsMessageBatchSize",
+    "system_probe_config.offset_guess_threshold": "defaultOffsetThreshold",
+    "system_probe_config.runtime_compiler_output_dir": "defaultRuntimeCompilerOutputDir",
+    "logs_config.compression_kind": "DefaultLogCompressionKind",
+    "logs_config.zstd_compression_level": "DefaultZstdCompressionLevel",
+    "logs_config.batch_wait": "DefaultBatchWait",
+    "logs_config.batch_max_concurrent_send": "DefaultBatchMaxConcurrentSend",
+    "logs_config.batch_max_content_size": "DefaultBatchMaxContentSize",
+    "logs_config.batch_max_size": "DefaultBatchMaxSize",
+    "logs_config.input_chan_size": "DefaultInputChanSize",
+    "logs_config.sender_backoff_factor": "DefaultLogsSenderBackoffFactor",
+    "logs_config.sender_backoff_base": "DefaultLogsSenderBackoffBase",
+    "logs_config.sender_backoff_max": "DefaultLogsSenderBackoffMax",
+    "logs_config.sender_recovery_interval": "DefaultForwarderRecoveryInterval",
+}
+
 # Settings used by full agent but not by serverless
 
 full_agent_only_paths = [
@@ -411,6 +449,20 @@ def fix_missing_env_doc(core_schema, sysprobe_schema):
     return core_schema, sysprobe_schema
 
 
+def fix_generate_const(core_schema, sysprobe_schema):
+    # Tag each setting whose default is sourced from a pkg/config/setup constant with
+    # `generate_const:<name>`. A setting can live in the core schema, the system-probe schema, or both,
+    # so apply the tag to whichever schemas have it.
+    for key, const in generate_const_settings.items():
+        tag = GENERATE_CONST_PREFIX + const
+        for schema in (core_schema, sysprobe_schema):
+            node = try_fetch_node(schema, key)
+            if node is None:
+                continue
+            node["tags"] = sorted(set(node.get("tags", []) + [tag]))
+    return core_schema, sysprobe_schema
+
+
 def fix_full_agent_only(core_schema, sysprobe_schema):
     for key in full_agent_only_paths:
         node = try_fetch_node(core_schema, key)
@@ -485,6 +537,7 @@ def fix_redundant_template_section_tags(core_schema, sysprobe_schema):
 
 def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_generate_const(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_full_agent_only(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)

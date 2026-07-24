@@ -630,11 +630,68 @@ def gen_delegated_auth_map(core_schema, system_probe_schema, core_out, system_pr
     emit(core_out, collect_delegated_auth_keys(core_schema))
 
 
+GENERATE_CONST_PREFIX = "generate_const:"
+
+
+def gen_generate_const(core_schema, system_probe_schema, core_out, system_probe_out):
+    """
+    Constant generator: emits a `const` block declaring every Go constant referenced by a
+    `generate_const:<name>` tag, set to its associated setting's default value.
+
+    Both schemas are traversed. A constant may be referenced by several settings (in either schema);
+    they must all resolve to the same default value, otherwise codegen fails — a single constant
+    cannot have an ambiguous value.
+
+    core_schema         - loaded core schema object
+    system_probe_schema - loaded system-probe schema object
+    core_out            - Go source lines for the core constant file
+    system_probe_out    - Go source lines for the system-probe constant file
+    """
+    # const name -> {'value': go_value, 'source': setting_keypath}
+    consts = {}
+
+    def collect(schema):
+        def visit(keyname):
+            node = get_node(keyname.split('.'), schema)
+            for tag in node.get('tags') or []:
+                if not isinstance(tag, str) or not tag.startswith(GENERATE_CONST_PREFIX):
+                    continue
+                name = tag[len(GENERATE_CONST_PREFIX) :]
+                value = retrieve_default_value(keyname.split('.'), schema)
+                existing = consts.get(name)
+                if existing is not None and existing['value'] != value:
+                    raise RuntimeError(
+                        f"generate_const '{name}' has conflicting default values: "
+                        f"'{existing['source']}' => {existing['value']} vs '{keyname}' => {value}. "
+                        f"A generated constant must have a single value; tag only the setting whose "
+                        f"default is exactly the constant, or make the defaults agree."
+                    )
+                if existing is None:
+                    consts[name] = {'value': value, 'source': keyname}
+
+        walk_schema(schema, '', visit)
+
+    collect(core_schema)
+    collect(system_probe_schema)
+
+    if not consts:
+        return
+
+    core_out.append("// Constants generated from settings tagged with a `generate_const:<name>` label.")
+    core_out.append("// Each constant's value is the default of its associated setting.")
+    core_out.append("const (")
+    for name in sorted(consts):
+        core_out.append(f"\t{name} = {consts[name]['value']}")
+    core_out.append(")")
+    core_out.append("")
+
+
 # Ordered list of generator functions used to produce the constant files.
 # Each is called with (core_schema, system_probe_schema, core_out, system_probe_out)
 # and may append Go code to either output buffer.
 constant_generators = [
     gen_delegated_auth_map,
+    gen_generate_const,
 ]
 
 

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -210,7 +211,7 @@ func (d *dispatcher) updateRunnersStats() {
 			if err != nil {
 				// This can happen in old versions of the runners that do not expose this information.
 				log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
-				node.workers = pkgconfigsetup.DefaultNumWorkers
+				node.workers = constants.DefaultNumWorkers
 			} else {
 				node.workers = workers.Count
 			}
