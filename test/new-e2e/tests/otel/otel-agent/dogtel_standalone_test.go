@@ -7,6 +7,7 @@
 package otelagent
 
 import (
+	"context"
 	_ "embed"
 	"strings"
 	"testing"
@@ -16,11 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	otelstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/otel-standalone"
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -173,4 +178,137 @@ func (s *dogtelStandaloneTestSuite) TestDogtelOTLPLogs() {
 // component (backed by the k8s node name from workloadmeta).
 func (s *dogtelStandaloneTestSuite) TestDogtelHosts() {
 	utils.TestHosts(s)
+}
+
+// coreAgentPodLabel is the fixed "app" label the datadog Helm chart sets on the
+// core node agent pod, regardless of the release/resource name passed to
+// helm.NewKubernetesAgent (see components/datadog/agent/helm/kubernetes_agent.go).
+const coreAgentPodLabel = "dda-linux-datadog"
+
+// coreAgentNamespace is a namespace distinct from the standalone otel-agent's
+// "datadog" namespace. Both otelstandalone.K8sAppDefinition and the Helm agent
+// installation create an image-pull secret named "registry-credentials-<namespace>"
+// whenever a private registry is configured (true in CI); reusing the same
+// namespace for both would make them collide on the same Pulumi resource.
+const coreAgentNamespace = "datadog-core-agent"
+
+// dogtelCoexistTestSuite verifies that a standalone otel-agent (DD_OTEL_STANDALONE=true,
+// dogtelextension enabled) and a separate, Helm-deployed core Datadog Agent can run
+// side by side in the same cluster without conflicting: no IPC/auth-token errors, no
+// crash loops, the dogtel tagger gRPC server starts cleanly, and the core Agent's own
+// telemetry independently reaches fakeintake. The two agents are deployed into distinct
+// namespaces (see coreAgentNamespace) to avoid each side's image-pull-secret creation
+// colliding on the same Pulumi resource name; this test therefore covers cluster-level
+// coexistence (shared nodes, shared fakeintake, no cross-agent IPC contention) rather
+// than namespace-scoped resource collisions from deploying both into "datadog".
+//
+// The core Agent's otelCollector/otel-agent sidecar is intentionally left disabled:
+// enabling otlp_config on the core Agent at the same time as a standalone otel-agent
+// would conflict on the OTLP receiver ports, so only the standalone otel-agent handles
+// OTLP traffic in this scenario.
+type dogtelCoexistTestSuite struct {
+	e2e.BaseSuite[environments.Kubernetes]
+}
+
+// dogtelCoexistProvisioner mirrors dogtelStandaloneProvisioner but additionally
+// deploys the Helm core Agent alongside the standalone otel-agent DaemonSet.
+func dogtelCoexistProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
+	deployFn := func(e config.Env, kubeProvider *kubernetes.Provider, fi *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error) {
+		return otelstandalone.K8sAppDefinition(e, kubeProvider, "datadog", dogtelStandaloneConfig, fi)
+	}
+	if isKindLocal() {
+		return provlocal.Provisioner(
+			provlocal.WithStandaloneOTelAgent(deployFn),
+			provlocal.WithAgentOptions(
+				kubernetesagentparams.WithNamespace(coreAgentNamespace),
+			),
+		)
+	}
+	return provkindvm.Provisioner(
+		provkindvm.WithRunOptions(
+			scenkindvm.WithStandaloneOTelAgent(deployFn),
+			scenkindvm.WithAgentOptions(
+				kubernetesagentparams.WithNamespace(coreAgentNamespace),
+			),
+		),
+	)
+}
+
+// TestDogtelStandaloneCoexistWithCoreAgent is the entry point for the suite.
+func TestDogtelStandaloneCoexistWithCoreAgent(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &dogtelCoexistTestSuite{},
+		e2e.WithProvisioner(dogtelCoexistProvisioner()),
+		e2e.WithCoverageRequired(map[string]bool{
+			// env.Agent resolves to the standalone otel-agent (provisioners export it
+			// after the Helm agent), so requiring "agent" coverage would exec the
+			// core agent's coverage command inside a pod that only has an
+			// otel-agent container. The Helm core agent's own coverage is collected
+			// by whichever suite owns env.Agent as the Helm agent (not this one).
+			"agent":      false,
+			"otel-agent": true,
+		}),
+	)
+}
+
+func (s *dogtelCoexistTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+	// Verify the dogtel liveness metric BEFORE any aggregator flush: it's emitted
+	// once by dogtelextension.Start() at startup.
+	s.T().Log("Waiting for dogtel liveness metric before aggregator flush")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(utils.DogtelLivenessMetricName)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics)
+	}, 5*time.Minute, 10*time.Second, "dogtel liveness metric not received after standalone otel-agent startup")
+}
+
+// TestBothAgentsRunning checks both the standalone otel-agent pod and the separate
+// core Agent pod reach Running with zero restarts, i.e. neither crash-loops when
+// co-located.
+func (s *dogtelCoexistTestSuite) TestBothAgentsRunning() {
+	otelAgentPod := getPodByAppLabel(s, "datadog", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
+	assertPodRunningNoRestarts(s, otelAgentPod, "otel-agent")
+
+	coreAgentPod := getPodByAppLabel(s, coreAgentNamespace, coreAgentPodLabel)
+	assertPodRunningNoRestarts(s, coreAgentPod, "agent")
+}
+
+// TestDogtelTaggerServerRunning confirms the tagger gRPC server started by the
+// standalone otel-agent's dogtelextension is listening on port 15555, i.e. it is
+// not blocked by the co-located core Agent's own IPC/tagger server.
+func (s *dogtelCoexistTestSuite) TestDogtelTaggerServerRunning() {
+	utils.TestDogtelTaggerServerRunning(s, 15555)
+}
+
+// TestCoreAgentMetricsReachFakeintake verifies the core Agent independently ships
+// its own health telemetry to fakeintake while the standalone otel-agent is running
+// alongside it.
+func (s *dogtelCoexistTestSuite) TestCoreAgentMetricsReachFakeintake() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.agent.running")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "core agent should independently report datadog.agent.running to fakeintake")
+	}, 5*time.Minute, 10*time.Second, "core agent health metric not received")
+}
+
+func getPodByAppLabel(s *dogtelCoexistTestSuite, namespace, appLabel string) corev1.Pod {
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
+	})
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), res.Items, "no pod found with app label %q", appLabel)
+	return res.Items[0]
+}
+
+func assertPodRunningNoRestarts(s *dogtelCoexistTestSuite, pod corev1.Pod, containerName string) {
+	require.Equal(s.T(), "Running", string(pod.Status.Phase), "pod %s should be Running", pod.Name)
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.Name == containerName {
+			assert.Zero(s.T(), cs.RestartCount, "container %s in pod %s should not have restarted", containerName, pod.Name)
+			return
+		}
+	}
+	s.T().Fatalf("container %s not found in pod %s", containerName, pod.Name)
 }
