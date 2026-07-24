@@ -8,6 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.82.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.82.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.82.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-rc.6
@@ -26,7 +27,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.82.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0-rc.6 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0-rc.6 // indirect
