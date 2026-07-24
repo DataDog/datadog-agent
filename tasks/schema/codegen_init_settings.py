@@ -278,14 +278,16 @@ def output_func_footer(_, sourcecode):
 def try_parse_duration(text):
     if not isinstance(text, str):
         return None
-    m = re.fullmatch(r'(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?(?:(\d+)µs)?', text)
+    m = re.fullmatch(r'(-)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?(?:(\d+)µs)?(?:(\d+)ns)?', text)
     if not m or not any(m.groups()):
         return None
-    hours = int(m.group(1) or 0)
-    minutes = int(m.group(2) or 0)
-    seconds = int(m.group(3) or 0)
-    millis = int(m.group(4) or 0)
-    micros = int(m.group(5) or 0)
+    minus = m.group(1) or False
+    hours = int(m.group(2) or 0)
+    minutes = int(m.group(3) or 0)
+    seconds = int(m.group(4) or 0)
+    millis = int(m.group(5) or 0)
+    micros = int(m.group(6) or 0)
+    nanos = int(m.group(7) or 0)
     parts = []
     if hours:
         parts.append('%d*time.Hour' % hours)
@@ -297,8 +299,14 @@ def try_parse_duration(text):
         parts.append('%d*time.Millisecond' % millis)
     if micros:
         parts.append('%d*time.Microsecond' % micros)
+    if nanos:
+        parts.append('%d*time.Nanosecond' % nanos)
     if not parts:
         return 'time.Duration(0)'
+    if minus and len(parts) == 1:
+        return f"-{parts[0]}"
+    elif minus:
+        return f"-({' + '.join(parts)})"
     return ' + '.join(parts)
 
 
