@@ -17,13 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func testHostname(t *testing.T) hostnameinterface.Component {
 	t.Helper()
 	hn, _ := hostnamemock.NewMock("test-host")
 	return hn
+}
+
+func testSelfIdent(t *testing.T) *selfident.SelfIdent {
+	t.Helper()
+	return selfident.New(option.None[workloadmeta.Component]())
 }
 
 // requireSchema skips the test when the compressed schema files haven't been
@@ -66,7 +74,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(config.NewMock(t), testHostname(t)).Run()
+	reports, err := newChecker(config.NewMock(t), testHostname(t), testSelfIdent(t)).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
@@ -82,7 +90,7 @@ func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 		"remote_configuration:\n  refresh_interval: 5s", // nested key
 	} {
 		cfg := config.NewMockFromYAML(t, yaml)
-		reports, err := newChecker(cfg, testHostname(t)).Run()
+		reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 		require.NoError(t, err)
 		assert.Empty(t, reports, "duration string %q should not produce a schema violation: %+v", yaml, reports)
 	}
@@ -95,7 +103,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
-	reports, err := newChecker(cfg, testHostname(t)).Run()
+	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	if err != nil {
 		t.Skipf("schema validator unavailable (schema not embedded in test binary): %v", err)
 	}
@@ -113,8 +121,9 @@ func TestInstanceIssueID_DiffersByConfigPath(t *testing.T) {
 	cfg1 := config.NewMockFromYAML(t, "config_path_marker: a")
 	cfg2 := config.NewMockFromYAML(t, "config_path_marker: b")
 
-	c1 := newChecker(cfg1, hn)
-	c2 := newChecker(cfg2, hn)
+	si := testSelfIdent(t)
+	c1 := newChecker(cfg1, hn, si)
+	c2 := newChecker(cfg2, hn, si)
 	c1.cfg = fakeConfigFileUsed{Component: cfg1, path: "/etc/datadog-agent/datadog.yaml"}
 	c2.cfg = fakeConfigFileUsed{Component: cfg2, path: "/etc/datadog-agent/datadog-cluster.yaml"}
 
@@ -129,8 +138,9 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 	hn1, _ := hostnamemock.NewMock("host-a")
 	hn2, _ := hostnamemock.NewMock("host-b")
 
-	c1 := newChecker(cfg, hn1)
-	c2 := newChecker(cfg, hn2)
+	si := testSelfIdent(t)
+	c1 := newChecker(cfg, hn1, si)
+	c2 := newChecker(cfg, hn2, si)
 
 	assert.NotEqual(t, c1.instanceIssueID(), c2.instanceIssueID())
 }

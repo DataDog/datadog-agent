@@ -9,7 +9,9 @@
 // The health platform collects health signals from various agent components,
 // persists detected issues, and forwards reports to the Datadog intake.
 //
-// This bundle does not depend on any other bundles.
+// This bundle does not depend on any other bundles, except that the store
+// component requires workloadmeta's fx module to also be wired (used to
+// resolve this agent's DaemonSet/cluster identity; see comp/healthplatform/selfident).
 package healthplatform
 
 import (

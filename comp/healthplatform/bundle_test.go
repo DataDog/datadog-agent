@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 
@@ -35,9 +36,18 @@ import (
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: fleet-remediation
+
+// noWorkloadmeta stands in for workloadmeta's fx module, which real binaries
+// wiring this bundle always provide (see comp/healthplatform/selfident).
+func noWorkloadmeta() fx.Option {
+	return fx.Provide(func() option.Option[workloadmeta.Component] {
+		return option.None[workloadmeta.Component]()
+	})
+}
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
@@ -45,6 +55,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		noWorkloadmeta(),
 	)
 }
 
@@ -97,6 +108,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		noWorkloadmeta(),
 	)
 
 	var checkRunCount atomic.Int32
@@ -183,6 +195,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		noWorkloadmeta(),
 	)
 
 	const (

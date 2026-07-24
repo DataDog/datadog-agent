@@ -10,9 +10,12 @@ go_library(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/sysprobeconfig/def",
+        "//comp/core/workloadmeta/def",
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
+        "//comp/healthplatform/selfident",
+        "//pkg/util/option",
     ],
 )
 
