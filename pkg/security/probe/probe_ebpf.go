@@ -796,16 +796,14 @@ func (p *EBPFProbe) setupRawPacketFiltersOnNewRuleset(rs *rules.RuleSet) error {
 	return p.applyAllowFiltersToBothRouterBuffers(allowFiltersFromRuleset(rs))
 }
 
-func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
+func (p *EBPFProbe) applyRawPacketActionFilters() error {
 	// TODO check cgroupv2
 
-	// if we add a new filter, we must reset the stats since the filter order can change
-	// if the apply is from a ruleset, we already have reset the stats
-	if !applyFromRuleset {
-		if err := p.resetRawPacketDropStats(); err != nil {
-			seclog.Debugf("failed to reset raw packet drop stats: %s", err)
-		}
+	// We must reset the stats since the filter order can change
+	if err := p.resetRawPacketDropStats(); err != nil {
+		seclog.Debugf("failed to reset raw packet drop stats: %s", err)
 	}
+
 	// then we can rebuild the map between rule IDs and filter indexes
 	// the monitor will use this map to map rule IDs to filter indexes
 	p.rebuildDropActionRuleIDs()
@@ -825,7 +823,7 @@ func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 
 	seclog.Debugf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
-	rawPacketEventMap, routerMap, err := p.getRawPacketMaps(applyFromRuleset)
+	rawPacketEventMap, routerMap, err := p.getRawPacketMaps(true)
 	if err != nil {
 		return err
 	}
@@ -842,10 +840,14 @@ func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 	}
 
 	// add or close if none
-	if err := p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset); err != nil {
+	// we always write in the inactive buffer since we will flip the router buffer
+	if err := p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, true); err != nil {
 		errs = multierror.Append(errs, err)
 	}
-
+	// all the filters are ready so we can flip
+	if err = p.flipRawPacketRouterBuffer(); err != nil {
+		errs = multierror.Append(errs, err)
+	}
 	return errs.ErrorOrNil()
 }
 
@@ -858,8 +860,11 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 		return nil
 	}
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
-	// Here we add a new filter so we can apply it on the active buffer
-	return p.applyRawPacketActionFilters(false)
+
+	if err := p.applyRawPacketActionFilters(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *EBPFProbe) rebuildDropActionRuleIDs() {
@@ -1001,8 +1006,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
+	// if this is not the first ruleset loaded, remove filters that are not used
 	if !notifyConsumers {
-		p.removeFiltersNotUsed()
+		p.removeFiltersNotUsedAndApplyPersistantOnes()
 	}
 }
 
@@ -2798,19 +2804,6 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 		if err := p.setupRawPacketFiltersOnNewRuleset(rs); err != nil {
 			seclog.Errorf("unable to load raw packet filter programs: %v", err)
 		}
-		// reload raw packet action filters
-		if p.config.RuntimeSecurity.EnforcementEnabled {
-			// we reset before the new packets filters are loaded in the kernel
-			if err := p.resetRawPacketDropStats(); err != nil {
-				seclog.Debugf("failed to reset raw packet drop stats: %s", err)
-			}
-			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
-			if err := p.applyRawPacketActionFilters(true); err != nil {
-				seclog.Errorf("unable to load raw packet action programs: %v", err)
-			}
-		}
-
-		p.flipRawPacketRouterBuffer()
 	}
 
 	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
@@ -2837,12 +2830,13 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.HandleRemediationStatus(rs)
 }
 
-func (p *EBPFProbe) flipRawPacketRouterBuffer() {
+func (p *EBPFProbe) flipRawPacketRouterBuffer() error {
 	if active, err := probes.GetActiveRawPacketMapNumber(p.Manager); err != nil {
-		seclog.Errorf("unable to read raw_packet_router_sel: %v", err)
+		return fmt.Errorf("unable to read raw_packet_router_sel: %v", err)
 	} else if err := p.swapRawPacketRouterSelValue(active); err != nil {
-		seclog.Errorf("unable to swap raw_packet_router_sel: %v", err)
+		return fmt.Errorf("unable to swap raw_packet_router_sel: %v", err)
 	}
+	return nil
 }
 
 func (p *EBPFProbe) isNetworkIsolationTriggered(filter rawpacket.Filter) bool {
@@ -2863,7 +2857,7 @@ func (p *EBPFProbe) isNetworkIsolationTriggered(filter rawpacket.Filter) bool {
 	return false
 }
 
-func (p *EBPFProbe) removeFiltersNotUsed() {
+func (p *EBPFProbe) removeFiltersNotUsedAndApplyPersistantOnes() {
 	newList := make([]rawpacket.Filter, 0, len(p.rawPacketActionFilters))
 	for _, dropFilter := range p.rawPacketActionFilters {
 		if p.isNetworkIsolationTriggered(dropFilter) {
@@ -2872,14 +2866,12 @@ func (p *EBPFProbe) removeFiltersNotUsed() {
 	}
 	p.rawPacketActionFilters = newList
 	// reset action filter
+	// At the end of the snapshot, we check if any filter from the previous ruleset need to be removed.
 	if p.config.RuntimeSecurity.EnforcementEnabled {
-		if err := p.applyRawPacketActionFilters(true); err != nil {
+		if err := p.applyRawPacketActionFilters(); err != nil {
 			seclog.Errorf("unable to load raw packet action programs: %v", err)
 		}
 	}
-
-	// Allow filters were written to both router buffers at ruleset load; only drop filters need a flip here.
-	p.flipRawPacketRouterBuffer()
 }
 
 // NewEvent returns a new event
