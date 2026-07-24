@@ -611,6 +611,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 
 	defer func() { setRequestDone(ctx, err) }()
 
+	heartbeatCtx, cancelHeartbeat := context.WithCancel(ctx)
+	defer cancelHeartbeat()
+	go d.heartbeatLoop(heartbeatCtx)
+
 	switch request.Method {
 	case methodInstallPackage:
 		var params installPackageTaskParams
@@ -780,6 +784,47 @@ func setRequestDone(ctx context.Context, err error) {
 		state.Err = err.Error()
 		state.ErrorCode = installerErrors.GetCode(err)
 	}
+}
+
+func (d *daemonImpl) heartbeatLoop(ctx context.Context) {
+	ticker := time.NewTicker(d.refreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			d.updateHeartbeat()
+		}
+	}
+}
+
+func (d *daemonImpl) updateHeartbeat() {
+	current := d.rc.GetState()
+	if current == nil {
+		return
+	}
+	now := uint64(time.Now().Unix())
+	packages := make([]*pbgo.PackageState, len(current.Packages))
+	for i, pkg := range current.Packages {
+		packages[i] = &pbgo.PackageState{
+			Package:                 pkg.Package,
+			StableVersion:           pkg.StableVersion,
+			ExperimentVersion:       pkg.ExperimentVersion,
+			StableConfigVersion:     pkg.StableConfigVersion,
+			ExperimentConfigVersion: pkg.ExperimentConfigVersion,
+			RunningVersion:          pkg.RunningVersion,
+			RunningConfigVersion:    pkg.RunningConfigVersion,
+			HeartbeatTimestamp:      now,
+			Completion:              pkg.Completion,
+			Task:                    pkg.Task,
+		}
+	}
+	d.rc.SetState(&pbgo.ClientUpdater{
+		SecretsPubKey:      current.SecretsPubKey,
+		Packages:           packages,
+		AvailableDiskSpace: current.AvailableDiskSpace,
+	})
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
