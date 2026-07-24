@@ -13,6 +13,11 @@ go_library(
 
 go_binary(
     name = "secret-generic-connector",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/secret-generic-connector/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     embed = [":secret-generic-connector_lib"],
     visibility = ["//visibility:public"],
 )
