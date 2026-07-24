@@ -429,6 +429,7 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
+			// Avoid sending a disabled profile to the backend
 			if !enabled && request.Type != config.LocalStorage {
 				continue
 			}
@@ -492,14 +493,13 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
-
-	// Filter out events that are not in the configured V2 event types
-	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
+	// Filter out systemd cgroups for now, we will add support for them later
+	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return
 	}
 
-	// Filter out systemd cgroups for now, we will add support for them later
-	if event.ProcessContext.Process.ContainerContext.IsNull() {
+	// Filter out events that are not in the configured V2 event types
+	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
 		return
 	}
 
@@ -668,7 +668,6 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 }
 
 func (m *ManagerV2) SendStats() error {
-
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
 		return err

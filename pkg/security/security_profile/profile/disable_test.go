@@ -40,27 +40,6 @@ func processNodes(n int) []*activity_tree.ProcessNode {
 	return nodes
 }
 
-// loadFromStorageRoundTrip builds a profile with the given process nodes, encodes it to the
-// security-profile protobuf format and decodes it back into a fresh profile. This mirrors
-// what ManagerV2.loadProfileFromStorage does on a workload restart: the returned profile has
-// its process nodes populated but its Stats are not yet computed (decode does not recompute
-// them), exactly like a profile freshly read from disk.
-func loadFromStorageRoundTrip(t *testing.T, image, tag string, nodes []*activity_tree.ProcessNode) *Profile {
-	t.Helper()
-
-	selector := cgroupModel.WorkloadSelector{Image: image, Tag: tag}
-	src := New(WithWorkloadSelector(selector))
-	src.ActivityTree.ProcessNodes = nodes
-	src.ActivityTree.ComputeActivityTreeStats()
-
-	buf, err := src.Encode(config.Profile)
-	require.NoError(t, err)
-
-	loaded := New(WithWorkloadSelector(selector))
-	require.NoError(t, loaded.DecodeFromReader(buf, config.Profile))
-	return loaded
-}
-
 // TestProfile_DisabledStateIsPersisted verifies the disabled state round-trips through the
 // SecurityProfile protobuf: a profile disabled before encoding decodes back as disabled, and an
 // enabled one decodes back as enabled. This is what lets a max-size-disabled workload reload as
