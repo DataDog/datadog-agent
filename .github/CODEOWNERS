@@ -86,6 +86,7 @@
 /rust/LICENSE*				# do not notify anyone
 
 /mkdocs.yml                             @DataDog/agent-devx
+/mkdocs.architecture.yml                @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-build
 /pyproject.toml                         @DataDog/agent-devx
@@ -337,8 +338,8 @@
 /docs/dev/checks/                       @DataDog/agent-runtimes
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
-/docs/public/components/                                     @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
+/docs/public/architecture/components/                        @DataDog/agent-runtimes
 /docs/public/architecture/dogstatsd/                         @DataDog/agent-metric-pipelines
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
 

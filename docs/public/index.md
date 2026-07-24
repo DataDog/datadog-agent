@@ -16,7 +16,7 @@ First, you'll want to set up the [development requirements](setup/required.md).
 
 ## Agent development guidelines
 
-To know more about the general design of the Agent and how to add code and features read our section on [Components](components/overview.md).
+To know more about the general design of the Agent and how to add code and features read the [architecture documentation](https://datadoghq.dev/datadog-agent/architecture/), particularly the section on [Components](https://datadoghq.dev/datadog-agent/architecture/components/overview/).
 
 ## Navigation
 

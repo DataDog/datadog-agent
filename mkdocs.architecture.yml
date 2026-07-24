@@ -1,0 +1,260 @@
+site_name: Datadog Agent Architecture
+site_description: The architecture of the Datadog Agent, documented for its engineers
+site_author: Datadog
+site_url: https://datadoghq.dev/datadog-agent/architecture/
+repo_name: datadog/datadog-agent
+repo_url: https://github.com/DataDog/datadog-agent
+edit_uri: blob/main/docs/public/architecture
+copyright: Copyright &copy; Datadog, Inc. 2024-present
+
+docs_dir: docs/public/architecture
+site_dir: site/architecture
+
+# Zensical validates link targets on the raw Markdown source, before the macros
+# extension expands <<<SRC>>> links, so a source link pointing to a Markdown file
+# would be misreported as a missing page. Page-existence validation is disabled
+# in favor of the lychee run in `dda run docs build --check`, which validates
+# every link (internal links included) against the built site.
+validation:
+  links:
+    not_found: ignore
+
+theme:
+  name: material
+  variant: classic
+  language: en
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/images/favicon.ico
+  logo: assets/images/logo.svg
+  icon:
+    repo: fontawesome/brands/github-alt
+  palette:
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    primary: custom
+    toggle:
+      icon: material/weather-night
+      name: Switch to light mode
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    primary: custom
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to dark mode
+  features:
+  - content.action.edit
+  - content.code.copy
+  - content.tabs.link
+  - content.tooltips
+  - navigation.expand
+  - navigation.footer
+  - navigation.indexes
+  - navigation.instant
+  - navigation.sections
+  - navigation.tabs
+  - navigation.tabs.sticky
+
+nav:
+- Overview: index.md
+- Processes:
+  - Binaries and flavors: processes/binaries.md
+  - Startup and lifecycle: processes/lifecycle.md
+  - Inter-process communication: processes/ipc.md
+  - Process supervision: processes/supervision.md
+- Components:
+  - Overview: components/overview.md
+  - Fx: components/fx.md
+  - Components:
+    - Creating components: components/creating-components.md
+    - Testing components: components/testing.md
+    - Using components: components/using-components.md
+  - Shared features:
+    - Flare: components/shared_features/flares.md
+    - Status: components/shared_features/status.md
+- Configuration:
+  - The configuration system: configuration/overview.md
+  - Secrets management: configuration/secrets.md
+  - Runtime settings: configuration/runtime-settings.md
+  - Remote configuration: configuration/remote-config.md
+- Data pipelines:
+  - Overview: pipelines/overview.md
+  - Metrics:
+    - DogStatsD internals: dogstatsd/internals.md
+    - Aggregation: pipelines/metrics/aggregation.md
+    - Serialization: pipelines/metrics/serialization.md
+  - Logs: pipelines/logs.md
+  - Traces: pipelines/traces.md
+  - Processes: pipelines/processes.md
+  - Forwarding:
+    - Forwarder and resilience: pipelines/forwarder.md
+    - Event platform: pipelines/event-platform.md
+  - Network device monitoring: pipelines/ndm.md
+- Checks:
+  - Collector: checks/collector.md
+  - Go core checks: checks/corechecks.md
+  - Python checks and rtloader: checks/python.md
+  - JMX checks: checks/jmx.md
+  - Autodiscovery: checks/autodiscovery.md
+- Containers & Kubernetes:
+  - Workloadmeta: containers/workloadmeta.md
+  - Tagger: containers/tagger.md
+  - Origin detection: containers/origin-detection.md
+  - Cluster Agent:
+    - Overview: containers/cluster-agent.md
+    - Cluster checks: containers/cluster-checks.md
+    - Admission controller: containers/admission-controller.md
+    - Autoscaling: containers/autoscaling.md
+    - Orchestrator explorer: containers/orchestrator.md
+- eBPF & security:
+  - system-probe: ebpf/system-probe.md
+  - Network monitoring: ebpf/network-monitoring.md
+  - Workload Protection: ebpf/cws.md
+  - Compliance and SBOM: ebpf/compliance.md
+- OpenTelemetry:
+  - OTLP ingest: otel/otlp-ingest.md
+  - DDOT collector: otel/ddot.md
+- Deployment:
+  - Packaging: deployment/packaging.md
+  - Fleet automation and the installer: deployment/fleet.md
+  - Container images: deployment/container-images.md
+  - Runtime environments: deployment/environments.md
+- Operations:
+  - Status, health, and telemetry: operations/introspection.md
+  - Flare: operations/flare.md
+  - Diagnostics and CLI tools: operations/diagnostics.md
+# The main developer documentation is a separate site defined by mkdocs.yml
+- Developer docs: https://datadoghq.dev/datadog-agent/
+
+watch:
+- .go-version
+
+plugins:
+  # Enable for bug reports
+  # info: {}
+  # Built-in
+  search: {}
+  # Extra
+  glightbox: {}
+
+markdown_extensions:
+# Built-in
+- zensical.extensions.macros:
+    module_name: docs/public/.hooks/inject_variables
+    on_error_fail: true
+    on_undefined: strict
+    j2_variable_start_string: "<<<"
+    j2_variable_end_string: ">>>"
+- markdown.extensions.abbr:
+- markdown.extensions.attr_list:
+- markdown.extensions.footnotes:
+- markdown.extensions.md_in_html:
+- markdown.extensions.meta:
+- markdown.extensions.tables:
+- markdown.extensions.toc:
+    permalink: true
+# Extra
+- pymdownx.arithmatex:
+- pymdownx.betterem:
+    smart_enable: all
+- pymdownx.blocks.admonition:
+    # https://squidfunk.github.io/mkdocs-material/reference/admonitions/#supported-types
+    types:
+    - abstract
+    - bug
+    - danger
+    - example
+    - failure
+    - info
+    - note
+    - question
+    - quote
+    - success
+    - tip
+    - warning
+- pymdownx.blocks.details:
+    # Same as admonition types except prefixed by `details-`
+    types:
+    - name: details-abstract
+      class: abstract
+    - name: details-bug
+      class: bug
+    - name: details-danger
+      class: danger
+    - name: details-example
+      class: example
+    - name: details-failure
+      class: failure
+    - name: details-info
+      class: info
+    - name: details-note
+      class: note
+    - name: details-question
+      class: question
+    - name: details-quote
+      class: quote
+    - name: details-success
+      class: success
+    - name: details-tip
+      class: tip
+    - name: details-warning
+      class: warning
+- pymdownx.blocks.tab:
+    alternate_style: true
+    slugify: !!python/object/apply:pymdownx.slugs.slugify
+      kwds:
+        case: lower
+- pymdownx.caret:
+- pymdownx.critic:
+- pymdownx.details:
+- pymdownx.emoji:
+    # https://github.com/twitter/twemoji
+    # https://raw.githubusercontent.com/facelessuser/pymdown-extensions/master/pymdownx/twemoji_db.py
+    emoji_index: !!python/name:material.extensions.emoji.twemoji
+    emoji_generator: !!python/name:material.extensions.emoji.to_svg
+- pymdownx.highlight:
+    anchor_linenums: true
+    line_spans: __span
+    linenums_style: pymdownx-inline
+    pygments_lang_class: true
+- pymdownx.inlinehilite:
+- pymdownx.keys:
+- pymdownx.magiclink:
+    repo_url_shortener: true
+    repo_url_shorthand: true
+    social_url_shortener: true
+    social_url_shorthand: true
+    normalize_issue_symbols: true
+    provider: github
+    user: DataDog
+    repo: datadog-agent
+- pymdownx.mark:
+- pymdownx.progressbar:
+- pymdownx.saneheaders:
+- pymdownx.smartsymbols:
+- pymdownx.snippets:
+    check_paths: true
+    base_path:
+    - docs/public/.snippets
+    auto_append:
+    - links.txt
+    - abbrs.txt
+- pymdownx.superfences:
+- pymdownx.tasklist:
+    custom_checkbox: true
+- pymdownx.tilde:
+
+extra:
+  social:
+  - icon: fontawesome/solid/blog
+    link: https://www.datadoghq.com/blog/engineering/
+  - icon: fontawesome/brands/github-alt
+    link: https://github.com/DataDog
+  - icon: fontawesome/brands/twitter
+    link: https://twitter.com/datadoghq
+  - icon: fontawesome/brands/instagram
+    link: https://www.instagram.com/datadoghq
+extra_css:
+- assets/css/custom.css
+- https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css
