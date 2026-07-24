@@ -18,12 +18,12 @@ trace_agent_url: "http://127.0.0.1:8126"
 evp_proxy_api_version: 2
 
 # AI usage EVP intake subdomain header.
-ai_usage_evp_subdomain: "softinv-intake"
+ai_usage_evp_subdomain: "eudm-intake"
 
 # Standalone desktop monitoring settings. These are used only when the binary is
 # launched with --desktop-monitor; Chrome native messaging mode ignores them.
 desktop_monitoring:
-  enabled: true
+  enabled: false
   poll_interval_seconds: 60
   # Hosted AI CLIs are counted only after their process-level read/write
   # counters advance since the previous poll. The first poll initializes the

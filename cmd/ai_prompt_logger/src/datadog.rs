@@ -11,7 +11,7 @@ use crate::desktop::config;
 pub use crate::desktop::config::DesktopMonitoringConfig;
 
 const CONFIG_BASENAME: &str = "ai_usage_native_host.yaml";
-const AI_USAGE_EVP_SUBDOMAIN: &str = "softinv-intake";
+const AI_USAGE_EVP_SUBDOMAIN: &str = "eudm-intake";
 const AI_USAGE_EVP_PATH: &str = "/api/v2/aiusage";
 
 /// Cap for connect + full request so the native host thread cannot block indefinitely
