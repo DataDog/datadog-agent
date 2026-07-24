@@ -10,6 +10,8 @@ package agenttelemetry
 
 import (
 	_ "embed"
+	"io"
+	"net/http"
 	"regexp"
 	"strings"
 	"testing"
@@ -107,6 +109,37 @@ var stackFrameRe = regexp.MustCompile(`\S+\n\t\S+:\d+ \+0x[0-9a-f]+`)
 // commitSHARe matches a git.commit.sha tag carrying a 40-char hex SHA.
 var commitSHARe = regexp.MustCompile(`git\.commit\.sha:[0-9a-f]{40}`)
 
+// dumpDiagnosticsOnFailure registers a Cleanup that, on test failure, dumps
+// the tail of every binary's log file plus the raw FakeIntake apmtelemetry
+// payloads (bypassing the typed AgentTelemetryLog parser entirely), so a
+// failed wait leaves enough evidence to tell whether a given binary's error
+// fired locally, whether its errortracking pipeline registered/flushed
+// (see the "errortracking:" diagnostic Warnf calls in
+// comp/core/agenttelemetry/impl), and what FakeIntake actually stored.
+//
+// TEMPORARY: remove once the errortracking e2e suite is stable.
+func dumpDiagnosticsOnFailure(t *testing.T, env *environments.Host) {
+	t.Helper()
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		for _, logFile := range []string{"agent.log", "process-agent.log", "security-agent.log", "system-probe.log"} {
+			out, _ := env.RemoteHost.Execute("sudo tail -n 80 /var/log/datadog/" + logFile + " || true")
+			t.Logf("%s tail (diagnostic):\n%s", logFile, out)
+		}
+
+		resp, httpErr := http.Get(env.FakeIntake.Client().URL() + "/fakeintake/payloads?endpoint=/api/v2/apmtelemetry")
+		if httpErr != nil {
+			t.Logf("raw apmtelemetry payload dump failed: %v", httpErr)
+			return
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Logf("raw /api/v2/apmtelemetry payloads (diagnostic):\n%s", body)
+	})
+}
+
 // TestPayloadShape verifies the happy path end-to-end for every origin:
 //
 //   - Core agent, Python path: error_check.py calls self.log.error(...),
@@ -122,6 +155,7 @@ var commitSHARe = regexp.MustCompile(`git\.commit\.sha:[0-9a-f]{40}`)
 // FakeIntake must receive at least one record of each kind with the expected
 // wire shape, stack format, Source Code Integration tags, and agent.flavor.
 func (s *errorTrackingSuite) TestPayloadShape() {
+	dumpDiagnosticsOnFailure(s.T(), s.Env())
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	// system-probe's network_path.collector.filters error is a startup-only
@@ -240,6 +274,7 @@ func waitForLocalErrorOccurrence(t *testing.T, env *environments.Host, logPath, 
 // `enabled` (defaulting to false), no agent-logs records reach FakeIntake from
 // any binary even though every misconfigured trigger keeps firing locally.
 func (s *errorTrackingSuite) TestDisabledByDefault() {
+	dumpDiagnosticsOnFailure(s.T(), s.Env())
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(errorTrackingAgentOptions(errorTrackingDisabledConfig)...),
