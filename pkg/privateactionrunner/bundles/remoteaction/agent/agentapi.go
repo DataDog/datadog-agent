@@ -11,6 +11,10 @@
 // agent's own CLI subcommands do: over the local HTTPS command API, reusing the
 // agent's IPC auth token and certificate. They deliberately ignore any Action
 // Platform connection credential — the target is always the local agent.
+//
+// Because targeting is local-only, this bundle must not be registered in the
+// Cluster Agent's bundle registry (registry_kubeapiserver.go): there, "local"
+// resolves to the Cluster Agent itself, not a specific node's core agent.
 package com_datadoghq_remoteaction_agent
 
 import (
