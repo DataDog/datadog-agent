@@ -6,6 +6,7 @@
 package containerlifecycle
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// ownerStore is a configurable stub for container owner lookups.
+// ownerStore is a configurable stub for container owner lookups. A container
+// only "exists" in the store if it has an entry in owners, matching the real
+// store's behavior of returning an error for containers it doesn't hold.
 type ownerStore struct {
 	workloadmeta.Component
 	owners map[string]*workloadmeta.EntityID
@@ -26,7 +29,7 @@ func (s *ownerStore) GetContainer(id string) (*workloadmeta.Container, error) {
 	if owner, ok := s.owners[id]; ok {
 		return &workloadmeta.Container{Owner: owner}, nil
 	}
-	return &workloadmeta.Container{}, nil
+	return nil, errors.New("container not found")
 }
 
 func storeWithOwner(containerID string, owner *workloadmeta.EntityID) *ownerStore {
@@ -36,10 +39,6 @@ func storeWithOwner(containerID string, owner *workloadmeta.EntityID) *ownerStor
 func emptyStore() *ownerStore { return &ownerStore{} }
 
 // TestContainerTerminationHandlerCanHandle tests the CanHandle method for the ContainerTerminationHandler.
-//
-// Test partitions:
-// - event type: unset | set
-// - entity kind: container | non-container
 func TestContainerTerminationHandlerCanHandle(t *testing.T) {
 	h := NewContainerTerminationHandler(emptyStore())
 	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
@@ -61,11 +60,6 @@ func TestContainerTerminationHandlerCanHandle(t *testing.T) {
 }
 
 // TestContainerTerminationHandlerHandle tests the Handle method for the ContainerTerminationHandler.
-//
-// Test partitions:
-// - entity type: *Container (correct) | other (wrong)
-// - exit state: none | has timestamp and exit code
-// - owner kind: none | pod | task | unknown (ignored)
 func TestContainerTerminationHandlerHandle(t *testing.T) {
 	now := time.Now()
 	exitCode := int64(1)
@@ -147,10 +141,6 @@ func TestContainerTerminationHandlerHandle(t *testing.T) {
 }
 
 // TestPodTerminationHandlerCanHandle tests the CanHandle method for the PodTerminationHandler.
-//
-// Test partitions:
-// - event type: unset | set
-// - entity kind: pod | non-pod
 func TestPodTerminationHandlerCanHandle(t *testing.T) {
 	h := &PodTerminationHandler{}
 	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
@@ -172,10 +162,6 @@ func TestPodTerminationHandlerCanHandle(t *testing.T) {
 }
 
 // TestPodTerminationHandlerHandle tests the Handle method for the PodTerminationHandler.
-//
-// Test partitions:
-// - entity type: *KubernetesPod (correct) | other (wrong)
-// - finish time: zero | non-zero
 func TestPodTerminationHandlerHandle(t *testing.T) {
 	h := &PodTerminationHandler{}
 	now := time.Now()
@@ -217,10 +203,6 @@ func TestPodTerminationHandlerHandle(t *testing.T) {
 }
 
 // TestTaskTerminationHandlerCanHandle tests the CanHandle method for the TaskTerminationHandler.
-//
-// Test partitions:
-// - event type: unset | set
-// - entity kind: task | non-task
 func TestTaskTerminationHandlerCanHandle(t *testing.T) {
 	h := &TaskTerminationHandler{}
 	task := &workloadmeta.ECSTask{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindECSTask}}
@@ -242,10 +224,6 @@ func TestTaskTerminationHandlerCanHandle(t *testing.T) {
 }
 
 // TestTaskTerminationHandlerHandle tests the Handle method for the TaskTerminationHandler.
-//
-// Test partitions:
-// - entity type: *ECSTask (correct) | other (wrong)
-// - launch type: Fargate (source=runtime) | non-Fargate (source=node-orchestrator)
 func TestTaskTerminationHandlerHandle(t *testing.T) {
 	h := &TaskTerminationHandler{}
 	before := time.Now()
@@ -287,5 +265,232 @@ func TestTaskTerminationHandlerHandle(t *testing.T) {
 		les, err := h.Handle(ev)
 		require.NoError(t, err)
 		assert.Equal(t, string(workloadmeta.SourceRuntime), les[0].ProtoEvent.GetTask().Source)
+	})
+}
+
+// TestPodCreationHandlerCanHandle tests the CanHandle method for the PodCreationHandler.
+func TestPodCreationHandlerCanHandle(t *testing.T) {
+	h := NewPodCreationHandler()
+	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
+	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
+
+	tests := []struct {
+		subdomain string
+		ev        workloadmeta.Event
+		want      bool
+	}{
+		{"event type set + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, true},
+		{"event type unset + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: pod}, true},
+		{"event type set + entity kind non-pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: cont}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.subdomain, func(t *testing.T) {
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+		})
+	}
+}
+
+// TestPodCreationHandlerHandle tests the Handle method for the PodCreationHandler.
+func TestPodCreationHandlerHandle(t *testing.T) {
+	now := time.Now()
+
+	t.Run("entity type wrong", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{EntityID: workloadmeta.EntityID{ID: "ben-bitdiddle"}},
+		}
+		_, err := h.Handle(ev)
+		assert.Error(t, err)
+	})
+
+	t.Run("first set + creation timestamp zero", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: "alyssa-hacker", Kind: workloadmeta.KindKubernetesPod}},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		pod := les[0].ProtoEvent.GetPod()
+		assert.Equal(t, "alyssa-hacker", pod.GetPodUID())
+		assert.Nil(t, pod.CreationTimestamp)
+	})
+
+	t.Run("first set + creation timestamp non-zero", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:          workloadmeta.EntityID{ID: "lem-tweakit", Kind: workloadmeta.KindKubernetesPod},
+				CreationTimestamp: now,
+			},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Equal(t, now.Unix(), les[0].ProtoEvent.GetPod().GetCreationTimestamp())
+	})
+
+	t.Run("repeat set is deduplicated", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: "louis-reasoner", Kind: workloadmeta.KindKubernetesPod}},
+		}
+		_, err := h.Handle(ev)
+		require.NoError(t, err)
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
+
+	t.Run("unset clears local state, allowing a later set to re-emit", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		podID := workloadmeta.EntityID{ID: "eva-lu-ator", Kind: workloadmeta.KindKubernetesPod}
+		setEv := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: &workloadmeta.KubernetesPod{EntityID: podID}}
+		_, err := h.Handle(setEv)
+		require.NoError(t, err)
+
+		unsetEv := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: &workloadmeta.KubernetesPod{EntityID: podID}}
+		les, err := h.Handle(unsetEv)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+
+		les, err = h.Handle(setEv)
+		require.NoError(t, err)
+		assert.Len(t, les, 1)
+	})
+}
+
+// TestContainerCreationHandlerCanHandle tests the CanHandle method for the ContainerCreationHandler.
+func TestContainerCreationHandlerCanHandle(t *testing.T) {
+	h := NewContainerCreationHandler(emptyStore())
+	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
+	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
+
+	tests := []struct {
+		subdomain string
+		ev        workloadmeta.Event
+		want      bool
+	}{
+		{"event type set + entity kind container", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: cont}, true},
+		{"event type unset + entity kind container", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: cont}, true},
+		{"event type set + entity kind non-container", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.subdomain, func(t *testing.T) {
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+		})
+	}
+}
+
+// TestContainerCreationHandlerHandle tests the Handle method for the ContainerCreationHandler.
+func TestContainerCreationHandlerHandle(t *testing.T) {
+	now := time.Now()
+
+	t.Run("entity type wrong", func(t *testing.T) {
+		h := NewContainerCreationHandler(emptyStore())
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: "ben-bitdiddle"}},
+		}
+		_, err := h.Handle(ev)
+		assert.Error(t, err)
+	})
+
+	t.Run("first set + owner kind none", func(t *testing.T) {
+		h := NewContainerCreationHandler(emptyStore())
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{
+				EntityID:   workloadmeta.EntityID{ID: "alyssa-hacker", Kind: workloadmeta.KindContainer},
+				EntityMeta: workloadmeta.EntityMeta{Name: "alyssa-container"},
+			},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		ctr := les[0].ProtoEvent.GetContainer()
+		assert.Equal(t, "alyssa-hacker", ctr.GetContainerID())
+		assert.Equal(t, "alyssa-container", ctr.GetContainerName())
+		assert.Nil(t, ctr.OptionalCreationTimestamp)
+		assert.Nil(t, ctr.Owner)
+	})
+
+	t.Run("first set + creation timestamp non-zero + owner kind pod", func(t *testing.T) {
+		h := NewContainerCreationHandler(storeWithOwner("lem-tweakit", &workloadmeta.EntityID{
+			ID: "pod-uid", Kind: workloadmeta.KindKubernetesPod,
+		}))
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{ID: "lem-tweakit", Kind: workloadmeta.KindContainer},
+				State:    workloadmeta.ContainerState{CreatedAt: now},
+			},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		ctr := les[0].ProtoEvent.GetContainer()
+		assert.Equal(t, now.Unix(), ctr.GetCreationTimestamp())
+		require.NotNil(t, ctr.Owner)
+		assert.Equal(t, model.ObjectKind_Pod, ctr.Owner.OwnerType)
+		assert.Equal(t, "pod-uid", ctr.Owner.OwnerUID)
+	})
+
+	t.Run("repeat set is deduplicated", func(t *testing.T) {
+		h := NewContainerCreationHandler(emptyStore())
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{EntityID: workloadmeta.EntityID{ID: "louis-reasoner", Kind: workloadmeta.KindContainer}},
+		}
+		_, err := h.Handle(ev)
+		require.NoError(t, err)
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
+
+	t.Run("unset clears local state, allowing a later set to re-emit", func(t *testing.T) {
+		h := NewContainerCreationHandler(emptyStore())
+		containerID := workloadmeta.EntityID{ID: "eva-lu-ator", Kind: workloadmeta.KindContainer}
+		setEv := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: &workloadmeta.Container{EntityID: containerID}}
+		_, err := h.Handle(setEv)
+		require.NoError(t, err)
+
+		unsetEv := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: &workloadmeta.Container{EntityID: containerID}}
+		les, err := h.Handle(unsetEv)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+
+		les, err = h.Handle(setEv)
+		require.NoError(t, err)
+		assert.Len(t, les, 1)
+	})
+
+	t.Run("owner arrives after first set re-emits with owner", func(t *testing.T) {
+		store := emptyStore()
+		h := NewContainerCreationHandler(store)
+		containerID := workloadmeta.EntityID{ID: "ben-bitdiddle", Kind: workloadmeta.KindContainer}
+		ev := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: &workloadmeta.Container{EntityID: containerID}}
+
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Nil(t, les[0].ProtoEvent.GetContainer().Owner)
+
+		store.owners = map[string]*workloadmeta.EntityID{
+			"ben-bitdiddle": {ID: "pod-uid", Kind: workloadmeta.KindKubernetesPod},
+		}
+
+		les, err = h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		require.NotNil(t, les[0].ProtoEvent.GetContainer().Owner)
+		assert.Equal(t, "pod-uid", les[0].ProtoEvent.GetContainer().Owner.OwnerUID)
+
+		les, err = h.Handle(ev)
+		require.NoError(t, err)
+		assert.Nil(t, les)
 	})
 }

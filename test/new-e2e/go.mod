@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.205
+	github.com/DataDog/agent-payload/v5 v5.0.206-0.20260720204110-a96fea345476
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
