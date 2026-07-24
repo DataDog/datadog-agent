@@ -73,6 +73,23 @@ def make_partition(names: list[str], owners_file: str, get_channels: bool = Fals
     return mapping
 
 
+@task
+def teams_owning_files(_, changed_files, owners_file=".github/CODEOWNERS"):
+    """
+    Print (one per line) the teams that own at least one of the files listed in
+    the `changed_files` file (one path per line). Slugs are normalized:
+    lowercased and without the '@DataDog/' prefix.
+
+    Used by the SMP experiment-selection comment job to preselect experiment
+    folders whose owning team's files the PR touches. Wraps make_partition, so it
+    resolves ownership in a single pass over the changed files.
+    """
+    with open(changed_files) as f:
+        names = [line.strip() for line in f if line.strip()]
+    for team in sorted(make_partition(names, owners_file)):
+        print(team.casefold().replace("@datadog/", ""))
+
+
 def channel_owners(channel: str) -> list[str]:
     """
     Returns the teams that own the slack channel

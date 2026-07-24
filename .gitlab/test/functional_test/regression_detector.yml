@@ -210,43 +210,54 @@ smp-experiment-selection-comment:
       aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
       chmod +x smp
       # --- Codeowners-based preselection (best effort, POC) ---
-      # Pre-tick a folder when its CODEOWNERS-owning team is a requested reviewer
-      # on this PR (e.g. the logs team is requested -> pre-tick test/regression/logs).
+      # Pre-tick a folder when THIS PR changes files owned by that folder's
+      # CODEOWNERS team (e.g. the PR touches logs-pipeline code -> pre-tick
+      # test/regression/logs). Uses the CHECKED-OUT CODEOWNERS on both sides
+      # (changed files -> teams, and folder -> team), so it depends only on the
+      # PR, never on the base branch or requested reviewers.
       # --default-select only affects rows that are NEW in this render, so it acts
       # as a first-appearance default the developer can still untick; the merge
       # preserves their choice thereafter. Any failure here degrades to no
       # preselection (all folders unticked) -- never blocks the comment.
       #
-      # POC NOTE: resolves owners via `dda inv owners.find-codeowners` (the repo's
+      # POC NOTE: owner resolution goes through `dda inv owners.*` (the repo's
       # sanctioned way to parse CODEOWNERS in CI -- same pattern as lint_codeowners
-      # / junit-upload, and dda is already available on this image). A follow-up
-      # (with agent-devx) should replace the per-folder loop with a single
-      # purpose-built task.
+      # / junit-upload, and dda is already available on this image).
       DEFAULT_SELECT=""
       set +e
-      # Requested review teams (pending), normalized to bare lowercase slugs.
-      REQUESTED_TEAMS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-        "https://api.github.com/repos/DataDog/datadog-agent/pulls/${PR_NUMBER}/requested_reviewers" \
-        | jq -r '.teams[].slug' | tr '[:upper:]' '[:lower:]' | sort -u)
+      # Teams whose owned files this PR changes: fetch the PR's changed files
+      # (paginated, up to GitHub's 3000-file cap), then resolve owning teams in a
+      # single pass via owners.teams-owning-files.
+      : > changed_files.txt
+      page=1
+      while :; do
+        resp=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/DataDog/datadog-agent/pulls/${PR_NUMBER}/files?per_page=100&page=${page}")
+        count=$(printf '%s' "${resp}" | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
+        printf '%s' "${resp}" | jq -r 'if type=="array" then .[].filename else empty end' 2>/dev/null >> changed_files.txt
+        [ "${count:-0}" -lt 100 ] && break
+        page=$((page + 1)); [ "${page}" -gt 30 ] && break
+      done
+      # </dev/null: dda reads stdin; without it it would swallow the loop's input.
+      INVOLVED_TEAMS=$(dda inv owners.teams-owning-files --changed-files changed_files.txt </dev/null 2>/dev/null \
+        | tr '[:upper:]' '[:lower:]' | sort -u)
       # Selectable folders = the CLI's json groups (quality_gates/ebpf already excluded).
       GROUPS=$(./smp experiments list --target-config-dir "${ROOT}" --exclude-path quality_gates,ebpf --format json \
         | jq -r '.[].group | select(. != "")' | sort -u)
       for g in ${GROUPS}; do
-        # Owning teams for the folder, isolated (grep @datadog/) from any dda banner
-        # output and normalized to bare lowercase slugs, one per line.
-        # </dev/null: dda reads stdin; without it, it would swallow the loop's
-        # remaining input and corrupt iteration.
+        # Owning team(s) for the folder, isolated (grep @datadog/) from any dda
+        # banner output and normalized to bare lowercase slugs, one per line.
         owners=$(dda inv owners.find-codeowners --path "${ROOT}/${g}/" </dev/null 2>/dev/null \
           | tr ',' '\n' | grep -i '@datadog/' | tr '[:upper:]' '[:lower:]' | sed 's#.*@datadog/##' | tr -d ' ')
         for o in ${owners}; do
-          if printf '%s\n' "${REQUESTED_TEAMS}" | grep -qx "${o}"; then
+          if printf '%s\n' "${INVOLVED_TEAMS}" | grep -qx "${o}"; then
             DEFAULT_SELECT="${DEFAULT_SELECT}${DEFAULT_SELECT:+,}${g}"
             break
           fi
         done
       done
       set -e
-      echo "Requested teams: $(printf '%s' "${REQUESTED_TEAMS}" | tr '\n' ' ')"
+      echo "Teams with changed owned files: $(printf '%s' "${INVOLVED_TEAMS}" | tr '\n' ' ')"
       echo "Codeowners-preselected folders: ${DEFAULT_SELECT:-<none>}"
       DEFAULT_SELECT_ARG=""
       if [ -n "${DEFAULT_SELECT}" ]; then DEFAULT_SELECT_ARG="--default-select ${DEFAULT_SELECT}"; fi
