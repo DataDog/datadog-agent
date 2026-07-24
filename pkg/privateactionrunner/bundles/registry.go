@@ -60,7 +60,6 @@ type Registry struct {
 func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.remoteaction.agent":                   com_datadoghq_remoteaction_agent.NewAgent(ipcClient),
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
@@ -91,6 +90,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
+			"com.datadoghq.remoteaction.agent":                   com_datadoghq_remoteaction_agent.NewAgent(ipcClient),
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
