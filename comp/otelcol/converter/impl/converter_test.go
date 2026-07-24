@@ -651,14 +651,14 @@ func TestFindExistingExtensionID(t *testing.T) {
 }
 
 func TestReuseExtension(t *testing.T) {
+	c := &ddConverter{logger: zap.NewNop()}
+
 	t.Run("wires an existing unwired extension into service::extensions", func(t *testing.T) {
 		conf := confmap.NewFromStringMap(map[string]any{
 			"extensions": map[string]any{"pprof/custom": nil},
 			"service":    map[string]any{"extensions": []any{}},
 		})
-		reused, err := reuseExtension(conf, "pprof")
-		require.NoError(t, err)
-		assert.True(t, reused)
+		assert.True(t, c.reuseExtension(conf, "pprof"))
 		assert.Equal(t, []any{"pprof/custom"}, conf.Get("service::extensions"))
 	})
 
@@ -666,17 +666,19 @@ func TestReuseExtension(t *testing.T) {
 		conf := confmap.NewFromStringMap(map[string]any{
 			"service": map[string]any{"extensions": []any{}},
 		})
-		reused, err := reuseExtension(conf, "pprof")
-		require.NoError(t, err)
-		assert.False(t, reused)
+		assert.False(t, c.reuseExtension(conf, "pprof"))
 	})
 
-	t.Run("reports an error and false when the service section is missing", func(t *testing.T) {
+	t.Run("reports found and logs a warning when the service section is missing", func(t *testing.T) {
+		core, logs := observer.New(zapcore.WarnLevel)
+		c := &ddConverter{logger: zap.New(core)}
 		conf := confmap.NewFromStringMap(map[string]any{
 			"extensions": map[string]any{"pprof/custom": nil},
 		})
-		reused, err := reuseExtension(conf, "pprof")
-		require.Error(t, err)
-		assert.False(t, reused)
+		// Found (so the caller must not add a duplicate), left unwired, but no
+		// longer silent: a warning is emitted.
+		assert.True(t, c.reuseExtension(conf, "pprof"))
+		assert.Nil(t, conf.Get("service::extensions"))
+		assert.NotEmpty(t, filterLogsBySubstring(logs, "Could not wire existing extension"))
 	})
 }

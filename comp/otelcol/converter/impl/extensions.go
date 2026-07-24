@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -189,19 +190,18 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-// reuseExtension wires a user-defined-but-unwired extension with the given base
-// component name into service::extensions, reporting whether one was found and
-// successfully wired. When none exists it returns (false, nil) and leaves conf
-// untouched so the caller can add its own instance. When an existing extension
-// is found but cannot be wired, it returns (false, err) so the caller can log
-// the failure rather than silently dropping the extension.
-func reuseExtension(conf *confmap.Conf, compName string) (bool, error) {
+// reuseExtension reports whether the user already declared an extension of the
+// given base component name. When one exists it is wired into service::extensions
+// so the caller can reuse it instead of adding a duplicate <name>/dd-autoconfigured
+// copy.
+func (c *ddConverter) reuseExtension(conf *confmap.Conf, compName string) bool {
 	existingID := findExistingExtensionID(conf, compName)
 	if existingID == "" {
-		return false, nil
+		return false
 	}
-	if err := wireExtensionIDToPipeline(conf, existingID); err != nil {
-		return false, fmt.Errorf("found existing %q extension %q but could not wire it into service::extensions: %w", compName, existingID, err)
+	if err := wireExtensionIDToPipeline(conf, existingID); err != nil && c.logger != nil {
+		c.logger.Warn("Could not wire existing extension into service::extensions",
+			zap.String("extension", existingID), zap.Error(err))
 	}
-	return true, nil
+	return true
 }
