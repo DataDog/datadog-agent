@@ -564,6 +564,45 @@ func TestNewBackoffWithNegativeInterval(t *testing.T) {
 	assert.GreaterOrEqual(t, interval, time.Duration(0), "interval should be non-negative")
 }
 
+func TestResolveTargetSite(t *testing.T) {
+	// Locks in the "zero behavior change for map-shape/flat-key" guarantee the TargetSite
+	// refactor rests on: TargetSite must only take effect for list-shape instances (the only
+	// path that actually sets it); map-shape and flat-key instances must keep resolving to
+	// exactly what they did before TargetSite existed.
+	cases := []struct {
+		name   string
+		params delegatedauth.InstanceParams
+		want   string
+	}{
+		{
+			name:   "list-shape: TargetSite set from entry Host",
+			params: delegatedauth.InstanceParams{TargetSite: "agent-http-intake.logs.datadoghq.com"},
+			want:   "agent-http-intake.logs.datadoghq.com",
+		},
+		{
+			name:   "map-shape: falls back to AdditionalEndpointDomain when TargetSite unset",
+			params: delegatedauth.InstanceParams{AdditionalEndpointDomain: "https://agent.datadoghq.com"},
+			want:   "https://agent.datadoghq.com",
+		},
+		{
+			name:   "TargetSite takes precedence over AdditionalEndpointDomain when both set",
+			params: delegatedauth.InstanceParams{TargetSite: "list-shape-host", AdditionalEndpointDomain: "map-shape-domain"},
+			want:   "list-shape-host",
+		},
+		{
+			name:   "flat key: empty when neither is set, falls back to the primary site",
+			params: delegatedauth.InstanceParams{},
+			want:   "",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, resolveTargetSite(c.params))
+		})
+	}
+}
+
 func TestRefreshIntervalValidation(t *testing.T) {
 	// This test documents the expected behavior for refresh interval validation
 	// The AddInstance function should handle non-positive intervals by defaulting to 60 minutes

@@ -68,6 +68,12 @@ type InstanceParams struct {
 	// AdditionalEndpointsListConfigKey is set.
 	AdditionalEndpointDirective string
 
+	// TargetSite is the Datadog site to exchange the auth proof against, e.g. a list-shape
+	// additional_endpoints entry's Host field. Falls back to AdditionalEndpointDomain when unset
+	// (the map-shape case, where the domain key itself is the target site), and to the agent's
+	// primary site when both are unset (the flat, non-additional-endpoints case).
+	TargetSite string
+
 	// FallbackAPIKey, if set, is written in place of a real delegated-auth key when one cannot be
 	// obtained: either because no supported cloud provider was detected, or because the initial
 	// synchronous fetch fails. This lets dual-shipping keep working (with a static key) while WIF

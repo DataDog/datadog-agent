@@ -40,8 +40,13 @@ const (
 
 // domainURLRegexp matches and captures known Datadog domains with optional protocol and trailing characters
 // Captures: protocol (optional), subdomain (ignored), regional prefix + base domain, trailing dot (optional)
-// Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com
-var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
+// Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com,
+// trace.agent.datadoghq.com, agent-http-intake.logs.us3.datadoghq.com (multi-label subdomains,
+// e.g. an additional_endpoints entry's Host for APM or logs/EVP intake).
+// The subdomain group is lazy (+?) so it swallows as few labels as possible, leaving a regional
+// prefix like "us3." available for its own capture group rather than absorbed as another
+// "subdomain" label.
+var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?(?:[^./]+\.)+?((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
 
 // getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., api.datad0g.com)
 // for known Datadog domains. This ensures API operations use the correct subdomain.

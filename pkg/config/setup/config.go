@@ -937,12 +937,22 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 
 			log.Infof("Configuring delegated authentication for additional endpoint entry %d at '%s'", index, configKey)
 
+			// The entry's own Host is the site to exchange the auth proof against - it is very
+			// often a different site than the agent's primary dd_url/site (that's the whole point
+			// of dual-shipping). Without this, the exchange silently falls back to the primary
+			// site and fails once the org doesn't live there.
+			targetSite, hasHost := caseInsensitiveStringField(entry, "Host")
+			if !hasHost {
+				log.Warnf("Additional endpoint entry %d at '%s' has a DELA(...) directive but no Host; the auth proof will be exchanged against the agent's primary site instead of the entry's intended one", index, configKey)
+			}
+
 			err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
 				Config:                           config,
 				ProviderConfig:                   instanceProviderConfig,
 				OrgUUID:                          directive.orgUUID,
 				RefreshInterval:                  config.GetInt("delegated_auth.refresh_interval_mins"),
 				APIKeyConfigKey:                  fmt.Sprintf("%s[%d][%s]", configKey, index, directive.orgUUID),
+				TargetSite:                       targetSite,
 				AdditionalEndpointsListConfigKey: configKey,
 				AdditionalEndpointDirective:      valStr,
 				FallbackAPIKey:                   directive.params["fallback"],

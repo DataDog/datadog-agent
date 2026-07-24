@@ -2105,11 +2105,15 @@ sbom:
 	assert.Equal(t, "static-logs-fallback-key", logs.FallbackAPIKey)
 	assert.Empty(t, logs.AdditionalEndpointDomain, "list-shape instances must not set the map-shape domain field")
 	assert.Equal(t, "logs_config.additional_endpoints[0][logs-org-uuid]", logs.APIKeyConfigKey)
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com", logs.TargetSite,
+		"the entry's own Host must be used as the auth-proof exchange site, not the agent's primary site")
 
 	dbm := byConfigKey["database_monitoring.samples.additional_endpoints"]
 	assert.Equal(t, "dbm-org-uuid", dbm.OrgUUID)
 	assert.Empty(t, dbm.FallbackAPIKey)
+	assert.Equal(t, "dbm-metrics-intake.datadoghq.com", dbm.TargetSite)
 
 	sbom := byConfigKey["sbom.additional_endpoints"]
 	assert.Equal(t, "sbom-org-uuid", sbom.OrgUUID)
+	assert.Equal(t, "sbom-intake.datadoghq.com", sbom.TargetSite)
 }

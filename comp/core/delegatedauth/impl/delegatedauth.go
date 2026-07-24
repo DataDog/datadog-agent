@@ -50,6 +50,12 @@ type authInstance struct {
 	refreshInterval time.Duration
 	apiKeyConfigKey string // Configuration key where the API key should be written
 
+	// targetSite is the site to exchange the auth proof against - decoupled from
+	// additionalEndpointDomain because a list-shape entry's target site (its Host field) is
+	// independent of the map-shape merge routing that additionalEndpointDomain also controls.
+	// Empty means use the agent's primary site.
+	targetSite string
+
 	// additionalEndpointDomain, if set, means the API key should be merged into the map-shape
 	// config map at additionalEndpointsConfigKey under this domain instead of being written to
 	// apiKeyConfigKey as a flat value.
@@ -293,6 +299,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		authConfig:                       authConfig,
 		refreshInterval:                  refreshInterval,
 		apiKeyConfigKey:                  apiKeyConfigKey,
+		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
@@ -480,14 +487,24 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 	}
 
 	// Exchange the proof for an API key from Datadog. For a dual-shipping additional_endpoints
-	// instance, additionalEndpointDomain is the actual site to exchange against - it is very
-	// often a different site than the agent's primary dd_url/site (that's the whole point of
-	// dual-shipping), so it must not be left to fall back to the primary site.
-	key, err := api.GetAPIKey(d.config, authProof, instance.additionalEndpointDomain)
+	// instance, targetSite is the actual site to exchange against - it is very often a different
+	// site than the agent's primary dd_url/site (that's the whole point of dual-shipping), so it
+	// must not be left to fall back to the primary site.
+	key, err := api.GetAPIKey(d.config, authProof, instance.targetSite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}
 	return key, nil
+}
+
+// resolveTargetSite returns the site to exchange the auth proof against: TargetSite if set
+// (the list-shape case, an entry's Host field), else AdditionalEndpointDomain (the map-shape
+// case, where the domain key doubles as the target site), else empty (use the primary site).
+func resolveTargetSite(params delegatedauth.InstanceParams) string {
+	if params.TargetSite != "" {
+		return params.TargetSite
+	}
+	return params.AdditionalEndpointDomain
 }
 
 // fallbackTargetInstance builds a minimal authInstance carrying only the fields
@@ -496,6 +513,7 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 	return &authInstance{
 		apiKeyConfigKey:                  params.APIKeyConfigKey,
+		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
