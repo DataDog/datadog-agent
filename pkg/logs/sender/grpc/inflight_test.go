@@ -485,6 +485,23 @@ func TestInflightTrackerBatchIDAfterRotation(t *testing.T) {
 	assert.Equal(t, uint32(3), tracker.nextBatchID())
 }
 
+func TestDeltaEncodingSyncReferencesConsolidatedFields(t *testing.T) {
+	refs := newStateReferences()
+	addDeltaEncodingSyncReferences(refs, &statefulpb.DeltaEncodingSync{
+		PatternId:    2,
+		Tags:         3,
+		Status:       4,
+		Service:      5,
+		JsonSchemaId: 6,
+	})
+
+	assert.True(t, refs.hasPattern(2))
+	assert.True(t, refs.hasDictEntry(3))
+	assert.True(t, refs.hasDictEntry(4))
+	assert.True(t, refs.hasDictEntry(5))
+	assert.True(t, refs.hasJsonSchema(6))
+}
+
 func TestInflightTrackerSnapshotOnlyIncludesReferencedState(t *testing.T) {
 	tracker := newInflightTracker("test", 5)
 	seedInflightSnapshotState(tracker,
@@ -500,16 +517,16 @@ func TestInflightTrackerSnapshotOnlyIncludesReferencedState(t *testing.T) {
 	snapshot := tracker.getSnapshot()
 	require.NotNil(t, snapshot)
 
-	datumSeq := decodeInflightDatumSequence(t, snapshot)
+	datumSeq := decodeInflightLogDatumSequence(t, snapshot)
 	require.Len(t, datumSeq.Data, 2)
 	assert.Equal(t, map[uint64]string{2: "pattern2"}, collectInflightPatterns(datumSeq.Data))
 	assert.Equal(t, map[uint64]string{20: "value20"}, collectInflightDictEntries(datumSeq.Data))
 
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
-	wireDatumSeq := decodeInflightDatumSequence(t, encoded)
+	wireDatumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, wireDatumSeq.Data, 1)
-	require.NotNil(t, wireDatumSeq.Data[0].GetLogs())
+	require.NotNil(t, wireDatumSeq.Data[0].GetLog())
 }
 
 func TestInflightTrackerNextToSendPrependsLazySnapshotState(t *testing.T) {
@@ -529,11 +546,11 @@ func TestInflightTrackerNextToSendPrependsLazySnapshotState(t *testing.T) {
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
 
-	datumSeq := decodeInflightDatumSequence(t, encoded)
+	datumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 3)
 	assert.Equal(t, map[uint64]string{2: "pattern2"}, collectInflightPatterns(datumSeq.Data[:2]))
 	assert.Equal(t, map[uint64]string{20: "value20"}, collectInflightDictEntries(datumSeq.Data[:2]))
-	require.NotNil(t, datumSeq.Data[2].GetLogs())
+	require.NotNil(t, datumSeq.Data[2].GetLog())
 
 	require.True(t, tracker.markSent())
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
@@ -542,9 +559,9 @@ func TestInflightTrackerNextToSendPrependsLazySnapshotState(t *testing.T) {
 
 	encoded, err = tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
-	datumSeq = decodeInflightDatumSequence(t, encoded)
+	datumSeq = decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 1)
-	require.NotNil(t, datumSeq.Data[0].GetLogs())
+	require.NotNil(t, datumSeq.Data[0].GetLog())
 }
 
 func TestInflightTrackerNextToSendDeltaEncodesAfterPrependingLazySnapshotState(t *testing.T) {
@@ -562,18 +579,18 @@ func TestInflightTrackerNextToSendDeltaEncodesAfterPrependingLazySnapshotState(t
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
 
-	datumSeq := decodeInflightDatumSequence(t, encoded)
+	datumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 4)
 	assert.Equal(t, map[uint64]string{2: "pattern2"}, collectInflightPatterns(datumSeq.Data[:2]))
 	assert.Equal(t, map[uint64]string{20: "value20"}, collectInflightDictEntries(datumSeq.Data[:2]))
 
-	require.NotNil(t, datumSeq.Data[2].GetLogs())
-	assert.EqualValues(t, 0, datumSeq.Data[2].GetLogs().GetStructured().PatternId)
-	require.NotNil(t, datumSeq.Data[3].GetLogs())
-	assert.EqualValues(t, 0, datumSeq.Data[3].GetLogs().GetStructured().PatternId)
+	require.NotNil(t, datumSeq.Data[2].GetLog())
+	assert.EqualValues(t, 0, datumSeq.Data[2].GetLog().PatternId)
+	require.NotNil(t, datumSeq.Data[3].GetLog())
+	assert.EqualValues(t, 0, datumSeq.Data[3].GetLog().PatternId)
 }
 
-func TestInflightTrackerNextToSendDeltaEncodesFlatLogAfterPrependingLazySnapshotState(t *testing.T) {
+func TestInflightTrackerNextToSendDeltaEncodesLogAfterPrependingLazySnapshotState(t *testing.T) {
 	tracker := newInflightTracker("test", 5)
 	seedInflightSnapshotState(tracker,
 		createInflightPatternDefine(2, "pattern2"),
@@ -585,16 +602,16 @@ func TestInflightTrackerNextToSendDeltaEncodesFlatLogAfterPrependingLazySnapshot
 	)
 
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
-		createInflightFlatLogDatum(2, 20, 21, 22, 23, 24),
-		createInflightFlatLogDatum(0, 20, 0, 0, 0, 0),
+		createInflightLogDatumWithReferences(2, 20, 21, 22, 23, 24),
+		createInflightLogDatumWithReferences(0, 20, 0, 0, 0, 0),
 	)))
 
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
 
-	datumSeq := decodeInflightDatumSequence(t, encoded)
+	datumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 7)
-	firstLog := datumSeq.Data[len(datumSeq.Data)-2].GetFlatLog()
+	firstLog := datumSeq.Data[len(datumSeq.Data)-2].GetLog()
 	require.NotNil(t, firstLog)
 	assert.EqualValues(t, 0, firstLog.PatternId)
 	assert.EqualValues(t, 21, firstLog.Status)
@@ -602,13 +619,13 @@ func TestInflightTrackerNextToSendDeltaEncodesFlatLogAfterPrependingLazySnapshot
 	assert.EqualValues(t, 23, firstLog.Tags)
 	assert.EqualValues(t, 24, firstLog.JsonSchemaId)
 
-	secondLog := datumSeq.Data[len(datumSeq.Data)-1].GetFlatLog()
+	secondLog := datumSeq.Data[len(datumSeq.Data)-1].GetLog()
 	require.NotNil(t, secondLog)
 	assert.EqualValues(t, 0, secondLog.PatternId)
-	assert.EqualValues(t, flatLogEmptyDictIndex, secondLog.Status)
-	assert.EqualValues(t, flatLogEmptyDictIndex, secondLog.Service)
-	assert.EqualValues(t, flatLogEmptyDictIndex, secondLog.Tags)
-	assert.EqualValues(t, flatLogEmptyDictIndex, secondLog.JsonSchemaId)
+	assert.EqualValues(t, emptyDictIndex, secondLog.Status)
+	assert.EqualValues(t, emptyDictIndex, secondLog.Service)
+	assert.EqualValues(t, emptyDictIndex, secondLog.Tags)
+	assert.EqualValues(t, emptyDictIndex, secondLog.JsonSchemaId)
 }
 
 func TestInflightTrackerNextToSendDoesNotPrependStateDefinedInSamePayload(t *testing.T) {
@@ -627,11 +644,11 @@ func TestInflightTrackerNextToSendDoesNotPrependStateDefinedInSamePayload(t *tes
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
 
-	datumSeq := decodeInflightDatumSequence(t, encoded)
+	datumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 3)
 	require.Equal(t, "new-pattern3", datumSeq.Data[0].GetPatternDefine().Template)
 	require.Equal(t, "new-value30", datumSeq.Data[1].GetDictEntryDefine().Value)
-	require.NotNil(t, datumSeq.Data[2].GetLogs())
+	require.NotNil(t, datumSeq.Data[2].GetLog())
 }
 
 func TestInflightTrackerNextToSendPrependsJsonSchemaDefineReferences(t *testing.T) {
@@ -643,30 +660,30 @@ func TestInflightTrackerNextToSendPrependsJsonSchemaDefineReferences(t *testing.
 
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
 		createInflightJsonSchemaDefine(60, 50, 51),
-		createInflightFlatLogDatum(0, 0, 0, 0, 0, 60),
+		createInflightLogDatumWithReferences(0, 0, 0, 0, 0, 60),
 	)))
 
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
 
-	datumSeq := decodeInflightDatumSequence(t, encoded)
+	datumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 4)
 	prefixDatums := datumSeq.Data[:2]
 	payloadDatums := datumSeq.Data[2:]
 	assert.Equal(t, map[uint64]string{50: "message", 51: "level"}, collectInflightDictEntries(prefixDatums))
 	require.NotNil(t, payloadDatums[0].GetJsonSchemaDefine())
-	require.NotNil(t, payloadDatums[1].GetFlatLog())
+	require.NotNil(t, payloadDatums[1].GetLog())
 
 	require.True(t, tracker.markSent())
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
-		createInflightFlatLogDatum(0, 0, 0, 0, 0, 60),
+		createInflightLogDatumWithReferences(0, 0, 0, 0, 0, 60),
 	)))
 
 	encoded, err = tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
-	datumSeq = decodeInflightDatumSequence(t, encoded)
+	datumSeq = decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 1)
-	require.NotNil(t, datumSeq.Data[0].GetFlatLog())
+	require.NotNil(t, datumSeq.Data[0].GetLog())
 }
 
 func TestInflightTrackerNextToSendRepairsKnownJsonSchemaMissingKeyReferences(t *testing.T) {
@@ -679,16 +696,16 @@ func TestInflightTrackerNextToSendRepairsKnownJsonSchemaMissingKeyReferences(t *
 	markInflightStreamKnown(tracker, nil, nil, []uint64{60})
 
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
-		createInflightFlatLogDatum(0, 0, 0, 0, 0, 60),
+		createInflightLogDatumWithReferences(0, 0, 0, 0, 0, 60),
 	)))
 
 	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
 	require.NoError(t, err)
 
-	datumSeq := decodeInflightDatumSequence(t, encoded)
+	datumSeq := decodeInflightLogDatumSequence(t, encoded)
 	require.Len(t, datumSeq.Data, 3)
 	assert.Equal(t, map[uint64]string{50: "message", 51: "level"}, collectInflightDictEntries(datumSeq.Data[:2]))
-	require.NotNil(t, datumSeq.Data[2].GetFlatLog())
+	require.NotNil(t, datumSeq.Data[2].GetLog())
 }
 
 func TestInflightTrackerDefersDictDeleteWhileInflightPayloadReferencesIt(t *testing.T) {
@@ -696,7 +713,7 @@ func TestInflightTrackerDefersDictDeleteWhileInflightPayloadReferencesIt(t *test
 	seedInflightSnapshotState(tracker, createInflightDictEntryDefine(40, "value40"))
 
 	require.True(t, tracker.append(createInflightPayloadWithStateChanges(
-		[]*statefulpb.Datum{createInflightDictEntryDelete(40)},
+		[]*statefulpb.LogDatum{createInflightDictEntryDelete(40)},
 	)))
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
 		createInflightLogDatum(0, 40),
@@ -705,11 +722,11 @@ func TestInflightTrackerDefersDictDeleteWhileInflightPayloadReferencesIt(t *test
 	require.True(t, tracker.markSent())
 
 	tracker.pop()
-	snapshot := decodeInflightDatumSequence(t, tracker.getSnapshot())
+	snapshot := decodeInflightLogDatumSequence(t, tracker.getSnapshot())
 	assert.Equal(t, map[uint64]string{40: "value40"}, collectInflightDictEntries(snapshot.Data))
 
 	tracker.pop()
-	snapshot = decodeInflightDatumSequence(t, tracker.getSnapshot())
+	snapshot = decodeInflightLogDatumSequence(t, tracker.getSnapshot())
 	assert.NotContains(t, collectInflightDictEntries(snapshot.Data), uint64(40))
 }
 
@@ -722,29 +739,29 @@ func TestInflightTrackerDefersJsonSchemaDictDeletesWhileSchemaInflight(t *testin
 	)
 
 	require.True(t, tracker.append(createInflightPayloadWithStateChanges(
-		[]*statefulpb.Datum{createInflightDictEntryDelete(51)},
+		[]*statefulpb.LogDatum{createInflightDictEntryDelete(51)},
 	)))
 	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
-		createInflightFlatLogDatum(0, 0, 0, 0, 0, 60),
+		createInflightLogDatumWithReferences(0, 0, 0, 0, 0, 60),
 	)))
 	require.True(t, tracker.markSent())
 	require.True(t, tracker.markSent())
 
 	tracker.pop()
-	snapshot := decodeInflightDatumSequence(t, tracker.getSnapshot())
+	snapshot := decodeInflightLogDatumSequence(t, tracker.getSnapshot())
 	assert.Equal(t, "level", collectInflightDictEntries(snapshot.Data)[51])
 
 	tracker.pop()
-	snapshot = decodeInflightDatumSequence(t, tracker.getSnapshot())
+	snapshot = decodeInflightLogDatumSequence(t, tracker.getSnapshot())
 	assert.NotContains(t, collectInflightDictEntries(snapshot.Data), uint64(51))
 }
 
-func seedInflightSnapshotState(tracker *inflightTracker, stateChanges ...*statefulpb.Datum) {
+func seedInflightSnapshotState(tracker *inflightTracker, stateChanges ...*statefulpb.LogDatum) {
 	tracker.planner.applyAcked(&StatefulExtra{StateChanges: stateChanges}, nil)
 }
 
 func markInflightStreamKnown(tracker *inflightTracker, patternIDs []uint64, dictEntryIDs []uint64, jsonSchemaIDs []uint64) {
-	knownDatums := make([]*statefulpb.Datum, 0, len(patternIDs)+len(dictEntryIDs)+len(jsonSchemaIDs))
+	knownDatums := make([]*statefulpb.LogDatum, 0, len(patternIDs)+len(dictEntryIDs)+len(jsonSchemaIDs))
 	for _, id := range patternIDs {
 		knownDatums = append(knownDatums, createInflightPatternDefine(id, ""))
 	}
@@ -757,9 +774,9 @@ func markInflightStreamKnown(tracker *inflightTracker, patternIDs []uint64, dict
 	tracker.planner.markSent(knownDatums)
 }
 
-func createInflightPatternDefine(id uint64, template string) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_PatternDefine{
+func createInflightPatternDefine(id uint64, template string) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_PatternDefine{
 			PatternDefine: &statefulpb.PatternDefine{
 				PatternId: id,
 				Template:  template,
@@ -768,9 +785,9 @@ func createInflightPatternDefine(id uint64, template string) *statefulpb.Datum {
 	}
 }
 
-func createInflightDictEntryDelete(id uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_DictEntryDelete{
+func createInflightDictEntryDelete(id uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_DictEntryDelete{
 			DictEntryDelete: &statefulpb.DictEntryDelete{
 				Id: id,
 			},
@@ -778,9 +795,9 @@ func createInflightDictEntryDelete(id uint64) *statefulpb.Datum {
 	}
 }
 
-func createInflightJsonSchemaDefine(id uint64, messageKeyID uint64, keyIDs ...uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_JsonSchemaDefine{
+func createInflightJsonSchemaDefine(id uint64, messageKeyID uint64, keyIDs ...uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_JsonSchemaDefine{
 			JsonSchemaDefine: &statefulpb.JsonSchemaDefine{
 				SchemaId:     id,
 				MessageKeyId: messageKeyID,
@@ -790,9 +807,9 @@ func createInflightJsonSchemaDefine(id uint64, messageKeyID uint64, keyIDs ...ui
 	}
 }
 
-func createInflightDictEntryDefine(id uint64, value string) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_DictEntryDefine{
+func createInflightDictEntryDefine(id uint64, value string) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_DictEntryDefine{
 			DictEntryDefine: &statefulpb.DictEntryDefine{
 				Id:    id,
 				Value: value,
@@ -801,19 +818,15 @@ func createInflightDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 	}
 }
 
-func createInflightLogDatum(patternID uint64, dictID uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_Logs{
-			Logs: &statefulpb.Log{
-				Content: &statefulpb.Log_Structured{
-					Structured: &statefulpb.StructuredLog{
-						PatternId: patternID,
-						DynamicValues: []*statefulpb.DynamicValue{
-							{
-								Value: &statefulpb.DynamicValue_DictIndex{
-									DictIndex: dictID,
-								},
-							},
+func createInflightLogDatum(patternID uint64, dictID uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_Log{
+			Log: &statefulpb.Log{
+				PatternId: patternID,
+				DynamicValues: []*statefulpb.DynamicValue{
+					{
+						Value: &statefulpb.DynamicValue_DictIndex{
+							DictIndex: dictID,
 						},
 					},
 				},
@@ -822,10 +835,10 @@ func createInflightLogDatum(patternID uint64, dictID uint64) *statefulpb.Datum {
 	}
 }
 
-func createInflightFlatLogDatum(patternID uint64, dictID uint64, status uint64, service uint64, tags uint64, jsonSchemaID uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_FlatLog{
-			FlatLog: &statefulpb.FlatLog{
+func createInflightLogDatumWithReferences(patternID uint64, dictID uint64, status uint64, service uint64, tags uint64, jsonSchemaID uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_Log{
+			Log: &statefulpb.Log{
 				PatternId:    patternID,
 				Status:       status,
 				Service:      service,
@@ -843,8 +856,8 @@ func createInflightFlatLogDatum(patternID uint64, dictID uint64, status uint64, 
 	}
 }
 
-func createInflightPayloadWithWireDatums(datums ...*statefulpb.Datum) *message.Payload {
-	serialized, _ := proto.Marshal(&statefulpb.DatumSequence{Data: datums})
+func createInflightPayloadWithWireDatums(datums ...*statefulpb.LogDatum) *message.Payload {
+	serialized, _ := proto.Marshal(&statefulpb.LogDatumSequence{Data: datums})
 	return &message.Payload{
 		Encoded: serialized,
 		StatefulExtra: &StatefulExtra{
@@ -853,8 +866,8 @@ func createInflightPayloadWithWireDatums(datums ...*statefulpb.Datum) *message.P
 	}
 }
 
-func createInflightPayloadWithStateChanges(stateChanges []*statefulpb.Datum, wireDatums ...*statefulpb.Datum) *message.Payload {
-	serialized, _ := proto.Marshal(&statefulpb.DatumSequence{Data: wireDatums})
+func createInflightPayloadWithStateChanges(stateChanges []*statefulpb.LogDatum, wireDatums ...*statefulpb.LogDatum) *message.Payload {
+	serialized, _ := proto.Marshal(&statefulpb.LogDatumSequence{Data: wireDatums})
 	return &message.Payload{
 		Encoded: serialized,
 		StatefulExtra: &StatefulExtra{
@@ -864,14 +877,14 @@ func createInflightPayloadWithStateChanges(stateChanges []*statefulpb.Datum, wir
 	}
 }
 
-func decodeInflightDatumSequence(t *testing.T, data []byte) *statefulpb.DatumSequence {
+func decodeInflightLogDatumSequence(t *testing.T, data []byte) *statefulpb.LogDatumSequence {
 	t.Helper()
-	var datumSeq statefulpb.DatumSequence
+	var datumSeq statefulpb.LogDatumSequence
 	require.NoError(t, proto.Unmarshal(data, &datumSeq))
 	return &datumSeq
 }
 
-func collectInflightPatterns(datums []*statefulpb.Datum) map[uint64]string {
+func collectInflightPatterns(datums []*statefulpb.LogDatum) map[uint64]string {
 	patterns := make(map[uint64]string)
 	for _, datum := range datums {
 		pattern := datum.GetPatternDefine()
@@ -882,7 +895,7 @@ func collectInflightPatterns(datums []*statefulpb.Datum) map[uint64]string {
 	return patterns
 }
 
-func collectInflightDictEntries(datums []*statefulpb.Datum) map[uint64]string {
+func collectInflightDictEntries(datums []*statefulpb.LogDatum) map[uint64]string {
 	entries := make(map[uint64]string)
 	for _, datum := range datums {
 		entry := datum.GetDictEntryDefine()

@@ -13,7 +13,6 @@ go_library(
     deps = [
         "//pkg/config/setup",
         "//pkg/logs/patterns/eviction",
-        "//pkg/proto/pbgo/statefulpb",
         "//pkg/util/log",
     ],
 )

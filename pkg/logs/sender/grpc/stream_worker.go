@@ -85,7 +85,7 @@ const (
 
 // streamInfo holds all stream-related information
 type streamInfo struct {
-	stream statefulpb.StatefulLogsService_LogsStreamClient
+	stream statefulpb.StatefulIntake_StatefulStreamClient
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -116,7 +116,7 @@ type streamWorker struct {
 
 	// gRPC connection management (shared with other streams)
 	conn   *grpc.ClientConn
-	client statefulpb.StatefulLogsServiceClient
+	client statefulpb.StatefulIntakeClient
 
 	// Stream management
 	currentStream   *streamInfo
@@ -154,7 +154,7 @@ func newStreamWorker(
 	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
 	conn *grpc.ClientConn,
-	client statefulpb.StatefulLogsServiceClient,
+	client statefulpb.StatefulIntakeClient,
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
@@ -171,7 +171,7 @@ func newStreamWorkerWithClock(
 	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
 	conn *grpc.ClientConn,
-	client statefulpb.StatefulLogsServiceClient,
+	client statefulpb.StatefulIntakeClient,
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
@@ -544,19 +544,22 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 
 	log.Infof("Worker %s: Stream rotation complete, now active", s.workerID)
 
-	// Send snapshot state first (batch 0)
+	// Send snapshot state first (batch 0). Even a stream with no accumulated
+	// state starts with an empty snapshot so that every stream begins at the
+	// batch ID required by the protocol.
 	serialized := s.inflight.getSnapshot()
-	if serialized != nil {
-		// Compress snapshot like regular batches
-		compressed, err := s.compression.Compress(serialized)
-		if err != nil {
-			log.Errorf("Worker %s: Failed to compress snapshot: %v", s.workerID, err)
-			s.inflight.resetStreamSent()
-		} else {
-			// Send compressed snapshot to sender goroutine via channel
-			// This call won't block because it's buffered channel's first write
-			s.batchToSendCh <- createBatch(compressed, 0)
-		}
+	if serialized == nil {
+		serialized, _ = proto.Marshal(&statefulpb.LogDatumSequence{})
+	}
+	// Compress snapshot like regular batches
+	compressed, err := s.compression.Compress(serialized)
+	if err != nil {
+		log.Errorf("Worker %s: Failed to compress snapshot: %v", s.workerID, err)
+		s.inflight.resetStreamSent()
+	} else {
+		// Send compressed snapshot to sender goroutine via channel
+		// This call won't block because it's buffered channel's first write
+		s.batchToSendCh <- createBatch(compressed, 0)
 	}
 }
 
@@ -586,7 +589,7 @@ func (s *streamWorker) asyncCreateNewStream() {
 			// }
 
 			// Create the stream, shouldn't block at this point.
-			stream, err := s.client.LogsStream(streamCtx)
+			stream, err := s.client.StatefulStream(streamCtx)
 
 			if err != nil {
 				streamCancel()

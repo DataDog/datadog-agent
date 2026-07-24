@@ -71,18 +71,13 @@ const (
 )
 
 const (
-	jsonValueKindNull byte = iota
-	jsonValueKindInt
-	jsonValueKindFloat
-	jsonValueKindBoolFalse
-	jsonValueKindBoolTrue
-	jsonValueKindString
-	jsonValueKindDict
-	jsonValueKindRaw
-	jsonValueKindIntAsString
-	jsonValueKindFloatAsString
-	jsonValueKindBoolFalseAsString
-	jsonValueKindBoolTrueAsString
+	jsonValueKindNull   = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_NULL)
+	jsonValueKindBool   = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_BOOL)
+	jsonValueKindInt    = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_INT)
+	jsonValueKindFloat  = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_FLOAT)
+	jsonValueKindDict   = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_DICT_STRING)
+	jsonValueKindString = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_STRING)
+	jsonValueKindRaw    = byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_RAW_JSON)
 )
 
 // dvTypeBackings holds the three oneof wrapper types for a single DynamicValue in one
@@ -104,6 +99,8 @@ type compactJSONContextValues struct {
 	dicts        []uint64
 	rawValues    [][]byte
 	stringValues []string
+	boolValues   []byte
+	boolCount    int
 }
 
 type dictEntryDefinition struct {
@@ -111,12 +108,16 @@ type dictEntryDefinition struct {
 	value string
 }
 
+type encodedTagSet struct {
+	dictID uint64
+}
+
 type tagCacheEntry struct {
 	origin         *message.Origin
 	hostname       string
 	source         string
 	processingTags string // joined ProcessingTags; part of cache key
-	tagSet         *statefulpb.TagSet
+	tagSet         *encodedTagSet
 	dictID         uint64
 	tagStr         string
 }
@@ -154,7 +155,7 @@ type MessageTranslator struct {
 		source         string
 		tagsString     string
 		processingTags string // joined ProcessingTags; part of cache key
-		tagSet         *statefulpb.TagSet
+		tagSet         *encodedTagSet
 		dictID         uint64
 		tagStr         string
 	}
@@ -195,7 +196,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer, opts .
 		jsonSchemaToID:         make(map[string]uint64),
 		jsonSchemaByID:         make(map[uint64]*jsonSchemaState),
 		jsonSchemaIDsByDictID:  make(map[uint64]map[uint64]struct{}),
-		nextJSONSchemaID:       flatLogEmptyDictIndex,
+		nextJSONSchemaID:       emptyDictIndex,
 		pipelineName:           pipelineName,
 		lastStaleSweep:         time.Now(),
 		staleTTL:               staleTTL,
@@ -232,7 +233,7 @@ func StartMessageTranslator(inputChan chan *message.Message, outputChan chan *me
 // 1. Tokenizing the message content
 // 2. Using ClusterManager to create/update patterns
 // 3. Sending PatternDefine for new patterns, or PatternDelete+PatternDefine for updates
-// 4. Sending StructuredLog with wildcard values
+// 4. Sending a pattern-encoded Log with wildcard values
 // Returns the output channel for StatefulMessages
 func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize int) chan *message.StatefulMessage {
 	outputChan := make(chan *message.StatefulMessage, bufferSize)
@@ -404,9 +405,6 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 // processPreTokenized handles post-tokenization: clustering, eviction, datum construction, and sending.
 // Called by both processBatch (batch pipeline) and processMessage (single-message path).
 func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextKeys []string, jsonContextValues []interface{}, outputChan chan *message.StatefulMessage) {
-	var patternDefineSent bool
-	var patternDefineParamCount uint32
-
 	ts := getMessageTimestamp(msg)
 
 	// Process tokenized log through cluster manager to get/create pattern
@@ -435,7 +433,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	wildcardValues := pattern.GetWildcardValues(tokenList)
 
 	// Build PatternDefine datum before eviction (if needed)
-	var patternDatum *statefulpb.Datum
+	var patternDatum *statefulpb.LogDatum
 	if changeType == clustering.PatternNew || changeType == clustering.PatternUpdated {
 		patternDatum = buildPatternDefine(pattern)
 	}
@@ -471,7 +469,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Send PatternDefine for new or updated patterns
 	if patternDatum != nil {
-		mt.sendPatternDefine(patternDatum, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
+		mt.sendPatternDefine(patternDatum, msg, outputChan)
 	}
 
 	// Encode wildcard values with type inference (int64 → dict_index → string_value).
@@ -497,22 +495,15 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	}
 
 	// Encode JSON context schema as state and values as DynamicValues.
-	var messageKeyDV *statefulpb.DynamicValue
 	var jsonContextSchemaID uint64
-	var jsonContextValuesDV []*statefulpb.DynamicValue
 	var compactJSONContext compactJSONContextValues
 	if messageKey != "" || len(jsonContextKeys) > 0 {
-		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
-
 		var dictDefs []dictEntryDefinition
 		compactJSONContext, dictDefs = mt.compactJSONContextValues(jsonContextValues)
+		jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys, compactJSONContext.kinds)
 		for _, dictDef := range dictDefs {
 			mt.sendDictEntryDefine(outputChan, msg, dictDef.id, dictDef.value)
 		}
-
-		// Keep the legacy field empty for FlatLog. Consumers that do not understand the compact
-		// streams should ignore the json schema when json_context_values is absent.
-		jsonContextValuesDV = nil
 	}
 
 	service, serviceDictID, serviceIsNew := mt.buildServiceField(msg)
@@ -525,24 +516,24 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		mt.sendDictEntryDefine(outputChan, msg, statusDictID, status)
 	}
 
-	// Build complete tag list and encode as TagSet
+	// Build the complete tag list and encode it as one dictionary ID.
 	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
 	if isNew {
 		mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsString)
 	}
 
-	// Send StructuredLog with all fields
+	// Send the pattern-encoded Log with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, statusDictID, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV, compactJSONContext)
+	mt.sendPatternLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, statusDictID, jsonContextSchemaID, compactJSONContext)
 }
 
-// buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
+// buildTagSet constructs the complete tag list for a message and encodes it as one dictionary ID.
 // This includes log-level fields (hostname, ddsource) as tags,
 // plus all other tags from the message metadata (container tags, source config tags, processing tags).
-// All tags are joined as a single string, encoded as a single dictionary entry in the TagSet.
+// All tags are joined as a single string and encoded as a single dictionary entry.
 // A single-entry cache keyed on (origin ptr, hostname, source, tags) avoids all
 // allocations in the common case where these inputs are constant across messages (single-source pipeline).
-func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagSet, string, uint64, bool) {
+func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*encodedTagSet, string, uint64, bool) {
 	// Read current inputs
 	currentOrigin := msg.Origin
 	currentHostname := msg.MessageMetadata.Hostname
@@ -585,13 +576,7 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 
 	dictID, isNew := mt.tagManager.AddString(allTagsString)
 
-	tagSet := &statefulpb.TagSet{
-		Tagset: &statefulpb.DynamicValue{
-			Value: &statefulpb.DynamicValue_DictIndex{
-				DictIndex: dictID,
-			},
-		},
-	}
+	tagSet := &encodedTagSet{dictID: dictID}
 
 	// Populate cache for next call
 	mt.tagCache.origin = currentOrigin
@@ -686,7 +671,7 @@ func (mt *MessageTranslator) buildStatusField(msg *message.Message) (uint64, str
 	return dictID, status, isNew
 }
 
-func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, keys []string) (*statefulpb.DynamicValue, uint64) {
+func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, keys []string, valueKinds []byte) uint64 {
 	if messageKey == "" {
 		messageKey = "message"
 	}
@@ -704,7 +689,7 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		keyIDs = append(keyIDs, keyID)
 	}
 
-	schemaKey := buildJsonSchemaKey(messageKey, keys)
+	schemaKey := buildJsonSchemaKey(messageKey, keys, valueKinds)
 	schemaID, ok := mt.jsonSchemaToID[schemaKey]
 	if ok && !mt.jsonSchemaMatchesDictIDs(schemaID, messageKeyID, keyIDs) {
 		mt.sendJsonSchemaDelete(outputChan, msg, schemaID)
@@ -716,14 +701,10 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		schemaID = mt.nextJSONSchemaID
 		mt.jsonSchemaToID[schemaKey] = schemaID
 		mt.trackJsonSchema(schemaID, schemaKey, messageKeyID, keyIDs)
-		mt.sendJsonSchemaDefine(outputChan, msg, schemaID, keyIDs, messageKeyID)
+		mt.sendJsonSchemaDefine(outputChan, msg, schemaID, keyIDs, messageKeyID, valueKinds)
 	}
 
-	return &statefulpb.DynamicValue{
-		Value: &statefulpb.DynamicValue_DictIndex{
-			DictIndex: messageKeyID,
-		},
-	}, schemaID
+	return schemaID
 }
 
 func (mt *MessageTranslator) jsonSchemaMatchesDictIDs(schemaID uint64, messageKeyID uint64, keyIDs []uint64) bool {
@@ -739,13 +720,26 @@ func (mt *MessageTranslator) jsonSchemaMatchesDictIDs(schemaID uint64, messageKe
 	return true
 }
 
-func buildJsonSchemaKey(messageKey string, keys []string) string {
+func buildJsonSchemaKey(messageKey string, keys []string, valueKinds []byte) string {
 	schemaKeyBuilder := strings.Builder{}
-	schemaKeyBuilder.WriteString(messageKey)
-	for _, key := range keys {
-		schemaKeyBuilder.WriteByte('\x00')
-		schemaKeyBuilder.WriteString(key)
+	writeLengthPrefixed := func(value string) {
+		schemaKeyBuilder.WriteString(strconv.Itoa(len(value)))
+		schemaKeyBuilder.WriteByte(':')
+		schemaKeyBuilder.WriteString(value)
 	}
+
+	writeLengthPrefixed(messageKey)
+	schemaKeyBuilder.WriteByte(':')
+	schemaKeyBuilder.WriteString(strconv.Itoa(len(keys)))
+	for _, key := range keys {
+		schemaKeyBuilder.WriteByte(':')
+		writeLengthPrefixed(key)
+	}
+	// Delimit the exact message/key identity from the value kinds. This lets
+	// callers find all kind variants without also matching schemas whose key
+	// list merely has the requested keys as a prefix.
+	schemaKeyBuilder.WriteByte('|')
+	schemaKeyBuilder.Write(valueKinds)
 	return schemaKeyBuilder.String()
 }
 
@@ -790,12 +784,12 @@ func (mt *MessageTranslator) touchJsonSchemaReferencesForKeys(messageKey string,
 	if messageKey == "" {
 		messageKey = "message"
 	}
-	schemaKey := buildJsonSchemaKey(messageKey, keys)
-	schemaID, ok := mt.jsonSchemaToID[schemaKey]
-	if !ok {
-		return
+	keyPrefix := buildJsonSchemaKey(messageKey, keys, nil)
+	for schemaKey, schemaID := range mt.jsonSchemaToID {
+		if strings.HasPrefix(schemaKey, keyPrefix) {
+			mt.touchJsonSchemaReferences(schemaID)
+		}
 	}
-	mt.touchJsonSchemaReferences(schemaID)
 }
 
 func (mt *MessageTranslator) sendDictEntryDeletes(outputChan chan *message.StatefulMessage, msg *message.Message, evictedIDs []uint64) {
@@ -849,11 +843,7 @@ func getMessageTimestamp(msg *message.Message) time.Time {
 }
 
 // sendPatternDefine creates and sends a PatternDefine datum
-func (mt *MessageTranslator) sendPatternDefine(patternDatum *statefulpb.Datum, msg *message.Message, outputChan chan *message.StatefulMessage, patternDefineSent *bool, patternDefineParamCount *uint32) {
-	if pd := patternDatum.GetPatternDefine(); pd != nil {
-		*patternDefineParamCount = pd.ParamCount
-	}
-
+func (mt *MessageTranslator) sendPatternDefine(patternDatum *statefulpb.LogDatum, msg *message.Message, outputChan chan *message.StatefulMessage) {
 	bytesAdded := float64(proto.Size(patternDatum))
 	tlmPipelinePatternAdded.Inc(mt.pipelineName)
 	tlmPipelinePatternBytesAdded.Add(bytesAdded, mt.pipelineName)
@@ -863,7 +853,6 @@ func (mt *MessageTranslator) sendPatternDefine(patternDatum *statefulpb.Datum, m
 		Datum:    patternDatum,
 		Metadata: &msg.MessageMetadata,
 	}
-	*patternDefineSent = true
 }
 
 // sendPatternDelete creates and sends a PatternDelete datum
@@ -898,8 +887,8 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 
 // sendDictEntryDelete creates and sends a DictEntryDelete datum
 func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64) {
-	deleteDatum := &statefulpb.Datum{
-		Data: &statefulpb.Datum_DictEntryDelete{
+	deleteDatum := &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_DictEntryDelete{
 			DictEntryDelete: &statefulpb.DictEntryDelete{
 				Id: id,
 			},
@@ -927,8 +916,8 @@ func (mt *MessageTranslator) sendJsonSchemaDelete(outputChan chan *message.State
 	}
 }
 
-func (mt *MessageTranslator) sendJsonSchemaDefine(outputChan chan *message.StatefulMessage, msg *message.Message, schemaID uint64, keyIDs []uint64, messageKeyID uint64) {
-	schemaDatum := buildJsonSchemaDefine(schemaID, keyIDs, messageKeyID)
+func (mt *MessageTranslator) sendJsonSchemaDefine(outputChan chan *message.StatefulMessage, msg *message.Message, schemaID uint64, keyIDs []uint64, messageKeyID uint64, valueKinds []byte) {
+	schemaDatum := buildJsonSchemaDefine(schemaID, keyIDs, messageKeyID, valueKinds)
 
 	bytesAdded := float64(proto.Size(schemaDatum))
 	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
@@ -940,7 +929,7 @@ func (mt *MessageTranslator) sendJsonSchemaDefine(outputChan chan *message.State
 }
 
 // sendRawLog creates and sends a raw log datum (currently unused)
-func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, statusDictID uint64) {
+func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *encodedTagSet, service *statefulpb.DynamicValue, statusDictID uint64) {
 	// Proto3 string fields require valid UTF-8; replace invalid sequences to avoid corrupt datums.
 	logDatum := buildRawLog(toValidUTF8(contentStr), ts, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID)
 
@@ -953,9 +942,9 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 	}
 }
 
-// sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue, compactJSONContext compactJSONContextValues) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID, messageKey, jsonContextSchemaID, jsonContextValues, compactJSONContext)
+// sendPatternLog creates and sends a pattern-encoded Log datum
+func (mt *MessageTranslator) sendPatternLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *encodedTagSet, service *statefulpb.DynamicValue, statusDictID uint64, jsonContextSchemaID uint64, compactJSONContext compactJSONContextValues) {
+	logDatum := buildPatternLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID, jsonContextSchemaID, compactJSONContext)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -967,29 +956,28 @@ func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.Stateful
 }
 
 // buildPatternDefine creates a PatternDefine Datum from a Pattern
-func buildPatternDefine(pattern *clustering.Pattern) *statefulpb.Datum {
+func buildPatternDefine(pattern *clustering.Pattern) *statefulpb.LogDatum {
 	charPositions := pattern.GetWildcardCharPositions()
 	posList := make([]uint32, len(charPositions))
 	for i, pos := range charPositions {
 		posList[i] = uint32(pos)
 	}
 
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_PatternDefine{
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_PatternDefine{
 			PatternDefine: &statefulpb.PatternDefine{
-				PatternId:  pattern.PatternID,
-				Template:   pattern.GetPatternString(),
-				ParamCount: uint32(pattern.GetWildcardCount()),
-				PosList:    posList,
+				PatternId: pattern.PatternID,
+				Template:  pattern.GetPatternString(),
+				PosList:   posList,
 			},
 		},
 	}
 }
 
 // buildPatternDelete creates a PatternDelete Datum for a pattern ID
-func buildPatternDelete(patternID uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_PatternDelete{
+func buildPatternDelete(patternID uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_PatternDelete{
 			PatternDelete: &statefulpb.PatternDelete{
 				PatternId: patternID,
 			},
@@ -998,9 +986,9 @@ func buildPatternDelete(patternID uint64) *statefulpb.Datum {
 }
 
 // buildDictEntryDefine creates a DictEntryDefine Datum
-func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_DictEntryDefine{
+func buildDictEntryDefine(id uint64, value string) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_DictEntryDefine{
 			DictEntryDefine: &statefulpb.DictEntryDefine{
 				Id:    id,
 				Value: value,
@@ -1009,21 +997,22 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 	}
 }
 
-func buildJsonSchemaDefine(schemaID uint64, keyIDs []uint64, messageKeyID uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_JsonSchemaDefine{
+func buildJsonSchemaDefine(schemaID uint64, keyIDs []uint64, messageKeyID uint64, valueKinds []byte) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_JsonSchemaDefine{
 			JsonSchemaDefine: &statefulpb.JsonSchemaDefine{
 				SchemaId:     schemaID,
 				Keys:         keyIDs,
 				MessageKeyId: messageKeyID,
+				ValueKinds:   valueKinds,
 			},
 		},
 	}
 }
 
-func buildJsonSchemaDelete(schemaID uint64) *statefulpb.Datum {
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_JsonSchemaDelete{
+func buildJsonSchemaDelete(schemaID uint64) *statefulpb.LogDatum {
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_JsonSchemaDelete{
 			JsonSchemaDelete: &statefulpb.JsonSchemaDelete{
 				SchemaId: schemaID,
 			},
@@ -1274,11 +1263,8 @@ func (mt *MessageTranslator) appendCompactJSONContextValue(compact *compactJSONC
 		compact.floats = append(compact.floats, typed)
 		return 0, "", false
 	case bool:
-		if typed {
-			compact.kinds = append(compact.kinds, jsonValueKindBoolTrue)
-		} else {
-			compact.kinds = append(compact.kinds, jsonValueKindBoolFalse)
-		}
+		compact.kinds = append(compact.kinds, jsonValueKindBool)
+		compact.appendBool(typed)
 		return 0, "", false
 	default:
 		rawJSON, err := json.Marshal(typed)
@@ -1295,24 +1281,6 @@ func (mt *MessageTranslator) appendCompactJSONContextValue(compact *compactJSONC
 }
 
 func (mt *MessageTranslator) appendCompactJSONString(compact *compactJSONContextValues, value string) (dictID uint64, dictValue string, isNew bool) {
-	if intVal, ok := parseLosslessIntString(value); ok {
-		compact.kinds = append(compact.kinds, jsonValueKindIntAsString)
-		compact.ints = append(compact.ints, intVal)
-		return 0, "", false
-	}
-	if floatVal, ok := parseLosslessFloatString(value); ok {
-		compact.kinds = append(compact.kinds, jsonValueKindFloatAsString)
-		compact.floats = append(compact.floats, floatVal)
-		return 0, "", false
-	}
-	if boolVal, ok := parseLosslessBoolString(value); ok {
-		if boolVal {
-			compact.kinds = append(compact.kinds, jsonValueKindBoolTrueAsString)
-		} else {
-			compact.kinds = append(compact.kinds, jsonValueKindBoolFalseAsString)
-		}
-		return 0, "", false
-	}
 	value = toValidUTF8(value)
 	if dictID, isNew, shouldEncode := mt.tagManager.ObserveDynamicString(value); shouldEncode {
 		compact.kinds = append(compact.kinds, jsonValueKindDict)
@@ -1322,6 +1290,17 @@ func (mt *MessageTranslator) appendCompactJSONString(compact *compactJSONContext
 	compact.kinds = append(compact.kinds, jsonValueKindString)
 	compact.stringValues = append(compact.stringValues, value)
 	return 0, "", false
+}
+
+func (compact *compactJSONContextValues) appendBool(value bool) {
+	byteIndex := compact.boolCount / 8
+	if byteIndex == len(compact.boolValues) {
+		compact.boolValues = append(compact.boolValues, 0)
+	}
+	if value {
+		compact.boolValues[byteIndex] |= 1 << uint(compact.boolCount%8)
+	}
+	compact.boolCount++
 }
 
 func appendCompactJSONNumber(compact *compactJSONContextValues, raw string) (dictID uint64, dictValue string, isNew bool) {
@@ -1369,67 +1348,61 @@ func (mt *MessageTranslator) fillWildcardDynamicValue(
 	return 0, "", false
 }
 
-func flatLogTagSetDictIndex(tagSet *statefulpb.TagSet) uint64 {
-	if tagSet == nil || tagSet.Tagset == nil {
+func tagSetDictIndex(tagSet *encodedTagSet) uint64 {
+	if tagSet == nil {
 		return 0
 	}
-	return tagSet.Tagset.GetDictIndex()
+	return tagSet.dictID
 }
 
-func flatLogDynamicValueDictIndex(value *statefulpb.DynamicValue) uint64 {
+func dynamicValueDictIndex(value *statefulpb.DynamicValue) uint64 {
 	if value == nil {
 		return 0
 	}
 	return value.GetDictIndex()
 }
 
-// buildStructuredLog creates a Datum containing a FlatLog with pattern references.
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue, compactJSONContext compactJSONContextValues) *statefulpb.Datum {
-	_ = messageKey
-	log := &statefulpb.FlatLog{
+// buildPatternLog creates a LogDatum containing a Log with pattern references.
+func buildPatternLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *encodedTagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64, jsonContextSchemaID uint64, compactJSONContext compactJSONContextValues) *statefulpb.LogDatum {
+	log := &statefulpb.Log{
 		Timestamp: timestamp,
-		Status:    flatLogDictIndex(statusDictID),
-		Service:   flatLogDictIndex(flatLogDynamicValueDictIndex(service)),
-		Tags:      flatLogDictIndex(flatLogTagSetDictIndex(tagSet)),
+		Status:    logDictIndex(statusDictID),
+		Service:   logDictIndex(dynamicValueDictIndex(service)),
+		Tags:      logDictIndex(tagSetDictIndex(tagSet)),
 
 		PatternId:               patternID,
 		DynamicValues:           dynamicValues,
-		JsonSchemaId:            flatLogDictIndex(jsonContextSchemaID),
-		JsonContextValues:       jsonContextValues,
-		JsonContextValueKinds:   compactJSONContext.kinds,
+		JsonSchemaId:            logDictIndex(jsonContextSchemaID),
 		JsonContextIntValues:    compactJSONContext.ints,
 		JsonContextFloatValues:  compactJSONContext.floats,
 		JsonContextDictValues:   compactJSONContext.dicts,
 		JsonContextRawValues:    compactJSONContext.rawValues,
 		JsonContextStringValues: compactJSONContext.stringValues,
+		JsonContextBoolValues:   compactJSONContext.boolValues,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
 	}
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_FlatLog{
-			FlatLog: log,
-		},
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_Log{Log: log},
 	}
 }
 
-// buildRawLog creates a Datum containing a FlatLog with raw content (no pattern).
-func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64) *statefulpb.Datum {
-	log := &statefulpb.FlatLog{
+// buildRawLog creates a LogDatum containing a Log with raw content (no pattern).
+func buildRawLog(content string, ts time.Time, tagSet *encodedTagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64) *statefulpb.LogDatum {
+	log := &statefulpb.Log{
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Status:    flatLogDictIndex(statusDictID),
-		Service:   flatLogDictIndex(flatLogDynamicValueDictIndex(service)),
-		Tags:      flatLogDictIndex(flatLogTagSetDictIndex(tagSet)),
+		Status:    logDictIndex(statusDictID),
+		Service:   logDictIndex(dynamicValueDictIndex(service)),
+		Tags:      logDictIndex(tagSetDictIndex(tagSet)),
 		RawLog:    content,
 
-		JsonSchemaId: flatLogEmptyDictIndex,
+		JsonSchemaId: emptyDictIndex,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
 	}
-	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_FlatLog{
-			FlatLog: log,
-		},
+	return &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_Log{Log: log},
 	}
 }

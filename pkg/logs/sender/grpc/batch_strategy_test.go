@@ -28,13 +28,12 @@ func createTestStatefulMessage(content string) *message.StatefulMessage {
 	msg := message.NewMessage([]byte(content), nil, "", 0)
 	msg.MessageMetadata.RawDataLen = len(content)
 
-	datum := &statefulpb.Datum{
-		Data: &statefulpb.Datum_Logs{
-			Logs: &statefulpb.Log{
-				Timestamp: 12345,
-				Content: &statefulpb.Log_Raw{
-					Raw: content,
-				},
+	datum := &statefulpb.LogDatum{
+		Data: &statefulpb.LogDatum_Log{
+			Log: &statefulpb.Log{
+				Timestamp:    12345,
+				RawLog:       content,
+				JsonSchemaId: emptyDictIndex,
 			},
 		},
 	}
@@ -47,11 +46,7 @@ func createTestStatefulMessage(content string) *message.StatefulMessage {
 
 func createTestStatefulMessageWithService(content string, serviceDictID uint64) *message.StatefulMessage {
 	msg := createTestStatefulMessage(content)
-	msg.Datum.GetLogs().Service = &statefulpb.DynamicValue{
-		Value: &statefulpb.DynamicValue_DictIndex{
-			DictIndex: serviceDictID,
-		},
-	}
+	msg.Datum.GetLog().Service = serviceDictID
 	return msg
 }
 
@@ -59,12 +54,11 @@ func createTestPatternDefineStatefulMessage(patternID uint64, template string) *
 	msg := message.NewMessage(nil, nil, "", 0)
 	return &message.StatefulMessage{
 		Metadata: &msg.MessageMetadata,
-		Datum: &statefulpb.Datum{
-			Data: &statefulpb.Datum_PatternDefine{
+		Datum: &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_PatternDefine{
 				PatternDefine: &statefulpb.PatternDefine{
-					PatternId:  patternID,
-					Template:   template,
-					ParamCount: 1,
+					PatternId: patternID,
+					Template:  template,
 				},
 			},
 		},
@@ -86,16 +80,12 @@ func createTestStructuredStatefulMessage(patternID uint64, dynamicValueCount int
 
 	return &message.StatefulMessage{
 		Metadata: &msg.MessageMetadata,
-		Datum: &statefulpb.Datum{
-			Data: &statefulpb.Datum_Logs{
-				Logs: &statefulpb.Log{
-					Timestamp: 12345,
-					Content: &statefulpb.Log_Structured{
-						Structured: &statefulpb.StructuredLog{
-							PatternId:     patternID,
-							DynamicValues: dynamicValues,
-						},
-					},
+		Datum: &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_Log{
+				Log: &statefulpb.Log{
+					Timestamp:     12345,
+					PatternId:     patternID,
+					DynamicValues: dynamicValues,
 				},
 			},
 		},
@@ -134,13 +124,13 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	assert.Equal(t, "identity", payload.Encoding)
 	assert.Equal(t, 2, payload.UnencodedSize)
 
-	// Verify the payload contains valid DatumSequence
-	var datumSeq statefulpb.DatumSequence
+	// Verify the payload contains valid LogDatumSequence
+	var datumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(datumSeq.Data))
-	assert.Equal(t, "a", datumSeq.Data[0].GetLogs().GetRaw())
-	assert.Equal(t, "b", datumSeq.Data[1].GetLogs().GetRaw())
+	assert.Equal(t, "a", datumSeq.Data[0].GetLog().GetRawLog())
+	assert.Equal(t, "b", datumSeq.Data[1].GetLog().GetRawLog())
 
 	s.Stop()
 
@@ -180,8 +170,8 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		payload := <-output
 		assert.EqualValues(t, m.Metadata, payload.MessageMetas[0])
 
-		// Verify payload contains valid DatumSequence
-		var datumSeq statefulpb.DatumSequence
+		// Verify payload contains valid LogDatumSequence
+		var datumSeq statefulpb.LogDatumSequence
 		err := proto.Unmarshal(payload.Encoded, &datumSeq)
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(datumSeq.Data))
@@ -508,16 +498,44 @@ func TestBatchStrategyCompression(t *testing.T) {
 	assert.Equal(t, "identity", payload.Encoding)
 	assert.NotEmpty(t, payload.Encoded)
 
-	// Verify the payload contains valid DatumSequence (identity compression = no compression)
-	var datumSeq statefulpb.DatumSequence
+	// Verify the payload contains valid LogDatumSequence (identity compression = no compression)
+	var datumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	assert.Equal(t, 5, len(datumSeq.Data))
 	for _, datum := range datumSeq.Data {
-		assert.Equal(t, "test message", datum.GetLogs().GetRaw())
+		assert.Equal(t, "test message", datum.GetLog().GetRawLog())
 	}
 
 	strategy.Stop()
+}
+
+func TestDeltaEncodeDatumsForWirePreservesTypedJSONColumns(t *testing.T) {
+	uuid := "uuid"
+	originalLog := &statefulpb.Log{
+		Timestamp:               123,
+		Status:                  2,
+		Service:                 3,
+		Tags:                    4,
+		PatternId:               5,
+		DynamicValues:           []*statefulpb.DynamicValue{{Value: &statefulpb.DynamicValue_StringValue{StringValue: "value"}}},
+		JsonSchemaId:            6,
+		JsonContextIntValues:    []int64{-7},
+		JsonContextFloatValues:  []float64{1.5},
+		JsonContextDictValues:   []uint64{8},
+		JsonContextRawValues:    [][]byte{[]byte(`{"raw":true}`)},
+		JsonContextStringValues: []string{"string"},
+		JsonContextBoolValues:   []byte{0x01},
+		Uuid:                    &uuid,
+	}
+	original := &statefulpb.LogDatum{Data: &statefulpb.LogDatum_Log{Log: originalLog}}
+
+	encoded := deltaEncodeDatumsForWire([]*statefulpb.LogDatum{original})
+	require.Len(t, encoded, 1)
+	encodedLog := encoded[0].GetLog()
+	require.NotNil(t, encodedLog)
+	assert.Equal(t, originalLog, encodedLog)
+	assert.NotSame(t, originalLog, encodedLog)
 }
 
 func TestBatchStrategyDeltaEncodesRepeatedService(t *testing.T) {
@@ -543,14 +561,13 @@ func TestBatchStrategyDeltaEncodesRepeatedService(t *testing.T) {
 	flushChan <- struct{}{}
 
 	payload := <-output
-	var datumSeq statefulpb.DatumSequence
+	var datumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	require.Len(t, datumSeq.Data, 2)
 
-	require.NotNil(t, datumSeq.Data[0].GetLogs().Service)
-	assert.EqualValues(t, 42, datumSeq.Data[0].GetLogs().Service.GetDictIndex())
-	assert.Nil(t, datumSeq.Data[1].GetLogs().Service)
+	assert.EqualValues(t, 42, datumSeq.Data[0].GetLog().Service)
+	assert.Zero(t, datumSeq.Data[1].GetLog().Service)
 
 	strategy.Stop()
 }
@@ -578,17 +595,17 @@ func TestBatchStrategyDeltaEncodesPatternIDFromPatternDefine(t *testing.T) {
 	flushChan <- struct{}{}
 
 	payload := <-output
-	var datumSeq statefulpb.DatumSequence
+	var datumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	require.Len(t, datumSeq.Data, 2)
 
 	require.NotNil(t, datumSeq.Data[0].GetPatternDefine())
-	require.NotNil(t, datumSeq.Data[1].GetLogs().GetStructured())
-	assert.EqualValues(t, 0, datumSeq.Data[1].GetLogs().GetStructured().PatternId)
+	require.NotNil(t, datumSeq.Data[1].GetLog())
+	assert.EqualValues(t, 0, datumSeq.Data[1].GetLog().PatternId)
 	extra, ok := payload.StatefulExtra.(*StatefulExtra)
 	require.True(t, ok)
-	assert.EqualValues(t, 12, extra.WireDatums[1].GetLogs().GetStructured().PatternId)
+	assert.EqualValues(t, 12, extra.WireDatums[1].GetLog().PatternId)
 
 	strategy.Stop()
 }
@@ -616,13 +633,13 @@ func TestBatchStrategyDeltaEncodesRepeatedPatternID(t *testing.T) {
 	flushChan <- struct{}{}
 
 	payload := <-output
-	var datumSeq statefulpb.DatumSequence
+	var datumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	require.Len(t, datumSeq.Data, 2)
 
-	assert.EqualValues(t, 12, datumSeq.Data[0].GetLogs().GetStructured().PatternId)
-	assert.EqualValues(t, 0, datumSeq.Data[1].GetLogs().GetStructured().PatternId)
+	assert.EqualValues(t, 12, datumSeq.Data[0].GetLog().PatternId)
+	assert.EqualValues(t, 0, datumSeq.Data[1].GetLog().PatternId)
 
 	strategy.Stop()
 }
@@ -656,23 +673,23 @@ func TestBatchStrategyDoesNotMutateDeltaStateWhenAddFails(t *testing.T) {
 	input <- secondLog
 
 	firstPayload := <-output
-	var firstDatumSeq statefulpb.DatumSequence
+	var firstDatumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(firstPayload.Encoded, &firstDatumSeq)
 	require.NoError(t, err)
 	require.Len(t, firstDatumSeq.Data, 2)
 	require.NotNil(t, firstDatumSeq.Data[0].GetPatternDefine())
-	require.NotNil(t, firstDatumSeq.Data[1].GetLogs().GetStructured())
-	assert.EqualValues(t, 0, firstDatumSeq.Data[1].GetLogs().GetStructured().PatternId)
+	require.NotNil(t, firstDatumSeq.Data[1].GetLog())
+	assert.EqualValues(t, 0, firstDatumSeq.Data[1].GetLog().PatternId)
 
 	flushChan <- struct{}{}
 
 	secondPayload := <-output
-	var secondDatumSeq statefulpb.DatumSequence
+	var secondDatumSeq statefulpb.LogDatumSequence
 	err = proto.Unmarshal(secondPayload.Encoded, &secondDatumSeq)
 	require.NoError(t, err)
 	require.Len(t, secondDatumSeq.Data, 1)
-	require.NotNil(t, secondDatumSeq.Data[0].GetLogs().GetStructured())
-	assert.EqualValues(t, 12, secondDatumSeq.Data[0].GetLogs().GetStructured().PatternId)
+	require.NotNil(t, secondDatumSeq.Data[0].GetLog())
+	assert.EqualValues(t, 12, secondDatumSeq.Data[0].GetLog().PatternId)
 
 	strategy.Stop()
 }
@@ -744,17 +761,17 @@ func TestBatchStrategyIdentityFlushDoesNotMutatePreviousPayload(t *testing.T) {
 	require.Equal(t, "identity", firstPayload.Encoding)
 	require.Equal(t, "identity", secondPayload.Encoding)
 
-	var firstDatumSeq statefulpb.DatumSequence
+	var firstDatumSeq statefulpb.LogDatumSequence
 	err := proto.Unmarshal(firstPayload.Encoded, &firstDatumSeq)
 	require.NoError(t, err)
 	require.Len(t, firstDatumSeq.Data, 1)
-	assert.Equal(t, firstRaw, firstDatumSeq.Data[0].GetLogs().GetRaw())
+	assert.Equal(t, firstRaw, firstDatumSeq.Data[0].GetLog().GetRawLog())
 
-	var secondDatumSeq statefulpb.DatumSequence
+	var secondDatumSeq statefulpb.LogDatumSequence
 	err = proto.Unmarshal(secondPayload.Encoded, &secondDatumSeq)
 	require.NoError(t, err)
 	require.Len(t, secondDatumSeq.Data, 1)
-	assert.Equal(t, secondRaw, secondDatumSeq.Data[0].GetLogs().GetRaw())
+	assert.Equal(t, secondRaw, secondDatumSeq.Data[0].GetLog().GetRawLog())
 
 	strategy.Stop()
 }
@@ -787,8 +804,8 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &statefulpb.Datum{
-				Data: &statefulpb.Datum_PatternDefine{
+			Datum: &statefulpb.LogDatum{
+				Data: &statefulpb.LogDatum_PatternDefine{
 					PatternDefine: &statefulpb.PatternDefine{
 						PatternId: id,
 						Template:  template,
@@ -803,8 +820,8 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &statefulpb.Datum{
-				Data: &statefulpb.Datum_DictEntryDefine{
+			Datum: &statefulpb.LogDatum{
+				Data: &statefulpb.LogDatum_DictEntryDefine{
 					DictEntryDefine: &statefulpb.DictEntryDefine{
 						Id:    id,
 						Value: value,
@@ -819,8 +836,8 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &statefulpb.Datum{
-				Data: &statefulpb.Datum_PatternDelete{
+			Datum: &statefulpb.LogDatum{
+				Data: &statefulpb.LogDatum_PatternDelete{
 					PatternDelete: &statefulpb.PatternDelete{
 						PatternId: id,
 					},
@@ -834,8 +851,8 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &statefulpb.Datum{
-				Data: &statefulpb.Datum_DictEntryDelete{
+			Datum: &statefulpb.LogDatum{
+				Data: &statefulpb.LogDatum_DictEntryDelete{
 					DictEntryDelete: &statefulpb.DictEntryDelete{
 						Id: id,
 					},
@@ -849,13 +866,12 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = len(content)
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &statefulpb.Datum{
-				Data: &statefulpb.Datum_Logs{
-					Logs: &statefulpb.Log{
-						Timestamp: 12345,
-						Content: &statefulpb.Log_Raw{
-							Raw: content,
-						},
+			Datum: &statefulpb.LogDatum{
+				Data: &statefulpb.LogDatum_Log{
+					Log: &statefulpb.Log{
+						Timestamp:    12345,
+						RawLog:       content,
+						JsonSchemaId: emptyDictIndex,
 					},
 				},
 			},

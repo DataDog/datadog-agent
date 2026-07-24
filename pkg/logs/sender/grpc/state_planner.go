@@ -52,26 +52,26 @@ func (p *statePlanner) snapshotBytes(refs *stateReferences) ([]byte, stateRefere
 	return serialized, sent
 }
 
-func (p *statePlanner) planWireDatums(datums []*statefulpb.Datum) ([]*statefulpb.Datum, bool) {
+func (p *statePlanner) planWireDatums(datums []*statefulpb.LogDatum) ([]*statefulpb.LogDatum, bool) {
 	prefix := p.missingSnapshotDefines(datums)
 	if len(prefix) == 0 {
 		return datums, false
 	}
 
-	planned := make([]*statefulpb.Datum, 0, len(prefix)+len(datums))
+	planned := make([]*statefulpb.LogDatum, 0, len(prefix)+len(datums))
 	planned = append(planned, prefix...)
 	planned = append(planned, datums...)
 	return planned, true
 }
 
-func (p *statePlanner) markSent(datums []*statefulpb.Datum) {
+func (p *statePlanner) markSent(datums []*statefulpb.LogDatum) {
 	for _, datum := range p.missingSnapshotDefines(datums) {
 		switch d := datum.Data.(type) {
-		case *statefulpb.Datum_PatternDefine:
+		case *statefulpb.LogDatum_PatternDefine:
 			p.streamKnown.addPattern(d.PatternDefine.PatternId)
-		case *statefulpb.Datum_DictEntryDefine:
+		case *statefulpb.LogDatum_DictEntryDefine:
 			p.streamKnown.addDictEntry(d.DictEntryDefine.Id)
-		case *statefulpb.Datum_JsonSchemaDefine:
+		case *statefulpb.LogDatum_JsonSchemaDefine:
 			p.streamKnown.addJsonSchema(d.JsonSchemaDefine.SchemaId)
 		}
 	}
@@ -90,42 +90,40 @@ func (p *statePlanner) addJsonSchemaDictEntryReferences(refs stateReferences) {
 	}
 }
 
-func (p *statePlanner) missingSnapshotDefines(datums []*statefulpb.Datum) []*statefulpb.Datum {
+func (p *statePlanner) missingSnapshotDefines(datums []*statefulpb.LogDatum) []*statefulpb.LogDatum {
 	known := p.streamKnown.clone()
 	missing := newStateReferences()
 
 	for _, datum := range datums {
 		switch d := datum.Data.(type) {
-		case *statefulpb.Datum_PatternDefine:
+		case *statefulpb.LogDatum_PatternDefine:
 			known.addPattern(d.PatternDefine.PatternId)
-		case *statefulpb.Datum_PatternDelete:
+		case *statefulpb.LogDatum_PatternDelete:
 			known.deletePattern(d.PatternDelete.PatternId)
-		case *statefulpb.Datum_DictEntryDefine:
+		case *statefulpb.LogDatum_DictEntryDefine:
 			known.addDictEntry(d.DictEntryDefine.Id)
-		case *statefulpb.Datum_DictEntryDelete:
+		case *statefulpb.LogDatum_DictEntryDelete:
 			known.deleteDictEntry(d.DictEntryDelete.Id)
-		case *statefulpb.Datum_JsonSchemaDefine:
+		case *statefulpb.LogDatum_JsonSchemaDefine:
 			p.addMissingJsonSchemaDefineReferences(missing, known, d.JsonSchemaDefine)
 			known.addJsonSchema(d.JsonSchemaDefine.SchemaId)
-		case *statefulpb.Datum_JsonSchemaDelete:
+		case *statefulpb.LogDatum_JsonSchemaDelete:
 			known.deleteJsonSchema(d.JsonSchemaDelete.SchemaId)
-		case *statefulpb.Datum_Logs:
-			p.addMissingLogReferences(missing, known, d.Logs)
-		case *statefulpb.Datum_FlatLog:
-			p.addMissingFlatLogReferences(missing, known, d.FlatLog)
-		case *statefulpb.Datum_DeltaEncodingSync:
+		case *statefulpb.LogDatum_Log:
+			p.addMissingLogReferences(missing, known, d.Log)
+		case *statefulpb.LogDatum_DeltaEncodingSync:
 			p.addMissingDeltaEncodingSyncReferences(missing, known, d.DeltaEncodingSync)
 		}
 	}
 
-	prefix := make([]*statefulpb.Datum, 0, len(missing.patternIDs)+len(missing.dictEntryIDs)+len(missing.jsonSchemaIDs))
+	prefix := make([]*statefulpb.LogDatum, 0, len(missing.patternIDs)+len(missing.dictEntryIDs)+len(missing.jsonSchemaIDs))
 	for id := range missing.patternIDs {
 		pattern := p.snapshot.patternMap[id]
 		if pattern == nil {
 			continue
 		}
-		prefix = append(prefix, &statefulpb.Datum{
-			Data: &statefulpb.Datum_PatternDefine{PatternDefine: pattern},
+		prefix = append(prefix, &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_PatternDefine{PatternDefine: pattern},
 		})
 	}
 	for id := range missing.dictEntryIDs {
@@ -133,8 +131,8 @@ func (p *statePlanner) missingSnapshotDefines(datums []*statefulpb.Datum) []*sta
 		if entry == nil {
 			continue
 		}
-		prefix = append(prefix, &statefulpb.Datum{
-			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
+		prefix = append(prefix, &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_DictEntryDefine{DictEntryDefine: entry},
 		})
 	}
 	for id := range missing.jsonSchemaIDs {
@@ -142,8 +140,8 @@ func (p *statePlanner) missingSnapshotDefines(datums []*statefulpb.Datum) []*sta
 		if schema == nil {
 			continue
 		}
-		prefix = append(prefix, &statefulpb.Datum{
-			Data: &statefulpb.Datum_JsonSchemaDefine{JsonSchemaDefine: schema},
+		prefix = append(prefix, &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_JsonSchemaDefine{JsonSchemaDefine: schema},
 		})
 	}
 	return prefix
@@ -153,33 +151,14 @@ func (p *statePlanner) addMissingLogReferences(missing stateReferences, known st
 	if log == nil {
 		return
 	}
-	p.addMissingDynamicValueReference(missing, known, log.Status)
-	p.addMissingDynamicValueReference(missing, known, log.Service)
-	if log.Tags != nil {
-		p.addMissingDynamicValueReference(missing, known, log.Tags.Tagset)
-	}
-	if structured := log.GetStructured(); structured != nil {
-		p.addMissingPatternReference(missing, known, structured.PatternId)
-		p.addMissingDynamicValueReferences(missing, known, structured.DynamicValues)
-		p.addMissingDynamicValueReference(missing, known, structured.JsonMessageKey)
-		p.addMissingDictEntryReference(missing, known, structured.JsonContextSchemaId)
-		p.addMissingDynamicValueReferences(missing, known, structured.JsonContextValues)
-	}
-}
-
-func (p *statePlanner) addMissingFlatLogReferences(missing stateReferences, known stateReferences, log *statefulpb.FlatLog) {
-	if log == nil {
-		return
-	}
-	p.addMissingFlatLogDictEntryReference(missing, known, log.Status)
-	p.addMissingFlatLogDictEntryReference(missing, known, log.Service)
-	p.addMissingFlatLogDictEntryReference(missing, known, log.Tags)
+	p.addMissingDictEntryIDReference(missing, known, log.Status)
+	p.addMissingDictEntryIDReference(missing, known, log.Service)
+	p.addMissingDictEntryIDReference(missing, known, log.Tags)
 	if log.RawLog == "" {
 		p.addMissingPatternReference(missing, known, log.PatternId)
 		p.addMissingDynamicValueReferences(missing, known, log.DynamicValues)
 	}
 	p.addMissingJsonSchemaReference(missing, known, log.JsonSchemaId)
-	p.addMissingDynamicValueReferences(missing, known, log.JsonContextValues)
 	for _, dictID := range log.JsonContextDictValues {
 		p.addMissingDictEntryReference(missing, known, dictID)
 	}
@@ -190,12 +169,9 @@ func (p *statePlanner) addMissingDeltaEncodingSyncReferences(missing stateRefere
 		return
 	}
 	p.addMissingPatternReference(missing, known, sync.PatternId)
-	if sync.Tags != nil {
-		p.addMissingDynamicValueReference(missing, known, sync.Tags.Tagset)
-	}
-	p.addMissingFlatLogDictEntryReference(missing, known, sync.Status)
-	p.addMissingFlatLogDictEntryReference(missing, known, sync.Service)
-	p.addMissingFlatLogDictEntryReference(missing, known, sync.FlatLogTags)
+	p.addMissingDictEntryIDReference(missing, known, sync.Tags)
+	p.addMissingDictEntryIDReference(missing, known, sync.Status)
+	p.addMissingDictEntryIDReference(missing, known, sync.Service)
 	p.addMissingJsonSchemaReference(missing, known, sync.JsonSchemaId)
 }
 
@@ -212,8 +188,8 @@ func (p *statePlanner) addMissingDynamicValueReference(missing stateReferences, 
 	p.addMissingDictEntryReference(missing, known, value.GetDictIndex())
 }
 
-func (p *statePlanner) addMissingFlatLogDictEntryReference(missing stateReferences, known stateReferences, id uint64) {
-	if isFlatLogEmptyDictIndex(id) {
+func (p *statePlanner) addMissingDictEntryIDReference(missing stateReferences, known stateReferences, id uint64) {
+	if isEmptyDictIndex(id) {
 		return
 	}
 	p.addMissingDictEntryReference(missing, known, id)
@@ -228,7 +204,7 @@ func (p *statePlanner) addMissingDictEntryReference(missing stateReferences, kno
 }
 
 func (p *statePlanner) addMissingJsonSchemaReference(missing stateReferences, known stateReferences, id uint64) {
-	if id == 0 || id == flatLogEmptyDictIndex {
+	if id == 0 || id == emptyDictIndex {
 		return
 	}
 	schema := p.snapshot.jsonSchemaMap[id]
@@ -290,30 +266,30 @@ func (s *snapshotState) applyWithProtectedRefs(extra *StatefulExtra, protectedRe
 
 	for _, datum := range extra.StateChanges {
 		switch d := datum.Data.(type) {
-		case *statefulpb.Datum_PatternDefine:
+		case *statefulpb.LogDatum_PatternDefine:
 			s.patternMap[d.PatternDefine.PatternId] = d.PatternDefine
 			s.deferredDeletes.deletePattern(d.PatternDefine.PatternId)
-		case *statefulpb.Datum_PatternDelete:
+		case *statefulpb.LogDatum_PatternDelete:
 			if protectedRefs != nil && protectedRefs.hasPattern(d.PatternDelete.PatternId) {
 				s.deferredDeletes.addPattern(d.PatternDelete.PatternId)
 			} else {
 				delete(s.patternMap, d.PatternDelete.PatternId)
 				s.deferredDeletes.deletePattern(d.PatternDelete.PatternId)
 			}
-		case *statefulpb.Datum_DictEntryDefine:
+		case *statefulpb.LogDatum_DictEntryDefine:
 			s.dictMap[d.DictEntryDefine.Id] = d.DictEntryDefine
 			s.deferredDeletes.deleteDictEntry(d.DictEntryDefine.Id)
-		case *statefulpb.Datum_DictEntryDelete:
+		case *statefulpb.LogDatum_DictEntryDelete:
 			if protectedRefs != nil && protectedRefs.hasDictEntry(d.DictEntryDelete.Id) {
 				s.deferredDeletes.addDictEntry(d.DictEntryDelete.Id)
 			} else {
 				delete(s.dictMap, d.DictEntryDelete.Id)
 				s.deferredDeletes.deleteDictEntry(d.DictEntryDelete.Id)
 			}
-		case *statefulpb.Datum_JsonSchemaDefine:
+		case *statefulpb.LogDatum_JsonSchemaDefine:
 			s.jsonSchemaMap[d.JsonSchemaDefine.SchemaId] = d.JsonSchemaDefine
 			s.deferredDeletes.deleteJsonSchema(d.JsonSchemaDefine.SchemaId)
-		case *statefulpb.Datum_JsonSchemaDelete:
+		case *statefulpb.LogDatum_JsonSchemaDelete:
 			if protectedRefs != nil && protectedRefs.hasJsonSchema(d.JsonSchemaDelete.SchemaId) {
 				s.deferredDeletes.addJsonSchema(d.JsonSchemaDelete.SchemaId)
 			} else {
@@ -357,14 +333,14 @@ func (s *snapshotState) hasDeferredDeletes() bool {
 
 func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReferences) {
 	sent := newStateReferences()
-	datums := make([]*statefulpb.Datum, 0, len(s.patternMap)+len(s.dictMap)+len(s.jsonSchemaMap))
+	datums := make([]*statefulpb.LogDatum, 0, len(s.patternMap)+len(s.dictMap)+len(s.jsonSchemaMap))
 
 	for id, pattern := range s.patternMap {
 		if refs != nil && !refs.hasPattern(id) {
 			continue
 		}
-		datums = append(datums, &statefulpb.Datum{
-			Data: &statefulpb.Datum_PatternDefine{PatternDefine: pattern},
+		datums = append(datums, &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_PatternDefine{PatternDefine: pattern},
 		})
 		sent.addPattern(id)
 	}
@@ -372,8 +348,8 @@ func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReference
 		if refs != nil && !refs.hasDictEntry(id) {
 			continue
 		}
-		datums = append(datums, &statefulpb.Datum{
-			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
+		datums = append(datums, &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_DictEntryDefine{DictEntryDefine: entry},
 		})
 		sent.addDictEntry(id)
 	}
@@ -381,8 +357,8 @@ func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReference
 		if refs != nil && !refs.hasJsonSchema(id) {
 			continue
 		}
-		datums = append(datums, &statefulpb.Datum{
-			Data: &statefulpb.Datum_JsonSchemaDefine{JsonSchemaDefine: schema},
+		datums = append(datums, &statefulpb.LogDatum{
+			Data: &statefulpb.LogDatum_JsonSchemaDefine{JsonSchemaDefine: schema},
 		})
 		sent.addJsonSchema(id)
 	}
@@ -391,7 +367,7 @@ func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReference
 		return nil, sent
 	}
 
-	serialized, _ := proto.Marshal(&statefulpb.DatumSequence{Data: datums})
+	serialized, _ := proto.Marshal(&statefulpb.LogDatumSequence{Data: datums})
 	return serialized, sent
 }
 
@@ -453,7 +429,7 @@ func (r stateReferences) addPattern(id uint64) {
 }
 
 func (r stateReferences) addJsonSchema(id uint64) {
-	if id == 0 || id == flatLogEmptyDictIndex {
+	if id == 0 || id == emptyDictIndex {
 		return
 	}
 	r.jsonSchemaIDs[id] = struct{}{}
@@ -471,27 +447,27 @@ func (r stateReferences) deleteJsonSchema(id uint64) {
 	delete(r.jsonSchemaIDs, id)
 }
 
-func (r stateReferences) applyStateChanges(datums []*statefulpb.Datum) {
+func (r stateReferences) applyStateChanges(datums []*statefulpb.LogDatum) {
 	for _, datum := range datums {
 		switch d := datum.Data.(type) {
-		case *statefulpb.Datum_PatternDefine:
+		case *statefulpb.LogDatum_PatternDefine:
 			r.addPattern(d.PatternDefine.PatternId)
-		case *statefulpb.Datum_PatternDelete:
+		case *statefulpb.LogDatum_PatternDelete:
 			r.deletePattern(d.PatternDelete.PatternId)
-		case *statefulpb.Datum_DictEntryDefine:
+		case *statefulpb.LogDatum_DictEntryDefine:
 			r.addDictEntry(d.DictEntryDefine.Id)
-		case *statefulpb.Datum_DictEntryDelete:
+		case *statefulpb.LogDatum_DictEntryDelete:
 			r.deleteDictEntry(d.DictEntryDelete.Id)
-		case *statefulpb.Datum_JsonSchemaDefine:
+		case *statefulpb.LogDatum_JsonSchemaDefine:
 			r.addJsonSchema(d.JsonSchemaDefine.SchemaId)
-		case *statefulpb.Datum_JsonSchemaDelete:
+		case *statefulpb.LogDatum_JsonSchemaDelete:
 			r.deleteJsonSchema(d.JsonSchemaDelete.SchemaId)
 		}
 	}
 }
 
-func splitStateAndWireDatums(datums []*statefulpb.Datum) (stateChanges []*statefulpb.Datum, wireDatums []*statefulpb.Datum) {
-	wireDatums = make([]*statefulpb.Datum, 0, len(datums))
+func splitStateAndWireDatums(datums []*statefulpb.LogDatum) (stateChanges []*statefulpb.LogDatum, wireDatums []*statefulpb.LogDatum) {
+	wireDatums = make([]*statefulpb.LogDatum, 0, len(datums))
 	for _, datum := range datums {
 		if isStateDatum(datum) {
 			stateChanges = append(stateChanges, datum)
@@ -503,48 +479,46 @@ func splitStateAndWireDatums(datums []*statefulpb.Datum) (stateChanges []*statef
 	return stateChanges, wireDatums
 }
 
-func stateChangesContainDeletes(datums []*statefulpb.Datum) bool {
+func stateChangesContainDeletes(datums []*statefulpb.LogDatum) bool {
 	for _, datum := range datums {
 		switch datum.Data.(type) {
-		case *statefulpb.Datum_PatternDelete,
-			*statefulpb.Datum_DictEntryDelete,
-			*statefulpb.Datum_JsonSchemaDelete:
+		case *statefulpb.LogDatum_PatternDelete,
+			*statefulpb.LogDatum_DictEntryDelete,
+			*statefulpb.LogDatum_JsonSchemaDelete:
 			return true
 		}
 	}
 	return false
 }
 
-func isStateDatum(datum *statefulpb.Datum) bool {
+func isStateDatum(datum *statefulpb.LogDatum) bool {
 	switch datum.Data.(type) {
-	case *statefulpb.Datum_PatternDefine, *statefulpb.Datum_PatternDelete,
-		*statefulpb.Datum_DictEntryDefine, *statefulpb.Datum_DictEntryDelete,
-		*statefulpb.Datum_JsonSchemaDefine, *statefulpb.Datum_JsonSchemaDelete:
+	case *statefulpb.LogDatum_PatternDefine, *statefulpb.LogDatum_PatternDelete,
+		*statefulpb.LogDatum_DictEntryDefine, *statefulpb.LogDatum_DictEntryDelete,
+		*statefulpb.LogDatum_JsonSchemaDefine, *statefulpb.LogDatum_JsonSchemaDelete:
 		return true
 	default:
 		return false
 	}
 }
 
-func isWireStateDatum(datum *statefulpb.Datum) bool {
+func isWireStateDatum(datum *statefulpb.LogDatum) bool {
 	switch datum.Data.(type) {
-	case *statefulpb.Datum_PatternDelete, *statefulpb.Datum_DictEntryDelete, *statefulpb.Datum_JsonSchemaDelete:
+	case *statefulpb.LogDatum_PatternDelete, *statefulpb.LogDatum_DictEntryDelete, *statefulpb.LogDatum_JsonSchemaDelete:
 		return false
 	default:
 		return true
 	}
 }
 
-func addDatumReferences(refs stateReferences, datums []*statefulpb.Datum) {
+func addDatumReferences(refs stateReferences, datums []*statefulpb.LogDatum) {
 	for _, datum := range datums {
 		switch d := datum.Data.(type) {
-		case *statefulpb.Datum_Logs:
-			addLogReferences(refs, d.Logs)
-		case *statefulpb.Datum_FlatLog:
-			addFlatLogReferences(refs, d.FlatLog)
-		case *statefulpb.Datum_DeltaEncodingSync:
+		case *statefulpb.LogDatum_Log:
+			addLogReferences(refs, d.Log)
+		case *statefulpb.LogDatum_DeltaEncodingSync:
 			addDeltaEncodingSyncReferences(refs, d.DeltaEncodingSync)
-		case *statefulpb.Datum_JsonSchemaDefine:
+		case *statefulpb.LogDatum_JsonSchemaDefine:
 			refs.addJsonSchema(d.JsonSchemaDefine.SchemaId)
 			addJsonSchemaReferences(refs, d.JsonSchemaDefine)
 		}
@@ -555,33 +529,14 @@ func addLogReferences(refs stateReferences, log *statefulpb.Log) {
 	if log == nil {
 		return
 	}
-	addDynamicValueReference(refs, log.Status)
-	addDynamicValueReference(refs, log.Service)
-	if log.Tags != nil {
-		addDynamicValueReference(refs, log.Tags.Tagset)
-	}
-	if structured := log.GetStructured(); structured != nil {
-		refs.addPattern(structured.PatternId)
-		addDynamicValueReferences(refs, structured.DynamicValues)
-		addDynamicValueReference(refs, structured.JsonMessageKey)
-		refs.addDictEntry(structured.JsonContextSchemaId)
-		addDynamicValueReferences(refs, structured.JsonContextValues)
-	}
-}
-
-func addFlatLogReferences(refs stateReferences, log *statefulpb.FlatLog) {
-	if log == nil {
-		return
-	}
-	addFlatLogDictEntryReference(refs, log.Status)
-	addFlatLogDictEntryReference(refs, log.Service)
-	addFlatLogDictEntryReference(refs, log.Tags)
+	addDictEntryIDReference(refs, log.Status)
+	addDictEntryIDReference(refs, log.Service)
+	addDictEntryIDReference(refs, log.Tags)
 	if log.RawLog == "" {
 		refs.addPattern(log.PatternId)
 		addDynamicValueReferences(refs, log.DynamicValues)
 	}
-	addFlatLogJsonSchemaReference(refs, log.JsonSchemaId)
-	addDynamicValueReferences(refs, log.JsonContextValues)
+	addJSONSchemaIDReference(refs, log.JsonSchemaId)
 	for _, dictID := range log.JsonContextDictValues {
 		refs.addDictEntry(dictID)
 	}
@@ -592,22 +547,19 @@ func addDeltaEncodingSyncReferences(refs stateReferences, sync *statefulpb.Delta
 		return
 	}
 	refs.addPattern(sync.PatternId)
-	if sync.Tags != nil {
-		addDynamicValueReference(refs, sync.Tags.Tagset)
-	}
-	addFlatLogDictEntryReference(refs, sync.Status)
-	addFlatLogDictEntryReference(refs, sync.Service)
-	addFlatLogDictEntryReference(refs, sync.FlatLogTags)
-	addFlatLogJsonSchemaReference(refs, sync.JsonSchemaId)
+	addDictEntryIDReference(refs, sync.Tags)
+	addDictEntryIDReference(refs, sync.Status)
+	addDictEntryIDReference(refs, sync.Service)
+	addJSONSchemaIDReference(refs, sync.JsonSchemaId)
 }
 
 func addJsonSchemaReferences(refs stateReferences, schema *statefulpb.JsonSchemaDefine) {
 	if schema == nil {
 		return
 	}
-	addFlatLogDictEntryReference(refs, schema.MessageKeyId)
+	addDictEntryIDReference(refs, schema.MessageKeyId)
 	for _, keyID := range schema.Keys {
-		addFlatLogDictEntryReference(refs, keyID)
+		addDictEntryIDReference(refs, keyID)
 	}
 }
 
@@ -624,15 +576,15 @@ func addDynamicValueReference(refs stateReferences, value *statefulpb.DynamicVal
 	refs.addDictEntry(value.GetDictIndex())
 }
 
-func addFlatLogDictEntryReference(refs stateReferences, id uint64) {
-	if isFlatLogEmptyDictIndex(id) {
+func addDictEntryIDReference(refs stateReferences, id uint64) {
+	if isEmptyDictIndex(id) {
 		return
 	}
 	refs.addDictEntry(id)
 }
 
-func addFlatLogJsonSchemaReference(refs stateReferences, id uint64) {
-	if id == 0 || id == flatLogEmptyDictIndex {
+func addJSONSchemaIDReference(refs stateReferences, id uint64) {
+	if id == 0 || id == emptyDictIndex {
 		return
 	}
 	refs.addJsonSchema(id)

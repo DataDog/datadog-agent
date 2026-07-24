@@ -74,10 +74,10 @@ type Message struct {
 	MessageMetadata
 }
 
-// StatefulMessage represents a log message for gRPC stateful streaming
-// It contains a Datum (from stateful_encoding.proto) and associated metadata
+// StatefulMessage represents a log message for gRPC stateful streaming.
+// It contains a LogDatum (from stateful_encoding.proto) and associated metadata.
 type StatefulMessage struct {
-	Datum    *statefulpb.Datum
+	Datum    *statefulpb.LogDatum
 	Metadata *MessageMetadata
 }
 

@@ -6,6 +6,7 @@
 package grpc
 
 import (
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -69,7 +70,7 @@ func TestBuildTagSet_CacheCorrectness(t *testing.T) {
 	assert.False(t, isNew2, "repeated identical call must be a cache hit (isNew=false)")
 	assert.Equal(t, tagStr1, tagStr2, "cache hit must return same allTagsString")
 	assert.Equal(t, dictID1, dictID2, "cache hit must return same dictID")
-	assert.Equal(t, tagSet1, tagSet2, "cache hit must return same *TagSet pointer")
+	assert.Equal(t, tagSet1, tagSet2, "cache hit must return same *encoded tag-set pointer")
 
 	// ── Case 3: hostname change causes cache miss ─────────────────────────────
 	msg3 := makeMsg("log line 3", "host-2", "info", origin)
@@ -103,7 +104,7 @@ func TestBuildTagSet_CacheCorrectness(t *testing.T) {
 	assert.NotEqual(t, tagStr4, tagStr5, "source change must produce a different allTagsString")
 
 	// ── Case 6: status change does not affect joined tags ─────────────────────
-	// Status is encoded in FlatLog.status, not in the joined tag string.
+	// Status is encoded in Log.status, not in the joined tag string.
 	msg6 := makeMsg("log line 6", "host-2", "error", origin3)
 	tagSet6, tagStr6, _, _ := mt.buildTagSet(msg6)
 
@@ -112,12 +113,25 @@ func TestBuildTagSet_CacheCorrectness(t *testing.T) {
 	assert.Equal(t, tagStr5, tagStr6, "status change must not change the joined tag string")
 }
 
-func TestBuildStructuredLogUsesFlatLog(t *testing.T) {
-	tagSet := &statefulpb.TagSet{
-		Tagset: &statefulpb.DynamicValue{
-			Value: &statefulpb.DynamicValue_DictIndex{DictIndex: 4},
-		},
-	}
+func TestBuildJsonSchemaKeyKindPrefixIsExactForKeys(t *testing.T) {
+	keyPrefix := buildJsonSchemaKey("message", []string{"a"}, nil)
+
+	assert.True(t, strings.HasPrefix(
+		buildJsonSchemaKey("message", []string{"a"}, []byte{byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_INT)}),
+		keyPrefix,
+	))
+	assert.False(t, strings.HasPrefix(
+		buildJsonSchemaKey("message", []string{"a", "b"}, []byte{byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_INT)}),
+		keyPrefix,
+	))
+	assert.False(t, strings.HasPrefix(
+		buildJsonSchemaKey("message", nil, []byte{byte(statefulpb.JsonValueKind_JSON_VALUE_KIND_INT)}),
+		keyPrefix,
+	))
+}
+
+func TestBuildPatternLogUsesLog(t *testing.T) {
+	tagSet := &encodedTagSet{dictID: 4}
 	service := &statefulpb.DynamicValue{
 		Value: &statefulpb.DynamicValue_DictIndex{DictIndex: 3},
 	}
@@ -125,43 +139,41 @@ func TestBuildStructuredLogUsesFlatLog(t *testing.T) {
 		Value: &statefulpb.DynamicValue_StringValue{StringValue: "value"},
 	}}
 
-	datum := buildStructuredLog(123, 12, values, tagSet, "uuid", service, 2, nil, 5, nil, compactJSONContextValues{})
+	datum := buildPatternLog(123, 12, values, tagSet, "uuid", service, 2, 5, compactJSONContextValues{})
 
-	require.Nil(t, datum.GetLogs())
-	flatLog := datum.GetFlatLog()
-	require.NotNil(t, flatLog)
-	assert.EqualValues(t, 123, flatLog.Timestamp)
-	assert.EqualValues(t, 2, flatLog.Status)
-	assert.EqualValues(t, 3, flatLog.Service)
-	assert.EqualValues(t, 4, flatLog.Tags)
-	assert.EqualValues(t, 12, flatLog.PatternId)
-	assert.EqualValues(t, 5, flatLog.JsonSchemaId)
-	assert.Equal(t, values, flatLog.DynamicValues)
-	assert.Equal(t, "uuid", flatLog.GetUuid())
+	logDatum := datum.GetLog()
+	require.NotNil(t, logDatum)
+	assert.EqualValues(t, 123, logDatum.Timestamp)
+	assert.EqualValues(t, 2, logDatum.Status)
+	assert.EqualValues(t, 3, logDatum.Service)
+	assert.EqualValues(t, 4, logDatum.Tags)
+	assert.EqualValues(t, 12, logDatum.PatternId)
+	assert.EqualValues(t, 5, logDatum.JsonSchemaId)
+	assert.Equal(t, values, logDatum.DynamicValues)
+	assert.Equal(t, "uuid", logDatum.GetUuid())
 }
 
-func TestBuildStructuredLogOmitsEmptyUUID(t *testing.T) {
-	datum := buildStructuredLog(123, 12, nil, nil, "", nil, 0, nil, 0, nil, compactJSONContextValues{})
+func TestBuildPatternLogOmitsEmptyUUID(t *testing.T) {
+	datum := buildPatternLog(123, 12, nil, nil, "", nil, 0, 0, compactJSONContextValues{})
 
-	flatLog := datum.GetFlatLog()
-	require.NotNil(t, flatLog)
-	assert.Nil(t, flatLog.Uuid)
+	logDatum := datum.GetLog()
+	require.NotNil(t, logDatum)
+	assert.Nil(t, logDatum.Uuid)
 }
 
-func TestBuildRawLogUsesFlatLog(t *testing.T) {
+func TestBuildRawLogUsesLog(t *testing.T) {
 	ts := time.UnixMilli(123)
 
 	datum := buildRawLog("raw", ts, nil, "", nil, 0)
 
-	require.Nil(t, datum.GetLogs())
-	flatLog := datum.GetFlatLog()
-	require.NotNil(t, flatLog)
-	assert.EqualValues(t, 123, flatLog.Timestamp)
-	assert.Equal(t, "raw", flatLog.RawLog)
-	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.Status)
-	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.Service)
-	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.Tags)
-	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.JsonSchemaId)
+	logDatum := datum.GetLog()
+	require.NotNil(t, logDatum)
+	assert.EqualValues(t, 123, logDatum.Timestamp)
+	assert.Equal(t, "raw", logDatum.RawLog)
+	assert.EqualValues(t, emptyDictIndex, logDatum.Status)
+	assert.EqualValues(t, emptyDictIndex, logDatum.Service)
+	assert.EqualValues(t, emptyDictIndex, logDatum.Tags)
+	assert.EqualValues(t, emptyDictIndex, logDatum.JsonSchemaId)
 }
 
 func TestBuildTagSet_OriginTagChangesInvalidateCache(t *testing.T) {

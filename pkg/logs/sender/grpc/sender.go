@@ -108,7 +108,7 @@ type Sender struct {
 
 	// gRPC connection management (shared across all streams)
 	conn   *grpc.ClientConn
-	client statefulpb.StatefulLogsServiceClient
+	client statefulpb.StatefulIntakeClient
 }
 
 // NewSender creates a new gRPC sender that implements PipelineComponent
@@ -196,7 +196,7 @@ func NewSender(
 	return sender
 }
 
-func newGRPCClient(endpoint config.Endpoint) (*grpc.ClientConn, statefulpb.StatefulLogsServiceClient, error) {
+func newGRPCClient(endpoint config.Endpoint) (*grpc.ClientConn, statefulpb.StatefulIntakeClient, error) {
 	var opts []grpc.DialOption
 
 	if endpoint.UseSSL() {
@@ -236,7 +236,7 @@ func newGRPCClient(endpoint config.Endpoint) (*grpc.ClientConn, statefulpb.State
 		return nil, nil, fmt.Errorf("failed to create gRPC connection: %w", err)
 	}
 
-	return conn, statefulpb.NewStatefulLogsServiceClient(conn), nil
+	return conn, statefulpb.NewStatefulIntakeClient(conn), nil
 }
 
 // createConnection establishes the shared gRPC connection

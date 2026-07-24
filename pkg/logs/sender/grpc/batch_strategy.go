@@ -34,16 +34,16 @@ const datumBytesTelemetrySampleRate = 16
 // StatefulExtra holds state changes (non-Log datums) from a batch
 // Used by inflight tracker to maintain snapshot state for stream rotation
 type StatefulExtra struct {
-	StateChanges []*statefulpb.Datum
+	StateChanges []*statefulpb.LogDatum
 	// WireDatums are the canonical, pre-delta datums represented by the encoded
 	// payload. Inflight uses them to find state references and rebuild replay
 	// batches with lazy snapshot state before final wire delta encoding.
-	WireDatums          []*statefulpb.Datum
+	WireDatums          []*statefulpb.LogDatum
 	PreCompressionBytes int
 }
 
 // batchStrategy contains batching logic for gRPC sender without serializer
-// It collects Datum objects from StatefulMessages and creates Payload with serialized DatumSequence
+// It collects LogDatum objects from StatefulMessages and creates Payload with serialized LogDatumSequence
 // Note: Serverless logs are not supported in this PoC implementation
 type batchStrategy struct {
 	inputChan    chan *message.StatefulMessage
@@ -57,7 +57,7 @@ type batchStrategy struct {
 	clock        clock.Clock
 
 	// For gRPC: store Datums separately since MessageBuffer only stores metadata
-	grpcDatums []*statefulpb.Datum
+	grpcDatums []*statefulpb.LogDatum
 
 	// marshalBuf is reused across flushes for proto.Marshal output to reduce per-flush allocations.
 	marshalBuf []byte
@@ -116,7 +116,7 @@ func newBatchStrategyWithClock(inputChan chan *message.StatefulMessage,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
-		grpcDatums:      make([]*statefulpb.Datum, 0),
+		grpcDatums:      make([]*statefulpb.LogDatum, 0),
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.StrategyTlmName, instanceID),
 		instanceID:      instanceID,
@@ -175,39 +175,29 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 	return true
 }
 
-func deltaEncodeDatumsForWire(datums []*statefulpb.Datum) []*statefulpb.Datum {
+func deltaEncodeDatumsForWire(datums []*statefulpb.LogDatum) []*statefulpb.LogDatum {
 	if !enableDeltaEncoding {
 		return datums
 	}
 
-	encoded := make([]*statefulpb.Datum, 0, len(datums))
+	encoded := make([]*statefulpb.LogDatum, 0, len(datums))
 	state := batchStrategy{}
 	for _, datum := range datums {
 		switch data := datum.GetData().(type) {
-		case *statefulpb.Datum_PatternDefine:
+		case *statefulpb.LogDatum_PatternDefine:
 			if data.PatternDefine != nil {
 				state.lastPatternID = data.PatternDefine.PatternId
 			}
 			encoded = append(encoded, datum)
-		case *statefulpb.Datum_Logs:
-			if data.Logs == nil {
+		case *statefulpb.LogDatum_Log:
+			if data.Log == nil {
 				encoded = append(encoded, datum)
 				continue
 			}
-			cloned := cloneLogForDeltaEncoding(data.Logs)
+			cloned := cloneLogForDeltaEncoding(data.Log)
 			state.applyDeltaEncoding(cloned)
-			encoded = append(encoded, &statefulpb.Datum{
-				Data: &statefulpb.Datum_Logs{Logs: cloned},
-			})
-		case *statefulpb.Datum_FlatLog:
-			if data.FlatLog == nil {
-				encoded = append(encoded, datum)
-				continue
-			}
-			cloned := cloneFlatLogForDeltaEncoding(data.FlatLog)
-			state.applyFlatLogDeltaEncoding(cloned)
-			encoded = append(encoded, &statefulpb.Datum{
-				Data: &statefulpb.Datum_FlatLog{FlatLog: cloned},
+			encoded = append(encoded, &statefulpb.LogDatum{
+				Data: &statefulpb.LogDatum_Log{Log: cloned},
 			})
 		default:
 			encoded = append(encoded, datum)
@@ -217,39 +207,7 @@ func deltaEncodeDatumsForWire(datums []*statefulpb.Datum) []*statefulpb.Datum {
 }
 
 func cloneLogForDeltaEncoding(logDatum *statefulpb.Log) *statefulpb.Log {
-	cloned := &statefulpb.Log{
-		Timestamp: logDatum.Timestamp,
-		Tags:      logDatum.Tags,
-		Uuid:      logDatum.Uuid,
-		Status:    logDatum.Status,
-		Service:   logDatum.Service,
-	}
-	switch content := logDatum.Content.(type) {
-	case *statefulpb.Log_Structured:
-		clonedStructured := cloneStructuredLogForDeltaEncoding(content.Structured)
-		cloned.Content = &statefulpb.Log_Structured{Structured: clonedStructured}
-	case *statefulpb.Log_Raw:
-		cloned.Content = &statefulpb.Log_Raw{Raw: content.Raw}
-	}
-	return cloned
-}
-
-func cloneStructuredLogForDeltaEncoding(logDatum *statefulpb.StructuredLog) *statefulpb.StructuredLog {
-	if logDatum == nil {
-		return nil
-	}
-	return &statefulpb.StructuredLog{
-		PatternId:           logDatum.PatternId,
-		DynamicValues:       logDatum.DynamicValues,
-		JsonMessageKey:      logDatum.JsonMessageKey,
-		JsonContextSchemaId: logDatum.JsonContextSchemaId,
-		JsonContextValues:   logDatum.JsonContextValues,
-		JsonContext:         logDatum.JsonContext,
-	}
-}
-
-func cloneFlatLogForDeltaEncoding(logDatum *statefulpb.FlatLog) *statefulpb.FlatLog {
-	return &statefulpb.FlatLog{
+	return &statefulpb.Log{
 		Timestamp:               logDatum.Timestamp,
 		Status:                  logDatum.Status,
 		Service:                 logDatum.Service,
@@ -258,13 +216,12 @@ func cloneFlatLogForDeltaEncoding(logDatum *statefulpb.FlatLog) *statefulpb.Flat
 		DynamicValues:           logDatum.DynamicValues,
 		RawLog:                  logDatum.RawLog,
 		JsonSchemaId:            logDatum.JsonSchemaId,
-		JsonContextValues:       logDatum.JsonContextValues,
-		JsonContextValueKinds:   logDatum.JsonContextValueKinds,
 		JsonContextIntValues:    logDatum.JsonContextIntValues,
 		JsonContextFloatValues:  logDatum.JsonContextFloatValues,
 		JsonContextDictValues:   logDatum.JsonContextDictValues,
 		JsonContextRawValues:    logDatum.JsonContextRawValues,
 		JsonContextStringValues: logDatum.JsonContextStringValues,
+		JsonContextBoolValues:   logDatum.JsonContextBoolValues,
 		Uuid:                    logDatum.Uuid,
 	}
 }
@@ -286,55 +243,13 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 	if !enableDeltaEncoding {
 		return
 	}
-	// Timestamp delta encoding
-	s.applyTimestampDeltaEncoding(&logDatum.Timestamp)
-
-	// Pattern ID delta encoding (for structured logs only)
-	if structured := logDatum.GetStructured(); structured != nil {
-		if structured.PatternId == s.lastPatternID {
-			structured.PatternId = 0
-		} else {
-			s.lastPatternID = structured.PatternId
-		}
-	}
-
-	// Tag delta encoding (extract dict index from TagSet)
-	if tagSet := logDatum.Tags; tagSet != nil {
-		if tagSetValue := tagSet.Tagset; tagSetValue != nil {
-			if dictIndex := tagSetValue.GetDictIndex(); dictIndex != 0 {
-				if dictIndex == s.lastTagsDictIndex {
-					logDatum.Tags = nil // omit unchanged tags
-				} else {
-					s.lastTagsDictIndex = dictIndex
-				}
-			}
-		}
-	}
-
-	// Service delta encoding (only for dict-index encoded services)
-	if service := logDatum.Service; service != nil {
-		if dictIndex := service.GetDictIndex(); dictIndex != 0 {
-			if dictIndex == s.lastServiceDictID {
-				logDatum.Service = nil // omit unchanged service
-			} else {
-				s.lastServiceDictID = dictIndex
-			}
-		}
-	}
-}
-
-// applyFlatLogDeltaEncoding applies delta encoding to a FlatLog datum within the current batch.
-func (s *batchStrategy) applyFlatLogDeltaEncoding(logDatum *statefulpb.FlatLog) {
-	if !enableDeltaEncoding {
-		return
-	}
 
 	s.applyTimestampDeltaEncoding(&logDatum.Timestamp)
 
-	logDatum.Status = s.deltaFlatLogDictIndex(logDatum.Status, &s.lastStatusDictID)
-	logDatum.Service = s.deltaFlatLogDictIndex(logDatum.Service, &s.lastServiceDictID)
-	logDatum.Tags = s.deltaFlatLogDictIndex(logDatum.Tags, &s.lastTagsDictIndex)
-	logDatum.JsonSchemaId = s.deltaFlatLogDictIndex(logDatum.JsonSchemaId, &s.lastJSONSchemaDict)
+	logDatum.Status = s.deltaDictIndex(logDatum.Status, &s.lastStatusDictID)
+	logDatum.Service = s.deltaDictIndex(logDatum.Service, &s.lastServiceDictID)
+	logDatum.Tags = s.deltaDictIndex(logDatum.Tags, &s.lastTagsDictIndex)
+	logDatum.JsonSchemaId = s.deltaDictIndex(logDatum.JsonSchemaId, &s.lastJSONSchemaDict)
 
 	if logDatum.RawLog == "" {
 		if logDatum.PatternId == s.lastPatternID {
@@ -345,9 +260,9 @@ func (s *batchStrategy) applyFlatLogDeltaEncoding(logDatum *statefulpb.FlatLog) 
 	}
 }
 
-func (s *batchStrategy) deltaFlatLogDictIndex(current uint64, last *uint64) uint64 {
+func (s *batchStrategy) deltaDictIndex(current uint64, last *uint64) uint64 {
 	if current == 0 {
-		current = flatLogEmptyDictIndex
+		current = emptyDictIndex
 	}
 	if current == *last {
 		return 0
@@ -405,7 +320,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }
 
-func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.MessageMetadata, grpcDatums []*statefulpb.Datum, outputChan chan *message.Payload) {
+func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.MessageMetadata, grpcDatums []*statefulpb.LogDatum, outputChan chan *message.Payload) {
 	defer s.utilization.Stop()
 
 	unencodedSize := 0
@@ -426,15 +341,15 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 
 	encodedDatums := deltaEncodeDatumsForWire(wireDatums)
 
-	// Create DatumSequence and marshal to bytes
-	datumSeq := &statefulpb.DatumSequence{
+	// Create LogDatumSequence and marshal to bytes
+	datumSeq := &statefulpb.LogDatumSequence{
 		Data: encodedDatums,
 	}
 
 	var err error
 	s.marshalBuf, err = proto.MarshalOptions{}.MarshalAppend(s.marshalBuf[:0], datumSeq)
 	if err != nil {
-		log.Errorf("Failed to marshal DatumSequence: %v", err)
+		log.Errorf("Failed to marshal LogDatumSequence: %v", err)
 		return
 	}
 	serialized := s.marshalBuf
@@ -443,7 +358,7 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	// Compress the serialized protobuf data
 	compressed, err := s.compression.Compress(serialized)
 	if err != nil {
-		log.Errorf("Failed to compress DatumSequence: %v", err)
+		log.Errorf("Failed to compress LogDatumSequence: %v", err)
 		return
 	}
 	if len(compressed) > 0 && &compressed[0] == &serialized[0] {
@@ -472,23 +387,23 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 }
 
-func datumTelemetryType(datum *statefulpb.Datum) string {
+func datumTelemetryType(datum *statefulpb.LogDatum) string {
 	switch datum.Data.(type) {
-	case *statefulpb.Datum_PatternDefine:
+	case *statefulpb.LogDatum_PatternDefine:
 		return "pattern_define"
-	case *statefulpb.Datum_PatternDelete:
+	case *statefulpb.LogDatum_PatternDelete:
 		return "pattern_delete"
-	case *statefulpb.Datum_Logs, *statefulpb.Datum_FlatLog:
+	case *statefulpb.LogDatum_Log:
 		return "logs"
-	case *statefulpb.Datum_DictEntryDefine:
+	case *statefulpb.LogDatum_DictEntryDefine:
 		return "dict_entry_define"
-	case *statefulpb.Datum_DictEntryDelete:
+	case *statefulpb.LogDatum_DictEntryDelete:
 		return "dict_entry_delete"
-	case *statefulpb.Datum_DeltaEncodingSync:
+	case *statefulpb.LogDatum_DeltaEncodingSync:
 		return "delta_encoding_sync"
-	case *statefulpb.Datum_JsonSchemaDefine:
+	case *statefulpb.LogDatum_JsonSchemaDefine:
 		return "json_schema_define"
-	case *statefulpb.Datum_JsonSchemaDelete:
+	case *statefulpb.LogDatum_JsonSchemaDelete:
 		return "json_schema_delete"
 	default:
 		return "unknown"

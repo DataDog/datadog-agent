@@ -29,7 +29,7 @@ Connection from 10.0.0.3 timed out after 12s
 
 Sending each as a raw string wastes bandwidth. Pattern extraction finds the reusable structure — `Connection from * timed out after *` — and assigns it a stable ID. After the first occurrence, subsequent matching logs transmit only the pattern ID plus the wildcard values (`10.0.0.2`, `45s`), reducing wire size by 5–10x for high-volume pipelines.
 
-This document covers the extraction pipeline: tokenization, clustering, eviction, and tag management. Together these subsystems turn a raw log string into a compact `(patternID, wildcardValues, tagDictIDs)` tuple that the transport layer encodes into protobuf datums (`PatternDefine`, `StructuredLog`, `DictEntryDefine` — see [`sender/grpc/DESIGN.md`](../sender/grpc/DESIGN.md) for the wire format).
+This document covers the extraction pipeline: tokenization, clustering, eviction, and tag management. Together these subsystems turn a raw log string into a compact `(patternID, wildcardValues, tagDictIDs)` tuple that the transport layer encodes into protobuf datums (`PatternDefine`, `Log`, `DictEntryDefine` — see [`sender/grpc/DESIGN.md`](../sender/grpc/DESIGN.md) for the wire format).
 
 ### Relationship to Prior Work
 
@@ -152,7 +152,7 @@ The pipeline produces datums for the transport layer ([`sender/grpc/DESIGN.md`](
 |------------|---------|--------------|
 | `PatternDefine` | template=`"ERROR Connection from * timed out after *"`, pattern_id=1, pos_list=[6,14] | First occurrence, or when template widens |
 | `DictEntryDefine` | id=1 value=`"service"`, id=2 value=`"api-gateway"` | First occurrence of each tag string |
-| `StructuredLog` | pattern_id=1, dynamic_values=[`"10.0.0.5"`, `"45s"`], tags={keyID:1, valueID:2} | Every log |
+| `Log` | pattern_id=1, dynamic_values=[`"10.0.0.5"`, `"45s"`], tags=joinedTagsetDictID | Every log |
 
 On eviction, `PatternDelete` and `DictEntryDelete` datums are emitted to keep the server's state in sync.
 
