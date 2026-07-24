@@ -39,7 +39,8 @@ ADP_SPDX_LICENSES_ARCHIVE="$BUILD_DIR/agent-data-plane-spdx-licenses.tar.gz"
 ADP_SPDX_LICENSES_EXTRACT_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses-extract"
 ADP_SPDX_LICENSES_DIR="$BUILD_DIR/agent-data-plane-spdx-licenses"
 ADP_THIRD_PARTY_GENERATED_DIR="$BUILD_DIR/agent-data-plane-third-party-licenses"
-ADP_BIN_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
+ADP_BIN_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane-bin"
+ADP_WRAPPER_DEST="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
 ADP_LICENSES_DEST="$STAGING/opt/datadog-agent/LICENSES"
 
 # --- Pre-flight ---
@@ -55,7 +56,7 @@ log "Building Agent Data Plane from saluki commit $(git -C "$SALUKI_SRC" rev-par
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
-        rm -f "$ADP_BIN_DEST"
+        rm -f "$ADP_BIN_DEST" "$ADP_WRAPPER_DEST"
         rm -f "$ADP_LICENSES_DEST/LICENSE-agent-data-plane-3rdparty.csv"
         rm -f "$ADP_SPDX_LICENSES_ARCHIVE"
         rm -rf "$ADP_LICENSES_DEST"/THIRD-PARTY-*
@@ -122,6 +123,13 @@ strip -X64 "$ADP_BIN_DEST"
 chmod 755 "$ADP_BIN_DEST"
 log "agent-data-plane binary staged at $ADP_BIN_DEST"
 
+# The SRC subsystem execs the installed path directly (no shell involved), so
+# without this wrapper LIBPATH is never set and the AIX loader cannot find
+# bundled libraries (e.g. libunwind), causing an immediate load failure.
+cp "$SCRIPT_DIR/../agent-data-plane-wrapper.sh" "$ADP_WRAPPER_DEST"
+chmod 755 "$ADP_WRAPPER_DEST"
+log "agent-data-plane wrapper staged at $ADP_WRAPPER_DEST"
+
 # ─── Step 3: Stage license artifacts ──────────────────────────────────────────
 
 ADP_LICENSE_3RDPARTY=${ADP_LICENSE_3RDPARTY:-}
@@ -183,6 +191,7 @@ log "ADP license artifacts staged under $ADP_LICENSES_DEST"
 
 log "Verifying agent-data-plane binary is XCOFF64"
 MAGIC=$(od -A x -t x1 "$ADP_BIN_DEST" | head -1 | awk '{print $2 $3}')
+# ($ADP_BIN_DEST is the real binary; $ADP_WRAPPER_DEST is a shell wrapper script.)
 if [ "$MAGIC" != "01f7" ]; then
     log "ERROR: agent-data-plane binary is not XCOFF64 (got: $MAGIC)"
     log "       Expected magic bytes: 01 f7"
