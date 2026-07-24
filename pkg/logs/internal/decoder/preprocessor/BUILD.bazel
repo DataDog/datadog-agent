@@ -5,6 +5,7 @@ go_library(
     name = "preprocessor",
     srcs = [
         "aggregator.go",
+        "borrowed_tokens.go",
         "combining_aggregator.go",
         "detecting_aggregator.go",
         "go_stack_trace_parser.go",
@@ -20,6 +21,7 @@ go_library(
         "stack_trace_aggregator.go",
         "timestamp_detector.go",
         "token_graph.go",
+        "token_tables_gen.go",
         "tokenizer.go",
         "tokens.go",
         "user_samples.go",
@@ -67,6 +69,7 @@ dd_agent_go_test(
         "stack_trace_aggregator_test.go",
         "timestamp_detector_test.go",
         "token_graph_test.go",
+        "token_tables_gen_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
         "user_samples_test.go",

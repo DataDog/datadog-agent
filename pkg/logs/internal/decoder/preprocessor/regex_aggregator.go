@@ -30,7 +30,7 @@ type RegexAggregator struct {
 	isBufferTruncated bool
 	linesLen          int
 	msg               *message.Message
-	firstLineTokens   []Token
+	firstLineTokens   BorrowedTokens
 	linesCombined     int
 	telemetryEnabled  bool
 	multiLineTagValue string
@@ -85,7 +85,7 @@ func (a *RegexAggregator) SetLinesCombinedInfo(info *status.CountInfo) {
 
 // Process aggregates log lines using the regex to detect new log entry boundaries.
 // Returns any completed messages (may be empty if the current line is buffered). label is unused.
-func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token) []AggregatedMessageWithTokens {
+func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens BorrowedTokens) []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 
 	if a.newContentRe.Match(msg.GetContent()) {
@@ -93,10 +93,10 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token)
 		a.patternMatchedOnce = true
 		a.sendBuffer()
 		// This line starts a new group; capture its tokens as the first-line tokens.
-		a.firstLineTokens = tokens
+		a.firstLineTokens = tokens.retained()
 	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
-		a.firstLineTokens = tokens
+		a.firstLineTokens = tokens.retained()
 	}
 
 	isTruncated := a.shouldTruncate
@@ -147,7 +147,7 @@ func (a *RegexAggregator) sendBuffer() {
 		a.linesCombined = 0
 		a.shouldTruncate = false
 		a.isBufferTruncated = false
-		a.firstLineTokens = nil
+		a.firstLineTokens = BorrowedTokens{}
 	}()
 
 	data := bytes.TrimSpace(a.buffer.Bytes())

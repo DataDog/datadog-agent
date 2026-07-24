@@ -19,8 +19,8 @@ type mockTokenCapturingHeuristic struct {
 }
 
 func (m *mockTokenCapturingHeuristic) ProcessAndContinue(ctx *messageContext) bool {
-	m.capturedTokens = ctx.tokens
-	m.capturedIndices = ctx.tokenIndicies
+	m.capturedTokens = ctx.tokens.Borrow()
+	m.capturedIndices = ctx.tokens.Indices()
 	return true
 }
 
@@ -34,7 +34,7 @@ func TestLabelerReceivesTokens(t *testing.T) {
 
 	h := &mockTokenCapturingHeuristic{}
 	labeler := NewLabeler([]Heuristic{h}, nil)
-	labeler.Label(content, tokens, tokenIndices)
+	labeler.Label(content, newBorrowedTokens(tokens, tokenIndices))
 
 	assert.Equal(t, tokens, h.capturedTokens, "Heuristic should receive the pre-computed tokens")
 	assert.Equal(t, tokenIndices, h.capturedIndices, "Heuristic should receive the pre-computed token indices")
@@ -45,7 +45,7 @@ func TestLabelerReceivesTokens(t *testing.T) {
 func TestLabelerEmptyContentProducesNoTokens(t *testing.T) {
 	h := &mockTokenCapturingHeuristic{}
 	labeler := NewLabeler([]Heuristic{h}, nil)
-	labeler.Label([]byte(""), nil, nil)
+	labeler.Label([]byte(""), BorrowedTokens{})
 
 	assert.Empty(t, h.capturedTokens, "Heuristic should see no tokens when none are passed")
 }
@@ -62,7 +62,7 @@ func TestLabelConvertsTokensCorrectly(t *testing.T) {
 
 	h := &mockTokenCapturingHeuristic{}
 	labeler := NewLabeler([]Heuristic{h}, nil)
-	labeler.Label(content, tokens, tokenIndices)
+	labeler.Label(content, newBorrowedTokens(tokens, tokenIndices))
 
 	assert.Equal(t, tokens, h.capturedTokens)
 }

@@ -87,7 +87,7 @@ func prefillSampler(s *AdaptiveSampler, patterns [][]Token, count int) {
 func BenchmarkSampler_Noop(b *testing.B) {
 	s := NewNoopSampler()
 	msg := benchMsg()
-	tokens := benchTokensINFO
+	tokens := newBorrowedTokens(benchTokensINFO, nil)
 	b.ResetTimer()
 	for range b.N {
 		s.Process(msg, tokens)
@@ -106,7 +106,7 @@ func BenchmarkSampler_Adaptive_Match_P10_First(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()
 	for range b.N {
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -119,7 +119,7 @@ func BenchmarkSampler_Adaptive_Match_P10_Last(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()
 	for range b.N {
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -131,7 +131,7 @@ func BenchmarkSampler_Adaptive_Match_P100_Last(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()
 	for range b.N {
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -146,7 +146,7 @@ func BenchmarkSampler_Adaptive_NewPattern_TableNotFull(b *testing.B) {
 	for range b.N {
 		s := newBenchSampler(200)
 		prefillSampler(s, benchFillPatterns, 10)
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -158,7 +158,7 @@ func BenchmarkSampler_Adaptive_NewPattern_P100_EvictFreq(b *testing.B) {
 	for range b.N {
 		s := newBenchSampler(100)
 		prefillSampler(s, benchFillPatterns, 100)
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -172,7 +172,7 @@ func BenchmarkSampler_Adaptive_Match_P1000_Last(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()
 	for range b.N {
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -184,7 +184,7 @@ func BenchmarkSampler_Adaptive_NewPattern_P1000_EvictFreq(b *testing.B) {
 	for range b.N {
 		s := newBenchSampler(1000)
 		prefillSampler(s, benchFillPatterns1000, 1000)
-		s.Process(msg, benchTokensINFO)
+		s.Process(msg, newBorrowedTokens(benchTokensINFO, nil))
 	}
 }
 
@@ -204,6 +204,6 @@ func BenchmarkSampler_Adaptive_ImportantBypass(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()
 	for range b.N {
-		s.Process(msg, importantTokens)
+		s.Process(msg, newBorrowedTokens(importantTokens, nil))
 	}
 }
