@@ -248,7 +248,6 @@ pub struct AiUsageEvent {
     pub detection_type: String,
     pub source: String,
     pub tool: String,
-    pub user_id: String,
     pub hostname: String,
     pub approved: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -257,18 +256,11 @@ pub struct AiUsageEvent {
 
 impl AiUsageEvent {
     /// Create a new event with the fixed fields pre-populated.
-    pub fn new(
-        detection_type: &str,
-        tool: String,
-        user_id: String,
-        hostname: String,
-        approved: bool,
-    ) -> Self {
+    pub fn new(detection_type: &str, tool: String, hostname: String, approved: bool) -> Self {
         Self::new_with_source(
             detection_type,
             "browser_extension",
             tool,
-            user_id,
             hostname,
             approved,
         )
@@ -278,7 +270,6 @@ impl AiUsageEvent {
         detection_type: &str,
         source: &str,
         tool: String,
-        user_id: String,
         hostname: String,
         approved: bool,
     ) -> Self {
@@ -288,7 +279,6 @@ impl AiUsageEvent {
             detection_type: detection_type.to_string(),
             source: source.to_string(),
             tool,
-            user_id,
             hostname,
             approved,
             provider: None,
@@ -310,13 +300,8 @@ mod tests {
 
     #[test]
     fn ai_usage_body_keeps_event_fields_at_top_level() {
-        let mut event = AiUsageEvent::new(
-            "observed",
-            "gemini".to_string(),
-            "user@example.com".to_string(),
-            "host-1".to_string(),
-            true,
-        );
+        let mut event =
+            AiUsageEvent::new("observed", "gemini".to_string(), "host-1".to_string(), true);
         event.provider = Some("Google".to_string());
 
         let body = DatadogClient::ai_usage_body(&event).expect("AI usage body should serialize");
@@ -334,6 +319,7 @@ mod tests {
             Some(&Value::String("Google".to_string()))
         );
         assert_eq!(body.get("approved"), Some(&Value::Bool(true)));
+        assert!(!body.contains_key("user_id"));
         assert!(!body.contains_key("message"));
         assert!(!body.contains_key("ddsource"));
         assert!(!body.contains_key("service"));

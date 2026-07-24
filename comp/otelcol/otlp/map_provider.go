@@ -85,6 +85,12 @@ func buildLogsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "logsagent", "sending_queue", "batch"): ensureNonNilMap(cfg.Logs)["batch"],
 	}
+	// The logs pipeline shares the `infraattributes` processor instance with the
+	// metrics pipeline (see defaultMetricsConfig/defaultLogsConfig); this is
+	// harmless since the metrics processor ignores logs_tags_as_ddtags.
+	if cfg.LogsTagsAsDDTags {
+		smap[buildKey("processors", "infraattributes", "logs_tags_as_ddtags")] = true
+	}
 
 	{
 		configMap := confmap.NewFromStringMap(smap)

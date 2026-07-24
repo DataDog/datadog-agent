@@ -349,6 +349,30 @@ func GetAgentUserNameFromRegistry() (string, error) {
 	return user, nil
 }
 
+// GetAgentUserKeepRightsFromRegistry returns the DDAGENTUSER_KEEP_RIGHTS opt-out value stored
+// in the registry by the Agent MSI, if any. Returns an empty string with no error if the value
+// is not present (e.g. the opt-out was never used, or a full uninstall already cleared it).
+func GetAgentUserKeepRightsFromRegistry() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.QUERY_VALUE)
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer k.Close()
+
+	keepRights, _, err := k.GetStringValue("keepRights")
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("could not read keepRights in registry: %w", err)
+	}
+
+	return keepRights, nil
+}
+
 // GetAgentUserFromService returns the fully qualified username for the Agent service user
 //
 // The service configuration stores the service account name in custom formats,
