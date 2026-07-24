@@ -20,6 +20,7 @@ go_library(
         "//comp/def",
         "//comp/metadata/host/impl/hosttags",
         "//comp/remote-config/rcservice/def",
+        "//comp/remote-config/rcservicemrf/def",
         "//comp/remote-config/rctelemetryreporter/def",
         "//pkg/config/remote/flare",
         "//pkg/config/remote/service",
