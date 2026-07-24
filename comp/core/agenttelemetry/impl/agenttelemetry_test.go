@@ -2393,6 +2393,31 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
 }
 
+func TestDefaultProfilesIncludeUntaggedOpenMetricsLimitMetric(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	var matchingMetrics []MetricConfig
+	var matchingProfiles []string
+	for _, profile := range atCfg.Profiles {
+		if profile.Metric == nil {
+			continue
+		}
+		for _, metric := range profile.Metric.Metrics {
+			if metric.Name == "openmetrics.max_returned_metrics_reached" {
+				matchingMetrics = append(matchingMetrics, metric)
+				matchingProfiles = append(matchingProfiles, profile.Name)
+			}
+		}
+	}
+
+	require.Len(t, matchingMetrics, 1)
+	assert.Equal(t, []string{"checks"}, matchingProfiles)
+	assert.Nil(t, matchingMetrics[0].PreserveTags)
+	assert.False(t, matchingMetrics[0].preserveTagsExists)
+}
+
 func TestAgentTelemetryEventConfiguration(t *testing.T) {
 	// Use nearly full
 	c := `
