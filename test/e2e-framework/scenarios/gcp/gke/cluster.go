@@ -24,8 +24,8 @@ import (
 //go:embed workloadallowlist.yaml
 var autopilotAllowListYAML string
 
-//go:embed workloadcsiallowlist.yaml
-var workloadCSIAllowListYAML string
+//go:embed csiallowlistsynchronizer.yaml
+var csiAllowlistSynchronizerYAML string
 
 type Params struct {
 	autopilot bool
@@ -73,7 +73,7 @@ func NewGKECluster(env gcp.Environment, opts ...Option) (*kubeComp.Cluster, erro
 		// Apply allowlist if autopilot is enabled
 		if params.autopilot {
 			_, err = yaml.NewConfigGroup(env.Ctx(), env.Namer.ResourceName("autopilot-allowlist"), &yaml.ConfigGroupArgs{
-				YAML: []string{autopilotAllowListYAML, workloadCSIAllowListYAML},
+				YAML: []string{autopilotAllowListYAML, csiAllowlistSynchronizerYAML},
 			}, pulumi.Provider(gkeKubeProvider), env.WithProviders(config.ProviderGCP))
 			if err != nil {
 				return err

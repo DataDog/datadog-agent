@@ -1,0 +1,11 @@
+apiVersion: auto.gke.io/v1
+kind: AllowlistSynchronizer
+metadata:
+  annotations:
+    pulumi.com/waitFor: condition=Ready
+  # Keep this distinct from the Helm chart's hook-owned synchronizer.
+  name: datadog-csi-e2e-synchronizer
+spec:
+  allowlistPaths:
+    # Preload every current and future CSI driver allowlist.
+    - "Datadog/datadog-csi-driver/*"
