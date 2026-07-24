@@ -10,6 +10,7 @@ package apiserver
 import (
 	"context"
 	"strconv"
+	"sync"
 
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
@@ -35,23 +36,35 @@ type EventCollector struct {
 
 	events  chan *v1.Event
 	dropped *atomic.Uint64
+
+	// unbounded, when set, routes enqueue/Drain through buf/bufMu instead of events,
+	// trading the fixed capacity (and its drops) for unbounded memory growth.
+	unbounded bool
+	bufMu     sync.Mutex
+	buf       []*v1.Event
 }
 
-// NewEventCollector returns an EventCollector whose Reflector lists/watches
-// events matching filter (a field selector). Requires that the bufferSize be greater than 0.
-func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventCollector {
-	if bufferSize <= 0 {
+// NewEventCollector returns an EventCollector whose Reflector lists/watches events
+// matching filter (a field selector). If unbounded is true, bufferSize is ignored and
+// the buffer is never full: events are never dropped, but memory is unbounded. Otherwise
+// bufferSize must be greater than 0.
+func (c *APIClient) NewEventCollector(filter string, bufferSize int, unbounded bool) *EventCollector {
+	if !unbounded && bufferSize <= 0 {
 		log.Errorf("Event collection buffer size must be greater than 0, got %d", bufferSize)
 		return nil
 	}
-	return &EventCollector{
+	ec := &EventCollector{
 		client:       c.InformerCl,
 		filter:       filter,
 		lastRV:       atomic.NewUint64(0),
 		maxDrainedRV: atomic.NewUint64(0),
-		events:       make(chan *v1.Event, bufferSize),
 		dropped:      atomic.NewUint64(0),
+		unbounded:    unbounded,
 	}
+	if !unbounded {
+		ec.events = make(chan *v1.Event, bufferSize)
+	}
+	return ec
 }
 
 // SetCheckpoint seeds the relist-dedup watermark from a persisted resourceVersion
@@ -94,14 +107,30 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 // Drain returns the events buffered since the last call, advancing the
 // delivered-resourceVersion checkpoint.
 func (ec *EventCollector) Drain() []*v1.Event {
+	drained := ec.drain()
+	for _, ev := range drained {
+		if rv := parseResourceVersion(ev.ResourceVersion); rv > ec.maxDrainedRV.Load() {
+			ec.maxDrainedRV.Store(rv)
+		}
+	}
+	return drained
+}
+
+// drain empties the buffer without touching maxDrainedRV.
+func (ec *EventCollector) drain() []*v1.Event {
+	if ec.unbounded {
+		ec.bufMu.Lock()
+		defer ec.bufMu.Unlock()
+		drained := ec.buf
+		ec.buf = nil
+		return drained
+	}
+
 	var drained []*v1.Event
 	for {
 		select {
 		case ev := <-ec.events:
 			drained = append(drained, ev)
-			if rv := parseResourceVersion(ev.ResourceVersion); rv > ec.maxDrainedRV.Load() {
-				ec.maxDrainedRV.Store(rv)
-			}
 		default:
 			return drained
 		}
@@ -122,8 +151,16 @@ type noWatchListLW struct {
 // IsWatchListSemanticsUnSupported is read structurally by client-go's reflector.
 func (noWatchListLW) IsWatchListSemanticsUnSupported() bool { return true }
 
-// enqueue buffers an event, dropping it (and counting the drop) if the buffer is full.
+// enqueue buffers an event. If unbounded, it always succeeds; otherwise it drops
+// the event (and counts the drop) if the buffer is full.
 func (ec *EventCollector) enqueue(ev *v1.Event) {
+	if ec.unbounded {
+		ec.bufMu.Lock()
+		ec.buf = append(ec.buf, ev)
+		ec.bufMu.Unlock()
+		return
+	}
+
 	select {
 	case ec.events <- ev:
 	default:
