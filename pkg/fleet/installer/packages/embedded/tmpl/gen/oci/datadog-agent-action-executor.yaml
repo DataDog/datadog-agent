@@ -7,5 +7,6 @@ args:
 auto_start: false
 condition_path_exists: /opt/datadog-packages/datadog-agent/stable/embedded/bin/privateactionrunner
 restart: never
+environment_file: -${DD_CONF_DIR}/environment
 stdout: inherit
 stderr: inherit
