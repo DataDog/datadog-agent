@@ -73,8 +73,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/ebpf/uprobes/testutil/standalone_attacher
-# Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
-# gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/network/tracer/testutil/proxy/external_unix_proxy_server
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
 # gazelle:exclude pkg/serverless/otlp
@@ -83,13 +81,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# Keep hostname.go out of //pkg/util/kubernetes:kubernetes: adding it pulls deps
-#   kubernetes -> clustername -> hostinfo -> kubelet -> kubernetes
-# because //pkg/util/kubernetes/kubelet depends on //pkg/util/kubernetes. Go build
-# tags hide this in single-config compiles; Bazel analyzes the full target graph.
-# TODO: break the cycle (e.g. move GetKubeAPIServerHostname to another package, or
-# trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
-# gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/new-e2e/examples
 # gazelle:exclude test/new-e2e/system-probe/config
@@ -172,6 +163,7 @@ gazelle(
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+        "-remove_noop_keep_comments",  # drop dead `# keep` directives
         "-strict",  # don't swallow syntax errors or unknown directives
     ],
     gazelle = ":gazelle_binary",

@@ -331,14 +331,12 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 			// create a key from the tags (and drop not specified in the configuration tags)
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
-			var sb strings.Builder
 			for _, t := range tags {
 				if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
-					sb.WriteString(makeLabelPairKey(t))
 				}
 			}
-			tagsKey = sb.String()
+			tagsKey = encodeSortedLabels(specTags)
 
 			if mCfg.AggregateTotal {
 				aggregateMetric(mt, totalm, m)
@@ -397,7 +395,8 @@ func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, met
 			// Each timeseries or "m" on each iteration in this code, will contain a set of unique
 			// tagset (as m.GetLabel()). Accordingly, each timeseries should be represented by a unique
 			// and stable (reproducible) key formed by tagset key names and values.
-			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
+			sortedTags := cloneLabelsSorted(tags)
+			keyName = fmt.Sprintf("%s%s:", metricName, encodeSortedLabels(sortedTags))
 		}
 
 		if mt == dto.MetricType_HISTOGRAM {
