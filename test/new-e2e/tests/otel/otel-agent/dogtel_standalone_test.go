@@ -171,3 +171,27 @@ func (s *dogtelStandaloneTestSuite) TestDogtelOTLPLogs() {
 func (s *dogtelStandaloneTestSuite) TestDogtelHosts() {
 	utils.TestHosts(s)
 }
+
+// TestDogtelOrchestratorManifests verifies that Kubernetes objects collected by
+// the k8sobjectsreceiver are routed to the orchestrator (Kubernetes Resources)
+// intake. This path is gated to standalone mode on the datadog exporter; the
+// resource/k8smeta processor injects the cluster metadata that TranslateK8sObjects
+// requires, and the deployment points orchestrator_explorer.endpoint at fakeintake.
+func (s *dogtelStandaloneTestSuite) TestDogtelOrchestratorManifests() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		manifests, err := s.Env().FakeIntake.Client().GetOrchestratorManifests()
+		require.NoError(c, err)
+		require.NotEmpty(c, manifests, "expected orchestrator manifests from the k8sobjects receiver")
+
+		var sawPod bool
+		for _, m := range manifests {
+			if m.ManifestParentCollector != nil {
+				assert.Equal(c, "dogtel-standalone-e2e", m.ManifestParentCollector.ClusterName)
+			}
+			if m.Manifest != nil && m.Manifest.Kind == "Pod" {
+				sawPod = true
+			}
+		}
+		assert.True(c, sawPod, "expected at least one Pod manifest")
+	}, 5*time.Minute, 15*time.Second, "orchestrator manifests not received")
+}
