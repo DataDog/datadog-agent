@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 	"sync"
 
@@ -30,6 +31,12 @@ const (
 	scheduledType = "scheduled"
 	dynamicType   = "dynamic"
 	configSource  = names.NetworkPathRemoteConfig + ":" + scheduledType
+	// Keep this in sync with pkg/config/setup.DefaultNetworkPathMaxTTL and the
+	// Synthetics Network Tests default in comp/syntheticstestscheduler/impl. This
+	// provider cannot import pkg/config/setup because comp packages forbid that
+	// dependency. A follow-up PR should move the default to a neutral Network
+	// Path package that all consumers can import.
+	defaultMaxTTL = 30
 )
 
 // Provider receives scheduled Network Path tests from Remote Configuration.
@@ -303,7 +310,6 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 		TracerouteQueries:     endpoint.TracerouteQueries,
 		E2eQueries:            endpoint.E2eQueries,
 		Tags:                  endpoint.Tags,
-		Timeout:               endpoint.TimeoutMS,
 		MinCollectionInterval: endpoint.IntervalSec,
 	}
 
@@ -336,6 +342,14 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	if endpoint.TimeoutMS != nil && *endpoint.TimeoutMS <= 0 {
 		return networkPathInstanceConfig{}, errors.New("timeout_ms must be > 0")
 	}
+	if endpoint.TimeoutMS != nil {
+		maxTTL := defaultMaxTTL
+		if endpoint.MaxTTL != nil {
+			maxTTL = *endpoint.MaxTTL
+		}
+		perHopTimeoutMS := calculatePerHopTimeoutMS(*endpoint.TimeoutMS, maxTTL)
+		instance.Timeout = &perHopTimeoutMS
+	}
 	if endpoint.IntervalSec != nil && *endpoint.IntervalSec <= 0 {
 		return networkPathInstanceConfig{}, errors.New("interval_sec must be > 0")
 	}
@@ -358,6 +372,14 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	}
 
 	return instance, nil
+}
+
+func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
+	// Reserve 10% of the total test budget so the traceroute library call has
+	// time to return after the per-hop work completes. Round up because the
+	// check's timeout is expressed in whole milliseconds and zero would make it
+	// fall back to the unrelated local default.
+	return int64(math.Ceil(float64(totalTimeoutMS) * 0.9 / float64(maxTTL)))
 }
 
 func sameConfigs(a, b []integration.Config) bool {
