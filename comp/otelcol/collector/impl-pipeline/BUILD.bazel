@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl-pipeline",
+    srcs = [
+        "flare_filler.go",
+        "no_otlp.go",
+        "pipeline.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/otlp.tmpl",
+        "status_templates/otlpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl-pipeline",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/core/telemetry/def",
+        "//comp/def",
+        "//comp/metadata/inventoryagent/def",
+        "//comp/otelcol/collector/def",
+        "//comp/otelcol/ddflareextension/types",
+        "//comp/otelcol/logsagentpipeline/def",
+        "//comp/otelcol/otlp",
+        "//comp/otelcol/otlp/configcheck",
+        "//comp/otelcol/otlp/datatype",
+        "//pkg/logs/message",
+        "//pkg/serializer",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl-pipeline_test",
+    srcs = [
+        "flare_filler_test.go",
+        "status_test.go",
+    ],
+    embed = [":impl-pipeline"],
+    flavors = [
+        "base",
+        "fips",
+        "heroku",
+    ],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/ipc/mock",
+        "//comp/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

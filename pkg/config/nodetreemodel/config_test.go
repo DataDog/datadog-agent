@@ -278,7 +278,7 @@ func TestAllSettings(t *testing.T) {
 	cfg.SetDefault("a", 0)                         // "a"   @ file
 	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
-	cfg.SetKnown("b.e")                            //nolint:forbidigo // "b.e" @ known
+	cfg.BindEnvAndSetDefault("b.e", 0)             // "b.e" @ default
 	cfg.BindEnvAndSetDefault("f.g", 0, "TEST_F_G") // "f.g" @ env-var (defined)
 	cfg.BindEnvAndSetDefault("f.h", 0, "TEST_F_H") // "f.h" @ env-var (undefined, falls back to default)
 	t.Setenv("TEST_F_G", "456")
@@ -293,7 +293,7 @@ func TestAllSettings(t *testing.T) {
 		"b": map[string]interface{}{
 			"c": 123, // agent-runtime
 			"d": 0,   // default
-			// b.e is not included
+			"e": 0,   // default
 		},
 		"f": map[string]interface{}{
 			"g": 456, // env-var defined
@@ -305,10 +305,10 @@ func TestAllSettings(t *testing.T) {
 
 func TestAllSettingsWithoutDefault(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", 0)   // "a"   @ file
-	cfg.SetDefault("b.c", 0) // "b.c" @ agent-runtime
-	cfg.SetDefault("b.d", 0) // "b.d" @ default
-	cfg.SetKnown("b.e")      //nolint:forbidigo // "b.e" @ known
+	cfg.SetDefault("a", 0)             // "a"   @ file
+	cfg.SetDefault("b.c", 0)           // "b.c" @ agent-runtime
+	cfg.SetDefault("b.d", 0)           // "b.d" @ default
+	cfg.BindEnvAndSetDefault("b.e", 0) // "b.e" @ default
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -414,7 +414,7 @@ func TestIsConfigured(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("c", 0)
 	cfg.BindEnvAndSetDefault("d", 0)
 
 	t.Setenv("TEST_D", "123")
@@ -465,7 +465,7 @@ func TestAllKeysLowercased(t *testing.T) {
 	cfg.SetDefault("a", 0)                         // "a"   @ file
 	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
-	cfg.SetKnown("b.e")                            //nolint:forbidigo // "b.e" @ known
+	cfg.BindEnvAndSetDefault("b.e", 0)             // "b.e" @ default
 	cfg.BindEnvAndSetDefault("f.g", 0, "TEST_F_G") // "f.g" @ env-var
 	cfg.BindEnvAndSetDefault("f.h", 0, "TEST_F_H") // "f.h" @ env-var
 	t.Setenv("TEST_F_G", "456")
@@ -493,7 +493,6 @@ logs_config:
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -1375,7 +1374,9 @@ user:
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.SetKnown("api_key") //nolint:forbidigo // api_key must be known but have no default value for this test
+	// Enable the dynamic schema so api_key can be Set even though it has no default value,
+	// which is required to exercise the "unset with no previous value" behavior below.
+	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BuildSchema()
 
 	// api_key is not in the config (does not have a default value)
@@ -1554,9 +1555,6 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 	assert.Equal(t, 1, cfg.Get("a"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
 
-	assert.PanicsWithValue(t, "cannot SetKnown() once the config has been marked as ready for use", func() {
-		cfg.SetKnown("a") //nolint:forbidigo // testing behavior
-	})
 	assert.PanicsWithValue(t, "cannot SetEnvKeyReplacer() once the config has been marked as ready for use", func() {
 		cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	})
@@ -2042,4 +2040,16 @@ func TestClearEnvVars(t *testing.T) {
 	t.Setenv("TEST_B", "leaked-via-rebuild")
 	cfg.(*ntmConfig).buildEnvVars()
 	assert.Equal(t, "default-b", cfg.GetString("b"))
+}
+
+func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetTestOnlyDynamicSchema(true)
+	cfg.SetDefault("key", "value")
+	cfg.BuildSchema()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cfg.Get("key")
+	}
 }

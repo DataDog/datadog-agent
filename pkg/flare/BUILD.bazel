@@ -58,9 +58,11 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/system-probe/config",
+            "//pkg/util/defaultpaths",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/system-probe/config",
+            "//pkg/util/defaultpaths",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
@@ -100,10 +102,10 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx",
         "//comp/process/apiserver/def",
+        "//comp/process/apiserver/fx",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/util/fxutil",
-        "@//comp/process/apiserver/fx",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_fatih_color//:color",
         "@com_github_stretchr_testify//assert",

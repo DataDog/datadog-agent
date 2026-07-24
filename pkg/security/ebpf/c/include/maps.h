@@ -103,10 +103,10 @@ BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 
@@ -139,6 +139,7 @@ BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)

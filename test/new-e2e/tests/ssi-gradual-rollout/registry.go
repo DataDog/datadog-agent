@@ -152,15 +152,15 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create mock-registry namespace: %w", err)
 	}
 
-	// The Helm chart also creates the datadog namespace; Pulumi's server-side apply
-	// (SDK v4 default) reconciles the shared ownership without conflict.
-	datadogNs, err := corev1.NewNamespace(e.Ctx(), e.CommonNamer().ResourceName("datadog-ns"), &corev1.NamespaceArgs{
-		Metadata: &metav1.ObjectMetaArgs{
+	// The Helm chart also creates the datadog namespace, with patching to reconcile
+	// ownership since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	datadogNs, err := corev1.NewNamespacePatch(e.Ctx(), e.CommonNamer().ResourceName("datadog-ns"), &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String("datadog"),
 		},
 	}, baseOpts...)
 	if err != nil {
-		return fmt.Errorf("failed to create datadog namespace: %w", err)
+		return fmt.Errorf("failed to patch datadog namespace: %w", err)
 	}
 
 	// Mounted into the cluster-agent at /etc/ssl/certs/mock-registry-ca.crt (see

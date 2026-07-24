@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Shared-library checks now honor an explicit ``min_collection_interval: 0`` as
+    one-shot scheduling (the check runs a single time), matching the behavior of
+    Python checks.

@@ -207,7 +207,6 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -216,7 +215,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -225,7 +223,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -234,7 +231,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -243,7 +239,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -252,7 +247,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -261,7 +255,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -270,7 +263,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:js": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -279,7 +271,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -288,7 +279,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -297,7 +287,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -306,7 +295,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:osx": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -315,7 +303,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -324,7 +311,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -333,7 +319,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "@com_github_shirou_gopsutil_v4//cpu",
@@ -342,7 +327,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/autodiscovery/integration",
-            "//pkg/aggregator",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/check",
             "//pkg/gohai/cpu",

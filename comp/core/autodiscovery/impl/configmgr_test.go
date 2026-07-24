@@ -670,7 +670,7 @@ func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
 
 func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
 	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 
@@ -704,7 +704,7 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 
 	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
 
@@ -735,3 +735,34 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	count, _ = hp.GetAllIssues()
 	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
 }
+
+func TestResolveTemplateForService_SkipsReportWhenServiceNotReady(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.New(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "postgres",
+		ADIdentifiers: []string{"postgres"},
+		Instances:     []integration.Data{integration.Data("host: %%host%%")},
+	}
+
+	svc := &notReadyService{dummyService{
+		ID:            "docker://abc123",
+		ADIdentifiers: []string{"postgres"},
+	}}
+
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.False(t, ok, "a not-ready service must not resolve")
+
+	count, _ := hp.GetAllIssues()
+	assert.Equal(t, 0, count, "transient 'service not ready' must not be reported as a health issue")
+}
+
+// notReadyService exercises the transient configresolver.ErrServiceNotReady path.
+type notReadyService struct {
+	dummyService
+}
+
+func (notReadyService) IsReady() bool { return false }

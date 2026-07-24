@@ -141,7 +141,7 @@ func newTestCheck(t testing.TB, connectConfig config.ConnectionConfig, instanceC
 	}
 	rawInstanceConfig := []byte(instanceConfig)
 	rawInitConfig := []byte(initConfig)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err = c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "oracle_test", "")
 	require.NoError(t, err)
 
@@ -153,11 +153,6 @@ func newTestCheck(t testing.TB, connectConfig config.ConnectionConfig, instanceC
 	assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
 	assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
 	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
-
-	if oracleLibDir := os.Getenv("ORACLE_TEST_ORACLE_CLIENT_LIB_DIR"); oracleLibDir != "" {
-		c.config.InstanceConfig.OracleClientLibDir = oracleLibDir
-		c.config.InstanceConfig.OracleClient = true
-	}
 
 	return c, sender
 }

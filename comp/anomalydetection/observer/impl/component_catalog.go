@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -67,6 +68,7 @@ type ConfigReader interface {
 	GetInt(key string) int
 	GetFloat64(key string) float64
 	GetString(key string) string
+	GetDuration(key string) time.Duration
 	IsConfigured(key string) bool
 }
 
@@ -289,6 +291,11 @@ func defaultCatalog() *componentCatalog {
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("anomaly_scorer: failed to parse JSON config: %w", err)
 					}
+					threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold)
+					if err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: invalid correlation_event_threshold: %w", err)
+					}
+					cfg.CorrelationEventThreshold = threshold
 					return cfg, nil
 				},
 			},

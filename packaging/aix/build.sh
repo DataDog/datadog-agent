@@ -76,6 +76,8 @@ check_tool xz         xz
 check_tool make       make
 check_tool cmake      cmake
 check_tool gcc        gcc
+check_tool bash       bash
+check_tool protoc     protobuf
 check_tool python3.12 python3.12
 check_tool go         golang
 check_tool dump       bos.perf.tools
@@ -100,8 +102,6 @@ check_aix_devel /opt/freeware/lib64/libncursesw.a     ncurses-devel
 check_aix_devel /opt/freeware/include/readline/readline.h  readline-devel
 check_aix_devel /opt/freeware/lib64/libreadline.a     readline-devel
 
-check_aix_devel /opt/freeware/include/gdbm.h          gdbm-devel
-check_aix_devel /opt/freeware/lib/libgdbm.a           gdbm-devel
 check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel
 check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
 # libexslt ships with libxslt-devel; stage 01 copies it silently if present.
@@ -114,8 +114,9 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/lib/env.sh"
 
 # Rust SDK cargo — checked after env.sh so RUST_VERSION is available.
-# Required by stage 05 (cryptography, ~15 min), stage 06 (pydantic-core,
-# ~52 min), and stage 07 (jellyfish). Failing here avoids wasting that time.
+# Required by stage 05 (ADP), stage 06 (cryptography, ~15 min), stage 07
+# (pydantic-core, ~52 min), and stage 08 (jellyfish). Failing here avoids
+# wasting that time.
 check_tool "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" \
     "rust${RUST_VERSION}.ppc cargo${RUST_VERSION}.ppc rust${RUST_VERSION}-std-static.ppc"
 
@@ -133,12 +134,13 @@ STAGES="
 02-python
 03-rtloader
 04-agent
-05-python-extensions
-06-pydantic
-07-checks-base
-08-integrations
-09-strip-bytecode
-10-assemble
+05-agent-data-plane
+06-python-extensions
+07-pydantic
+08-checks-base
+09-integrations
+10-strip-bytecode
+11-assemble
 "
 
 # ── Helper: run one stage script ──────────────────────────────────────────────

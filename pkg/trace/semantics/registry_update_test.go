@@ -29,7 +29,12 @@ func TestNewRegistryFromJSON_MalformedJSON(t *testing.T) {
 }
 
 func TestNewRegistryFromJSON_EmptyConcepts(t *testing.T) {
-	_, err := NewRegistryFromJSON([]byte(`{"version":"0.1.0","concepts":{}}`))
+	_, err := NewRegistryFromJSON([]byte(`{"version":"0.1.0","metadata":{"content_hash":"hash-a"},"concepts":{}}`))
+	assert.Error(t, err)
+}
+
+func TestNewRegistryFromJSON_MissingContentHash(t *testing.T) {
+	_, err := NewRegistryFromJSON([]byte(`{"version":"0.1.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
 	assert.Error(t, err)
 }
 
@@ -38,7 +43,7 @@ func TestUpdateRegistry_AtomicSwap(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { UpdateRegistry(original) })
 
-	customJSON := `{"version":"test-version","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test-version","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`
 	custom, err := NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 
@@ -46,33 +51,28 @@ func TestUpdateRegistry_AtomicSwap(t *testing.T) {
 	assert.Equal(t, "test-version", DefaultRegistry().Version())
 }
 
-func TestRegistryEqual_SameVersion(t *testing.T) {
-	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+func TestRegistryEqual_SameHashDifferentVersion(t *testing.T) {
+	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
 	require.NoError(t, err)
-	b, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	b, err := NewRegistryFromJSON([]byte(`{"version":"2.0.0","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
 	require.NoError(t, err)
-	assert.True(t, RegistryEqual(a, b))
+	assert.True(t, RegistryEqual(a, b), "same content_hash means same concepts, regardless of the CI-bumped version string")
 }
 
-func TestRegistryEqual_DifferentVersion(t *testing.T) {
-	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+func TestRegistryEqual_DifferentHashSameVersion(t *testing.T) {
+	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
 	require.NoError(t, err)
-	b, err := NewRegistryFromJSON([]byte(`{"version":"2.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	b, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","metadata":{"content_hash":"hash-b"},"concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`))
+	require.NoError(t, err)
+	assert.False(t, RegistryEqual(a, b), "differing content_hash means the concepts changed, even if version happens to match")
+}
+
+func TestRegistryEqual_DifferentHash(t *testing.T) {
+	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","metadata":{"content_hash":"hash-a"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	require.NoError(t, err)
+	b, err := NewRegistryFromJSON([]byte(`{"version":"2.0.0","metadata":{"content_hash":"hash-b"},"concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
 	require.NoError(t, err)
 	assert.False(t, RegistryEqual(a, b))
-}
-
-// TestRegistryEqual_SameVersionDifferentConcepts documents the current
-// limitation: RegistryEqual relies solely on Version(), so two registries that
-// happen to share a version string compare equal even if their concepts
-// differ. This is acceptable while the publisher stamps a stable
-// content-bound version and is captured by the TODO on RegistryEqual.
-func TestRegistryEqual_SameVersionDifferentConcepts(t *testing.T) {
-	a, err := NewRegistryFromJSON([]byte(`{"version":"x","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
-	require.NoError(t, err)
-	b, err := NewRegistryFromJSON([]byte(`{"version":"x","concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`))
-	require.NoError(t, err)
-	assert.True(t, RegistryEqual(a, b), "version-only equality treats same-version payloads as equal regardless of content")
 }
 
 func TestRegistryEqual_NilHandling(t *testing.T) {

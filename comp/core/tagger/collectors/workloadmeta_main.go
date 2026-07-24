@@ -40,6 +40,7 @@ const (
 	deploymentSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 	kueueQueueSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueQueue)
 	kueueResourceFlavorSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueResourceFlavor)
+	kueueWorkloadSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueWorkload)
 	gpuSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 	crdSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
 	kubeCapabilitiesSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)

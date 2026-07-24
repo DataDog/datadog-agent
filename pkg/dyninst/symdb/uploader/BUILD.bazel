@@ -8,6 +8,7 @@ go_library(
         "upload.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/object",
@@ -26,7 +27,11 @@ go_test(
         "uploader_test.go",
     ],
     embed = [":uploader"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/object",
         "//pkg/dyninst/symdb",

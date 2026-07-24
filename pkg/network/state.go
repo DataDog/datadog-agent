@@ -704,7 +704,6 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		ns.updateConnWithStats(client, cookie, closedConn)
 
-		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false

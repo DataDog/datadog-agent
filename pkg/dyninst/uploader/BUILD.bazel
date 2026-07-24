@@ -12,6 +12,7 @@ go_library(
         "metrics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/uploader",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
@@ -29,7 +30,11 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":uploader"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/dyninsttest",
         "@com_github_stretchr_testify//assert",

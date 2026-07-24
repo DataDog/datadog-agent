@@ -266,8 +266,8 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog) {
-				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
+			if preservesExplicitLogType(config.Provider, cfg.Type) {
+				// cfg.Type is not overwritten as tailing a file from a Docker, Kubernetes, or DDI AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
 			} else {
@@ -293,6 +293,21 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	}
 
 	return sources, nil
+}
+
+func preservesExplicitLogType(provider, logType string) bool {
+	switch logType {
+	case logsConfig.FileType, logsConfig.TCPType, logsConfig.UDPType, logsConfig.IntegrationType:
+	default:
+		return false
+	}
+
+	switch provider {
+	case names.Kubernetes, names.Container, names.KubeContainer, logsConfig.FileType, names.ProcessLog, names.InstrumentationChecks:
+		return true
+	default:
+		return false
+	}
 }
 
 // toService creates a new service for an integrationConfig.

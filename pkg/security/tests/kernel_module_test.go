@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -133,7 +133,7 @@ func TestKworker(t *testing.T) {
 			t.Error(err)
 		}
 
-		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay)); err != nil {
+		if err := retry(t, func() error { return unix.DeleteModule("xt_LED", 0) }, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(10)); err != nil {
 			t.Error(err)
 		}
 	}()

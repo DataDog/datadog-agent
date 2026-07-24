@@ -16,9 +16,7 @@
   - !reference [.upload_sbom_artifacts]
 
 .agent_build_common:
-  extends:
-    - .bazel:defs:cache:omnibus-transition
-    - .rust_internal_registry  # TODO(agent-build): bazelify
+  extends: [ .bazel:defs:cache:omnibus-transition ]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -29,6 +27,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
   artifacts:
     expire_in: 2 weeks
     paths:

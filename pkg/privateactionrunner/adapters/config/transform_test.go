@@ -6,6 +6,8 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -20,6 +22,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -76,10 +79,11 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
-				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
-				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
-				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
-				"com.datadoghq.remoteaction":    sets.New[string]("testConnection"),
+				"com.datadoghq.script":                sets.New[string]("testConnection", "enrichScript"),
+				"com.datadoghq.gitlab.users":          sets.New[string]("testConnection"),
+				"com.datadoghq.kubernetes.core":       sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction":          sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction.internal": sets.New[string]("prepareEncryption"),
 			},
 		},
 		{
@@ -379,7 +383,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	// Explicit empty: operator opts in to blocking everything.
+	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
 	assert.Empty(t, cfg.RShellAllowedPaths)
 }
@@ -416,17 +420,15 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	// Explicit empty list: operator opts in to blocking every command.
-	// Distinct from the unset case above.
+	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
 // TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
-// kill-switch contract for `allowed_paths: []`: GetStringSlice returns a
+// transform contract for `allowed_paths: []`: GetStringSlice returns a
 // nil slice for the explicit YAML empty list, and the transform forwards
-// that as-is. The handler's downstream dedup pass turns nil into a non-nil
-// empty slice, which produces an empty intersection — the kill-switch.
+// that as-is.
 // The slice value here is "no entries" regardless of nil/non-nil shape.
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
 	yaml := `
@@ -438,7 +440,7 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -451,14 +453,12 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
-	// File entries are warned about at load time but not dropped — the
-	// intersection layer and rshell's own sandbox filter them. The
-	// transform's job is to surface the misconfiguration; it does not
-	// rewrite the operator's written list.
+	// Config entries are parsed and returned as written; path normalization and
+	// containment matching happen in the rshell bundle.
 	tmpDir := t.TempDir()
 	fp := filepath.Join(tmpDir, "file.txt")
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
@@ -474,10 +474,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
-	// Backslash-containing entries are preserved in the returned slice so
-	// the handler still sees what the operator wrote; the transform also
-	// logs a warning so a Windows-native path configured by mistake does
-	// not silently produce an empty intersection without feedback.
+	// Backslash-containing entries are preserved in the returned slice.
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -488,12 +485,48 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForBackslash(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
+	assert.Contains(t, logs, `C:\\Data`)
+	assert.Contains(t, logs, "contains a backslash")
+	assert.Contains(t, logs, "only forward-slash paths are supported")
+	assert.NotContains(t, logs, "/var/log")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForNonDirectory(t *testing.T) {
+	tmpDir := filepath.ToSlash(t.TempDir())
+	fp := filepath.ToSlash(filepath.Join(tmpDir, "file.txt"))
+	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
+	assert.Contains(t, logs, fp)
+	assert.Contains(t, logs, "is not a directory")
+	assert.Contains(t, logs, "Use the containing directory instead")
+	assert.NotContains(t, logs, `entry "`+tmpDir+`" is not a directory`)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
-	// Unnamespaced entries are preserved in the returned slice so the
-	// intersection layer can surface them (as silent no-matches). The
-	// transform also emits a log warning about them, which is not asserted
-	// here — the point of this test is that unnamespaced entries do not
-	// cause config load to fail.
+	// Unnamespaced entries are preserved in the returned slice.
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -504,11 +537,40 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedCommands)
+	assert.Contains(t, logs, `"cat"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:cat"`)
+	assert.NotContains(t, logs, `"rshell:ls"`)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Empty(t, logs)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: both axes fall back to their
-	// registered sentinels — ["/"] for paths, ["rshell:*"] for commands —
-	// which the operator-side intersection treats as "allow whatever the
-	// backend allowed".
+	// No restricted_shell block at all: both axes fall back to their registered
+	// defaults.
 	yaml := `
 private_action_runner:
   enabled: true
@@ -620,4 +682,24 @@ func (r *recordingStatsdComponent) CreateForHostPort(host string, port int, _ ..
 	r.host = host
 	r.port = port
 	return r.client, r.err
+}
+
+func captureTransformWarnings(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var logBuffer bytes.Buffer
+	logWriter := bufio.NewWriter(&logBuffer)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
+	require.NoError(t, err)
+
+	previousLogger := log.Default()
+	t.Cleanup(func() {
+		log.SetupLogger(previousLogger, "debug")
+	})
+	log.SetupLogger(logger, "warn")
+
+	fn()
+
+	require.NoError(t, logWriter.Flush())
+	return logBuffer.String()
 }
