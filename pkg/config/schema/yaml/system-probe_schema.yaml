@@ -2274,6 +2274,13 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_RING_BUFFER
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_RING_BUFFER
+          use_syscall_task_storage:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_SYSCALL_TASK_STORAGE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_SYSCALL_TASK_STORAGE
       events_stats:
         node_type: section
         type: object
