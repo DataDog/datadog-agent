@@ -37,6 +37,7 @@
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/sdlc-security': SINT
+'@datadog/sensitive-data-scanner': SDS
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI
 '@datadog/debugger': DEBUG

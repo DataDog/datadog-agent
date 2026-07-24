@@ -426,3 +426,28 @@ filters:
 		})
 	}
 }
+
+func TestEvaluateReturnsWinningRuleTestConfigID(t *testing.T) {
+	filter, errs := NewConnFilter([]Config{
+		{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a"},
+		{Type: FilterTypeInclude, MatchDomain: "local.example.com"},
+		{Type: FilterTypeExclude, MatchDomain: "excluded.example.com", TestConfigID: "remote-a"},
+	}, "", false)
+	require.Empty(t, errs)
+
+	included, testConfigID := filter.Evaluate("remote.example.com", netip.Addr{})
+	assert.True(t, included)
+	assert.Equal(t, "remote-a", testConfigID)
+
+	included, testConfigID = filter.Evaluate("local.example.com", netip.Addr{})
+	assert.True(t, included)
+	assert.Empty(t, testConfigID, "a later local rule must clear RC attribution")
+
+	included, testConfigID = filter.Evaluate("excluded.example.com", netip.Addr{})
+	assert.False(t, included)
+	assert.Empty(t, testConfigID, "excluded connections never produce attributed payloads")
+
+	included, testConfigID = filter.Evaluate("unmatched.test", netip.Addr{})
+	assert.True(t, included)
+	assert.Empty(t, testConfigID)
+}
