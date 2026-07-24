@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added a ``getRemoteConfigState`` action to the
+    ``com.datadoghq.remoteaction.agent`` Private Action Runner bundle, returning
+    the Agent's remote configuration repositories state. (Preview)
