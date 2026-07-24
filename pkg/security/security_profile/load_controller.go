@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -74,6 +76,86 @@ func (m *Manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 	newDump.Cookie = prev.Cookie
 
 	return newDump
+}
+
+// resetAllDumps restarts the capture window of every active dump: it swaps each
+// dump's accumulated tree for a fresh, empty one while keeping kernel-side
+// collection running (same cookie, same traced cgroup/PIDs). Pre-window activity
+// is discarded, not persisted. This backs the host-wide "start" so that the
+// capture window lines up with a CI job boundary rather than agent/VM boot.
+// Returns the number of dumps that were reset.
+func (m *Manager) resetAllDumps() int {
+	// Clear the snapshot ignore-list so cgroups that were stopped in a previous
+	// capture cycle (which get added here to prevent re-creation) become
+	// traceable again. Without this, a stop followed by a start would never
+	// re-trace the cgroups that were active in the prior cycle.
+	clear(m.ignoreFromSnapshot)
+
+	previous := m.activeDumps
+	m.activeDumps = nil
+
+	var reset int
+	for _, ad := range previous {
+		// build the replacement dump before tearing down the old one (same cookie)
+		newDump := m.nextPartialDump(ad)
+
+		// stop the old dump but keep the cgroup spot, and drop its data (no persist)
+		m.finalizeKernelEventCollection(ad, false)
+
+		if err := m.insertActivityDump(newDump); err != nil {
+			seclog.Errorf("couldn't reset tracing [%s]: %v", newDump.GetSelectorStr(), err)
+			continue
+		}
+		reset++
+	}
+	return reset
+}
+
+// snapshotAllCgroups starts a dump for every currently-known cgroup that is not
+// already being traced, so a host-wide capture window opens with a full baseline
+// of everything running now (each new dump snapshots the cgroup's current
+// process tree) rather than only picking up cgroups that exec after the window
+// opens. Caller must hold m.m. Returns the number of cgroups newly traced.
+func (m *Manager) snapshotAllCgroups() int {
+	// cgroup inodes already being traced, to avoid duplicate starts
+	traced := make(map[uint64]bool, len(m.activeDumps))
+	for _, ad := range m.activeDumps {
+		traced[ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode] = true
+	}
+
+	// Collect the current cgroups first and create the dumps afterwards:
+	// IterateCacheEntries holds the cgroup resolver lock, and dump creation
+	// (startDumpWithConfig -> insertActivityDump) calls back into that resolver,
+	// so creating dumps inside the callback would deadlock.
+	type cgroupInfo struct {
+		containerID   containerutils.ContainerID
+		cgroupContext model.CGroupContext
+	}
+	var cgroups []cgroupInfo
+	m.resolvers.CGroupResolver.IterateCacheEntries(func(entry *cgroupModel.CacheEntry) bool {
+		cgctx := entry.GetCGroupContext()
+		if len(cgctx.CGroupID) == 0 || traced[cgctx.CGroupPathKey.Inode] {
+			return false
+		}
+		cgroups = append(cgroups, cgroupInfo{
+			containerID:   entry.GetContainerID(),
+			cgroupContext: cgctx,
+		})
+		return false
+	})
+
+	now := time.Now()
+	var started int
+	for _, cg := range cgroups {
+		if err := m.startDumpWithConfig(cg.containerID, cg.cgroupContext, utils.NewCookie(), *m.defaultActivityDumpLoadConfig(now)); err != nil {
+			// most likely the traced-cgroup capacity was reached (bounded by
+			// traced_cgroups_count); log and keep going for the rest
+			seclog.Debugf("host snapshot: couldn't start tracing cgroup %s: %v", cg.cgroupContext.CGroupID, err)
+			continue
+		}
+		started++
+	}
+	return started
 }
 
 // getOverweightDumps returns the list of dumps that crossed the config.ActivityDumpMaxDumpSize threshold

@@ -1919,6 +1919,7 @@ type ActivityDumpParams struct {
 	Storage           *StorageRequestParams  `protobuf:"bytes,3,opt,name=Storage,proto3" json:"Storage,omitempty"`
 	ContainerID       string                 `protobuf:"bytes,4,opt,name=ContainerID,proto3" json:"ContainerID,omitempty"`
 	CGroupID          string                 `protobuf:"bytes,5,opt,name=CGroupID,proto3" json:"CGroupID,omitempty"`
+	Host              bool                   `protobuf:"varint,6,opt,name=Host,proto3" json:"Host,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1986,6 +1987,13 @@ func (x *ActivityDumpParams) GetCGroupID() string {
 		return x.CGroupID
 	}
 	return ""
+}
+
+func (x *ActivityDumpParams) GetHost() bool {
+	if x != nil {
+		return x.Host
+	}
+	return false
 }
 
 type MetadataMessage struct {
@@ -2425,6 +2433,7 @@ type ActivityDumpStopParams struct {
 	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
 	ContainerID   string                 `protobuf:"bytes,2,opt,name=ContainerID,proto3" json:"ContainerID,omitempty"`
 	CGroupID      string                 `protobuf:"bytes,3,opt,name=CGroupID,proto3" json:"CGroupID,omitempty"`
+	All           bool                   `protobuf:"varint,4,opt,name=All,proto3" json:"All,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2480,9 +2489,17 @@ func (x *ActivityDumpStopParams) GetCGroupID() string {
 	return ""
 }
 
+func (x *ActivityDumpStopParams) GetAll() bool {
+	if x != nil {
+		return x.All
+	}
+	return false
+}
+
 type ActivityDumpStopMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Error         string                 `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+	Dumps         []*ActivityDumpMessage `protobuf:"bytes,2,rep,name=Dumps,proto3" json:"Dumps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2522,6 +2539,13 @@ func (x *ActivityDumpStopMessage) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *ActivityDumpStopMessage) GetDumps() []*ActivityDumpMessage {
+	if x != nil {
+		return x.Dumps
+	}
+	return nil
 }
 
 type TranscodingRequestParams struct {
@@ -3559,13 +3583,14 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\x13LocalStorageFormats\x18\x02 \x03(\tR\x13LocalStorageFormats\x128\n" +
 	"\x17LocalStorageCompression\x18\x03 \x01(\bR\x17LocalStorageCompression\x122\n" +
 	"\x14RemoteStorageFormats\x18\x04 \x03(\tR\x14RemoteStorageFormats\x12:\n" +
-	"\x18RemoteStorageCompression\x18\x05 \x01(\bR\x18RemoteStorageCompression\"\xcf\x01\n" +
+	"\x18RemoteStorageCompression\x18\x05 \x01(\bR\x18RemoteStorageCompression\"\xe3\x01\n" +
 	"\x12ActivityDumpParams\x12\x18\n" +
 	"\aTimeout\x18\x01 \x01(\tR\aTimeout\x12,\n" +
 	"\x11DifferentiateArgs\x18\x02 \x01(\bR\x11DifferentiateArgs\x123\n" +
 	"\aStorage\x18\x03 \x01(\v2\x19.api.StorageRequestParamsR\aStorage\x12 \n" +
 	"\vContainerID\x18\x04 \x01(\tR\vContainerID\x12\x1a\n" +
-	"\bCGroupID\x18\x05 \x01(\tR\bCGroupID\"\x95\x04\n" +
+	"\bCGroupID\x18\x05 \x01(\tR\bCGroupID\x12\x12\n" +
+	"\x04Host\x18\x06 \x01(\bR\x04Host\"\x95\x04\n" +
 	"\x0fMetadataMessage\x12\"\n" +
 	"\fAgentVersion\x18\x01 \x01(\tR\fAgentVersion\x12 \n" +
 	"\vAgentCommit\x18\x02 \x01(\tR\vAgentCommit\x12$\n" +
@@ -3602,13 +3627,15 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\x16ActivityDumpListParams\"_\n" +
 	"\x17ActivityDumpListMessage\x12.\n" +
 	"\x05Dumps\x18\x01 \x03(\v2\x18.api.ActivityDumpMessageR\x05Dumps\x12\x14\n" +
-	"\x05Error\x18\x02 \x01(\tR\x05Error\"j\n" +
+	"\x05Error\x18\x02 \x01(\tR\x05Error\"|\n" +
 	"\x16ActivityDumpStopParams\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12 \n" +
 	"\vContainerID\x18\x02 \x01(\tR\vContainerID\x12\x1a\n" +
-	"\bCGroupID\x18\x03 \x01(\tR\bCGroupID\"/\n" +
+	"\bCGroupID\x18\x03 \x01(\tR\bCGroupID\x12\x10\n" +
+	"\x03All\x18\x04 \x01(\bR\x03All\"_\n" +
 	"\x17ActivityDumpStopMessage\x12\x14\n" +
-	"\x05Error\x18\x01 \x01(\tR\x05Error\"{\n" +
+	"\x05Error\x18\x01 \x01(\tR\x05Error\x12.\n" +
+	"\x05Dumps\x18\x02 \x03(\v2\x18.api.ActivityDumpMessageR\x05Dumps\"{\n" +
 	"\x18TranscodingRequestParams\x12*\n" +
 	"\x10ActivityDumpFile\x18\x01 \x01(\tR\x10ActivityDumpFile\x123\n" +
 	"\aStorage\x18\x02 \x01(\v2\x19.api.StorageRequestParamsR\aStorage\"g\n" +
@@ -3809,65 +3836,66 @@ var file_pkg_security_proto_api_api_proto_depIdxs = []int32{
 	37, // 20: api.ActivityDumpMessage.Metadata:type_name -> api.MetadataMessage
 	50, // 21: api.ActivityDumpMessage.Stats:type_name -> api.ActivityTreeStatsMessage
 	39, // 22: api.ActivityDumpListMessage.Dumps:type_name -> api.ActivityDumpMessage
-	35, // 23: api.TranscodingRequestParams.Storage:type_name -> api.StorageRequestParams
-	38, // 24: api.TranscodingRequestMessage.Storage:type_name -> api.StorageRequestMessage
-	47, // 25: api.ActivityDumpStreamMessage.Selector:type_name -> api.WorkloadSelectorMessage
-	60, // 26: api.ProfileContextMessage.event_type_state:type_name -> api.ProfileContextMessage.EventTypeStateEntry
-	47, // 27: api.SecurityProfileMessage.Selector:type_name -> api.WorkloadSelectorMessage
-	48, // 28: api.SecurityProfileMessage.LastAnomalies:type_name -> api.LastAnomalyTimestampMessage
-	49, // 29: api.SecurityProfileMessage.Instances:type_name -> api.InstanceMessage
-	37, // 30: api.SecurityProfileMessage.Metadata:type_name -> api.MetadataMessage
-	50, // 31: api.SecurityProfileMessage.Stats:type_name -> api.ActivityTreeStatsMessage
-	61, // 32: api.SecurityProfileMessage.profile_contexts:type_name -> api.SecurityProfileMessage.ProfileContextsEntry
-	53, // 33: api.SecurityProfileListMessage.Profiles:type_name -> api.SecurityProfileMessage
-	47, // 34: api.SecurityProfileSaveParams.Selector:type_name -> api.WorkloadSelectorMessage
-	27, // 35: api.ScopedVariableStore.KeyValuesEntry.value:type_name -> api.SECLVariableStateList
-	28, // 36: api.Status.ScopedVariablesEntry.value:type_name -> api.ScopedVariableStore
-	51, // 37: api.ProfileContextMessage.EventTypeStateEntry.value:type_name -> api.event_type_state
-	52, // 38: api.SecurityProfileMessage.ProfileContextsEntry.value:type_name -> api.ProfileContextMessage
-	63, // 39: api.SecurityModuleEvent.GetEventStream:input_type -> google.protobuf.Empty
-	63, // 40: api.SecurityModuleEvent.GetActivityDumpStream:input_type -> google.protobuf.Empty
-	1,  // 41: api.SecurityModuleCmd.DumpProcessCache:input_type -> api.DumpProcessCacheParams
-	5,  // 42: api.SecurityModuleCmd.GetConfig:input_type -> api.GetConfigParams
-	21, // 43: api.SecurityModuleCmd.GetStatus:input_type -> api.GetStatusParams
-	19, // 44: api.SecurityModuleCmd.RunSelfTest:input_type -> api.RunSelfTestParams
-	13, // 45: api.SecurityModuleCmd.GetRuleSetReport:input_type -> api.GetRuleSetReportParams
-	15, // 46: api.SecurityModuleCmd.ReloadPolicies:input_type -> api.ReloadPoliciesParams
-	17, // 47: api.SecurityModuleCmd.GetLoadedPolicies:input_type -> api.GetLoadedPoliciesParams
-	3,  // 48: api.SecurityModuleCmd.DumpNetworkNamespace:input_type -> api.DumpNetworkNamespaceParams
-	33, // 49: api.SecurityModuleCmd.DumpDiscarders:input_type -> api.DumpDiscardersParams
-	36, // 50: api.SecurityModuleCmd.DumpActivity:input_type -> api.ActivityDumpParams
-	40, // 51: api.SecurityModuleCmd.ListActivityDumps:input_type -> api.ActivityDumpListParams
-	42, // 52: api.SecurityModuleCmd.StopActivityDump:input_type -> api.ActivityDumpStopParams
-	44, // 53: api.SecurityModuleCmd.TranscodingRequest:input_type -> api.TranscodingRequestParams
-	54, // 54: api.SecurityModuleCmd.ListSecurityProfiles:input_type -> api.SecurityProfileListParams
-	56, // 55: api.SecurityModuleCmd.SaveSecurityProfile:input_type -> api.SecurityProfileSaveParams
-	0,  // 56: api.SecurityAgentAPI.SendEvent:input_type -> api.SecurityEventMessage
-	46, // 57: api.SecurityAgentAPI.SendActivityDumpStream:input_type -> api.ActivityDumpStreamMessage
-	0,  // 58: api.SecurityModuleEvent.GetEventStream:output_type -> api.SecurityEventMessage
-	46, // 59: api.SecurityModuleEvent.GetActivityDumpStream:output_type -> api.ActivityDumpStreamMessage
-	2,  // 60: api.SecurityModuleCmd.DumpProcessCache:output_type -> api.SecurityDumpProcessCacheMessage
-	6,  // 61: api.SecurityModuleCmd.GetConfig:output_type -> api.SecurityConfigMessage
-	29, // 62: api.SecurityModuleCmd.GetStatus:output_type -> api.Status
-	20, // 63: api.SecurityModuleCmd.RunSelfTest:output_type -> api.SecuritySelfTestResultMessage
-	14, // 64: api.SecurityModuleCmd.GetRuleSetReport:output_type -> api.GetRuleSetReportMessage
-	16, // 65: api.SecurityModuleCmd.ReloadPolicies:output_type -> api.ReloadPoliciesResultMessage
-	18, // 66: api.SecurityModuleCmd.GetLoadedPolicies:output_type -> api.GetLoadedPoliciesMessage
-	4,  // 67: api.SecurityModuleCmd.DumpNetworkNamespace:output_type -> api.DumpNetworkNamespaceMessage
-	34, // 68: api.SecurityModuleCmd.DumpDiscarders:output_type -> api.DumpDiscardersMessage
-	39, // 69: api.SecurityModuleCmd.DumpActivity:output_type -> api.ActivityDumpMessage
-	41, // 70: api.SecurityModuleCmd.ListActivityDumps:output_type -> api.ActivityDumpListMessage
-	43, // 71: api.SecurityModuleCmd.StopActivityDump:output_type -> api.ActivityDumpStopMessage
-	45, // 72: api.SecurityModuleCmd.TranscodingRequest:output_type -> api.TranscodingRequestMessage
-	55, // 73: api.SecurityModuleCmd.ListSecurityProfiles:output_type -> api.SecurityProfileListMessage
-	57, // 74: api.SecurityModuleCmd.SaveSecurityProfile:output_type -> api.SecurityProfileSaveMessage
-	63, // 75: api.SecurityAgentAPI.SendEvent:output_type -> google.protobuf.Empty
-	63, // 76: api.SecurityAgentAPI.SendActivityDumpStream:output_type -> google.protobuf.Empty
-	58, // [58:77] is the sub-list for method output_type
-	39, // [39:58] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	39, // 23: api.ActivityDumpStopMessage.Dumps:type_name -> api.ActivityDumpMessage
+	35, // 24: api.TranscodingRequestParams.Storage:type_name -> api.StorageRequestParams
+	38, // 25: api.TranscodingRequestMessage.Storage:type_name -> api.StorageRequestMessage
+	47, // 26: api.ActivityDumpStreamMessage.Selector:type_name -> api.WorkloadSelectorMessage
+	60, // 27: api.ProfileContextMessage.event_type_state:type_name -> api.ProfileContextMessage.EventTypeStateEntry
+	47, // 28: api.SecurityProfileMessage.Selector:type_name -> api.WorkloadSelectorMessage
+	48, // 29: api.SecurityProfileMessage.LastAnomalies:type_name -> api.LastAnomalyTimestampMessage
+	49, // 30: api.SecurityProfileMessage.Instances:type_name -> api.InstanceMessage
+	37, // 31: api.SecurityProfileMessage.Metadata:type_name -> api.MetadataMessage
+	50, // 32: api.SecurityProfileMessage.Stats:type_name -> api.ActivityTreeStatsMessage
+	61, // 33: api.SecurityProfileMessage.profile_contexts:type_name -> api.SecurityProfileMessage.ProfileContextsEntry
+	53, // 34: api.SecurityProfileListMessage.Profiles:type_name -> api.SecurityProfileMessage
+	47, // 35: api.SecurityProfileSaveParams.Selector:type_name -> api.WorkloadSelectorMessage
+	27, // 36: api.ScopedVariableStore.KeyValuesEntry.value:type_name -> api.SECLVariableStateList
+	28, // 37: api.Status.ScopedVariablesEntry.value:type_name -> api.ScopedVariableStore
+	51, // 38: api.ProfileContextMessage.EventTypeStateEntry.value:type_name -> api.event_type_state
+	52, // 39: api.SecurityProfileMessage.ProfileContextsEntry.value:type_name -> api.ProfileContextMessage
+	63, // 40: api.SecurityModuleEvent.GetEventStream:input_type -> google.protobuf.Empty
+	63, // 41: api.SecurityModuleEvent.GetActivityDumpStream:input_type -> google.protobuf.Empty
+	1,  // 42: api.SecurityModuleCmd.DumpProcessCache:input_type -> api.DumpProcessCacheParams
+	5,  // 43: api.SecurityModuleCmd.GetConfig:input_type -> api.GetConfigParams
+	21, // 44: api.SecurityModuleCmd.GetStatus:input_type -> api.GetStatusParams
+	19, // 45: api.SecurityModuleCmd.RunSelfTest:input_type -> api.RunSelfTestParams
+	13, // 46: api.SecurityModuleCmd.GetRuleSetReport:input_type -> api.GetRuleSetReportParams
+	15, // 47: api.SecurityModuleCmd.ReloadPolicies:input_type -> api.ReloadPoliciesParams
+	17, // 48: api.SecurityModuleCmd.GetLoadedPolicies:input_type -> api.GetLoadedPoliciesParams
+	3,  // 49: api.SecurityModuleCmd.DumpNetworkNamespace:input_type -> api.DumpNetworkNamespaceParams
+	33, // 50: api.SecurityModuleCmd.DumpDiscarders:input_type -> api.DumpDiscardersParams
+	36, // 51: api.SecurityModuleCmd.DumpActivity:input_type -> api.ActivityDumpParams
+	40, // 52: api.SecurityModuleCmd.ListActivityDumps:input_type -> api.ActivityDumpListParams
+	42, // 53: api.SecurityModuleCmd.StopActivityDump:input_type -> api.ActivityDumpStopParams
+	44, // 54: api.SecurityModuleCmd.TranscodingRequest:input_type -> api.TranscodingRequestParams
+	54, // 55: api.SecurityModuleCmd.ListSecurityProfiles:input_type -> api.SecurityProfileListParams
+	56, // 56: api.SecurityModuleCmd.SaveSecurityProfile:input_type -> api.SecurityProfileSaveParams
+	0,  // 57: api.SecurityAgentAPI.SendEvent:input_type -> api.SecurityEventMessage
+	46, // 58: api.SecurityAgentAPI.SendActivityDumpStream:input_type -> api.ActivityDumpStreamMessage
+	0,  // 59: api.SecurityModuleEvent.GetEventStream:output_type -> api.SecurityEventMessage
+	46, // 60: api.SecurityModuleEvent.GetActivityDumpStream:output_type -> api.ActivityDumpStreamMessage
+	2,  // 61: api.SecurityModuleCmd.DumpProcessCache:output_type -> api.SecurityDumpProcessCacheMessage
+	6,  // 62: api.SecurityModuleCmd.GetConfig:output_type -> api.SecurityConfigMessage
+	29, // 63: api.SecurityModuleCmd.GetStatus:output_type -> api.Status
+	20, // 64: api.SecurityModuleCmd.RunSelfTest:output_type -> api.SecuritySelfTestResultMessage
+	14, // 65: api.SecurityModuleCmd.GetRuleSetReport:output_type -> api.GetRuleSetReportMessage
+	16, // 66: api.SecurityModuleCmd.ReloadPolicies:output_type -> api.ReloadPoliciesResultMessage
+	18, // 67: api.SecurityModuleCmd.GetLoadedPolicies:output_type -> api.GetLoadedPoliciesMessage
+	4,  // 68: api.SecurityModuleCmd.DumpNetworkNamespace:output_type -> api.DumpNetworkNamespaceMessage
+	34, // 69: api.SecurityModuleCmd.DumpDiscarders:output_type -> api.DumpDiscardersMessage
+	39, // 70: api.SecurityModuleCmd.DumpActivity:output_type -> api.ActivityDumpMessage
+	41, // 71: api.SecurityModuleCmd.ListActivityDumps:output_type -> api.ActivityDumpListMessage
+	43, // 72: api.SecurityModuleCmd.StopActivityDump:output_type -> api.ActivityDumpStopMessage
+	45, // 73: api.SecurityModuleCmd.TranscodingRequest:output_type -> api.TranscodingRequestMessage
+	55, // 74: api.SecurityModuleCmd.ListSecurityProfiles:output_type -> api.SecurityProfileListMessage
+	57, // 75: api.SecurityModuleCmd.SaveSecurityProfile:output_type -> api.SecurityProfileSaveMessage
+	63, // 76: api.SecurityAgentAPI.SendEvent:output_type -> google.protobuf.Empty
+	63, // 77: api.SecurityAgentAPI.SendActivityDumpStream:output_type -> google.protobuf.Empty
+	59, // [59:78] is the sub-list for method output_type
+	40, // [40:59] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_pkg_security_proto_api_api_proto_init() }

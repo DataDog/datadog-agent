@@ -397,6 +397,7 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.min_timeout", "10m")
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.host_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "imds"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 900)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.dump_duration", "900s")

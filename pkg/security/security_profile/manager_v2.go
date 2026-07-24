@@ -1369,13 +1369,19 @@ func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.Activ
 
 // StopActivityDump stops an active activity dump.
 // NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
-func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+func (m *ManagerV2) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	if params.GetAll() {
+		return &api.ActivityDumpStopMessage{Error: ErrHostDumpV2Unsupported.Error()}, ErrHostDumpV2Unsupported
+	}
 	return nil, nil
 }
 
 // DumpActivity dumps the activity.
 // NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.
-func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+func (m *ManagerV2) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	if params.GetHost() {
+		return &api.ActivityDumpMessage{Error: ErrHostDumpV2Unsupported.Error()}, ErrHostDumpV2Unsupported
+	}
 	return nil, nil
 }
 

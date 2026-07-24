@@ -57,6 +57,30 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		}, ErrActivityDumpManagerDisabled
 	}
 
+	// host-wide mode: rather than tracing a single cgroup, restart the capture
+	// window of every dump the manager is already tracing. Gated behind its own
+	// config switch and never forwards to the remote backend (see StopActivityDump).
+	if params.GetHost() {
+		if !m.config.RuntimeSecurity.ActivityDumpHostDumpEnabled {
+			return &api.ActivityDumpMessage{Error: ErrHostDumpDisabled.Error()}, ErrHostDumpDisabled
+		}
+
+		m.m.Lock()
+		defer m.m.Unlock()
+
+		// Open the window with a full-host baseline: reset the tree of any
+		// already-active dumps (and clear the ignore-list so previously-stopped
+		// cgroups are traceable again), then start a fresh dump for every other
+		// currently-running cgroup so the window captures everything running now
+		// -- not only cgroups that happen to exec after this point.
+		reset := m.resetAllDumps()
+		snapped := m.snapshotAllCgroups()
+		seclog.Infof("host-wide capture window (re)started: %d active dumps reset, %d cgroups snapshotted", reset, snapped)
+		return &api.ActivityDumpMessage{
+			Metadata: &api.MetadataMessage{Name: fmt.Sprintf("host-wide capture window started (%d reset + %d snapshotted = %d cgroups)", reset, snapped, reset+snapped)},
+		}, nil
+	}
+
 	if params.GetContainerID() == "" && params.GetCGroupID() == "" {
 		err := errors.New("you must specify one selector between containerID and cgroupID")
 		return &api.ActivityDumpMessage{Error: err.Error()}, err
@@ -116,6 +140,42 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 	return newDump.Profile.ToSecurityActivityDumpMessage(timeout, m.configuredStorageRequests), nil
 }
 
+// finalizeDumpLocked stops kernel-side collection for a dump and marks its cgroup
+// to be ignored from snapshots so it is not immediately re-created. It does NOT
+// persist the dump. The caller must hold m.m and remove the dump from
+// m.activeDumps.
+func (m *Manager) finalizeDumpLocked(ad *dump.ActivityDump) {
+	m.finalizeKernelEventCollection(ad, true)
+	// mark the cgroup to ignore from snapshot to prevent re-creation
+	m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode] = true
+	seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
+}
+
+// persistStoppedDump persists an already-finalized dump using the provided storage
+// requests. When sendToProfiles is true (and security profiles are enabled) the
+// profile is also queued to the profile manager. This performs encoding and I/O
+// (potentially a remote upload) and must NOT be called while holding m.m. It
+// returns a message describing the dump.
+func (m *Manager) persistStoppedDump(ad *dump.ActivityDump, storageRequests map[config.StorageFormat][]config.StorageRequest, sendToProfiles bool) *api.ActivityDumpMessage {
+	// persist dump if not empty
+	if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
+		if err := m.persist(ad.Profile, storageRequests); err != nil {
+			seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+		} else if sendToProfiles && m.config.RuntimeSecurity.SecurityProfileEnabled {
+			select {
+			case m.newProfiles <- ad.Profile:
+			default:
+				// drop the profile and log error if the channel is full
+				seclog.Warnf("couldn't send new profile to the manager: channel is full")
+			}
+		}
+	} else {
+		m.emptyDropped.Inc()
+	}
+
+	return ad.Profile.ToSecurityActivityDumpMessage(ad.GetTimeout(), storageRequests)
+}
+
 // StopActivityDump stops an active activity dump
 func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
@@ -124,46 +184,54 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 		}, ErrActivityDumpManagerDisabled
 	}
 
-	m.m.Lock()
-	defer m.m.Unlock()
+	// host-wide mode: stop every active dump and persist each to LOCAL storage only
+	// (never forwarded to the remote backend, and not fed into the security profile
+	// pipeline). Gated behind its own config switch. Finalization happens under the
+	// lock; the encode+write of each dump is done after releasing it so a slow disk
+	// cannot stall the CWS event pipeline.
+	if params.GetAll() {
+		if !m.config.RuntimeSecurity.ActivityDumpHostDumpEnabled {
+			return &api.ActivityDumpStopMessage{Error: ErrHostDumpDisabled.Error()}, ErrHostDumpDisabled
+		}
+
+		m.m.Lock()
+		stopped := m.activeDumps
+		m.activeDumps = nil
+		for _, ad := range stopped {
+			m.finalizeDumpLocked(ad)
+		}
+		m.m.Unlock()
+
+		dumps := make([]*api.ActivityDumpMessage, 0, len(stopped))
+		for _, ad := range stopped {
+			dumps = append(dumps, m.persistStoppedDump(ad, m.localStorageRequests, false))
+		}
+		return &api.ActivityDumpStopMessage{Dumps: dumps}, nil
+	}
 
 	if params.GetName() == "" && params.GetContainerID() == "" && params.GetCGroupID() == "" {
 		err := errors.New("you must specify one selector between name, containerID and cgroupID")
 		return &api.ActivityDumpStopMessage{Error: err.Error()}, err
 	}
 
-	toDelete := -1
+	// find and finalize the matching dump under the lock, then persist it after
+	// releasing the lock so encoding/upload does not stall the event pipeline.
+	m.m.Lock()
+	var stopped *dump.ActivityDump
 	for i, ad := range m.activeDumps {
 		if (params.GetName() != "" && ad.Profile.Metadata.Name == params.GetName()) ||
 			(params.GetContainerID() != "" && ad.Profile.Metadata.ContainerID == containerutils.ContainerID(params.GetContainerID())) ||
 			(params.GetCGroupID() != "" && ad.Profile.Metadata.CGroupContext.CGroupID == containerutils.CGroupID(params.GetCGroupID())) {
-			m.finalizeKernelEventCollection(ad, true)
-			// mark the cgroup to ignore from snapshot to prevent re-creation
-			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode] = true
-			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
-			toDelete = i
-
-			// persist dump if not empty
-			if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
-				if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
-					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-				} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
-					select {
-					case m.newProfiles <- ad.Profile:
-					default:
-						// drop the profile and log error if the channel is full
-						seclog.Warnf("couldn't send new profile to the manager: channel is full")
-					}
-				}
-			} else {
-				m.emptyDropped.Inc()
-			}
+			m.finalizeDumpLocked(ad)
+			m.activeDumps = append(m.activeDumps[:i], m.activeDumps[i+1:]...)
+			stopped = ad
 			break
 		}
 	}
+	m.m.Unlock()
 
-	if toDelete >= 0 {
-		m.activeDumps = append(m.activeDumps[:toDelete], m.activeDumps[toDelete+1:]...)
+	if stopped != nil {
+		m.persistStoppedDump(stopped, m.configuredStorageRequests, true)
 		return &api.ActivityDumpStopMessage{}, nil
 	}
 

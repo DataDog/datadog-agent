@@ -22,6 +22,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -1938,5 +1939,38 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 
 			// TODO: also check profile stats and global metrics
 		})
+	}
+}
+
+func TestActivityDumpManager_hostDumpGating(t *testing.T) {
+	// host_dump disabled: both host start and host stop must be rejected
+	disabled := &Manager{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+		ActivityDumpEnabled:         true,
+		ActivityDumpHostDumpEnabled: false,
+	}}}
+
+	if _, err := disabled.DumpActivity(&api.ActivityDumpParams{Host: true}); !errors.Is(err, ErrHostDumpDisabled) {
+		t.Fatalf("host start: expected ErrHostDumpDisabled, got %v", err)
+	}
+	if _, err := disabled.StopActivityDump(&api.ActivityDumpStopParams{All: true}); !errors.Is(err, ErrHostDumpDisabled) {
+		t.Fatalf("host stop: expected ErrHostDumpDisabled, got %v", err)
+	}
+
+	// activity dumps disabled entirely: that check precedes the host gate
+	off := &Manager{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+		ActivityDumpEnabled: false,
+	}}}
+	if _, err := off.DumpActivity(&api.ActivityDumpParams{Host: true}); !errors.Is(err, ErrActivityDumpManagerDisabled) {
+		t.Fatalf("host start (AD off): expected ErrActivityDumpManagerDisabled, got %v", err)
+	}
+}
+
+func TestActivityDumpManagerV2_hostDumpUnsupported(t *testing.T) {
+	m := &ManagerV2{}
+	if _, err := m.DumpActivity(&api.ActivityDumpParams{Host: true}); !errors.Is(err, ErrHostDumpV2Unsupported) {
+		t.Fatalf("V2 host start: expected ErrHostDumpV2Unsupported, got %v", err)
+	}
+	if _, err := m.StopActivityDump(&api.ActivityDumpStopParams{All: true}); !errors.Is(err, ErrHostDumpV2Unsupported) {
+		t.Fatalf("V2 host stop: expected ErrHostDumpV2Unsupported, got %v", err)
 	}
 }

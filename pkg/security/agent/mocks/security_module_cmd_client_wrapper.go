@@ -897,8 +897,8 @@ func (_c *SecurityModuleCmdClientWrapper_SaveSecurityProfile_Call) RunAndReturn(
 }
 
 // StopActivityDump provides a mock function for the type SecurityModuleCmdClientWrapper
-func (_mock *SecurityModuleCmdClientWrapper) StopActivityDump(name string, container string, cgroup string) (*api.ActivityDumpStopMessage, error) {
-	ret := _mock.Called(name, container, cgroup)
+func (_mock *SecurityModuleCmdClientWrapper) StopActivityDump(request *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	ret := _mock.Called(request)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StopActivityDump")
@@ -906,18 +906,18 @@ func (_mock *SecurityModuleCmdClientWrapper) StopActivityDump(name string, conta
 
 	var r0 *api.ActivityDumpStopMessage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, string) (*api.ActivityDumpStopMessage, error)); ok {
-		return returnFunc(name, container, cgroup)
+	if returnFunc, ok := ret.Get(0).(func(*api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)); ok {
+		return returnFunc(request)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string, string) *api.ActivityDumpStopMessage); ok {
-		r0 = returnFunc(name, container, cgroup)
+	if returnFunc, ok := ret.Get(0).(func(*api.ActivityDumpStopParams) *api.ActivityDumpStopMessage); ok {
+		r0 = returnFunc(request)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*api.ActivityDumpStopMessage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string, string) error); ok {
-		r1 = returnFunc(name, container, cgroup)
+	if returnFunc, ok := ret.Get(1).(func(*api.ActivityDumpStopParams) error); ok {
+		r1 = returnFunc(request)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -930,31 +930,19 @@ type SecurityModuleCmdClientWrapper_StopActivityDump_Call struct {
 }
 
 // StopActivityDump is a helper method to define mock.On call
-//   - name string
-//   - container string
-//   - cgroup string
-func (_e *SecurityModuleCmdClientWrapper_Expecter) StopActivityDump(name any, container any, cgroup any) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
-	return &SecurityModuleCmdClientWrapper_StopActivityDump_Call{Call: _e.mock.On("StopActivityDump", name, container, cgroup)}
+//   - request *api.ActivityDumpStopParams
+func (_e *SecurityModuleCmdClientWrapper_Expecter) StopActivityDump(request any) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
+	return &SecurityModuleCmdClientWrapper_StopActivityDump_Call{Call: _e.mock.On("StopActivityDump", request)}
 }
 
-func (_c *SecurityModuleCmdClientWrapper_StopActivityDump_Call) Run(run func(name string, container string, cgroup string)) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
+func (_c *SecurityModuleCmdClientWrapper_StopActivityDump_Call) Run(run func(request *api.ActivityDumpStopParams)) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 *api.ActivityDumpStopParams
 		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
+			arg0 = args[0].(*api.ActivityDumpStopParams)
 		}
 		run(
 			arg0,
-			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -965,7 +953,7 @@ func (_c *SecurityModuleCmdClientWrapper_StopActivityDump_Call) Return(activityD
 	return _c
 }
 
-func (_c *SecurityModuleCmdClientWrapper_StopActivityDump_Call) RunAndReturn(run func(name string, container string, cgroup string) (*api.ActivityDumpStopMessage, error)) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
+func (_c *SecurityModuleCmdClientWrapper_StopActivityDump_Call) RunAndReturn(run func(request *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
 	_c.Call.Return(run)
 	return _c
 }

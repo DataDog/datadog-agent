@@ -47,7 +47,7 @@ type SecurityModuleCmdClientWrapper interface {
 	DumpProcessCache(withArgs bool, format string) (string, error)
 	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
-	StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error)
+	StopActivityDump(request *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)
 	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
 	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
 	GetConfig() (*api.SecurityConfigMessage, error)
@@ -92,12 +92,8 @@ func (c *RuntimeSecurityCmdClient) GenerateActivityDump(request *api.ActivityDum
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityCmdClient) StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error) {
-	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
-		Name:        name,
-		ContainerID: container,
-		CGroupID:    cgroup,
-	})
+func (c *RuntimeSecurityCmdClient) StopActivityDump(request *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	return c.apiClient.StopActivityDump(context.Background(), request)
 }
 
 // GenerateEncoding sends a transcoding request
