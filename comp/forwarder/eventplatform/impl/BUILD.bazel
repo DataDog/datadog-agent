@@ -9,6 +9,7 @@ go_library(
         "pipelines_agentdiscovery.go",
         "pipelines_container.go",
         "pipelines_dataobservability.go",
+        "pipelines_datasecurity.go",
         "pipelines_datastreams.go",
         "pipelines_dbm.go",
         "pipelines_eventmanagement.go",

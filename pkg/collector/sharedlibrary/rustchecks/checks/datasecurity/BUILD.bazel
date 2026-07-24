@@ -1,40 +1,52 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 
 # Rust shared-library checks are Linux-only.
 _LINUX = ["@platforms//os:linux"]
 
-# Backend engines to compile in.
 _FEATURES = ["engine-postgres"]
 
-# cdylib loaded by the shared-library check loader.
+# proto deps pull in C++; link libstdc++ explicitly.
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = ["-lstdc++"],
+    target_compatible_with = _LINUX,
+)
+
 rust_shared_library(
     name = "datasecurity",
     srcs = glob(["src/**/*.rs"]),
-    # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`
     aliases = {
+        "//pkg/collector/sharedlibrary/rustchecks/core": "shlib_core",
         "@crates//:dd-sensitive-data-scanner": "dd_sds",
     },
     crate_features = _FEATURES,
     crate_name = "datasecurity",
     edition = "2024",
+    link_deps = [":cpp_stdlib"],
+    # Use the Bazel proto crate instead of the cargo build-script path (src/proto.rs).
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/sharedlibrary/rustchecks/core",
+        "//pkg/proto/datadog/sds:sds_rust_proto",
+        "//pkg/proto/datadog/sds:timestamp_rust_proto",
         "@crates//:anyhow",
         "@crates//:dd-sensitive-data-scanner",
         "@crates//:libc",
         "@crates//:postgres",
+        "@crates//:prost",
         "@crates//:serde",
         "@crates//:serde_json",
     ],
 )
 
-# Unit tests embedded in the crate sources (run with `bazel test`).
 rust_test(
     name = "datasecurity_test",
     crate = ":datasecurity",
     crate_features = _FEATURES,
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX,
 )
