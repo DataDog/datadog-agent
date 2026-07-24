@@ -13,8 +13,8 @@
   extends: .unit_test_base
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    KUBERNETES_MEMORY_REQUEST: "24Gi"
-    KUBERNETES_MEMORY_LIMIT: "24Gi"
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
     KUBERNETES_CPU_REQUEST: 8
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -60,8 +60,8 @@ tests_ebpf_arm64:
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_MEMORY_REQUEST: "12Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
   artifacts:
     when: always
     paths:
@@ -100,8 +100,8 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_MEMORY_REQUEST: "12Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
   artifacts:
     when: always
     paths:

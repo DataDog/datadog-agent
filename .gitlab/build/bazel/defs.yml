@@ -68,8 +68,8 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
     KUBERNETES_CPU_REQUEST: 8
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
 
 .bazel:runner:linux-arm64:
   #extends: .bazel:defs:cache:persistent
@@ -79,8 +79,8 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
     KUBERNETES_CPU_REQUEST: 8
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
 
 .bazel:runner:macos-amd64:
   extends: .bazel:defs:cache:macos
