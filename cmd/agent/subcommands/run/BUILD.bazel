@@ -201,8 +201,6 @@ go_library(
         "//pkg/util/installinfo",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/log",
-        "//pkg/util/log/errortracking",
-        "//pkg/util/log/setup",
         "//pkg/util/option",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
