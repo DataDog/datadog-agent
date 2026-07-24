@@ -22,7 +22,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-go/v5 v5.9.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.63.0
 	go.opentelemetry.io/collector/config/confignet v1.63.0
@@ -171,6 +170,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.157.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.157.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect

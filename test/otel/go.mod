@@ -15,7 +15,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.80.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.80.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284
 )
 
 require (
@@ -71,14 +70,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect

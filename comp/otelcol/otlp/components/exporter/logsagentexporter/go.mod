@@ -17,7 +17,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.80.2
 	github.com/DataDog/datadog-agent/pkg/version v0.80.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.157.1-0.20260721144046-68240e438284
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.63.0
@@ -70,11 +69,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
