@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use core::*;
+use shlib_core::*;
 
 use crate::backend;
 use crate::config::{CheckConfig, SubTask};
