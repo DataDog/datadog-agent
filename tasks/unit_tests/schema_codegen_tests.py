@@ -50,13 +50,13 @@ class TestCodegenInitSettings(unittest.TestCase):
             {
                 "describe": "list conversion",
                 "split_lines": False,
-                "input":  "['a', 'b', 'c']",
-                "expect": "{\"a\", \"b\", \"c\"}"
+                "input": "['a', 'b', 'c']",
+                "expect": "{\"a\", \"b\", \"c\"}",
             },
             {
                 "describe": "quoted string",
                 "split_lines": False,
-                "input":  "['datadoghq.com']",
+                "input": "['datadoghq.com']",
                 "expect": "{\"datadoghq.com\"}",
             },
             {
@@ -65,17 +65,12 @@ class TestCodegenInitSettings(unittest.TestCase):
                 "input": "{'linux': True, 'other': False}",
                 "expect": "{\"linux\": true, \"other\": false}",
             },
-            {
-                "describe": "string containing comma",
-                "split_lines": False,
-                "input":  "['a,b']",
-                "expect": "{\"a,b\"}"
-            },
+            {"describe": "string containing comma", "split_lines": False, "input": "['a,b']", "expect": "{\"a,b\"}"},
             {
                 "describe": "map conversion",
                 "split_lines": False,
-                "input":  "{'a': 'apple', 'b': 'banana'}",
-                "expect": "{\"a\": \"apple\", \"b\": \"banana\"}"
+                "input": "{'a': 'apple', 'b': 'banana'}",
+                "expect": "{\"a\": \"apple\", \"b\": \"banana\"}",
             },
             {
                 "describe": "regex",
@@ -86,8 +81,8 @@ class TestCodegenInitSettings(unittest.TestCase):
             {
                 "describe": "map with split lines",
                 "split_lines": True,
-                "input":  "{'a': 'apple', 'b': 'banana'}",
-                "expect": "{\n\"a\": \"apple\",\n \"b\": \"banana\",\n}"
+                "input": "{'a': 'apple', 'b': 'banana'}",
+                "expect": "{\n\"a\": \"apple\",\n \"b\": \"banana\",\n}",
             },
         ]
         for c in cases:

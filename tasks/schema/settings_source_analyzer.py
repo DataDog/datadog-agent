@@ -102,7 +102,7 @@ class Processor:
         self.internal_comment = []
 
     def blank(self):
-        if len(self.settings) and self.settings[len(self.settings)-1][0] == '':
+        if len(self.settings) and self.settings[len(self.settings) - 1][0] == '':
             return
         self.settings.append(['', '', '-blank-'])
 

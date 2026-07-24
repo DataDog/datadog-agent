@@ -329,7 +329,7 @@ def as_go_value(text, split_lines=False):
             split_lines = True
         for elem in obj:
             res.append(value_to_gostr(elem))
-    else: # assume dict/map
+    else:  # assume dict/map
         for k, v in obj.items():
             key = value_to_gostr(k)
             val = value_to_gostr(v)
