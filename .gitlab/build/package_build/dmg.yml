@@ -25,7 +25,7 @@
 .agent_dmg:
   extends: .bazel:defs:cache:macos
   stage: package_build
-  needs: ["go_deps", "go_mod_tidy_check"]
+  needs: ["go_mod_tidy_check"]
   rules:
      - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
        variables:
@@ -70,7 +70,7 @@
     # List Python and Go existing environments and their disk space
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
-    - !reference [.retrieve_linux_go_deps]
+    - !reference [.sanitize_goproxy]
     - bash .gitlab/build/package_build/build_agent_dmg.sh
     # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities (no macOS IAM instance role needed)
     - ci-identities-gitlab-job-client assume-role

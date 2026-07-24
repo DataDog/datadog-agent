@@ -43,6 +43,7 @@ var bpfMapNames = []string{
 	"dr_erpc_state",
 	"dr_erpc_stats_b",
 	"dr_erpc_stats_f",
+	"dropped_packets",
 	"enabled_events",
 	"events",
 	"events_ringbuf_",

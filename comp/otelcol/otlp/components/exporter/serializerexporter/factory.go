@@ -107,6 +107,10 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
+	if featuregates.AddUnitsFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithUnits())
+	}
+
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
@@ -153,6 +157,10 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 
 	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
+	}
+
+	if featuregates.AddUnitsFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithUnits())
 	}
 
 	f := &factory{
