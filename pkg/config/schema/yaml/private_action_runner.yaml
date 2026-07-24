@@ -141,6 +141,7 @@ properties:
         - rshell:*
         items:
           type: string
+        env_parser: json_list_or_comma_separated
       allowed_paths:
         node_type: setting
         type: array
@@ -148,6 +149,7 @@ properties:
         - /
         items:
           type: string
+        env_parser: json_list_or_comma_separated
         comment: |-
           Restricted shell allow-lists are opt-in restrictions layered on top of
           the backend-injected lists. By default, they act as a no-op, allowing
