@@ -42,8 +42,8 @@ impl Scanner {
     }
 
     /// Scans `{ column: [values] }` and returns one `Match` per (column, rule).
-    pub fn scan(&self, data: &Value) -> Result<Vec<Match>> {
-        let mut event = data.clone();
+    pub fn scan(&self, data: Value) -> Result<Vec<Match>> {
+        let mut event = data;
         let hits = self
             .scanner
             .scan(&mut event)

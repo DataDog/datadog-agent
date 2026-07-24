@@ -3,6 +3,9 @@ load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 # Rust shared-library checks are Linux-only.
 _LINUX = ["@platforms//os:linux"]
 
+# Backend engines to compile in.
+_FEATURES = ["engine-postgres"]
+
 # cdylib loaded by the shared-library check loader.
 rust_shared_library(
     name = "datasecurity",
@@ -11,6 +14,7 @@ rust_shared_library(
     aliases = {
         "@crates//:dd-sensitive-data-scanner": "dd_sds",
     },
+    crate_features = _FEATURES,
     crate_name = "datasecurity",
     edition = "2024",
     target_compatible_with = _LINUX,
@@ -20,6 +24,7 @@ rust_shared_library(
         "@crates//:anyhow",
         "@crates//:dd-sensitive-data-scanner",
         "@crates//:libc",
+        "@crates//:postgres",
         "@crates//:serde",
         "@crates//:serde_json",
     ],
@@ -29,6 +34,7 @@ rust_shared_library(
 rust_test(
     name = "datasecurity_test",
     crate = ":datasecurity",
+    crate_features = _FEATURES,
     edition = "2024",
     target_compatible_with = _LINUX,
 )
