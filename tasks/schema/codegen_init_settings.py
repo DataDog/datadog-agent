@@ -442,7 +442,6 @@ def get_suffixes_for_pattern(pattern):
             'delegated_auth.refresh_interval_mins',
             'delegated_auth.provider',
             'delegated_auth.aws.region',
-            'api_key',
         ]
     else:
         raise RuntimeError(f"unknown pattern: {pattern}")

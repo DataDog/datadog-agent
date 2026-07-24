@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
+    "pkg/collector/sharedlibrary/rustchecks/core",
+    "pkg/collector/sharedlibrary/rustchecks/checks/datasecurity",
+    "pkg/collector/sharedlibrary/rustchecks/checks/example",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
@@ -77,3 +80,4 @@ tempfile = "3.0"
 [profile.release]
 lto = "fat"
 opt-level = "z"
+codegen-units = 1
