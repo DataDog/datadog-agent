@@ -265,9 +265,16 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	}
 }
 
-// buildRemainder returns a copy of base containing only the instances whose host is NOT in
+// buildRemainder returns a copy of base containing only the instances NOT targeted by any host in
 // matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
 // whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
+//
+// Matching uses instanceMatchesHost — the same logic that selected the instance for scheduling —
+// so an instance is excluded from the remainder exactly when a DO query action runs it as its own
+// check. matchedHosts holds DBIdentifier.Host values verbatim, which for sap_hana are the
+// "host:port" form (e.g. "172.17.128.2:39041") while the instance keys host under "server" with a
+// separate "port"; comparing the raw "host" key alone would never match and would duplicate the
+// instance.
 func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
 	for _, instanceData := range base.Instances {
@@ -276,8 +283,7 @@ func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *int
 			kept = append(kept, instanceData)
 			continue
 		}
-		host, _ := instance["host"].(string)
-		if matchedHosts[host] {
+		if instanceTargeted(instance, matchedHosts) {
 			continue
 		}
 		kept = append(kept, instanceData)
@@ -288,6 +294,17 @@ func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *int
 	remainder := *base
 	remainder.Instances = kept
 	return &remainder
+}
+
+// instanceTargeted reports whether any host in matchedHosts targets this instance, using the same
+// host-matching semantics as scheduling.
+func instanceTargeted(instance map[string]any, matchedHosts map[string]bool) bool {
+	for host := range matchedHosts {
+		if instanceMatchesHost(instance, host) {
+			return true
+		}
+	}
+	return false
 }
 
 // sameConfig reports whether two optional configs are equivalent by autodiscovery digest.
@@ -335,17 +352,25 @@ func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config,
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
 // Matching is by host — per-query dbname fields handle database routing.
-// sap_hana uses "server" as the host key; postgres uses "host".
-// dbID.Host may be "host:port" (as sent by sap_hana backends) or bare "host".
-// We match against both the bare host and the "host:port" form built from the instance.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
+	return instanceMatchesHost(instance, dbID.Host)
+}
+
+// instanceMatchesHost reports whether an integration instance targets the given host.
+// sap_hana uses "server" as the host key; postgres uses "host". The target host may be
+// "host:port" (as sent by sap_hana backends) or bare "host", so we match against both the
+// bare host and the "host:port" form built from the instance. This is the single source of
+// truth for host matching, shared by matchesIdentifier (which decides what to schedule) and
+// buildRemainder (which decides what to keep), so the two can never disagree about whether an
+// instance is targeted by a DO query action.
+func instanceMatchesHost(instance map[string]any, targetHost string) bool {
 	host := instanceHost(instance)
-	if host == dbID.Host {
+	if host == targetHost {
 		return true
 	}
 	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
 	if port, ok := instancePort(instance); ok {
-		return fmt.Sprintf("%s:%d", host, port) == dbID.Host
+		return fmt.Sprintf("%s:%d", host, port) == targetHost
 	}
 	return false
 }
