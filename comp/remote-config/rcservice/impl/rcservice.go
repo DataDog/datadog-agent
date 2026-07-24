@@ -25,6 +25,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -55,6 +56,12 @@ type Dependencies struct {
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
 	Tagger                option.Option[tagger.Component]
+	// RcServiceMRF is the failover-DC remote config service. It is only
+	// provided by the fx graph in binaries that also wire rcservicemrf's fx
+	// module (currently only the core agent's `run` command), so it must be
+	// optional here to avoid breaking every other binary that includes this
+	// component.
+	RcServiceMRF option.Option[rcservicemrf.Component] `optional:"true"`
 }
 
 // Provides defines the output of the rcservice component.
@@ -74,7 +81,7 @@ func NewComponent(deps Dependencies) Provides {
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
 		return Provides{
 			Comp:     none,
-			Endpoint: newRCStateEndpointProvider(nil),
+			Endpoint: newRCStateEndpointProvider(nil, deps.RcServiceMRF),
 		}
 	}
 
@@ -83,14 +90,14 @@ func NewComponent(deps Dependencies) Provides {
 		deps.Logger.Errorf("remote config service not initialized or started: %s", err)
 		return Provides{
 			Comp:     none,
-			Endpoint: newRCStateEndpointProvider(nil),
+			Endpoint: newRCStateEndpointProvider(nil, deps.RcServiceMRF),
 		}
 	}
 
 	return Provides{
 		Comp:          option.New[rcservice.Component](configService),
 		FlareProvider: flaretypes.NewProvider(rcFillFlare(configService, deps.Cfg.GetString("run_path"))),
-		Endpoint:      newRCStateEndpointProvider(configService),
+		Endpoint:      newRCStateEndpointProvider(configService, deps.RcServiceMRF),
 	}
 }
 

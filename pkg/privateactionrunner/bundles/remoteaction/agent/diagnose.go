@@ -16,6 +16,7 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -50,6 +51,14 @@ func (h *GetDiagnoseHandler) Run(
 ) (interface{}, error) {
 	if h.ipcClient == nil {
 		return nil, errors.New("getDiagnose: IPC client is not available")
+	}
+
+	// Without an API key, diagnose suites that check connectivity to the
+	// Datadog backend can't run anything meaningful, so the request would
+	// otherwise come back looking like a clean pass. Mirror the same guard
+	// the CLI applies in cmd/agent/subcommands/diagnose/command.go.
+	if !pkgconfigsetup.Datadog().IsConfigured("api_key") {
+		return nil, errors.New("getDiagnose: no API key configured: diagnose requires an API key to run checks. Set the API key in datadog.yaml or use the DD_API_KEY environment variable")
 	}
 
 	inputs, err := types.ExtractInputs[GetDiagnoseInputs](task)
