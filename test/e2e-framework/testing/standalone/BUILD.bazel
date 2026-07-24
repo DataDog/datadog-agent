@@ -1,1 +1,13 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "standalone",
+    srcs = ["standalone.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/utils/common",
+    ],
+)
