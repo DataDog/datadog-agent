@@ -1543,6 +1543,9 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
+	// Linux-only experimental telemetry that samples whether the DogStatsD Unix datagram queue is non-empty.
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.uds_queue.enabled", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.uds_queue.interval", "10s")
 	config.BindEnvAndSetDefault("telemetry.offlinereporter.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.offlinereporter.heartbeat_interval", "5s")
 

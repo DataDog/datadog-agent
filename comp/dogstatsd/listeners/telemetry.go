@@ -23,6 +23,9 @@ type TelemetryStore struct {
 	tlmUDSOriginDetectionError telemetry.Counter
 	tlmUDSPacketsBytes         telemetry.Counter
 	tlmUDSConnections          telemetry.Gauge
+	tlmUDSQueuePolls           telemetry.Counter
+	tlmUDSQueueNonEmptyPolls   telemetry.Counter
+	tlmUDSQueuePollErrors      telemetry.Counter
 
 	tlmListener telemetry.Histogram
 }
@@ -46,6 +49,12 @@ func NewTelemetryStore(buckets []float64, telemetrycomp telemetry.Component) *Te
 			[]string{"emitter", "listener_id", "transport"}, "Dogstatsd UDS packets bytes"),
 		tlmUDSConnections: telemetrycomp.NewGauge("dogstatsd", "uds_connections",
 			[]string{"listener_id", "transport"}, "Dogstatsd UDS connections count"),
+		tlmUDSQueuePolls: telemetrycomp.NewCounter("dogstatsd", "uds_receive_queue_polls",
+			nil, "Number of successful DogStatsD Unix datagram receive queue polls"),
+		tlmUDSQueueNonEmptyPolls: telemetrycomp.NewCounter("dogstatsd", "uds_receive_queue_non_empty_polls",
+			nil, "Number of polls where the DogStatsD Unix datagram receive queue was non-empty"),
+		tlmUDSQueuePollErrors: telemetrycomp.NewCounter("dogstatsd", "uds_receive_queue_poll_errors",
+			nil, "Number of errors polling the DogStatsD Unix datagram socket queue"),
 		tlmListener: telemetrycomp.NewHistogram(
 			"dogstatsd",
 			"listener_read_latency",

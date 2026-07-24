@@ -25,7 +25,8 @@ import (
 type UDSDatagramListener struct {
 	UDSListener
 
-	conn *net.UnixConn
+	conn           *net.UnixConn
+	queueTelemetry *udsQueueTelemetry
 }
 
 // NewUDSDatagramListener returns an idle UDS datagram Statsd listener
@@ -71,6 +72,14 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 		UDSListener: *l,
 		conn:        conn,
 	}
+	if cfg.GetBool("telemetry.dogstatsd.uds_queue.enabled") {
+		listener.queueTelemetry, err = startUDSQueueTelemetry(conn, cfg.GetDuration("telemetry.dogstatsd.uds_queue.interval"), telemetryStore)
+		if err != nil {
+			// Queue telemetry is diagnostic only and must never prevent DogStatsD startup.
+			telemetryStore.tlmUDSQueuePollErrors.Inc()
+			log.Warnf("dogstatsd-uds: cannot start Unix socket queue telemetry: %v", err)
+		}
+	}
 
 	log.Infof("dogstatsd-uds: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -98,6 +107,7 @@ func (l *UDSDatagramListener) listen() {
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSDatagramListener) Stop() {
+	l.queueTelemetry.close()
 	err := l.conn.Close()
 	if err != nil {
 		log.Errorf("dogstatsd-uds: error closing connection: %s", err)
