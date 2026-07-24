@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -122,7 +123,7 @@ func main() {
 
 	// most of the work is done, we'll just poll (ie. wait) and exec, so we flush the memory
 	// so that the binary appears to use as little memory as possible
-	releaseMemory()
+	rssshrinker.Shrink()
 
 	// we don't want to wake up the trace-agent due to the liveness probe on the TCP listener,
 	// so we accept connections on that socket and wait for them to close,

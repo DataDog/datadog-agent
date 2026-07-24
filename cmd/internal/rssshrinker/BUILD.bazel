@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rssshrinker",
+    srcs = [
+        "malloc_trim_linux_cgo.go",
+        "malloc_trim_stub.go",
+        "rssshrinker.go",
+        "schedule.go",
+        "schedule_linux.go",
+        "schedule_other.go",
+        "shrink_darwin.go",
+        "shrink_linux.go",
+        "shrink_other.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/cmd/internal/rssshrinker",
+    visibility = ["//cmd:__subpackages__"],
+)

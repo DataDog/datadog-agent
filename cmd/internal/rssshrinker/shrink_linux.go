@@ -1,13 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
-package main
+package rssshrinker
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -16,28 +15,38 @@ import (
 	"unsafe"
 )
 
-// MADV_PAGEOUT Reclaim these pages.
+// MADV_PAGEOUT asks Linux to reclaim these pages.
 //
 //nolint:revive
 const MADV_PAGEOUT = 21
 
-// releaseMemory releases memory to the OS
-func releaseMemory() {
-	// Release the memory garbage collected by the Go runtime to Linux
+// Shrink releases reclaimable memory to the OS on a best-effort basis.
+func Shrink() {
+	if isEnvEnabled(DisabledEnvVar) {
+		return
+	}
+
+	// Release memory garbage collected by the Go runtime to Linux.
 	debug.FreeOSMemory()
 
-	// Release file-backed memory to Linux
-	// This is for the GO code that isn’t actively used.
-	if err := pageOutFileBackedMemory(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to release memory: %s\n", err)
-	}
+	// Optionally release C malloc arenas. This is disabled by default because it is
+	// cgo/glibc-specific and is only intended for measuring incremental impact.
+	mallocTrim()
+
+	// Release clean file-backed memory to Linux. This is primarily intended to
+	// improve RSS presentation for code/data touched during startup and no longer
+	// actively used.
+	pageOutFileBackedMemory()
 }
 
-// pageOutFileBackedMemory releases file-backed memory by advising the kernel to page out the memory.
-func pageOutFileBackedMemory() error {
+// pageOutFileBackedMemory releases file-backed memory by advising Linux to page
+// out clean read-only file mappings. It intentionally ignores per-mapping errors:
+// older kernels may not support MADV_PAGEOUT, and individual VMAs can fail for
+// reasons that should not affect process startup or runtime behavior.
+func pageOutFileBackedMemory() {
 	selfMap, err := os.Open("/proc/self/maps")
 	if err != nil {
-		return fmt.Errorf("failed to open /proc/self/maps: %w", err)
+		return
 	}
 	defer selfMap.Close()
 
@@ -54,11 +63,11 @@ func pageOutFileBackedMemory() error {
 
 		// If the 6th column is missing, the line is about an anonymous mapping.
 		// We ignore it as we want to page out only file-backed memory.
-		if len(fields) != 6 {
+		if len(fields) < 6 {
 			continue
 		}
 
-		address, perms, _ /* offset */, _ /* device */, _ /* inode */, pathname := fields[0], fields[1], fields[2], fields[3], fields[4], fields[5]
+		address, perms, pathname := fields[0], fields[1], strings.Join(fields[5:], " ")
 
 		// Ignore pseudo-paths about stack, heap, vdso, named anonymous mapping, etc.
 		if strings.HasPrefix(pathname, "[") {
@@ -75,21 +84,21 @@ func pageOutFileBackedMemory() error {
 			continue
 		}
 
-		begin, err := strconv.ParseUint(beginStr, 16, int(8*unsafe.Sizeof(uintptr(0))))
+		begin, err := strconv.ParseUint(beginStr, 16, strconv.IntSize)
 		if err != nil {
-			return fmt.Errorf("failed to parse begin address %q: %w", beginStr, err)
+			continue
 		}
 
-		end, err := strconv.ParseUint(endStr, 16, int(8*unsafe.Sizeof(uintptr(0))))
+		end, err := strconv.ParseUint(endStr, 16, strconv.IntSize)
 		if err != nil {
-			return fmt.Errorf("failed to parse end address %q: %w", endStr, err)
+			continue
+		}
+
+		if end <= begin {
+			continue
 		}
 
 		// nolint:govet
-		if err := syscall.Madvise(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(begin))), end-begin), MADV_PAGEOUT); err != nil {
-			return fmt.Errorf("failed to madvise: %w", err)
-		}
+		_ = syscall.Madvise(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(begin))), uintptr(end-begin)), MADV_PAGEOUT)
 	}
-
-	return nil
 }

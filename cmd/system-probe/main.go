@@ -11,6 +11,7 @@ package main
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
@@ -18,6 +19,8 @@ import (
 )
 
 func main() {
+	rssshrinker.ScheduleDefault()
+
 	flavor.SetFlavor(flavor.SystemProbe)
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
 	command.SetDefaultCommandIfNonePresent(rootCmd)
