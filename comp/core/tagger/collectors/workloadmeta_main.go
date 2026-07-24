@@ -77,6 +77,14 @@ type WorkloadMetaCollector struct {
 	// events. This is the completeness of the entity itself, without
 	// considering cross-entity dependencies (for example, a container's pod).
 	entityCompleteness map[workloadmeta.EntityID]bool
+
+	// refreshCh routes tag refresh requests through the stream goroutine, avoiding races with staticTags reads in processEvents.
+	refreshCh chan refreshRequest
+}
+
+// refreshRequest asks the stream goroutine to recompute static global tags, signaling done once it has.
+type refreshRequest struct {
+	done chan struct{}
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -147,6 +155,21 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 	})
 }
 
+// RefreshGlobalTags recomputes and republishes global static tags on the stream goroutine, blocking until done or ctx is done.
+func (c *WorkloadMetaCollector) RefreshGlobalTags(ctx context.Context) {
+	done := make(chan struct{})
+	select {
+	case c.refreshCh <- refreshRequest{done: done}:
+	case <-ctx.Done():
+		return
+	}
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+}
+
 func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 	const name = "tagger-workloadmeta"
 
@@ -171,6 +194,12 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 
 			c.processEvents(evBundle)
 
+		// Receives RefreshGlobalTags requests here.
+		// The caller blocks until close(req.done) below.
+		case req := <-c.refreshCh:
+			c.collectStaticGlobalTags(ctx, c.cfg)
+			close(req.done)
+
 		case <-health.C:
 
 		case <-ctx.Done():
@@ -192,6 +221,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
+		refreshCh:                         make(chan refreshRequest),
 	}
 
 	containerLabelsAsTags := mergeMaps(
