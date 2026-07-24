@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 )
 
 // keywordToken is a token matched from one or more case-insensitive keywords.
@@ -169,61 +170,81 @@ func foldExpr(L int) string {
 	return ""
 }
 
-func genGetSpecialToken(b *strings.Builder, maxLen int) {
-	b.WriteString(`
+// getSpecialTokenTmpl mirrors the generated getSpecialToken so the output shape
+// is readable here. Per length it emits the fold statement and a switch whose
+// cases compare the case-folded machine word against the keyword constants.
+// Length-9 arms carry a Tail (the 9th byte, which the uint64 fold can't hold).
+// gofmt fixes indentation, so the template stays loose.
+const getSpecialTokenTmpl = `
 // getSpecialToken returns a case-insensitive special token, or End if the run is
 // not a recognized keyword. It matches a machine word at a time (SWAR):
 // binary.LittleEndian loads the bytes and an asciiCaseBit mask folds case,
 // avoiding a scratch buffer or string allocation.
 func getSpecialToken(input []byte) Token {
 	switch len(input) {
-`)
-	for L := 1; L <= maxLen; L++ {
-		// Collect, in master order, the keywords of this length grouped by token.
-		type arm struct {
-			consts []string // packed constants (or first-8 for L==9)
-			tails  []byte   // 9th byte for L==9, parallel to consts
-			ret    string
+	{{- range .}}
+	case {{.N}}:
+		{{.Fold}}
+		switch folded {
+		{{- range .Arms}}
+		case {{.Consts}}:
+			{{- if .Tail}}
+			if input[8]&^asciiCaseBit == {{.Tail}} {
+				return {{.Token}}
+			}
+			{{- else}}
+			return {{.Token}}
+			{{- end}}
+		{{- end}}
 		}
-		var arms []arm
+	{{- end}}
+	}
+	return End
+}
+`
+
+type genArm struct {
+	Consts string // comma-joined keyword constants for this case
+	Token  string // token to return on match
+	Tail   string // quoted 9th byte for length-9 keywords; "" otherwise
+}
+
+type genLen struct {
+	N    int
+	Fold string // the `folded := ...` statement for this length
+	Arms []genArm
+}
+
+func genGetSpecialToken(b *strings.Builder, maxLen int) {
+	var lengths []genLen
+	for L := 1; L <= maxLen; L++ {
+		var arms []genArm
 		for _, kt := range keywordTokens {
-			var a arm
-			a.ret = kt.Const
+			var consts []string
 			for _, kw := range kt.Keywords {
 				if len(kw) != L {
 					continue
 				}
 				if L == maxKeyword {
-					a.consts = append(a.consts, packConst(kw, 8))
-					a.tails = append(a.tails, upper(kw[8]))
+					// The uint64 fold covers only 8 bytes, so the 9th disambiguates.
+					arms = append(arms, genArm{
+						Consts: packConst(kw, 8),
+						Token:  kt.Const,
+						Tail:   strconv.QuoteRune(rune(upper(kw[8]))),
+					})
 				} else {
-					a.consts = append(a.consts, packConst(kw, L))
+					consts = append(consts, packConst(kw, L))
 				}
 			}
-			if len(a.consts) > 0 {
-				arms = append(arms, a)
+			if len(consts) > 0 {
+				arms = append(arms, genArm{Consts: strings.Join(consts, ", "), Token: kt.Const})
 			}
 		}
-		if len(arms) == 0 {
-			continue
+		if len(arms) > 0 {
+			lengths = append(lengths, genLen{N: L, Fold: foldExpr(L), Arms: arms})
 		}
-
-		fmt.Fprintf(b, "case %d:\n%s\n", L, foldExpr(L))
-		b.WriteString("switch folded {\n")
-		for _, a := range arms {
-			if L == maxKeyword {
-				// One arm per keyword: the 9th byte disambiguates.
-				for i, c := range a.consts {
-					fmt.Fprintf(b, "case %s:\nif input[8]&^asciiCaseBit == %s {\nreturn %s\n}\n",
-						c, strconv.QuoteRune(rune(a.tails[i])), a.ret)
-				}
-			} else {
-				fmt.Fprintf(b, "case %s:\nreturn %s\n", strings.Join(a.consts, ", "), a.ret)
-			}
-		}
-		b.WriteString("}\n")
 	}
-	b.WriteString("}\nreturn End\n}\n")
+	template.Must(template.New("getSpecialToken").Parse(getSpecialTokenTmpl)).Execute(b, lengths)
 }
 
 // genTokenMeta emits the display string and severity of each named token as a
