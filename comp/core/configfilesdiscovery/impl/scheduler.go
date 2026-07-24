@@ -34,6 +34,9 @@ type adScheduler struct {
 	collectionQueue chan configCollectionWork
 	stopOnce        sync.Once
 	workerDone      sync.WaitGroup
+
+	processRetryMu sync.Mutex
+	processRetries map[string]*processRetry
 }
 
 var _ scheduler.Scheduler = (*adScheduler)(nil)
@@ -43,6 +46,7 @@ type configCollectionWork struct {
 	target        target
 	collector     ConfigCollector
 	readerFactory configReaderFactory
+	processRetry  *processRetry
 }
 
 type collectedConfigSender interface {
@@ -114,6 +118,7 @@ func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReade
 		ctx:             ctx,
 		cancel:          cancel,
 		collectionQueue: make(chan configCollectionWork, configCollectionQueueSize),
+		processRetries:  make(map[string]*processRetry),
 	}
 	s.workerDone.Add(1)
 	go s.runCollectionWorker()
@@ -149,12 +154,15 @@ func (s *adScheduler) Schedule(configs []integration.Config) {
 			collector:     collector,
 			readerFactory: readerFactory,
 		}
+		work.processRetry = s.trackProcessRetry(work)
 
 		select {
 		case <-s.ctx.Done():
+			s.removeProcessRetry(work)
 			return
 		case s.collectionQueue <- work:
 		default:
+			s.removeProcessRetry(work)
 			log.Warnf("config files discovery collection queue is full, dropping integration %q service %q runtime %q", config.Name, config.ServiceID, target.runtime)
 		}
 	}
@@ -218,8 +226,20 @@ func (s *adScheduler) runCollectionWorker() {
 				return
 			}
 		case work := <-s.collectionQueue:
-			config, ok := s.runCollection(work)
-			if !ok {
+			if !s.isCurrentCollection(work) {
+				continue
+			}
+			config, err := s.runCollection(work)
+			if err != nil {
+				s.removeProcessRetry(work)
+				continue
+			}
+			if len(config.ConfigFiles) == 0 {
+				s.finishProcessRetryWithoutConfigFiles(work)
+				if len(config.EnvVars) == 0 {
+					continue
+				}
+			} else if !s.removeProcessRetry(work) {
 				continue
 			}
 			if batch.wouldExceedByteLimit(config) && !flushBatch() {
@@ -234,14 +254,14 @@ func (s *adScheduler) runCollectionWorker() {
 	}
 }
 
-// runCollection executes one queued config collection. Returns a collected
-// config and true when collection succeeds and produces config data. Returns an
-// empty collected config and false when there is nothing to add to the batch.
-func (s *adScheduler) runCollection(work configCollectionWork) (CollectedConfig, bool) {
+// runCollection executes one queued config collection. Returns the collected
+// config and any collector error. An empty config and nil error mean the
+// collector did not find data to report.
+func (s *adScheduler) runCollection(work configCollectionWork) (CollectedConfig, error) {
 	reader, err := work.readerFactory(work.target)
 	if err != nil {
 		log.Warnf("failed to build config reader for integration %q service %q runtime %q: %v", work.config.Name, work.config.ServiceID, work.target.runtime, err)
-		return CollectedConfig{}, false
+		return CollectedConfig{}, err
 	}
 	defer reader.Close()
 
@@ -249,15 +269,15 @@ func (s *adScheduler) runCollection(work configCollectionWork) (CollectedConfig,
 	if err != nil {
 		select {
 		case <-s.ctx.Done():
-			return CollectedConfig{}, false
+			return CollectedConfig{}, err
 		default:
 			log.Warnf("failed to collect config data for integration %q service %q: %v", work.config.Name, work.config.ServiceID, err)
-			return CollectedConfig{}, false
+			return CollectedConfig{}, err
 		}
 	}
 
 	if len(collected.ConfigFiles) == 0 && len(collected.EnvVars) == 0 {
-		return CollectedConfig{}, false
+		return CollectedConfig{}, nil
 	}
 
 	collected.Integration = work.config.Name
@@ -267,13 +287,17 @@ func (s *adScheduler) runCollection(work configCollectionWork) (CollectedConfig,
 	for _, file := range collected.ConfigFiles {
 		log.Debugf("config files discovery collected config file: integration %q path %q size_bytes %d truncated %t", work.config.Name, file.Path, len(file.Content), file.Truncated)
 	}
-	return collected, true
+	return collected, nil
 }
 
-// Unschedule is required by the autodiscovery scheduler interface. Config file
-// discovery does not keep a long-running collection tied to a scheduled AD
-// config, so there is nothing to tear down when AD unschedules it.
-func (s *adScheduler) Unschedule(_ []integration.Config) {}
+// Unschedule cancels process-triggered retries for removed AD configs.
+func (s *adScheduler) Unschedule(configs []integration.Config) {
+	s.processRetryMu.Lock()
+	defer s.processRetryMu.Unlock()
+	for _, config := range configs {
+		delete(s.processRetries, config.Digest())
+	}
+}
 
 // Stop is required by the autodiscovery scheduler interface. The component
 // unregisters this scheduler from autodiscovery during shutdown and cancels any
@@ -281,6 +305,9 @@ func (s *adScheduler) Unschedule(_ []integration.Config) {}
 func (s *adScheduler) Stop() {
 	s.stopOnce.Do(func() {
 		s.cancel()
+		s.processRetryMu.Lock()
+		clear(s.processRetries)
+		s.processRetryMu.Unlock()
 		s.workerDone.Wait()
 	})
 }

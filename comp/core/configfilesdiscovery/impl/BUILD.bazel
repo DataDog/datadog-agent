@@ -10,6 +10,8 @@ go_library(
         "evp_reporter.go",
         "kubernetes_reader.go",
         "kubernetes_reader_noop.go",
+        "process_commandline.go",
+        "process_retry.go",
         "reader_helpers.go",
         "scheduler.go",
         "types.go",
@@ -32,6 +34,7 @@ go_library(
         "//pkg/util/log",
         "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_datadog_agent_payload_v5//agentdiscovery",
+        "@com_github_shirou_gopsutil_v4//process",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/timestamppb",
     ],
@@ -45,6 +48,7 @@ go_test(
         "docker",
         "test",
     ],
+    # keep
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
@@ -57,6 +61,7 @@ dd_agent_go_test(
         "configfilesdiscovery_test.go",
         "docker_reader_test.go",
         "kubernetes_reader_test.go",
+        "process_commandline_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -92,12 +97,11 @@ go_test(
         "cri",
         "test",
     ],
+    # keep
     deps = [
         "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_opencontainers_runtime_spec//specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )
