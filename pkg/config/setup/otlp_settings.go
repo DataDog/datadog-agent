@@ -70,6 +70,11 @@ func OTLP(config pkgconfigmodel.Setup) {
 	// container tags into `_dd.tags.container` for traces. Valid values: off, duplicate, rename.
 	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.container_tag_promotion", "off")
 
+	// tags_as_ddtags controls whether the infraattributes processor writes custom tags
+	// (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log
+	// tags instead of log attributes.
+	config.BindEnvAndSetDefault("otlp_config.logs.infra_attributes.tags_as_ddtags", false)
+
 	// Debug settings (default from OTel debugexporter)
 	config.BindEnvAndSetDefault("otlp_config.debug.verbosity", "basic")
 }
