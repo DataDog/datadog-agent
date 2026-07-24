@@ -141,17 +141,29 @@ func (n *nodeImpl) ChildrenKeys() []string {
 	return mapkeys
 }
 
+// setAtMode controls how setAt attaches a newly created node to an existing inner node.
+type setAtMode bool
+
+const (
+	// copyOnWrite clones an existing inner node's children map instead of mutating it, ensuring a tree that has already
+	// been shared is never mutated while it may be read concurrently.
+	copyOnWrite setAtMode = false
+	// mutateInPlace mutates an existing inner node's children map directly. Safe only while the tree is still being
+	// built and has not yet become observable elsewhere.
+	mutateInPlace setAtMode = true
+)
+
 // setAt sets a value in the tree by either creating a leaf node or updating one if the priority is equal or higher than
 // the existing one. The function returns true if an update was done or false if nothing was changed.
 //
 // The key parts should already be lowercased.
 //
 // This method should only be called on the root of a tree, not on an inner node with parents.
-func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) error {
+func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source, mode setAtMode) error {
 	if len(key) == 0 {
 		return errors.New("empty key given to Set")
 	}
-	newNode, err := setNodeAtPath(n, key, value, source)
+	newNode, err := setNodeAtPath(n, key, value, source, mode)
 	if newNode != nil && newNode.IsInnerNode() {
 		n.children = newNode.children
 	}
@@ -161,7 +173,7 @@ func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) e
 // setNodeAtPath allocates a new branch, ending in a leaf at the given path of fields, with the
 // given value, and returns the root of that branch. If a leaf already exists at that path,
 // instead it is modified and no branch is allocated and this returns nil
-func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source) (*nodeImpl, error) {
+func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source, mode setAtMode) (*nodeImpl, error) {
 	if len(fields) == 0 {
 		return newLeafNode(value, source), nil
 	}
@@ -182,12 +194,18 @@ func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model
 	}
 
 	// Recursively set the node at the remaining part of the path
-	createdNode, err := setNodeAtPath(next, fields[1:], value, source)
+	createdNode, err := setNodeAtPath(next, fields[1:], value, source, mode)
 	if err != nil || createdNode == nil {
 		return nil, err
 	}
 
-	// Create a new inner node using the modified list of child nodes
+	// Either attach the child directly to the existing node
+	if n != nil && mode == mutateInPlace {
+		n.children[f] = createdNode
+		return n, nil
+	}
+
+	// Or create a new inner node using the modified list of child nodes
 	var copyChildren map[string]*nodeImpl
 	if n != nil {
 		copyChildren = maps.Clone(n.children)
