@@ -7,7 +7,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value
+from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -88,6 +88,44 @@ class TestCodegenInitSettings(unittest.TestCase):
         for c in cases:
             with self.subTest(service=c['describe']):
                 actual = as_go_value(c['input'], split_lines=c['split_lines'])
+                self.assertEqual(c['expect'], actual, c['describe'])
+
+    def test_try_parse_duration(self):
+        cases = [
+            {
+                "describe": "10 seconds",
+                "input": "10s",
+                "expect": "10*time.Second",
+            },
+            {
+                "describe": "4 minutes, 30 seconds",
+                "input": "4m30s",
+                "expect": "4*time.Minute + 30*time.Second",
+            },
+            {
+                "describe": "100 microseconds",
+                "input": "100µs",
+                "expect": "100*time.Microsecond",
+            },
+            {
+                "describe": "4 nanoseconds",
+                "input": "4ns",
+                "expect": "4*time.Nanosecond",
+            },
+            {
+                "describe": "-1 nanoseconds",
+                "input": "-1ns",
+                "expect": "-1*time.Nanosecond",
+            },
+            {
+                "describe": "-2 hours and 400 milliseconds",
+                "input": "-2h400ms",
+                "expect": "-(2*time.Hour + 400*time.Millisecond)",
+            },
+        ]
+        for c in cases:
+            with self.subTest(service=c['describe']):
+                actual = try_parse_duration(c['input'])
                 self.assertEqual(c['expect'], actual, c['describe'])
 
 
