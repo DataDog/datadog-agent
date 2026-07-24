@@ -212,22 +212,17 @@ smp-experiment-selection-comment:
       # --- Codeowners-based preselection (best effort, POC) ---
       # Pre-tick a folder when THIS PR changes files owned by that folder's
       # CODEOWNERS team (e.g. the PR touches logs-pipeline code -> pre-tick
-      # test/regression/logs). Uses the CHECKED-OUT CODEOWNERS on both sides
-      # (changed files -> teams, and folder -> team), so it depends only on the
-      # PR, never on the base branch or requested reviewers.
+      # test/regression/logs). The intersect (changed files -> teams, folder ->
+      # team, using the checked-out CODEOWNERS on both sides) lives in the
+      # reusable, tested `owners.smp-preselect` task; this job just fetches the
+      # PR's changed files and calls it. Depends only on the PR, never on main.
       # --default-select only affects rows that are NEW in this render, so it acts
       # as a first-appearance default the developer can still untick; the merge
       # preserves their choice thereafter. Any failure here degrades to no
       # preselection (all folders unticked) -- never blocks the comment.
-      #
-      # POC NOTE: owner resolution goes through `dda inv owners.*` (the repo's
-      # sanctioned way to parse CODEOWNERS in CI -- same pattern as lint_codeowners
-      # / junit-upload, and dda is already available on this image).
       DEFAULT_SELECT=""
       set +e
-      # Teams whose owned files this PR changes: fetch the PR's changed files
-      # (paginated, up to GitHub's 3000-file cap), then resolve owning teams in a
-      # single pass via owners.teams-owning-files.
+      # Fetch the PR's changed files (paginated, up to GitHub's 3000-file cap).
       : > changed_files.txt
       page=1
       while :; do
@@ -238,26 +233,9 @@ smp-experiment-selection-comment:
         [ "${count:-0}" -lt 100 ] && break
         page=$((page + 1)); [ "${page}" -gt 30 ] && break
       done
-      # </dev/null: dda reads stdin; without it it would swallow the loop's input.
-      INVOLVED_TEAMS=$(dda inv owners.teams-owning-files --changed-files changed_files.txt </dev/null 2>/dev/null \
-        | tr '[:upper:]' '[:lower:]' | sort -u)
-      # Selectable folders = the CLI's json groups (quality_gates/ebpf already excluded).
-      GROUPS=$(./smp experiments list --target-config-dir "${ROOT}" --exclude-path quality_gates,ebpf --format json \
-        | jq -r '.[].group | select(. != "")' | sort -u)
-      for g in ${GROUPS}; do
-        # Owning team(s) for the folder, isolated (grep @datadog/) from any dda
-        # banner output and normalized to bare lowercase slugs, one per line.
-        owners=$(dda inv owners.find-codeowners --path "${ROOT}/${g}/" </dev/null 2>/dev/null \
-          | tr ',' '\n' | grep -i '@datadog/' | tr '[:upper:]' '[:lower:]' | sed 's#.*@datadog/##' | tr -d ' ')
-        for o in ${owners}; do
-          if printf '%s\n' "${INVOLVED_TEAMS}" | grep -qx "${o}"; then
-            DEFAULT_SELECT="${DEFAULT_SELECT}${DEFAULT_SELECT:+,}${g}"
-            break
-          fi
-        done
-      done
+      # </dev/null: dda reads stdin; without it it would swallow the block's input.
+      DEFAULT_SELECT=$(dda inv owners.smp-preselect --config-dir "${ROOT}" --changed-files changed_files.txt --exclude quality_gates,ebpf </dev/null 2>/dev/null)
       set -e
-      echo "Teams with changed owned files: $(printf '%s' "${INVOLVED_TEAMS}" | tr '\n' ' ')"
       echo "Codeowners-preselected folders: ${DEFAULT_SELECT:-<none>}"
       DEFAULT_SELECT_ARG=""
       if [ -n "${DEFAULT_SELECT}" ]; then DEFAULT_SELECT_ARG="--default-select ${DEFAULT_SELECT}"; fi
