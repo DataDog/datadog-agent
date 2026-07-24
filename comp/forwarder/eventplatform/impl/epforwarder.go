@@ -123,7 +123,7 @@ func Diagnose() []diagnose.Diagnosis {
 		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
 			continue
 		}
-		// TODO(dsec): could we diagnose the SDS result pipeline?
+		// TODO(dsec-182): could we diagnose the SDS result pipeline?
 		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
 			continue
 		}
@@ -463,7 +463,7 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
-		// TODO(dsec): This could be removed if we want to enable the SDS result pipeline by default.
+		// TODO(dsec-182): This could be removed if we want to enable the SDS result pipeline by default.
 		if desc.eventType == eventplatform.EventTypeSDSResult && !config.GetBool("data_security.enabled") {
 			continue
 		}
