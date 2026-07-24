@@ -10,6 +10,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 from invoke.runners import Result
 
 from tasks import omnibus
+from tasks.libs.common.omnibus import install_dir_for_project
 
 
 class MockContextRaising(MockContext):
@@ -257,6 +258,42 @@ class TestOmnibusRunTask(unittest.TestCase):
         self.assertEqual(command.count("--override="), 1)
 
 
+class TestOmnibusEnvPassthrough(unittest.TestCase):
+    def test_omnibus_base_dir_is_not_forwarded_to_regular_builds(self):
+        with mock.patch('tasks.omnibus.warnings.warn'):
+            env = omnibus._passthrough_env_for_os({'OMNIBUS_BASE_DIR': '/var/cache/dd/omnibus'}, 'linux')
+
+        self.assertNotIn('OMNIBUS_BASE_DIR', env)
+
+
+class TestInstallDirForProject(unittest.TestCase):
+    def test_install_dir_for_project(self):
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Linux"):
+            self.assertEqual(install_dir_for_project("agent"), "/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("ddot"), "/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("dogstatsd"), "/opt/datadog-dogstatsd")
+            self.assertEqual(install_dir_for_project("eudm"), "/opt/datadog-agent-eudm")
+            self.assertEqual(install_dir_for_project("installer"), "/opt/datadog-installer")
+            self.assertEqual(install_dir_for_project("iot-agent"), "/opt/datadog-agent")
+        with self.assertRaises(NotImplementedError):
+            install_dir_for_project("not-a-real-project")
+
+    def test_install_dir_for_project_on_windows(self):
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Windows"):
+            self.assertEqual(install_dir_for_project("agent"), "C:/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("ddot"), "C:/opt/datadog-agent")
+            self.assertEqual(install_dir_for_project("dogstatsd"), "C:/opt/datadog-dogstatsd")
+            self.assertEqual(install_dir_for_project("eudm"), "C:/opt/datadog-agent-eudm")
+            self.assertEqual(install_dir_for_project("installer"), "C:/opt/datadog-installer")
+            self.assertEqual(install_dir_for_project("iot-agent"), "C:/opt/datadog-agent")
+
+    def test_install_dir_for_project_for_platform_overrides_host_platform(self):
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Linux"):
+            self.assertEqual(install_dir_for_project("agent", for_platform="windows"), "C:/opt/datadog-agent")
+        with mock.patch("tasks.libs.common.omnibus.platform.system", return_value="Windows"):
+            self.assertEqual(install_dir_for_project("agent", for_platform="linux"), "/opt/datadog-agent")
+
+
 class TestOmnibusInstall(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
@@ -444,3 +481,41 @@ Description: Datadog Monitoring Agent
                 'https://apt.datad0g.com/pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63448947-1_amd64.deb',
             )
             self.assertEqual(env['OMNIBUS_REPACKAGE_SOURCE_SHA256'], 'def456abc789')
+
+    def test_repackaged_agent_uses_omnibus_path_overrides(self):
+        packages_content = """
+Package: datadog-agent
+Version: 1:7.67.0~devel.git.113.2750233.pipeline.63448947-1
+Architecture: amd64
+Filename: pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63448947-1_amd64.deb
+SHA256: def456abc789
+Description: Datadog Monitoring Agent
+"""
+        mock_ctx = MockContextRaising(run={})
+        mock_ctx.set_result_for('run', re.compile(r'dpkg --print-architecture'), Result('amd64'))
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    'OMNIBUS_BASE_DIR': '/var/cache/dd/omnibus',
+                    'OMNIBUS_CACHE_DIR': '/var/cache/dd/omnibus/cache',
+                },
+                clear=True,
+            ),
+            mock.patch('os.path.exists', return_value=False),
+            mock.patch('tasks.omnibus.get_omnibus_env', return_value={}),
+            mock.patch('tasks.omnibus.bundle_install_omnibus'),
+            mock.patch('tasks.omnibus.omnibus_run_task') as mock_run_task,
+            mock.patch('requests.get') as mock_get,
+        ):
+            mock_response = mock.MagicMock()
+            mock_response.__enter__.return_value.iter_lines.return_value = packages_content.splitlines()
+            mock_get.return_value = mock_response
+
+            omnibus.build_repackaged_agent(mock_ctx)
+
+        _, kwargs = mock_run_task.call_args
+        self.assertEqual(kwargs['base_dir'], '/var/cache/dd/omnibus')
+        self.assertEqual(kwargs['cache_dir'], '/var/cache/dd/omnibus/cache')
+        self.assertEqual(kwargs['env']['OMNIBUS_BASE_DIR'], '/var/cache/dd/omnibus')

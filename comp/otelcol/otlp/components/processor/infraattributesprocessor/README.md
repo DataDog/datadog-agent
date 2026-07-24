@@ -68,6 +68,25 @@ processors:
     trace_container_tag_promotion: duplicate
 ```
 
+### Log tags as ddtags
+
+**This option only affects the logs pipeline.** By default, custom tags emitted by this processor — for example tags produced by [`kubernetesResourcesLabelsAsTags` / `kubernetesResourcesAnnotationsAsTags`](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#custom-tags) — are written as resource attributes, which surface in Datadog as **log attributes**, not as **log tags**. This differs from non-OTLP (native) log ingestion, where the same settings produce real log tags.
+
+The `logs_tags_as_ddtags` option closes this gap by writing these custom tags into a `ddtags` log record attribute instead. The Datadog logs intake recognizes `ddtags` and turns its contents into real log tags.
+
+* `logs_tags_as_ddtags: false` *(default)* — custom tags remain resource attributes (log attributes). Existing behavior.
+* `logs_tags_as_ddtags: true` — custom tags are removed from resource attributes and instead appended to a `ddtags` log record attribute (log tags). If a log record already carries a `ddtags` attribute (e.g. set by the SDK), the processor's tags are appended to it rather than overwriting it.
+
+Keys recognized by known DD / OTel semantic conventions, and USM keys (`service`, `env`, `version`), are unaffected by this option and always remain resource attributes — the Datadog logs intake already promotes them into tags on its own via its curated attribute-to-tag mapping.
+
+Example:
+```
+processors:
+  infraattributes:
+    cardinality: 2
+    logs_tags_as_ddtags: true
+```
+
 ## Expected Attributes
 
 The infra attributes processor [looks up the following resource attributes](https://github.com/DataDog/datadog-agent/blob/a7e58c617398e40e4d9f730f855b5bda963f3d42/comp/otelcol/otlp/components/processor/infraattributesprocessor/common.go#L90-L125) in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:

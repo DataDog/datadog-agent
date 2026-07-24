@@ -9,6 +9,18 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+
+- Bump the embedded Python from 3.13.12 to 3.13.14, matching the version used by the Linux omnibus/bazel build
+- Build embedded OpenSSL with the same hardening flags as the Linux omnibus/bazel build (`no-idea no-mdc2 no-rc5 no-ssl3 no-gost no-filenames`, dynamic zlib loading) — the AIX build previously shipped OpenSSL with default settings, retaining legacy/weak algorithms and the GOST engine that Linux deliberately strips
+- Add a `/usr/bin/datadog-agent` convenience symlink to the agent wrapper on install, matching the Linux packages
+- Fix `/var/log/datadog` permissions: it was left world-readable (default `0755`) after install instead of the restrictive `0750` (owner/group `dd-agent`) used on other platforms
+- Disable Python's `dbm` C-extension backends (`dbm.gnu`/`dbm.ndbm`) to match the Linux omnibus/bazel build, which links no dbm backend either; `gdbm` is no longer staged into the embedded tree
+
+
+---
+
+## 7.83.0-devel.git.104.a0e68a4-1 (2026-07-15)
+
 - Bundle the `process` check in the AIX package so operators can monitor processes by name without any manual install step; the check uses the `psutil` library already included in the embedded Python
 - Fix `ibm_mq` check queue discovery on AIX: patch `pymqi`'s `MQENC_NATIVE` constant from `0x222` (little-endian) to `0x111` (big-endian) after install. The constant is generated from Linux headers and caused `MQRCCF_CFH_LENGTH_ERROR` when the check sent PCF commands to a local MQ queue manager.
 - Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host

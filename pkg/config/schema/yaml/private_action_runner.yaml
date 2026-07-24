@@ -94,6 +94,16 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  executor:
+    node_type: section
+    type: object
+    properties:
+      socket_path:
+        node_type: setting
+        type: string
+        platform_default:
+          windows: \\.\pipe\dd-par-executor
+          other: ${run_path}/par-executor.sock
   identity_file_path:
     node_type: setting
     type: string
@@ -138,6 +148,20 @@ properties:
         - /
         items:
           type: string
+        comment: |-
+          Restricted shell allow-lists are opt-in restrictions layered on top of
+          the backend-injected lists. By default, they act as a no-op, allowing
+          everything: the backend is the only filter.
+
+          To allow none, use an explicit empty list.
+          Env vars support both CSV and JSON-array forms; the JSON form gives
+          env/YAML parity, including the explicit kill-switch via "[]".
+
+          - allowed_paths defaults to ["/"].
+          - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+          handled as a special case in the operator-side intersection: when
+          it appears in the operator list, every backend command in the
+          "rshell:" namespace is admitted.
   skip_connection_creation:
     node_type: setting
     type: boolean
