@@ -2,8 +2,6 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
-dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target?
-
 dependency 'datadog-agent-integrations-py3'
 
 build do
