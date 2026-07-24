@@ -1,9 +1,9 @@
-use shlib_core::Config;
 use dd_sds::{
     Labels, ProximityKeywordsConfig, RegexRuleConfig, RootRuleConfig, SecondaryValidator,
     Suppressions,
 };
 use serde_json::json;
+use shlib_core::Config;
 
 use crate::payload::Match;
 

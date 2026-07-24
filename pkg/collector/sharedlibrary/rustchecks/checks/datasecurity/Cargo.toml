@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+build = "build.rs"
 
 [features]
 default = ["engine-postgres"]
@@ -16,8 +17,7 @@ engine-postgres = [
 [dependencies]
 anyhow.workspace = true
 # Aliased to `shlib_core` so the crate name does not shadow the std `core`
-# crate (`::core::` paths), which matters once the prost-generated proto code
-# is added.
+# crate, whose `::core::` paths are referenced by the prost-generated proto code.
 shlib_core = { path = "../../core", package = "core" }
 # Keep only the `dd-sds` feature and disable default features so we pull in just
 # the necessary dependencies and avoid shipping the third-party checkers.
@@ -25,9 +25,14 @@ dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260715-fcd
 libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+prost.workspace = true
+prost-types.workspace = true
 
 # postgres engine (gated behind the `engine-postgres` feature)
 postgres = { version = "0.19", optional = true }
+
+[build-dependencies]
+prost-build.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

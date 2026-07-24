@@ -6,6 +6,7 @@ use check::check;
 
 mod config;
 mod payload;
+mod proto;
 mod scanning;
 mod version;
 use version::VERSION;
