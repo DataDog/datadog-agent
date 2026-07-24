@@ -13,6 +13,13 @@
       fi
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/${BASE_IMAGE_NAME:-agent-base-image}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${BASE_IMAGE_TAG_SUFFIX:-}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
+    - |
+      echo "buildkit_correlation ci_job_id=${CI_JOB_ID} ci_pipeline_id=${CI_PIPELINE_ID}"
+      docker buildx inspect --bootstrap | awk '
+        /^Endpoint:/ { print "buildkit_correlation buildkit_endpoint=" $2; next }
+        /^Driver Options:/ && /namespace="/ { sub(/^.*namespace="/, ""); sub(/".*$/, ""); print "buildkit_correlation buildkit_namespace=" $0; next }
+        /org.mobyproject.buildkit.worker.hostname:/ { print "buildkit_correlation buildkit_worker_hostname=" $2; next }
+      ' || true
     # Caching setup
     - DOCKER_CACHE_REGISTRY_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET}"
