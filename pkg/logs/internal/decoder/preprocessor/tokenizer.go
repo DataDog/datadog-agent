@@ -50,8 +50,10 @@ func makeTokenLookup() [256]Token {
 	lookup['\n'] = Space
 	lookup['\r'] = Space
 
-	// Special characters (generated from the master token list).
-	addSpecialCharTokens(&lookup)
+	// Special characters (specialChars is generated from the master token list).
+	for _, c := range specialChars {
+		lookup[c.ch] = c.tok
+	}
 
 	return lookup
 }

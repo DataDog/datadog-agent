@@ -92,9 +92,8 @@ func main() {
 	b.WriteString(header)
 	fmt.Fprintf(&b, "\n// maxSpecialTokenLen is the longest keyword eligible for special-token promotion.\nconst maxSpecialTokenLen = %d\n", maxLen)
 	genGetSpecialToken(&b, maxLen)
-	genTokenToString(&b)
-	genIsImportant(&b)
-	genAddSpecialCharTokens(&b)
+	genTokenMeta(&b)
+	genSpecialChars(&b)
 
 	src, err := format.Source([]byte(b.String()))
 	if err != nil {
@@ -120,10 +119,7 @@ const header = `// Unless explicitly stated otherwise all files in this reposito
 
 package preprocessor
 
-import (
-	"encoding/binary"
-	"strings"
-)
+import "encoding/binary"
 `
 
 // packConst packs the first n bytes of kw (uppercased) little-endian into a
@@ -230,54 +226,38 @@ func getSpecialToken(input []byte) Token {
 	b.WriteString("}\nreturn End\n}\n")
 }
 
-func genTokenToString(b *strings.Builder) {
+// genTokenMeta emits the display string and severity of each named token as a
+// data table. token_tables.go derives tokenToString and isImportant from it at
+// init; the D*/C* run tokens are handled there, not listed here.
+func genTokenMeta(b *strings.Builder) {
 	b.WriteString(`
-// tokenToString converts a single token to a debug string.
-func tokenToString(token Token) string {
-	if token >= D1 && token <= D10 {
-		return strings.Repeat("D", int(token-D1)+1)
-	} else if token >= C1 && token <= C10 {
-		return strings.Repeat("C", int(token-C1)+1)
-	}
-	switch token {
-	case Space:
-		return " "
+// tokenMeta is the display string and critical-severity flag for each named
+// token. Consumed by token_tables.go (tokenToString, isImportant).
+var tokenMeta = []struct {
+	tok      Token
+	debug    string
+	critical bool
+}{
 `)
-	for _, ct := range charTokens {
-		fmt.Fprintf(b, "case %s:\nreturn %s\n", ct.Const, strconv.Quote(string(ct.Char)))
-	}
+	fmt.Fprintf(b, "{Space, %s, false},\n", strconv.Quote(" "))
 	for _, kt := range keywordTokens {
-		fmt.Fprintf(b, "case %s:\nreturn %s\n", kt.Const, strconv.Quote(kt.Debug))
+		fmt.Fprintf(b, "{%s, %s, %t},\n", kt.Const, strconv.Quote(kt.Debug), kt.Critical)
 	}
-	b.WriteString("}\nreturn \"\"\n}\n")
+	b.WriteString("}\n")
 }
 
-func genIsImportant(b *strings.Builder) {
-	var crit []string
-	for _, kt := range keywordTokens {
-		if kt.Critical {
-			crit = append(crit, kt.Const)
-		}
-	}
+// genSpecialChars emits the single-byte special-character tokens as a data
+// table. makeTokenLookup (classification) and token_tables.go (display) use it.
+func genSpecialChars(b *strings.Builder) {
 	b.WriteString(`
-// isImportant reports whether any token is a critical-severity keyword; such
-// logs bypass adaptive sampling.
-func isImportant(tokens []Token) bool {
-	for _, t := range tokens {
-		switch t {
-`)
-	fmt.Fprintf(b, "case %s:\nreturn true\n", strings.Join(crit, ", "))
-	b.WriteString("}\n}\nreturn false\n}\n")
-}
-
-func genAddSpecialCharTokens(b *strings.Builder) {
-	b.WriteString(`
-// addSpecialCharTokens sets the single-byte special-character tokens in the
-// classification lookup table.
-func addSpecialCharTokens(lookup *[256]Token) {
+// specialChars maps single bytes to their tokens.
+var specialChars = []struct {
+	ch  byte
+	tok Token
+}{
 `)
 	for _, ct := range charTokens {
-		fmt.Fprintf(b, "lookup[%s] = %s\n", strconv.QuoteRune(rune(ct.Char)), ct.Const)
+		fmt.Fprintf(b, "{%s, %s},\n", strconv.QuoteRune(rune(ct.Char)), ct.Const)
 	}
 	b.WriteString("}\n")
 }

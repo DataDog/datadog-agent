@@ -21,6 +21,7 @@ go_library(
         "stack_trace_aggregator.go",
         "timestamp_detector.go",
         "token_graph.go",
+        "token_tables.go",
         "token_tables_gen.go",
         "tokenizer.go",
         "tokens.go",

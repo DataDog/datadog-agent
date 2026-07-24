@@ -7,10 +7,7 @@
 
 package preprocessor
 
-import (
-	"encoding/binary"
-	"strings"
-)
+import "encoding/binary"
 
 // maxSpecialTokenLen is the longest keyword eligible for special-token promotion.
 const maxSpecialTokenLen = 9
@@ -115,153 +112,65 @@ func getSpecialToken(input []byte) Token {
 	return End
 }
 
-// tokenToString converts a single token to a debug string.
-func tokenToString(token Token) string {
-	if token >= D1 && token <= D10 {
-		return strings.Repeat("D", int(token-D1)+1)
-	} else if token >= C1 && token <= C10 {
-		return strings.Repeat("C", int(token-C1)+1)
-	}
-	switch token {
-	case Space:
-		return " "
-	case Colon:
-		return ":"
-	case Semicolon:
-		return ";"
-	case Dash:
-		return "-"
-	case Underscore:
-		return "_"
-	case Fslash:
-		return "/"
-	case Bslash:
-		return "\\"
-	case Period:
-		return "."
-	case Comma:
-		return ","
-	case Singlequote:
-		return "'"
-	case Doublequote:
-		return "\""
-	case Backtick:
-		return "`"
-	case Tilda:
-		return "~"
-	case Star:
-		return "*"
-	case Plus:
-		return "+"
-	case Equal:
-		return "="
-	case Parenopen:
-		return "("
-	case Parenclose:
-		return ")"
-	case Braceopen:
-		return "{"
-	case Braceclose:
-		return "}"
-	case Bracketopen:
-		return "["
-	case Bracketclose:
-		return "]"
-	case Ampersand:
-		return "&"
-	case Exclamation:
-		return "!"
-	case At:
-		return "@"
-	case Pound:
-		return "#"
-	case Dollar:
-		return "$"
-	case Percent:
-		return "%"
-	case Uparrow:
-		return "^"
-	case Month:
-		return "MTH"
-	case Day:
-		return "DAY"
-	case Apm:
-		return "PM"
-	case Zone:
-		return "ZONE"
-	case T:
-		return "T"
-	case Warn:
-		return "WARN"
-	case Fatal:
-		return "FATAL"
-	case Error:
-		return "ERROR"
-	case Panic:
-		return "PANIC"
-	case Alert:
-		return "ALERT"
-	case Severe:
-		return "SEVERE"
-	case Critical:
-		return "CRIT"
-	case Emergency:
-		return "EMERG"
-	case Exception:
-		return "EXCEPTION"
-	case Crash:
-		return "CRASH"
-	case Failure:
-		return "FAILURE"
-	case Deadlock:
-		return "DEADLOCK"
-	case Timeout:
-		return "TIMEOUT"
-	}
-	return ""
+// tokenMeta is the display string and critical-severity flag for each named
+// token. Consumed by token_tables.go (tokenToString, isImportant).
+var tokenMeta = []struct {
+	tok      Token
+	debug    string
+	critical bool
+}{
+	{Space, " ", false},
+	{Month, "MTH", false},
+	{Day, "DAY", false},
+	{Apm, "PM", false},
+	{Zone, "ZONE", false},
+	{T, "T", false},
+	{Warn, "WARN", true},
+	{Fatal, "FATAL", true},
+	{Error, "ERROR", true},
+	{Panic, "PANIC", true},
+	{Alert, "ALERT", true},
+	{Severe, "SEVERE", true},
+	{Critical, "CRIT", true},
+	{Emergency, "EMERG", true},
+	{Exception, "EXCEPTION", true},
+	{Crash, "CRASH", true},
+	{Failure, "FAILURE", true},
+	{Deadlock, "DEADLOCK", true},
+	{Timeout, "TIMEOUT", true},
 }
 
-// isImportant reports whether any token is a critical-severity keyword; such
-// logs bypass adaptive sampling.
-func isImportant(tokens []Token) bool {
-	for _, t := range tokens {
-		switch t {
-		case Warn, Fatal, Error, Panic, Alert, Severe, Critical, Emergency, Exception, Crash, Failure, Deadlock, Timeout:
-			return true
-		}
-	}
-	return false
-}
-
-// addSpecialCharTokens sets the single-byte special-character tokens in the
-// classification lookup table.
-func addSpecialCharTokens(lookup *[256]Token) {
-	lookup[':'] = Colon
-	lookup[';'] = Semicolon
-	lookup['-'] = Dash
-	lookup['_'] = Underscore
-	lookup['/'] = Fslash
-	lookup['\\'] = Bslash
-	lookup['.'] = Period
-	lookup[','] = Comma
-	lookup['\''] = Singlequote
-	lookup['"'] = Doublequote
-	lookup['`'] = Backtick
-	lookup['~'] = Tilda
-	lookup['*'] = Star
-	lookup['+'] = Plus
-	lookup['='] = Equal
-	lookup['('] = Parenopen
-	lookup[')'] = Parenclose
-	lookup['{'] = Braceopen
-	lookup['}'] = Braceclose
-	lookup['['] = Bracketopen
-	lookup[']'] = Bracketclose
-	lookup['&'] = Ampersand
-	lookup['!'] = Exclamation
-	lookup['@'] = At
-	lookup['#'] = Pound
-	lookup['$'] = Dollar
-	lookup['%'] = Percent
-	lookup['^'] = Uparrow
+// specialChars maps single bytes to their tokens.
+var specialChars = []struct {
+	ch  byte
+	tok Token
+}{
+	{':', Colon},
+	{';', Semicolon},
+	{'-', Dash},
+	{'_', Underscore},
+	{'/', Fslash},
+	{'\\', Bslash},
+	{'.', Period},
+	{',', Comma},
+	{'\'', Singlequote},
+	{'"', Doublequote},
+	{'`', Backtick},
+	{'~', Tilda},
+	{'*', Star},
+	{'+', Plus},
+	{'=', Equal},
+	{'(', Parenopen},
+	{')', Parenclose},
+	{'{', Braceopen},
+	{'}', Braceclose},
+	{'[', Bracketopen},
+	{']', Bracketclose},
+	{'&', Ampersand},
+	{'!', Exclamation},
+	{'@', At},
+	{'#', Pound},
+	{'$', Dollar},
+	{'%', Percent},
+	{'^', Uparrow},
 }
