@@ -7,6 +7,7 @@ package api
 
 import (
 	"fmt"
+	"io"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/google/uuid"
@@ -36,7 +38,7 @@ const (
 // to the logs intake.
 func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
 	if !r.conf.DebuggerLogsEnabled {
-		return debuggerLogsDisabledHandler()
+		return debuggerLogsDisabledHandler(r.conf.MaxRequestBytes)
 	}
 	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
 }
@@ -53,7 +55,7 @@ func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
 // tracers).
 func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
 	if !r.conf.DebuggerLogsEnabled {
-		return debuggerLogsDisabledHandler()
+		return debuggerLogsDisabledHandler(r.conf.MaxRequestBytes)
 	}
 	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
 }
@@ -61,9 +63,12 @@ func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
 // debuggerLogsDisabledHandler returns an http.Handler that silently drops
 // debugger data when logs are disabled at the agent level (logs_enabled: false).
 // It returns 200 OK so tracers do not retry or log errors.
-func debuggerLogsDisabledHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+func debuggerLogsDisabledHandler(maxBytes int64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		log.Debug("Debugger proxy: dropping request because logs are disabled (logs_enabled: false)")
+		// Drain up to maxBytes so normal uploads get a clean 200 instead of a connection reset,
+		// without waiting on an unbounded body before acknowledging.
+		_, _ = io.Copy(io.Discard, apiutil.NewLimitedReader(req.Body, maxBytes))
 		w.WriteHeader(http.StatusOK)
 	})
 }
