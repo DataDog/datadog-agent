@@ -91,6 +91,7 @@ type AutoConfig struct {
 	newService               chan listeners.Service
 	delService               chan listeners.Service
 	refreshConfig            chan string
+	secretResolveRetryStop   chan struct{}
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
@@ -368,6 +369,7 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
+	ac.startSecretResolveRetries()
 	ac.cfgMgr.start()
 	go ac.discoveredChangesLoop(ac.cfgMgr.discoveredChanges())
 }
@@ -397,6 +399,11 @@ func (ac *AutoConfig) stop() {
 
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
+
+	if ac.secretResolveRetryStop != nil {
+		close(ac.secretResolveRetryStop)
+		ac.secretResolveRetryStop = nil
+	}
 
 	// stop the discovered-changes drain loop and then the worker itself.
 	close(ac.discoveryStop)
@@ -649,6 +656,34 @@ func (ac *AutoConfig) retryListenerCandidates() {
 			if !remaining {
 				return
 			}
+		}
+	}
+}
+
+func (ac *AutoConfig) startSecretResolveRetries() {
+	retryInterval := time.Duration(pkgconfigsetup.Datadog().GetInt("secret_refresh_interval")) * time.Second
+	if retryInterval <= 0 {
+		return
+	}
+
+	stopCh := make(chan struct{})
+	ac.secretResolveRetryStop = stopCh
+	go ac.retryFailedSecretConfigResolutions(retryInterval, stopCh)
+}
+
+func (ac *AutoConfig) retryFailedSecretConfigResolutions(retryInterval time.Duration, stopCh <-chan struct{}) {
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.retryFailedSecretConfigs()
+			ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
+			ac.store.setIDsOfChecksWithSecrets(changedIDsOfSecretsWithConfigs)
+			ac.applyChanges(changes)
 		}
 	}
 }
