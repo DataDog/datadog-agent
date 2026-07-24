@@ -226,13 +226,14 @@ func TestStripCommandLineSecrets_MalformedEnvelope(t *testing.T) {
 	req, _ := newInjectionMetadataReq(t, "/usr/bin/python --password=hunter2")
 	bad := []byte("not json at all")
 	out := newTestForwarder(t).stripCommandLineSecrets(req, bad)
-	assert.Equal(t, bad, out, "malformed bodies must be forwarded unchanged so the intake can observe them")
+	assert.Equal(t, redactedInjectionMetadataBody, out, "malformed bodies must fail closed rather than risk forwarding an unscrubbed secret")
 }
 
 func TestStripCommandLineSecrets_MalformedPayload(t *testing.T) {
 	envBytes, err := json.Marshal(telemetryRequest{
 		APIVersion:  "v2",
 		RequestType: apmTelemetryRequestType,
+		RuntimeID:   "some-runtime-id",
 		Payload:     json.RawMessage(`"this is a string, not an object"`),
 	})
 	assert.NoError(t, err)
@@ -240,7 +241,43 @@ func TestStripCommandLineSecrets_MalformedPayload(t *testing.T) {
 	assert.NoError(t, err)
 	req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
 	out := newTestForwarder(t).stripCommandLineSecrets(req, envBytes)
-	assert.Equal(t, envBytes, out)
+
+	var outEnv telemetryRequest
+	assert.NoError(t, json.Unmarshal(out, &outEnv))
+	assert.Equal(t, "some-runtime-id", outEnv.RuntimeID, "envelope fields unrelated to the payload must still be forwarded")
+	assert.Equal(t, unparsableInjectionMetadataPayload, json.RawMessage(outEnv.Payload), "an unparsable payload must be replaced with a fixed signifier rather than forwarded raw")
+}
+
+func TestStripCommandLineSecrets_CommandLineWrongType(t *testing.T) {
+	payloadBytes, err := json.Marshal(map[string]interface{}{
+		"component": "python",
+		"language":  "python",
+		// command_line is normally a string; send a number instead.
+		"command_line": 42,
+		"metadata":     map[string]string{"safe": "value"},
+	})
+	assert.NoError(t, err)
+	envBytes, err := json.Marshal(telemetryRequest{
+		APIVersion:  "v2",
+		RequestType: apmTelemetryRequestType,
+		RuntimeID:   "some-runtime-id",
+		Payload:     payloadBytes,
+	})
+	assert.NoError(t, err)
+	req, err := http.NewRequest("POST", apmTelemetryProxyPath, bytes.NewReader(envBytes))
+	assert.NoError(t, err)
+	req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, envBytes)
+
+	var outEnv telemetryRequest
+	assert.NoError(t, json.Unmarshal(out, &outEnv))
+	assert.Equal(t, "some-runtime-id", outEnv.RuntimeID, "envelope fields must still be forwarded")
+
+	var outPayload map[string]json.RawMessage
+	assert.NoError(t, json.Unmarshal(outEnv.Payload, &outPayload))
+	assert.Equal(t, `"python"`, string(outPayload["component"]), "fields unrelated to the malformed one must be untouched")
+	assert.Equal(t, unparsableInjectionMetadataPayload, json.RawMessage(outPayload["command_line"]), "only the malformed command_line field should be redacted")
+	assert.Equal(t, `{"safe":"value"}`, string(outPayload["metadata"]), "metadata is unaffected by command_line's failure")
 }
 
 func TestStripCommandLineSecrets_MissingPayload(t *testing.T) {

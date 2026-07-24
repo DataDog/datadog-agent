@@ -330,6 +330,10 @@ func (f *TelemetryForwarder) scrubCommandLine(cmdLine string) string {
 	return f.cmdLineScrubber.ScrubLine(cmdLine)
 }
 
+var redactedInjectionMetadataBody = []byte("{}")
+
+var unparsableInjectionMetadataPayload = json.RawMessage(`"?"`)
+
 func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []byte) []byte {
 	if req.Header.Get(telemetryRequestTypeHeader) != apmTelemetryRequestType {
 		return body
@@ -341,50 +345,51 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 	var msg telemetryRequest
 	if err := json.Unmarshal(body, &msg); err != nil {
 		f.logger.Error("telemetry proxy: failed to decode injection-metadata envelope: %v", err)
-		return body
+		return redactedInjectionMetadataBody
 	}
 	if len(msg.Payload) == 0 {
 		return body
 	}
 
-	var payload injectionMetadata
-	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(msg.Payload, &fields); err != nil {
 		f.logger.Error("telemetry proxy: failed to decode injection-metadata payload: %v", err)
-		return body
+		out, patchErr := patchJSONField(body, "payload", unparsableInjectionMetadataPayload)
+		if patchErr != nil {
+			f.logger.Error("telemetry proxy: failed to re-encode injection-metadata envelope: %v", patchErr)
+			return redactedInjectionMetadataBody
+		}
+		return out
 	}
 
 	rawPayload := msg.Payload
 	changed := false
 
-	if payload.CommandLine != "" {
-		scrubbed := f.scrubCommandLine(payload.CommandLine)
-		if scrubbed != payload.CommandLine {
-			scrubbedJSON, err := json.Marshal(scrubbed)
-			if err != nil {
-				f.logger.Error("telemetry proxy: failed to encode scrubbed command_line: %v", err)
-				return body
+	if raw, ok := fields["command_line"]; ok {
+		var cmdLine string
+		value := json.RawMessage(nil)
+		if err := json.Unmarshal(raw, &cmdLine); err != nil {
+			f.logger.Error("telemetry proxy: command_line field is not a string, redacting it: %v", err)
+			value = unparsableInjectionMetadataPayload
+		} else if cmdLine != "" {
+			if scrubbed := f.scrubCommandLine(cmdLine); scrubbed != cmdLine {
+				value, _ = json.Marshal(scrubbed) // marshaling a string cannot fail
 			}
-			rawPayload, err = patchJSONField(rawPayload, "command_line", scrubbedJSON)
-			if err != nil {
-				f.logger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
-				return body
-			}
+		}
+		if value != nil {
+			rawPayload, _ = patchJSONField(rawPayload, "command_line", value)
 			changed = true
 		}
 	}
 
-	if len(payload.Metadata) > 0 {
-		scrubbedMetadata, metadataChanged, err := scrubJSONValue(payload.Metadata, f.cmdLineScrubber)
+	if raw, ok := fields["metadata"]; ok && len(raw) > 0 {
+		value, metadataChanged, err := scrubJSONValue(raw, f.cmdLineScrubber)
 		if err != nil {
 			f.logger.Error("telemetry proxy: failed to scrub injection-metadata metadata field: %v", err)
-			return body
+			value, metadataChanged = unparsableInjectionMetadataPayload, true
 		}
 		if metadataChanged {
-			rawPayload, err = patchJSONField(rawPayload, "metadata", scrubbedMetadata)
-			if err != nil {
-				f.logger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
-				return body
-			}
+			rawPayload, _ = patchJSONField(rawPayload, "metadata", value)
 			changed = true
 		}
 	}
@@ -396,7 +401,7 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 	out, err := patchJSONField(body, "payload", rawPayload)
 	if err != nil {
 		f.logger.Error("telemetry proxy: failed to re-encode injection-metadata envelope: %v", err)
-		return body
+		return redactedInjectionMetadataBody
 	}
 	return out
 }
