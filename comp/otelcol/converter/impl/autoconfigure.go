@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/zap"
 )
 
 var ddAutoconfiguredSuffix = "dd-autoconfigured"
@@ -50,7 +51,11 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		}
 		// Reuse before building the datadog config below, whose hostname lookup is a
 		// blocking core-agent RPC in connected mode.
-		if reuseExtension(conf, extension.Name) {
+		reused, err := reuseExtension(conf, extension.Name)
+		if err != nil && c.logger != nil {
+			c.logger.Warn("Could not reuse existing extension", zap.String("extension", extension.Name), zap.Error(err))
+		}
+		if reused {
 			continue
 		}
 		if extension.Name == datadogName {
@@ -84,7 +89,11 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		if !reuseExtension(conf, dogtelName) {
+		reused, err := reuseExtension(conf, dogtelName)
+		if err != nil && c.logger != nil {
+			c.logger.Warn("Could not reuse existing extension", zap.String("extension", dogtelName), zap.Error(err))
+		}
+		if !reused {
 			addComponentToConfig(conf, dogtelComponent)
 			addExtensionToPipeline(conf, dogtelComponent)
 		}

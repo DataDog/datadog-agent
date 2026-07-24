@@ -7,6 +7,9 @@
 package converterimpl
 
 import (
+	"errors"
+	"fmt"
+
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -140,24 +143,28 @@ func findExistingExtensionID(conf *confmap.Conf, compName string) string {
 }
 
 // wireExtensionIDToPipeline appends extensionID verbatim to service::extensions.
-func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) {
+// It returns an error when conf has no usable service section to wire into, so
+// callers can surface the failure instead of silently dropping the extension.
+func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) error {
 	stringMapConf := conf.ToStringMap()
 	service, ok := stringMapConf["service"]
 	if !ok {
-		return
+		return errors.New("config has no service section")
 	}
 	serviceMap, ok := service.(map[string]any)
 	if !ok {
-		return
+		return fmt.Errorf("service section is not a map (got %T)", service)
 	}
 	if _, ok = serviceMap["extensions"]; !ok {
 		serviceMap["extensions"] = []any{}
 	}
-	if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
-		extensionsSlice = append(extensionsSlice, extensionID)
-		serviceMap["extensions"] = extensionsSlice
+	extensionsSlice, ok := serviceMap["extensions"].([]any)
+	if !ok {
+		return fmt.Errorf("service::extensions is not a list (got %T)", serviceMap["extensions"])
 	}
+	serviceMap["extensions"] = append(extensionsSlice, extensionID)
 	*conf = *confmap.NewFromStringMap(stringMapConf)
+	return nil
 }
 
 func addExtensionToPipeline(conf *confmap.Conf, comp component) {
@@ -183,13 +190,18 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 }
 
 // reuseExtension wires a user-defined-but-unwired extension with the given base
-// component name into service::extensions, reporting whether one was found. When
-// none exists it leaves conf untouched so the caller can add its own instance.
-func reuseExtension(conf *confmap.Conf, compName string) bool {
+// component name into service::extensions, reporting whether one was found and
+// successfully wired. When none exists it returns (false, nil) and leaves conf
+// untouched so the caller can add its own instance. When an existing extension
+// is found but cannot be wired, it returns (false, err) so the caller can log
+// the failure rather than silently dropping the extension.
+func reuseExtension(conf *confmap.Conf, compName string) (bool, error) {
 	existingID := findExistingExtensionID(conf, compName)
 	if existingID == "" {
-		return false
+		return false, nil
 	}
-	wireExtensionIDToPipeline(conf, existingID)
-	return true
+	if err := wireExtensionIDToPipeline(conf, existingID); err != nil {
+		return false, fmt.Errorf("found existing %q extension %q but could not wire it into service::extensions: %w", compName, existingID, err)
+	}
+	return true, nil
 }

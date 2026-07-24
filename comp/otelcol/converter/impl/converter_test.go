@@ -624,3 +624,59 @@ func filterLogsBySubstring(logs *observer.ObservedLogs, substr string) []observe
 	}
 	return filtered
 }
+
+func TestFindExistingExtensionID(t *testing.T) {
+	tests := []struct {
+		name     string
+		exts     map[string]any
+		compName string
+		want     string
+	}{
+		{"canonical wins over suffixed", map[string]any{"ddflare/z": nil, "ddflare/a": nil, "ddflare": nil}, "ddflare", "ddflare"},
+		{"lexicographically-first when no canonical", map[string]any{"pprof/c": nil, "pprof/a": nil, "pprof/b": nil}, "pprof", "pprof/a"},
+		{"single suffixed instance", map[string]any{"zpages/custom": nil}, "zpages", "zpages/custom"},
+		{"no matching base name returns empty", map[string]any{"zpages/x": nil}, "pprof", ""},
+		{"no extensions section returns empty", nil, "pprof", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := map[string]any{}
+			if tt.exts != nil {
+				m["extensions"] = tt.exts
+			}
+			conf := confmap.NewFromStringMap(m)
+			assert.Equal(t, tt.want, findExistingExtensionID(conf, tt.compName))
+		})
+	}
+}
+
+func TestReuseExtension(t *testing.T) {
+	t.Run("wires an existing unwired extension into service::extensions", func(t *testing.T) {
+		conf := confmap.NewFromStringMap(map[string]any{
+			"extensions": map[string]any{"pprof/custom": nil},
+			"service":    map[string]any{"extensions": []any{}},
+		})
+		reused, err := reuseExtension(conf, "pprof")
+		require.NoError(t, err)
+		assert.True(t, reused)
+		assert.Equal(t, []any{"pprof/custom"}, conf.Get("service::extensions"))
+	})
+
+	t.Run("returns false without an existing extension", func(t *testing.T) {
+		conf := confmap.NewFromStringMap(map[string]any{
+			"service": map[string]any{"extensions": []any{}},
+		})
+		reused, err := reuseExtension(conf, "pprof")
+		require.NoError(t, err)
+		assert.False(t, reused)
+	})
+
+	t.Run("reports an error and false when the service section is missing", func(t *testing.T) {
+		conf := confmap.NewFromStringMap(map[string]any{
+			"extensions": map[string]any{"pprof/custom": nil},
+		})
+		reused, err := reuseExtension(conf, "pprof")
+		require.Error(t, err)
+		assert.False(t, reused)
+	})
+}
