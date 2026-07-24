@@ -772,6 +772,14 @@ func TestHealthPlatformDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
 }
 
+func TestExperimentalNodeAgentRolloutDefaults(t *testing.T) {
+	config := confFromYAML(t, "")
+
+	assert.False(t, config.GetBool(ExperimentalNodeAgentRolloutEnabled))
+	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutPodUID))
+	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutStatePath))
+}
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none

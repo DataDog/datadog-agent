@@ -23,6 +23,23 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	if fxAppTestOverride != nil {
 		return fxAppTestOverride(oneShotFunc, opts)
 	}
+	return oneShot(oneShotFunc, nil, opts...)
+}
+
+// OneShotWithStartupGate constructs an Fx application, waits for the supplied gate before
+// starting its lifecycle, invokes oneShotFunc, and releases the gate after lifecycle shutdown.
+// The one-shot function is responsible for calling MarkActive after its non-Fx startup completes.
+func OneShotWithStartupGate[T StartupGate](oneShotFunc interface{}, opts ...fx.Option) error {
+	if fxAppTestOverride != nil {
+		return fxAppTestOverride(oneShotFunc, opts)
+	}
+
+	var gate T
+	opts = append(opts, fx.Populate(&gate))
+	return oneShot(oneShotFunc, func() StartupGate { return gate }, opts...)
+}
+
+func oneShot(oneShotFunc interface{}, gateProvider func() StartupGate, opts ...fx.Option) error {
 
 	// Use a delayed Fx invocation to capture arguments for oneShotFunc during
 	// application setup, but not actually invoke the question until all
@@ -43,20 +60,46 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	)
 	app := fx.New(opts...)
 
+	var gate StartupGate
+	if gateProvider != nil {
+		if err := app.Err(); err != nil {
+			return UnwrapIfErrArgumentsFailed(err)
+		}
+		gate = gateProvider()
+		if err := WaitForStartupGate(context.Background(), app, gate); err != nil {
+			if errors.Is(err, ErrStartupGateShutdown) {
+				return gate.Close()
+			}
+			return errors.Join(err, gate.Close())
+		}
+	}
+
 	// start the app
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 	if err := app.Start(startCtx); err != nil {
-		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
+		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopAppAndCloseGate(app, gate))
 	}
 
 	// call the original oneShotFunc with the args captured during app startup
 	err := delayedCall.call()
 	if err != nil {
-		return errors.Join(err, stopApp(app))
+		return errors.Join(err, stopAppAndCloseGate(app, gate))
 	}
 
-	return stopApp(app)
+	return stopAppAndCloseGate(app, gate)
+}
+
+// stopAppAndCloseGate preserves the active lifecycle state when Fx cannot prove
+// that every hook stopped. Process teardown remains the final safety boundary.
+func stopAppAndCloseGate(app *fx.App, gate StartupGate) error {
+	if err := stopApp(app); err != nil {
+		return err
+	}
+	if gate != nil {
+		return gate.Close()
+	}
+	return nil
 }
 
 func stopApp(app *fx.App) error {
