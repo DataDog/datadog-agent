@@ -1920,6 +1920,14 @@ func TestParseDelaDirective(t *testing.T) {
 			name:  "malformed extra param",
 			value: "DELA(some-org-uuid, aws, not-a-kv-pair)",
 		},
+		{
+			name:  "extra param with empty value",
+			value: "DELA(some-org-uuid, aws, region=)",
+		},
+		{
+			name:  "extra param with empty key",
+			value: "DELA(some-org-uuid, aws, =us-east-1)",
+		},
 	}
 
 	for _, c := range cases {

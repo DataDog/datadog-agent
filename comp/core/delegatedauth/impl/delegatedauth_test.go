@@ -14,6 +14,7 @@ import (
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -675,6 +676,44 @@ func TestMergeIntoAdditionalEndpointsRotatesWithoutDuplicatesAndPreservesStaticK
 	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v2", false)
 	got = mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.ElementsMatch(t, []string{"some-static-key", "fetched-key-v2"}, got["https://third-org.datadoghq.com"])
+}
+
+func TestMergeIntoAdditionalEndpointsComposesWithSecretRotation(t *testing.T) {
+	// Simulates a domain's additional_endpoints list mixing a secrets-backend-resolved key with a
+	// DELA(...) directive. mergeIntoAdditionalEndpoints must write at the same Source the secrets
+	// resolver uses (SourceSecret), not a higher one - otherwise the first delegated-auth write
+	// would permanently shadow the secrets layer for this key, and later secret rotations would
+	// stop taking effect even though the secrets resolver's own writes keep succeeding.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://mixed-org.datadoghq.com": {"resolved-secret-v1", "DELA(mixed-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://mixed-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(mixed-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"resolved-secret-v1", "wif-key-v1"}, got["https://mixed-org.datadoghq.com"])
+
+	// Simulate a secret rotation the way pkg/config/setup's configAssignAtPath does: read the
+	// current value, mutate only the secret's own entry, write the whole map back at SourceSecret.
+	rotated := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	rotated["https://mixed-org.datadoghq.com"][0] = "resolved-secret-v2"
+	mockConfig.Set("additional_endpoints", rotated, pkgconfigmodel.SourceSecret)
+
+	got = mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"resolved-secret-v2", "wif-key-v1"}, got["https://mixed-org.datadoghq.com"],
+		"secret rotation must take effect even after a prior delegated-auth write to the same domain")
+
+	// A later delegated-auth refresh must compose with the rotated secret rather than reverting it.
+	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v2", false)
+	got = mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"resolved-secret-v2", "wif-key-v2"}, got["https://mixed-org.datadoghq.com"])
 }
 
 func TestMergeIntoAdditionalEndpointsDoesNotClobberOtherDomains(t *testing.T) {
