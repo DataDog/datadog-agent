@@ -127,7 +127,7 @@ def bazel(
         kwargs["hide"] = "err"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
-    result = ctx.run(cmdline, in_stream=False, warn=ignore_errors, **kwargs)
+    result = ctx.run(cmdline, echo=False, in_stream=False, warn=ignore_errors, **kwargs)
     captured = []
     if capture_output and result.ok:
         captured.append(result.stdout)
