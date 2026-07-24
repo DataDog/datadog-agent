@@ -12,7 +12,7 @@ HASHES = {
     "darwin-amd64": "7586ef3041bcd11f9dad1baf7a7f26ff4e2dc239ef59c2d28ebd0e0879f41568",
     "darwin-arm64": "e40ad02931ba893de49427d9c3a1c4683a0f615a58e96287fdd47e1b089b7699",
     "windows-amd64": "a2692fa7d961b8e1b1f01ddcf86060f542195124397e69bfacf152ceda47d436",
-    "fips-windows-amd64": "30199587a487bf3312bad913929ee6a951e244f3cbdeafccec4ac8edbaf05cb9",
+    "windows-amd64-fips": "30199587a487bf3312bad913929ee6a951e244f3cbdeafccec4ac8edbaf05cb9",
 }
 
 _BUILD_FILE_CONTENT = """\
@@ -63,7 +63,7 @@ _ARTIFACTS = {
     "darwin-amd64": "darwin",
     "darwin-arm64": "darwin",
     "windows-amd64": "windows",
-    "fips-windows-amd64": "windows",
+    "windows-amd64-fips": "windows",
 }
 
 [
@@ -75,11 +75,7 @@ _ARTIFACTS = {
         url = "{base}/agent-data-plane-{version}-{target}.{ext}".format(
             base = SOURCE_URL_BASE,
             ext = "zip" if os == "windows" else "tar.gz",
-            # The hash key doubles as the archive filename's target suffix,
-            # except the Windows FIPS artifact: saluki CI publishes it with a
-            # trailing "-fips" (windows-amd64-fips.zip) rather than the
-            # "fips-" prefix used by Linux.
-            target = "windows-amd64-fips" if hash_key == "fips-windows-amd64" else hash_key,
+            target = hash_key,
             version = VERSION,
         ),
     )

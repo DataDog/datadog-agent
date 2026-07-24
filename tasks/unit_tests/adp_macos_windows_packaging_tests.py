@@ -17,7 +17,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
             "darwin-amd64",
             "darwin-arm64",
             "windows-amd64",
-            "fips-windows-amd64",
+            "windows-amd64-fips",
         ]:
             self.assertIn(f'"{hash_key}"', module_bazel)
 
