@@ -33,8 +33,50 @@ type InstanceParams struct {
 	RefreshInterval int
 
 	// APIKeyConfigKey is where to write the API key (e.g., "api_key", "logs_config.api_key").
-	// Required.
+	// Required, even when AdditionalEndpointDomain is set: it is used as an internal
+	// bookkeeping/status-display key in that mode (e.g. "additional_endpoints[<domain>]"),
+	// since the API key itself is not written to this config key in that case.
 	APIKeyConfigKey string
+
+	// AdditionalEndpointDomain, if set, causes the fetched API key to be merged into the
+	// map-shape config value at AdditionalEndpointsConfigKey under this domain (replacing the
+	// DELA(...) directive that requested it) instead of being written to APIKeyConfigKey as a
+	// flat value. This supports dual/multi-org shipping via map-shape `additional_endpoints`-style
+	// config (e.g. the top-level `additional_endpoints`, `apm_config.additional_endpoints`, ...).
+	// Requires AdditionalEndpointsConfigKey and AdditionalEndpointDirective to also be set.
+	// Mutually exclusive with AdditionalEndpointsListConfigKey.
+	AdditionalEndpointDomain string
+
+	// AdditionalEndpointsConfigKey is the config path of the map-shape `additional_endpoints`-style
+	// value (domain -> list of API keys) that AdditionalEndpointDomain refers into, e.g.
+	// "additional_endpoints" or "apm_config.additional_endpoints". Required when
+	// AdditionalEndpointDomain is set.
+	AdditionalEndpointsConfigKey string
+
+	// AdditionalEndpointsListConfigKey, if set, causes the fetched API key to be merged into the
+	// list-shape config value at this path (a list of {api_key, Host, Port, ...} entries, e.g.
+	// "logs_config.additional_endpoints", "database_monitoring.samples.additional_endpoints"),
+	// replacing the entry whose api_key still holds the DELA(...) directive that requested it.
+	// Requires AdditionalEndpointDirective to also be set. Mutually exclusive with
+	// AdditionalEndpointDomain.
+	AdditionalEndpointsListConfigKey string
+
+	// AdditionalEndpointDirective is the literal DELA(...) directive text that requested this
+	// instance - either a value inside AdditionalEndpointsConfigKey[AdditionalEndpointDomain], or
+	// an api_key field inside AdditionalEndpointsListConfigKey. It is replaced in place with the
+	// real API key once fetched, and only used when AdditionalEndpointDomain or
+	// AdditionalEndpointsListConfigKey is set.
+	AdditionalEndpointDirective string
+
+	// FallbackAPIKey, if set, is written in place of a real delegated-auth key when one cannot be
+	// obtained: either because no supported cloud provider was detected, or because the initial
+	// synchronous fetch fails. This lets dual-shipping keep working (with a static key) while WIF
+	// is unavailable or still coming up, instead of shipping nothing at all. Once a real key is
+	// successfully fetched it replaces the fallback; a later transient refresh failure does not
+	// revert back to the fallback. Parsed from the `fallback=<api_key>` param on a DELA(...)
+	// directive - not used for the primary (non-additional-endpoints) delegated auth path, where
+	// an existing static APIKeyConfigKey value already survives a failed fetch untouched.
+	FallbackAPIKey string
 
 	// ProviderConfig contains provider-specific configuration.
 	// Use cloudauth.AWSProviderConfig for AWS, etc.

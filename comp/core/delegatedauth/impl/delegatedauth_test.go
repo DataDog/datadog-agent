@@ -631,3 +631,361 @@ func TestRefreshIntervalValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeIntoAdditionalEndpointsReplacesDirectiveOnFirstWrite(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://second-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(second-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "real-api-key-1", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"real-api-key-1"}, got["https://second-org.datadoghq.com"])
+	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsRotatesWithoutDuplicatesAndPreservesStaticKeys(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://third-org.datadoghq.com": {"some-static-key", "DELA(third-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://third-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(third-org-uuid, aws)",
+	}
+
+	// First fetch resolves the directive.
+	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v1", false)
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"some-static-key", "fetched-key-v1"}, got["https://third-org.datadoghq.com"])
+
+	// Refresh rotates the key: only this instance's previous value is replaced, no duplicates,
+	// and the coexisting static key is untouched.
+	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v2", false)
+	got = mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"some-static-key", "fetched-key-v2"}, got["https://third-org.datadoghq.com"])
+}
+
+func TestMergeIntoAdditionalEndpointsDoesNotClobberOtherDomains(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+		"https://third-org.datadoghq.com":  {"DELA(third-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	secondInstance := &authInstance{
+		additionalEndpointDomain:     "https://second-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(second-org-uuid, aws)",
+	}
+	thirdInstance := &authInstance{
+		additionalEndpointDomain:     "https://third-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(third-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(secondInstance, "second-org-key", false)
+	comp.mergeIntoAdditionalEndpoints(thirdInstance, "third-org-key", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"second-org-key"}, got["https://second-org.datadoghq.com"])
+	assert.Equal(t, []string{"third-org-key"}, got["https://third-org.datadoghq.com"])
+}
+
+func TestMergeIntoAdditionalEndpointsListReplacesDirectiveOnFirstWrite(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[string]any{"api_key": "DELA(logs-org-uuid, aws)", "Host": "agent-http-intake.logs.datadoghq.com"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
+
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	entry, ok := got[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "real-api-key-1", entry["api_key"])
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com", entry["Host"])
+	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsListHandlesYAMLDecodedEntries(t *testing.T) {
+	// Regression test: a real YAML-sourced additional_endpoints value decodes each entry as
+	// map[any]any, not map[string]any - config.Get's shape for a raw config-file value differs
+	// from the map[string]any shape used in other tests here (which matches a directly-constructed
+	// or SetInTest value, not what real YAML parsing produces). Confirmed via pkg/config/setup's
+	// equivalent TestConfigureListShapeAdditionalEndpointsDelegatedAuth failing against a real
+	// confFromYAML-loaded config before this shape was handled.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[any]any{"api_key": "DELA(logs-org-uuid, aws)", "Host": "agent-http-intake.logs.datadoghq.com"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
+
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	entry, ok := got[0].(map[string]any)
+	require.True(t, ok, "the merged entry must be normalized to map[string]any regardless of the source shape")
+	assert.Equal(t, "real-api-key-1", entry["api_key"])
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com", entry["Host"])
+	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsListRotatesWithoutClobberingOtherEntries(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[string]any{"api_key": "some-static-key", "Host": "host-a"},
+		map[string]any{"api_key": "DELA(logs-org-uuid, aws)", "Host": "host-b"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key-v1", false)
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 2)
+	assert.Equal(t, "some-static-key", got[0].(map[string]any)["api_key"])
+	assert.Equal(t, "fetched-key-v1", got[1].(map[string]any)["api_key"])
+	assert.Equal(t, "host-b", got[1].(map[string]any)["Host"], "unrelated fields on the matched entry must be preserved")
+
+	// Refresh rotates the key: only this instance's previous value is replaced.
+	comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key-v2", false)
+	got, ok = mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	assert.Equal(t, "some-static-key", got[0].(map[string]any)["api_key"])
+	assert.Equal(t, "fetched-key-v2", got[1].(map[string]any)["api_key"])
+}
+
+func TestMergeIntoAdditionalEndpointsListLeavesListUnchangedWhenNoMatch(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[string]any{"api_key": "some-static-key", "Host": "host-a"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)", // never present in the list
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key", false)
+
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	assert.Equal(t, "some-static-key", got[0].(map[string]any)["api_key"])
+	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue, "lastWrittenValue must not advance on a failed match")
+}
+
+func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
+	t.Run("flat", func(t *testing.T) {
+		mockConfig := mock.New(t)
+		comp := &delegatedAuthComponent{config: mockConfig}
+		instance := &authInstance{apiKeyConfigKey: "logs_config.api_key"}
+
+		comp.writeAPIKeyToTarget(instance, "flat-key", false)
+
+		assert.Equal(t, "flat-key", mockConfig.GetString("logs_config.api_key"))
+	})
+
+	t.Run("map shape", func(t *testing.T) {
+		mockConfig := mock.New(t)
+		mockConfig.SetInTest("apm_config.additional_endpoints", map[string][]string{
+			"https://trace.agent.second-org.datadoghq.com": {"DELA(apm-org-uuid, aws)"},
+		})
+		comp := &delegatedAuthComponent{config: mockConfig}
+		instance := &authInstance{
+			additionalEndpointDomain:     "https://trace.agent.second-org.datadoghq.com",
+			additionalEndpointsConfigKey: "apm_config.additional_endpoints",
+			lastWrittenValue:             "DELA(apm-org-uuid, aws)",
+		}
+
+		comp.writeAPIKeyToTarget(instance, "map-key", false)
+
+		got := mockConfig.GetStringMapStringSlice("apm_config.additional_endpoints")
+		assert.Equal(t, []string{"map-key"}, got["https://trace.agent.second-org.datadoghq.com"])
+	})
+
+	t.Run("list shape", func(t *testing.T) {
+		mockConfig := mock.New(t)
+		mockConfig.SetInTest("database_monitoring.samples.additional_endpoints", []any{
+			map[string]any{"api_key": "DELA(dbm-org-uuid, aws)", "Host": "dbm-metrics-intake.datadoghq.com"},
+		})
+		comp := &delegatedAuthComponent{config: mockConfig}
+		instance := &authInstance{
+			additionalEndpointsListConfigKey: "database_monitoring.samples.additional_endpoints",
+			lastWrittenValue:                 "DELA(dbm-org-uuid, aws)",
+		}
+
+		comp.writeAPIKeyToTarget(instance, "list-key", true) // isFallback=true must not change the write target
+
+		got, ok := mockConfig.Get("database_monitoring.samples.additional_endpoints").([]any)
+		require.True(t, ok)
+		assert.Equal(t, "list-key", got[0].(map[string]any)["api_key"])
+	})
+}
+
+func TestFallbackTargetInstanceCarriesWriteTargetFields(t *testing.T) {
+	t.Run("map shape", func(t *testing.T) {
+		instance := fallbackTargetInstance(delegatedauth.InstanceParams{
+			APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
+			AdditionalEndpointDomain:     "https://second-org.datadoghq.com",
+			AdditionalEndpointsConfigKey: "additional_endpoints",
+			AdditionalEndpointDirective:  "DELA(second-org-uuid, aws, fallback=static-key)",
+		})
+
+		assert.Equal(t, "https://second-org.datadoghq.com", instance.additionalEndpointDomain)
+		assert.Equal(t, "additional_endpoints", instance.additionalEndpointsConfigKey)
+		assert.Equal(t, "DELA(second-org-uuid, aws, fallback=static-key)", instance.lastWrittenValue)
+		assert.Empty(t, instance.additionalEndpointsListConfigKey)
+	})
+
+	t.Run("list shape", func(t *testing.T) {
+		instance := fallbackTargetInstance(delegatedauth.InstanceParams{
+			APIKeyConfigKey:                  "logs_config.additional_endpoints[0][logs-org-uuid]",
+			AdditionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+			AdditionalEndpointDirective:      "DELA(logs-org-uuid, aws, fallback=static-key)",
+		})
+
+		assert.Equal(t, "logs_config.additional_endpoints", instance.additionalEndpointsListConfigKey)
+		assert.Equal(t, "DELA(logs-org-uuid, aws, fallback=static-key)", instance.lastWrittenValue)
+		assert.Empty(t, instance.additionalEndpointDomain)
+	})
+}
+
+func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
+	// Regression test for the motivating case of this session: running with no AWS
+	// metadata/IRSA available, cloud-provider detection fails, and without a fallback the
+	// additional-endpoint domain would silently get zero keys for the process lifetime.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws, fallback=static-fallback-key)"},
+	})
+
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+		// Simulate "no cloud provider detected" without touching the real network-detection
+		// path: pre-mark the component as initialized with a nil providerConfig, exactly as
+		// initializeIfNeeded would leave it after creds.IsRunningOnAWS(ctx) returns false.
+		initialized: true,
+		config:      mockConfig,
+	}
+
+	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:                       mockConfig,
+		OrgUUID:                      "second-org-uuid",
+		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
+		AdditionalEndpointDomain:     "https://second-org.datadoghq.com",
+		AdditionalEndpointsConfigKey: "additional_endpoints",
+		AdditionalEndpointDirective:  "DELA(second-org-uuid, aws, fallback=static-fallback-key)",
+		FallbackAPIKey:               "static-fallback-key",
+	})
+	require.NoError(t, err)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
+		"with no cloud provider detected, the fallback key should be written instead of leaving the domain with zero keys")
+
+	// No instance/retry loop should be created for the no-provider case.
+	assert.Empty(t, comp.instances)
+}
+
+func TestAddInstanceWithoutFallbackSkipsSilentlyWhenNoCloudProviderDetected(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{
+		instances:   make(map[string]*authInstance),
+		initialized: true,
+		config:      mockConfig,
+	}
+
+	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:                       mockConfig,
+		OrgUUID:                      "second-org-uuid",
+		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
+		AdditionalEndpointDomain:     "https://second-org.datadoghq.com",
+		AdditionalEndpointsConfigKey: "additional_endpoints",
+		AdditionalEndpointDirective:  "DELA(second-org-uuid, aws)",
+	})
+	require.NoError(t, err)
+
+	// No fallback configured: today's documented behavior is unchanged - the domain is left
+	// with zero real keys until a cloud provider becomes available (requires a restart).
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"DELA(second-org-uuid, aws)"}, got["https://second-org.datadoghq.com"])
+}
+
+func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
+	// Unset any real AWS credentials so GenerateAuthProof fails deterministically and fast (a
+	// missing-credentials error, no network/IMDS/STS call - see
+	// comp/core/delegatedauth/api/cloudauth/aws/resolve_credentials_noec2.go).
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws, fallback=static-fallback-key)"},
+	})
+
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+
+	apiKeyConfigKey := "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"
+	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:                       mockConfig,
+		ProviderConfig:               &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
+		OrgUUID:                      "second-org-uuid",
+		RefreshInterval:              60,
+		APIKeyConfigKey:              apiKeyConfigKey,
+		AdditionalEndpointDomain:     "https://second-org.datadoghq.com",
+		AdditionalEndpointsConfigKey: "additional_endpoints",
+		AdditionalEndpointDirective:  "DELA(second-org-uuid, aws, fallback=static-fallback-key)",
+		FallbackAPIKey:               "static-fallback-key",
+	})
+	require.NoError(t, err)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
+		"an initial fetch failure with a fallback configured should still leave the domain usable")
+
+	// A real instance/retry loop IS created in this case (unlike the no-provider case) - stop its
+	// background refresh goroutine so it doesn't outlive the test.
+	comp.mu.RLock()
+	instance := comp.instances[apiKeyConfigKey]
+	comp.mu.RUnlock()
+	require.NotNil(t, instance)
+	instance.refreshCancel()
+}

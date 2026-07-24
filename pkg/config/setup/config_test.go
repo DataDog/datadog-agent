@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -1984,4 +1987,227 @@ func TestApplyKubernetesContainerDefaults(t *testing.T) {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func TestParseDelaDirective(t *testing.T) {
+	cases := []struct {
+		name         string
+		value        string
+		wantOK       bool
+		wantOrgUUID  string
+		wantProvider string
+		wantParams   map[string]string
+	}{
+		{
+			name:         "minimal",
+			value:        "DELA(some-org-uuid, aws)",
+			wantOK:       true,
+			wantOrgUUID:  "some-org-uuid",
+			wantProvider: "aws",
+			wantParams:   map[string]string{},
+		},
+		{
+			name:         "with extra params",
+			value:        "DELA(some-org-uuid, aws, region=us-east-1)",
+			wantOK:       true,
+			wantOrgUUID:  "some-org-uuid",
+			wantProvider: "aws",
+			wantParams:   map[string]string{"region": "us-east-1"},
+		},
+		{
+			name:  "not a directive",
+			value: "some-static-api-key",
+		},
+		{
+			name:  "empty org uuid",
+			value: "DELA(, aws)",
+		},
+		{
+			name:  "malformed extra param",
+			value: "DELA(some-org-uuid, aws, not-a-kv-pair)",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			directive, ok := parseDelaDirective(c.value)
+			require.Equal(t, c.wantOK, ok)
+			if !ok {
+				return
+			}
+			assert.Equal(t, c.wantOrgUUID, directive.orgUUID)
+			assert.Equal(t, c.wantProvider, directive.provider)
+			assert.Equal(t, c.wantParams, directive.params)
+		})
+	}
+}
+
+func TestConfigureAdditionalEndpointsDelegatedAuth(t *testing.T) {
+	datadogYaml := `
+api_key: fakeapikey
+additional_endpoints:
+  "https://second-org.datadoghq.com":
+  - 'DELA(second-org-uuid, aws, region=us-east-1)'
+  "https://third-org.datadoghq.com":
+  - "some-static-key"
+  - 'DELA(third-org-uuid, aws)'
+`
+	config := confFromYAML(t, datadogYaml)
+
+	var captured []delegatedauth.InstanceParams
+	mockComp := &delegatedauthmock.Mock{
+		AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+			captured = append(captured, params)
+			return nil
+		},
+	}
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+
+	require.Len(t, captured, 2)
+
+	byDomain := make(map[string]delegatedauth.InstanceParams)
+	for _, params := range captured {
+		byDomain[params.AdditionalEndpointDomain] = params
+	}
+
+	second := byDomain["https://second-org.datadoghq.com"]
+	assert.Equal(t, "second-org-uuid", second.OrgUUID)
+	assert.Equal(t, "DELA(second-org-uuid, aws, region=us-east-1)", second.AdditionalEndpointDirective)
+	require.IsType(t, &cloudauthconfig.AWSProviderConfig{}, second.ProviderConfig)
+	assert.Equal(t, "us-east-1", second.ProviderConfig.(*cloudauthconfig.AWSProviderConfig).Region)
+
+	third := byDomain["https://third-org.datadoghq.com"]
+	assert.Equal(t, "third-org-uuid", third.OrgUUID)
+	assert.Equal(t, "DELA(third-org-uuid, aws)", third.AdditionalEndpointDirective)
+}
+
+func TestConfigureAdditionalEndpointsDelegatedAuthTwoOrgsOnSameDomain(t *testing.T) {
+	// Regression test: a single domain can carry multiple DELA(...) directives (one per org).
+	// Each must get its own AddInstance call with a distinct APIKeyConfigKey - if two directives
+	// collide on the same key, the delegatedauth component (keyed internally by APIKeyConfigKey)
+	// would silently cancel/replace one org's refresh goroutine with the other's.
+	datadogYaml := `
+api_key: fakeapikey
+additional_endpoints:
+  "https://shared.datadoghq.com":
+  - 'DELA(org-a-uuid, aws)'
+  - 'DELA(org-b-uuid, aws)'
+`
+	config := confFromYAML(t, datadogYaml)
+
+	var captured []delegatedauth.InstanceParams
+	mockComp := &delegatedauthmock.Mock{
+		AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+			captured = append(captured, params)
+			return nil
+		},
+	}
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+
+	require.Len(t, captured, 2)
+	assert.NotEqual(t, captured[0].APIKeyConfigKey, captured[1].APIKeyConfigKey,
+		"two directives on the same domain must get distinct APIKeyConfigKeys or one org silently loses its delegated auth instance")
+
+	orgUUIDs := []string{captured[0].OrgUUID, captured[1].OrgUUID}
+	assert.ElementsMatch(t, []string{"org-a-uuid", "org-b-uuid"}, orgUUIDs)
+}
+
+func TestConfigureAdditionalEndpointsDelegatedAuthOtherMapShapeKeys(t *testing.T) {
+	// configureAdditionalEndpointsDelegatedAuth must scan every map-shape additional_endpoints
+	// config key (see mapShapeAdditionalEndpointsConfigKeys), not just the top-level metrics one.
+	datadogYaml := `
+api_key: fakeapikey
+apm_config:
+  additional_endpoints:
+    "https://trace.agent.second-org.datadoghq.com":
+    - 'DELA(apm-org-uuid, aws, fallback=static-apm-fallback-key)'
+process_config:
+  additional_endpoints:
+    "https://process.second-org.datadoghq.com":
+    - 'DELA(process-org-uuid, aws)'
+`
+	config := confFromYAML(t, datadogYaml)
+
+	var captured []delegatedauth.InstanceParams
+	mockComp := &delegatedauthmock.Mock{
+		AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+			captured = append(captured, params)
+			return nil
+		},
+	}
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+
+	require.Len(t, captured, 2)
+
+	byConfigKey := make(map[string]delegatedauth.InstanceParams)
+	for _, params := range captured {
+		byConfigKey[params.AdditionalEndpointsConfigKey] = params
+	}
+
+	apm := byConfigKey["apm_config.additional_endpoints"]
+	assert.Equal(t, "apm-org-uuid", apm.OrgUUID)
+	assert.Equal(t, "https://trace.agent.second-org.datadoghq.com", apm.AdditionalEndpointDomain)
+	assert.Equal(t, "static-apm-fallback-key", apm.FallbackAPIKey)
+	assert.Equal(t, "apm_config.additional_endpoints[https://trace.agent.second-org.datadoghq.com][apm-org-uuid]", apm.APIKeyConfigKey)
+
+	process := byConfigKey["process_config.additional_endpoints"]
+	assert.Equal(t, "process-org-uuid", process.OrgUUID)
+	assert.Equal(t, "https://process.second-org.datadoghq.com", process.AdditionalEndpointDomain)
+	assert.Empty(t, process.FallbackAPIKey)
+}
+
+func TestConfigureListShapeAdditionalEndpointsDelegatedAuth(t *testing.T) {
+	datadogYaml := `
+api_key: fakeapikey
+logs_config:
+  additional_endpoints:
+  - api_key: 'DELA(logs-org-uuid, aws, fallback=static-logs-fallback-key)'
+    Host: "agent-http-intake.logs.datadoghq.com"
+  - api_key: "some-static-key"
+    Host: "agent-http-intake.logs.datadoghq.com"
+database_monitoring:
+  samples:
+    additional_endpoints:
+    - api_key: 'DELA(dbm-org-uuid, aws)'
+      Host: "dbm-metrics-intake.datadoghq.com"
+sbom:
+  additional_endpoints:
+  - api_key: 'DELA(sbom-org-uuid, aws)'
+    Host: "sbom-intake.datadoghq.com"
+`
+	config := confFromYAML(t, datadogYaml)
+
+	var captured []delegatedauth.InstanceParams
+	mockComp := &delegatedauthmock.Mock{
+		AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+			captured = append(captured, params)
+			return nil
+		},
+	}
+
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+
+	require.Len(t, captured, 3)
+
+	byConfigKey := make(map[string]delegatedauth.InstanceParams)
+	for _, params := range captured {
+		byConfigKey[params.AdditionalEndpointsListConfigKey] = params
+	}
+
+	logs := byConfigKey["logs_config.additional_endpoints"]
+	assert.Equal(t, "logs-org-uuid", logs.OrgUUID)
+	assert.Equal(t, "DELA(logs-org-uuid, aws, fallback=static-logs-fallback-key)", logs.AdditionalEndpointDirective)
+	assert.Equal(t, "static-logs-fallback-key", logs.FallbackAPIKey)
+	assert.Empty(t, logs.AdditionalEndpointDomain, "list-shape instances must not set the map-shape domain field")
+	assert.Equal(t, "logs_config.additional_endpoints[0][logs-org-uuid]", logs.APIKeyConfigKey)
+
+	dbm := byConfigKey["database_monitoring.samples.additional_endpoints"]
+	assert.Equal(t, "dbm-org-uuid", dbm.OrgUUID)
+	assert.Empty(t, dbm.FallbackAPIKey)
+
+	sbom := byConfigKey["sbom.additional_endpoints"]
+	assert.Equal(t, "sbom-org-uuid", sbom.OrgUUID)
 }
