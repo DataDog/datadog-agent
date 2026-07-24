@@ -15,10 +15,20 @@ bazel run //bazel/buildifier
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
 bazel mod deps
 
-# Enable the internal remote cache (Datadog network only)
-# Add to user.bazelrc at the workspace root (gitignored):
+# The internal remote cache (Datadog network only) is auto-selected by
+# tools/bazel on local builds. Override with DD_BAZEL_REMOTE_CACHE=auto|on|off,
+# or force it explicitly via user.bazelrc at the workspace root (gitignored):
 echo 'common --config=cache' >> user.bazelrc
 ```
+
+Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
+`tools/bazel`; `tools/bazel.bat` mirrors it inline). `auto` enables the cache
+only when the frontend is reachable and a token source exists; a command-line
+`--config=cache` / `--config=no-remote-cache`, or an rc-level
+`common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
+In containers there
+is no interactive Vault login, so a token must be injected via the
+`BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
 
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
