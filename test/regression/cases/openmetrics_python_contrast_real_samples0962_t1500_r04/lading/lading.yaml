@@ -1,0 +1,45 @@
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+  - http:
+      binding_addr: "127.0.0.1:9100"
+      concurrent_requests_max: 1000
+      response_delay_millis: 100
+      headers:
+        content-type: "text/plain; version=0.0.4"
+      body_variant:
+        openmetrics:
+          metric_name_prefix: "om_contrast"
+          include_help: true
+          include_type: true
+          counters:
+            count: 0
+          gauges:
+            count: 960
+          histograms:
+            count: 0
+            buckets: ["0.005", "0.01", "0.025", "0.05", "0.1", "0.25", "0.5", "1", "2.5", "5"]
+          summaries:
+            count: 0
+            quantiles: ["0.5", "0.75", "0.9", "0.95", "0.99"]
+          labels:
+            services: ["checkout", "catalog", "payments", "fulfillment", "search"]
+            regions: ["us-east-1", "us-west-2", "eu-central-1", "ap-southeast-1"]
+            methods: ["GET", "POST", "PUT", "DELETE"]
+            status_classes: ["2xx", "3xx", "4xx", "5xx"]
+            consumers: ["consumer-00", "consumer-01", "consumer-02", "consumer-03", "consumer-04", "consumer-05", "consumer-06", "consumer-07", "consumer-08", "consumer-09", "consumer-10", "consumer-11"]
+            route_count: 60
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"
+        workload: "openmetrics_python_contrast"
+        scenario: "real"
+        target_count: "1500"
+        check_runners: "4"
+        response_delay_ms: "100"
+        payload_samples: "962"
