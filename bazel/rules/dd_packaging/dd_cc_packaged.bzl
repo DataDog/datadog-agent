@@ -1,5 +1,6 @@
 """dd_cc_packaged — packaging-aware wrapper around cc_shared_library or cc_binary."""
 
+load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
@@ -10,12 +11,25 @@ load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
 
 def _dd_packaged_files_impl(ctx):
-    rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
+    install_dir = ctx.attr._install_dir[BuildSettingInfo].value
+    rpath = ctx.attr.rpath.format(install_dir = install_dir)
     dest_src_map = {}
 
     for src, prefix in ctx.attr.srcs.items():
-        for out in rewrite_rpaths(ctx, inputs = src.files.to_list(), rpath = rpath):
-            dest = (prefix + "/" + out.basename) if prefix else out.basename
+        inputs = [struct(
+            target = file,
+            destination = paths.join(install_dir, "embedded", prefix, file.basename),
+        ) for file in src.files.to_list()]
+
+        outputs = rewrite_rpaths(
+            ctx,
+            inputs = inputs,
+            rpath = rpath,
+            relative = ctx.attr._relative_rpaths[BuildSettingInfo].value,
+        )
+
+        for out in outputs:
+            dest = paths.join(prefix, out.basename)
             dest_src_map[dest] = out
 
     return [PackageFilesInfo(
@@ -34,6 +48,7 @@ _dd_packaged_files_rule = rule(
             default = "{install_dir}/embedded/lib",
         ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
+        "_relative_rpaths": attr.label(default = "@@//:relative_rpaths"),
     },
     toolchains = [
         "//bazel/toolchains/rpath_rewriter",
@@ -82,10 +97,13 @@ _dd_cc_packaged_rule = rule(
 
 def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
+    base = dest_dir if dest_dir else "lib"
+    package_dest_dir = paths.join(base, prefix) if prefix else base
 
     rewrite_rpath(
         name = patched_name,
         inputs = [input],
+        destination = "{install_dir}/embedded/" + package_dest_dir,
         package_metadata = [],
     )
     extra_files = []
@@ -111,11 +129,10 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
             visibility = visibility,
         )
     else:
-        base = dest_dir if dest_dir else "lib"
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
-            prefix = (base + "/" + prefix) if prefix else base,
+            prefix = package_dest_dir,
             visibility = visibility,
             package_metadata = [],
         )
