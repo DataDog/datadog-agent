@@ -7,6 +7,7 @@ go_library(
     name = "run",
     srcs = [
         "command.go",
+        "command_darwin.go",
         "command_notwin.go",
         "command_snmptraps.go",
         "command_windows.go",
@@ -217,6 +218,7 @@ go_library(
             "//pkg/config/model",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/notableevents/fx",
             "//comp/softwareinventory/fx",
             "//pkg/config/model",
         ],
@@ -233,6 +235,7 @@ go_library(
             "//pkg/config/model",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/notableevents/fx",
             "//comp/softwareinventory/fx",
             "//pkg/config/model",
         ],

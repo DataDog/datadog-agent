@@ -48,6 +48,7 @@ go_test(
     srcs = [
         "adjust_discovery_test.go",
         "adjust_npm_test.go",
+        "config_darwin_test.go",
         "config_linux_bpf_test.go",
         "config_test.go",
     ],

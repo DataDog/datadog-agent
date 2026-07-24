@@ -1,0 +1,68 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "notableevents",
+    srcs = [
+        "collector_darwin.go",
+        "format_darwin.go",
+        "reader_darwin.go",
+        "store_darwin.go",
+        "watcher_darwin.go",
+        "watcher_fsevents_darwin.c",
+        "watcher_fsevents_darwin.h",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework CoreServices",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework CoreServices",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/notableevents",
+    visibility = [
+        "//cmd/system-probe/modules:__pkg__",
+        "//comp/notableevents/impl:__pkg__",
+    ],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/notableevents/types",
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/notableevents/types",
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "notableevents_test",
+    srcs = [
+        "collector_darwin_test.go",
+        "format_darwin_test.go",
+        "reader_darwin_test.go",
+        "store_darwin_test.go",
+        "watcher_darwin_test.go",
+    ],
+    embed = [":notableevents"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
