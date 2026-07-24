@@ -51,6 +51,7 @@ ALL_TAGS = set([
     "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
     "npm",
     "nvml",  # used for the nvidia go-nvml library
+    "openmetrics",
     "oracle",
     "orchestrator",
     "osusergo",
@@ -116,6 +117,7 @@ AGENT_TAGS = set([
     "ncm",
     "netcgo",
     "nvml",
+    "openmetrics",
     "oracle",
     "orchestrator",
     "otlp",
@@ -180,7 +182,9 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 # use the modern google.golang.org/protobuf runtime, so the shim is dead weight.
 DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib", "zstd"])
 
-# IOT_AGENT_TAGS lists the tags needed when building the IoT agent
+# IOT_AGENT_TAGS lists the tags needed when building the IoT agent.
+# The IoT Agent does not ship Python integrations, and the opt-in OpenMetrics
+# migration must not expand its existing check surface or package footprint.
 IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib", "zstd"])
 
 # INSTALLER_TAGS lists the tags needed when building the installer
