@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM V1 trace endpoint now safely skips unknown fields, harvesting any
+    inline strings they carry into the string table so that streaming-string
+    references in later known fields continue to resolve correctly.
