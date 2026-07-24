@@ -3,6 +3,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/da
 go 1.25.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs-library v0.80.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3
@@ -42,12 +44,10 @@ require (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.80.2 // indirect

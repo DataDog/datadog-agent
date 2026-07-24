@@ -128,7 +128,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			"Usage metric for GW deployments with DDOT",
 		),
 	}
-	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store, nil)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -185,7 +185,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			"Usage metric of OTLP traces in DDOT",
 		),
 	}
-	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store, nil)
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
@@ -227,7 +227,7 @@ func TestNoPanicSendTraceAfterTraceAgentStop(t *testing.T) {
 
 	store := serializerexporter.TelemetryStore{}
 	var wg sync.WaitGroup
-	f := NewFactory(testComponent{traceagent, &wg}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	f := NewFactory(testComponent{traceagent, &wg}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store, nil)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
