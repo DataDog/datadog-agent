@@ -319,6 +319,13 @@ func mergeRetryConfig(base configretry.BackOffConfig, user configretry.BackOffCo
 	return base
 }
 
+// orchestratorForwardingEnabled reports whether k8s object logs should be routed
+// to the orchestrator intake (only in standalone mode), and whether an enabled
+// orchestrator_explorer is being ignored (connected mode) and should be warned about.
+func orchestratorForwardingEnabled(standalone, orchestratorExplorerEnabled bool) (enabled, warnIgnored bool) {
+	return standalone && orchestratorExplorerEnabled, orchestratorExplorerEnabled && !standalone
+}
+
 // createLogsExporter creates a logs exporter based on the config.
 func (f *factory) createLogsExporter(
 	ctx context.Context,
@@ -350,8 +357,13 @@ func (f *factory) createLogsExporter(
 	// the core/cluster agent already collects and ships orchestrator data, so
 	// enabling it here as well would duplicate manifests.
 	standalone := f.coreCfg != nil && f.coreCfg.GetBool("otel_standalone")
-	if cfg.OrchestratorExplorer.Enabled && !standalone {
+	orchestratorEnabled, warnIgnored := orchestratorForwardingEnabled(standalone, cfg.OrchestratorExplorer.Enabled)
+	if warnIgnored {
 		set.Logger.Warn("orchestrator_explorer is enabled on the datadog exporter but will be ignored: it is only supported in standalone mode (DD_OTEL_STANDALONE=true); in connected mode the Datadog cluster agent collects orchestrator data")
+	}
+	if orchestratorEnabled && f.h == nil {
+		set.Logger.Warn("orchestrator_explorer is enabled but no hostname source provider is available; Kubernetes object forwarding will be disabled")
+		orchestratorEnabled = false
 	}
 
 	lc := &logsagentexporter.Config{
@@ -369,7 +381,7 @@ func (f *factory) createLogsExporter(
 			Key:      string(cfg.API.Key),
 			Site:     cfg.API.Site,
 			Endpoint: cfg.OrchestratorExplorer.Endpoint,
-			Enabled:  standalone && cfg.OrchestratorExplorer.Enabled,
+			Enabled:  orchestratorEnabled,
 		},
 	}
 	return lf.CreateLogs(ctx, set, lc)
