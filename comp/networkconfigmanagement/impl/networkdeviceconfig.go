@@ -23,6 +23,7 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, sender sender.Sender, hostname string, profiles ncmprofile.Map, connectFn func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error), clock clock.Clock) *networkDeviceConfigImpl {
@@ -115,6 +116,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
 
+	var err error
 	conn, err := n.connectAndEnsureProfile(ctx, dc)
 	if err != nil {
 		return err
@@ -195,61 +197,13 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 	return entries, nil
 }
 
-// RollbackConfig rolls back a device to a previous configuration that's
-// saved locally on this agent.
-func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) error {
-	if n.store == nil {
-		return errors.New("rollback is disabled")
-	}
-	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
-	ctx = WithLogger(ctx, log)
-	dc, err := n.devices.GetAndLock(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-	defer dc.UnlockOrLog(log)
-
-	rawConfig, metadata, err := n.store.GetConfig(configVersion)
-	if err != nil {
-		return err
-	}
-	if metadata.DeviceID != deviceID {
-		return fmt.Errorf("input mismatch: config %q is not for device %q", configVersion, deviceID)
-	}
-
-	expectedHash := ncmstore.HashConfig(rawConfig)
-	if expectedHash != hash {
-		return fmt.Errorf("hash mismatch for config %q", configVersion)
-	}
-
-	conn, err := n.connectAndEnsureProfile(ctx, dc)
-	if err != nil {
-		return fmt.Errorf("%v: %w", deviceID, err)
-	}
-	defer conn.Close()
-
-	err = conn.PushConfig(ctx, rawConfig)
-	if err != nil {
-		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
-	}
-
-	// TODO if this fails we should still return success so that the user knows
-	// the rollback itself happened.
-	reportErr := n.reportConfig(ctx, dc, n.sender)
-	if reportErr != nil {
-		log.Errorf("Rollback succeeded, but reportConfig failed: %v", reportErr)
-	}
-	return nil
-}
-
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
-func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, error) {
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.RollbackError) {
 	log := LoggerFromContext(ctx)
 	conn, err := n.connect(dc.device)
 	if err != nil {
 		log.Errorf("unable to connect to device: %s", err)
-		return nil, err
+		return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to connect to %s: %w", dc.device.DeviceID(), err)
 	}
 	if dc.profile == nil {
 		log.Debug("No profile specified, testing known profiles")
@@ -257,7 +211,7 @@ func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, d
 		if !ok {
 			dc.noMatchingProfile = true
 			_ = conn.Close()
-			return nil, fmt.Errorf("no matching NCM profile for device %s", dc.device.DeviceID())
+			return nil, types.WrapErrorf(types.ErrNoProfile, "no matching NCM profile for device %s", dc.device.DeviceID())
 		}
 		dc.profile = prof
 	}

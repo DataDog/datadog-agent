@@ -29,6 +29,21 @@ type NCMProfile struct {
 	MetadataRules []MetadataRule
 }
 
+type PushConfig struct {
+	Copy       *SCPCommand
+	SetRunning *PlainCommand
+	SetStartup *PlainCommand
+}
+
+// CanPush returns whether or not this PushConfig can be used - mainly it is
+// used for detecting zero values.
+func (pc *PushConfig) CanPush() bool {
+	if pc == nil {
+		return false
+	}
+	return pc.Copy != nil && pc.SetRunning != nil
+}
+
 type CommandSet struct {
 	Verify     *PlainCommand
 	GetVersion *PlainCommand `json:"get_version,omitempty"`
@@ -36,7 +51,12 @@ type CommandSet struct {
 	GetRunning *PlainCommand `json:"get_running,omitempty"`
 	GetStartup *PlainCommand `json:"get_startup,omitempty"`
 	// Config pushing
-	PushConfig []Command
+	PushConfig *PushConfig
+}
+
+// CanPush returns whether or not this CommandSet includes a valid Push command.
+func (cs *CommandSet) CanPush() bool {
+	return cs.PushConfig.CanPush()
 }
 
 // GetProfile retrieves the profile from the profile map (by name)

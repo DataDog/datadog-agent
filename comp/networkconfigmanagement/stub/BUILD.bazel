@@ -9,5 +9,7 @@ go_library(
         "//comp/networkconfigmanagement/def",
         "//pkg/aggregator/sender",
         "//pkg/networkconfigmanagement/config",
+        "//pkg/networkconfigmanagement/remote",
+        "//pkg/networkconfigmanagement/types",
     ],
 )

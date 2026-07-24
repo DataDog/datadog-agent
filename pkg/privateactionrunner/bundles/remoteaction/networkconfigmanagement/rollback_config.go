@@ -19,7 +19,9 @@ import (
 	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	networkconfigmanagementimpl "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -51,9 +53,11 @@ type RollbackConfigInputs struct {
 
 // RollbackConfigOutputs is the output of a rollbackConfig action.
 type RollbackConfigOutputs struct {
-	Success    bool       `json:"success,omitempty"`
-	Error      string     `json:"error,omitempty"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	Success        bool                  `json:"success,omitempty"`
+	CommandResults *ncmremote.PushResult `json:"command_results"`
+	Error          string                `json:"error,omitempty"`
+	ErrorCode      string                `json:"error_code"`
+	FinishedAt     *time.Time            `json:"finished_at,omitempty"`
 }
 
 // Run executes the rollbackConfig action
@@ -92,13 +96,25 @@ func (h *RollbackConfigHandler) Run(
 
 	resp, err := h.ipcClient.Post(url, "application/json", bytes.NewBuffer(body))
 	if err != nil {
+		// This case only happens when there's an internal error - errors during
+		// the rollback itself are returned in the RollbackResult. The response
+		// here should be a struct like `{"error":"<error message>"}`
 		errMsg := strings.TrimSpace(string(resp))
 		if errMsg == "" {
 			errMsg = err.Error()
 		}
 		return RollbackConfigOutputs{Error: errMsg}, err
 	}
-
+	var response *networkconfigmanagementimpl.RollbackResponse
+	if err := json.Unmarshal(resp, &response); err != nil {
+		return RollbackConfigOutputs{Error: err.Error()}, fmt.Errorf("unable to unmarshal rollback response: %w", err)
+	}
 	t := h.clock.Now()
-	return RollbackConfigOutputs{Success: true, FinishedAt: &t}, nil
+	var result RollbackConfigOutputs
+	result.Success = response.ErrorCode == ""
+	result.FinishedAt = &t
+	result.Error = response.ErrorMsg
+	result.ErrorCode = response.ErrorCode
+	result.CommandResults = response.CommandResults
+	return result, nil
 }
