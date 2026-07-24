@@ -93,6 +93,7 @@ COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yam
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 ENV DD_OTELCOLLECTOR_ENABLED=true
+ENV DD_OTEL_STANDALONE=true
 
 ENTRYPOINT ["otel-agent"]
 CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]
