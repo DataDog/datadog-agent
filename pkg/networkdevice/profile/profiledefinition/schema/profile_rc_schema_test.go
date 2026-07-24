@@ -8,7 +8,7 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/fs"

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func Validate(schema *jsonschema.Schema, data any) error {

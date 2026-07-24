@@ -28,7 +28,7 @@ go_library(
         "//pkg/privateactionrunner/bundle-support",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [

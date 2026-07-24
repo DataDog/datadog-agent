@@ -26,7 +26,7 @@ go_test(
     embed = [":schema"],
     gotags = ["test"],
     deps = [
-        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
