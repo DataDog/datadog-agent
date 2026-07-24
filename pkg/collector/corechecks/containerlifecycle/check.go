@@ -49,6 +49,7 @@ type Check struct {
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
+	extendedSet       bool
 }
 
 // Configure parses the check configuration and initializes the container_lifecycle check
@@ -82,7 +83,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.instance.PollInterval = defaultPollInterval
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore)
+	c.extendedSet = pkgconfigsetup.Datadog().GetBool("container_lifecycle.extended_set")
+
+	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore, c.extendedSet)
 
 	return nil
 }
@@ -92,28 +95,54 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	filter := workloadmeta.NewFilterBuilder().
+	contDeleteFilterBuilder := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
 		SetEventType(workloadmeta.EventTypeUnset).
-		AddKind(workloadmeta.KindContainer).
-		Build()
+		AddKind(workloadmeta.KindContainer)
 
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-cont",
 		workloadmeta.NormalPriority,
-		filter,
+		contDeleteFilterBuilder.Build(),
 	)
 
-	podFilter := workloadmeta.NewFilterBuilder().
+	var contCreateEventsCh chan workloadmeta.EventBundle
+	var contNodeOrchestratorDeleteEventsCh chan workloadmeta.EventBundle
+	if c.extendedSet {
+		contCreateFilterBuilder := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceAll).
+			SetEventType(workloadmeta.EventTypeSet).
+			AddKind(workloadmeta.KindContainer)
+
+		contCreateEventsCh = c.workloadmetaStore.Subscribe(
+			CheckName+"-cont-create",
+			workloadmeta.NormalPriority,
+			contCreateFilterBuilder.Build(),
+		)
+
+		contNodeOrchestratorDeleteFilterBuilder := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceNodeOrchestrator).
+			SetEventType(workloadmeta.EventTypeUnset).
+			AddKind(workloadmeta.KindContainer)
+
+		contNodeOrchestratorDeleteEventsCh = c.workloadmetaStore.Subscribe(
+			CheckName+"-cont-node-orchestrator-delete",
+			workloadmeta.NormalPriority,
+			contNodeOrchestratorDeleteFilterBuilder.Build(),
+		)
+	}
+
+	podFilterBuilder := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceNodeOrchestrator).
-		SetEventType(workloadmeta.EventTypeUnset).
-		AddKind(workloadmeta.KindKubernetesPod).
-		Build()
+		AddKind(workloadmeta.KindKubernetesPod)
+	if !c.extendedSet {
+		podFilterBuilder = podFilterBuilder.SetEventType(workloadmeta.EventTypeUnset)
+	}
 
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-pod",
 		workloadmeta.NormalPriority,
-		podFilter,
+		podFilterBuilder.Build(),
 	)
 
 	var taskEventsCh chan workloadmeta.EventBundle
@@ -145,6 +174,18 @@ func (c *Check) Run() error {
 		select {
 		case eventBundle, ok := <-contEventsCh:
 			if !ok {
+				return nil
+			}
+			c.processor.processEvents(eventBundle)
+		case eventBundle, ok := <-contCreateEventsCh:
+			if !ok {
+				stopProcessor()
+				return nil
+			}
+			c.processor.processEvents(eventBundle)
+		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
+			if !ok {
+				stopProcessor()
 				return nil
 			}
 			c.processor.processEvents(eventBundle)
