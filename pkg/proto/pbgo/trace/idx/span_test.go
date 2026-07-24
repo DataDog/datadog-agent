@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -362,6 +363,193 @@ func TestSpanEventUnmarshalMsgConvertedDropsNilEntries(t *testing.T) {
 		assert.NoError(t, err)
 		_ = arrAV.AsString(strings)
 	})
+}
+
+// TestUnmarshalSpanUnknownField verifies InternalSpan.UnmarshalMsg skips an
+// unknown field interleaved between known fields AND harvests any new inline
+// streaming string it carries into the string table, so a later known field
+// that references that string by index still resolves correctly (forward
+// compatibility). Layout:
+//
+//	field 1  (service):  inline "my-service" -> string index 1
+//	field 99 (unknown):  inline "harvested"  -> string index 2 (must be harvested)
+//	field 2  (name):     ref index 2         -> "harvested"
+//	field 4  (spanID):   uint64 12345678
+func TestUnmarshalSpanUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 4)
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendString(bts, "my-service")
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "harvested")
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendUint32(bts, 2) // name: streaming-string ref to index 2
+	bts = msgp.AppendUint32(bts, 4)
+	bts = msgp.AppendUint64(bts, 12345678)
+	span := &InternalSpan{Strings: strings}
+	o, err := span.UnmarshalMsg(bts)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, "my-service", strings.Get(span.span.ServiceRef))
+	assert.Equal(t, "harvested", strings.Get(2), "unknown field's inline string must be harvested into the table")
+	assert.Equal(t, "harvested", strings.Get(span.span.NameRef), "later field's index reference must resolve to the harvested string")
+	assert.Equal(t, uint64(12345678), span.span.SpanID)
+}
+
+// TestUnmarshalSpanUnknownFieldNestedStrings verifies that string harvesting
+// recurses into nested containers within an unknown field. Here the unknown
+// field's value is an array of two new inline strings, both of which must be
+// added to the table in stream order. Layout:
+//
+//	field 1  (service): inline "svc"                    -> string index 1
+//	field 99 (unknown): array ["nested-a", "nested-b"]  -> string indexes 2, 3
+//	field 2  (name):    ref index 3                     -> "nested-b"
+func TestUnmarshalSpanUnknownFieldNestedStrings(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 3)
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendString(bts, "svc")
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendArrayHeader(bts, 2)
+	bts = msgp.AppendString(bts, "nested-a")
+	bts = msgp.AppendString(bts, "nested-b")
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendUint32(bts, 3) // name: streaming-string ref to index 3
+	span := &InternalSpan{Strings: strings}
+	o, err := span.UnmarshalMsg(bts)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, "svc", strings.Get(span.span.ServiceRef))
+	assert.Equal(t, "nested-a", strings.Get(2))
+	assert.Equal(t, "nested-b", strings.Get(3))
+	assert.Equal(t, "nested-b", strings.Get(span.span.NameRef))
+}
+
+// TestUnmarshalSpanUnknownFieldMapStrings verifies that string harvesting
+// recurses into a msgpack map used as an unknown field value, adding both keys
+// and values (and strings inside further-nested containers) in exact stream
+// order while skipping non-string scalars. A later known field references the
+// last harvested string by index, so any reordering or omission in the map
+// branch would break this test. Stream order:
+//
+//	field 1 (service): "svc"                         -> string index 1
+//	field 99 (unknown map, 3 entries):
+//	  "mk1" -> index 2, "mv1"                         -> index 3
+//	  "mk2" -> index 4, ["av1"]                       -> index 5
+//	  "mk3" -> index 6, bin{0x01,0x02}                -> skipped (not a string)
+//	field 2 (name): ref index 5                       -> "av1"
+func TestUnmarshalSpanUnknownFieldMapStrings(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 3) // span struct: 3 fields
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendString(bts, "svc")
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendMapHeader(bts, 3) // unknown value is itself a map
+	bts = msgp.AppendString(bts, "mk1")
+	bts = msgp.AppendString(bts, "mv1")
+	bts = msgp.AppendString(bts, "mk2")
+	bts = msgp.AppendArrayHeader(bts, 1) // nested container inside a map value
+	bts = msgp.AppendString(bts, "av1")
+	bts = msgp.AppendString(bts, "mk3")
+	bts = msgp.AppendBytes(bts, []byte{0x01, 0x02}) // non-string scalar: skipped
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendUint32(bts, 5) // name: streaming-string ref to index 5
+	span := &InternalSpan{Strings: strings}
+	o, err := span.UnmarshalMsg(bts)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, "svc", strings.Get(span.span.ServiceRef))
+	assert.Equal(t, "mk1", strings.Get(2))
+	assert.Equal(t, "mv1", strings.Get(3))
+	assert.Equal(t, "mk2", strings.Get(4))
+	assert.Equal(t, "av1", strings.Get(5))
+	assert.Equal(t, "mk3", strings.Get(6))
+	assert.Equal(t, 7, strings.Len(), "table holds \"\", svc and the 5 harvested strings; the bin scalar is not added")
+	assert.Equal(t, "av1", strings.Get(span.span.NameRef))
+}
+
+// TestUnmarshalSpanListUnknownFieldSharedTable verifies harvesting keeps the
+// string table synchronized across objects that share it: the first span
+// introduces a new string only inside an unknown field, and the second span
+// references it by index.
+//
+//	span[0] field 99 (unknown): "cross"       -> string index 1
+//	span[1] field 1 (service):  ref index 1   -> "cross"
+func TestUnmarshalSpanListUnknownFieldSharedTable(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendArrayHeader(bts, 2)
+	bts = msgp.AppendMapHeader(bts, 1) // span[0]: single unknown field
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "cross")
+	bts = msgp.AppendMapHeader(bts, 1) // span[1]: service references the harvested string
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendUint32(bts, 1)
+	spans, o, err := UnmarshalSpanList(bts, strings)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	require.Len(t, spans, 2)
+	assert.Equal(t, "cross", strings.Get(1))
+	assert.Equal(t, "cross", strings.Get(spans[1].span.ServiceRef))
+}
+
+// TestUnmarshalSpanEventUnknownField verifies SpanEvent.UnmarshalMsg skips an
+// unknown field and harvests its inline string so a later known field's index
+// reference resolves. Layout:
+//
+//	field 1  (time):    uint64 5
+//	field 99 (unknown): inline "harvested" -> string index 1 (must be harvested)
+//	field 2  (name):    ref index 1        -> "harvested"
+func TestUnmarshalSpanEventUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 3)
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendUint64(bts, 5)
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "harvested")
+	bts = msgp.AppendUint32(bts, 2)
+	bts = msgp.AppendUint32(bts, 1) // name: streaming-string ref to index 1
+	spanEvent := &SpanEvent{}
+	o, err := spanEvent.UnmarshalMsg(bts, strings)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, uint64(5), spanEvent.Time)
+	assert.Equal(t, "harvested", strings.Get(1))
+	assert.Equal(t, "harvested", strings.Get(spanEvent.NameRef))
+}
+
+// TestUnmarshalSpanLinkUnknownField verifies SpanLink.UnmarshalMsg skips an
+// unknown field and harvests its inline string so a later known field's index
+// reference resolves. Layout:
+//
+//	field 1  (traceID):    bin {0xAF}
+//	field 99 (unknown):    inline "harvested" -> string index 1 (must be harvested)
+//	field 4  (tracestate): ref index 1        -> "harvested"
+//	field 5  (flags):      uint32 3
+func TestUnmarshalSpanLinkUnknownField(t *testing.T) {
+	strings := NewStringTable()
+	var bts []byte
+	bts = msgp.AppendMapHeader(bts, 4)
+	bts = msgp.AppendUint32(bts, 1)
+	bts = msgp.AppendBytes(bts, []byte{0xAF})
+	bts = msgp.AppendUint32(bts, 99)
+	bts = msgp.AppendString(bts, "harvested")
+	bts = msgp.AppendUint32(bts, 4)
+	bts = msgp.AppendUint32(bts, 1) // tracestate: streaming-string ref to index 1
+	bts = msgp.AppendUint32(bts, 5)
+	bts = msgp.AppendUint32(bts, 3)
+	sl := &SpanLink{}
+	o, err := sl.UnmarshalMsg(bts, strings)
+	require.NoError(t, err)
+	require.Empty(t, o)
+	assert.Equal(t, []byte{0xAF}, sl.TraceID)
+	assert.Equal(t, "harvested", strings.Get(1))
+	assert.Equal(t, "harvested", strings.Get(sl.TracestateRef))
+	assert.Equal(t, uint32(3), sl.Flags)
 }
 
 // TestSpanUnmarshalMsgConvertedDropsNilLinksAndEvents ensures the v0.x -> idx

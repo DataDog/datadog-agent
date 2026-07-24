@@ -148,6 +148,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := ensurePARProcmgrConfig(); err != nil {
 		return fmt.Errorf("failed to write PAR process manager config: %w", err)
 	}
+	if err := ensurePARExecutorProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
+	}
 
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
@@ -225,6 +228,21 @@ func ensurePARProcmgrConfig() error {
 	}
 	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
 		log.Warnf("PAR: could not remove stale process manager config: %v", err)
+	}
+	return nil
+}
+
+func ensurePARExecutorProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WritePARExecutorProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemovePARExecutorProcmgrConfig(installRoot); err != nil {
+		log.Warnf("PAR executor: could not remove stale process manager config: %v", err)
 	}
 	return nil
 }

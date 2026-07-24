@@ -23,6 +23,7 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
+        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
