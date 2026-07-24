@@ -18,7 +18,7 @@ HASHES = {
 _BUILD_FILE_CONTENT = """\
 filegroup(
     name = "binary",
-    srcs = glob(["**/agent-data-plane", "**/agent-data-plane.exe"], allow_empty = True),
+    srcs = glob(["**/{binary_name}"]),
     visibility = ["//visibility:public"],
 )
 
@@ -69,7 +69,9 @@ _ARTIFACTS = {
 [
     http_archive(
         name = "agent_data_plane_{}".format(hash_key.replace("-", "_")),
-        build_file_content = _BUILD_FILE_CONTENT,
+        build_file_content = _BUILD_FILE_CONTENT.format(
+            binary_name = "agent-data-plane.exe" if os == "windows" else "agent-data-plane",
+        ),
         patch_cmds = _WINDOWS_PATCH_CMDS if os == "windows" else [],
         sha256 = HASHES[hash_key],
         url = "{base}/agent-data-plane-{version}-{target}.{ext}".format(
