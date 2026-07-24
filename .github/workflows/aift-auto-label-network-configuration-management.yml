@@ -1,0 +1,42 @@
+name: Auto-label PRs for network-configuration-management
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check team membership and label PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const team = 'network-configuration-management';
+            const org = context.repo.owner;
+            const author = context.payload.pull_request.user.login;
+
+            try {
+              const membership = await github.rest.teams.getMembershipForUserInOrg({
+                org,
+                team_slug: team,
+                username: author,
+              });
+
+              if (membership.data.state === 'active') {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: [`team:${team}`],
+                });
+                console.log(`Labeled PR #${context.issue.number} with team:${team}`);
+              }
+            } catch (error) {
+              if (error.status !== 404) {
+                console.error(`Error checking team membership: ${error.message}`);
+              }
+            }
