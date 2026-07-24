@@ -26,9 +26,9 @@ type Params struct {
 	ComponentName string
 }
 
-// Component gates Agent startup on node-local ownership.
+// Component gates Agent startup until older sibling Pods have left the node.
 type Component interface {
-	// Wait reports Prepared and blocks until this process owns the node-local lock.
+	// Wait reports Prepared and blocks until no older Pod owned by the same DaemonSet remains on the node.
 	Wait(context.Context) error
 	// MarkActive reports that Agent startup completed.
 	MarkActive() error

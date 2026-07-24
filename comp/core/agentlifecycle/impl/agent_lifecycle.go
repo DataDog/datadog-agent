@@ -13,11 +13,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gofrs/flock"
 
 	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,15 +25,28 @@ import (
 )
 
 const (
-	lockRetryInterval   = 100 * time.Millisecond
+	siblingPollInterval = time.Second
 	rolloutEnabledKey   = "experimental.node_agent_rollout.enabled"
-	rolloutLockPathKey  = "experimental.node_agent_rollout.lock_path"
+	rolloutPodUIDKey    = "experimental.node_agent_rollout.pod_uid"
 	rolloutStatePathKey = "experimental.node_agent_rollout.state_path"
 )
 
-type fileLocker interface {
-	TryLockContext(context.Context, time.Duration) (bool, error)
-	Unlock() error
+type podOwner struct {
+	kind       string
+	uid        string
+	controller bool
+}
+
+type localPod struct {
+	uid       string
+	name      string
+	namespace string
+	createdAt time.Time
+	owners    []podOwner
+}
+
+type localPodSource interface {
+	ListLocalPods(context.Context) ([]localPod, error)
 }
 
 type dependencies struct {
@@ -48,28 +60,27 @@ type dependencies struct {
 type component struct {
 	enabled       bool
 	componentName string
-	lockPath      string
+	podUID        string
 	statePath     string
+	processPID    int
+	processStart  string
 	log           log.Component
-	locker        fileLocker
+	pods          localPodSource
+	pollInterval  time.Duration
 
-	mu       sync.Mutex
-	acquired bool
-	closed   bool
+	mu         sync.Mutex
+	activating bool
+	closed     bool
 }
 
 var _ agentlifecycle.Component = (*component)(nil)
 
 // NewComponent creates the experimental Agent lifecycle component.
 func NewComponent(deps dependencies) (agentlifecycle.Component, error) {
-	return newComponent(deps, func(path string) fileLocker { return flock.New(path) })
+	return newComponent(deps, newLocalPodSource(), runtime.GOOS, currentProcessIdentity)
 }
 
-func newComponent(deps dependencies, newLocker func(string) fileLocker) (agentlifecycle.Component, error) {
-	return newComponentForPlatform(deps, newLocker, runtime.GOOS)
-}
-
-func newComponentForPlatform(deps dependencies, newLocker func(string) fileLocker, goos string) (agentlifecycle.Component, error) {
+func newComponent(deps dependencies, pods localPodSource, goos string, processIdentity func() (int, string, error)) (agentlifecycle.Component, error) {
 	if !deps.Config.GetBool(rolloutEnabledKey) {
 		return &component{}, nil
 	}
@@ -80,38 +91,66 @@ func newComponentForPlatform(deps dependencies, newLocker func(string) fileLocke
 	if deps.Params.ComponentName == "" {
 		return nil, errors.New("experimental node Agent rollout requires a component name")
 	}
-	lockPath, err := resolveComponentPath(deps.Config.GetString(rolloutLockPathKey), deps.Params.ComponentName, ".lock", rolloutLockPathKey)
-	if err != nil {
-		return nil, err
+	podUID := strings.TrimSpace(deps.Config.GetString(rolloutPodUIDKey))
+	if podUID == "" {
+		return nil, fmt.Errorf("%s must identify this Pod", rolloutPodUIDKey)
 	}
 	statePath, err := resolveComponentPath(deps.Config.GetString(rolloutStatePathKey), deps.Params.ComponentName, ".state", rolloutStatePathKey)
 	if err != nil {
 		return nil, err
 	}
-	if !filepath.IsAbs(lockPath) {
-		return nil, fmt.Errorf("%s must be an absolute path", rolloutLockPathKey)
-	}
 	if !filepath.IsAbs(statePath) {
 		return nil, fmt.Errorf("%s must be an absolute path", rolloutStatePathKey)
 	}
-	if filepath.Clean(lockPath) == filepath.Clean(statePath) {
-		return nil, errors.New("experimental node Agent rollout lock and state paths must differ")
-	}
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
-		return nil, fmt.Errorf("create Agent rollout lock directory: %w", err)
-	}
 	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
 		return nil, fmt.Errorf("create Agent rollout state directory: %w", err)
+	}
+	if err := os.Remove(statePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("clear stale Agent rollout state: %w", err)
+	}
+	processPID, processStart, err := processIdentity()
+	if err != nil {
+		return nil, err
 	}
 
 	return &component{
 		enabled:       true,
 		componentName: deps.Params.ComponentName,
-		lockPath:      lockPath,
+		podUID:        podUID,
 		statePath:     statePath,
+		processPID:    processPID,
+		processStart:  processStart,
 		log:           deps.Log,
-		locker:        newLocker(lockPath),
+		pods:          pods,
+		pollInterval:  siblingPollInterval,
 	}, nil
+}
+
+// currentProcessIdentity returns values that an exec probe can independently
+// verify through /proc. Container filesystems such as an EmptyDir survive a
+// container restart, so state alone is insufficient: it must be tied to the
+// exact process generation that published it.
+func currentProcessIdentity() (int, string, error) {
+	pid := os.Getpid()
+	contents, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return 0, "", fmt.Errorf("read Agent process identity: %w", err)
+	}
+	// The parenthesized comm field may contain spaces or right parentheses.
+	// Fields after its final ") " begin at field 3; starttime is field 22.
+	end := strings.LastIndex(string(contents), ") ")
+	if end < 0 {
+		return 0, "", errors.New("read Agent process identity: malformed /proc/self/stat")
+	}
+	fields := strings.Fields(string(contents)[end+2:])
+	const startTimeIndex = 22 - 3
+	if len(fields) <= startTimeIndex {
+		return 0, "", errors.New("read Agent process identity: incomplete /proc/self/stat")
+	}
+	if _, err := strconv.ParseUint(fields[startTimeIndex], 10, 64); err != nil {
+		return 0, "", fmt.Errorf("read Agent process identity: invalid start time: %w", err)
+	}
+	return pid, fields[startTimeIndex], nil
 }
 
 func validatePlatform(goos string) error {
@@ -121,9 +160,9 @@ func validatePlatform(goos string) error {
 	return nil
 }
 
-// resolveComponentPath makes the process identity part of every coordination
-// path. A shared datadog.yaml can use the {component} token, while callers such
-// as the Operator can continue supplying an already-expanded process path.
+// resolveComponentPath makes the process identity part of every state path. A
+// shared datadog.yaml can use the {component} token, while the Operator can
+// continue supplying an already-expanded process path.
 func resolveComponentPath(configuredPath, componentName, suffix, configKey string) (string, error) {
 	if filepath.Base(componentName) != componentName || componentName == "." || componentName == ".." {
 		return "", errors.New("experimental node Agent rollout component name must be a path-safe base name")
@@ -150,38 +189,156 @@ func (c *component) Wait(ctx context.Context) error {
 		c.mu.Unlock()
 		return errors.New("experimental Agent lifecycle is already closed")
 	}
-	if c.acquired {
+	if c.activating {
 		c.mu.Unlock()
-		return errors.New("experimental Agent lifecycle already owns the node lock")
+		return errors.New("experimental Agent lifecycle is already activating")
+	}
+	c.mu.Unlock()
+
+	ticker := time.NewTicker(c.pollInterval)
+	defer ticker.Stop()
+	prepared := false
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		pods, err := c.pods.ListLocalPods(ctx)
+		if err == nil {
+			var siblings []localPod
+			siblings, err = siblingPods(pods, c.podUID)
+			if err == nil && len(siblings) == 0 {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return ctxErr
+				}
+				return c.beginActivation()
+			}
+			if err == nil && !prepared {
+				if err = c.markPrepared(); err == nil {
+					prepared = true
+				}
+			}
+		}
+		if err != nil {
+			// A failed or incomplete kubelet response must never be interpreted as
+			// proof that the old Pod is gone. Remain prepared and retry.
+			c.log.Warnf("%s cannot verify node-local sibling Pods; remaining inactive: %v", c.componentName, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (c *component) markPrepared() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return errors.New("cannot prepare a closed experimental Agent lifecycle")
 	}
 	if err := c.writeState(agentlifecycle.StatePrepared); err != nil {
-		c.mu.Unlock()
 		return err
 	}
-	c.mu.Unlock()
+	c.log.Infof("%s verified an older DaemonSet sibling and is prepared while it waits", c.componentName)
+	return nil
+}
 
-	c.log.Infof("%s is prepared and waiting for node ownership at %s", c.componentName, c.lockPath)
-	locked, err := c.locker.TryLockContext(ctx, lockRetryInterval)
-	if err != nil {
-		return fmt.Errorf("acquire Agent rollout lock %q: %w", c.lockPath, err)
-	}
-	if !locked {
-		if ctx.Err() != nil {
-			return ctx.Err()
+func siblingPods(pods []localPod, selfUID string) ([]localPod, error) {
+	var self *localPod
+	for i := range pods {
+		if pods[i].uid == selfUID {
+			if self != nil {
+				return nil, fmt.Errorf("kubelet returned duplicate entries for self Pod UID %q", selfUID)
+			}
+			self = &pods[i]
 		}
-		return fmt.Errorf("failed to acquire Agent rollout lock %q", c.lockPath)
+	}
+	if self == nil {
+		return nil, fmt.Errorf("self Pod UID %q is absent from the kubelet Pod list", selfUID)
 	}
 
-	c.mu.Lock()
-	c.acquired = true
-	if err := c.writeState(agentlifecycle.StateActivating); err != nil {
-		c.acquired = false
-		c.mu.Unlock()
-		unlockErr := c.locker.Unlock()
-		return errors.Join(err, unlockErr)
+	ownerUID, err := daemonSetOwnerUID(*self)
+	if err != nil {
+		return nil, err
 	}
-	c.mu.Unlock()
-	c.log.Infof("%s acquired node ownership and is activating", c.componentName)
+	if self.createdAt.IsZero() {
+		return nil, fmt.Errorf("self Pod %s/%s has no creation timestamp", self.namespace, self.name)
+	}
+
+	var siblings []localPod
+	for i := range pods {
+		pod := pods[i]
+		if pod.uid == selfUID || pod.namespace != self.namespace {
+			continue
+		}
+		candidateOwnerUID, ownerErr := daemonSetOwnerUID(pod)
+		if ownerErr == nil && candidateOwnerUID == ownerUID {
+			precedes, precedesErr := podPrecedes(pod, *self)
+			if precedesErr != nil {
+				return nil, precedesErr
+			}
+			if precedes {
+				siblings = append(siblings, pod)
+			}
+		}
+	}
+	return siblings, nil
+}
+
+// podPrecedes fails closed when Kubernetes' second-precision creation
+// timestamps cannot establish an order. Pod UIDs and resourceVersions are not
+// creation-order values and must not be used to guess which process is active.
+func podPrecedes(candidate, self localPod) (bool, error) {
+	if candidate.createdAt.IsZero() {
+		// An incomplete kubelet record must not be interpreted as a newer Pod.
+		return true, nil
+	}
+	if candidate.createdAt.Before(self.createdAt) {
+		return true, nil
+	}
+	if candidate.createdAt.After(self.createdAt) {
+		return false, nil
+	}
+	return false, fmt.Errorf("cannot order same-timestamp Pods %s/%s and %s/%s", candidate.namespace, candidate.name, self.namespace, self.name)
+}
+
+func daemonSetOwnerUID(pod localPod) (string, error) {
+	var ownerUID string
+	for _, owner := range pod.owners {
+		if owner.kind != "DaemonSet" || !owner.controller {
+			continue
+		}
+		if owner.uid == "" {
+			return "", fmt.Errorf("Pod %s/%s has a DaemonSet controller with an empty UID", pod.namespace, pod.name)
+		}
+		if ownerUID != "" {
+			return "", fmt.Errorf("Pod %s/%s has multiple DaemonSet controllers", pod.namespace, pod.name)
+		}
+		ownerUID = owner.uid
+	}
+	if ownerUID == "" {
+		return "", fmt.Errorf("Pod %s/%s is not controlled by a DaemonSet", pod.namespace, pod.name)
+	}
+	return ownerUID, nil
+}
+
+func (c *component) beginActivation() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return errors.New("cannot activate a closed experimental Agent lifecycle")
+	}
+	if c.activating {
+		return errors.New("experimental Agent lifecycle is already activating")
+	}
+	if err := c.writeState(agentlifecycle.StateActivating); err != nil {
+		return err
+	}
+	c.activating = true
+	c.log.Infof("%s has no older DaemonSet sibling on the node and is activating", c.componentName)
 	return nil
 }
 
@@ -195,8 +352,8 @@ func (c *component) MarkActive() error {
 	if c.closed {
 		return errors.New("cannot mark a closed experimental Agent lifecycle active")
 	}
-	if !c.acquired {
-		return errors.New("cannot mark the experimental Agent lifecycle active before acquiring node ownership")
+	if !c.activating {
+		return errors.New("cannot mark the experimental Agent lifecycle active before the sibling check")
 	}
 	if err := c.writeState(agentlifecycle.StateActive); err != nil {
 		return err
@@ -216,14 +373,7 @@ func (c *component) Close() error {
 		return nil
 	}
 	c.closed = true
-
-	stateErr := c.writeState(agentlifecycle.StateStopped)
-	var unlockErr error
-	if c.acquired {
-		unlockErr = c.locker.Unlock()
-		c.acquired = false
-	}
-	return errors.Join(stateErr, unlockErr)
+	return c.writeState(agentlifecycle.StateStopped)
 }
 
 func (c *component) writeState(state string) error {
@@ -234,7 +384,7 @@ func (c *component) writeState(state string) error {
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
 
-	if _, err := fmt.Fprintln(tmp, state); err != nil {
+	if _, err := fmt.Fprintln(tmp, state, c.processPID, c.processStart); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("write Agent rollout state: %w", err)
 	}

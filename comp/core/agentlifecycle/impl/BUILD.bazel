@@ -3,7 +3,11 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["agent_lifecycle.go"],
+    srcs = [
+        "agent_lifecycle.go",
+        "local_pods_kubelet.go",
+        "local_pods_nokubelet.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/impl",
     visibility = ["//visibility:public"],
     deps = [
@@ -11,7 +15,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
-        "@com_github_gofrs_flock//:flock",
+        "//pkg/util/kubernetes/kubelet",
     ],
 )
 
@@ -23,7 +27,6 @@ dd_agent_go_test(
         "//comp/core/agentlifecycle/def",
         "//comp/core/config",
         "//comp/core/log/mock",
-        "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//require",
     ],
 )

@@ -8324,7 +8324,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
-          lock_path:
+          pod_uid:
             node_type: setting
             type: string
             default: ''

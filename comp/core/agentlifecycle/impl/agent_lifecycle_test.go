@@ -12,12 +12,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/stretchr/testify/require"
 
 	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
@@ -25,160 +25,213 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
-type fakeLocker struct {
-	attempted chan struct{}
-	allow     chan struct{}
-	unlocks   atomic.Int32
+const (
+	selfPodUID = "new-pod-uid"
+	daemonUID  = "daemonset-uid"
+)
+
+type scriptedPodSource struct {
+	mu        sync.Mutex
+	responses []podResponse
+	calls     chan struct{}
 }
 
-func newFakeLocker() *fakeLocker {
-	return &fakeLocker{attempted: make(chan struct{}), allow: make(chan struct{})}
+type podResponse struct {
+	pods []localPod
+	err  error
 }
 
-func (l *fakeLocker) TryLockContext(ctx context.Context, _ time.Duration) (bool, error) {
-	close(l.attempted)
+func (s *scriptedPodSource) ListLocalPods(context.Context) ([]localPod, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	select {
-	case <-l.allow:
-		return true, nil
-	case <-ctx.Done():
-		return false, ctx.Err()
+	case s.calls <- struct{}{}:
+	default:
 	}
+	if len(s.responses) == 0 {
+		return nil, errors.New("no scripted kubelet response")
+	}
+	response := s.responses[0]
+	if len(s.responses) > 1 {
+		s.responses = s.responses[1:]
+	}
+	return response.pods, response.err
 }
 
-func (l *fakeLocker) Unlock() error {
-	l.unlocks.Add(1)
-	return nil
+func (s *scriptedPodSource) setResponses(responses ...podResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.responses = responses
 }
 
 func TestDisabledLifecycleIsNoop(t *testing.T) {
 	deps := dependencies{Config: config.NewMock(t), Log: logmock.New(t)}
-	comp, err := newComponent(deps, func(string) fileLocker {
-		t.Fatal("disabled lifecycle must not create a lock")
-		return nil
-	})
+	comp, err := newComponent(deps, nil, "linux", testProcessIdentity)
 	require.NoError(t, err)
 	require.NoError(t, comp.Wait(context.Background()))
 	require.NoError(t, comp.MarkActive())
 	require.NoError(t, comp.Close())
 }
 
-func TestLifecycleStateTransitions(t *testing.T) {
-	comp, locker, statePath := newEnabledComponent(t)
+func TestFreshPodActivatesAfterConstruction(t *testing.T) {
+	comp, _, statePath := newEnabledComponent(t, podResponse{pods: []localPod{selfPod()}})
+
+	require.NoError(t, comp.Wait(context.Background()))
+	require.Equal(t, agentlifecycle.StateActivating, readState(t, statePath))
+	require.NoError(t, comp.MarkActive())
+	require.Equal(t, agentlifecycle.StateActive, readState(t, statePath))
+	require.NoError(t, comp.Close())
+	require.Equal(t, agentlifecycle.StateStopped, readState(t, statePath))
+	require.NoError(t, comp.Close(), "Close must be idempotent")
+}
+
+func TestConstructionClearsStalePreparedState(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state", "test-agent.state")
+	require.NoError(t, os.MkdirAll(filepath.Dir(statePath), 0o755))
+	require.NoError(t, os.WriteFile(statePath, []byte(agentlifecycle.StatePrepared), 0o644))
+	deps := dependencies{
+		Config: config.NewMockWithOverrides(t, map[string]interface{}{
+			rolloutEnabledKey:   true,
+			rolloutPodUIDKey:    selfPodUID,
+			rolloutStatePathKey: statePath,
+		}),
+		Log:    logmock.New(t),
+		Params: agentlifecycle.Params{ComponentName: "test-agent"},
+	}
+	_, err := newComponent(deps, &scriptedPodSource{}, "linux", testProcessIdentity)
+	require.NoError(t, err)
+	require.NoFileExists(t, statePath)
+}
+
+func TestStateIsBoundToCurrentProcessGeneration(t *testing.T) {
+	comp, _, statePath := newEnabledComponent(t, podResponse{pods: []localPod{selfPod()}})
+	require.NoError(t, comp.Wait(context.Background()))
+
+	contents, err := os.ReadFile(statePath)
+	require.NoError(t, err)
+	fields := strings.Fields(string(contents))
+	require.Len(t, fields, 3)
+	require.Equal(t, agentlifecycle.StateActivating, fields[0])
+	pid, started, err := testProcessIdentity()
+	require.NoError(t, err)
+	require.Equal(t, strconv.Itoa(pid), fields[1])
+	require.Equal(t, started, fields[2])
+}
+
+func TestReplacementRemainsPreparedUntilSiblingDisappears(t *testing.T) {
+	withOld := []localPod{selfPod(), siblingPod("old-pod-uid", "old-agent")}
+	comp, source, statePath := newEnabledComponent(t, podResponse{pods: withOld})
 
 	waitResult := make(chan error, 1)
 	go func() { waitResult <- comp.Wait(context.Background()) }()
 
-	<-locker.attempted
-	require.Equal(t, agentlifecycle.StatePrepared, readState(t, statePath))
-	close(locker.allow)
+	<-source.calls
+	requireStateEventually(t, statePath, agentlifecycle.StatePrepared)
+	select {
+	case err := <-waitResult:
+		t.Fatalf("replacement activated while the old sibling was present: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	source.setResponses(podResponse{pods: []localPod{selfPod()}})
 	require.NoError(t, <-waitResult)
 	require.Equal(t, agentlifecycle.StateActivating, readState(t, statePath))
+}
 
-	require.NoError(t, comp.MarkActive())
-	require.Equal(t, agentlifecycle.StateActive, readState(t, statePath))
+func TestKubeletErrorsFailClosedThenRecover(t *testing.T) {
+	withOld := []localPod{selfPod(), siblingPod("old-pod-uid", "old-agent")}
+	comp, source, statePath := newEnabledComponent(t, podResponse{err: errors.New("kubelet unavailable")})
 
-	require.NoError(t, comp.Close())
-	require.Equal(t, agentlifecycle.StateStopped, readState(t, statePath))
-	require.EqualValues(t, 1, locker.unlocks.Load())
-	require.NoError(t, comp.Close(), "Close must be idempotent")
-	require.EqualValues(t, 1, locker.unlocks.Load())
+	waitResult := make(chan error, 1)
+	go func() { waitResult <- comp.Wait(context.Background()) }()
+	<-source.calls
+	require.NoFileExists(t, statePath, "a replacement must not become Ready before kubelet safety is established")
+	select {
+	case err := <-waitResult:
+		t.Fatalf("kubelet failure opened the activation gate: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	source.setResponses(podResponse{pods: withOld})
+	require.Eventually(t, func() bool {
+		contents, err := os.ReadFile(statePath)
+		return err == nil && len(strings.Fields(string(contents))) > 0 && strings.Fields(string(contents))[0] == agentlifecycle.StatePrepared
+	}, time.Second, time.Millisecond)
+	require.Equal(t, agentlifecycle.StatePrepared, readState(t, statePath))
+	source.setResponses(podResponse{pods: []localPod{selfPod()}})
+	require.NoError(t, <-waitResult)
+}
+
+func TestMissingSelfPodFailsClosed(t *testing.T) {
+	comp, source, statePath := newEnabledComponent(t, podResponse{pods: []localPod{siblingPod("old-pod-uid", "old-agent")}})
+	ctx, cancel := context.WithCancel(context.Background())
+	waitResult := make(chan error, 1)
+	go func() { waitResult <- comp.Wait(ctx) }()
+	<-source.calls
+	require.NoFileExists(t, statePath)
+	cancel()
+	require.ErrorIs(t, <-waitResult, context.Canceled)
+}
+
+func TestDifferentDaemonSetOrNamespaceDoesNotBlock(t *testing.T) {
+	otherDaemon := siblingPod("other-daemon-pod", "other-daemon")
+	otherDaemon.owners[0].uid = "other-daemonset-uid"
+	otherNamespace := siblingPod("other-namespace-pod", "other-namespace")
+	otherNamespace.namespace = "other"
+
+	comp, _, _ := newEnabledComponent(t, podResponse{pods: []localPod{selfPod(), otherDaemon, otherNamespace}})
+	require.NoError(t, comp.Wait(context.Background()))
+}
+
+func TestNonControllerOwnerDoesNotIdentifySelf(t *testing.T) {
+	self := selfPod()
+	self.owners[0].controller = false
+	comp, source, statePath := newEnabledComponent(t, podResponse{pods: []localPod{self}})
+	ctx, cancel := context.WithCancel(context.Background())
+	waitResult := make(chan error, 1)
+	go func() { waitResult <- comp.Wait(ctx) }()
+	<-source.calls
+	require.NoFileExists(t, statePath)
+	cancel()
+	require.ErrorIs(t, <-waitResult, context.Canceled)
 }
 
 func TestLifecycleWaitCancellation(t *testing.T) {
-	comp, locker, statePath := newEnabledComponent(t)
+	withOld := []localPod{selfPod(), siblingPod("old-pod-uid", "old-agent")}
+	comp, source, statePath := newEnabledComponent(t, podResponse{pods: withOld})
 	ctx, cancel := context.WithCancel(context.Background())
 	waitResult := make(chan error, 1)
 	go func() { waitResult <- comp.Wait(ctx) }()
 
-	<-locker.attempted
-	require.Equal(t, agentlifecycle.StatePrepared, readState(t, statePath))
+	<-source.calls
+	requireStateEventually(t, statePath, agentlifecycle.StatePrepared)
 	cancel()
 	require.ErrorIs(t, <-waitResult, context.Canceled)
 	require.NoError(t, comp.Close())
-	require.Zero(t, locker.unlocks.Load())
 }
 
-func TestRealFileLockHandsOwnershipToPreparedReplacement(t *testing.T) {
-	dir := t.TempDir()
-	lockPath := filepath.Join(dir, "locks", "{component}.lock")
-	newProcess := func(componentName string) agentlifecycle.Component {
-		t.Helper()
-		deps := dependencies{
-			Config: config.NewMockWithOverrides(t, map[string]interface{}{
-				rolloutEnabledKey:   true,
-				rolloutLockPathKey:  lockPath,
-				rolloutStatePathKey: filepath.Join(dir, "state", "{component}.state"),
-			}),
-			Log:    logmock.New(t),
-			Params: agentlifecycle.Params{ComponentName: componentName},
-		}
-		comp, err := newComponentForPlatform(deps, func(path string) fileLocker { return flock.New(path) }, "linux")
-		require.NoError(t, err)
-		return comp
-	}
-
-	oldProcess := newProcess("agent")
-	replacement := newProcess("agent")
-	require.NoError(t, oldProcess.Wait(context.Background()))
-
-	replacementResult := make(chan error, 1)
-	go func() { replacementResult <- replacement.Wait(context.Background()) }()
-	require.Eventually(t, func() bool {
-		contents, err := os.ReadFile(filepath.Join(dir, "state", "agent.state"))
-		return err == nil && strings.TrimSpace(string(contents)) == agentlifecycle.StatePrepared
-	}, time.Second, 10*time.Millisecond)
-	select {
-	case err := <-replacementResult:
-		t.Fatalf("replacement acquired ownership before the old process stopped: %v", err)
-	case <-time.After(200 * time.Millisecond):
-	}
-
-	require.NoError(t, oldProcess.Close())
-	select {
-	case err := <-replacementResult:
-		require.NoError(t, err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("replacement did not acquire ownership after the old process stopped")
-	}
-	require.Equal(t, agentlifecycle.StateActivating, readState(t, filepath.Join(dir, "state", "agent.state")))
-	require.NoError(t, replacement.Close())
-}
-
-func TestLifecycleRequiresValidPaths(t *testing.T) {
+func TestLifecycleRequiresValidConfiguration(t *testing.T) {
 	tests := map[string]map[string]interface{}{
-		"relative lock": {
-			rolloutLockPathKey:  "test-agent.lock",
+		"missing Pod UID": {
 			rolloutStatePathKey: filepath.Join(t.TempDir(), "test-agent.state"),
 		},
 		"relative state": {
-			rolloutLockPathKey:  filepath.Join(t.TempDir(), "test-agent.lock"),
+			rolloutPodUIDKey:    selfPodUID,
 			rolloutStatePathKey: "test-agent.state",
 		},
-		"same path": {
-			rolloutLockPathKey:  filepath.Join(t.TempDir(), "test-agent.lock"),
-			rolloutStatePathKey: "",
-		},
-		"shared lock path": {
-			rolloutLockPathKey:  filepath.Join(t.TempDir(), "agent.lock"),
-			rolloutStatePathKey: filepath.Join(t.TempDir(), "test-agent.state"),
-		},
 		"shared state path": {
-			rolloutLockPathKey:  filepath.Join(t.TempDir(), "test-agent.lock"),
+			rolloutPodUIDKey:    selfPodUID,
 			rolloutStatePathKey: filepath.Join(t.TempDir(), "agent.state"),
 		},
 	}
 	for name, overrides := range tests {
 		t.Run(name, func(t *testing.T) {
 			overrides[rolloutEnabledKey] = true
-			if name == "same path" {
-				overrides[rolloutStatePathKey] = overrides[rolloutLockPathKey]
-			}
 			deps := dependencies{
 				Config: config.NewMockWithOverrides(t, overrides),
 				Log:    logmock.New(t),
 				Params: agentlifecycle.Params{ComponentName: "test-agent"},
 			}
-			_, err := newComponentForPlatform(deps, func(string) fileLocker { return newFakeLocker() }, "linux")
+			_, err := newComponent(deps, &scriptedPodSource{}, "linux", testProcessIdentity)
 			require.Error(t, err)
 		})
 	}
@@ -188,89 +241,124 @@ func TestComponentPathResolution(t *testing.T) {
 	tests := map[string]struct {
 		configured string
 		component  string
-		suffix     string
 		expected   string
 	}{
 		"template": {
-			configured: "/var/run/datadog/{component}.lock",
+			configured: "/var/run/datadog/{component}.state",
 			component:  "core-agent",
-			suffix:     ".lock",
-			expected:   "/var/run/datadog/core-agent.lock",
+			expected:   "/var/run/datadog/core-agent.state",
 		},
 		"operator expanded path": {
 			configured: "/var/run/datadog/trace-agent.state",
 			component:  "trace-agent",
-			suffix:     ".state",
 			expected:   "/var/run/datadog/trace-agent.state",
 		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			resolved, err := resolveComponentPath(test.configured, test.component, test.suffix, "test.path")
+			resolved, err := resolveComponentPath(test.configured, test.component, ".state", "test.path")
 			require.NoError(t, err)
 			require.Equal(t, test.expected, resolved)
 		})
 	}
 }
 
-func TestComponentPathRejectsSharedLiteral(t *testing.T) {
-	_, err := resolveComponentPath("/var/run/datadog/agent.lock", "core-agent", ".lock", "test.path")
-	require.ErrorContains(t, err, "must contain {component}")
-}
-
-func TestPreparedRolloutRejectsWindows(t *testing.T) {
+func TestPreparedRolloutRejectsUnsupportedPlatform(t *testing.T) {
 	require.ErrorContains(t, validatePlatform("windows"), "Linux-only")
 	require.ErrorContains(t, validatePlatform("darwin"), "Linux-only")
 	require.NoError(t, validatePlatform("linux"))
 }
 
 func TestComponentPathRejectsTraversalName(t *testing.T) {
-	_, err := resolveComponentPath("/var/run/datadog/{component}.lock", "..", ".lock", "test.path")
+	_, err := resolveComponentPath("/var/run/datadog/{component}.state", "..", ".state", "test.path")
 	require.ErrorContains(t, err, "path-safe")
 }
 
-func TestMarkActiveRequiresOwnership(t *testing.T) {
-	comp, _, _ := newEnabledComponent(t)
+func TestMarkActiveRequiresSiblingCheck(t *testing.T) {
+	comp, _, _ := newEnabledComponent(t, podResponse{pods: []localPod{selfPod()}})
 	require.Error(t, comp.MarkActive())
 }
 
-func TestWaitPropagatesLockerError(t *testing.T) {
-	comp, locker, _ := newEnabledComponent(t)
-	expected := errors.New("lock failed")
-	locker.allow = nil
-	comp.(*component).locker = errorLocker{err: expected}
-	require.ErrorIs(t, comp.Wait(context.Background()), expected)
+func TestSiblingSelectionRejectsDuplicateSelf(t *testing.T) {
+	_, err := siblingPods([]localPod{selfPod(), selfPod()}, selfPodUID)
+	require.ErrorContains(t, err, "duplicate")
 }
 
-type errorLocker struct{ err error }
+func TestOlderPodWinsAfterSimultaneousRestart(t *testing.T) {
+	oldSelf := selfPod()
+	oldSelf.createdAt = time.Unix(100, 0)
+	newer := siblingPod("newer-pod-uid", "newer-agent")
+	newer.createdAt = time.Unix(300, 0)
 
-func (l errorLocker) TryLockContext(context.Context, time.Duration) (bool, error) {
-	return false, l.err
+	blocking, err := siblingPods([]localPod{oldSelf, newer}, selfPodUID)
+	require.NoError(t, err)
+	require.Empty(t, blocking, "an older Pod must reactivate instead of deadlocking with a newer replacement")
 }
-func (errorLocker) Unlock() error { return nil }
 
-func newEnabledComponent(t *testing.T) (agentlifecycle.Component, *fakeLocker, string) {
+func TestSameTimestampFailsClosed(t *testing.T) {
+	self := selfPod()
+	other := siblingPod("other-pod-uid", "other-agent")
+	other.createdAt = self.createdAt
+
+	_, err := siblingPods([]localPod{self, other}, selfPodUID)
+	require.ErrorContains(t, err, "same-timestamp")
+}
+
+func newEnabledComponent(t *testing.T, responses ...podResponse) (agentlifecycle.Component, *scriptedPodSource, string) {
 	t.Helper()
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state", "test-agent.state")
-	locker := newFakeLocker()
+	source := &scriptedPodSource{responses: responses, calls: make(chan struct{}, 10)}
 	deps := dependencies{
 		Config: config.NewMockWithOverrides(t, map[string]interface{}{
 			rolloutEnabledKey:   true,
-			rolloutLockPathKey:  filepath.Join(dir, "lock", "test-agent.lock"),
+			rolloutPodUIDKey:    selfPodUID,
 			rolloutStatePathKey: statePath,
 		}),
 		Log:    logmock.New(t),
 		Params: agentlifecycle.Params{ComponentName: "test-agent"},
 	}
-	comp, err := newComponentForPlatform(deps, func(string) fileLocker { return locker }, "linux")
+	comp, err := newComponent(deps, source, "linux", testProcessIdentity)
 	require.NoError(t, err)
-	return comp, locker, statePath
+	comp.(*component).pollInterval = time.Millisecond
+	return comp, source, statePath
+}
+
+func testProcessIdentity() (int, string, error) {
+	return 4242, "123456", nil
+}
+
+func selfPod() localPod {
+	return localPod{
+		uid:       selfPodUID,
+		name:      "new-agent",
+		namespace: "datadog-agent",
+		createdAt: time.Unix(200, 0),
+		owners:    []podOwner{{kind: "DaemonSet", uid: daemonUID, controller: true}},
+	}
+}
+
+func siblingPod(uid, name string) localPod {
+	pod := selfPod()
+	pod.uid = uid
+	pod.name = name
+	pod.createdAt = time.Unix(100, 0)
+	return pod
 }
 
 func readState(t *testing.T, path string) string {
 	t.Helper()
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
-	return strings.TrimSpace(string(contents))
+	fields := strings.Fields(string(contents))
+	require.NotEmpty(t, fields)
+	return fields[0]
+}
+
+func requireStateEventually(t *testing.T, path, expected string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		contents, err := os.ReadFile(path)
+		return err == nil && len(strings.Fields(string(contents))) > 0 && strings.Fields(string(contents))[0] == expected
+	}, time.Second, time.Millisecond)
 }

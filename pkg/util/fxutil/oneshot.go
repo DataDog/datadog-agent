@@ -90,9 +90,8 @@ func oneShot(oneShotFunc interface{}, gateProvider func() StartupGate, opts ...f
 	return stopAppAndCloseGate(app, gate)
 }
 
-// stopAppAndCloseGate preserves ownership when Fx cannot prove that every
-// lifecycle hook stopped. In that case process teardown and the kernel closing
-// the lock descriptor remain the safety boundary.
+// stopAppAndCloseGate preserves the active lifecycle state when Fx cannot prove
+// that every hook stopped. Process teardown remains the final safety boundary.
 func stopAppAndCloseGate(app *fx.App, gate StartupGate) error {
 	if err := stopApp(app); err != nil {
 		return err

@@ -776,7 +776,7 @@ func TestExperimentalNodeAgentRolloutDefaults(t *testing.T) {
 	config := confFromYAML(t, "")
 
 	assert.False(t, config.GetBool(ExperimentalNodeAgentRolloutEnabled))
-	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutLockPath))
+	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutPodUID))
 	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutStatePath))
 }
 
