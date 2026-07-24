@@ -7,6 +7,7 @@ go_library(
     name = "flare",
     srcs = [
         "archive.go",
+        "archive_aix.go",
         "archive_docker.go",
         "archive_k8s.go",
         "archive_linux.go",
@@ -14,6 +15,7 @@ go_library(
         "archive_nodocker.go",
         "archive_nok8s.go",
         "archive_nolinux.go",
+        "archive_notaix.go",
         "archive_win.go",
         "config_check.go",
         "flare.go",
@@ -77,8 +79,12 @@ go_library(
 dd_agent_go_test(
     name = "flare_test",
     srcs = [
+        "archive_aix_test.go",
         "archive_docker_test.go",
+        "archive_nix_test.go",
+        "archive_notaix_test.go",
         "archive_test.go",
+        "archive_win_test.go",
         "config_check_test.go",
         "runtime_debug_test.go",
         "service_windows_test.go",
