@@ -858,8 +858,7 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 		return nil
 	}
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
-	// Here we add a new filter so we can apply it on the active buffer
-	return p.applyRawPacketActionFilters(false)
+	return p.applyRawPacketActionFilters(true)
 }
 
 func (p *EBPFProbe) rebuildDropActionRuleIDs() {
@@ -1001,6 +1000,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
+	// if this is not the first ruleset loaded, remove filters that are not used
 	if !notifyConsumers {
 		p.removeFiltersNotUsed()
 	}
@@ -2804,7 +2804,6 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 			if err := p.resetRawPacketDropStats(); err != nil {
 				seclog.Debugf("failed to reset raw packet drop stats: %s", err)
 			}
-			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
 			if err := p.applyRawPacketActionFilters(true); err != nil {
 				seclog.Errorf("unable to load raw packet action programs: %v", err)
 			}
