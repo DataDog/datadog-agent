@@ -56,15 +56,25 @@ func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float6
 	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.tags.EnhancedUsageMetric, extraTags...)
 }
 
-// Flush forces an immediate flush of aggregated samples to the serializer.
+// Flush forces an immediate flush of already-closed buckets to the serializer.
 // Satisfied interface: cmd/serverless-init/lifecycle.Flusher, used by MicroVM
-// to flush telemetry on-demand before a Firecracker snapshot (/suspend,
-// /terminate), independent of the Fx-managed shutdown flush.
+// to flush telemetry on-demand before a Firecracker snapshot on /suspend,
+// independent of the Fx-managed shutdown flush. /terminate uses FlushAll instead.
 func (c *ServerlessMetricAgent) Flush() {
 	if c.Demux == nil {
 		return
 	}
-	c.Demux.ForceFlushToSerializer(time.Now(), true)
+	c.Demux.ForceFlushToSerializer(time.Now(), true, false)
+}
+
+// FlushAll additionally includes the current, not-yet-closed bucket. Satisfied
+// interface: cmd/serverless-init/lifecycle.ForceFlusher — see that doc for why
+// this must stay off /suspend's path.
+func (c *ServerlessMetricAgent) FlushAll() {
+	if c.Demux == nil {
+		return
+	}
+	c.Demux.ForceFlushToSerializer(time.Now(), true, true)
 }
 
 // sendMetricSample records a distribution metric sample using the agent's extra tags plus any
