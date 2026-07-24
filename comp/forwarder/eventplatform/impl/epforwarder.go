@@ -80,6 +80,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
 		getAgentDiscoveryPipelines,
+		getDataSecurityPipelines,
 	}
 	var descs []passthroughPipelineDesc
 	for _, get := range getters {
@@ -120,6 +121,10 @@ func Diagnose() []diagnose.Diagnosis {
 
 	for _, desc := range getPassthroughPipelines() {
 		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
+			continue
+		}
+		// TODO(dsec): could we diagnose the SDS result pipeline?
+		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
 			continue
 		}
 		//nolint:misspell
@@ -458,6 +463,10 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
+		// TODO(dsec): This could be removed if we want to enable the SDS result pipeline by default.
+		if desc.eventType == eventplatform.EventTypeSDSResult && !config.GetBool("data_security.enabled") {
+			continue
+		}
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
