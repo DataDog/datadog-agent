@@ -8,14 +8,20 @@
 package kubernetesapiserver
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -80,6 +86,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	tests := []struct {
 		name           string
 		involvedObject v1.ObjectReference
+		cronJob        string // value returned by the stubbed cronJob resolver
 		tags           []string
 	}{
 		{
@@ -177,10 +184,181 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"generic_tag:generic-resource",
 			},
 		},
+		{
+			// A Job with a CronJob-like name suffix but no CronJob owner must
+			// not get a kube_cronjob tag (the tag is resolved from the Job's
+			// ownerReferences, not derived from its name).
+			name: "get standalone job tags (no cronjob owner despite timestamp-like name)",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-job-29701140",
+				Namespace: "default",
+			},
+			cronJob: "",
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-job-29701140",
+				"kubernetes_kind:Job",
+				"name:my-job-29701140",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-job-29701140",
+			},
+		},
+		{
+			name: "get cronjob-owned job tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-cronjob-29701140",
+				Namespace: "default",
+			},
+			cronJob: "my-cronjob",
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-cronjob-29701140",
+				"kubernetes_kind:Job",
+				"name:my-cronjob-29701140",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-cronjob-29701140",
+				"kube_cronjob:my-cronjob", // resolved from the job's ownerReferences
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.ElementsMatch(t, getInvolvedObjectTags(tt.involvedObject, taggerInstance), tt.tags)
+			resolveCronJobForJob := func(_, _, _ string) string { return tt.cronJob }
+			assert.ElementsMatch(t, getInvolvedObjectTagsImpl(tt.involvedObject, taggerInstance, resolveCronJobForJob), tt.tags)
+		})
+	}
+}
+
+func Test_getCronJobForJobWithClient(t *testing.T) {
+	controller := true
+
+	tests := []struct {
+		name           string
+		job            *batchv1.Job
+		eventUID       string
+		reactionErr    error
+		wantCronJob    string
+		wantDefinitive bool
+	}{
+		{
+			name: "job owned by a cronjob",
+			job: &batchv1.Job{
+				ObjectMeta: apiv1.ObjectMeta{
+					Name:      "my-cronjob-29701140",
+					Namespace: "default",
+					OwnerReferences: []apiv1.OwnerReference{
+						{APIVersion: "batch/v1", Kind: "CronJob", Name: "my-cronjob", Controller: &controller},
+					},
+				},
+			},
+			wantCronJob:    "my-cronjob",
+			wantDefinitive: true,
+		},
+		{
+			name: "job UID matches event UID",
+			job: &batchv1.Job{
+				ObjectMeta: apiv1.ObjectMeta{
+					Name:      "my-cronjob-29701140",
+					Namespace: "default",
+					UID:       "job-uid-1",
+					OwnerReferences: []apiv1.OwnerReference{
+						{APIVersion: "batch/v1", Kind: "CronJob", Name: "my-cronjob", Controller: &controller},
+					},
+				},
+			},
+			eventUID:       "job-uid-1",
+			wantCronJob:    "my-cronjob",
+			wantDefinitive: true,
+		},
+		{
+			name: "job recreated with same name (UID mismatch)",
+			job: &batchv1.Job{
+				ObjectMeta: apiv1.ObjectMeta{
+					Name:      "my-cronjob-29701140",
+					Namespace: "default",
+					UID:       "new-job-uid",
+					OwnerReferences: []apiv1.OwnerReference{
+						{APIVersion: "batch/v1", Kind: "CronJob", Name: "my-cronjob", Controller: &controller},
+					},
+				},
+			},
+			eventUID:       "old-job-uid",
+			wantCronJob:    "",
+			wantDefinitive: true,
+		},
+		{
+			name: "job without owner",
+			job: &batchv1.Job{
+				ObjectMeta: apiv1.ObjectMeta{
+					Name:      "standalone-job",
+					Namespace: "default",
+				},
+			},
+			wantCronJob:    "",
+			wantDefinitive: true,
+		},
+		{
+			name: "job owned by a CronJob kind from another API group",
+			job: &batchv1.Job{
+				ObjectMeta: apiv1.ObjectMeta{
+					Name:      "custom-job",
+					Namespace: "default",
+					OwnerReferences: []apiv1.OwnerReference{
+						{APIVersion: "custom.io/v1", Kind: "CronJob", Name: "custom-cronjob", Controller: &controller},
+					},
+				},
+			},
+			wantCronJob:    "",
+			wantDefinitive: true,
+		},
+		{
+			name:           "job not found",
+			job:            nil,
+			wantCronJob:    "",
+			wantDefinitive: true,
+		},
+		{
+			name:           "transient API error",
+			job:            nil,
+			reactionErr:    errors.New("server is unavailable"),
+			wantCronJob:    "",
+			wantDefinitive: false,
+		},
+		{
+			name:           "forbidden error is definitive",
+			job:            nil,
+			reactionErr:    &apierrors.StatusError{ErrStatus: apiv1.Status{Reason: apiv1.StatusReasonForbidden}},
+			wantCronJob:    "",
+			wantDefinitive: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []runtime.Object
+			if tt.job != nil {
+				objects = append(objects, tt.job)
+			}
+			client := fakeclientset.NewClientset(objects...)
+			if tt.reactionErr != nil {
+				client.PrependReactor("get", "jobs", func(_ clienttesting.Action) (bool, runtime.Object, error) {
+					return true, nil, tt.reactionErr
+				})
+			}
+
+			jobName := "my-job"
+			if tt.job != nil {
+				jobName = tt.job.Name
+			}
+
+			cronJob, definitive := getCronJobForJobWithClient(context.Background(), client, "default", jobName, tt.eventUID)
+			assert.Equal(t, tt.wantCronJob, cronJob)
+			assert.Equal(t, tt.wantDefinitive, definitive)
 		})
 	}
 }

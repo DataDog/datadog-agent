@@ -15,6 +15,9 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubeclient "k8s.io/client-go/kubernetes"
 
 	"github.com/patrickmn/go-cache"
 
@@ -24,12 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	hostProviderIDCache *cache.Cache
+	cronJobByJobCache   *cache.Cache
 )
 
 type eventHostInfo struct {
@@ -240,7 +245,17 @@ func getDDAlertType(k8sType string) event.AlertType {
 	}
 }
 
+// cronJobResolverFunc resolves the name of the CronJob owning the given Job,
+// or returns an empty string if the Job has no CronJob owner.
+type cronJobResolverFunc func(namespace, jobName, uid string) string
+
 func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tagger.Component) []string {
+	return getInvolvedObjectTagsImpl(involvedObject, taggerInstance, getCronJobForJob)
+}
+
+// getInvolvedObjectTagsImpl takes a `resolveCronJobForJob` function to ease
+// unit-testing by mocking the API server lookup
+func getInvolvedObjectTagsImpl(involvedObject v1.ObjectReference, taggerInstance tagger.Component, resolveCronJobForJob cronJobResolverFunc) []string {
 	// NOTE: we now standardized on using kube_* tags, instead of
 	// non-namespaced ones, or kubernetes_*. The latter two are now
 	// considered deprecated.
@@ -296,13 +311,103 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 		tagList = append(tagList, kindTag)
 	}
 
+	// Jobs created by a CronJob don't get the kube_cronjob tag from the
+	// KubernetesMetadata tagger entity (ownerReferences aren't resolved there,
+	// unlike the Pod path), so resolve it from the Job's ownerReferences.
+	if involvedObject.Kind == jobKind {
+		if cronJob := resolveCronJobForJob(involvedObject.Namespace, involvedObject.Name, string(involvedObject.UID)); cronJob != "" {
+			tagList = append(tagList, "kube_cronjob:"+cronJob)
+		}
+	}
+
 	return tagList
+}
+
+// getCronJobForJob returns the name of the CronJob owning the given Job, or an
+// empty string if the Job has no CronJob owner or cannot be fetched from the
+// API server. Results are cached to avoid repeated API calls for the same Job.
+func getCronJobForJob(namespace, name, uid string) string {
+	// A Job created by a CronJob is always named "<cronjob>-<timestamp>". If the
+	// name doesn't match that pattern, the Job can't have a CronJob owner, so we
+	// skip the API lookup entirely (this is how the Pod and KSM paths derive the
+	// tag, see kubernetes.ParseCronJobForJob).
+	if cronJob, _ := kubernetes.ParseCronJobForJob(name); cronJob == "" {
+		return ""
+	}
+
+	// Key the cache by the Job's UID (globally unique) so that a Job deleted and
+	// recreated with the same name doesn't return a stale result. This matches
+	// how the rest of the check identifies the involved object (e.g. the event
+	// AggregationKey and the KubernetesPodUID tagger entity). Events aren't
+	// guaranteed to carry the involved object's UID; when it's absent (rare) we
+	// skip the cache to avoid distinct Jobs sharing an empty-string key.
+	if uid != "" {
+		if cronJob, hit := cronJobByJobCache.Get(uid); hit {
+			return cronJob.(string)
+		}
+	}
+
+	cl, err := apiserver.GetAPIClient()
+	if err != nil {
+		log.Warnf("Can't create client to query the API Server: %v", err)
+		return ""
+	}
+
+	cronJob, definitive := getCronJobForJobWithClient(context.TODO(), cl.Cl, namespace, name, uid)
+	if uid != "" && definitive {
+		cronJobByJobCache.Set(uid, cronJob, cache.DefaultExpiration)
+	}
+
+	return cronJob
+}
+
+// getCronJobForJobWithClient fetches the Job from the API server and returns
+// the name of its CronJob controller, or an empty string if it has none. The
+// returned boolean reports whether the result is definitive: transient errors
+// return false so that the caller doesn't cache the empty result.
+func getCronJobForJobWithClient(ctx context.Context, client kubeclient.Interface, namespace, name, uid string) (string, bool) {
+	job, err := client.BatchV1().Jobs(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		switch {
+		case apierrors.IsNotFound(err):
+			// The Job may legitimately be gone by the time the event is
+			// processed (e.g. ttlSecondsAfterFinished).
+			log.Debugf("Job %s/%s not found, kube_cronjob tag may be missing: %v", namespace, name, err)
+			return "", true
+		case apierrors.IsForbidden(err):
+			// Permanent error (e.g. missing RBAC): report the empty result as
+			// definitive so the caller caches it and we don't re-query on every
+			// event of the same Job.
+			log.Debugf("not allowed to get job %s/%s, kube_cronjob tag may be missing: %v", namespace, name, err)
+			return "", true
+		default:
+			log.Debugf("error getting job %s/%s, kube_cronjob tag may be missing: %v", namespace, name, err)
+			return "", false
+		}
+	}
+
+	// Guard against Job name reuse: if the Job was deleted and recreated with the
+	// same name, the fetched object's UID won't match the event's, and its
+	// ownerReferences don't apply to this event.
+	if uid != "" && string(job.UID) != uid {
+		log.Debugf("Job %s/%s UID mismatch (event=%s, fetched=%s), kube_cronjob tag may be missing", namespace, name, uid, job.UID)
+		return "", true
+	}
+
+	if ref := metav1.GetControllerOf(job); ref != nil &&
+		ref.Kind == kubernetes.CronJobKind &&
+		strings.HasPrefix(ref.APIVersion, "batch/") {
+		return ref.Name, true
+	}
+
+	return "", true
 }
 
 const (
 	podKind        = "Pod"
 	nodeKind       = "Node"
 	deploymentKind = "Deployment"
+	jobKind        = "Job"
 )
 
 func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
@@ -408,6 +513,9 @@ func buildReadableKey(obj v1.ObjectReference) string {
 
 func init() {
 	hostProviderIDCache = cache.New(time.Hour, time.Hour)
+	// CronJob-owned Job names change on every run, so cache entries are never
+	// reused: use a short TTL to keep the cache size bounded.
+	cronJobByJobCache = cache.New(30*time.Minute, 10*time.Minute)
 }
 
 func getEventSource(controllerName string, sourceComponent string) string {
