@@ -13,10 +13,10 @@ import (
 	{{if has "go:build unix" .BuildTags}}
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
 	{{end}}
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"

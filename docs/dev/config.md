@@ -5,9 +5,9 @@ This doc describes how to define new configuration parameters for the Agent.
 1. Define your config.
 2. Add it to the config template (optional).
 3. Use your config in your code.
-4. Request a review from the Agent configuration team (team/agent-configuration)
+4. Request a review from the Fleet Automation team (team/fleet-automation)
 
-If you have any questions, head over to #agent-configuration and ask (datadog
+If you have any questions, head over to #fleet-automation and ask (datadog
 internal).
 
 ## 1. Define Your Config
@@ -65,7 +65,7 @@ See the [package documentation] for available methods.
 
 ## 4. Request a Review!
 
-Please add this label to your PRs: `team/agent-configuration`
+Please add this label to your PRs: `team/fleet-automation`
 
 This will summon a config wizard who can review your changes and suggest any
 changes.
