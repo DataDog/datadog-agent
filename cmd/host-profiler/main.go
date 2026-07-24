@@ -59,6 +59,7 @@ func main() {
 	// access target binaries through /proc/<pid>/fd/<n>. No-ops silently when running as root
 	// (children already inherit caps) or when the cap is not in the permitted set (no file caps).
 	_ = raiseAmbient(unix.CAP_SYS_PTRACE)
+	_ = raiseAmbient(unix.CAP_DAC_READ_SEARCH)
 
 	// Prevent this process and all children from gaining new privileges via
 	// setuid binaries or file capabilities. Inherited across fork/exec.
