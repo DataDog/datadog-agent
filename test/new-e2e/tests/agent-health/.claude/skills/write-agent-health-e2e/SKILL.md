@@ -176,7 +176,7 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
                 }
             }
             return false
-        }, defaultIssueAbsenceWindow, defaultIssuePollInterval,
+        }, 30*time.Second, defaultIssuePollInterval,
             "issue still reported as non-resolved after fix")
     })
 }
@@ -201,7 +201,7 @@ Before adding a new agent config fixture, check whether an existing one in the p
 
 ## Step 5 — Rules (never break these)
 
-- **Flush order**: restart or `UpdateEnv` first → wait for agent ready → `FlushServerAndResetAggregators()`. Never flush before restarting.
+- **Flush order**: do NOT flush in the resolution step. Fakeintake accumulates all payloads; `GetAgentHealth()` returns everything since the last flush. The RESOLVED tombstone is emitted once and stays in fakeintake until flushed — so flushing in the resolution step deletes it. Only flush in the detection step to clear stale pre-condition data.
 - **No resilience phase**: `RestartResilience` is covered once in `TestResilienceSuite`. Do not add it here.
 - **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_ACTIVE`, `ISSUE_STATE_RESOLVED`).
 - **No shared lifecycle driver**: phases (`IssueDetection`, `Resolution`) are always inline in the test method.
