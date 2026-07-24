@@ -254,7 +254,10 @@ impl AgentCheck {
         raw_event: &[u8],
         event_track_type: &str,
     ) -> Result<()> {
-        self.aggregator
-            .submit_event_platform_event_bytes(&self.check_id, raw_event, event_track_type)
+        self.aggregator.submit_event_platform_event_bytes(
+            &self.check_id,
+            raw_event,
+            event_track_type,
+        )
     }
 }

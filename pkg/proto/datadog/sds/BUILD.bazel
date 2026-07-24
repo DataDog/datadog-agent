@@ -1,5 +1,34 @@
-# Compiled with prost-build (cargo) by the datasecurity Rust check; not built or
-# consumed by Bazel. Disable proto generation inherited from ../BUILD.bazel.
-# gazelle:proto disable
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
-exports_files(["sds_result.proto"])
+proto_library(
+    name = "sds_proto",
+    srcs = ["sds_result.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+go_proto_library(
+    name = "sds_go_proto",
+    importpath = "pkg/proto/pbgo/sds",
+    proto = ":sds_proto",
+    visibility = ["//visibility:public"],
+)
+
+# Rust bindings for the datasecurity check (Linux-only).
+rust_prost_library(
+    name = "sds_rust_proto",
+    proto = ":sds_proto",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# Well-known types get their own `timestamp_proto` crate; expose it for Timestamp construction.
+rust_prost_library(
+    name = "timestamp_rust_proto",
+    proto = "@protobuf//:timestamp_proto",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

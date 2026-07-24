@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use core::AgentCheck;
 use serde::{Deserialize, Deserializer};
+use shlib_core::AgentCheck;
 
 use crate::scanning::ScanningRule;
 
@@ -21,6 +21,8 @@ impl CheckConfig {
                 .instance
                 .get("scan_data")
                 .context("failed to read scan_data from instance config")?,
+            // Emit the SDS result protobuf on the `sds-result` track (default on).
+            send_sds_result: check.instance.get("send_sds_result").unwrap_or(true),
         })
     }
 }
@@ -31,6 +33,9 @@ pub struct CheckConfig {
     pub task_id: String,
     pub scanning_rules: Vec<ScanningRule>,
     pub scan_data: Vec<SubTask>,
+    /// Emit the SDS result protobuf on the `sds-result` event platform track.
+    #[serde(default)]
+    pub send_sds_result: bool,
 }
 
 /// A single scan sub task: a query to run against one data source.
@@ -46,11 +51,26 @@ pub struct SubTask {
     pub timeout: Duration,
 }
 
-/// TODO(dsec-140): add the other entity values (scan location) when needed,
-/// e.g. database_cluster_name, database_instance_name, database, schema, table.
+/// The data asset a sub task targets, mirroring the Data Observability `entity`
+/// object (`comp/dataobs/queryactions`). Used to select the backend engine
+/// (`platform`) and to describe the scan location; not used to connect.
 #[derive(Debug, Default, Deserialize)]
 pub struct Entity {
     pub platform: String,
+    /// Cloud cluster identifier of the data source (e.g. an RDS/Aurora cluster).
+    /// Reported in the scan location.
+    #[serde(default)]
+    pub database_cluster_name: String,
+    /// Cloud instance identifier of the data source; the DO entity `account`.
+    /// Reported in the scan location.
+    #[serde(default, alias = "account")]
+    pub database_instance_name: String,
+    #[serde(default)]
+    pub database: String,
+    #[serde(default)]
+    pub schema: String,
+    #[serde(default)]
+    pub table: String,
 }
 
 /// Deserializes a timeout given in seconds into a `Duration`, rejecting zero so
