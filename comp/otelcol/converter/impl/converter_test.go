@@ -486,6 +486,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "cumulativetodelta/no-dd-exporter/acfg.yaml",
 		},
 		{
+			name:           "cumulativetodelta/mixed-exporters",
+			provided:       "cumulativetodelta/mixed-exporters/config.yaml",
+			expectedResult: "cumulativetodelta/mixed-exporters/config-result.yaml",
+			agentConfig:    "cumulativetodelta/mixed-exporters/acfg.yaml",
+		},
+		{
 			name:           "cumulativetodelta/multi-metrics",
 			provided:       "cumulativetodelta/multi-metrics/config.yaml",
 			expectedResult: "cumulativetodelta/multi-metrics/config-result.yaml",
@@ -645,6 +651,59 @@ func TestHostmetricsWarning(t *testing.T) {
 				assert.Contains(t, hostmetricsWarnings[0].Message, "connected mode")
 			} else {
 				assert.Empty(t, hostmetricsWarnings, "expected no hostmetrics warning log")
+			}
+		})
+	}
+}
+
+func TestCumulativeToDeltaMixedExporterWarning(t *testing.T) {
+	tests := []struct {
+		name        string
+		provided    string
+		agentConfig string
+		wantWarning bool
+	}{
+		{
+			name:        "mixed-exporter metrics pipeline warns and skips injection",
+			provided:    "cumulativetodelta/mixed-exporters/config.yaml",
+			agentConfig: "cumulativetodelta/mixed-exporters/acfg.yaml",
+			wantWarning: true,
+		},
+		{
+			name:        "datadog-only metrics pipeline injects without warning",
+			provided:    "cumulativetodelta/injected/config.yaml",
+			agentConfig: "cumulativetodelta/injected/acfg.yaml",
+			wantWarning: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			observedCore, logs := observer.New(zapcore.WarnLevel)
+
+			f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
+			require.NoError(t, err)
+			acfg := config.NewMockFromYAML(t, string(f))
+
+			conv := &ddConverter{
+				coreConfig: acfg,
+				hostname:   &mockHostname{hostname: "test-host"},
+				logger:     zap.New(observedCore),
+			}
+
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			require.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			require.NoError(t, err)
+
+			conv.Convert(context.Background(), conf)
+
+			warnings := filterLogsBySubstring(logs, "non-Datadog exporter")
+			if tc.wantWarning {
+				assert.NotEmpty(t, warnings, "expected a mixed-exporter warning log")
+				assert.Contains(t, warnings[0].Message, "cumulativetodelta")
+			} else {
+				assert.Empty(t, warnings, "expected no mixed-exporter warning log")
 			}
 		})
 	}
