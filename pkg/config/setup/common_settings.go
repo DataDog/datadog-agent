@@ -1207,7 +1207,12 @@ func agent(config pkgconfigmodel.Setup) {
 	// If not zero, the agent will log a warning if a check is running for longer than this timeout
 	config.BindEnvAndSetDefault("check_watchdog_warning_timeout", 0*time.Second)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
-	// used to override the path where the IPC cert/key files are stored/retrieved
+	// used to override the path where the IPC cert/key files are stored/retrieved.
+	// When the PAR runs as a sidecar alongside the agent in the same pod, both
+	// containers must share this cert so the PAR's RC client can verify the agent's
+	// gRPC TLS cert. Set DD_IPC_CERT_FILE_PATH to the same shared volume path on
+	// both containers, or achieve the same result by setting DD_AUTH_TOKEN_FILE_PATH
+	// to a shared path (the cert is placed in the same directory as the auth token).
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)

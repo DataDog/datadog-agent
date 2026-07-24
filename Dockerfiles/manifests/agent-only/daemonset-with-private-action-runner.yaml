@@ -1,0 +1,227 @@
+---
+# DaemonSet with the Datadog Agent + Private Action Runner (PAR) sidecar.
+#
+# This manifest extends the standard agent-only/daemonset.yaml with a PAR
+# sidecar container that enrolls via API key only (no application key required).
+#
+# IPC CERT SHARING (required for RC key delivery to PAR):
+#   The agent and the PAR sidecar each run as separate processes with separate
+#   container filesystems. Both processes use an IPC TLS cert to authenticate
+#   gRPC connections. The PAR's remote-config client connects to the agent's
+#   local gRPC server — so both containers MUST share the same cert.
+#
+#   The cert is placed "next to" the auth token file (see pkg/api/security/cert/cert_getter.go).
+#   Sharing is achieved by:
+#     1. Mounting the same emptyDir at /etc/datadog-agent/auth in BOTH containers.
+#     2. Setting DD_AUTH_TOKEN_FILE_PATH on BOTH containers to /etc/datadog-agent/auth/token.
+#        This causes both processes to derive the same cert path
+#        (/etc/datadog-agent/auth/ipc_cert.pem) and share the file.
+#
+#   Alternatively, set DD_IPC_CERT_FILE_PATH on both containers to point
+#   explicitly to a shared path, independent of the auth token location.
+#
+# Prerequisites:
+#   - An API key with the `private_action_runner_enroll` scope.
+#   - Agent version >= 7.81.0 (includes api-key-only enrollment endpoint routing).
+#   - The `datadog` secret must contain the api-key value (same secret as the agent).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: datadog
+  namespace: default
+  labels:
+    agent.datadoghq.com/component: agent
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: datadog
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "datadog"
+        app.kubernetes.io/instance: datadog-agent
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: default-datadog
+        app.kubernetes.io/component: agent
+        app: datadog
+    spec:
+      securityContext:
+        runAsUser: 0
+      hostPID: true
+      containers:
+        # ── Main Agent ──────────────────────────────────────────────────────────
+        - name: agent
+          image: "registry.datadoghq.com/agent:7.81.0"
+          imagePullPolicy: IfNotPresent
+          command: ["agent", "run"]
+          securityContext:
+            readOnlyRootFilesystem: true
+          resources: {}
+          ports:
+            - containerPort: 8125
+              name: dogstatsdport
+              protocol: UDP
+          env:
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog"
+                  key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
+            # Required for IPC cert sharing with the PAR sidecar. Both containers
+            # must use the same path so they share the cert file written at startup.
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
+            - name: DD_KUBERNETES_KUBELET_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_HEALTH_PORT
+              value: "5555"
+          volumeMounts:
+            - name: logdatadog
+              mountPath: /var/log/datadog
+              readOnly: false
+            - name: tmpdir
+              mountPath: /tmp
+              readOnly: false
+            - name: config
+              mountPath: /etc/datadog-agent
+              readOnly: false
+            # Shared with the PAR sidecar — must be RW so the agent can write
+            # the auth token and IPC cert that the PAR will read.
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: false
+            - name: dsdsocket
+              mountPath: /var/run/datadog
+              readOnly: false
+            - name: procdir
+              mountPath: /host/proc
+              mountPropagation: None
+              readOnly: true
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /live
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /ready
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+
+        # ── Private Action Runner sidecar ────────────────────────────────────
+        - name: private-action-runner
+          image: "registry.datadoghq.com/agent:7.81.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /opt/datadog-agent/embedded/bin/privateactionrunner
+            - run
+            - -c=/etc/datadog-agent/datadog.yaml
+            - -E=/etc/datadog-agent/private-action-runner/config.yaml
+          securityContext:
+            readOnlyRootFilesystem: true
+          resources: {}
+          env:
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog"
+                  key: api-key
+            - name: DD_PRIVATE_ACTION_RUNNER_ENABLED
+              value: "true"
+            - name: DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL
+              value: "true"
+            # Use API-key-only enrollment (no application key required).
+            # Requires agent >= 7.81.0 and the api-key to have the
+            # private_action_runner_enroll scope.
+            - name: DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT
+              value: "true"
+            # Must match the agent container's DD_AUTH_TOKEN_FILE_PATH so both
+            # processes derive the same IPC cert path and share the cert file.
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            # Alternative: set DD_IPC_CERT_FILE_PATH explicitly to the shared
+            # cert path without relying on DD_AUTH_TOKEN_FILE_PATH derivation:
+            #   - name: DD_IPC_CERT_FILE_PATH
+            #     value: /etc/datadog-agent/auth/ipc_cert.pem
+            - name: DD_KUBERNETES_KUBELET_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/datadog-agent
+              readOnly: false
+            # Shared with the agent container — provides the IPC cert written
+            # by the agent at startup so the PAR's RC client can verify it.
+            # Also hosts the PAR identity file (privateactionrunner_private_identity.json)
+            # which is persisted via the par-identity hostPath volume below.
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: false
+            - name: tmpdir
+              mountPath: /tmp
+              readOnly: false
+
+      initContainers:
+        - name: init-volume
+          image: "registry.datadoghq.com/agent:7.81.0"
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "-c"]
+          args:
+            - cp -r /etc/datadog-agent /opt
+          volumeMounts:
+            - name: config
+              mountPath: /opt/datadog-agent
+              readOnly: false
+
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: logdatadog
+          emptyDir: {}
+        - name: tmpdir
+          emptyDir: {}
+        # auth-token is backed by a hostPath so the PAR identity file
+        # (privateactionrunner_private_identity.json) survives pod restarts on
+        # the same node. Without persistence, every restart triggers a fresh
+        # enrollment, creating zombie runner rows under the same hostname.
+        # Replace with a PVC for multi-node clusters, or rely on
+        # identity_use_k8s_secret: true (requires a cluster agent).
+        - name: auth-token
+          hostPath:
+            path: /var/lib/datadog-par-auth
+            type: DirectoryOrCreate
+        - name: dsdsocket
+          hostPath:
+            path: /var/run/datadog
+            type: DirectoryOrCreate
+        - name: procdir
+          hostPath:
+            path: /proc
+      tolerations:
+      affinity: {}
+      serviceAccountName: "datadog"
+      automountServiceAccountToken: true
+      nodeSelector:
+        kubernetes.io/os: linux
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 10%
+    type: RollingUpdate
