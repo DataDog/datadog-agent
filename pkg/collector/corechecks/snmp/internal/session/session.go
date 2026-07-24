@@ -123,10 +123,10 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
 		if config.AuthKey != "" && config.AuthProtocol == "" {
-			config.AuthProtocol = "md5"
+			config.AuthProtocol = "sha256"
 		}
 		if config.PrivKey != "" && config.PrivProtocol == "" {
-			config.PrivProtocol = "des"
+			config.PrivProtocol = "aes"
 		}
 
 		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
