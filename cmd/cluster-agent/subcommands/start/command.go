@@ -19,7 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
@@ -105,6 +104,7 @@ import (
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -320,7 +320,7 @@ func start(log log.Component,
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, config, "")
+	commonsettings.SetupInternalProfiling(settings, config, "")
 
 	if !config.IsConfigured("api_key") {
 		return errors.New("no API key configured, exiting")
@@ -512,13 +512,10 @@ func start(log log.Component,
 		}
 	}
 
-	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
-	// don't import cmd/agent
-
 	// create and setup the autoconfig instance
 	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(ac, config)
+	confad.LoadComponents(ac, config)
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
