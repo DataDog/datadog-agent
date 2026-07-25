@@ -45,6 +45,7 @@ go_library(
         "update_stateful_set.gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/kubernetes",

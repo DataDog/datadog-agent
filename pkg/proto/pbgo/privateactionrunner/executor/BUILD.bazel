@@ -18,6 +18,7 @@ go_library(
         "executor_grpc.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/errorcode",

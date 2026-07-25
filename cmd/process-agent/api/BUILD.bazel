@@ -12,6 +12,7 @@ go_library(
         "workload_list.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/api",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -8,6 +8,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/dbconfig",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/compliance/types",

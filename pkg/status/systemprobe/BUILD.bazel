@@ -5,6 +5,7 @@ go_library(
     srcs = ["status.go"],
     embedsrcs = ["status_templates/systemprobe.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/systemprobe",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",

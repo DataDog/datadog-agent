@@ -4,6 +4,7 @@ go_library(
     name = "noop-impl",
     srcs = ["noop.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/collector/collector/def",

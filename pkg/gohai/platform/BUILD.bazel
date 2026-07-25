@@ -12,6 +12,7 @@ go_library(
         "platform_windows_amd64.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai/platform",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/gohai/utils",

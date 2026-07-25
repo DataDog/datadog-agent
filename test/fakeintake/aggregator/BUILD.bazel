@@ -34,6 +34,7 @@ go_library(
         "traceAggregator.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/aggregator",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/netflow/payload",

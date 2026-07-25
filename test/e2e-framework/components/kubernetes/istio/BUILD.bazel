@@ -4,6 +4,7 @@ go_library(
     name = "istio",
     srcs = ["istio.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/istio",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

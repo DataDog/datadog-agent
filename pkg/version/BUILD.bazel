@@ -7,6 +7,8 @@ go_library(
         "version.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/version",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     # TODO(agent-build): replace with proper per-binary stamping at final link time.
     # Full stamping (--stamp) is intentionally avoid systematic cache invalidation

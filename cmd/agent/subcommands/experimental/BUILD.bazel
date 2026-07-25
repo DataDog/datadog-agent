@@ -4,6 +4,7 @@ go_library(
     name = "experimental",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/experimental",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/command",

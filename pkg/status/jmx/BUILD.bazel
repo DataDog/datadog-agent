@@ -13,6 +13,7 @@ go_library(
         "status_templates/jmxHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/jmx",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/status"],
 )

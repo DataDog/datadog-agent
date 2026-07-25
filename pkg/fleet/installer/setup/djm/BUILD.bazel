@@ -8,6 +8,7 @@ go_library(
         "emr.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/setup/common",

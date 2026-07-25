@@ -59,11 +59,13 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:linux --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
+common:linux --experimental_output_paths=strip # Normalize opted-in action paths across equivalent configurations
 common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:macos --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
+common:macos --experimental_output_paths=strip # Normalize opted-in action paths across equivalent configurations
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed

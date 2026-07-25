@@ -4,5 +4,7 @@ go_library(
     name = "system",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

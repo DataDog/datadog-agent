@@ -7,6 +7,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/workloadfilter/def"],
 )

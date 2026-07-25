@@ -11,6 +11,7 @@ go_library(
         "utilization_monitor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/metrics",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",

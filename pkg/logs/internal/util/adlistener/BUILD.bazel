@@ -5,6 +5,7 @@ go_library(
     name = "adlistener",
     srcs = ["ad.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener",
+    tags_independent = True,
     visibility = [
         "//pkg/logs:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_logs_diagnostic//:__subpackages__",

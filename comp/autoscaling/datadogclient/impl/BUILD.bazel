@@ -12,6 +12,7 @@ go_library(
     ],
     embedsrcs = ["status_templates/externalmetrics.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/autoscaling/datadogclient/def",

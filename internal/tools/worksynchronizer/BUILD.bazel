@@ -4,6 +4,7 @@ go_library(
     name = "worksynchronizer_lib",
     srcs = ["worksynchronizer.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/tools/worksynchronizer",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "@in_yaml_go_yaml_v3//:yaml",

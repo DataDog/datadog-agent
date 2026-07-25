@@ -7,6 +7,7 @@ go_library(
         "default_script.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/env",

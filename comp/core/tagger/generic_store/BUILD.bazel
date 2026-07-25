@@ -8,6 +8,8 @@ go_library(
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/tagger/types"],
 )

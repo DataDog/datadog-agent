@@ -7,5 +7,7 @@ go_library(
         "processes.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -10,6 +10,7 @@ go_library(
         "rpmsigning.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

@@ -4,6 +4,7 @@ go_library(
     name = "security",
     srcs = ["security.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/security",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

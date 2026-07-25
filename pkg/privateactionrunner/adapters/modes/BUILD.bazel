@@ -4,5 +4,7 @@ go_library(
     name = "modes",
     srcs = ["modes.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

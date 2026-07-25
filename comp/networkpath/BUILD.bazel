@@ -5,6 +5,7 @@ go_library(
     name = "networkpath",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/networkpath/npcollector/fx",

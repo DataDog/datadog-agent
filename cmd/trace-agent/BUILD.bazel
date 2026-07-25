@@ -6,6 +6,7 @@ go_library(
     name = "trace-agent_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/internal/runcmd",

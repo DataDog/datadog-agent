@@ -8,6 +8,7 @@ go_library(
         "zip.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/archive",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",

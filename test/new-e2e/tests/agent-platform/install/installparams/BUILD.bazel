@@ -4,5 +4,7 @@ go_library(
     name = "installparams",
     srcs = ["install_params.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

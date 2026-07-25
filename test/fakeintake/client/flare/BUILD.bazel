@@ -7,6 +7,8 @@ go_library(
         "parse_flare.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client/flare",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//test/fakeintake/api"],
 )

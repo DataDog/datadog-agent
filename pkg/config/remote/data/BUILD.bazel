@@ -8,6 +8,8 @@ go_library(
         "product.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/data",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

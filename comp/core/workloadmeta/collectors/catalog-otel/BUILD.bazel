@@ -4,6 +4,7 @@ go_library(
     name = "catalog-otel",
     srcs = ["catalog.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-otel",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/collectors/internal/containerd",

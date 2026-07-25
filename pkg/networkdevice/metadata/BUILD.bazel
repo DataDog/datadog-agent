@@ -8,6 +8,7 @@ go_library(
         "payload_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkdevice/integrations",

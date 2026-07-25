@@ -8,6 +8,7 @@ go_library(
         "config.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/config/def",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -4,6 +4,7 @@ go_library(
     name = "logsagentpipelineimpl",
     srcs = ["logsagentpipeline.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/otelcol/logsagentpipeline/def",

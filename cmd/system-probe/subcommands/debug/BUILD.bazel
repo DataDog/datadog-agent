@@ -7,6 +7,7 @@ go_library(
     name = "debug",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/command",

@@ -5,6 +5,7 @@ go_library(
     srcs = ["install.go"],
     embedsrcs = ["install_script.sh"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

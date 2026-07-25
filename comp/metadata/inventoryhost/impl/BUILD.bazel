@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["inventoryhost.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

@@ -9,6 +9,7 @@ go_library(
         "server.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/api/grpcserver/impl-agent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/grpcserver/def",

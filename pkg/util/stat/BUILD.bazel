@@ -5,6 +5,7 @@ go_library(
     name = "stat",
     srcs = ["stat.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/stat",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

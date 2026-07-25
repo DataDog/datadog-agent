@@ -8,6 +8,7 @@ go_library(
         "scheduler.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/scheduler",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",

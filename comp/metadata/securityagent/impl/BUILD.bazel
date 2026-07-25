@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["security_agent.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/securityagent/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

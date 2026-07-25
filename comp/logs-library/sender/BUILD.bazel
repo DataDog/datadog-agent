@@ -16,6 +16,7 @@ go_library(
         "worker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/sender",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",

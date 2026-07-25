@@ -11,6 +11,7 @@ go_library(
         "ssm.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/aws",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",

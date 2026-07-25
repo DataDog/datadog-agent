@@ -7,6 +7,7 @@ go_library(
         "syschar.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/scap",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_gocomply_scap//pkg/scap/constants",

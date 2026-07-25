@@ -4,6 +4,7 @@ go_library(
     name = "ckey",
     srcs = ["key.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/ckey",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/tagset",

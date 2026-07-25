@@ -9,5 +9,7 @@ go_library(
         "prctl.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

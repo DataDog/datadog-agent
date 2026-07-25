@@ -9,6 +9,7 @@ go_library(
         "status_templates/traceagentHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/trace/status/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -4,6 +4,8 @@ go_library(
     name = "noop-impl",
     srcs = ["noop.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/runner/noop-impl",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/healthplatform/runner/def"],
 )

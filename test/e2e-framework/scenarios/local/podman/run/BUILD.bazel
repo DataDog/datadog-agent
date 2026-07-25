@@ -4,6 +4,7 @@ go_library(
     name = "run",
     srcs = ["vm_run.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/local/podman/run",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",

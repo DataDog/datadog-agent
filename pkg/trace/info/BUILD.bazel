@@ -9,6 +9,7 @@ go_library(
         "writer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/info",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/template/text",

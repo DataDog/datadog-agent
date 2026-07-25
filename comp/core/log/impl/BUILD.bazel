@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["logger.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

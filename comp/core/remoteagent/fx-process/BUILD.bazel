@@ -4,6 +4,7 @@ go_library(
     name = "fx-process",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/remoteagent/def",

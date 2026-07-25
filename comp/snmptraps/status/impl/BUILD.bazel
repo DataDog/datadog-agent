@@ -14,6 +14,7 @@ go_library(
         "status_templates/snmpHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",

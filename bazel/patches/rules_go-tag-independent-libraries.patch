@@ -1,0 +1,115 @@
+diff --git a/go/private/actions/archive.bzl b/go/private/actions/archive.bzl
+index 3a5a76b3..284ff0cb 100644
+--- a/go/private/actions/archive.bzl
++++ b/go/private/actions/archive.bzl
+@@ -81,4 +81,4 @@ def emit_archive(go, source = None, _recompile_suffix = "", recompile_internal_d
+     for a in direct:
+         files.append(a.runfiles)
+-        if a.source.mode != go.mode:
++        if not _archive_mode_matches(a.source, go.mode):
+             fail("Archive mode does not match {} is {} expected {}".format(a.data.label, mode_string(a.source.mode), mode_string(go.mode)))
+@@ -232,3 +232,16 @@ def emit_archive(go, source = None, _recompile_suffix = "", recompile_internal_d
+         runfiles = runfiles,
+         _headers = headers,
+     )
++
++def _archive_mode_matches(source, mode):
++    if source.mode == mode:
++        return True
++    if not getattr(source, "tags_closure_independent", False):
++        return False
++
++    source_fields = [field for field in dir(source.mode) if field != "tags"]
++    mode_fields = [field for field in dir(mode) if field != "tags"]
++    return source_fields == mode_fields and all([
++        getattr(source.mode, field) == getattr(mode, field)
++        for field in source_fields
++    ])
+diff --git a/go/private/context.bzl b/go/private/context.bzl
+index 049b8ec0..b067bc91 100644
+--- a/go/private/context.bzl
++++ b/go/private/context.bzl
+@@ -234,7 +234,8 @@ def _builder_args(go, command = None):
+ 
+     mode = go.mode
+     args.add("-installsuffix", installsuffix(mode))
+-    args.add_joined("-tags", mode.tags, join_with = ",")
++    if not getattr(go._ctx.attr, "tags_independent", False):
++        args.add_joined("-tags", mode.tags, join_with = ",")
+     return args
+ 
+ def _tool_args(go):
+@@ -366,6 +367,7 @@ def new_go_info(
+         "testfilter": testfilter,
+         "is_main": is_main,
+         "mode": go.mode,
++        "tags_closure_independent": getattr(attr, "tags_closure_independent", False),
+         "srcs": srcs,
+         "embedsrcs": embedsrcs,
+         "cover": depset(attr_srcs) if coverage_instrumented else depset(),
+diff --git a/go/private/rules/library.bzl b/go/private/rules/library.bzl
+index 1b9bfeb5..7511fb10 100644
+--- a/go/private/rules/library.bzl
++++ b/go/private/rules/library.bzl
+@@ -36,4 +36,5 @@ load(
+ load(
+     "//go/private/rules:transition.bzl",
+     "non_go_transition",
++    "tags_closure_independent_transition",
+ )
+@@ -78,5 +79,6 @@ def _go_library_impl(ctx):
+ go_library = rule(
+     _go_library_impl,
++    cfg = tags_closure_independent_transition,
+     attrs = {
+         "data": attr.label_list(
+             allow_files = True,
+@@ -140,6 +142,16 @@ go_library = rule(
+             It's okay to mix static and generated source files and static and generated embeddable files.
+             """,
+         ),
++        "tags_independent": attr.bool(
++            doc = """
++            Whether Go build tags are irrelevant to source selection for this library.
++            """,
++        ),
++        "tags_closure_independent": attr.bool(
++            doc = """
++            Whether Go build tags are irrelevant to this library's complete Go dependency closure.
++            """,
++        ),
+         "gc_goopts": attr.string_list(
+             doc = """
+             List of flags to add to the Go compilation command when using the gc compiler.
+diff --git a/go/private/rules/transition.bzl b/go/private/rules/transition.bzl
+index 809ede69..30b16b06 100644
+--- a/go/private/rules/transition.bzl
++++ b/go/private/rules/transition.bzl
+@@ -161,3 +161,27 @@ go_transition = transition(
+     ] + TRANSITIONED_GO_SETTING_KEYS + _SETTING_KEY_TO_ORIGINAL_SETTING_KEY.values(),
+ )
++
++_TAGS_SETTING_KEY = "//go/config:tags"
++_ORIGINAL_TAGS_SETTING_KEY = _SETTING_KEY_TO_ORIGINAL_SETTING_KEY[_TAGS_SETTING_KEY]
++
++def _tags_closure_independent_transition_impl(settings, attr):
++    if not attr.tags_closure_independent:
++        return {}
++    return {
++        _TAGS_SETTING_KEY: [],
++        _ORIGINAL_TAGS_SETTING_KEY: "",
++    }
++
++tags_closure_independent_transition = transition(
++    implementation = _tags_closure_independent_transition_impl,
++    inputs = [
++        _TAGS_SETTING_KEY,
++        _ORIGINAL_TAGS_SETTING_KEY,
++    ],
++    outputs = [
++        _TAGS_SETTING_KEY,
++        _ORIGINAL_TAGS_SETTING_KEY,
++    ],
++)
++
+ def _non_request_nogo_transition(_settings, _attr):

@@ -7,6 +7,7 @@ go_library(
         "run.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/openshiftvm",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/components/datadog/fakeintake",

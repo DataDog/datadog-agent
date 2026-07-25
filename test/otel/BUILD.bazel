@@ -4,6 +4,7 @@ go_library(
     name = "otel",
     srcs = ["dependencies.go"],
     importpath = "github.com/DataDog/datadog-agent/test/otel",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

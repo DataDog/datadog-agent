@@ -7,6 +7,8 @@ go_library(
         "component.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/anomalydetection/severityevents/def"],
 )

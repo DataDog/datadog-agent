@@ -8,6 +8,7 @@ go_library(
         "set_tree.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/helper",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

@@ -5,6 +5,7 @@ go_library(
     name = "proto",
     srcs = ["proto.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/proto",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadfilter/def",

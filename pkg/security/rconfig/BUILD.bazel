@@ -7,6 +7,7 @@ go_library(
         "policies.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rconfig",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",

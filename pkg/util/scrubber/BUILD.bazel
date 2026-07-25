@@ -10,6 +10,7 @@ go_library(
         "yaml_scrubber.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/scrubber",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/version",

@@ -10,6 +10,7 @@ go_library(
         "metrics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/report",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/eventplatform/def",

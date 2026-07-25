@@ -8,6 +8,7 @@ go_library(
         "transform.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

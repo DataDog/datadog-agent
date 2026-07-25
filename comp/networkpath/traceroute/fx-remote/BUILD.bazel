@@ -4,6 +4,7 @@ go_library(
     name = "fx-remote",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/networkpath/traceroute/def",

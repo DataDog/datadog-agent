@@ -4,5 +4,7 @@ go_library(
     name = "actions",
     srcs = ["actions_adapter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

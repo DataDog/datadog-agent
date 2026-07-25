@@ -4,5 +4,7 @@ go_library(
     name = "telemetry",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

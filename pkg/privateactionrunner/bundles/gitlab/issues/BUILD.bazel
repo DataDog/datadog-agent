@@ -27,6 +27,7 @@ go_library(
         "update_issue.gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/issues",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/gitlab",

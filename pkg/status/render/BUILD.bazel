@@ -8,6 +8,7 @@ go_library(
         "templates/metadatamapper.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/render",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",

@@ -7,5 +7,7 @@ go_library(
         "list.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/rungo",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

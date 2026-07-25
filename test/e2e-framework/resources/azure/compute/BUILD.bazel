@@ -8,6 +8,7 @@ go_library(
     ],
     embedsrcs = ["setup-ssh-param.ps1"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure/compute",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

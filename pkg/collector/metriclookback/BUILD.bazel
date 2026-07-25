@@ -9,6 +9,7 @@ go_library(
         "shadow_writer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

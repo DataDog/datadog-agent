@@ -4,6 +4,8 @@ go_library(
     name = "ecsagentparams",
     srcs = ["params.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//test/e2e-framework/common"],
 )

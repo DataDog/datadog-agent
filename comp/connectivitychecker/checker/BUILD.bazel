@@ -4,6 +4,7 @@ go_library(
     name = "checker",
     srcs = ["checker.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/connectivitychecker/checker",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

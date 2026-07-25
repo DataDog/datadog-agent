@@ -7,6 +7,7 @@ go_library(
     name = "exitcode",
     srcs = ["exitcode.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],
 )

@@ -7,6 +7,7 @@ go_library(
         "clients.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/clients",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_aws_aws_sdk_go_v2//aws",

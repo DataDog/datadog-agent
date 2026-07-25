@@ -95,6 +95,7 @@ go_library(
         "tracer_payload_vtproto.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace/idx",

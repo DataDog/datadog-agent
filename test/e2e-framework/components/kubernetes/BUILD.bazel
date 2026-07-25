@@ -17,6 +17,7 @@ go_library(
         "kind_versions.json",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

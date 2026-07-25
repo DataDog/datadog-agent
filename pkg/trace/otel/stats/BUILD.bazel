@@ -4,6 +4,7 @@ go_library(
     name = "stats",
     srcs = ["otel_util.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/otel/stats",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/obfuscate",

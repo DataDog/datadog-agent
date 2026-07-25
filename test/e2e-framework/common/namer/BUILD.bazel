@@ -4,6 +4,7 @@ go_library(
     name = "namer",
     srcs = ["namer.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/namer",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

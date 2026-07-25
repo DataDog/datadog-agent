@@ -7,5 +7,7 @@ go_library(
         "traps_db.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

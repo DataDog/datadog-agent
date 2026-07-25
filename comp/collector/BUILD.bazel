@@ -6,6 +6,7 @@ go_library(
     name = "collector",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/collector",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/collector/collector/impl",

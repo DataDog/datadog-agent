@@ -5,6 +5,7 @@ go_library(
     name = "networkpath",
     srcs = ["provider.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

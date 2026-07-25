@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["apiserver.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/process/apiserver/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/process-agent/api",

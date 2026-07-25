@@ -4,6 +4,7 @@ go_library(
     name = "ast",
     srcs = ["secl.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_alecthomas_participle//:participle",

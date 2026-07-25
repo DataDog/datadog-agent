@@ -8,6 +8,7 @@ go_library(
         "rcclient.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

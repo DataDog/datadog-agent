@@ -4,5 +4,7 @@ go_library(
     name = "impl",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/impl",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

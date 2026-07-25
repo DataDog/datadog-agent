@@ -4,5 +4,7 @@ go_library(
     name = "types",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/config/types",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

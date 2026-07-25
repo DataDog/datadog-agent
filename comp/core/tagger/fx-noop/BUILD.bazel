@@ -4,6 +4,7 @@ go_library(
     name = "fx-noop",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",

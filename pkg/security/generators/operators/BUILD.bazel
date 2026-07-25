@@ -4,6 +4,8 @@ go_library(
     name = "operators_lib",
     srcs = ["operators.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/operators",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:private"],
 )
 

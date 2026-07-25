@@ -17,6 +17,7 @@ go_library(
         "remotehost_updater.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/components/activedirectory",

@@ -4,6 +4,7 @@ go_library(
     name = "normalize_cmd_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/normalize_cmd",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = ["//pkg/networkdevice/profile/profiledefinition/normalize_cmd/cmd"],
 )

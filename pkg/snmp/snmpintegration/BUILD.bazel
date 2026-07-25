@@ -5,6 +5,8 @@ go_library(
     name = "snmpintegration",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

@@ -11,6 +11,7 @@ go_library(
         "runtime_settings_multi_region_failover.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings",
+    tags_independent = True,
     visibility = ["//cmd/agent/subcommands/run:__subpackages__"],
     deps = [
         "//comp/core/config",

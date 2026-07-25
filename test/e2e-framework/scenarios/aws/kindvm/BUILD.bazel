@@ -8,6 +8,7 @@ go_library(
     ],
     embedsrcs = ["agent_helm_values.yaml"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

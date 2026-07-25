@@ -8,6 +8,7 @@ go_library(
         "stream_tailer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/metrics",

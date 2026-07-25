@@ -4,6 +4,7 @@ go_library(
     name = "namespace",
     srcs = ["namespace.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",

@@ -12,6 +12,7 @@ go_library(
         "status_templates/inventoryHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

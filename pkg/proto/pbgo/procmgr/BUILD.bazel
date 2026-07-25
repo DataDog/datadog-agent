@@ -18,6 +18,7 @@ go_library(
         "process_manager_grpc.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@org_golang_google_grpc//:grpc",

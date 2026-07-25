@@ -4,5 +4,7 @@ go_library(
     name = "fmtsort",
     srcs = ["sort.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/template/internal/fmtsort",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//pkg/template:__subpackages__"],
 )

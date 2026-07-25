@@ -8,6 +8,7 @@ go_library(
         "middleware.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",

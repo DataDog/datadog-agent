@@ -10,6 +10,7 @@ go_library(
         "diagnose.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

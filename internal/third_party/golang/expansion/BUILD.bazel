@@ -4,6 +4,8 @@ go_library(
     name = "expansion",
     srcs = ["expand.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/third_party/golang/expansion",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

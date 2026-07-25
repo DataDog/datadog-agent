@@ -9,6 +9,7 @@ go_library(
         "field_handlers.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/accessors",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/security/generators/accessors/common",

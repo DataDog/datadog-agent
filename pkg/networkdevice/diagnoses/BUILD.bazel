@@ -4,6 +4,7 @@ go_library(
     name = "diagnoses",
     srcs = ["diagnoses.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",

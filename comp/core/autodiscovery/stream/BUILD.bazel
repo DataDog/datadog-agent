@@ -5,6 +5,7 @@ go_library(
     name = "stream",
     srcs = ["stream.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

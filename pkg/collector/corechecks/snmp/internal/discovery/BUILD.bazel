@@ -8,6 +8,7 @@ go_library(
         "ip_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery",
+    tags_independent = True,
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//comp/core/autodiscovery/listeners",

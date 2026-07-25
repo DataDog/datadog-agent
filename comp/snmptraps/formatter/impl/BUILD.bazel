@@ -8,6 +8,7 @@ go_library(
         "mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer/def",

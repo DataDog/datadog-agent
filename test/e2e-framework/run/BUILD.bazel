@@ -4,6 +4,7 @@ go_library(
     name = "run_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/run",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//test/e2e-framework/registry",

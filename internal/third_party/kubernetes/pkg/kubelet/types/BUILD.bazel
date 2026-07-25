@@ -4,6 +4,7 @@ go_library(
     name = "types",
     srcs = ["pod_update.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@io_k8s_api//core/v1:core"],
 )

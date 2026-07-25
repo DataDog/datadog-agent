@@ -15,6 +15,7 @@ go_library(
         "unwrap.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

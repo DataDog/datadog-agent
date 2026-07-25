@@ -4,6 +4,7 @@ go_library(
     name = "sysprobe",
     srcs = ["from_sysprobe.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

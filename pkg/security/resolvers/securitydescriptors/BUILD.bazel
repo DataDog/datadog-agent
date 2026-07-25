@@ -4,6 +4,7 @@ go_library(
     name = "securitydescriptors",
     srcs = ["resolver_windows.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/securitydescriptors",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [

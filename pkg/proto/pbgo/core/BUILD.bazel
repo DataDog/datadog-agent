@@ -80,6 +80,7 @@ go_library(
         "workloadmeta.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_agent_payload_v5//healthplatform",

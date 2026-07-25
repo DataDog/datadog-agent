@@ -7,6 +7,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/model",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",

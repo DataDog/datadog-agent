@@ -4,6 +4,7 @@ go_library(
     name = "detectors",
     srcs = ["jruby_detector.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors",
+    tags_independent = True,
     visibility = ["//pkg/languagedetection:__subpackages__"],
     deps = ["//pkg/languagedetection/languagemodels"],
 )

@@ -5,6 +5,7 @@ go_library(
     name = "datastreams",
     srcs = ["kafka_actions.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

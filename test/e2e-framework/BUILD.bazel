@@ -4,5 +4,7 @@ go_library(
     name = "e2e-framework",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

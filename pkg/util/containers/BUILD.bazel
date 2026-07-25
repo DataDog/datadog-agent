@@ -12,6 +12,7 @@ go_library(
         "pause.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadfilter/legacy",

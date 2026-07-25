@@ -5,6 +5,7 @@ go_library(
     name = "agentperformance",
     srcs = ["telemetry.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/tags",

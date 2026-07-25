@@ -13,6 +13,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/tagset",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/sort",

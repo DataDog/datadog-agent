@@ -4,5 +4,7 @@ go_library(
     name = "logscompression",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/serializer/logscompression",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

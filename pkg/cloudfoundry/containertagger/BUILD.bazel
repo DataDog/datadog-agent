@@ -4,6 +4,7 @@ go_library(
     name = "containertagger",
     srcs = ["container_tagger.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/utils",

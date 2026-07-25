@@ -22,6 +22,7 @@ go_library(
         "distro/domain-arm64.xsl",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms/resources",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/scenarios/aws/microVMs/vmconfig",

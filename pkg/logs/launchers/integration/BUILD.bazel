@@ -5,6 +5,7 @@ go_library(
     name = "integration",
     srcs = ["launcher.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/integration",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/pipeline",

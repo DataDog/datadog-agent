@@ -4,6 +4,7 @@ go_library(
     name = "noopimpl",
     srcs = ["autoconfig.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

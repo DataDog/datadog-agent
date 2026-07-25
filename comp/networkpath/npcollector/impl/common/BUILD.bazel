@@ -8,6 +8,8 @@ go_library(
         "pathtest.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/networkpath/payload"],
 )

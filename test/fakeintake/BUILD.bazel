@@ -4,5 +4,7 @@ go_library(
     name = "fakeintake",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

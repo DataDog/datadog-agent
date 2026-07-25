@@ -4,6 +4,8 @@ go_library(
     name = "cgo_lib",
     srcs = ["genpost.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/cgo",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:private"],
 )
 

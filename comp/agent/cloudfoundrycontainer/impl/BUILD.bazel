@@ -4,6 +4,7 @@ go_library(
     name = "impl",
     srcs = ["cloudfoundrycontainer.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/cloudfoundrycontainer/def",

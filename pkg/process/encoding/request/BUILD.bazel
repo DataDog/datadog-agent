@@ -8,6 +8,7 @@ go_library(
         "protobuf.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/encoding/request",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/process",

@@ -5,6 +5,8 @@ go_library(
     name = "integrationtest",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

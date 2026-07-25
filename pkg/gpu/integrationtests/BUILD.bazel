@@ -4,6 +4,8 @@ go_library(
     name = "integrationtests",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/integrationtests",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

@@ -5,6 +5,7 @@ go_library(
     name = "impl-trace",
     srcs = ["trace_logger.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl-trace",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

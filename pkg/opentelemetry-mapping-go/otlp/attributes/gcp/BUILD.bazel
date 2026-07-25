@@ -4,6 +4,7 @@ go_library(
     name = "gcp",
     srcs = ["gcp.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/gcp",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",

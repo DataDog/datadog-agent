@@ -12,6 +12,7 @@ go_library(
         "sorting.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/topn",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",

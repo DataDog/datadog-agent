@@ -9,6 +9,7 @@ go_library(
         "util_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/message",

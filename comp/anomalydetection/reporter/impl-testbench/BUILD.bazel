@@ -7,6 +7,8 @@ go_library(
         "sse.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/anomalydetection/reporter/def"],
 )

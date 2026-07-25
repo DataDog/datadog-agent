@@ -70,6 +70,8 @@ go_library(
         "scripts/dd-host-install",
     ] + service_srcs,  # keep
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

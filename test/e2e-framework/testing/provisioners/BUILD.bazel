@@ -8,6 +8,7 @@ go_library(
         "pulumi_provisioner.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/runner",

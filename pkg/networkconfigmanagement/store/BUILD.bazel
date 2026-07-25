@@ -8,6 +8,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkconfigmanagement/types",

@@ -15,6 +15,7 @@ go_library(
         "yaml_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_invopop_jsonschema//:jsonschema"],
 )

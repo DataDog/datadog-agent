@@ -10,6 +10,7 @@ go_library(
         "languageset.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/proto/pbgo/process"],
 )

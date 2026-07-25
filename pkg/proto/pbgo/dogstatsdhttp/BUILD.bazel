@@ -18,6 +18,7 @@ go_library(
         "payload_vtproto.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_planetscale_vtprotobuf//protohelpers",

@@ -5,6 +5,7 @@ go_library(
     name = "tcp",
     srcs = ["tcp_sender.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/client",

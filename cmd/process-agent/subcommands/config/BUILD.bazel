@@ -4,6 +4,7 @@ go_library(
     name = "config",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/process-agent/command",

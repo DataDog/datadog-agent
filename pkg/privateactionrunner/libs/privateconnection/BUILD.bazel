@@ -8,6 +8,7 @@ go_library(
         "private_credentials.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/constants",

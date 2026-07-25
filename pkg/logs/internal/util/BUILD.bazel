@@ -8,6 +8,7 @@ go_library(
         "service_name.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util",
+    tags_independent = True,
     visibility = [
         "//pkg/logs:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_logs_client//:__subpackages__",

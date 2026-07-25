@@ -8,6 +8,7 @@ go_library(
         "tracer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fxutil/logging",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@org_uber_go_fx//:fx",

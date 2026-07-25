@@ -12,6 +12,7 @@ go_library(
         "tagger_params.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/common",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/common/types",

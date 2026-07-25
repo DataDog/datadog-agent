@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["system_probe.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

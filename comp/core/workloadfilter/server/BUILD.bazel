@@ -4,6 +4,7 @@ go_library(
     name = "server",
     srcs = ["server.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadfilter/def",

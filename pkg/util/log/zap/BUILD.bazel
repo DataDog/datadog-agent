@@ -8,6 +8,7 @@ go_library(
         "zapencoder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/zap",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",

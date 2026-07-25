@@ -6,6 +6,7 @@ go_library(
     name = "netflow",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/netflow/config/fx",

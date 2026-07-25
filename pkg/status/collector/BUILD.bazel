@@ -9,6 +9,7 @@ go_library(
         "status_templates/collectorHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/status/collector",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/collector/collector/def",

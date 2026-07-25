@@ -4,6 +4,7 @@ go_library(
     name = "kubernetes",
     srcs = ["kubernetes_dump.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/pointer",

@@ -9,6 +9,7 @@ go_library(
         "status_templates/delegatedauthHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/delegatedauth/api",

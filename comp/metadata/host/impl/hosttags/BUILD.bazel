@@ -8,6 +8,7 @@ go_library(
         "tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/tags",

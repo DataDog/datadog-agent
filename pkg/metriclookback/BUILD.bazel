@@ -9,6 +9,7 @@ go_library(
         "sketch_projection.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",

@@ -4,6 +4,7 @@ go_library(
     name = "updater",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/updater",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/fxutil"],
 )

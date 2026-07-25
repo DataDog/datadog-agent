@@ -9,6 +9,7 @@ go_library(
         "status_templates/privateactionrunnerHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

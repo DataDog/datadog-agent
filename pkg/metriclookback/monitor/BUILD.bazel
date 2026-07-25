@@ -4,6 +4,7 @@ go_library(
     name = "monitor",
     srcs = ["monitor.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback/monitor",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/telemetry/impl"],
 )

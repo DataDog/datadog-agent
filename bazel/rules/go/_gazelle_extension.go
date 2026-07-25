@@ -16,6 +16,7 @@ package dd_agent_go_test
 
 import (
 	"bufio"
+	"context"
 	"go/build"
 	"go/build/constraint"
 	"os"
@@ -32,30 +33,58 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-const extName = "dd_agent_go_test"
+const (
+	extName               = "dd_agent_go_test"
+	tagIndependentExtName = "go_tags_independent"
+)
 
 type ddAgentGoTestConfig struct {
 	enabled bool
 }
 
+type tagIndependentConfig struct {
+	enabled bool
+}
+
+type tagIndependentLibrary struct {
+	file      *rule.File
+	generated *rule.Rule
+	name      string
+}
+
 type lang struct {
 	language.Language // embedded Go extension handles all non-test Go rules
+	language.BaseLifecycleManager
+	tagIndependentLibraries map[label.Label]tagIndependentLibrary
 }
 
 // NewLanguage returns a Gazelle language extension that wraps the built-in Go extension.
 func NewLanguage() language.Language {
-	return &lang{Language: goLanguage.NewLanguage()}
+	return &lang{
+		Language:                goLanguage.NewLanguage(),
+		tagIndependentLibraries: make(map[label.Label]tagIndependentLibrary),
+	}
 }
 
-// Kinds extends the Go extension's kinds with dd_agent_go_test. srcs, gotags,
-// and flavors are mergeable so each Gazelle run regenerates them from current
-// source analysis. deps is a ResolveAttr, matching the built-in go_test kind,
-// so Resolve (below) can update it while still respecting `# keep` on
-// individual entries. All other attrs (embed, data, ...) are preserved from
-// the existing rule.
+// Kinds extends the Go extension's kinds with dd_agent_go_test and makes
+// tags_independent Gazelle-managed on go_library. srcs, gotags, and flavors
+// are mergeable so each Gazelle run regenerates them from current source
+// analysis. deps is a ResolveAttr, matching the built-in go_test kind, so
+// Resolve (below) can update it while still respecting `# keep` on individual
+// entries. All other attrs (embed, data, ...) are preserved from the existing
+// rule.
 func (l *lang) Kinds() map[string]rule.KindInfo {
 	kinds := make(map[string]rule.KindInfo, len(l.Language.Kinds())+1)
 	for k, v := range l.Language.Kinds() {
+		if k == "go_library" {
+			mergeableAttrs := make(map[string]bool, len(v.MergeableAttrs)+2)
+			for attr, mergeable := range v.MergeableAttrs {
+				mergeableAttrs[attr] = mergeable
+			}
+			mergeableAttrs["tags_independent"] = true
+			mergeableAttrs["tags_closure_independent"] = true
+			v.MergeableAttrs = mergeableAttrs
+		}
 		kinds[k] = v
 	}
 	kinds["dd_agent_go_test"] = rule.KindInfo{
@@ -81,18 +110,14 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	})
 }
 
-// KnownDirectives registers dd_agent_go_test and dd_linux_bpf alongside the Go
+// KnownDirectives registers this extension's directives alongside the Go
 // extension's directives so Gazelle's -strict mode accepts them.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, linuxBPFExtName)
+	return append(l.Language.KnownDirectives(), extName, tagIndependentExtName, linuxBPFExtName)
 }
 
-// Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
-// "on" enables the go_test → dd_agent_go_test conversion; "off" disables it.
-// The setting is inheritable: it applies to this package and all subpackages
-// until a descendant overrides it, so a subtree can be toggled from one BUILD
-// file. We seed from the parent's config (cloned into c.Exts by Gazelle before
-// this runs).
+// Configure reads the extension's directives from the BUILD file. Settings are
+// inheritable, so a subtree can be toggled from one BUILD file.
 func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 	l.Language.Configure(c, rel, f)
 	// Disabled by default: the conversion is opt-in per subtree via
@@ -109,6 +134,19 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 		}
 	}
 	c.Exts[extName] = cfg
+
+	tagCfg := tagIndependentConfig{enabled: false}
+	if prev, ok := c.Exts[tagIndependentExtName].(tagIndependentConfig); ok {
+		tagCfg = prev
+	}
+	if f != nil {
+		for _, d := range f.Directives {
+			if d.Key == tagIndependentExtName {
+				tagCfg.enabled = d.Value != "off"
+			}
+		}
+	}
+	c.Exts[tagIndependentExtName] = tagCfg
 	configureLinuxBPF(c, f)
 }
 
@@ -117,6 +155,10 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 // sync so the resolver can still add deps to each dd_agent_go_test.
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
+	if shouldMarkTagIndependent(args.Config) {
+		markTagIndependentLibraries(result.Gen, args.Dir)
+		l.trackTagIndependentLibraries(result.Gen, args)
+	}
 	if shouldReplace(args.Config) {
 		result = l.replaceGoTests(result, args.File, args.Dir)
 	} else {
@@ -135,6 +177,127 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 		result = l.applyLinuxBPF(result, args)
 	}
 	return result
+}
+
+func shouldMarkTagIndependent(c *config.Config) bool {
+	cfg, ok := c.Exts[tagIndependentExtName].(tagIndependentConfig)
+	return ok && cfg.enabled
+}
+
+// markTagIndependentLibraries marks libraries whose source selection cannot
+// change with Go tags. The rules_go integration uses this to avoid putting
+// irrelevant tags in compile action keys while keeping the tagged
+// configuration on dependency edges.
+func markTagIndependentLibraries(rules []*rule.Rule, pkgDir string) {
+	for _, r := range rules {
+		if r.Kind() != "go_library" ||
+			r.Attr("cgo") != nil ||
+			len(r.AttrStrings("embed")) != 0 {
+			continue
+		}
+
+		srcs := r.AttrStrings("srcs")
+		if len(srcs) == 0 {
+			continue
+		}
+
+		independent := true
+		for _, src := range srcs {
+			if filepath.IsAbs(src) {
+				independent = false
+				break
+			}
+			_, hasConstraint, err := readBuildConstraint(filepath.Join(pkgDir, src))
+			if err != nil || hasConstraint {
+				independent = false
+				break
+			}
+		}
+		if independent {
+			r.SetAttr("tags_independent", true)
+		}
+	}
+}
+
+func (l *lang) trackTagIndependentLibraries(rules []*rule.Rule, args language.GenerateArgs) {
+	if !packageSourcesTagIndependent(args.Dir, args.RegularFiles) {
+		return
+	}
+	for _, r := range rules {
+		if r.Kind() != "go_library" || r.Attr("tags_independent") == nil {
+			continue
+		}
+		libLabel := label.New(args.Config.RepoName, args.Rel, r.Name())
+		l.tagIndependentLibraries[libLabel] = tagIndependentLibrary{
+			file:      args.File,
+			generated: r,
+			name:      r.Name(),
+		}
+	}
+}
+
+func packageSourcesTagIndependent(pkgDir string, files []string) bool {
+	for _, name := range files {
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		_, hasConstraint, err := readBuildConstraint(filepath.Join(pkgDir, name))
+		if err != nil || hasConstraint {
+			return false
+		}
+	}
+	return true
+}
+
+// AfterResolvingDeps marks source-independent libraries whose complete Go
+// dependency closure is also source-independent.
+func (l *lang) AfterResolvingDeps(context.Context) {
+	rules := make(map[label.Label]*rule.Rule, len(l.tagIndependentLibraries))
+	for libLabel, lib := range l.tagIndependentLibraries {
+		r := lib.generated
+		if lib.file != nil {
+			r, _ = findRule(lib.file, "go_library", lib.name)
+		}
+		if r != nil && r.Attr("tags_independent") != nil {
+			rules[libLabel] = r
+		}
+	}
+
+	independent := make(map[label.Label]bool, len(rules))
+	for libLabel := range rules {
+		independent[libLabel] = true
+	}
+
+	for changed := true; changed; {
+		changed = false
+		for libLabel, r := range rules {
+			if !independent[libLabel] || closureDepsIndependent(libLabel, r, independent) {
+				continue
+			}
+			independent[libLabel] = false
+			changed = true
+		}
+	}
+
+	for libLabel, r := range rules {
+		if independent[libLabel] {
+			r.SetAttr("tags_closure_independent", true)
+		}
+	}
+}
+
+func closureDepsIndependent(from label.Label, r *rule.Rule, independent map[label.Label]bool) bool {
+	deps := r.AttrStrings("deps")
+	if r.Attr("deps") != nil && len(deps) == 0 {
+		return false
+	}
+	for _, dep := range deps {
+		depLabel, err := label.Parse(dep)
+		if err != nil || !independent[depLabel.Abs(from.Repo, from.Pkg)] {
+			return false
+		}
+	}
+	return true
 }
 
 // shouldReplace decides whether go_test rules in this package should be
@@ -491,10 +654,10 @@ func readBuildConstraint(path string) (constraint.Expr, bool, error) {
 		if trimmed == "" {
 			continue
 		}
-		if constraint.IsGoBuild(line) {
+		if constraint.IsGoBuild(line) || constraint.IsPlusBuild(line) {
 			e, err := constraint.Parse(line)
 			if err != nil {
-				return nil, false, nil
+				return nil, false, err
 			}
 			return e, true, nil
 		}

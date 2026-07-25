@@ -4,6 +4,7 @@ go_library(
     name = "tracers",
     srcs = ["from_application_monitoring.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//comp/core/config"],
 )

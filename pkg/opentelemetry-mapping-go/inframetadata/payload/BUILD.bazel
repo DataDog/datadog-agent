@@ -4,6 +4,7 @@ go_library(
     name = "payload",
     srcs = ["payload.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/gohai",

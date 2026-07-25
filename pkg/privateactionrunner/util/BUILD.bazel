@@ -13,6 +13,7 @@ go_library(
         "urn.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/logging",

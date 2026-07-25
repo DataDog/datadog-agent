@@ -6,6 +6,7 @@ go_library(
     name = "impl-zstd",
     srcs = ["zstd.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/trace/compression/def",

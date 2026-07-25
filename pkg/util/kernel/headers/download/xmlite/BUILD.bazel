@@ -4,5 +4,7 @@ go_library(
     name = "xmlite",
     srcs = ["xml.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/xmlite",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

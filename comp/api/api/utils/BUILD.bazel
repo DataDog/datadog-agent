@@ -4,6 +4,8 @@ go_library(
     name = "utils",
     srcs = ["grpc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/utils",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/grpc/context"],
 )

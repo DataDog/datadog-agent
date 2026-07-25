@@ -10,6 +10,7 @@ go_library(
         "scheduler.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/common/types",

@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["updater.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/updater/updater/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -8,6 +8,7 @@ go_library(
         "rules.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter",
+    tags_independent = True,
     visibility = ["//comp/anomalydetection:__subpackages__"],
     deps = [
         "//comp/core/config",

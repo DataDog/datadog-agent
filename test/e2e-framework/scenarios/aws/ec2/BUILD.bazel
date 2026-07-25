@@ -11,6 +11,7 @@ go_library(
         "vmargs.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common",

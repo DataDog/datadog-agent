@@ -8,6 +8,7 @@ go_library(
         "diagnosis.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",

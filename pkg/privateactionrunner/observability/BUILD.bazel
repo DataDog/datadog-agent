@@ -9,6 +9,7 @@ go_library(
         "traces.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/logging",

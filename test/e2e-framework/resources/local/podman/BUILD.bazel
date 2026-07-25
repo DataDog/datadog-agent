@@ -5,6 +5,7 @@ go_library(
     srcs = ["vm.go"],
     embedsrcs = ["data/Dockerfile"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/local/podman",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/utils",

@@ -13,6 +13,7 @@ go_library(
         "update_custom_object.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/bundle-support/kubernetes",

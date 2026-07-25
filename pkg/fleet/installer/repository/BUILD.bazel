@@ -7,6 +7,7 @@ go_library(
         "repository.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/paths",

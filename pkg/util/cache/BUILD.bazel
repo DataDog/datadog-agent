@@ -8,6 +8,7 @@ go_library(
         "cache.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cache",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_patrickmn_go_cache//:go-cache"],
 )

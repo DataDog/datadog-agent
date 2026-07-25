@@ -4,6 +4,8 @@ go_library(
     name = "config",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/networkpath/payload"],
 )

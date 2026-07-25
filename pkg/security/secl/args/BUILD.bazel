@@ -4,6 +4,7 @@ go_library(
     name = "args",
     srcs = ["parse.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/args",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/security/secl/model"],
 )

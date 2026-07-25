@@ -8,6 +8,7 @@ go_library(
         "mapper_cache.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/mapper",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_hashicorp_golang_lru_v2//:golang-lru"],
 )

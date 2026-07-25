@@ -4,6 +4,7 @@ go_library(
     name = "networkfilter",
     srcs = ["network_filter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",

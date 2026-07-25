@@ -4,6 +4,8 @@ go_library(
     name = "ebpfless",
     srcs = ["msg.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/secl/containerutils",

@@ -5,6 +5,7 @@ go_library(
     name = "channel",
     srcs = ["scheduler.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",

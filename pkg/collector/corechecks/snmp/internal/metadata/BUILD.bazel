@@ -8,6 +8,7 @@ go_library(
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata",
+    tags_independent = True,
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/valuestore",

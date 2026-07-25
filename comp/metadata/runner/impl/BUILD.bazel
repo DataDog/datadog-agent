@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["runner.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/runner/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -23,6 +23,7 @@ go_library(
         ":rsrc",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/systray",
+    tags_independent = True,
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:private"],
     deps = select({

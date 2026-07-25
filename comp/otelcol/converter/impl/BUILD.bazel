@@ -12,6 +12,7 @@ go_library(
         "prometheus.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

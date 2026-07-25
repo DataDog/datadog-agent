@@ -5,6 +5,8 @@ go_library(
     name = "compression",
     srcs = ["compression.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

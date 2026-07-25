@@ -7,6 +7,7 @@ go_library(
     name = "snmptraps",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/snmptraps/server/fx",

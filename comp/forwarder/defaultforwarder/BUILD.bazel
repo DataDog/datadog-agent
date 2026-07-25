@@ -15,6 +15,7 @@ go_library(
         "doc.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/defaultforwarder/def",

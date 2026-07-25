@@ -5,6 +5,7 @@ go_library(
     name = "http",
     srcs = ["http_sender.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/sender/http",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/secrets/def",

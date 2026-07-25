@@ -11,6 +11,7 @@ go_library(
         "errors.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/client",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/logs/message"],
 )

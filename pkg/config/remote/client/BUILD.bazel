@@ -4,6 +4,7 @@ go_library(
     name = "client",
     srcs = ["client.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/client",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/remote/meta",

@@ -4,6 +4,7 @@ go_library(
     name = "common",
     srcs = ["entity_id_builder.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/common",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",

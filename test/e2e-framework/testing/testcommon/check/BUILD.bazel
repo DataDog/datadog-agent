@@ -4,6 +4,7 @@ go_library(
     name = "check",
     srcs = ["parse.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_stretchr_testify//require"],
 )

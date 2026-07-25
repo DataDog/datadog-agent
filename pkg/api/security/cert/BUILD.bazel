@@ -11,6 +11,7 @@ go_library(
         "cert_getter_dca.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/security/cert",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

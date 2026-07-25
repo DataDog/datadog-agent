@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = ["registry.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

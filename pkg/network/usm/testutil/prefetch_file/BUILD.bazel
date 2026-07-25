@@ -4,6 +4,8 @@ go_library(
     name = "prefetch_file_lib",
     srcs = ["prefetch_file.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/prefetch_file",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:private"],
 )
 

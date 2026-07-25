@@ -4,5 +4,7 @@ go_library(
     name = "statusregistry",
     srcs = ["registry.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/statusregistry",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

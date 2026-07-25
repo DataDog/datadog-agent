@@ -5,6 +5,7 @@ go_library(
     name = "impl-systemprobe",
     srcs = ["systemprobe_logger.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl-systemprobe",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",

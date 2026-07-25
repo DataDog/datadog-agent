@@ -9,6 +9,7 @@ go_library(
     ],
     embedsrcs = ["profile_rc_schema.json"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkdevice/profile/profiledefinition",

@@ -4,6 +4,7 @@ go_library(
     name = "impl-local",
     srcs = ["traceroute.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/impl-local",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname",

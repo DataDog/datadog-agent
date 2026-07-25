@@ -6,6 +6,7 @@ go_library(
     name = "clusteragent",
     srcs = ["servercontext.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",

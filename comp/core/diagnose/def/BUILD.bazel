@@ -4,6 +4,7 @@ go_library(
     name = "def",
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/diagnose/def",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_fatih_color//:color"],
 )

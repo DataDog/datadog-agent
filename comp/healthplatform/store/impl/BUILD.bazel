@@ -9,6 +9,7 @@ go_library(
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

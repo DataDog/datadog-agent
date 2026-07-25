@@ -8,6 +8,7 @@ go_library(
         "resolver.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/tmplvar",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",

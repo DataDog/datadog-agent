@@ -22,6 +22,7 @@ go_library(
         "tracer_metadata_gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

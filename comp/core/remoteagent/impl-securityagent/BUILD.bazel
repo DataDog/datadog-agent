@@ -4,6 +4,7 @@ go_library(
     name = "impl-securityagent",
     srcs = ["remoteagent.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl-securityagent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

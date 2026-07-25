@@ -4,6 +4,7 @@ go_library(
     name = "version",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/version",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/privateactionrunner/command",

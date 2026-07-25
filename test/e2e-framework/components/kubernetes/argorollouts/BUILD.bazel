@@ -8,6 +8,7 @@ go_library(
         "rollout.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common",

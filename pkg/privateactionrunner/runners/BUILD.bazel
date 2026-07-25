@@ -8,6 +8,7 @@ go_library(
         "workflow_task_executor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",

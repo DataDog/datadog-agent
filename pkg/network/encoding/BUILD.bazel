@@ -4,6 +4,8 @@ go_library(
     name = "encoding",
     srcs = ["encoding.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/encoding",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

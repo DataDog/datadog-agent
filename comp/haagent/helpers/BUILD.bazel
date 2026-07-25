@@ -5,6 +5,7 @@ go_library(
     name = "helpers",
     srcs = ["helpers.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/haagent/helpers",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/config/model"],
 )

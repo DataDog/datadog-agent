@@ -7,6 +7,7 @@ go_library(
         "grpc.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",

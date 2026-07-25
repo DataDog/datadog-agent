@@ -4,6 +4,7 @@ go_library(
     name = "mocks",
     srcs = ["metric_serializer.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/mocks",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/metrics",

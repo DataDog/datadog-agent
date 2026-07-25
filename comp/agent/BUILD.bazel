@@ -5,6 +5,7 @@ go_library(
     name = "agent",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/agent",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/autoexit/fx",

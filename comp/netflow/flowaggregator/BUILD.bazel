@@ -12,6 +12,7 @@ go_library(
         "testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/flowaggregator",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",

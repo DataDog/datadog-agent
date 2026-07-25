@@ -5,6 +5,8 @@ go_library(
     name = "statstracker",
     srcs = ["stats_tracker.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/statstracker",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

@@ -4,6 +4,8 @@ go_library(
     name = "version",
     srcs = ["version.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/version",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/version"],
 )

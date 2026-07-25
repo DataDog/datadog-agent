@@ -4,6 +4,7 @@ go_library(
     name = "config",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@in_yaml_go_yaml_v2//:yaml"],
 )

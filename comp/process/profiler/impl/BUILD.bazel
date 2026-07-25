@@ -4,6 +4,7 @@ go_library(
     name = "impl",
     srcs = ["profiler.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/process/profiler/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -4,6 +4,7 @@ go_library(
     name = "remoteflags",
     srcs = ["flags.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/remoteflags",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",

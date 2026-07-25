@@ -4,6 +4,7 @@ go_library(
     name = "types",
     srcs = ["connection_key.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/types",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/process/util"],
 )

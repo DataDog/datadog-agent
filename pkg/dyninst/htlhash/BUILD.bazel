@@ -4,6 +4,7 @@ go_library(
     name = "htlhash",
     srcs = ["htlhash.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/htlhash",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/sync"],
 )

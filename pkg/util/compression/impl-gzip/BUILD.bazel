@@ -5,6 +5,7 @@ go_library(
     name = "impl-gzip",
     srcs = ["gzip_strategy.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-gzip",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/compression",

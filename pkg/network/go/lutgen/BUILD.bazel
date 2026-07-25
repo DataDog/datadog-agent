@@ -9,6 +9,7 @@ go_library(
     ],
     embedsrcs = ["template.go.tpl"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/lutgen",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/go/goversion",

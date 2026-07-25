@@ -4,6 +4,7 @@ go_library(
     name = "def",
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@io_opentelemetry_go_collector_extension//:extension"],
 )

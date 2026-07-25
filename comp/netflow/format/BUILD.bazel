@@ -16,6 +16,8 @@ go_library(
         "tcp_flags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/format",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

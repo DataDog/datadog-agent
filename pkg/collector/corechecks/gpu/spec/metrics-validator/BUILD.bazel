@@ -9,6 +9,7 @@ go_library(
         "validation.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec/metrics-validator",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/collector/corechecks/gpu/spec",

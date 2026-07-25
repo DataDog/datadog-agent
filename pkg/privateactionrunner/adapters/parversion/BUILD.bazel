@@ -4,6 +4,7 @@ go_library(
     name = "parversion",
     srcs = ["version.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/logging",

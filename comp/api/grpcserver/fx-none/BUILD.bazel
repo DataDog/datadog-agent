@@ -4,6 +4,7 @@ go_library(
     name = "fx-none",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/grpcserver/def",

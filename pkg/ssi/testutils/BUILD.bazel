@@ -12,6 +12,7 @@ go_library(
         "pod_init_container.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ssi/testutils",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_stretchr_testify//require",

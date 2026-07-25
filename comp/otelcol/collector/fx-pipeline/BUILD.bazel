@@ -4,6 +4,7 @@ go_library(
     name = "fx-pipeline",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx-pipeline",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/otelcol/collector/def",

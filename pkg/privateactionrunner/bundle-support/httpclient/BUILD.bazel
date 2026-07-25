@@ -8,6 +8,7 @@ go_library(
         "imds_blocker_authorizer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",

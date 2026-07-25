@@ -30,6 +30,7 @@ go_library(
         "scripts/zypper-disable-unattended-upgrades.sh",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/os",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common",

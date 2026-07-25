@@ -5,6 +5,7 @@ go_library(
     name = "config",
     srcs = ["endpoint.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config",
+    tags_independent = True,
     visibility = ["//comp/api/api/apiimpl:__subpackages__"],
     deps = [
         "//comp/api/api/apiimpl/observability",

@@ -7,6 +7,7 @@ go_library(
     name = "impl",
     srcs = ["common_endpoints.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api/commonendpoints/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common/signals",

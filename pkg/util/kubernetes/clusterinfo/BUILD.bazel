@@ -4,6 +4,7 @@ go_library(
     name = "clusterinfo",
     srcs = ["tags.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/tags",

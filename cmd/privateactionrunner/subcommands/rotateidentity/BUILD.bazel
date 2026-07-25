@@ -5,6 +5,7 @@ go_library(
     name = "rotateidentity",
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/privateactionrunner/command",

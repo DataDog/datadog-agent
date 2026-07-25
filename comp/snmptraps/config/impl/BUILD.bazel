@@ -7,6 +7,7 @@ go_library(
         "service.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

@@ -8,6 +8,7 @@ go_library(
         "tagstore.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",

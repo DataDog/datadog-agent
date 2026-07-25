@@ -8,6 +8,7 @@ go_library(
         "manager.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/agent/autoexit/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/autoexit/def",

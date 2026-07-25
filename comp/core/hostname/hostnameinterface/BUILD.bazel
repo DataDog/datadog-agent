@@ -4,5 +4,7 @@ go_library(
     name = "hostnameinterface",
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

@@ -5,6 +5,7 @@ go_library(
     name = "dockerstream",
     srcs = ["docker_stream.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream",
+    tags_independent = True,
     visibility = [
         "//pkg/logs:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_logs_client//:__subpackages__",

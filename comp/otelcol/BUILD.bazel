@@ -6,6 +6,7 @@ go_library(
     name = "otelcol",
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/otelcol/collector/fx-pipeline",

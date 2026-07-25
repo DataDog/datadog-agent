@@ -10,6 +10,7 @@ go_library(
         "inventory_payload.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/internal/util",
+    tags_independent = True,
     visibility = ["//comp/metadata:__subpackages__"],
     deps = [
         "//comp/core/config",

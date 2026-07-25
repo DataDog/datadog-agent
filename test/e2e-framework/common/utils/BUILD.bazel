@@ -18,6 +18,7 @@ go_library(
         "yaml.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/utils",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/config",

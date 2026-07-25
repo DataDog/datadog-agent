@@ -7,6 +7,7 @@ go_library(
         "gitlab_id.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/gitlab",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/libs/privateconnection",

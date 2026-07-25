@@ -4,6 +4,7 @@ go_library(
     name = "network",
     srcs = ["network.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai/network",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["//pkg/gohai/utils"],
 )

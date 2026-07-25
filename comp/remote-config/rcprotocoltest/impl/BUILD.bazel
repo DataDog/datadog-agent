@@ -12,6 +12,7 @@ go_library(
         "websocket_echo.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

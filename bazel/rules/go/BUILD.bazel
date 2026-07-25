@@ -82,6 +82,7 @@ go_test(
     deps = [
         "@@gazelle++go_deps+com_github_bazelbuild_buildtools//build",
         "@gazelle//config",
+        "@gazelle//label",
         "@gazelle//language",
         "@gazelle//merger",
         "@gazelle//rule",

@@ -4,6 +4,7 @@ go_library(
     name = "installer",
     srcs = ["lab.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/installer",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/namer",

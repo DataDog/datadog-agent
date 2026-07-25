@@ -12,6 +12,7 @@ go_library(
         "sketch_iterator.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer/def",

@@ -4,6 +4,7 @@ go_library(
     name = "k8s_schema_generator_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/tools/k8s_schema_generator",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/compliance/k8sconfig",

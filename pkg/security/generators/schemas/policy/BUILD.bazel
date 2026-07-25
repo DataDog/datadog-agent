@@ -4,6 +4,7 @@ go_library(
     name = "policy_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/schemas/policy",
+    tags_independent = True,
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/security/secl/rules",

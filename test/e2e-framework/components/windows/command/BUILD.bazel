@@ -9,5 +9,7 @@ go_library(
         "registry.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/command",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

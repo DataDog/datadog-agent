@@ -4,6 +4,7 @@ go_library(
     name = "init",
     srcs = ["init.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",

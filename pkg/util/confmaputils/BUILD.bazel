@@ -5,6 +5,7 @@ go_library(
     name = "confmaputils",
     srcs = ["confmaputils.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/confmaputils",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = ["@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap"],
 )

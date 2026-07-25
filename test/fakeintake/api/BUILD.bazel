@@ -4,5 +4,7 @@ go_library(
     name = "api",
     srcs = ["api.go"],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/api",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )

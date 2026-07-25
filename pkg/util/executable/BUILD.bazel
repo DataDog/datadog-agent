@@ -5,6 +5,8 @@ go_library(
     name = "executable",
     srcs = ["executable.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/executable",
+    tags_closure_independent = True,
+    tags_independent = True,
     visibility = ["//visibility:public"],
 )
 

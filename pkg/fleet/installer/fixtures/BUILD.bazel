@@ -23,6 +23,7 @@ go_library(
         "BUILD.bazel",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/tar",

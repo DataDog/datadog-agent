@@ -9,6 +9,7 @@ go_library(
         "traces_connector.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector",
+    tags_independent = True,
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",
