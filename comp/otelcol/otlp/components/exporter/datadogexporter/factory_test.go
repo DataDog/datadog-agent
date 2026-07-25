@@ -101,6 +101,32 @@ func TestBuildMetricsExporterConfig_RetryDefaultsToLegacyBudget(t *testing.T) {
 		"MaxElapsedTime should default to legacy 15 min, not OTel 5 min")
 }
 
+// TestOrchestratorForwardingEnabled verifies the standalone gating for routing
+// k8s object logs to the orchestrator intake: only standalone mode enables
+// forwarding, and connected mode ignores (and warns about) an enabled
+// orchestrator_explorer to avoid duplicating the cluster agent's manifests.
+func TestOrchestratorForwardingEnabled(t *testing.T) {
+	tests := []struct {
+		name                        string
+		standalone                  bool
+		orchestratorExplorerEnabled bool
+		wantEnabled                 bool
+		wantWarnIgnored             bool
+	}{
+		{name: "connected mode ignores enabled orchestrator_explorer", standalone: false, orchestratorExplorerEnabled: true, wantEnabled: false, wantWarnIgnored: true},
+		{name: "connected mode with orchestrator_explorer disabled", standalone: false, orchestratorExplorerEnabled: false, wantEnabled: false, wantWarnIgnored: false},
+		{name: "standalone mode enables forwarding", standalone: true, orchestratorExplorerEnabled: true, wantEnabled: true, wantWarnIgnored: false},
+		{name: "standalone mode with orchestrator_explorer disabled", standalone: true, orchestratorExplorerEnabled: false, wantEnabled: false, wantWarnIgnored: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enabled, warnIgnored := orchestratorForwardingEnabled(tt.standalone, tt.orchestratorExplorerEnabled)
+			assert.Equal(t, tt.wantEnabled, enabled)
+			assert.Equal(t, tt.wantWarnIgnored, warnIgnored)
+		})
+	}
+}
+
 // TestBuildMetricsExporterConfig_RetryPassThrough verifies that the
 // retry_on_failure settings from the datadogexporter config are forwarded to
 // the serializer exporter's RetryConfig when they differ from OTel defaults,

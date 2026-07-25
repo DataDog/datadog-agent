@@ -5,6 +5,7 @@ go_library(
     name = "datadogexporter",
     srcs = [
         "factory.go",
+        "hostname.go",
         "metadata.go",
         "telemetry.go",
         "traces_exporter.go",
@@ -12,6 +13,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
         "//comp/otelcol/logsagentpipeline/def",
@@ -47,6 +50,7 @@ dd_agent_go_test(
     srcs = [
         "factory_test.go",
         "host_metadata_test.go",
+        "hostname_test.go",
         "traces_exporter_test.go",
     ],
     embed = [":datadogexporter"],

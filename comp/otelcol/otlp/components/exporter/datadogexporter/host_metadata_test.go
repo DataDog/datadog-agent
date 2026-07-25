@@ -158,7 +158,7 @@ func createTestFactory(t *testing.T, serverAddr string) exporter.Factory {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, implgzip.NewComponent())
 	go traceagent.Run()
 
-	return NewFactory(testComponent{traceagent, nil}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
+	return NewFactory(testComponent{traceagent, nil}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 }
 
 func TestHostMetadata_FromTraces(t *testing.T) {
