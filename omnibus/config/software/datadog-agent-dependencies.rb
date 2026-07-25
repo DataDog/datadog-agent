@@ -2,7 +2,10 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
-dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target?
+# ADP is normally excluded from the Heroku build. Size-probe: allow bundling it
+# into Heroku when HEROKU_INCLUDE_ADP=true, to measure the "package ADP alongside
+# the Heroku Agent" alternative in the "Freezing the Heroku Agent" proposal.
+dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && (!heroku_target? || ENV['HEROKU_INCLUDE_ADP'] == 'true')
 
 dependency 'datadog-agent-integrations-py3'
 
