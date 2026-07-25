@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
@@ -84,6 +85,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
+	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -210,6 +212,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
+			fx.Invoke(validateWindowsPreparedRollout),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -226,6 +229,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 	// startAgent succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
 	return errChan, nil
+}
+
+func validateWindowsPreparedRollout(config config.Component) error {
+	if config.GetBool(configsetup.ExperimentalNodeAgentRolloutEnabled) {
+		return errors.New("experimental node Agent rollout is not supported by the Windows service")
+	}
+	return nil
 }
 
 // Re-register the ctrl handler because Go uses SetConsoleCtrlHandler and Python uses posix signal calls.

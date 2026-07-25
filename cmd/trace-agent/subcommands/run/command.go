@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -81,11 +83,13 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
-	err := fxutil.Run(
+	err := fxutil.RunWithStartupGate[agentlifecycle.Component](
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
+		fx.Supply(agentlifecycle.Params{ComponentName: "trace-agent"}),
+		agentlifecyclefx.Module(),
 		secretsfx.Module(),
 		delegatedauthfx.Module(),
 		telemetryfx.Module(),

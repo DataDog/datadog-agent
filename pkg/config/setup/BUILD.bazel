@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "setup",
     srcs = [
+        "agent_lifecycle.go",
         "apm_settings.go",
         "common_settings.go",
         "config.go",

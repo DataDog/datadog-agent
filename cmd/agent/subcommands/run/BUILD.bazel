@@ -44,6 +44,8 @@ go_library(
         "//comp/collector/collector/impl",
         "//comp/connectivitychecker/fx",
         "//comp/core",
+        "//comp/core/agentlifecycle/def",
+        "//comp/core/agentlifecycle/fx",
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/fx",
         "//comp/core/autodiscovery/def",
@@ -284,6 +286,7 @@ go_library(
             "//comp/trace/etwtracer/def",
             "//comp/trace/etwtracer/fx",
             "//pkg/config/model",
+            "//pkg/config/setup",
             "//pkg/util/winutil",
         ],
         "//conditions:default": [],
@@ -303,5 +306,12 @@ dd_agent_go_test(
         "//comp/core/pid/impl",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//pkg/config/setup",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -26,5 +26,6 @@ dd_agent_go_test(
         "//comp/def",
         "//pkg/status/health",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

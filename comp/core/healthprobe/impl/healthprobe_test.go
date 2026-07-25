@@ -9,11 +9,14 @@ package healthprobeimpl
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -22,6 +25,10 @@ import (
 )
 
 func TestServer(t *testing.T) {
+	reserved, err := net.Listen("tcp", "0.0.0.0:0")
+	require.NoError(t, err)
+	port := reserved.Addr().(*net.TCPAddr).Port
+	require.NoError(t, reserved.Close())
 
 	lc := compdef.NewTestLifecycle(t)
 	logComponent := logmock.New(t)
@@ -30,21 +37,30 @@ func TestServer(t *testing.T) {
 		Lc:  lc,
 		Log: logComponent,
 		Options: healthprobeComponent.Options{
-			Port: 7869,
+			Port: port,
 		},
 	}
 
 	provides, err := NewComponent(requires)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.NotNil(t, provides.Comp)
+	require.NotNil(t, provides.Comp)
+
+	beforeStart, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	require.NoError(t, err, "constructing the component must not claim the health port")
+	require.NoError(t, beforeStart.Close())
 
 	ctx := context.Background()
 
 	lc.AssertHooksNumber(1)
-	assert.NoError(t, lc.Start(ctx))
-	assert.NoError(t, lc.Stop(ctx))
+	require.NoError(t, lc.Start(ctx))
+	conflicting, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	require.Error(t, err, "starting the component must claim the health port")
+	if conflicting != nil {
+		require.NoError(t, conflicting.Close())
+	}
+	require.NoError(t, lc.Stop(ctx))
 }
 
 func TestServerNoHealthPort(t *testing.T) {
