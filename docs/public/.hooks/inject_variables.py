@@ -1,4 +1,6 @@
+import os
 import re
+import subprocess
 from functools import cache
 from pathlib import Path
 
@@ -15,8 +17,35 @@ def variable_replacements():
             ("DDA_DOCS_INSTALL", get_dda_install_docs()),
             ("DDA_DOCS_TAB_COMPLETE", get_dda_tab_complete_docs()),
             ("VSCODE_EXTENSIONS", get_vscode_extensions()),
+            ("SRC", get_source_url_base()),
         )
     }
+
+
+@cache
+def get_source_ref():
+    # The `dda run docs *` commands and CI set this explicitly; any git ref works
+    if ref := os.environ.get("DOCS_SOURCE_REF"):
+        return ref
+
+    # Fall back to the current branch for ad-hoc local builds
+    try:
+        process = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "main"
+
+    branch = process.stdout.strip()
+    # A detached HEAD resolves to the literal string `HEAD`
+    return branch if branch and branch != "HEAD" else "main"
+
+
+def get_source_url_base():
+    return f"https://github.com/DataDog/datadog-agent/blob/{get_source_ref()}"
 
 
 @cache

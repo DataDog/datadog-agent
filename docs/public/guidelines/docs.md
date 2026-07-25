@@ -8,7 +8,16 @@ You can serve documentation locally with the `dda run docs serve` command.
 
 ## Organization
 
-The site structure is defined by the [`nav`](https://zensical.org/docs/setup/navigation/) key in the [`mkdocs.yml`](https://github.com/DataDog/datadog-agent/blob/main/mkdocs.yml) file.
+The developer documentation is made up of two sites that are deployed together:
+
+| Site | Configuration | Content |
+| --- | --- | --- |
+| [Developer docs](https://datadoghq.dev/datadog-agent/) | [`mkdocs.yml`](https://github.com/DataDog/datadog-agent/blob/main/mkdocs.yml) | `docs/public`, everything about *working on* the Agent |
+| [Architecture docs](https://datadoghq.dev/datadog-agent/architecture/) | [`mkdocs.architecture.yml`](https://github.com/DataDog/datadog-agent/blob/main/mkdocs.architecture.yml) | `docs/public/architecture`, everything about *how the Agent works* |
+
+The architecture site is published under the `architecture/` path of the main site, and each site links to the other from its top navigation tabs. Use `dda run docs serve --site architecture` to serve the architecture site locally. Links between the two sites must use absolute URLs (e.g. `https://datadoghq.dev/datadog-agent/architecture/components/overview/`); such links are validated against the freshly built output rather than the deployed sites, so pages added in a pull request may be cross-referenced immediately.
+
+The structure of each site is defined by the [`nav`](https://zensical.org/docs/setup/navigation/) key in its configuration file.
 
 We strive to follow the principles of the Diátaxis [documentation framework](https://diataxis.fr).
 
@@ -91,6 +100,23 @@ Here's an example:
 Always use [inline links](https://spec.commonmark.org/0.31.2/#inline-link) rather than [reference links](https://spec.commonmark.org/0.31.2/#reference-link).
 
 The only exception to that rule is links that many pages may need to reference. Such links may be added to [this file](https://github.com/DataDog/datadog-agent/blob/main/docs/public/.snippets/links.txt) that all pages are able to reference.
+
+### Linking to source code
+
+{% raw %}
+Links to files or directories in this repository must use the `<<<SRC>>>` variable as the base URL:
+
+```markdown
+The [aggregator](<<<SRC>>>/pkg/aggregator) turns samples into series, see
+[`time_sampler.go`](<<<SRC>>>/pkg/aggregator/time_sampler.go).
+```
+{% endraw %}
+
+The variable renders as `https://github.com/DataDog/datadog-agent/blob/<ref>` where `<ref>` is the pull request branch during validation and `main` on the deployed sites. This allows a pull request that adds, moves, or renames source code to link to it from documentation without waiting for a merge.
+
+During `dda run docs build --check`, every such link (including plain `blob/main` links) is resolved against the local checkout instead of GitHub, which both validates links to directories and catches links that a rename in the same pull request would break.
+
+Do not append line-number fragments such as `#L42` to source links: they cannot be validated and silently rot as the file changes. Link to the file and name the function or type in the surrounding text instead.
 
 ## Abbreviations
 

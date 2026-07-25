@@ -29,6 +29,12 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 - `/omnibus/` - The legacy build system. Still in use, but we are trying not to add to it.
 
+- `/docs/public/` - Developer documentation, published as two Zensical sites:
+  the developer guide (`mkdocs.yml`) and the architecture documentation under
+  `docs/public/architecture` (`mkdocs.architecture.yml`). See
+  `docs/public/guidelines/docs.md` for authoring conventions, including the
+  `<<<SRC>>>` variable for links to source code.
+
 
 ## Development Workflow
 

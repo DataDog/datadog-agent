@@ -9,6 +9,16 @@ copyright: Copyright &copy; Datadog, Inc. 2024-present
 
 docs_dir: docs/public
 site_dir: site
+
+# Zensical validates link targets on the raw Markdown source, before the macros
+# extension expands <<<SRC>>> links, so a source link pointing to a Markdown file
+# would be misreported as a missing page. Page-existence validation is disabled
+# in favor of the lychee run in `dda run docs build --check`, which validates
+# every link (internal links included) against the built site.
+validation:
+  links:
+    not_found: ignore
+
 theme:
   name: material
   variant: classic
@@ -101,35 +111,14 @@ nav:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
     - Logging: guidelines/conventions/logging.md
-- Components:
-  - Overview: components/overview.md
-  - Components:
-    - Creating components: components/creating-components.md
-    - Testing components: components/testing.md
-    # - Creating bundles: components/creating-bundles.md
-    - Using components: components/using-components.md
-    # - Common patterns: components/common-patterns.md
-  - Shared features from components:
-    # - Integrating with other components: components/migration.md
-    - Features:
-      - Flare: components/shared_features/flares.md
-      -  Status: components/shared_features/status.md
-  #     - TODO Remote Config: components/shared_features/remote_config.md
-  #     - TODO Metadata: components/shared_features/metadata.md
-  #     - TODO workloadmeta: components/shared_features/workloadmeta.md
-  #     - TODO more ?: TMP
-  # - Fx overview: components/fx.md
-  # - JMXFetch overview: components/jmxfetch.md
-  # - FAQ: components/faq.md
 - Agent Schema:
   - Introduction: agent-schema/index.md
   - Keyword Reference: agent-schema/keywords.md
   - Examples: agent-schema/examples.md
   - CLI Commands: agent-schema/cli.md
   - FAQ: agent-schema/faq.md
-- Architecture:
-  - DogStatsD:
-    - Internals: architecture/dogstatsd/internals.md
+# The architecture documentation is a separate site defined by mkdocs.architecture.yml
+- Architecture: https://datadoghq.dev/datadog-agent/architecture/
 - Reference:
   - Images:
     - Developer environment: reference/images/dev.md
