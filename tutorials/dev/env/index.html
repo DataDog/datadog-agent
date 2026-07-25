@@ -4245,7 +4245,7 @@
   
 
 
-<h1 id="using-developer-environments">Using developer environments</h1>
+<h1 id="using-developer-environments">Using developer environments<a class="headerlink" href="#using-developer-environments" title="Permanent link">&para;</a></h1>
 <hr />
 <p>Developer environments are preconfigured workspaces that provide everything required for contributing to the Agent code base, testing changes and building release artifacts. Usually, these are <a href="../../../reference/images/dev/">images</a> that run using a container orchestrator like Docker or Podman.</p>
 <p>This tutorial will walk through how to use such environments with the <a href="https://datadoghq.dev/datadog-agent-dev/reference/cli/commands/#dda-env-dev"><code>dda env dev</code></a> command group.</p>
@@ -4253,7 +4253,7 @@
 <p class="admonition-title">Note</p>
 <p>This tutorial assumes you have already set up the <a href="../../../setup/required/">development requirements</a>.</p>
 </div>
-<h2 id="overview">Overview</h2>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>A developer environment may be used either as an ephemeral or persistent workspace. Multiple environments can be used concurrently, with each using a different checkout of the Agent repository.</p>
 <p>To get an idea of upcoming interactions, run <code>dda env dev</code> and you should see the following output.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ dda env dev
@@ -4276,7 +4276,7 @@
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│ stop    Stop a developer environment                                 │
 </span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>╰──────────────────────────────────────────────────────────────────────╯
 </span></code></pre></div>
-<h2 id="environment-selection">Environment selection</h2>
+<h2 id="environment-selection">Environment selection<a class="headerlink" href="#environment-selection" title="Permanent link">&para;</a></h2>
 <p>When an environment is <a href="#starting-environments">started</a>, there are two options that permanently influence the environment until it is <a href="#removing-environments">removed</a>.</p>
 <ul>
 <li>The <code>--id</code> option sets the identifier that subsequent commands use to target the environment. All commands use the word <code>default</code> if no ID is provided. Environments of different types can have the same ID.</li>
@@ -4294,11 +4294,11 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda config set env.dev.default-type linux-container
 </span></code></pre></div>
 </div>
-<h2 id="starting-environments">Starting environments</h2>
+<h2 id="starting-environments">Starting environments<a class="headerlink" href="#starting-environments" title="Permanent link">&para;</a></h2>
 <p>You can start an environment with the <code>dda env dev start</code> command. All developer environment <a href="#environment-selection">types</a> support the following options.</p>
-<h3 id="repository-location">Repository location</h3>
+<h3 id="repository-location">Repository location<a class="headerlink" href="#repository-location" title="Permanent link">&para;</a></h3>
 <p>You may select where the code resides when starting an environment.</p>
-<h4 id="local-checkout">Local checkout</h4>
+<h4 id="local-checkout">Local checkout<a class="headerlink" href="#local-checkout" title="Permanent link">&para;</a></h4>
 <p>The default behavior assumes a local checkout of the <a href="https://github.com/DataDog/datadog-agent">Agent repository</a>. Clone the repo if you haven't already.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git clone https://github.com/DataDog/datadog-agent.git
 </span></code></pre></div>
@@ -4313,7 +4313,7 @@
 <li>Bind mounts may experience performance issues, particularly for Git operations.</li>
 </ol>
 </div>
-<h4 id="remote-clone">Remote clone</h4>
+<h4 id="remote-clone">Remote clone<a class="headerlink" href="#remote-clone" title="Permanent link">&para;</a></h4>
 <p>You can start an environment with a fresh clone of the Agent repository by passing the <code>--clone</code> flag.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda env dev start --clone
 </span></code></pre></div>
@@ -4321,7 +4321,7 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda config set env.dev.clone-repos true
 </span></code></pre></div>
 <p>This will perform a shallow clone of the default branch, <code>main</code>.</p>
-<h3 id="repository-selection">Repository selection</h3>
+<h3 id="repository-selection">Repository selection<a class="headerlink" href="#repository-selection" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This functionality has no effect when using a <a href="#local-checkout">local checkout</a>.</p>
@@ -4330,12 +4330,12 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dda env dev start -r datadog-agent -r integrations-core
 </span></code></pre></div>
 <p>The first selected repository becomes the default location for the environment such as when <a href="#running-commands">running commands</a> or <a href="#entering-a-shell">entering a shell</a>.</p>
-<h3 id="type-specific-options">Type-specific options</h3>
+<h3 id="type-specific-options">Type-specific options<a class="headerlink" href="#type-specific-options" title="Permanent link">&para;</a></h3>
 <p>Each developer environment <a href="#environment-selection">type</a> has additional options that are only available when using that type. For example, the <code>linux-container</code> type supports a <code>--no-pull</code> flag to disable the automatic pull of the latest image.</p>
 <p>The help text displays options for the default type. In order to see options for a specific type, use the <code>-t</code>/<code>--type</code> option <strong><em>before</em></strong> the help flag like in the following example.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dda env dev start -t linux-container -h
 </span></code></pre></div>
-<h2 id="environment-status">Environment status</h2>
+<h2 id="environment-status">Environment status<a class="headerlink" href="#environment-status" title="Permanent link">&para;</a></h2>
 <p>You can check the status of an environment by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>dda env dev status
 </span></code></pre></div>
@@ -4350,23 +4350,23 @@
 <li><code>nonexistent</code> - The environment does not exist.</li>
 <li><code>unknown</code> - The environment is in an unknown state.</li>
 </ul>
-<h2 id="entering-a-shell">Entering a shell</h2>
+<h2 id="entering-a-shell">Entering a shell<a class="headerlink" href="#entering-a-shell" title="Permanent link">&para;</a></h2>
 <p>You can spawn a shell within an environment by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>dda env dev shell
 </span></code></pre></div>
 <p>This opens a shell within the first defined <a href="#repository-selection">repository</a>.</p>
-<h2 id="preparing-for-development">Preparing for development</h2>
+<h2 id="preparing-for-development">Preparing for development<a class="headerlink" href="#preparing-for-development" title="Permanent link">&para;</a></h2>
 <p>Run the following command in the environment's shell to install some remaining dependencies.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>dda inv install-tools
 </span></code></pre></div>
 <p>If you're using a <a href="#remote-clone">remote clone</a>, some builds may fail due to the shallow cloning. To acquire all Git history, run the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>git fetch --unshallow
 </span></code></pre></div>
-<h2 id="testing">Testing</h2>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <p>Verify your setup by running some <a href="../../../how-to/test/unit/">unit tests</a> with the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>dda inv test --targets=pkg/aggregator
 </span></code></pre></div>
-<h2 id="editing-code">Editing code</h2>
+<h2 id="editing-code">Editing code<a class="headerlink" href="#editing-code" title="Permanent link">&para;</a></h2>
 <p>Exit the environment's shell or open a new session and run the following command locally.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>dda env dev code
 </span></code></pre></div>
@@ -4375,12 +4375,12 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>dda config set env.dev.editor cursor
 </span></code></pre></div>
 <p>To test functionality, create a file <code>test.txt</code> at the root of the repository and save it.</p>
-<h2 id="running-commands">Running commands</h2>
+<h2 id="running-commands">Running commands<a class="headerlink" href="#running-commands" title="Permanent link">&para;</a></h2>
 <p>You can run commands within an environment without <a href="#entering-a-shell">entering a shell</a> by passing arbitrary arguments to the <code>dda env dev run</code> command locally. Confirm the file <code>test.txt</code> was created by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>dda env dev run -- ls -l test.txt
 </span></code></pre></div>
 <p>The repository in which to run the command is determined by the <code>-r</code>/<code>--repo</code> option, defaulting to the first defined <a href="#repository-selection">repository</a>.</p>
-<h2 id="building">Building</h2>
+<h2 id="building">Building<a class="headerlink" href="#building" title="Permanent link">&para;</a></h2>
 <p>Let's <a href="../../../how-to/build/standalone/">build</a> the default Agent by running the following command locally.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>dda env dev run -- dda inv agent.build --build-exclude=systemd
 </span></code></pre></div>
@@ -4392,12 +4392,12 @@
 <p class="admonition-title">Caveat</p>
 <p>Environments using a <a href="#remote-clone">remote clone</a> have no easier way to share build artifacts with your local machine than to use the <code>docker cp</code> command. This is a temporary limitation.</p>
 </div>
-<h2 id="stopping-environments">Stopping environments</h2>
+<h2 id="stopping-environments">Stopping environments<a class="headerlink" href="#stopping-environments" title="Permanent link">&para;</a></h2>
 <p>You can stop an environment by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>dda env dev stop
 </span></code></pre></div>
 <p>This stops the environment but does not remove it. Environments can be <a href="#starting-environments">started</a> again at any time from a <a href="#environment-status">stopped state</a>. When this happens, the start command only accepts options for <a href="#environment-selection">environment selection</a>.</p>
-<h2 id="removing-environments">Removing environments</h2>
+<h2 id="removing-environments">Removing environments<a class="headerlink" href="#removing-environments" title="Permanent link">&para;</a></h2>
 <p>Environments can be removed by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>dda env dev remove
 </span></code></pre></div>
