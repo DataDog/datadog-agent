@@ -603,6 +603,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 			secretResponse, fetchErr = r.fetchSecret(newHandles)
 		}
 		if fetchErr != nil {
+			log.Infof("Fetch error is %s", fetchErr)
 			// Unwrap per-handle errors from errors.Join so each appears as its own
 			// bullet in the 'agent secret' status output.
 			type multiErr interface{ Unwrap() []error }

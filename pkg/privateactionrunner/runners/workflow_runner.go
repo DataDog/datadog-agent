@@ -12,6 +12,7 @@ import (
 	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -44,9 +45,10 @@ func NewWorkflowRunner(
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
+	secretResolver secrets.Component,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore)
+	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, secretResolver)
 
 	return &WorkflowRunner{
 		config:          configuration,

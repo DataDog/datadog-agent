@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
@@ -70,6 +71,7 @@ type Requires struct {
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
 	Statsd        statsdcomp.Component
+	Secrets       secrets.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -86,6 +88,7 @@ type PrivateActionRunner struct {
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
+	secretResolver secrets.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
@@ -121,7 +124,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.Secrets)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -146,7 +149,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.Secrets)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -169,6 +172,7 @@ func NewPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
 	metricsClient statsdclient.ClientInterface,
+	secretResolver secrets.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -180,6 +184,7 @@ func NewPrivateActionRunner(
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
 		metricsClient:  metricsClient,
+		secretResolver: secretResolver,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -281,7 +286,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore)
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.secretResolver)
 
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 
@@ -399,7 +404,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.secretResolver)
 	if err != nil {
 		return err
 	}
