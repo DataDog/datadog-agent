@@ -98,7 +98,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     link_deps = select({
-        "@platforms//os:windows": ["//pkg/procmgr/rust/windows_resources:rsrc"],
+        "@platforms//os:windows": ["//pkg/procmgr/rust/windows_resources:rsrcd"],
         "//conditions:default": [],
     }),
     rustc_flags = ["--cfg=bazel"],

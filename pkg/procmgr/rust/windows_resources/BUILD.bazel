@@ -9,3 +9,13 @@ win_resource(
         "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
     ],
 )
+
+win_resource(
+    name = "rsrcd",
+    src = "procmgrd.rc",
+    visibility = ["//pkg/procmgr:__subpackages__"],
+    deps = [
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)
