@@ -885,8 +885,14 @@ func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
 // within llmConvTTL). Runs for the life of the response consumer; nothing on the
 // wire marks a conversation's end, so this is how its agent span is closed.
 func (h *StatKeeper) reapConvAgents() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
 	for {
-		time.Sleep(5 * time.Second)
+		select {
+		case <-h.llmStop: // response consumer shut down
+			return
+		case <-ticker.C:
+		}
 		cutoff := time.Now().Add(-llmConvTTL)
 		h.llmConvMu.Lock()
 		for id, sa := range h.llmConvAgents {
@@ -1129,7 +1135,9 @@ func (h *StatKeeper) StartLLMOResponseConsumer(m *ebpf.Map) error {
 	// Close idle conversation agents in the background (no wire signal ends one).
 	go h.reapConvAgents()
 	go func() {
+		// On shutdown: stop the reaper, then finish any still-open agents.
 		defer h.finishAllConvAgents()
+		defer close(h.llmStop)
 		for {
 			rec, err := reader.Read()
 			if err != nil {

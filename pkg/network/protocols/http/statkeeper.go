@@ -88,6 +88,9 @@ type StatKeeper struct {
 	llmReqMu       sync.Mutex
 	// llmReqReader consumes streamed request-body events (see llmo.go).
 	llmReqReader *ringbuf.Reader
+	// llmStop signals the idle-agent reaper goroutine to exit; closed by the
+	// response consumer when it shuts down (so the reaper doesn't leak on Close).
+	llmStop chan struct{}
 	// llmEmit emits a fully built span. Defaults to emitLLMSpan; overridable in
 	// tests to capture what got paired without starting the real tracer.
 	llmEmit func(string, Method, uint16, types.ConnectionKey, float64, llmSpanInfo)
@@ -129,6 +132,7 @@ func (h *StatKeeper) EnableLLMO(connMap *ebpf.Map) {
 	h.llmReqByStream = make(map[llmStreamKey]llmReqParsed)
 	h.llmConnDemux = make(map[llmConnKey]*llmConnDemux)
 	h.llmConvAgents = make(map[string]*llmConvAgent)
+	h.llmStop = make(chan struct{})
 }
 
 // storeReq records a streamed, parsed request body under its (conn, stream)
