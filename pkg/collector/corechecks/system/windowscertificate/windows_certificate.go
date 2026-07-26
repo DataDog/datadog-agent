@@ -167,7 +167,6 @@ type certInfo struct {
 	SubjectString    string
 	NotAfter         time.Time // certificate expiration
 	Tags             []string  // cert-derived tags (controlled by *_tag flags)
-	filterTags       []string  // full tag set for filter evaluation; nil when no filters configured
 	Thumbprint       string
 	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
 	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
@@ -268,6 +267,7 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 		if filterErr != nil {
 			return filterErr
 		}
+		pruneUncollectedFilterKeys(&w.certFilters, config)
 	}
 
 	w.config = config
@@ -575,9 +575,9 @@ func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store st
 	var certificates []certInfo
 	var err error
 	if len(certFilters) == 0 {
-		certificates, err = getEnumCertificatesInStore(storeHandle, w.config, w.certFilters)
+		certificates, err = getEnumCertificatesInStore(storeHandle, w.config)
 	} else {
-		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config, w.certFilters)
+		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config)
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
@@ -654,7 +654,7 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 // loop will need into Go-owned values.
 // Returns an error only when parsing or required-property reads fail;
 // optional lookups (friendly name) are logged and left empty on failure.
-func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config, filters compiledCertFilters) (certInfo, error) {
+func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config) (certInfo, error) {
 	encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
 	cert, err := parseCertificate(encodedCert)
 	if err != nil {
@@ -675,12 +675,8 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 		return certInfo{}, fmt.Errorf("getting certificate thumbprint: %w", err)
 	}
 
-	hasFilters := len(filters.include) > 0 || len(filters.exclude) > 0
-
-	// Fetch friendly name when the flag is on, or when filters are configured
-	// so that filter rules can reference friendly_name regardless of the flag.
 	var friendlyName string
-	if cfg.FriendlyNameTag || hasFilters {
+	if cfg.FriendlyNameTag {
 		friendlyName, err = getFriendlyName(certContext)
 		if err != nil {
 			log.Debugf("Error getting friendly name for %s: %v", cert.Subject.String(), err)
@@ -688,35 +684,18 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 	}
 
 	// Build cert-derived tags here, while the cert bytes are still valid.
+	// Filters (applied by the caller via applyTagFilters) evaluate against
+	// these same tags, so filter rules only see values whose *_tag flag is
+	// enabled — see pruneUncollectedFilterKeys.
 	tags := getSubjectTags(cert)
 	tags = append(tags, "certificate_thumbprint:"+thumbprint)
 	tags = append(tags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
 	tags = appendOptionalTags(tags, cert, friendlyName, cfg)
 
-	// When filters are configured, build a full tag set (all optional groups
-	// enabled) so that filter rules work independently of the *_tag flags.
-	// The emitted Tags above are still controlled by the user's config.
-	var filterTags []string
-	if hasFilters {
-		allCfg := cfg
-		allCfg.CertificateTemplateTag = true
-		allCfg.EnhancedKeyUsageTag = true
-		allCfg.FriendlyNameTag = true
-		allCfg.SubjectAlternativeNamesTag = true
-		allCfg.IssuerTag = true
-		allCfg.SignatureAlgorithmTag = true
-
-		filterTags = getSubjectTags(cert)
-		filterTags = append(filterTags, "certificate_thumbprint:"+thumbprint)
-		filterTags = append(filterTags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
-		filterTags = appendOptionalTags(filterTags, cert, friendlyName, allCfg)
-	}
-
 	return certInfo{
 		SubjectString:    cert.Subject.String(),
 		NotAfter:         cert.NotAfter,
 		Tags:             tags,
-		filterTags:       filterTags,
 		Thumbprint:       thumbprint,
 		TrustStatusError: trustStatusError,
 		ChainPolicyError: chainPolicyError,
@@ -724,7 +703,7 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 }
 
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
-func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config, filters compiledCertFilters) ([]certInfo, error) {
+func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -746,7 +725,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config, filters 
 			}
 		}
 
-		info, err := buildCertInfo(certContext, storeHandle, cfg, filters)
+		info, err := buildCertInfo(certContext, storeHandle, cfg)
 		if err != nil {
 			log.Errorf("Error building cert info: %v", err)
 			continue
@@ -758,7 +737,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config, filters 
 }
 
 // findCertificatesInStore finds certificates in a store with a given subject string
-func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, cfg Config, filters compiledCertFilters) ([]certInfo, error) {
+func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, cfg Config) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -790,7 +769,7 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
-			info, err := buildCertInfo(certContext, storeHandle, cfg, filters)
+			info, err := buildCertInfo(certContext, storeHandle, cfg)
 			if err != nil {
 				log.Errorf("Error building cert info: %v", err)
 				continue
@@ -1054,4 +1033,72 @@ func compileCertFilters(filters CertFilters) (compiledCertFilters, error) {
 	}
 
 	return compiled, nil
+}
+
+// filterKeyTagFlag reports the *_tag config flag that must be enabled for a
+// tag key to ever be collected. gated is false for keys that are always
+// collected (no controlling flag), such as certificate_thumbprint or the
+// subject_* keys.
+func filterKeyTagFlag(key string) (flagName string, gated bool) {
+	switch {
+	case strings.HasPrefix(key, "issuer_"):
+		return "issuer_tag", true
+	case strings.HasPrefix(key, "subject_alt_name_"):
+		return "subject_alternative_names_tag", true
+	case strings.HasPrefix(key, "certificate_template_"):
+		return "certificate_template_tag", true
+	case key == "enhanced_key_usage":
+		return "enhanced_key_usage_tag", true
+	case key == "friendly_name":
+		return "friendly_name_tag", true
+	case key == "signature_algorithm":
+		return "signature_algorithm_tag", true
+	default:
+		return "", false
+	}
+}
+
+// tagFlagEnabled reports whether the named *_tag flag is enabled in cfg.
+func tagFlagEnabled(cfg Config, flagName string) bool {
+	switch flagName {
+	case "issuer_tag":
+		return cfg.IssuerTag
+	case "subject_alternative_names_tag":
+		return cfg.SubjectAlternativeNamesTag
+	case "certificate_template_tag":
+		return cfg.CertificateTemplateTag
+	case "enhanced_key_usage_tag":
+		return cfg.EnhancedKeyUsageTag
+	case "friendly_name_tag":
+		return cfg.FriendlyNameTag
+	case "signature_algorithm_tag":
+		return cfg.SignatureAlgorithmTag
+	default:
+		return false
+	}
+}
+
+// pruneUncollectedFilterKeys drops filter rules that reference a tag key
+// that can never appear on a collected certificate under cfg — either
+// because its *_tag flag is disabled, or because the key (certificate_store,
+// server) is appended to metrics after filtering runs and is never visible
+// to it. A warning is logged for each dropped rule; the rule is then simply
+// not applied, rather than matching against a tag that will never be
+// present and dropping every certificate.
+func pruneUncollectedFilterKeys(f *compiledCertFilters, cfg Config) {
+	prune := func(rules map[string]*regexp.Regexp, direction string) {
+		for key := range rules {
+			if key == "certificate_store" || key == "server" {
+				log.Warnf("filters.%s references %q, which is not available as a filter key because it is appended to metrics after filtering runs; this rule will not be applied", direction, key)
+				delete(rules, key)
+				continue
+			}
+			if flagName, gated := filterKeyTagFlag(key); gated && !tagFlagEnabled(cfg, flagName) {
+				log.Warnf("filters.%s references %q, which is not collected because %q is not enabled; this rule will not be applied", direction, key, flagName)
+				delete(rules, key)
+			}
+		}
+	}
+	prune(f.include, "include")
+	prune(f.exclude, "exclude")
 }

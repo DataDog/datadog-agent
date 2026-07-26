@@ -622,7 +622,7 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	// Use a subject that exists on most Windows machines in ROOT
 	subjects := []string{"Microsoft"}
 
-	certs, err := findCertificatesInStore(h, subjects, Config{}, compiledCertFilters{})
+	certs, err := findCertificatesInStore(h, subjects, Config{})
 	require.NoError(t, err)
 
 	// If the host has no matching certs, the test would be a no-op; ensure at least one.
@@ -667,6 +667,25 @@ filters:
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
+}
+
+func TestConfigureWithFilterOnDisabledOptInTagIsPruned(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+certificate_template_tag: false
+filters:
+  include:
+    certificate_template_name: "WebServer"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	// The rule references a tag that certificate_template_tag: false never
+	// collects, so it is pruned rather than rejecting every certificate.
+	require.Empty(t, certCheck.certFilters.include)
 }
 
 func TestConfigureWithFiltersExcludesNonMatchingCerts(t *testing.T) {

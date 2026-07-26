@@ -286,9 +286,11 @@ func appendOptionalTags(tags []string, cert *x509.Certificate, friendlyName stri
 // Exclude semantics: if ANY exclude rule matches any tag value on the cert,
 // the cert is dropped.
 //
-// Filtering uses cert.filterTags when non-nil (a full tag set built with all
-// optional groups enabled), so filter rules work regardless of the *_tag flags
-// that control which tags are emitted in metrics.
+// Filtering evaluates cert.Tags, so a rule only matches tag keys that are
+// actually collected under the current config; pruneUncollectedFilterKeys
+// removes rules that reference a *_tag flag that is disabled (or a key that
+// is never available) before this function runs, so those rules never
+// exclude every certificate.
 func applyTagFilters(certs []certInfo, f compiledCertFilters) []certInfo {
 	if len(f.include) == 0 && len(f.exclude) == 0 {
 		return certs
@@ -296,11 +298,7 @@ func applyTagFilters(certs []certInfo, f compiledCertFilters) []certInfo {
 
 	var result []certInfo
 	for _, cert := range certs {
-		tagsForFiltering := cert.Tags
-		if len(cert.filterTags) > 0 {
-			tagsForFiltering = cert.filterTags
-		}
-		if !certMatchesFilters(tagsForFiltering, f) {
+		if !certMatchesFilters(cert.Tags, f) {
 			continue
 		}
 		result = append(result, cert)

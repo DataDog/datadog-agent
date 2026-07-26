@@ -362,29 +362,54 @@ func TestApplyTagFilters(t *testing.T) {
 	require.Len(t, got5, 0)
 }
 
-// TestApplyTagFiltersUsesFilterTags verifies that applyTagFilters evaluates rules
-// against filterTags (the full tag set) rather than Tags (the emit tag set), so
-// that filter rules work independently of the *_tag flags.
-func TestApplyTagFiltersUsesFilterTags(t *testing.T) {
-	// cert has no signature_algorithm in its emit tags (flag was false),
-	// but filterTags contains the full set collected for filter evaluation.
-	cert := certInfo{
-		Tags:       []string{"certificate_thumbprint:abc123", "subject_CN:webserver"},
-		filterTags: []string{"certificate_thumbprint:abc123", "subject_CN:webserver", "signature_algorithm:sha256-rsa"},
-	}
-	other := certInfo{
-		Tags:       []string{"certificate_thumbprint:def456", "subject_CN:internal"},
-		filterTags: []string{"certificate_thumbprint:def456", "subject_CN:internal", "signature_algorithm:sha1-rsa"},
-	}
+// TestPruneUncollectedFilterKeysDropsDisabledFlagRules verifies that a filter
+// rule on a tag key gated by a disabled *_tag flag is removed rather than
+// left in place to reject every certificate.
+func TestPruneUncollectedFilterKeysDropsDisabledFlagRules(t *testing.T) {
+	f, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"signature_algorithm": "^sha256"},
+		Exclude: map[string]string{"issuer_CN": "internal"},
+	})
+	require.NoError(t, err)
 
-	// Filter on a key that is absent from Tags but present in filterTags.
+	pruneUncollectedFilterKeys(&f, Config{})
+
+	require.Empty(t, f.include)
+	require.Empty(t, f.exclude)
+
+	// With no rules left, filtering is a no-op.
+	certs := []certInfo{{Tags: []string{"certificate_thumbprint:abc123"}}}
+	got := applyTagFilters(certs, f)
+	require.Len(t, got, 1)
+}
+
+// TestPruneUncollectedFilterKeysKeepsEnabledFlagRules verifies that a filter
+// rule stays active once its controlling *_tag flag is enabled.
+func TestPruneUncollectedFilterKeysKeepsEnabledFlagRules(t *testing.T) {
 	f, err := compileCertFilters(CertFilters{
 		Include: map[string]string{"signature_algorithm": "^sha256"},
 	})
 	require.NoError(t, err)
-	got := applyTagFilters([]certInfo{cert, other}, f)
-	require.Len(t, got, 1)
-	require.Equal(t, "abc123", tagValue(got[0].Tags, "certificate_thumbprint"))
+
+	pruneUncollectedFilterKeys(&f, Config{SignatureAlgorithmTag: true})
+
+	require.Len(t, f.include, 1)
+}
+
+// TestPruneUncollectedFilterKeysDropsUnsupportedKeys verifies that
+// certificate_store and server rules — appended to metrics after filtering
+// runs — are always dropped, regardless of config.
+func TestPruneUncollectedFilterKeysDropsUnsupportedKeys(t *testing.T) {
+	f, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"certificate_store": "^MY$"},
+		Exclude: map[string]string{"server": "staging"},
+	})
+	require.NoError(t, err)
+
+	pruneUncollectedFilterKeys(&f, Config{})
+
+	require.Empty(t, f.include)
+	require.Empty(t, f.exclude)
 }
 
 // tagValue extracts the value for the first tag with the given key.
