@@ -6,6 +6,8 @@
 #include "protocols/http2/usm-events.h"
 #include "protocols/http2/skb-common.h"
 #include "protocols/http/types.h"
+#include "protocols/grpc/defs.h"
+#include "protocols/classification/shared-tracer-maps.h"
 
 PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
 PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
@@ -228,7 +230,10 @@ end:
 }
 
 // Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
-static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index) {
+// It also detects a "content-type: application/grpc" header and, if found, classifies the connection as gRPC. This is
+// the decrypted/TLS-capable equivalent of the plaintext socket-filter gRPC classifier (see is_grpc in grpc/helpers.h):
+// because it runs on the shared pktbuf decode path, it classifies gRPC for both plaintext and TLS HTTP/2 traffic.
+static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index, conn_tuple_t *tup) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -245,6 +250,15 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
         // We are reading the current size in order to skip it.
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
+        }
+    } else if (index == HTTP2_CONTENT_TYPE_IDX && str_len >= GRPC_CONTENT_TYPE_LEN) {
+        // Indexed content-type name (static index 31) with a literal value. If the value begins with the
+        // huffman-encoded "application/grpc" (this also matches "application/grpc+proto" and similar), mark the
+        // connection as gRPC. The value is compared without advancing; the trailing pktbuf_advance skips it.
+        char content_type_buf[GRPC_CONTENT_TYPE_LEN];
+        if (pktbuf_load_bytes_from_current_offset(pkt, content_type_buf, GRPC_CONTENT_TYPE_LEN) >= 0 &&
+            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0) {
+            update_protocol_stack(tup, PROTOCOL_GRPC);
         }
     }
     pktbuf_advance(pkt, str_len);
@@ -354,7 +368,8 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        if (!pktbuf_process_and_skip_literal_headers(pkt, index)){
+        // Pass the connection tuple so a "content-type: application/grpc" header can classify the connection as gRPC.
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index, &dynamic_index->tup)){
             break;
         }
     }
