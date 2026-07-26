@@ -75,12 +75,10 @@ type StatKeeper struct {
 	llmGenUsageMu sync.Mutex
 	// llmRespReader consumes streamed response events (see llmo.go).
 	llmRespReader *ringbuf.Reader
-	// llmRespReasm reassembles a response across its reads, keyed by connection
-	// (a response's continuation reads start mid-frame and carry no usable stream
-	// id, so they can't be keyed per-stream; the response's stream id is recovered
-	// from its first, frame-aligned read and stored on the entry). Touched only by
-	// the response-consumer goroutine, so it needs no lock.
-	llmRespReasm map[llmConnKey]*llmRespReasm
+	// llmConnDemux holds a per-connection HTTP/2 frame demuxer that reassembles
+	// each response by stream id, so responses multiplexed (interleaved) on one
+	// connection are separated. Touched only by the response-consumer goroutine.
+	llmConnDemux map[llmConnKey]*llmConnDemux
 	// llmReqByStream holds each streamed, parsed request body keyed by its
 	// (conn, HTTP/2 stream) so the response consumer can pair a response with
 	// its exact request — correct even when one connection carries several
@@ -129,7 +127,7 @@ func (h *StatKeeper) EnableLLMO(connMap *ebpf.Map) {
 	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)
 	h.llmGenUsage = make(map[llmConnKey]llmUsage)
 	h.llmReqByStream = make(map[llmStreamKey]llmReqParsed)
-	h.llmRespReasm = make(map[llmConnKey]*llmRespReasm)
+	h.llmConnDemux = make(map[llmConnKey]*llmConnDemux)
 	h.llmConvAgents = make(map[string]*llmConvAgent)
 }
 

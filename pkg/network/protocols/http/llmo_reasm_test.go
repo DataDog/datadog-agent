@@ -76,6 +76,16 @@ func dataFrame(stream uint32, payload []byte) []byte {
 	return append(hdr, payload...)
 }
 
+// dataFrameEnd wraps payload in a DATA frame carrying the END_STREAM flag (0x1).
+func dataFrameEnd(stream uint32, payload []byte) []byte {
+	n := len(payload)
+	hdr := []byte{
+		byte(n >> 16), byte(n >> 8), byte(n), 0x00, 0x01,
+		byte(stream >> 24), byte(stream >> 16), byte(stream >> 8), byte(stream),
+	}
+	return append(hdr, payload...)
+}
+
 // headersFrame builds a minimal HTTP/2 HEADERS frame (type 0x1) for stream; its
 // payload content is irrelevant since de-framing skips non-DATA frames.
 func headersFrame(stream uint32) []byte {
@@ -94,7 +104,7 @@ func TestResponseReassemblyLargeAnswer(t *testing.T) {
 	var emitted []llmSpanInfo
 	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 1111, DstPort: 443}
-	storeReqOnStream(h, key, 0, "big question")
+	storeReqOnStream(h, key, 1, "big question")
 
 	answer := strings.Repeat("eBPF runs sandboxed programs in the kernel safely. ", 220) + " END_ANSWER_MARKER_XYZ"
 	framed := openAIResp(answer, "stop")
@@ -116,7 +126,7 @@ func TestResponseReassemblyIncomplete(t *testing.T) {
 	var emitted []llmSpanInfo
 	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 2222, DstPort: 443}
-	storeReqOnStream(h, key, 0, "q")
+	storeReqOnStream(h, key, 1, "q")
 
 	answer := strings.Repeat("partial ", 500)
 	framed := openAIResp(answer, "stop")
@@ -142,7 +152,7 @@ func TestResponseReassemblyResetsBetweenResponses(t *testing.T) {
 	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 3333, DstPort: 443}
 
-	storeReqOnStream(h, key, 0, "q1")
+	storeReqOnStream(h, key, 1, "q1")
 	a1 := strings.Repeat("first answer sentence. ", 120) + " END1"
 	for _, ch := range splitBytes(openAIResp(a1, "stop"), 1500) {
 		h.processLLMResponseEvent(makeRespSample(key, ch))
@@ -150,7 +160,7 @@ func TestResponseReassemblyResetsBetweenResponses(t *testing.T) {
 	require.Len(t, emitted, 1)
 	assert.Equal(t, a1, emitted[0].response)
 
-	storeReqOnStream(h, key, 0, "q2")
+	storeReqOnStream(h, key, 1, "q2")
 	a2 := strings.Repeat("second different answer. ", 120) + " END2"
 	for _, ch := range splitBytes(openAIResp(a2, "stop"), 1500) {
 		h.processLLMResponseEvent(makeRespSample(key, ch))
@@ -166,7 +176,7 @@ func TestResponseReassemblyToolCallGen(t *testing.T) {
 	var emitted []llmSpanInfo
 	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
 	key := llmConnKey{SrcPort: 4444, DstPort: 443}
-	storeReqOnStream(h, key, 0, "weather in Paris?")
+	storeReqOnStream(h, key, 1, "weather in Paris?")
 
 	body := `{"id":"chatcmpl-t","object":"chat.completion",` +
 		`"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[` +
@@ -219,6 +229,46 @@ func TestResponseReassemblyMultiDataFrame(t *testing.T) {
 	assert.Equal(t, answer, emitted[0].response, "the full answer must survive multi-DATA-frame de-framing")
 	assert.True(t, strings.HasSuffix(emitted[0].response, "END_MARKER"), "not truncated")
 	assert.Equal(t, int64(93), emitted[0].totalTokens)
+}
+
+// TestResponseDemuxInterleaved is the regression test for concurrent HTTP/2
+// multiplexing: two responses on ONE connection have their DATA frames
+// INTERLEAVED (stream 1 and stream 3 alternating). The per-connection frame
+// demuxer must route each frame to its own stream and emit both responses
+// correctly — a single per-connection buffer would mix them.
+func TestResponseDemuxInterleaved(t *testing.T) {
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
+	conn := llmConnKey{SrcPort: 7777, DstPort: 443}
+	h.storeReq(llmStreamKey{conn: conn, stream: 1}, llmReqParsed{model: "gpt-4o-mini", provider: providerOpenAI, prompt: "weather in Berlin?"})
+	h.storeReq(llmStreamKey{conn: conn, stream: 3}, llmReqParsed{model: "gpt-4o-mini", provider: providerOpenAI, prompt: "weather in Paris?"})
+
+	berlin := []byte(`{"choices":[{"message":{"content":"Berlin is sunny."}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+	paris := []byte(`{"choices":[{"message":{"content":"Paris is rainy."}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+	b1, b2 := berlin[:len(berlin)/2], berlin[len(berlin)/2:]
+	p1, p2 := paris[:len(paris)/2], paris[len(paris)/2:]
+
+	// Interleave the two streams' frames on one connection.
+	var wire []byte
+	wire = append(wire, headersFrame(1)...)
+	wire = append(wire, dataFrame(1, b1)...)
+	wire = append(wire, headersFrame(3)...)
+	wire = append(wire, dataFrame(3, p1)...)
+	wire = append(wire, dataFrame(1, b2)...) // completes stream 1 (usage now present)
+	wire = append(wire, dataFrame(3, p2)...) // completes stream 3
+
+	// Deliver in small reads that don't align to frame boundaries.
+	for _, rc := range splitBytes(wire, 37) {
+		h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(rc)))
+	}
+
+	require.Len(t, emitted, 2, "both interleaved streams must emit")
+	byPrompt := map[string]llmSpanInfo{}
+	for _, e := range emitted {
+		byPrompt[e.prompt] = e
+	}
+	assert.Equal(t, "Berlin is sunny.", byPrompt["weather in Berlin?"].response, "stream 1 kept its own body")
+	assert.Equal(t, "Paris is rainy.", byPrompt["weather in Paris?"].response, "stream 3 kept its own body")
 }
 
 // TestParseLargeRequestPrompt: a large user prompt in a request body (behind a

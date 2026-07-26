@@ -50,7 +50,7 @@ func llmRespEventBytes(t *testing.T, conn llmConnKey, stream, endStream uint32, 
 func newLLMTestStatKeeper(emit func(llmSpanInfo)) *StatKeeper {
 	h := &StatKeeper{
 		llmReqByStream: make(map[llmStreamKey]llmReqParsed),
-		llmRespReasm:   make(map[llmConnKey]*llmRespReasm),
+		llmConnDemux:   make(map[llmConnKey]*llmConnDemux),
 		llmGenUsage:    make(map[llmConnKey]llmUsage),
 	}
 	h.llmEmit = func(_ string, _ Method, _ uint16, _ types.ConnectionKey, _ float64, info llmSpanInfo) {
@@ -79,9 +79,10 @@ func TestLLMResponsePairsByStream(t *testing.T) {
 	h.processLLMRequestEvent(llmReqEventBytes(t, conn, 1, 4242, berlinReq))
 	h.processLLMRequestEvent(llmReqEventBytes(t, conn, 3, 4242, parisReq))
 
-	// Responses arrive in the OPPOSITE order (Paris first). Order must not matter.
-	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 3, 0, parisResp))
-	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 1, 0, berlinResp))
+	// Responses (framed as DATA frames on their streams) arrive in the OPPOSITE
+	// order (Paris first). The demuxer must pair each by its frame stream id.
+	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(dataFrame(3, []byte(parisResp)))))
+	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(dataFrame(1, []byte(berlinResp)))))
 
 	require.Len(t, emitted, 2)
 	byPrompt := map[string]llmSpanInfo{}
@@ -110,10 +111,10 @@ func TestLLMResponseReassemblesByStream(t *testing.T) {
 	// the tail (with usage). Only after the tail is it complete and emitted.
 	head := `{"choices":[{"message":{"role":"assistant","content":"once upon a time in a faraway land"},"finish_reason":"stop"}],`
 	tail := `"usage":{"prompt_tokens":3,"completion_tokens":20,"total_tokens":23}}`
-	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 5, 0, head))
+	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(dataFrame(5, []byte(head)))))
 	assert.Empty(t, emitted, "incomplete response (no usage) must not emit yet")
 
-	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 5, 0, tail))
+	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(dataFrame(5, []byte(tail)))))
 	require.Len(t, emitted, 1)
 	assert.Equal(t, "once upon a time in a faraway land", emitted[0].response)
 	assert.Equal(t, int64(23), emitted[0].totalTokens)
@@ -130,15 +131,15 @@ func TestLLMResponseEndStreamFinalizes(t *testing.T) {
 	const req = `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}`
 	h.processLLMRequestEvent(llmReqEventBytes(t, conn, 7, 4242, req))
 
-	// A response with no usage object: without END_STREAM it would never finalize.
+	// A DATA frame with no usage object and no END_STREAM: still accumulating.
 	noUsage := `{"choices":[{"message":{"role":"assistant","content":"partial"}}]}`
-	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 7, 0, noUsage))
+	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(dataFrame(7, []byte(noUsage)))))
 	assert.Empty(t, emitted, "no usage and no END_STREAM: still accumulating")
 
-	// A terminating read (END_STREAM) finalizes it even without usage.
-	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 7, 1, ""))
+	// A terminating DATA frame (END_STREAM, empty payload) finalizes it.
+	h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(dataFrameEnd(7, nil))))
 	require.Len(t, emitted, 1)
 	assert.Equal(t, "partial", emitted[0].response)
-	_, stillReassembling := h.llmRespReasm[conn]
-	assert.False(t, stillReassembling, "reassembly buffer must be dropped after finalize")
+	_, stillReassembling := h.llmConnDemux[conn].streams[7]
+	assert.False(t, stillReassembling, "stream buffer must be dropped after finalize")
 }
