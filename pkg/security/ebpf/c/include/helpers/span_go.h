@@ -29,126 +29,106 @@ static u64 __attribute__((always_inline)) read_thread_pointer() {
 }
 
 // --- Go pprof labels reader (for dd-trace-go) ---
-// dd-trace-go sets goroutine-level pprof labels:
-//   "span id"            -> decimal string of span ID
-//   "local root span id" -> decimal string of local root span ID
+// dd-trace-go sets goroutine-level pprof labels (e.g. "span id",
+// "local root span id"). Rather than interpret them in eBPF, we copy the raw
+// key/value bytes into the go_labels_ctx ring and let user space parse them
+// (mirrors the syscall_ctx design).
 //
 // The chain from eBPF is:
 //   thread_pointer + tls_offset -> G (runtime.g)
 //   G + m_offset                -> M (runtime.m)
 //   M + curg                    -> curg (current user goroutine)
 //   curg + labels               -> labels pointer (map or slice)
-//
 
-#define GO_LABEL_MAX_KEY_LEN 24
-#define GO_LABEL_MAX_VAL_LEN 24
-#define GO_MAX_LABELS 10
-
-// Per-CPU scratch buffer for Go label parsing.
-// ALL large allocations live here to stay under the 512-byte eBPF stack limit.
+// Per-CPU scratch buffer for reading Go label headers off the stack.
 struct go_labels_scratch_t {
-    char key_buf[GO_LABEL_MAX_KEY_LEN];
-    char val_buf[GO_LABEL_MAX_VAL_LEN];
-    struct go_string_t pairs[GO_MAX_LABELS * 2];
+    struct go_string_t pairs[GO_LABELS_CTX_MAX_PAIRS * 2];
     struct go_map_bucket_t bucket;
     struct go_slice_t slice;
 };
 
 BPF_PERCPU_ARRAY_MAP(go_labels_scratch_gen, struct go_labels_scratch_t, 1)
 
-// Parse the decimal string in s->val_buf to u64.
-// Uses explicit array indexing on the struct field so the verifier can prove
-// all accesses stay within the map value bounds.
-// The loop uses a running flag instead of break to allow full unrolling.
-static u64 __attribute__((always_inline)) parse_decimal_val(struct go_labels_scratch_t *s, u64 len) {
-    u64 val = 0;
-    int done = 0;
-    if (len > 20) len = 20;
+// Mint a monotonically-increasing id for a labels snapshot.
+static u32 __attribute__((always_inline)) mint_go_labels_id() {
+    u32 key = 0;
+    u32 *id = bpf_map_lookup_elem(&go_labels_ctx_gen_id, &key);
+    if (!id) {
+        return 0;
+    }
+    __sync_fetch_and_add(id, 1);
+    return *id;
+}
+
+// Look up the ring slot for a given id (id % GO_LABELS_CTX_MAX_ENTRIES).
+static struct go_labels_ctx_entry_t * __attribute__((always_inline)) lookup_go_labels_entry(u32 id) {
+    u32 key = id % GO_LABELS_CTX_MAX_ENTRIES;
+    return bpf_map_lookup_elem(&go_labels_ctx, &key);
+}
+
+// Zero the key/value lengths of every pair slot so a reused ring entry never
+// leaks a previous snapshot's labels. Unrolled with constant indices.
+static void __attribute__((always_inline)) reset_go_labels_entry(struct go_labels_ctx_entry_t *entry) {
     #pragma unroll
-    for (int i = 0; i < 20; i++) {
-        if (!done && i < (int)len) {
-            char c = s->val_buf[i];
-            if (c >= '0' && c <= '9') {
-                val = val * 10 + (c - '0');
-            } else {
-                done = 1;
-            }
-        }
-    }
-    return val;
-}
-
-static void __attribute__((always_inline)) process_go_label(
-    struct span_context_t *span,
-    struct go_labels_scratch_t *s,
-    u64 key_len, u64 val_len)
-{
-    if (key_len == 7 &&
-        s->key_buf[0] == 's' && s->key_buf[1] == 'p' && s->key_buf[2] == 'a' &&
-        s->key_buf[3] == 'n' && s->key_buf[4] == ' ' && s->key_buf[5] == 'i' &&
-        s->key_buf[6] == 'd') {
-        span->span_id = parse_decimal_val(s, val_len);
-        return;
-    }
-    // "local root span id" = 18 chars: l(0)o(1)c(2)a(3)l(4) (5)r(6)o(7)o(8)t(9) (10)s(11)p(12)a(13)n(14) (15)i(16)d(17)
-    if (key_len == 18 &&
-        s->key_buf[0] == 'l' && s->key_buf[1] == 'o' && s->key_buf[2] == 'c' &&
-        s->key_buf[3] == 'a' && s->key_buf[4] == 'l' && s->key_buf[5] == ' ' &&
-        s->key_buf[6] == 'r' && s->key_buf[7] == 'o' && s->key_buf[8] == 'o' &&
-        s->key_buf[9] == 't' && s->key_buf[10] == ' ' && s->key_buf[11] == 's' &&
-        s->key_buf[12] == 'p' && s->key_buf[13] == 'a' && s->key_buf[14] == 'n' &&
-        s->key_buf[15] == ' ' && s->key_buf[16] == 'i' && s->key_buf[17] == 'd') {
-        span->trace_id[0] = parse_decimal_val(s, val_len);
-        return;
+    for (int i = 0; i < GO_LABELS_CTX_MAX_PAIRS; i++) {
+        entry->pairs[i].key_len = 0;
+        entry->pairs[i].val_len = 0;
     }
 }
 
-static int __attribute__((always_inline)) read_and_process_label(
-    struct span_context_t *span,
-    struct go_labels_scratch_t *s,
-    struct go_string_t *key_hdr,
-    struct go_string_t *val_hdr)
+// Copy one raw key/value pair into entry->pairs[n]. n MUST be a compile-time
+// constant so the map-value access is a provable fixed offset.
+static int __attribute__((always_inline)) store_go_label(
+    struct go_labels_ctx_entry_t *entry, int n,
+    struct go_string_t *key_hdr, struct go_string_t *val_hdr)
 {
     if (key_hdr->str == NULL || key_hdr->len == 0) {
         return 0;
     }
 
-    __builtin_memset(s->key_buf, 0, GO_LABEL_MAX_KEY_LEN);
-    __builtin_memset(s->val_buf, 0, GO_LABEL_MAX_VAL_LEN);
+    __builtin_memset(entry->pairs[n].key, 0, GO_LABELS_CTX_KEY_SIZE);
+    __builtin_memset(entry->pairs[n].val, 0, GO_LABELS_CTX_VAL_SIZE);
 
+    // barrier_var() forces klen and vlen to be materialized so the explicit mask
+    // survives and the verifier can prove the bound.
     u64 klen = key_hdr->len;
-    if (klen > GO_LABEL_MAX_KEY_LEN) klen = GO_LABEL_MAX_KEY_LEN;
-    if (bpf_probe_read_user(s->key_buf, klen & 0x1f, key_hdr->str) < 0) {
-        return -1;
+    if (klen > GO_LABELS_CTX_KEY_SIZE - 1) {
+        klen = GO_LABELS_CTX_KEY_SIZE - 1;
     }
+    barrier_var(klen);
+    klen &= GO_LABELS_CTX_KEY_SIZE - 1;
 
-    u64 vlen = val_hdr->len;
-    if (vlen > GO_LABEL_MAX_VAL_LEN) vlen = GO_LABEL_MAX_VAL_LEN;
-    if (vlen > 0 && val_hdr->str != NULL) {
-        if (bpf_probe_read_user(s->val_buf, vlen & 0x1f, val_hdr->str) < 0) {
-            return -1;
+    if (klen > 0 && key_hdr->str != NULL) {
+        if (bpf_probe_read_user(entry->pairs[n].key, klen, key_hdr->str) < 0) {
+            return 0;
         }
     }
 
-    process_go_label(span, s, key_hdr->len, val_hdr->len);
-    return 0;
+    u64 vlen = val_hdr->len;
+    if (vlen > GO_LABELS_CTX_VAL_SIZE - 1) {
+        vlen = GO_LABELS_CTX_VAL_SIZE - 1;
+    }
+    barrier_var(vlen);
+    vlen &= GO_LABELS_CTX_VAL_SIZE - 1;
+
+    if (vlen > 0 && val_hdr->str != NULL) {
+        if (bpf_probe_read_user(entry->pairs[n].val, vlen, val_hdr->str) < 0) {
+            return 0;
+        }
+    }
+
+    // Store the real (untruncated) lengths; user space clamps to the buffers.
+    entry->pairs[n].key_len = key_hdr->len;
+    entry->pairs[n].val_len = val_hdr->len;
+    return 1;
 }
 
-// The three helpers below exist so their callers can manually unroll with
-// compile-time-constant indices. A runtime-indexed loop over scratch->pairs[] or
-// scratch->bucket.keys/values[] is rejected by the verifier — "invalid access to
-// map value" on arm64/6.6, "infinite loop detected" on newer kernels — because
-// the map-value offset can't be proven in-bounds. always_inline + a literal index
-// makes every access a fixed, provable offset. Functions (not macros) keep the
-// call sites type-checked.
-
-// Read+process slice pair n (Go >=1.24), when it exists (n < num_pairs). Reads
-// just that pair with a constant size.
-static void __attribute__((always_inline)) process_go_slice_pair(
-    struct span_context_t *span,
+// Go >=1.24: labels are a slice of {key, value} string headers. Read pair n (a
+// compile-time constant) and store it into entry->pairs[n].
+static void __attribute__((always_inline)) collect_go_slice_pair(
+    struct go_labels_ctx_entry_t *entry,
     struct go_labels_scratch_t *s,
-    u64 num_pairs,
-    int n)
+    u64 num_pairs, int n)
 {
     if (num_pairs <= (u64)n) {
         return;
@@ -158,59 +138,31 @@ static void __attribute__((always_inline)) process_go_slice_pair(
                             (void *)((char *)s->slice.array + pair_off)) < 0) {
         return;
     }
-    read_and_process_label(span, s, &s->pairs[n * 2], &s->pairs[n * 2 + 1]);
+    store_go_label(entry, n, &s->pairs[n * 2], &s->pairs[n * 2 + 1]);
 }
 
-// Process slot in the bucket already read into scratch (Go <1.24).
-static void __attribute__((always_inline)) process_go_bucket_slot(
-    struct span_context_t *span,
+// Go <1.24: labels are a map[string]string. We best-effort read the first
+// bucket only (8 slots) into entry->pairs[0..7]; dd-trace-go sets few labels so
+// they land in the first bucket. slot MUST be a compile-time constant.
+static void __attribute__((always_inline)) collect_go_bucket_slot(
+    struct go_labels_ctx_entry_t *entry,
     struct go_labels_scratch_t *s,
     int slot)
 {
     if (s->bucket.tophash[slot] != 0) {
-        read_and_process_label(span, s, &s->bucket.keys[slot], &s->bucket.values[slot]);
+        store_go_label(entry, slot, &s->bucket.keys[slot], &s->bucket.values[slot]);
     }
 }
 
-// Read bucket bucket_idx into scratch and process its 8 slots.
-static void __attribute__((always_inline)) process_go_bucket(
-    struct span_context_t *span,
-    struct go_labels_scratch_t *s,
-    void *label_buckets,
-    int bucket_idx)
-{
-    if (bpf_probe_read_user(&s->bucket, sizeof(struct go_map_bucket_t),
-                            (void *)((char *)label_buckets + (u64)bucket_idx * sizeof(struct go_map_bucket_t))) < 0) {
-        return;
-    }
-    process_go_bucket_slot(span, s, 0);
-    process_go_bucket_slot(span, s, 1);
-    process_go_bucket_slot(span, s, 2);
-    process_go_bucket_slot(span, s, 3);
-    process_go_bucket_slot(span, s, 4);
-    process_go_bucket_slot(span, s, 5);
-    process_go_bucket_slot(span, s, 6);
-    process_go_bucket_slot(span, s, 7);
-}
-
-// Try to fill span context from Go pprof labels.
-// Returns 1 on success, 0 otherwise.
-int __attribute__((always_inline)) fill_span_context_go(struct span_context_t *span) {
-    if (!span) {
-        return 0;
-    }
-
+// Snapshot the current goroutine's pprof labels into the go_labels_ctx ring.
+// Returns the id, 0 when the process is not a tracked Go tracer / no labels are
+// available.
+u32 __attribute__((always_inline)) collect_go_labels(void) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
     struct go_labels_offsets_t *offs = bpf_map_lookup_elem(&go_labels_procs, &tgid);
     if (!offs) {
-        return 0;
-    }
-
-    u32 zero = 0;
-    struct go_labels_scratch_t *scratch = bpf_map_lookup_elem(&go_labels_scratch_gen, &zero);
-    if (!scratch) {
         return 0;
     }
 
@@ -247,8 +199,14 @@ int __attribute__((always_inline)) fill_span_context_go(struct span_context_t *s
         return 0;
     }
 
-    // Go >=1.24: slice format (hmap_buckets == 0)
+    u32 zero = 0;
+    struct go_labels_scratch_t *scratch = bpf_map_lookup_elem(&go_labels_scratch_gen, &zero);
+    if (!scratch) {
+        return 0;
+    }
+
     if (offs->hmap_buckets == 0) {
+        // Go >=1.24: slice format.
         if (bpf_probe_read_user(&scratch->slice, sizeof(scratch->slice), labels_ptr) < 0) {
             return 0;
         }
@@ -256,23 +214,33 @@ int __attribute__((always_inline)) fill_span_context_go(struct span_context_t *s
             return 0;
         }
         u64 num_pairs = scratch->slice.len;
-        if (num_pairs > GO_MAX_LABELS) num_pairs = GO_MAX_LABELS;
+        if (num_pairs > GO_LABELS_CTX_MAX_PAIRS) {
+            num_pairs = GO_LABELS_CTX_MAX_PAIRS;
+        }
 
-        // Manually unrolled over GO_MAX_LABELS with constant indices.
-        process_go_slice_pair(span, scratch, num_pairs, 0);
-        process_go_slice_pair(span, scratch, num_pairs, 1);
-        process_go_slice_pair(span, scratch, num_pairs, 2);
-        process_go_slice_pair(span, scratch, num_pairs, 3);
-        process_go_slice_pair(span, scratch, num_pairs, 4);
-        process_go_slice_pair(span, scratch, num_pairs, 5);
-        process_go_slice_pair(span, scratch, num_pairs, 6);
-        process_go_slice_pair(span, scratch, num_pairs, 7);
-        process_go_slice_pair(span, scratch, num_pairs, 8);
-        process_go_slice_pair(span, scratch, num_pairs, 9);
-        return (span->span_id != 0) ? 1 : 0;
+        u32 id = mint_go_labels_id();
+        struct go_labels_ctx_entry_t *entry = lookup_go_labels_entry(id);
+        if (!entry) {
+            return 0;
+        }
+        reset_go_labels_entry(entry);
+        entry->id = id;
+
+        // Manually unrolled over GO_LABELS_CTX_MAX_PAIRS with constant indices.
+        collect_go_slice_pair(entry, scratch, num_pairs, 0);
+        collect_go_slice_pair(entry, scratch, num_pairs, 1);
+        collect_go_slice_pair(entry, scratch, num_pairs, 2);
+        collect_go_slice_pair(entry, scratch, num_pairs, 3);
+        collect_go_slice_pair(entry, scratch, num_pairs, 4);
+        collect_go_slice_pair(entry, scratch, num_pairs, 5);
+        collect_go_slice_pair(entry, scratch, num_pairs, 6);
+        collect_go_slice_pair(entry, scratch, num_pairs, 7);
+        collect_go_slice_pair(entry, scratch, num_pairs, 8);
+        collect_go_slice_pair(entry, scratch, num_pairs, 9);
+        return id;
     }
 
-    // Go <1.24: map format
+    // Go <1.24: map[string]string format.
     void *labels_map_ptr = NULL;
     if (bpf_probe_read_user(&labels_map_ptr, sizeof(labels_map_ptr), labels_ptr) < 0 || labels_map_ptr == NULL) {
         return 0;
@@ -284,27 +252,33 @@ int __attribute__((always_inline)) fill_span_context_go(struct span_context_t *s
         return 0;
     }
 
-    unsigned char log_2_bucket_count = 0;
-    if (bpf_probe_read_user(&log_2_bucket_count, sizeof(log_2_bucket_count),
-                            labels_map_ptr + offs->hmap_log2_bucket_count) < 0) {
-        return 0;
-    }
-
     void *label_buckets = NULL;
     if (bpf_probe_read_user(&label_buckets, sizeof(label_buckets),
                             labels_map_ptr + offs->hmap_buckets) < 0 || label_buckets == NULL) {
         return 0;
     }
 
-    u8 bucket_count = 1 << log_2_bucket_count;
+    if (bpf_probe_read_user(&scratch->bucket, sizeof(struct go_map_bucket_t), label_buckets) < 0) {
+        return 0;
+    }
 
-    // Manually unrolled over the (capped) 4 buckets with constant indices.
-    if (bucket_count > 0) process_go_bucket(span, scratch, label_buckets, 0);
-    if (bucket_count > 1) process_go_bucket(span, scratch, label_buckets, 1);
-    if (bucket_count > 2) process_go_bucket(span, scratch, label_buckets, 2);
-    if (bucket_count > 3) process_go_bucket(span, scratch, label_buckets, 3);
+    u32 id = mint_go_labels_id();
+    struct go_labels_ctx_entry_t *entry = lookup_go_labels_entry(id);
+    if (!entry) {
+        return 0;
+    }
+    reset_go_labels_entry(entry);
+    entry->id = id;
 
-    return (span->span_id != 0) ? 1 : 0;
+    collect_go_bucket_slot(entry, scratch, 0);
+    collect_go_bucket_slot(entry, scratch, 1);
+    collect_go_bucket_slot(entry, scratch, 2);
+    collect_go_bucket_slot(entry, scratch, 3);
+    collect_go_bucket_slot(entry, scratch, 4);
+    collect_go_bucket_slot(entry, scratch, 5);
+    collect_go_bucket_slot(entry, scratch, 6);
+    collect_go_bucket_slot(entry, scratch, 7);
+    return id;
 }
 
 int __attribute__((always_inline)) unregister_go_labels() {

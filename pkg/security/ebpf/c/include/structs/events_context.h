@@ -25,6 +25,13 @@ struct span_context_t {
     u64 extra_attrs_id; // reserved for extra span attributes; 0 when none are available
 };
 
+// Handle to a set of Go pprof labels stored in the go_labels_ctx ring.
+// User span_context_t looks the id up and parses the required raw labels.
+struct go_labels_context_t {
+    u32 id;
+    u32 padding;
+};
+
 struct process_context_t {
     u32 pid;
     u32 tid;

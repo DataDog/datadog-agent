@@ -59,6 +59,8 @@ var bpfMapNames = []string{
 	"filtered_dns_rc",
 	"flow_pid",
 	"global_rate_lim",
+	"go_labels_ctx",
+	"go_labels_ctx_g",
 	"go_labels_procs",
 	"imds_event",
 	"in_upper_layer_",

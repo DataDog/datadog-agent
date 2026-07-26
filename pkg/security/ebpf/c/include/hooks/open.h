@@ -294,7 +294,7 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         entry = fill_process_context(&event.process);
     }
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     send_event(ctx, EVENT_OPEN, event);
 

@@ -109,7 +109,7 @@ sys_setrlimit_ret(void *ctx, int ret)
 
     struct proc_cache_t *pc = fill_process_context(&evt.process);
     fill_cgroup_context(pc, &evt.cgroup);
-    fill_span_context(&evt.span);
+    fill_span_context(&evt.span, &evt.go_labels);
 
     send_event(ctx, EVENT_SETRLIMIT, evt);
     return 0;

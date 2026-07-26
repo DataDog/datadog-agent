@@ -172,7 +172,7 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     fill_mount_fields(syscall, &event.mountfields);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     send_event(ctx, EVENT_MOUNT, event);
 
@@ -273,7 +273,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
         fill_mount_fields(syscall, &event.mountfields);
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        fill_span_context(&event.span, &event.go_labels);
         if (syscall->type != EVENT_OPEN_TREE) {
             // Only the first mount of a detached copy is detached from the VFS
             // All the other mounts are ultimately attached to the detached mount

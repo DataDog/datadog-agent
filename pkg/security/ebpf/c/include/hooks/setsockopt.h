@@ -52,7 +52,7 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int re
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
-    fill_span_context(&event->span);
+    fill_span_context(&event->span, &event->go_labels);
     int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
         ? MAX_BPF_FILTER_SIZE
         : syscall->setsockopt.filter_size_to_send;

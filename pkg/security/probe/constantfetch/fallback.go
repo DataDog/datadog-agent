@@ -1189,6 +1189,7 @@ func getTaskStructRealCredOffset(kv *kernel.Version) uint64 {
 	default:
 		return ErrorSentinel
 	}
+}
 
 // OTel TLSDESC thread pointer offsets (x86_64 only).
 // These offsets are used to read task_struct->thread.fsbase for OTel Thread Local

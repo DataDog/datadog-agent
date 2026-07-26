@@ -20,7 +20,7 @@ __attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, 
     if (sched_cls_has_current_pid_tgid_helper) {
         // reset and fill span context
         reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     fill_network_device_context_from_pkt(&evt->device, skb, pkt);

@@ -180,7 +180,7 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
 
     fill_cgroup_context(entry, &event->cgroup);
     fill_file(syscall->xattr.dentry, &event->file);
-    fill_span_context(&event->span);
+    fill_span_context(&event->span, &event->go_labels);
 
     send_event_ptr(ctx, event_type, event);
 

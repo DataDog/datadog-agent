@@ -73,7 +73,7 @@ int rethook_check_kill_permission(ctx_t *ctx) {
     };
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
     send_event(ctx, EVENT_SIGNAL, event);
     return 0;
 }

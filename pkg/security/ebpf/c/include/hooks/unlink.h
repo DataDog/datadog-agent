@@ -153,7 +153,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_cgroup_context(entry, &event.cgroup);
-            fill_span_context(&event.span);
+            fill_span_context(&event.span, &event.go_labels);
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
@@ -179,7 +179,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_cgroup_context(entry, &event.cgroup);
-            fill_span_context(&event.span);
+            fill_span_context(&event.span, &event.go_labels);
 
             send_event(ctx, EVENT_UNLINK, event);
         }

@@ -56,7 +56,7 @@ static int __attribute__((always_inline)) sys_socket_ret(void *ctx, int retval) 
         entry = fill_process_context(&event.process);
     }
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     send_event(ctx, EVENT_SOCKET, event);
     return 0;
