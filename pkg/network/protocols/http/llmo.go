@@ -836,6 +836,7 @@ func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
 		}
 		emb.AnnotateEmbeddingIO([]llmobs.EmbeddedDocument{{Text: info.embInput}}, "", embAnn...)
 		emb.Finish(llmobs.WithFinishTime(end))
+		sa.span.AnnotateTextIO(info.embInput, "")
 		return
 	}
 
@@ -873,6 +874,11 @@ func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
 	}
 	llm.AnnotateLLMIO(input, output, ann...)
 	llm.Finish(llmobs.WithFinishTime(end))
+
+	// Also annotate the conversation agent's own I/O (prompt in, answer out) so
+	// the prompt/response are visible at the agent level, not only on the child
+	// llm span. Mirrors the workflow path; last turn wins for a multi-turn agent.
+	sa.span.AnnotateTextIO(info.prompt, info.response)
 }
 
 // reapConvAgents finishes conversation agents that have gone idle (no new turn
