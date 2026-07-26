@@ -75,6 +75,14 @@ selects.config_setting_group(
 )
 
 selects.config_setting_group(
+    name = "macos_default",
+    match_all = [
+        ":base_flavor",
+        "@platforms//os:macos",
+    ],
+)
+
+selects.config_setting_group(
     name = "windows_default",
     match_all = [
         ":base_flavor",
