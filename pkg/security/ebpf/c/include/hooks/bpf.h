@@ -18,7 +18,7 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     u32 id = 0;
 

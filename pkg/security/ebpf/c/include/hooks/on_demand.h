@@ -62,7 +62,7 @@ struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
 
 	struct proc_cache_t *entry = fill_process_context(&evt->process);
     fill_cgroup_context(entry, &evt->cgroup);
-    fill_span_context(&evt->span);
+    fill_span_context(&evt->span, &evt->go_labels);
 
 	return evt;
 }

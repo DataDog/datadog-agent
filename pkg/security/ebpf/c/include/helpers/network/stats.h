@@ -54,7 +54,7 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
     if (sched_cls_has_current_pid_tgid_helper) {
         // reset and fill span context
         reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     // network context

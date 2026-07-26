@@ -1189,6 +1189,7 @@ func getTaskStructRealCredOffset(kv *kernel.Version) uint64 {
 	default:
 		return ErrorSentinel
 	}
+}
 
 // Thread pointer offsets, used to read the current thread's TLS base out of
 // task_struct->thread (fsbase on x86_64, uw.tp_value on arm64) for OTel Thread

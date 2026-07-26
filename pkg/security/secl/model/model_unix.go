@@ -86,8 +86,9 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
-	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
+	SpanContext    SpanContext     `field:"-"`
+	GoLabels       GoLabelsContext `field:"-"`
+	NetworkContext NetworkContext  `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
@@ -291,6 +292,14 @@ type SyscallContext struct {
 	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
 
 	Resolved bool `field:"-"`
+}
+
+// GoLabelsContext is a handle to a set of Go pprof labels captured at syscall
+// entry and stored in the go_labels_ctx ring. The raw labels are parsed lazily
+// in user space to resolve span/trace ids (see the golabelsctx resolver).
+type GoLabelsContext struct {
+	ID       uint32 `field:"-"`
+	Resolved bool   `field:"-"`
 }
 
 // ChmodEvent represents a chmod event

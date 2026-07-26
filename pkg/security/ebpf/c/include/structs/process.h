@@ -117,4 +117,20 @@ struct go_labels_offsets_t {
     s32 tls_offset;             // TLS offset to G pointer (from thread pointer)
 };
 
+// One raw Go pprof label (key/value) as copied from user memory. key_len/val_len
+// are the real Go string lengths.
+struct go_label_pair_t {
+    u16 key_len;
+    u16 val_len;
+    char key[GO_LABELS_CTX_KEY_SIZE];
+    char val[GO_LABELS_CTX_VAL_SIZE];
+};
+
+// A snapshot of a goroutine's pprof labels, stored in the go_labels_ctx ring at
+// id % GO_LABELS_CTX_MAX_ENTRIES, exactly like the syscall_ctx design.
+struct go_labels_ctx_entry_t {
+    u32 id;
+    struct go_label_pair_t pairs[GO_LABELS_CTX_MAX_PAIRS];
+};
+
 #endif

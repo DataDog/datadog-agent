@@ -35,7 +35,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         struct setuid_event_t event = {};
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        fill_span_context(&event.span, &event.go_labels);
 
         event.uid = pid_entry->credentials.uid;
         event.euid = pid_entry->credentials.euid;
@@ -47,7 +47,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         struct setgid_event_t event = {};
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        fill_span_context(&event.span, &event.go_labels);
 
         event.gid = pid_entry->credentials.gid;
         event.egid = pid_entry->credentials.egid;
@@ -59,7 +59,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         struct capset_event_t event = {};
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        fill_span_context(&event.span, &event.go_labels);
 
         event.cap_effective = pid_entry->credentials.cap_effective;
         event.cap_permitted = pid_entry->credentials.cap_permitted;

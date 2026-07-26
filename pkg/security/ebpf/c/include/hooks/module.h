@@ -132,7 +132,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
-    fill_span_context(&event->span);
+    fill_span_context(&event->span, &event->go_labels);
 
     send_event_ptr(ctx, EVENT_INIT_MODULE, event);
     return 0;
@@ -191,7 +191,7 @@ int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     send_event(ctx, EVENT_DELETE_MODULE, event);
     return 0;

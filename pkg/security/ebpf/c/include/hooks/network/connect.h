@@ -70,7 +70,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         entry = fill_process_context(&event.process);
     }
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     // v1: check if this PID is traced by an activity dump
     struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);

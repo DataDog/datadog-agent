@@ -13,21 +13,20 @@
 
 // --- Unified span context fill ---
 //
-// fill_span_context is the single entry point every hook calls to attach a
-// span context to an event. It currently leaves the span empty; upcoming
-// APM-correlation readers (Go pprof labels, OTEP 4947) will populate it here.
-void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
-    span->extra_attrs_id = 0;
-
-    // Go pprof labels (dd-trace-go sets "span id" / "local root span id").
-    if (fill_span_context_go(span)) {
-        return;
-    }
-
-    // No span context available.
+// fill_span_context is the single entry point every hook calls to attach a span
+// context to an event. It leaves span_context_t empty (reserved for another
+// APM-correlation reader, e.g. OTEP 4947) and snapshots the current goroutine's
+// Go pprof labels into the go_labels_ctx ring via collect_go_labels(). Only the
+// resulting id is stored (in go_labels); user space resolves it.
+void __attribute__((always_inline)) fill_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
+    // No span context available yet from this path.
     span->span_id = 0;
     span->trace_id[0] = span->trace_id[1] = 0;
     span->extra_attrs_id = 0;
+
+    if (go_labels) {
+        go_labels->id = collect_go_labels();
+    }
 }
 
 void __attribute__((always_inline)) reset_span_context(struct span_context_t *span) {

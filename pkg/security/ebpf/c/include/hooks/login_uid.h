@@ -41,7 +41,7 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
     struct login_uid_write_event_t event = {};
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_span_context(&event.span, &event.go_labels);
 
     event.auid = pid_entry->credentials.auid;
     send_event(ctx, EVENT_LOGIN_UID_WRITE, event);
