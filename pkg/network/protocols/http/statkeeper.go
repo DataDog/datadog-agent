@@ -66,12 +66,12 @@ type StatKeeper struct {
 	// llmServiceExtractor resolves the span service name from the client PID in
 	// userspace, using the same inference as USM (process_service_inference).
 	llmServiceExtractor *parser.ServiceExtractor
-	// llmGenUsage caches, per connection, the token usage of the most recent
-	// tool-call generation seen on it (detected via finish_reason in the
-	// response tail, which — unlike the head — is reliably captured). A
-	// follow-up request on the same connection reads it back to give the
-	// workflow's first llm span its cost, surviving response-slot churn.
-	llmGenUsage   map[llmConnKey]llmUsage
+	// llmGenUsage caches the token usage of a tool-call generation, keyed by the
+	// tool_call id it produced. The follow-up request references that same id, so
+	// keying by it (not by connection) attributes turn-1's cost to the right
+	// workflow's first llm span even when workflows run concurrently on one
+	// connection.
+	llmGenUsage   map[string]llmUsage
 	llmGenUsageMu sync.Mutex
 	// llmRespReader consumes streamed response events (see llmo.go).
 	llmRespReader *ringbuf.Reader
@@ -125,7 +125,7 @@ func (h *StatKeeper) EnableLLMO(connMap *ebpf.Map) {
 	// Same inference USM uses for service names (enabled, non-Windows,
 	// improved algorithm).
 	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)
-	h.llmGenUsage = make(map[llmConnKey]llmUsage)
+	h.llmGenUsage = make(map[string]llmUsage)
 	h.llmReqByStream = make(map[llmStreamKey]llmReqParsed)
 	h.llmConnDemux = make(map[llmConnKey]*llmConnDemux)
 	h.llmConvAgents = make(map[string]*llmConvAgent)
@@ -166,29 +166,29 @@ func (h *StatKeeper) takeReq(key llmStreamKey) (llmReqParsed, bool) {
 	return req, ok
 }
 
-// cacheGenUsage records, per connection, the token usage of a tool-call
-// generation, for later attribution to a workflow's first llm span.
-func (h *StatKeeper) cacheGenUsage(key llmConnKey, u llmUsage) {
-	if h.llmGenUsage == nil || u.total == 0 {
+// cacheGenUsage records the token usage of a tool-call generation under the
+// tool_call id it produced, for later attribution to a workflow's first llm span.
+func (h *StatKeeper) cacheGenUsage(toolCallID string, u llmUsage) {
+	if h.llmGenUsage == nil || toolCallID == "" || u.total == 0 {
 		return
 	}
 	h.llmGenUsageMu.Lock()
 	defer h.llmGenUsageMu.Unlock()
 	// Bound the map; this is a PoC-sized cache.
 	if len(h.llmGenUsage) > 4096 {
-		h.llmGenUsage = make(map[llmConnKey]llmUsage)
+		h.llmGenUsage = make(map[string]llmUsage)
 	}
-	h.llmGenUsage[key] = u
+	h.llmGenUsage[toolCallID] = u
 }
 
-// lookupGenUsage returns the cached tool-call-generation usage for a connection.
-func (h *StatKeeper) lookupGenUsage(key llmConnKey) (llmUsage, bool) {
+// lookupGenUsage returns the cached usage for a tool_call id.
+func (h *StatKeeper) lookupGenUsage(toolCallID string) (llmUsage, bool) {
 	if h.llmGenUsage == nil {
 		return llmUsage{}, false
 	}
 	h.llmGenUsageMu.Lock()
 	defer h.llmGenUsageMu.Unlock()
-	u, ok := h.llmGenUsage[key]
+	u, ok := h.llmGenUsage[toolCallID]
 	return u, ok
 }
 

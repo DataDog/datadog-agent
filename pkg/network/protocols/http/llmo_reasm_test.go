@@ -187,7 +187,7 @@ func TestResponseReassemblyToolCallGen(t *testing.T) {
 	for _, ch := range splitBytes(framed, 64) { // tiny reads to stress reassembly
 		h.processLLMResponseEvent(makeRespSample(key, ch))
 	}
-	u, ok := h.lookupGenUsage(key)
+	u, ok := h.lookupGenUsage("call_1") // keyed by the tool_call id in the body
 	assert.True(t, ok, "tool-call generation usage should be cached")
 	assert.Equal(t, int64(58), u.total)
 	require.Len(t, emitted, 1)

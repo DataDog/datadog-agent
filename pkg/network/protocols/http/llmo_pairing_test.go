@@ -51,7 +51,7 @@ func newLLMTestStatKeeper(emit func(llmSpanInfo)) *StatKeeper {
 	h := &StatKeeper{
 		llmReqByStream: make(map[llmStreamKey]llmReqParsed),
 		llmConnDemux:   make(map[llmConnKey]*llmConnDemux),
-		llmGenUsage:    make(map[llmConnKey]llmUsage),
+		llmGenUsage:    make(map[string]llmUsage),
 	}
 	h.llmEmit = func(_ string, _ Method, _ uint16, _ types.ConnectionKey, _ float64, info llmSpanInfo) {
 		emit(info)

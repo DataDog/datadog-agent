@@ -52,3 +52,46 @@ func TestIsEmbeddingBody(t *testing.T) {
 	assert.False(t, isEmbeddingBody(chat), "chat request is not an embedding")
 	assert.Equal(t, "hello world", parseEmbeddingInput(emb))
 }
+
+// TestGenUsagePairsByToolCallID is the regression test for bug #4: two tool
+// workflows run concurrently on one connection. Turn-1 token usage must attach
+// to the right workflow's first llm span — keyed by tool_call id, not by
+// connection (a connection key would let workflow B's turn-1 overwrite A's, so
+// A's follow-up would report B's cost).
+func TestGenUsagePairsByToolCallID(t *testing.T) {
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
+	conn := llmConnKey{SrcPort: 9090, DstPort: 443}
+
+	genResp := func(id, total string) []byte {
+		return []byte(`{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[` +
+			`{"id":"` + id + `","type":"function","function":{"name":"get_x","arguments":"{}"}}]},` +
+			`"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":` + total + `}}`)
+	}
+	answer := []byte(`{"choices":[{"message":{"content":"final"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":3}}`)
+	followup := func(id, prompt string) llmReqParsed {
+		return llmReqParsed{
+			provider:     providerOpenAI,
+			prompt:       prompt,
+			messages:     []llmMessage{{role: "user", content: prompt}},
+			reqToolCalls: []llmToolCall{{id: id, name: "get_x", arguments: "{}"}},
+			toolResults:  []llmToolResult{{id: id, content: "res"}},
+		}
+	}
+
+	// Interleaved turn-1s (A usage 10, B usage 20) — with the old connection key,
+	// B's would overwrite A's — then each workflow's follow-up.
+	h.pairAndEmit(llmStreamKey{conn: conn, stream: 1}, llmReqParsed{provider: providerOpenAI, prompt: "A"}, genResp("call_A", "10"))
+	h.pairAndEmit(llmStreamKey{conn: conn, stream: 3}, llmReqParsed{provider: providerOpenAI, prompt: "B"}, genResp("call_B", "20"))
+	h.pairAndEmit(llmStreamKey{conn: conn, stream: 5}, followup("call_A", "A"), answer)
+	h.pairAndEmit(llmStreamKey{conn: conn, stream: 7}, followup("call_B", "B"), answer)
+
+	byPrompt := map[string]llmSpanInfo{}
+	for _, e := range emitted {
+		if len(e.reqToolCalls) > 0 { // the follow-up (workflow) emits
+			byPrompt[e.prompt] = e
+		}
+	}
+	assert.Equal(t, int64(10), byPrompt["A"].firstGenUsage.total, "workflow A keeps its own turn-1 usage")
+	assert.Equal(t, int64(20), byPrompt["B"].firstGenUsage.total, "workflow B keeps its own turn-1 usage")
+}

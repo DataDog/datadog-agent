@@ -978,18 +978,23 @@ func (h *StatKeeper) pairAndEmit(key llmStreamKey, req llmReqParsed, respBuf []b
 	info.response = parseResponseText(respBuf, provider)
 	info.toolCalls = parseToolCalls(respBuf, provider)
 
-	// A tool-call generation is turn 1 of a workflow: cache its usage by
-	// connection (the workflow's two turns share the connection, sequentially)
-	// so the follow-up's first llm span carries turn-1 cost, and suppress this
-	// turn's flat span — the conversation is shown as the agent workflow instead.
+	// A tool-call generation is turn 1 of a workflow: cache its usage under each
+	// tool_call id it produced, so the follow-up (which references those ids) can
+	// recover turn-1 cost for the workflow's first llm span — correct even when
+	// workflows run concurrently on one connection. Also suppress this turn's flat
+	// span — the conversation is shown as the agent workflow instead.
 	if isToolCallGen(respBuf, provider) {
-		h.cacheGenUsage(key.conn, llmUsage{input: info.inputTokens, output: info.outputTokens, total: info.totalTokens})
+		u := llmUsage{input: info.inputTokens, output: info.outputTokens, total: info.totalTokens}
+		for _, tc := range info.toolCalls {
+			h.cacheGenUsage(tc.id, u)
+		}
 		info.suppressFlat = true
 	}
 	// A follow-up request carries the prior turn's tool call + result: recover
-	// turn 1's usage for the workflow's first llm span.
+	// turn 1's usage (keyed by the tool_call id it responds to) for the
+	// workflow's first llm span.
 	if len(info.reqToolCalls) > 0 && len(info.toolResults) > 0 {
-		if u, ok := h.lookupGenUsage(key.conn); ok {
+		if u, ok := h.lookupGenUsage(info.reqToolCalls[0].id); ok {
 			info.firstGenUsage = u
 		}
 	}
