@@ -271,6 +271,33 @@ func TestResponseDemuxInterleaved(t *testing.T) {
 	assert.Equal(t, "Paris is rainy.", byPrompt["weather in Paris?"].response, "stream 3 kept its own body")
 }
 
+// TestResponseDemuxResyncAfterGarbage verifies the demuxer recovers frame
+// alignment: if the stream starts un-aligned (capture began mid-frame, or a read
+// was lost/truncated), the leading bytes don't look like a valid frame header,
+// so the demuxer must skip them and resync at the next real frame — then emit
+// the valid response that follows.
+func TestResponseDemuxResyncAfterGarbage(t *testing.T) {
+	var emitted []llmSpanInfo
+	h := newLLMTestStatKeeper(func(info llmSpanInfo) { emitted = append(emitted, info) })
+	conn := llmConnKey{SrcPort: 8888, DstPort: 443}
+	h.storeReq(llmStreamKey{conn: conn, stream: 1}, llmReqParsed{model: "gpt-4o-mini", provider: providerOpenAI, prompt: "q"})
+
+	body := []byte(`{"choices":[{"message":{"content":"recovered answer."}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+	var wire []byte
+	// Un-aligned leftover bytes (no valid frame header) — as from a mid-frame
+	// capture start or a lost read. The demuxer must skip these.
+	wire = append(wire, bytes.Repeat([]byte{0xff}, 40)...)
+	wire = append(wire, headersFrame(1)...)
+	wire = append(wire, dataFrame(1, body)...)
+
+	for _, rc := range splitBytes(wire, 33) {
+		h.processLLMResponseEvent(llmRespEventBytes(t, conn, 0, 0, string(rc)))
+	}
+	require.Len(t, emitted, 1, "must resync past leading garbage and emit the valid response")
+	assert.Equal(t, "recovered answer.", emitted[0].response)
+	assert.Equal(t, int64(2), emitted[0].totalTokens)
+}
+
 // TestParseLargeRequestPrompt: a large user prompt in a request body (behind a
 // frame header, NUL-padded to the buffer) is parsed in full.
 func TestParseLargeRequestPrompt(t *testing.T) {
