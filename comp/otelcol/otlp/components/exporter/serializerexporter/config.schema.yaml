@@ -22,6 +22,8 @@ properties:
     $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.host_metadata_config
   metrics:
     $ref: metrics_config
+  retry_on_failure:
+    $ref: go.opentelemetry.io/collector/config/configretry.back_off_config
   sending_queue:
     x-optional: true
     $ref: go.opentelemetry.io/collector/exporter/exporterhelper.queue_batch_config

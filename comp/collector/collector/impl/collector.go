@@ -175,7 +175,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
+	run := runner.NewRunner(c.senderManager, c.haAgent)
 	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler
@@ -254,8 +254,6 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 // StopCheck halts a check and remove the instance
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	var ch check.Check
-	var collectorScheduler *scheduler.Scheduler
-	var collectorRunner *runner.Runner
 
 	// This lock is needed because stop() can be called concurrently and sets
 	// c.runner and c.scheduler to nil
@@ -271,9 +269,9 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
-	// These two are not nil because we checked that the collector is started
-	collectorScheduler = c.scheduler
-	collectorRunner = c.runner
+	// These two are not nil because we checked that the collector is started.
+	collectorScheduler := c.scheduler
+	collectorRunner := c.runner
 	c.m.RUnlock()
 
 	// unschedule the instance

@@ -31,6 +31,7 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	deviceIP := "10.0.0.1"
 	configType := types.RUNNING
 	configSource := types.CLI
+	configProfile := "cisco_ios"
 
 	metadata := &profile.ExtractedMetadata{
 		Timestamp: now,
@@ -41,12 +42,13 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	configUUID := "test_uuid"
 	configHash := "test_hash"
 
-	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content, configUUID, configHash)
+	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, configProfile, metadata, tags, content, configUUID, configHash)
 
 	assert.Equal(t, deviceID, config.DeviceID)
 	assert.Equal(t, deviceIP, config.DeviceIP)
 	assert.Equal(t, configType, config.ConfigType)
 	assert.Equal(t, configSource, config.ConfigSource)
+	assert.Equal(t, configProfile, config.ConfigProfile)
 	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
 	assert.Equal(t, string(content), config.Content)
@@ -56,15 +58,17 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 
 func TestNetworkDeviceConfig_OmitsEmptyStoreFields(t *testing.T) {
 	metadata := &profile.ExtractedMetadata{Timestamp: time.Now().Unix()}
-	config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", types.RUNNING, metadata, nil, []byte("content"), "", "")
+	config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", types.RUNNING, "", metadata, nil, []byte("content"), "", "")
 
 	assert.Empty(t, config.ID)
 	assert.Empty(t, config.ConfigHash)
+	assert.Empty(t, config.ConfigProfile)
 
 	jsonData, err := json.Marshal(config)
 	require.NoError(t, err)
 	assert.NotContains(t, string(jsonData), "\"id\"")
 	assert.NotContains(t, string(jsonData), "config_hash")
+	assert.NotContains(t, string(jsonData), "config_profile")
 }
 
 func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
@@ -93,7 +97,7 @@ func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 			Timestamp: 0,
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, metadata, nil, []byte(""), "", "")
+			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, "", metadata, nil, []byte(""), "", "")
 			assert.Equal(t, tt.expected, config.ConfigType)
 		})
 	}
@@ -147,15 +151,16 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 				Namespace: "production",
 				Configs: []NetworkDeviceConfig{
 					{
-						DeviceID:     "default:10.0.0.1",
-						DeviceIP:     "10.0.0.1",
-						ConfigType:   types.RUNNING,
-						ConfigSource: types.CLI,
-						Timestamp:    timestamp,
-						Tags:         []string{"device_type:router"},
-						Content:      "running config content",
-						ID:           "test_uuid",
-						ConfigHash:   "test_hash",
+						DeviceID:      "default:10.0.0.1",
+						DeviceIP:      "10.0.0.1",
+						ConfigType:    types.RUNNING,
+						ConfigSource:  types.CLI,
+						ConfigProfile: "cisco_ios",
+						Timestamp:     timestamp,
+						Tags:          []string{"device_type:router"},
+						Content:       "running config content",
+						ID:            "test_uuid",
+						ConfigHash:    "test_hash",
 					},
 				},
 				CollectTimestamp: timestamp,
@@ -168,6 +173,7 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 						"device_ip": "10.0.0.1",
 						"config_type": "running",
 						"config_source": "cli",
+						"config_profile": "cisco_ios",
 						"timestamp": ` + formatInt(timestamp) + `,
 						"tags": ["device_type:router"],
 						"content": "running config content",

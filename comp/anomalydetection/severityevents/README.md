@@ -7,8 +7,19 @@ don't need to depend on the full `observer.Component` surface.
 - `def/` — `Subscriber` interface, `SeverityEvent`, `SeverityLevel`, and the
   `SeverityEventsConfiguration`/`SeverityEventFilter`/`SeverityEventListener`
   types passed to `SubscribeSeverityEvents`.
-- `impl/` — `Dispatcher`, the concrete push implementation: owns one listener,
-  one fixed cooldown/filter state machine, and delivery.
+- `impl/` — `Dispatcher`, the concrete push implementation: owns one
+  listener and one fixed cooldown/filter state machine per subscription.
+  `SeverityReader` is a pull-based alternative: it implements
+  `SeverityEventListener` itself and subscribes via `Subscriber.SubscribeSeverityEvents`,
+  keeping a lock-free `GetSeverity()` snapshot up to date for callers that
+  want the latest severity level without owning a listener callback.
+
+`Subscriber` has two methods: `SubscribeSeverityEvents(cfg, listener)` for
+push consumers, and `SubscribeSeverityEventsReader(cfg)` — a convenience that
+wires its own internal listener and returns a `SeverityEventsReaderSubscription`
+(a ready `Reader` plus its `Unsubscribe` function) — for pull-only consumers.
+Both take the same `SeverityEventsConfiguration` (filter/cooldown only; the
+listener is passed separately) and create one dedicated `Dispatcher` per call.
 
 The anomaly scorer (`comp/anomalydetection/observer/impl/anomaly_scorer.go`)
 owns a plain list of `Dispatcher` instances and feeds each one the same raw

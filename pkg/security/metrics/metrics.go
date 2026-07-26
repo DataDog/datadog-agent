@@ -593,6 +593,10 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricRawPacketDropped is the name of the metric used to count packets dropped by network_filter actions
+	// Tags: rule_id
+	MetricRawPacketDropped = newRuntimeMetric(".network.raw_packet.dropped")
 )
 
 var (

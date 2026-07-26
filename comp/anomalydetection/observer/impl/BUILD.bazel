@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -45,6 +46,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/anomalydetection/config",
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/observer/impl/patterns",
@@ -63,7 +65,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "agent_logs_test.go",
@@ -104,11 +106,11 @@ go_test(
         "series_pair_key_test.go",
         "stateview_test.go",
         "storage_test.go",
+        "streaming_replay_test.go",
         "telemetry_test.go",
         "test_helpers_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",

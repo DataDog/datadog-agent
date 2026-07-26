@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -133,7 +134,7 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkResolver *ContainerLogSymlinkResolver, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
 	// Add each file one by one up to the limit
 	for _, file := range inputFiles {
 		// Unlike other tailers, there is a hard cap on the number of file tailers that can be concurrently active.
@@ -142,7 +143,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 		registry.KeepAlive(file.Identifier())
 
 		if len(filesToTail) < p.filesLimit {
-			if ShouldIgnore(validatePodContainerID, file) {
+			if ShouldIgnore(validatePodContainerID, file, symlinkResolver) {
 				continue
 			}
 			filesToTail = append(filesToTail, file)
@@ -176,6 +177,10 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 	wildcardFileCounter := newWildcardFileCounter()
+	// Build the /var/log/containers symlink map at most once for the whole scan
+	// rather than once per file. The map is resolved lazily, so no directory
+	// scan happens unless a container source file is actually evaluated.
+	symlinkResolver := NewContainerLogSymlinkResolver()
 
 	if p.selectionMode == globalSelection {
 		wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
@@ -201,7 +206,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, registry)
 			}
 		}
 
@@ -223,7 +228,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -244,7 +249,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, registry)
 			}
 		}
 	} else {
@@ -412,33 +417,45 @@ func (p *FileProvider) applyOrdering(files []*tailer.File) {
 	}
 }
 
-// ShouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
-// to validate that we will be reading a file for the correct container.
+// ContainerLogSymlinkResolver lazily builds and caches the mapping between the
+// symlinks found in ContainersLogsDir and the /var/log/pods files they point to.
 //
-// We have to make sure that the file we just detected is tagged with the correct
-// container ID if the source is a container source and `logs_config.validate_pod_container_id`
-// is enabled`. The way k8s is storing files in /var/log/pods doesn't let us do that properly
-// (the filename doesn't contain the container ID). However, the symlinks present in
-// /var/log/containers are pointing to /var/log/pods files does, meaning that we can use them
-// to validate that the file we have found is concerning us. That's what the function
-// shouldIgnore is trying to do when the directory exists and is readable.
-// See these links for more info:
-//   - https://github.com/kubernetes/kubernetes/issues/58638
-//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
-func ShouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
-	// this method needs a source config to detect whether we should ignore that file or not
-	if file == nil || file.Source == nil || file.Source.Config() == nil {
-		return false
-	}
+// ContainersLogsDir is scanned at most once over the lifetime of a resolver, so a
+// single resolver should be created per scan and shared across every file evaluated
+// in that scan. This avoids re-walking the directory (which can hold one symlink per
+// running container) for each candidate file.
+type ContainerLogSymlinkResolver struct {
+	once  sync.Once
+	links map[string]string
+	err   error
+}
 
-	if !validatePodContainerID {
-		return false
-	}
+// NewContainerLogSymlinkResolver returns a resolver that scans ContainersLogsDir
+// lazily on first use.
+func NewContainerLogSymlinkResolver() *ContainerLogSymlinkResolver {
+	return &ContainerLogSymlinkResolver{}
+}
 
-	if file.Source.GetSourceType() != sources.KubernetesSourceType && file.Source.GetSourceType() != sources.DockerSourceType {
-		return false
+// containerLogFor returns the symlink in ContainersLogsDir whose target is podLogPath.
+// The second return value reports whether the directory scan succeeded; when false the
+// caller should not attempt to validate the container ID (matching the previous
+// behavior of bailing out when the directory could not be walked).
+func (r *ContainerLogSymlinkResolver) containerLogFor(podLogPath string) (string, bool) {
+	r.once.Do(func() {
+		r.links, r.err = buildContainerLogSymlinkMap()
+	})
+	if r.err != nil {
+		return "", false
 	}
+	return r.links[podLogPath], true
+}
 
+// buildContainerLogSymlinkMap walks ContainersLogsDir once and returns a map from each
+// symlink target (a /var/log/pods file path) to the symlink path itself. The traversal
+// intentionally mirrors the original per-file implementation (a recursive filepath.WalkDir
+// following only symlinks) so the resulting map is identical; the only change is that it
+// is now built a single time per scan instead of once for every candidate file.
+func buildContainerLogSymlinkMap() (map[string]string, error) {
 	infos := make(map[string]string)
 	err := filepath.WalkDir(ContainersLogsDir, func(containerLogFilename string, d os.DirEntry, err error) error {
 		// we only wants to follow symlinks
@@ -464,13 +481,59 @@ func ShouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	// in cases we're legitimately looking for containers logs.
 	if err != nil {
 		log.Debug("Can't look for symlinks in /var/log/containers:", err)
+		return nil, err
+	}
+	return infos, nil
+}
+
+// ShouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
+// to validate that we will be reading a file for the correct container.
+//
+// We have to make sure that the file we just detected is tagged with the correct
+// container ID if the source is a container source and `logs_config.validate_pod_container_id`
+// is enabled`. The way k8s is storing files in /var/log/pods doesn't let us do that properly
+// (the filename doesn't contain the container ID). However, the symlinks present in
+// /var/log/containers are pointing to /var/log/pods files does, meaning that we can use them
+// to validate that the file we have found is concerning us. That's what the function
+// shouldIgnore is trying to do when the directory exists and is readable.
+//
+// symlinkResolver caches the ContainersLogsDir scan so it can be reused across all
+// files evaluated in a single scan; pass a resolver from NewContainerLogSymlinkResolver.
+// A nil resolver is allowed and results in a one-off scan. Aside from that caching, the
+// validation logic below is intentionally identical to the original implementation.
+// See these links for more info:
+//   - https://github.com/kubernetes/kubernetes/issues/58638
+//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
+func ShouldIgnore(validatePodContainerID bool, file *tailer.File, symlinkResolver *ContainerLogSymlinkResolver) bool {
+	// this method needs a source config to detect whether we should ignore that file or not
+	if file == nil || file.Source == nil || file.Source.Config() == nil {
+		return false
+	}
+
+	if !validatePodContainerID {
+		return false
+	}
+
+	if file.Source.GetSourceType() != sources.KubernetesSourceType && file.Source.GetSourceType() != sources.DockerSourceType {
+		return false
+	}
+
+	if symlinkResolver == nil {
+		symlinkResolver = NewContainerLogSymlinkResolver()
+	}
+
+	// The (cached) scan of ContainersLogsDir gives us the symlink pointing at the file
+	// we're about to tail. A failed scan is not treated as an error: we simply don't
+	// ignore the file, exactly as before.
+	containerLogFilename, ok := symlinkResolver.containerLogFor(file.Path)
+	if !ok {
 		return false
 	}
 
 	// container id extracted from the file found in /var/log/containers
-	base := filepath.Base(infos[file.Path]) // only the file
-	ext := filepath.Ext(base)               // file extension
-	parts := strings.Split(base, "-")       // get only the container ID part from the file
+	base := filepath.Base(containerLogFilename) // only the file
+	ext := filepath.Ext(base)                   // file extension
+	parts := strings.Split(base, "-")           // get only the container ID part from the file
 	var containerIDFromFilename string
 	if len(parts) > 1 {
 		containerIDFromFilename = strings.TrimSuffix(parts[len(parts)-1], ext)

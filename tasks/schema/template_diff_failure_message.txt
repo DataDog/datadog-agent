@@ -7,4 +7,4 @@ Check:
  - If your change has different default based on the OS: make sure the template output the right default and that the temporary file 'tasks/schema/fixes.py' is updated with the default.
  - If your setting uses relative path make sure the temporary file 'tasks/schema/fixes.py' is updated accordingly (ie: use of '${run_path}', '${conf_path}', ..). A "relative path" is a path relative to the OS default install path, conf path, log path, ...
 
-If you have any questions reach out to #agent-configuration. Thanks for your help while we migrate the configuration to use a schema.
+If you have any questions reach out to #fleet-automation. Thanks for your help while we migrate the configuration to use a schema.
