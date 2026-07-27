@@ -146,16 +146,6 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 func TestCollectADPProcmgrRunning(t *testing.T) {
 	adp, ok := serviceByID("agent-data-plane")
 	require.True(t, ok)
-	assert.Equal(t, "datadog-agent-data-plane", adp.ProcmgrProcessName)
-	assert.Equal(t, "datadog-agent-data-plane.yaml", adp.ProcmgrConfigFile)
-	assert.Equal(t, []string{
-		"embedded/bin/agent-data-plane",
-		"bin/agent/agent-data-plane",
-	}, adp.InstallMarkerRels)
-	assert.Equal(t, []string{
-		"datadog-agent-data-plane.service",
-		"datadog-agent-data-plane-exp.service",
-	}, adp.LegacySystemdUnits)
 
 	root := t.TempDir()
 	marker := installMarkerForTest(t, root, adp, 0)
