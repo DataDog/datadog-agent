@@ -29,6 +29,7 @@ const (
 	MemoryLimit = "memory_limit"
 
 	nodeAgentComponent                  = "agent"
+	datadogComponentLabelKey            = "agent.datadoghq.com/component"
 	clusterAgentComponent               = "cluster-agent"
 	clusterChecksAgentComponentHelm     = "clusterchecks-agent"
 	clusterChecksAgentComponentOperator = "cluster-checks-runner"
@@ -149,7 +150,11 @@ func agentPodKind(pod *workloadmeta.KubernetesPod) (string, bool) {
 		return "", false
 	}
 	switch component := pod.Labels[kubernetes.KubeAppComponentLabelKey]; component {
-	case nodeAgentComponent, clusterAgentComponent:
+	case nodeAgentComponent:
+		if pod.Labels[datadogComponentLabelKey] == nodeAgentComponent {
+			return component, true
+		}
+	case clusterAgentComponent:
 		return component, true
 	case clusterChecksAgentComponentHelm, clusterChecksAgentComponentOperator:
 		// consolidate component name difference between helm and operator

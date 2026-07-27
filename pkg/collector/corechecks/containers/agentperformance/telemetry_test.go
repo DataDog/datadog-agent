@@ -44,9 +44,14 @@ func TestRecorderComponent(t *testing.T) {
 		},
 		{
 			name:         "node agent",
-			pod:          newTestPod("agent", "metadata-pod"),
-			expectedKind: "agent",
+			pod:          newNodeAgentTestPod("metadata-pod"),
+			expectedKind: nodeAgentComponent,
 			expectedOK:   true,
+		},
+		{
+			name:       "node agent missing Datadog identity",
+			pod:        newTestPod(nodeAgentComponent, "metadata-pod"),
+			expectedOK: false,
 		},
 		{
 			name:       "unrelated component",
@@ -101,7 +106,7 @@ func TestRecorderTelemetryAggregatesNodeAgentPodMetrics(t *testing.T) {
 	agentPerformance := newRecorder(tel)
 	agentPerformance.resetRuntimeMetrics()
 
-	nodeAgentPod := newTestPod("agent", "node-agent-pod")
+	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
 	agentPerformance.RecordMetric(MemoryUsage, ptr(10), nodeAgentPod, "")
 	agentPerformance.RecordMetric(MemoryUsage, ptr(5), nodeAgentPod, "")
 
@@ -115,7 +120,7 @@ func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) 
 
 	const podName = "agent-pod"
 	agentPerformance.RecordMetric(MemoryUsage, ptr(10), newTestPod(clusterAgentComponent, podName), "")
-	agentPerformance.RecordMetric(MemoryUsage, ptr(5), newTestPod("agent", podName), "")
+	agentPerformance.RecordMetric(MemoryUsage, ptr(5), newNodeAgentTestPod(podName), "")
 
 	assertGaugeValue(t, tel, MemoryUsage, clusterAgentComponent, podName, 10)
 	assertGaugeValue(t, tel, MemoryUsage, "agent", podName, 5)
@@ -148,10 +153,11 @@ func TestRecorderTelemetryResetClearsStaleValues(t *testing.T) {
 	agentPerformance.record(MemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
 	agentPerformance.record(ContainerRestarts, 2, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
 	agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "error")
-	agentPerformance.record(MemoryUsage, 30, "agent", "node-agent-pod", "")
-	agentPerformance.record(MemoryLimit, 40, "agent", "node-agent-pod", "")
-	agentPerformance.record(ContainerRestarts, 3, "agent", "node-agent-pod", "")
-	agentPerformance.record(ContainerTerminated, 2, "agent", "node-agent-pod", "error")
+	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
+	agentPerformance.RecordMetric(MemoryUsage, ptr(30), nodeAgentPod, "")
+	agentPerformance.RecordMetric(MemoryLimit, ptr(40), nodeAgentPod, "")
+	agentPerformance.RecordMetric(ContainerRestarts, ptr(3), nodeAgentPod, "")
+	agentPerformance.RecordMetric(ContainerTerminated, ptr(2), nodeAgentPod, "error")
 	agentPerformance.resetKubeletMetrics()
 	agentPerformance.resetRuntimeMetrics()
 
@@ -189,6 +195,12 @@ func TestRecorderTelemetrySplitResets(t *testing.T) {
 	assertGaugeValue(t, tel, MemoryLimit, clusterAgentComponent, "cluster-agent-pod", 20)
 	assertGaugeMissing(t, tel, ContainerRestarts, clusterAgentComponent, "cluster-agent-pod")
 	assertTerminatedGaugeMissing(t, tel, clusterAgentComponent, "cluster-agent-pod", "containercannotrun")
+}
+
+func newNodeAgentTestPod(podName string) *workloadmeta.KubernetesPod {
+	pod := newTestPod(nodeAgentComponent, podName)
+	pod.Labels[datadogComponentLabelKey] = nodeAgentComponent
+	return pod
 }
 
 func newTestPod(component string, podName string) *workloadmeta.KubernetesPod {
