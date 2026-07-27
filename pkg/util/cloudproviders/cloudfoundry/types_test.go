@@ -12,70 +12,66 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/bbs/models"
-	"github.com/cloudfoundry-community/go-cfclient/v2"
+	"github.com/cloudfoundry/go-cfclient/v3/resource"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-var v3App1 = cfclient.V3App{
+var v3App1 = resource.App{
 	Name:          "name_of_app_cc",
 	State:         "running",
-	Lifecycle:     cfclient.V3Lifecycle{},
-	GUID:          "random_app_guid",
-	CreatedAt:     "",
-	UpdatedAt:     "",
-	Relationships: map[string]cfclient.V3ToOneRelationship{"space": {Data: cfclient.V3Relationship{GUID: "space_guid_1"}}},
-	Links:         nil,
-	Metadata: cfclient.V3Metadata{
-		Labels:      map[string]string{"tags.datadoghq.com/env": "test-env", "toto": "tata"},
-		Annotations: map[string]string{"tags.datadoghq.com/service": "test-service", "foo": "bar"},
+	Lifecycle:     resource.Lifecycle{},
+	Resource:      resource.Resource{GUID: "random_app_guid"},
+	Relationships: resource.AppRelationships{Space: resource.ToOneRelationship{Data: &resource.Relationship{GUID: "space_guid_1"}}},
+	Metadata: &resource.Metadata{
+		Labels:      map[string]*string{"tags.datadoghq.com/env": pointer.Ptr("test-env"), "toto": pointer.Ptr("tata")},
+		Annotations: map[string]*string{"tags.datadoghq.com/service": pointer.Ptr("test-service"), "foo": pointer.Ptr("bar")},
 	},
 }
 
-var v3App2 = cfclient.V3App{
+var v3App2 = resource.App{
 	Name:          "app2",
 	State:         "running",
-	Lifecycle:     cfclient.V3Lifecycle{},
-	GUID:          "guid2",
-	CreatedAt:     "",
-	UpdatedAt:     "",
-	Relationships: map[string]cfclient.V3ToOneRelationship{"space": {Data: cfclient.V3Relationship{GUID: "space_guid_2"}}},
-	Links:         nil,
-	Metadata: cfclient.V3Metadata{
-		Labels:      map[string]string{},
-		Annotations: map[string]string{},
+	Lifecycle:     resource.Lifecycle{},
+	Resource:      resource.Resource{GUID: "guid2"},
+	Relationships: resource.AppRelationships{Space: resource.ToOneRelationship{Data: &resource.Relationship{GUID: "space_guid_2"}}},
+	Metadata: &resource.Metadata{
+		Labels:      map[string]*string{},
+		Annotations: map[string]*string{},
 	},
 }
 
-var v3Space1 = cfclient.V3Space{
+var v3Space1 = resource.Space{
 	Name:          "space_name_1",
-	GUID:          "space_guid_1",
-	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_1"}}},
+	Resource:      resource.Resource{GUID: "space_guid_1"},
+	Relationships: &resource.SpaceRelationships{Organization: &resource.ToOneRelationship{Data: &resource.Relationship{GUID: "org_guid_1"}}},
 }
 
-var v3Space2 = cfclient.V3Space{
+var v3Space2 = resource.Space{
 	Name:          "space_name_2",
-	GUID:          "space_guid_2",
-	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_2"}}},
+	Resource:      resource.Resource{GUID: "space_guid_2"},
+	Relationships: &resource.SpaceRelationships{Organization: &resource.ToOneRelationship{Data: &resource.Relationship{GUID: "org_guid_2"}}},
 }
 
-var v3Org1 = cfclient.V3Organization{
-	Name: "org_name_1",
-	GUID: "org_guid_1",
+var v3Org1 = resource.Organization{
+	Name:     "org_name_1",
+	Resource: resource.Resource{GUID: "org_guid_1"},
 }
 
-var v3Org2 = cfclient.V3Organization{
-	Name: "org_name_2",
-	GUID: "org_guid_2",
+var v3Org2 = resource.Organization{
+	Name:     "org_name_2",
+	Resource: resource.Resource{GUID: "org_guid_2"},
 }
 
-var cfOrgQuota1 = cfclient.OrgQuota{
-	Guid: "org_quota_guid_1",
-	Name: "org_quota_name_1",
+var cfOrgQuota1 = resource.OrganizationQuota{
+	Resource: resource.Resource{GUID: "org_quota_guid_1"},
+	Name:     "org_quota_name_1",
 }
 
-var cfOrgQuota2 = cfclient.OrgQuota{
-	Guid: "org_quota_guid_2",
-	Name: "org_quota_name_2",
+var cfOrgQuota2 = resource.OrganizationQuota{
+	Resource: resource.Resource{GUID: "org_quota_guid_2"},
+	Name:     "org_quota_name_2",
 }
 
 var cfSidecar1 = CFSidecar{
@@ -88,42 +84,30 @@ var cfSidecar2 = CFSidecar{
 	Name: "sidecar_name_2",
 }
 
-var cfIsolationSegment1 = cfclient.IsolationSegment{
-	GUID: "isolation_segment_guid_1",
-	Name: "isolation_segment_name_1",
+var cfIsolationSegment1 = resource.IsolationSegment{
+	Resource: resource.Resource{GUID: "isolation_segment_guid_1"},
+	Name:     "isolation_segment_name_1",
 }
 
-var cfIsolationSegment2 = cfclient.IsolationSegment{
-	GUID: "isolation_segment_guid_2",
-	Name: "isolation_segment_name_2",
+var cfIsolationSegment2 = resource.IsolationSegment{
+	Resource: resource.Resource{GUID: "isolation_segment_guid_2"},
+	Name:     "isolation_segment_name_2",
 }
 
-type Links struct {
-	Self  cfclient.Link `json:"self"`
-	Scale cfclient.Link `json:"scale"`
-	App   cfclient.Link `json:"app"`
-	Space cfclient.Link `json:"space"`
-	Stats cfclient.Link `json:"stats"`
-}
-
-var cfProcess1 = cfclient.Process{
-	GUID: "process_guid_1",
+var cfProcess1 = resource.Process{
+	Resource: resource.Resource{
+		GUID:  "process_guid_1",
+		Links: resource.Links{"app": {Href: "https://api.sys.integrations-lab.devenv.dog/v3/apps/random_app_guid"}},
+	},
 	Type: "process_type_1",
-	Links: Links{
-		App: cfclient.Link{
-			Href: "https://api.sys.integrations-lab.devenv.dog/v3/apps/random_app_guid",
-		},
-	},
 }
 
-var cfProcess2 = cfclient.Process{
-	GUID: "process_guid_2",
-	Type: "process_type_2",
-	Links: Links{
-		App: cfclient.Link{
-			Href: "https://api.sys.integrations-lab.devenv.dog/v3/apps/random_app_guid",
-		},
+var cfProcess2 = resource.Process{
+	Resource: resource.Resource{
+		GUID:  "process_guid_2",
+		Links: resource.Links{"app": {Href: "https://api.sys.integrations-lab.devenv.dog/v3/apps/random_app_guid"}},
 	},
+	Type: "process_type_2",
 }
 
 var cfApp1 = CFApplication{
