@@ -30,10 +30,7 @@ build do
   end
 
   # Install integrations and their configs
-  command "bazel run " \
-          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-          "--//:install_dir=#{install_dir} " \
-          "-- //deps/agent_integrations:install --destdir=#{install_dir}",
+  command "bazel run #{omnibazel_flags} -- //deps/agent_integrations:install --destdir=#{install_dir}",
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

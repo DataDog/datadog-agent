@@ -183,6 +183,7 @@ impl AgentCheck {
     }
 
     /// Send Event
+    #[allow(clippy::too_many_arguments)]
     pub fn event(
         &self,
         title: &str,
@@ -212,6 +213,7 @@ impl AgentCheck {
     }
 
     /// Send Histogram Bucket
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_histogram_bucket(
         &self,
         metric_name: &str,
@@ -239,6 +241,20 @@ impl AgentCheck {
     /// Send Event Platform Event
     pub fn event_platform_event(&self, raw_event: &str, event_track_type: &str) -> Result<()> {
         self.aggregator.submit_event_platform_event(
+            &self.check_id,
+            raw_event,
+            raw_event.len() as c_int,
+            event_track_type,
+        )
+    }
+
+    // TODO(dsec-157): make event_platform_event delegate to this.
+    pub fn event_platform_event_bytes(
+        &self,
+        raw_event: &[u8],
+        event_track_type: &str,
+    ) -> Result<()> {
+        self.aggregator.submit_event_platform_event_bytes(
             &self.check_id,
             raw_event,
             raw_event.len() as c_int,

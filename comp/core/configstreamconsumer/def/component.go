@@ -5,7 +5,7 @@
 
 // Package configstreamconsumer implements a component that consumes config streams from the core agent.
 //
-// team: agent-configuration
+// team: fleet-automation
 package configstreamconsumer
 
 import "time"
