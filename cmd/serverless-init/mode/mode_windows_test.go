@@ -14,7 +14,7 @@ import (
 )
 
 func TestRunInitUnsupportedOnWindows(t *testing.T) {
-	err := RunInit(nil)
+	err := RunInit(nil, nil)
 	assert.EqualError(t, err, "serverless-init is not supported on windows")
 }
 

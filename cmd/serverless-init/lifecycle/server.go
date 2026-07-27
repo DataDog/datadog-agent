@@ -441,7 +441,11 @@ func (s *Server) flushAll(flushCtx context.Context) {
 	}
 	runFlush(s.metricFlusher.Flush)
 	runFlush(s.traceFlusher.Flush)
-	runFlush(func() { s.logsFlusher.Flush(flushCtx) })
+	runFlush(func() {
+		if s.logsFlusher != nil {
+			s.logsFlusher.Flush(flushCtx)
+		}
+	})
 	s.waitForFlushes(flushCtx, &wg)
 }
 
