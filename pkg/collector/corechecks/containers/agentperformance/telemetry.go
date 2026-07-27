@@ -151,6 +151,9 @@ func agentPodKind(pod *workloadmeta.KubernetesPod) (string, bool) {
 	}
 	switch component := pod.Labels[kubernetes.KubeAppComponentLabelKey]; component {
 	case nodeAgentComponent:
+		// The generic Kubernetes component label is not a Datadog identity. Node Agent
+		// manifests set this vendor-specific label too, preventing unrelated workloads
+		// from entering COAT telemetry as Datadog Agent pods.
 		if pod.Labels[datadogComponentLabelKey] == nodeAgentComponent {
 			return component, true
 		}
