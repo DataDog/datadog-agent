@@ -41,7 +41,7 @@ index 0000000000..0000000000 100644
 @@ -4098,6 +4098,7 @@ dnl detect libffi
  have_libffi=missing
  AS_VAR_IF([ac_sys_system], [Darwin], [
-+  AS_IF([test -z "$LIBFFI_CFLAGS$LIBFFI_LIBS"], [
++  AS_IF([test -z "${LIBFFI_CFLAGS}${LIBFFI_LIBS}"], [
    WITH_SAVE_ENV([
      CFLAGS="-I${SDKROOT}/usr/include/ffi $CFLAGS"
      AC_CHECK_HEADER([ffi.h], [
