@@ -772,6 +772,17 @@ workflow:
   - <<: *if_installer_tests
   - <<: *on_build_changes
 
+.on_linux_installer_package_changes:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - changes:
+      paths:
+        - pkg/fleet/installer/packages/**/*
+        - omnibus/package-scripts/agent-*/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 # Specific rules for each e2e test type
 .on_install_script_tests:
   - !reference [.except_mergequeue]
