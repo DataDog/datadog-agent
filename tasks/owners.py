@@ -90,12 +90,28 @@ def smp_preselect(_, config_dir, changed_files, exclude="", owners_file=".github
     (matching the SMP CLI's discovery), addressed by its path relative to
     config_dir (e.g. "logs", "logs/syslog"). Ownership is resolved from the
     checked-out CODEOWNERS on both sides, so the result depends only on the PR.
+
+    Only folders whose README declares `mode: team-gate` participate in
+    auto-selection; `mode: optional` (or a missing mode) folders are never
+    auto-selected -- they remain plain opt-in checkboxes in the comment.
     """
     import os
+    import re
 
     def _teams(owner_tuples):
         # keep TEAM entries only (drop individual users), normalized to bare slugs
         return {team.casefold().replace("@datadog/", "") for label, team in owner_tuples if label == 'TEAM'}
+
+    def _mode(rel):
+        # read `mode:` from the folder README frontmatter; default "optional"
+        try:
+            with open(os.path.join(config_dir, rel, "README.md")) as f:
+                content = f.read()
+        except OSError:
+            return "optional"
+        block = re.search(r'^---\s*$(.*?)^---\s*$', content, re.MULTILINE | re.DOTALL)
+        match = re.search(r'^\s*mode:\s*(\S+)', block.group(1) if block else content, re.MULTILINE)
+        return match.group(1).strip().casefold() if match else "optional"
 
     code_owners = read_owners(owners_file)
 
@@ -111,6 +127,8 @@ def smp_preselect(_, config_dir, changed_files, exclude="", owners_file=".github
             continue
         rel = os.path.relpath(root, config_dir)
         if rel == "." or rel.split(os.sep)[0] in excluded:
+            continue
+        if _mode(rel) != "team-gate":
             continue
         if _teams(code_owners.of(f"{config_dir}/{rel}/")) & involved_teams:
             selected.append(rel)
