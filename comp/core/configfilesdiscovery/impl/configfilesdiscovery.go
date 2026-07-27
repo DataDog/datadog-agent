@@ -11,7 +11,6 @@ import (
 	"time"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -49,7 +48,7 @@ type Provides struct {
 
 type component struct {
 	ad        autodiscovery.Component
-	scheduler scheduler.Scheduler
+	scheduler *adScheduler
 }
 
 func newComponent(
@@ -143,6 +142,7 @@ func adSchedulerConfigFromAgentConfig(agentConfig config.Component) adSchedulerC
 }
 
 func (c *component) start(context.Context) error {
+	c.scheduler.beginStartupWindow()
 	c.ad.AddScheduler(schedulerName, c.scheduler, true)
 	return nil
 }

@@ -40,9 +40,11 @@ type adScheduler struct {
 
 	heartbeatInterval time.Duration
 	heartbeatJitter   time.Duration
-	// startupNotBefore is fixed when the scheduler is created and shared by
-	// configs discovered during Agent startup so their first collections stay
-	// batchable while Agents spread their sends.
+	// startupDelay is selected once and applied when the scheduler is registered.
+	startupDelay time.Duration
+	// startupNotBefore is fixed when the scheduler is registered and shared by
+	// replayed configs so their first collections stay batchable while Agents
+	// spread their sends.
 	startupNotBefore time.Time
 	// startupTimer releases startup configs at their shared deadline.
 	startupTimer *clock.Timer
@@ -185,7 +187,6 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 	}
 	cfg = normalizeADSchedulerConfig(cfg)
 	initialDelay := startupDelay(cfg.startupJitter, cfg.jitter)
-	startupNotBefore := cfg.clock.Now().Add(initialDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &adScheduler{
@@ -195,7 +196,7 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 		sender:                 sender,
 		heartbeatInterval:      cfg.heartbeatInterval,
 		heartbeatJitter:        cfg.heartbeatJitter,
-		startupNotBefore:       startupNotBefore,
+		startupDelay:           initialDelay,
 		heartbeatRetryInterval: cfg.heartbeatRetryInterval,
 		heartbeatCheckInterval: cfg.heartbeatCheckInterval,
 		clock:                  cfg.clock,
@@ -208,10 +209,22 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 	s.workerDone.Add(2)
 	go s.runCollectionWorker()
 	go s.runHeartbeatWorker()
-	if remaining := startupNotBefore.Sub(s.clock.Now()); remaining > 0 {
-		s.startupTimer = s.clock.AfterFunc(remaining, s.enqueueDueCollections)
-	}
 	return s
+}
+
+// beginStartupWindow starts the shared delay for configs replayed when the
+// scheduler is registered. Repeated calls keep the original deadline.
+func (s *adScheduler) beginStartupWindow() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.startupNotBefore.IsZero() {
+		return
+	}
+	s.startupNotBefore = s.clock.Now().Add(s.startupDelay)
+	if s.startupDelay > 0 {
+		s.startupTimer = s.clock.AfterFunc(s.startupDelay, s.enqueueDueCollections)
+	}
 }
 
 func normalizeADSchedulerConfig(cfg adSchedulerConfig) adSchedulerConfig {
