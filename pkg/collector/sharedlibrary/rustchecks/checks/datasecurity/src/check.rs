@@ -69,7 +69,7 @@ fn run_sub_task(
     };
 
     // Build the SDS result protobuf for this sub task.
-    let payload = build_sds_result(config, sub_task, status, &failure_reason, &matches);
+    let payload = build_sds_result(config, sub_task, status, &failure_reason, matches);
 
     // Emit the protobuf on the `sds-result` event platform track.
     check.event_platform_event_bytes(&proto::encode(&payload), SDS_RESULT_EVENT_TYPE)?;

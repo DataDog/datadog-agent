@@ -9,7 +9,7 @@ pub(crate) fn build_sds_result(
     sub_task: &SubTask,
     status: Status,
     failure_reason: &str,
-    matches: &[TableMatch],
+    matches: Vec<TableMatch>,
 ) -> SdsResultPayload {
     let entity = &sub_task.entity;
 
@@ -22,7 +22,7 @@ pub(crate) fn build_sds_result(
                 database_name: entity.database.clone(),
                 schema_name: entity.schema.clone(),
                 table_name: entity.table.clone(),
-                // TODO(DSEC): populate row counts and scanned_columns.
+                // TODO(DSEC-179): populate row counts and scanned_columns.
                 ..Default::default()
             },
         )),
@@ -31,7 +31,7 @@ pub(crate) fn build_sds_result(
 
     // TODO(DSEC-180): populate duration, started_at and ended_at.
     let scan_result = ScanResult {
-        table_matches: matches.to_vec(),
+        table_matches: matches,
         location: Some(location),
         scan_metadata: Some(ScanMetadata {
             scan_task_metadata: Some(ScanTaskMetadata {
@@ -56,7 +56,7 @@ pub(crate) fn build_sds_result(
             .iter()
             .map(|rule| rule.id.clone())
             .collect(),
-        // The scanning source is the Agent. TODO(DSEC): populate hostname and
+        // The scanning source is the Agent. TODO(DSEC-179): populate hostname and
         // agent version once the check receives them (not provided via config yet).
         scanning_source: Some(proto::ScanningSource {
             source: Some(proto::scanning_source::Source::Agent(
