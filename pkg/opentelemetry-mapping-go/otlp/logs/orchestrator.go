@@ -580,7 +580,7 @@ func buildCommonTags() []string {
 // for security or data sensitivity reasons. This matches the behavior of the orchestrator
 // collector which skips secrets and configmaps as they can contain sensitive data.
 func shouldSkipResourceKind(kind string, group string) bool {
-	if group == "v1" && (strings.ToLower(kind) == "secret" || strings.ToLower(kind) == "configmap") {
+	if group == "v1" && strings.ToLower(kind) == "secret" {
 		return true
 	}
 
