@@ -111,6 +111,10 @@ type engine struct {
 	instrStorage   *instrumentedStorage
 	onAdvance      func(advanceEntry) // scheduler trace
 
+	// testbenchLogCountView is a detector-only read adapter used by the
+	// timestamp-aware log-count experiment. Production never configures it.
+	testbenchLogCountView *timeAwareLogCountStorage
+
 	// Counters for data ingestion anomalies, reset after each advance.
 	latePoints         atomic.Int64     // points ingested after their timestamp was already analyzed
 	latePointsBySource map[string]int64 // per-source breakdown (single-goroutine access from run loop)
@@ -523,12 +527,25 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 
+	if e.testbenchLogCountView != nil {
+		e.testbenchLogCountView.inner = e.storage
+		e.testbenchLogCountView.raw = e.storage
+		e.testbenchLogCountView.beginDetect(upTo)
+	}
+
 	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
-		// Use instrumented storage when digest recording is active.
+		// Testbench experiments may decorate sparse log occurrence series for
+		// detector reads. Shared storage itself remains unchanged.
 		storageForDetect := observerdef.StorageReader(e.storage)
+		if e.testbenchLogCountView != nil {
+			storageForDetect = e.testbenchLogCountView
+		}
+
+		// Instrument the detector-visible view so digests describe the logical
+		// observations rather than bypassing the adapter and hashing raw points.
 		if e.instrStorage != nil {
-			e.instrStorage.inner = e.storage // rebind in case storage was swapped
+			e.instrStorage.inner = storageForDetect
 			e.instrStorage.reset()
 			storageForDetect = e.instrStorage
 		}
@@ -996,6 +1013,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.replayAnomalies.Store(0)
 	e.mu.Lock()
 	e.storage = newTimeSeriesStorageWith(storageCfg)
+	e.testbenchLogCountView = nil
 	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
@@ -1004,6 +1022,32 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	} else {
 		e.baseline = nil
 	}
+}
+
+func (e *engine) configureTestbenchLogCountView(config TestbenchLogCountViewConfig) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if config.BucketSeconds <= 0 {
+		e.testbenchLogCountView = nil
+		return
+	}
+	namespaces := make([]string, 0, len(e.extractors))
+	for _, extractor := range e.extractors {
+		namespaces = append(namespaces, extractor.Name())
+	}
+	e.testbenchLogCountView = newTimeAwareLogCountStorage(e.storage, e.storage, config, namespaces)
+}
+
+func (e *engine) testbenchLogCountViewStats() *TestbenchLogCountViewStats {
+	e.mu.RLock()
+	view := e.testbenchLogCountView
+	e.mu.RUnlock()
+	if view == nil {
+		return nil
+	}
+	stats := view.snapshotStats()
+	return &stats
 }
 
 // ExtractorCount returns the number of extractors currently registered.

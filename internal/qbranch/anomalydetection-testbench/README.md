@@ -64,6 +64,9 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--only` | _(empty)_ | Enable ONLY these components (plus extractors); disable everything else. Mutually exclusive with `--enable`/`--disable`. |
 | `--config` | _(empty)_ | Path to a JSON params file controlling enabled state and hyperparameters. Takes full precedence over `--enable`/`--disable`/`--only`. See [Params File](#params-file--config). |
 | `--logs-only` | `false` | Load only log rows from parquet scenarios; skip metric samples and trace stats. Speeds up runs focused on log anomaly detection (interactive and headless). |
+| `--time-aware-log-count-series` | `false` | Keep log occurrence metrics sparse in shared storage and present fixed-window counts only to detectors. |
+| `--log-count-window-seconds` | `5` | Virtual count window width for the time-aware experiment: `1`, `5`, or `10`. |
+| `--log-count-idle-ttl-seconds` | `300` | Stop producing forward zero windows after this many seconds without an occurrence. |
 
 ### Headless Mode
 

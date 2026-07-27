@@ -45,6 +45,21 @@ type seriesRefLister interface {
 	ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef
 }
 
+// seriesAggregateSupport is an optional detector-view policy. Normal storage
+// supports every aggregate. Decorated views can disable an aggregate that has
+// no useful meaning for a particular series (for example AggregateCount over
+// one virtual count gauge per window).
+type seriesAggregateSupport interface {
+	SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool
+}
+
+func supportsSeriesAggregate(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate) bool {
+	if support, ok := storage.(seriesAggregateSupport); ok {
+		return support.SupportsAggregate(ref, agg)
+	}
+	return true
+}
+
 // workloadSeriesRefs returns the workload series refs used by detector hot
 // paths. It avoids the metadata-heavy ListSeries allocation when the storage
 // implementation provides a ref-only listing.

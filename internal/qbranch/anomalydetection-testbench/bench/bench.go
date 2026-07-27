@@ -88,6 +88,12 @@ type Config struct {
 	// LogsOnly skips metric samples and trace stats; only log rows are loaded.
 	LogsOnly bool
 
+	// TimeAwareLogCountSeries keeps extractor output sparse in shared storage
+	// and presents a fixed-window count view only to detectors.
+	TimeAwareLogCountSeries bool
+	LogCountWindowSeconds   int64
+	LogCountIdleTTLSeconds  int64
+
 	// ParquetFormat selects the parquet layout. Empty string = auto-detect.
 	ParquetFormat ParquetFormat
 
@@ -803,6 +809,12 @@ func (tb *Bench) rerunDetectorsLocked() {
 		ts := logEntry.GetTimestampUnixMilli() / 1000
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}
+	if tb.config.TimeAwareLogCountSeries {
+		tb.debug.ConfigureTestbenchLogCountView(observerimpl.TestbenchLogCountViewConfig{
+			BucketSeconds:  tb.config.LogCountWindowSeconds,
+			IdleTTLSeconds: tb.config.LogCountIdleTTLSeconds,
+		})
+	}
 
 	tb.finishReplayLocked()
 }
@@ -815,6 +827,15 @@ func (tb *Bench) finishReplayLocked() {
 	// dataset at each step. This matches what the old testbench achieved via
 	// engine.ReplayStoredData() after pre-loading all data into storage.
 	tb.debug.ReplayStoredData()
+	if stats := tb.debug.TestbenchLogCountViewStats(); stats != nil {
+		fmt.Printf(
+			"  Time-aware log count view kept %d raw points and served %d logical observations (%d zeros, peak active %d)\n",
+			stats.RawStoredPoints,
+			stats.LogicalDetectorObservations,
+			stats.LogicalZeroObservations,
+			stats.PeakActiveSeries,
+		)
+	}
 	tb.collectReplayResultsLocked()
 }
 
@@ -826,7 +847,6 @@ func (tb *Bench) finishStreamLocked() {
 }
 
 func (tb *Bench) collectReplayResultsLocked() {
-
 	sv := tb.debug.StateView()
 
 	// Populate log anomalies.

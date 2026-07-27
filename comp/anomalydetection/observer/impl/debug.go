@@ -57,6 +57,13 @@ type DebugView interface {
 	// metrics are written to storage, but detector/correlator advances are
 	// deferred to the subsequent ReplayStoredData call.
 	IngestLogForReplay(source string, msg observerdef.LogView)
+	// ConfigureTestbenchLogCountView enables the detector-only sparse log count
+	// view used by the testbench timestamp-awareness experiment. A zero bucket
+	// disables it. Production code never calls this method.
+	ConfigureTestbenchLogCountView(config TestbenchLogCountViewConfig)
+	// TestbenchLogCountViewStats reports sparse storage and logical detector
+	// observation counts for the active experiment.
+	TestbenchLogCountViewStats() *TestbenchLogCountViewStats
 }
 
 // StateView is a read-only window into engine state.

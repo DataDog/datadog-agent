@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
@@ -29,8 +30,9 @@ type ObserverMetadata struct {
 	CorrelatorsEnabled  []string `json:"correlators_enabled"`
 	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
 	// ComponentConfigs holds the active configuration of every component.
-	ComponentConfigs map[string]map[string]any `json:"component_configs,omitempty"`
-	Stats            *ReplayStats              `json:"stats,omitempty"`
+	ComponentConfigs      map[string]map[string]any                `json:"component_configs,omitempty"`
+	Stats                 *ReplayStats                             `json:"stats,omitempty"`
+	TimeAwareLogCountView *observerimpl.TestbenchLogCountViewStats `json:"time_aware_log_count_view,omitempty"`
 }
 
 // ObserverCorrelation is one correlation cluster.
@@ -100,6 +102,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	replayStats := tb.replayStats
+	timeAwareLogCountView := tb.debug.TestbenchLogCountViewStats()
 	tb.mu.RUnlock()
 
 	sort.Strings(detectorNames)
@@ -146,14 +149,15 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
-			Scenario:            scenario,
-			TimelineStart:       timelineStart,
-			TimelineEnd:         timelineEnd,
-			DetectorsEnabled:    detectorNames,
-			CorrelatorsEnabled:  correlatorNames,
-			TotalAnomalyPeriods: len(outCorrelations),
-			ComponentConfigs:    componentConfigs,
-			Stats:               replayStats,
+			Scenario:              scenario,
+			TimelineStart:         timelineStart,
+			TimelineEnd:           timelineEnd,
+			DetectorsEnabled:      detectorNames,
+			CorrelatorsEnabled:    correlatorNames,
+			TotalAnomalyPeriods:   len(outCorrelations),
+			ComponentConfigs:      componentConfigs,
+			Stats:                 replayStats,
+			TimeAwareLogCountView: timeAwareLogCountView,
 		},
 		AnomalyPeriods: outCorrelations,
 	}

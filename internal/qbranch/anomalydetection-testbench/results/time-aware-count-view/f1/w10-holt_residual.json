@@ -1,0 +1,272 @@
+{
+    "score": 0.07989665512812956,
+    "metadata": {
+        "memcached-saturation": {
+            "name": "memcached-saturation",
+            "f1": 1.4669558345506565e-23,
+            "precision": 1,
+            "recall": 7.334779172753283e-24,
+            "tp": 7.334779172753283e-24,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 2,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 1,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 620,
+            "alpha": 0
+        },
+        "redis-cascade-billing": {
+            "name": "redis-cascade-billing",
+            "f1": 7.284200287202106e-96,
+            "precision": 1,
+            "recall": 3.642100143601053e-96,
+            "tp": 3.642100143601053e-96,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 6,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 5,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 600,
+            "alpha": 0
+        },
+        "byzantine-fault-cascade": {
+            "name": "byzantine-fault-cascade",
+            "f1": 3.219271323269774e-06,
+            "precision": 1,
+            "recall": 1.6096382525660205e-06,
+            "tp": 1.6096382525660205e-06,
+            "fp": 0,
+            "fn": 0.9999983903617474,
+            "num_predictions": 22,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 21,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 615,
+            "alpha": 0
+        },
+        "cascading-payment-failure": {
+            "name": "cascading-payment-failure",
+            "f1": 7.161261950328306e-25,
+            "precision": 1,
+            "recall": 3.580630975164153e-25,
+            "tp": 3.580630975164153e-25,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 4,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 3,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 720,
+            "alpha": 0
+        },
+        "cassandra-repair-degradation": {
+            "name": "cassandra-repair-degradation",
+            "f1": 1.283549322712127e-10,
+            "precision": 1,
+            "recall": 6.41774661397251e-11,
+            "tp": 6.41774661397251e-11,
+            "fp": 0,
+            "fn": 0.9999999999358226,
+            "num_predictions": 1,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 0,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 600,
+            "alpha": 0
+        },
+        "block-building-outage": {
+            "name": "block-building-outage",
+            "f1": 9.957541805499001e-80,
+            "precision": 1,
+            "recall": 4.9787709027495005e-80,
+            "tp": 4.9787709027495005e-80,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 5,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 4,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 707,
+            "alpha": 0
+        },
+        "dns-upstream-outage": {
+            "name": "dns-upstream-outage",
+            "f1": 0.9587566421378766,
+            "precision": 1,
+            "recall": 0.9207805599897337,
+            "tp": 0.9207805599897337,
+            "fp": 0,
+            "fn": 0.07921944001026626,
+            "num_predictions": 29,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 28,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 1201,
+            "alpha": 0
+        },
+        "tiered-cache-header-corruption": {
+            "name": "tiered-cache-header-corruption",
+            "f1": 6.021174244834414e-226,
+            "precision": 1,
+            "recall": 3.010587122417207e-226,
+            "tp": 3.010587122417207e-226,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 9,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 8,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 660,
+            "alpha": 0
+        },
+        "kafka-partition-saturation": {
+            "name": "kafka-partition-saturation",
+            "f1": 0,
+            "precision": 0,
+            "recall": 0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 0,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 0,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 603,
+            "alpha": 0
+        },
+        "lock-contention": {
+            "name": "lock-contention",
+            "f1": 6.707043489327815e-112,
+            "precision": 1,
+            "recall": 3.3535217446639077e-112,
+            "tp": 3.3535217446639077e-112,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 3,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 2,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 600,
+            "alpha": 0
+        },
+        "pool-saturation": {
+            "name": "pool-saturation",
+            "f1": 8.349385039497716e-104,
+            "precision": 1,
+            "recall": 4.174692519748858e-104,
+            "tp": 4.174692519748858e-104,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 4,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 3,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 601,
+            "alpha": 0
+        },
+        "redis-cpu-saturation": {
+            "name": "redis-cpu-saturation",
+            "f1": 1.6388213801900776e-73,
+            "precision": 1,
+            "recall": 8.194106900950388e-74,
+            "tp": 8.194106900950388e-74,
+            "fp": 0,
+            "fn": 1,
+            "num_predictions": 4,
+            "num_ground_truths": 1,
+            "num_filtered_warmup": 0,
+            "num_filtered_cascading": 3,
+            "num_baseline_fps": 0,
+            "sigma": 30,
+            "baseline_duration_seconds": 600,
+            "alpha": 0
+        }
+    },
+    "component_configs": {
+        "components": {
+            "log_metrics_extractor": {
+                "enabled": false
+            },
+            "connection_error_extractor": {
+                "enabled": false
+            },
+            "log_pattern_extractor": {
+                "enabled": false
+            },
+            "log_tokenizer_extractor": {
+                "enabled": false
+            },
+            "log_tokenizer_fuzzy_extractor": {
+                "enabled": true,
+                "max_eval_bytes": 2048,
+                "min_pattern_count_before_emit": 5,
+                "match_threshold": 0.5
+            },
+            "log_semantic_tokenizer_ablation_extractor": {
+                "enabled": false
+            },
+            "bocpd": {
+                "enabled": false
+            },
+            "rrcf": {
+                "enabled": false
+            },
+            "holt_residual": {
+                "enabled": true
+            },
+            "scanmw": {
+                "enabled": false
+            },
+            "scanwelch": {
+                "enabled": false
+            },
+            "cusum": {
+                "enabled": false
+            },
+            "tukey_biweight": {
+                "enabled": false
+            },
+            "time_cluster": {
+                "enabled": true
+            },
+            "cross_signal": {
+                "enabled": false
+            },
+            "passthrough": {
+                "enabled": false
+            },
+            "anomaly_scorer": {
+                "enabled": false
+            }
+        }
+    },
+    "logs_only": true,
+    "regularize_log_count_series": false,
+    "time_aware_log_count_series": true,
+    "log_count_window_seconds": 10,
+    "log_count_idle_ttl_seconds": 300
+}
