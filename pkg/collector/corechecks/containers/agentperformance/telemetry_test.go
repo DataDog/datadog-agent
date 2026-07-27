@@ -155,7 +155,7 @@ func TestRecorderCPUUsageInvalidTotalsDoNotEmitOrReplaceBaseline(t *testing.T) {
 			tel := telemetrymock.New(t)
 			recorder := newRecorder(tel)
 			pod := newTestPod(nodeAgentComponent, "node-agent-pod")
-			collectionStart := time.Unix(100, 0)
+			collectionStart := time.Unix(0, 0)
 
 			recorder.ResetRuntimeMetrics()
 			recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
@@ -163,10 +163,13 @@ func TestRecorderCPUUsageInvalidTotalsDoNotEmitOrReplaceBaseline(t *testing.T) {
 
 			recorder.ResetRuntimeMetrics()
 			recorder.RecordCPUUsage("node-agent-container", ptr(tt.invalidTotal), collectionStart.Add(10*time.Second), pod)
-			assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 			assert.NotContains(t, recorder.currentCPUSamples, "node-agent-container")
+			recorder.CompleteRuntimeMetrics()
+			assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 
+			recorder.ResetRuntimeMetrics()
 			recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+			recorder.CompleteRuntimeMetrics()
 			assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.125)
 		})
 	}

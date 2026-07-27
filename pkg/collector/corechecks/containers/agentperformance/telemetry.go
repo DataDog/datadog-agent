@@ -52,9 +52,10 @@ type Recorder struct {
 	memoryLimits         telemetry.Gauge
 	cpuUsage             telemetry.Gauge
 
-	cpuMu              sync.Mutex
-	previousCPUSamples map[string]cpuSample
-	currentCPUSamples  map[string]cpuSample
+	cpuMu                  sync.Mutex
+	previousCPUSamples     map[string]cpuSample
+	currentCPUSamples      map[string]cpuSample
+	currentCPUContainerIDs map[string]struct{}
 }
 
 type cpuSample struct {
@@ -102,8 +103,9 @@ func newRecorder(tm telemetry.Component) *Recorder {
 			[]string{kindTag, tags.KubePod},
 			"Sum of CPU cores used by Datadog Agent pod containers, derived from cumulative CPU time",
 		),
-		previousCPUSamples: make(map[string]cpuSample),
-		currentCPUSamples:  make(map[string]cpuSample),
+		previousCPUSamples:     make(map[string]cpuSample),
+		currentCPUSamples:      make(map[string]cpuSample),
+		currentCPUContainerIDs: make(map[string]struct{}),
 	}
 }
 
@@ -112,23 +114,38 @@ func (t *Recorder) ResetRuntimeMetrics() {
 	t.resetRuntimeMetrics()
 }
 
-// CompleteRuntimeMetrics replaces previous CPU samples with the completed runtime snapshot.
+// CompleteRuntimeMetrics finalizes CPU samples from the completed runtime snapshot.
 func (t *Recorder) CompleteRuntimeMetrics() {
 	t.cpuMu.Lock()
 	defer t.cpuMu.Unlock()
 
+	for containerID := range t.currentCPUContainerIDs {
+		if _, hasCurrentSample := t.currentCPUSamples[containerID]; hasCurrentSample {
+			continue
+		}
+		if previousSample, ok := t.previousCPUSamples[containerID]; ok {
+			t.currentCPUSamples[containerID] = previousSample
+		}
+	}
+
 	t.previousCPUSamples = t.currentCPUSamples
 	t.currentCPUSamples = make(map[string]cpuSample)
+	t.currentCPUContainerIDs = make(map[string]struct{})
 }
 
 // RecordCPUUsage adds a container's delta-derived CPU cores to its eligible Agent pod aggregate.
 func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp time.Time, pod *workloadmeta.KubernetesPod) {
-	if containerID == "" || total == nil || *total < 0 || math.IsNaN(*total) || math.IsInf(*total, 0) {
+	if containerID == "" || total == nil {
 		return
 	}
 
 	t.cpuMu.Lock()
 	defer t.cpuMu.Unlock()
+
+	t.currentCPUContainerIDs[containerID] = struct{}{}
+	if *total < 0 || math.IsNaN(*total) || math.IsInf(*total, 0) {
+		return
+	}
 
 	currentSample := cpuSample{total: *total, timestamp: timestamp}
 	t.currentCPUSamples[containerID] = currentSample
@@ -185,6 +202,7 @@ func (t *Recorder) resetRuntimeMetrics() {
 	t.cpuMu.Lock()
 	defer t.cpuMu.Unlock()
 	t.currentCPUSamples = make(map[string]cpuSample)
+	t.currentCPUContainerIDs = make(map[string]struct{})
 }
 
 func (t *Recorder) resetKubeletMetrics() {
