@@ -25,9 +25,6 @@ const (
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
-	// Executor mode (split deployment)
-	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
-
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
@@ -36,8 +33,6 @@ const (
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
 	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
-	RShellCommandNamespacePrefix       = "rshell:"
-	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
 	RShellPathAllowAll                 = "/"
 	RShellPathAllowMapContainerizedKey = "containerized"
 	RShellPathAllowMapDefaultKey       = "default"

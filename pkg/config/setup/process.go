@@ -64,18 +64,6 @@ const (
 // we need to make sure it is only applied once
 var processesAddOverrideOnce sync.Once
 
-// procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
-// We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
-	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
-	// variable convention as the core agent.
-	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
-	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
-
-	envs := []string{processConfigKey, processAgentKey}
-	config.BindEnvAndSetDefault(key, val, envs...)
-}
-
 // loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config pkgconfigmodel.Config) {
 	if config.IsConfigured("process_config.enabled") {

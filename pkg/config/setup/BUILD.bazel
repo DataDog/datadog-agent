@@ -48,7 +48,6 @@ go_library(
         "//pkg/config/setup/constants",
         "//pkg/config/structure",
         "//pkg/fips",
-        "//pkg/networkpath/traceroute/config",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
         "//pkg/util/scrubber",

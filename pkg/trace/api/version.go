@@ -133,7 +133,7 @@ const (
 	// This version introduces a new API for the trace agent to receive traces from the tracer.
 	// The message pack format for this payload is a custom format that uses deduplicated strings via a "streaming"
 	// string table where the first time a string is seen it is fully serialized, but later instances simply refer
-	// to the index of the string in the table.
+	// to the index of the string in the table. All string types must use this streaming string format to protect future compatibility.
 	//
 	// Request: Tracer Payload.
 	// 	Content-Type: application/msgpack
