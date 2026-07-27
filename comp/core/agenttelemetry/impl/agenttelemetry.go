@@ -29,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -43,10 +44,11 @@ type atel struct {
 	logComp log.Component
 	telComp telemetry.Component
 
-	enabled bool
-	sender  sender
-	runner  runner
-	atelCfg *Config
+	enabled      bool
+	sender       sender
+	runner       runner
+	atelCfg      *Config
+	localEmitter string
 
 	lightTracer *installertelemetry.Telemetry
 
@@ -77,6 +79,8 @@ type atel struct {
 }
 
 const (
+	emitterTagName                               = "emitter"
+	defaultEmitter                               = "agent"
 	defaultErrortrackingFlushIntervalSeconds     = 60
 	defaultErrortrackingBufferSize               = 2048
 	defaultErrortrackingStartupJitterSeconds     = 0
@@ -273,6 +277,7 @@ func NewComponent(deps Requires) Provides {
 		nil,
 		nil,
 	)
+	a.localEmitter = normalizeLocalEmitter(flavor.GetFlavor())
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
@@ -292,91 +297,91 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
+func normalizeLocalEmitter(localFlavor string) string {
+	localEmitter := strings.ReplaceAll(localFlavor, "_", "-")
+	if localEmitter == "" {
+		return defaultEmitter
+	}
+	return localEmitter
+}
+
+func (a *atel) effectiveEmitter(labels []*dto.LabelPair) string {
+	for _, label := range labels {
+		if label.GetName() == emitterTagName && label.GetValue() != "" {
+			return label.GetValue()
+		}
+	}
+	if a.localEmitter != "" {
+		return a.localEmitter
+	}
+	return defaultEmitter
+}
+
+func emitterLabel(emitter string) *dto.LabelPair {
+	name := emitterTagName
+	return &dto.LabelPair{Name: &name, Value: &emitter}
+}
+
 func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
-	// Nothing to aggregate?
 	if len(ms) == 0 {
 		return nil
 	}
 
-	// Special case when no preserve tags are defined - aggregate all metrics
-	// aggregateMetric will sum all metrics into a single one without copying tags
-	if !mCfg.preserveTagsExists {
-		ma := &dto.Metric{}
-		for _, m := range ms {
-			aggregateMetric(mt, ma, m)
-		}
-
-		return []*dto.Metric{ma}
-	}
-
-	amMap := make(map[string]*dto.Metric)
-
-	// Initialize total metric
-	var totalm *dto.Metric
+	aggregates := make(map[string]*dto.Metric)
+	var totals map[string]*dto.Metric
+	var totalCounts map[string]int
 	if mCfg.AggregateTotal {
-		totalm = &dto.Metric{}
+		totals = make(map[string]*dto.Metric)
+		totalCounts = make(map[string]int)
 	}
 
-	// Enumerate the metric's timeseries and aggregate them
-	for _, m := range ms {
-		tagsKey := ""
-
-		// if tags are defined, we need to create a key from them by dropping not specified
-		// in configuration tags. The key is constructed by concatenating specified tag names
-		// and values if a timeseries has tags is not specified
-		origTags := m.GetLabel()
-		if len(origTags) > 0 {
-			// sort tags (to have a consistent key for the same tag set)
-			tags := cloneLabelsSorted(origTags)
-
-			// create a key from the tags (and drop not specified in the configuration tags)
-			var specTags = make([]*dto.LabelPair, 0, len(origTags))
-			for _, t := range tags {
-				if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
-					specTags = append(specTags, t)
+	for _, metric := range ms {
+		emitter := a.effectiveEmitter(metric.GetLabel())
+		emitterTag := emitterLabel(emitter)
+		var preservedTags []*dto.LabelPair
+		if mCfg.preserveTagsExists {
+			preservedTags = make([]*dto.LabelPair, 0, len(metric.GetLabel()))
+			for _, tag := range cloneLabelsSorted(metric.GetLabel()) {
+				if tag.GetName() == emitterTagName {
+					continue
+				}
+				if _, ok := mCfg.preserveTagsMap[tag.GetName()]; ok {
+					preservedTags = append(preservedTags, tag)
 				}
 			}
-			tagsKey = encodeSortedLabels(specTags)
+		}
 
-			if mCfg.AggregateTotal {
-				aggregateMetric(mt, totalm, m)
-			}
+		tagsKey := encodeSortedLabels([]*dto.LabelPair{emitterTag}) + encodeSortedLabels(preservedTags)
+		aggregate := aggregates[tagsKey]
+		if aggregate == nil {
+			aggregate = &dto.Metric{Label: append([]*dto.LabelPair{emitterTag}, preservedTags...)}
+			aggregates[tagsKey] = aggregate
+		}
+		aggregateMetric(mt, aggregate, metric)
 
-			// finally aggregate the metric on the created key
-			if aggm, ok := amMap[tagsKey]; ok {
-				aggregateMetric(mt, aggm, m)
-			} else {
-				// ... or create a new one with specifi value and specified tags
-				aggm := &dto.Metric{}
-				aggregateMetric(mt, aggm, m)
-				aggm.Label = specTags
-				amMap[tagsKey] = aggm
+		if mCfg.AggregateTotal {
+			total := totals[emitter]
+			if total == nil {
+				total = &dto.Metric{}
+				totals[emitter] = total
 			}
-		} else {
-			// if no tags are specified, we aggregate all metrics into a single one
-			if mCfg.AggregateTotal {
-				aggregateMetric(mt, totalm, m)
-			}
+			aggregateMetric(mt, total, metric)
+			totalCounts[emitter]++
 		}
 	}
 
-	// Add total metric if needed
-	if mCfg.AggregateTotal {
+	for emitter, total := range totals {
 		totalName := "total"
-		totalValue := strconv.Itoa(len(ms))
-		totalm.Label = []*dto.LabelPair{
-			{Name: &totalName, Value: &totalValue},
-		}
-		amMap[totalName] = totalm
+		totalValue := strconv.Itoa(totalCounts[emitter])
+		total.Label = []*dto.LabelPair{emitterLabel(emitter), {Name: &totalName, Value: &totalValue}}
+		totalKey := encodeSortedLabels(total.Label)
+		aggregates[totalKey] = total
 	}
 
-	// Anything to report?
-	if len(amMap) == 0 {
+	if len(aggregates) == 0 {
 		return nil
 	}
-
-	// Convert the map to a slice
-	return slices.Collect(maps.Values(amMap))
+	return slices.Collect(maps.Values(aggregates))
 }
 
 // Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
@@ -496,7 +501,7 @@ func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.
 	}
 
 	// filter out if tag does not contain in existing preserveTags
-	if mCfg.preserveTagsExists && !areTagsMatching(m.GetLabel(), mCfg.preserveTagsMap) {
+	if len(mCfg.preserveTagsMap) > 0 && !areTagsMatching(m.GetLabel(), mCfg.preserveTagsMap) {
 		return false
 	}
 
