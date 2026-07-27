@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Logs Agent: fixed an issue where a log source could stop collecting permanently
+    (``Bytes Read: 0``) after a log file was rotated or truncated while the Agent was
+    stopped. On start, the Agent reused the offset stored in ``registry.json`` even when
+    that offset was past the end of the current file, so the tailer seeked beyond EOF and
+    read nothing. The Agent now verifies the stored offset against the file size and
+    restarts from the beginning of the file when the offset is out of range. Sources whose
+    stored offset is still within the file continue to resume from it as before.

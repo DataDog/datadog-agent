@@ -7,6 +7,7 @@ package file
 
 import (
 	"io"
+	"os"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -44,12 +45,29 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		}
 	}
 
+	// A stored offset that lies beyond the end of the file means the file was rotated or truncated
+	// while no tailer was watching it -- typically across an Agent restart. The equivalent check for
+	// a running tailer lives in DidRotate(), but a brand-new tailer has no such protection: it would
+	// seek past EOF and read nothing. When fingerprinting is enabled the launcher consults
+	// DidRotateViaFingerprint() instead of DidRotate(), and that reports "no rotation" for a file
+	// whose head is unchanged, so nothing would ever repair the position and the source would stay
+	// at "Bytes Read: 0" indefinitely.
+	offsetBeyondEOF := false
+	if filePath != "" && value != "" {
+		if storedOffset, perr := strconv.ParseInt(value, 10, 64); perr == nil {
+			if fi, serr := os.Stat(filePath); serr == nil && storedOffset > fi.Size() {
+				log.Infof("Stored offset %d for file %s is beyond its size %d, restarting from the beginning of the file", storedOffset, filePath, fi.Size())
+				offsetBeyondEOF = true
+			}
+		}
+	}
+
 	switch {
 	case mode == config.ForceBeginning:
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
 		offset, whence = 0, io.SeekEnd
-	case value != "" && fingerprintsAlign:
+	case value != "" && fingerprintsAlign && !offsetBeyondEOF:
 		// an offset was registered, tailing mode is not forced, fingerprints are disabled or equivalent
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
@@ -61,8 +79,9 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				whence = io.SeekStart
 			}
 		}
-	case !fingerprintsAlign && value != "":
-		// Fingerprints don't align (rotation detected), start from beginning regardless of mode
+	case value != "" && (!fingerprintsAlign || offsetBeyondEOF):
+		// Rotation detected -- either the fingerprints don't align, or the stored offset is beyond
+		// the end of the file. Start from the beginning regardless of mode.
 		offset, whence = 0, io.SeekStart
 	case mode == config.Beginning:
 		offset, whence = 0, io.SeekStart
