@@ -12,9 +12,6 @@ const (
 	// pcapActionFQN is the fully-qualified action name for the Remote PCAP bundle.
 	pcapActionFQN = "com.datadoghq.remoteaction.pcap.runCapture"
 
-	// pcapBundleID is the bundle portion of pcapActionFQN (everything before the final ".").
-	pcapBundleID = "com.datadoghq.remoteaction.pcap"
-
 	// parContainerName is the name of the PAR sidecar container inside the agent DaemonSet pod.
 	parContainerName = "private-action-runner"
 

@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -132,11 +132,11 @@ func (s *ekspcapSuite) TestPCAPRunCaptureHappyFlow() {
 	taskID := uuid.New().String()
 
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, pcapActionFQN, map[string]interface{}{
-		"interface":       defaultCaptureInterface,
-		"duration":        defaultCaptureDurationSecs,
-		"filter":          defaultCaptureFilter,
-		"maxPackets":      500,
-		"maxBytes":        1048576, // 1 MiB safety cap
+		"interface":  defaultCaptureInterface,
+		"duration":   defaultCaptureDurationSecs,
+		"filter":     defaultCaptureFilter,
+		"maxPackets": 500,
+		"maxBytes":   1048576, // 1 MiB safety cap
 	})
 	s.Require().NoError(err, "failed to enqueue PCAP task")
 
@@ -170,9 +170,9 @@ func (s *ekspcapSuite) TestPCAPRunCaptureWithDNSFilter() {
 	taskID := uuid.New().String()
 
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, pcapActionFQN, map[string]interface{}{
-		"interface": defaultCaptureInterface,
-		"duration":  defaultCaptureDurationSecs,
-		"filter":    "udp port 53",
+		"interface":  defaultCaptureInterface,
+		"duration":   defaultCaptureDurationSecs,
+		"filter":     "udp port 53",
 		"maxPackets": 100,
 	})
 	s.Require().NoError(err, "failed to enqueue DNS-filter PCAP task")
