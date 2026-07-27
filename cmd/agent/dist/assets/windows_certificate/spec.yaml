@@ -288,9 +288,22 @@ files:
               Note: `certificate_store` and `server` are not supported as filter keys.
       description: |
         Each rule maps a tag key to a Go regexp pattern matched against the tag's value.
-        Opt-in tag keys (e.g. `subject_alt_name_dns`, `certificate_template_name`) require
-        the corresponding `*_tag` flag to be enabled. Invalid regexp patterns cause the check
-        to fail at configuration time.
+        Invalid regexp patterns cause the check to fail at configuration time.
+
+        Supported filter keys:
+          certificate_thumbprint     SHA-1 hex thumbprint
+          certificate_serial_number  serial number in hex
+          subject_CN                 Common Name
+          subject_O                  Organization
+          subject_alt_name_dns       DNS SAN entry               (requires subject_alternative_names_tag)
+          subject_alt_name_ip        IP SAN entry                (requires subject_alternative_names_tag)
+          subject_alt_name_email     email SAN entry             (requires subject_alternative_names_tag)
+          friendly_name              Windows friendly name       (requires friendly_name_tag)
+          enhanced_key_usage         EKU short name or OID       (requires enhanced_key_usage_tag)
+          certificate_template_name  template display name       (requires certificate_template_tag)
+          certificate_template_oid   template OID (V2 certs)     (requires certificate_template_tag)
+          issuer_CN                  issuer Common Name          (requires issuer_tag)
+          signature_algorithm        e.g. "SHA256-RSA"           (requires signature_algorithm_tag)
       required: false
     - name: tags
       fleet_configurable: true
