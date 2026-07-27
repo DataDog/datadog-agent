@@ -15,5 +15,6 @@ go_library(
         "//pkg/privateactionrunner/types",
         "//pkg/snmp/gosnmplib",
         "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@org_golang_x_sync//errgroup",
     ],
 )

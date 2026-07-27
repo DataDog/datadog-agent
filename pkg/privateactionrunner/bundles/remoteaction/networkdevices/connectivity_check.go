@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gosnmp/gosnmp"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -61,6 +62,7 @@ type ConnectivityCheckRequest struct {
 	Checks               []string                            `json:"checks"`
 	PingOptions          *PingOptions                        `json:"pingOptions,omitempty"`
 	SNMPOptions          *SNMPOptions                        `json:"snmpOptions,omitempty"`
+	Workers              int                                 `json:"workers,omitempty"`
 	EncryptedCredentials string                              `json:"encryptedCredentials"`
 	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext"`
 }
@@ -141,34 +143,47 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 }
 
 func runChecks(ctx context.Context, req ConnectivityCheckRequest, secrets secretInputs) (ConnectivityCheckResult, error) {
-	devices := make([]DeviceResult, 0, len(req.TargetIPs))
-	for _, ip := range req.TargetIPs {
-		if err := ctx.Err(); err != nil {
-			return ConnectivityCheckResult{}, err
-		}
-
-		dr := DeviceResult{IPAddress: ip}
-		for _, c := range req.Checks {
-			switch c {
-			case checkPing:
-				res, err := runPing(ip, req.PingOptions)
-				if err != nil {
-					return ConnectivityCheckResult{}, fmt.Errorf("failed to run ping check for host '%s': %w", ip, err)
-				}
-
-				dr.PingResult = res
-			case checkSNMP:
-				res, err := runSNMP(ctx, ip, req.SNMPOptions, secrets.SNMP)
-				if err != nil {
-					return ConnectivityCheckResult{}, fmt.Errorf("failed to run SNMP check for host '%s': %w", ip, err)
-				}
-
-				dr.SNMPResult = res
-			}
-		}
-		devices = append(devices, dr)
+	workers := req.Workers
+	if workers < 1 {
+		workers = 1
 	}
 
+	devices := make([]DeviceResult, len(req.TargetIPs))
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(workers)
+	for i, ip := range req.TargetIPs {
+		g.Go(func() error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			dr := DeviceResult{IPAddress: ip}
+			for _, c := range req.Checks {
+				switch c {
+				case checkPing:
+					res, err := runPing(ip, req.PingOptions)
+					if err != nil {
+						return fmt.Errorf("failed to run ping check for host '%s': %w", ip, err)
+					}
+
+					dr.PingResult = res
+				case checkSNMP:
+					res, err := runSNMP(ctx, ip, req.SNMPOptions, secrets.SNMP)
+					if err != nil {
+						return fmt.Errorf("failed to run SNMP check for host '%s': %w", ip, err)
+					}
+
+					dr.SNMPResult = res
+				}
+			}
+			devices[i] = dr
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return ConnectivityCheckResult{}, err
+	}
 	return ConnectivityCheckResult{Devices: devices}, nil
 }
 
