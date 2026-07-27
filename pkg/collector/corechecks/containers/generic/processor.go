@@ -35,6 +35,7 @@ type Processor struct {
 	extensions       map[string]ProcessorExtension
 	tagger           tagger.Component
 	agentPerformance *agentperformance.Recorder
+	now              func() time.Time
 	// extendedMemoryMetrics allows to send extednded metrics
 	extendedMemoryMetrics bool
 }
@@ -52,6 +53,7 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 		},
 		tagger:                tagger,
 		agentPerformance:      agentPerformance,
+		now:                   time.Now,
 		extendedMemoryMetrics: extendedMemoryMetrics,
 	}
 }
@@ -65,7 +67,9 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
 	if p.agentPerformance != nil {
 		p.agentPerformance.ResetRuntimeMetrics()
+		defer p.agentPerformance.CompleteRuntimeMetrics()
 	}
+	collectionTime := p.now()
 
 	allContainers := p.ctrLister.ListRunning()
 
@@ -114,7 +118,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 
 		ownerPod, _ := p.ctrLister.GetPodOfContainer(container.ID)
 
-		if err := p.processContainer(sender, tags, container, containerStats, ownerPod); err != nil {
+		if err := p.processContainer(sender, tags, container, containerStats, collectionTime, ownerPod); err != nil {
 			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 			continue
 		}
@@ -143,7 +147,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 	return nil
 }
 
-func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats, ownerPod *workloadmeta.KubernetesPod) error {
+func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats, collectionTime time.Time, ownerPod *workloadmeta.KubernetesPod) error {
 	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
 		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
@@ -154,6 +158,10 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.CPU != nil {
+		if p.agentPerformance != nil {
+			p.agentPerformance.RecordCPUUsage(container.ID, containerStats.CPU.Total, collectionTime, ownerPod)
+		}
+
 		p.sendMetric(sender.Rate, "container.cpu.usage", containerStats.CPU.Total, tags)
 		p.sendMetric(sender.Rate, "container.cpu.user", containerStats.CPU.User, tags)
 		p.sendMetric(sender.Rate, "container.cpu.system", containerStats.CPU.System, tags)

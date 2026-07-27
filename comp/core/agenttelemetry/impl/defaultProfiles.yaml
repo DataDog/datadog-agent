@@ -127,6 +127,10 @@ profiles:
         preserve_tags:
           - kind
           - pod_name
+      - name: agent_performance.cpu_usage
+        preserve_tags:
+          - kind
+          - pod_name
   schedule:
     start_after: 30
     iterations: 0

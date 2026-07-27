@@ -7,6 +7,7 @@ package agentperformance
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -124,6 +125,105 @@ func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) 
 
 	assertGaugeValue(t, tel, MemoryUsage, clusterAgentComponent, podName, 10)
 	assertGaugeValue(t, tel, MemoryUsage, "agent", podName, 5)
+}
+
+func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), time.Unix(100, 0), newTestPod(nodeAgentComponent, "node-agent-pod"))
+	recorder.CompleteRuntimeMetrics()
+
+	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
+}
+
+func TestRecorderCPUUsageAggregatesNodeAgentContainers(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+	nodeAgentPod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	collectionStart := time.Unix(100, 0)
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container-1", ptr(float64(time.Second)), collectionStart, nodeAgentPod)
+	recorder.RecordCPUUsage("node-agent-container-2", ptr(float64(2*time.Second)), collectionStart, nodeAgentPod)
+	recorder.CompleteRuntimeMetrics()
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container-1", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), nodeAgentPod)
+	recorder.RecordCPUUsage("node-agent-container-2", ptr(float64(4*time.Second)), collectionStart.Add(10*time.Second), nodeAgentPod)
+	recorder.CompleteRuntimeMetrics()
+
+	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.45)
+}
+
+func TestRecorderCPUUsageKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+	collectionStart := time.Unix(100, 0)
+	nodeAgentPod := newTestPod(nodeAgentComponent, "agent-pod")
+	clusterAgentPod := newTestPod(clusterAgentComponent, "agent-pod")
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, nodeAgentPod)
+	recorder.RecordCPUUsage("cluster-agent-container", ptr(float64(2*time.Second)), collectionStart, clusterAgentPod)
+	recorder.CompleteRuntimeMetrics()
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), nodeAgentPod)
+	recorder.RecordCPUUsage("cluster-agent-container", ptr(float64(3*time.Second)), collectionStart.Add(10*time.Second), clusterAgentPod)
+	recorder.CompleteRuntimeMetrics()
+
+	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "agent-pod", 0.25)
+	assertGaugeValue(t, tel, CPUUsage, clusterAgentComponent, "agent-pod", 0.1)
+}
+
+func TestRecorderCPUUsageDecreasedCounterReestablishesBaseline(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+	pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	collectionStart := time.Unix(100, 0)
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second)), collectionStart, pod)
+	recorder.CompleteRuntimeMetrics()
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart.Add(10*time.Second), pod)
+	recorder.CompleteRuntimeMetrics()
+
+	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+	recorder.CompleteRuntimeMetrics()
+
+	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.25)
+}
+
+func TestRecorderCPUUsageEmptyLaterSnapshotClearsOldContribution(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+	pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	collectionStart := time.Unix(100, 0)
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
+	recorder.CompleteRuntimeMetrics()
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), pod)
+	recorder.CompleteRuntimeMetrics()
+	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.25)
+
+	recorder.ResetRuntimeMetrics()
+	recorder.CompleteRuntimeMetrics()
+	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(6*time.Second)), collectionStart.Add(30*time.Second), pod)
+	recorder.CompleteRuntimeMetrics()
+	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 }
 
 func TestRecorderTelemetryAggregatesSelectedComponents(t *testing.T) {

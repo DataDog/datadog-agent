@@ -8,14 +8,20 @@ package generic
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
@@ -166,6 +172,52 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 			mockSender.AssertMetric(t, "Rate", "container.net.rcvd.packets", 421, "", expectedEth42Tags)
 		})
 	}
+}
+
+func TestProcessorRunRecordsAgentPodCPUUsage(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	container := CreateContainerMeta("containerd", "node-agent-container")
+	cpuTotal := float64(time.Second)
+	containerStats := &provider.ContainerStats{CPU: &provider.ContainerCPUStats{Total: &cpuTotal}}
+	telemetry := telemetrymock.New(t)
+	recorder := agentperformance.NewRecorder(telemetry)
+	collectionStart := time.Unix(100, 0)
+
+	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", container.ID), "foo", []string{"container_id:" + container.ID}, nil, nil, nil)
+	mockSender, processor, accessor := createTestProcessor(t,
+		[]*workloadmeta.Container{container},
+		map[string]mock.ContainerEntry{container.ID: {ContainerStats: containerStats}},
+		GenericMetricsAdapter{},
+		nil,
+		fakeTagger,
+		recorder,
+		false,
+	)
+	accessor.pods[container.ID] = &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "node-agent-pod",
+			Labels: map[string]string{
+				kubernetes.KubeAppComponentLabelKey: "agent",
+			},
+		},
+	}
+	processor.now = func() time.Time { return collectionStart }
+
+	assert.NoError(t, processor.Run(mockSender, 0))
+	_, err := telemetry.GetGaugeMetric("agent_performance", agentperformance.CPUUsage)
+	assert.Error(t, err)
+
+	cpuTotal = float64(3*time.Second + 500*time.Millisecond)
+	processor.now = func() time.Time { return collectionStart.Add(10 * time.Second) }
+	assert.NoError(t, processor.Run(mockSender, 0))
+
+	metrics, err := telemetry.GetGaugeMetric("agent_performance", agentperformance.CPUUsage)
+	if !assert.NoError(t, err) || !assert.Len(t, metrics, 1) {
+		return
+	}
+	assert.Equal(t, 0.25, metrics[0].Value())
+	assert.Equal(t, "agent", metrics[0].Tags()["kind"])
+	assert.Equal(t, "node-agent-pod", metrics[0].Tags()[tags.KubePod])
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {
