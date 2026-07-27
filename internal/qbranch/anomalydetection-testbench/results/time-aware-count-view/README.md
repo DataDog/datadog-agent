@@ -114,10 +114,10 @@ view under production-like cardinality.
 - bucket widths of 1, 5, and 10 seconds
 - idle TTL of 300 seconds
 
-The scorer outputs are in [f1](f1/). Sparse and materialized-control values in
-the comparison tables came from the paired experiment on the stacked
-tokenizer/regularization branch; those control implementations are intentionally
-not included in this focused PR.
+Raw scorer outputs are retained on the local stacked experiment branch rather
+than committed here. Sparse and materialized-control values in the comparison
+tables came from that paired tokenizer/regularization experiment; those control
+implementations are intentionally not included in this focused PR.
 
 ## Recommendation
 
