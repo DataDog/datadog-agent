@@ -129,7 +129,7 @@ func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) 
 	assertGaugeValue(t, tel, MemoryUsage, "agent", podName, 5)
 }
 
-func TestRecorderRuntimeMetricsCallbackSerializesSnapshots(t *testing.T) {
+func TestRecorderRuntimeMetricsCallbackSerializesCPUSnapshots(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
 	firstCallbackEntered := make(chan struct{})
@@ -139,6 +139,7 @@ func TestRecorderRuntimeMetricsCallbackSerializesSnapshots(t *testing.T) {
 
 	go func() {
 		firstResult <- recorder.WithRuntimeMetrics(func() error {
+			recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), time.Unix(100, 0), newNodeAgentTestPod("node-agent-pod"))
 			close(firstCallbackEntered)
 			<-releaseFirstCallback
 			return expectedErr
@@ -150,6 +151,7 @@ func TestRecorderRuntimeMetricsCallbackSerializesSnapshots(t *testing.T) {
 
 	close(releaseFirstCallback)
 	assert.ErrorIs(t, <-firstResult, expectedErr)
+	assert.Contains(t, recorder.previousCPUSamples, "node-agent-container")
 	if assert.True(t, recorder.runtimeSnapshotMu.TryLock()) {
 		recorder.runtimeSnapshotMu.Unlock()
 	}

@@ -53,7 +53,6 @@ type Recorder struct {
 	cpuUsage             telemetry.Gauge
 
 	runtimeSnapshotMu      sync.Mutex
-	cpuMu                  sync.Mutex
 	previousCPUSamples     map[string]cpuSample
 	currentCPUSamples      map[string]cpuSample
 	currentCPUContainerIDs map[string]struct{}
@@ -130,17 +129,12 @@ func (t *Recorder) ResetRuntimeMetrics() {
 		t.cpuUsage.DeletePartialMatch(match)
 	}
 
-	t.cpuMu.Lock()
-	defer t.cpuMu.Unlock()
 	t.currentCPUSamples = make(map[string]cpuSample)
 	t.currentCPUContainerIDs = make(map[string]struct{})
 }
 
 // CompleteRuntimeMetrics finalizes CPU samples from the completed runtime snapshot.
 func (t *Recorder) CompleteRuntimeMetrics() {
-	t.cpuMu.Lock()
-	defer t.cpuMu.Unlock()
-
 	for containerID := range t.currentCPUContainerIDs {
 		if _, hasCurrentSample := t.currentCPUSamples[containerID]; hasCurrentSample {
 			continue
@@ -156,13 +150,11 @@ func (t *Recorder) CompleteRuntimeMetrics() {
 }
 
 // MarkCPUContainerPresent retains the prior CPU sample for a listed container without a new sample.
+// It must be called from a WithRuntimeMetrics callback.
 func (t *Recorder) MarkCPUContainerPresent(containerID string) {
 	if containerID == "" {
 		return
 	}
-
-	t.cpuMu.Lock()
-	defer t.cpuMu.Unlock()
 
 	if _, hasPreviousSample := t.previousCPUSamples[containerID]; hasPreviousSample {
 		t.currentCPUContainerIDs[containerID] = struct{}{}
@@ -170,13 +162,11 @@ func (t *Recorder) MarkCPUContainerPresent(containerID string) {
 }
 
 // RecordCPUUsage adds a container's delta-derived CPU cores to its eligible Agent pod aggregate.
+// It must be called from a WithRuntimeMetrics callback.
 func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp time.Time, pod *workloadmeta.KubernetesPod) {
 	if containerID == "" || total == nil {
 		return
 	}
-
-	t.cpuMu.Lock()
-	defer t.cpuMu.Unlock()
 
 	t.currentCPUContainerIDs[containerID] = struct{}{}
 	if *total < 0 || math.IsNaN(*total) || math.IsInf(*total, 0) {
