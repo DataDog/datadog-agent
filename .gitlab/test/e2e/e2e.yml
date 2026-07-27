@@ -323,6 +323,13 @@ new-e2e-containers-k8s-latest:
 # AWS-VM job's node image is pulled through an ECR mirror that has v1.36.2 cached from before
 # it was retracted from Docker Hub upstream, but this job pulls directly from registry-1.docker.io
 # (no pull-through cache for non-AWS runners), where only v1.36.1 is actually published.
+#
+# Overrides PULUMI_BACKEND_URL to a local filesystem backend: the org-wide default backend is
+# an S3 bucket, and Pulumi authenticates to it via the AWS SDK default credential chain, which
+# falls back to EC2 IMDS. The docker-in-docker runner class isn't an EC2 instance backed by
+# that role, so IMDS is unreachable and every stack-state write fails. The stack itself lives
+# only for the duration of this job (see REMOTE_STACK_CLEANING skip in suite.go for the same
+# reasoning), so a local backend under CI_PROJECT_DIR is sufficient and disappears with the runner.
 new-e2e-containers-kind-local:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
@@ -346,6 +353,7 @@ new-e2e-containers-kind-local:
     TEAM: container-integrations
     E2E_PROVISIONER: kind-local
     E2E_GCP_IMAGE_PULL_PASSWORD: ""
+    PULUMI_BACKEND_URL: "file://${CI_PROJECT_DIR}/.pulumi-local-backend"
     EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
 
 new-e2e-containers-eks-init:
