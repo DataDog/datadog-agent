@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || darwin
 
 package coat
 
@@ -61,16 +61,31 @@ func (s *mockSession) Disconnect() error {
 	return nil
 }
 
+func serviceSnapshotByID(t *testing.T, snapshot Snapshot, id string) ServiceSnapshot {
+	t.Helper()
+
+	for _, service := range snapshot.Services {
+		if service.ID == id {
+			return service
+		}
+	}
+	require.Failf(t, "missing service snapshot", "service %q was not collected", id)
+	return ServiceSnapshot{}
+}
+
 func setupDDOTInstallFixture(t *testing.T) string {
 	t.Helper()
 
+	ddot, ok := serviceByID("ddot")
+	require.True(t, ok)
+
 	root := t.TempDir()
-	marker := filepath.Join(root, migratableServices[0].InstallMarkerRels[0])
+	marker := filepath.Join(root, ddot.InstallMarkerRels[0])
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, migratableServices[0].ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -78,13 +93,16 @@ func setupDDOTInstallFixture(t *testing.T) string {
 }
 
 func TestCollectInstalledViaStandaloneMarkerOnly(t *testing.T) {
+	ddot, ok := serviceByID("ddot")
+	require.True(t, ok)
+
 	root := t.TempDir()
-	standalone := filepath.Join(root, migratableServices[0].InstallMarkerRels[1])
+	standalone := filepath.Join(root, ddot.InstallMarkerRels[1])
 	require.NoError(t, os.MkdirAll(filepath.Dir(standalone), 0o755))
 	require.NoError(t, os.WriteFile(standalone, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, migratableServices[0].ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -92,8 +110,8 @@ func TestCollectInstalledViaStandaloneMarkerOnly(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{})
 
 	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
-	assert.True(t, snapshot.Services[0].Installed,
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.True(t, service.Installed,
 		"standalone datadog-agent-ddot layout uses embedded/bin/otel-agent without ext/ddot")
 }
 
@@ -108,9 +126,8 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 	})
 
 	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
 
-	service := snapshot.Services[0]
+	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.Equal(t, "ddot", service.ID)
 	assert.True(t, service.Installed)
 	assert.True(t, service.ProcmgrConfigured)
@@ -118,6 +135,48 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 	assert.True(t, snapshot.Daemon.Reachable)
 	assert.True(t, snapshot.Daemon.Ready)
+}
+
+func TestCollectADPProcmgrRunning(t *testing.T) {
+	adp, ok := serviceByID("agent-data-plane")
+	require.True(t, ok)
+	assert.Equal(t, "datadog-agent-data-plane", adp.ProcmgrProcessName)
+	assert.Equal(t, "datadog-agent-data-plane.yaml", adp.ProcmgrConfigFile)
+	assert.Equal(t, []string{
+		"embedded/bin/agent-data-plane",
+		"bin/agent/agent-data-plane",
+	}, adp.InstallMarkerRels)
+	assert.Equal(t, []string{
+		"datadog-agent-data-plane.service",
+		"datadog-agent-data-plane-exp.service",
+	}, adp.LegacySystemdUnits)
+
+	root := t.TempDir()
+	marker := filepath.Join(root, "embedded", "bin", "agent-data-plane")
+	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
+	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, "datadog-agent-data-plane.yaml"),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-data-plane": {Name: "datadog-agent-data-plane", State: pb.ProcessState_RUNNING},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+
+	service := serviceSnapshotByID(t, snapshot, "agent-data-plane")
+	assert.Equal(t, "agent-data-plane", service.ID)
+	assert.True(t, service.Installed)
+	assert.True(t, service.ProcmgrConfigured)
+	assert.Equal(t, pb.ProcessState_RUNNING, service.ProcmgrState)
+	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 }
 
 func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
@@ -130,9 +189,8 @@ func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 	})
 
 	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
 
-	service := snapshot.Services[0]
+	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 	assert.Equal(t, pb.ProcessState_STARTING, service.ProcmgrState)
 }
@@ -143,9 +201,8 @@ func TestCollectNoProcmgrNoLegacy(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{})
 
 	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
 
-	service := snapshot.Services[0]
+	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.False(t, service.Installed)
 	assert.False(t, service.ProcmgrConfigured)
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
@@ -153,10 +210,13 @@ func TestCollectNoProcmgrNoLegacy(t *testing.T) {
 }
 
 func TestCollectInstallMarkerAbsent(t *testing.T) {
+	ddot, ok := serviceByID("ddot")
+	require.True(t, ok)
+
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, migratableServices[0].ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -164,26 +224,27 @@ func TestCollectInstallMarkerAbsent(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{})
 
 	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
 
-	service := snapshot.Services[0]
+	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.False(t, service.Installed, "without install marker, Installed must stay false")
 	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
 }
 
 func TestCollectProcmgrConfigAbsent(t *testing.T) {
+	ddot, ok := serviceByID("ddot")
+	require.True(t, ok)
+
 	root := t.TempDir()
-	marker := filepath.Join(root, migratableServices[0].InstallMarkerRels[0])
+	marker := filepath.Join(root, ddot.InstallMarkerRels[0])
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 
 	collector := NewCollectorWithClient(root, &mockClient{})
 
 	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
 
-	service := snapshot.Services[0]
+	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.True(t, service.Installed)
 	assert.False(t, service.ProcmgrConfigured)
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
@@ -203,10 +264,10 @@ func TestCollectDaemonUnreachable(t *testing.T) {
 
 	assert.False(t, snapshot.Daemon.Reachable, "daemon status error should yield empty snapshot")
 	assert.False(t, snapshot.Daemon.Ready)
-	require.Len(t, snapshot.Services, 1)
-	assert.Equal(t, ManagementModeNone, snapshot.Services[0].ManagementMode,
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.Equal(t, ManagementModeNone, service.ManagementMode,
 		"daemon failure prevents listing processes")
-	assert.Equal(t, pb.ProcessState_UNKNOWN, snapshot.Services[0].ProcmgrState)
+	assert.Equal(t, pb.ProcessState_UNKNOWN, service.ProcmgrState)
 }
 
 func TestCollectDaemonReachableListFails(t *testing.T) {
@@ -222,7 +283,7 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 
 	assert.True(t, snapshot.Daemon.Reachable)
 	assert.True(t, snapshot.Daemon.Ready)
-	require.Len(t, snapshot.Services, 1)
-	assert.Equal(t, ManagementModeNone, snapshot.Services[0].ManagementMode)
-	assert.Equal(t, pb.ProcessState_UNKNOWN, snapshot.Services[0].ProcmgrState)
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.Equal(t, ManagementModeNone, service.ManagementMode)
+	assert.Equal(t, pb.ProcessState_UNKNOWN, service.ProcmgrState)
 }
