@@ -71,9 +71,10 @@
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
     - !reference [.sanitize_goproxy]
-    - bash .gitlab/build/package_build/build_agent_dmg.sh
-    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities (no macOS IAM instance role needed)
+    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities (no macOS IAM instance role needed);
+    # must run before build_agent_dmg.sh since Omnibus reads it for S3 cache access during the build.
     - ci-identities-gitlab-job-client assume-role
+    - bash .gitlab/build/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
 
 agent_dmg-x64-a7:
