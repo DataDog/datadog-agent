@@ -22,7 +22,6 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -144,7 +143,7 @@ func TestNotRunning(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("process_config.cmd_port", 8082)
 
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(cfg)
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(cfg)
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("https://%s/agent/status", addressPort)
 
