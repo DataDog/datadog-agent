@@ -771,11 +771,6 @@ workflow:
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
-
-.on_linux_installer_package_changes:
-  - !reference [.except_mergequeue]
-  - <<: *if_disable_e2e_tests
-    when: never
   - changes:
       paths:
         - pkg/fleet/installer/packages/**/*
