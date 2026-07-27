@@ -15,7 +15,7 @@ go_library(
         "//comp/otelcol/otlp/components/exporter/logsagentexporter",
         "//comp/otelcol/otlp/components/metricsclient",
         "//pkg/config/model",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/api",
         "//pkg/util/compression/impl-noop",
