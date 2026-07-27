@@ -164,6 +164,169 @@ func TestDeleteConfig(t *testing.T) {
 	})
 }
 
+func TestValidateStoreConfigValues(t *testing.T) {
+	tests := []struct {
+		name          string
+		min           int
+		max           int
+		maxBytes      int64
+		expectedMin   int
+		expectedMax   int
+		expectedBytes int64
+	}{
+		{
+			name:          "valid values pass through unchanged",
+			min:           3,
+			max:           15,
+			maxBytes:      1000000,
+			expectedMin:   3,
+			expectedMax:   15,
+			expectedBytes: 1000000,
+		},
+		{
+			name:          "zero values fall back to defaults",
+			min:           0,
+			max:           0,
+			maxBytes:      0,
+			expectedMin:   defaultMinConfigsPerDevice,
+			expectedMax:   defaultMaxConfigsPerDevice,
+			expectedBytes: defaultMaxRawConfigStoreBytes,
+		},
+		{
+			name:          "negative values fall back to defaults",
+			min:           -1,
+			max:           -5,
+			maxBytes:      -100,
+			expectedMin:   defaultMinConfigsPerDevice,
+			expectedMax:   defaultMaxConfigsPerDevice,
+			expectedBytes: defaultMaxRawConfigStoreBytes,
+		},
+		{
+			name:          "min greater than max resets both to defaults",
+			min:           20,
+			max:           10,
+			maxBytes:      5000,
+			expectedMin:   defaultMinConfigsPerDevice,
+			expectedMax:   defaultMaxConfigsPerDevice,
+			expectedBytes: 5000,
+		},
+		{
+			name:          "min equal to max is valid",
+			min:           7,
+			max:           7,
+			maxBytes:      999,
+			expectedMin:   7,
+			expectedMax:   7,
+			expectedBytes: 999,
+		},
+		{
+			name:          "only min invalid falls back, max kept",
+			min:           0,
+			max:           20,
+			maxBytes:      5000,
+			expectedMin:   defaultMinConfigsPerDevice,
+			expectedMax:   20,
+			expectedBytes: 5000,
+		},
+		{
+			name:          "only max invalid falls back, min kept",
+			min:           3,
+			max:           0,
+			maxBytes:      5000,
+			expectedMin:   3,
+			expectedMax:   defaultMaxConfigsPerDevice,
+			expectedBytes: 5000,
+		},
+		{
+			name:          "only maxBytes invalid falls back",
+			min:           3,
+			max:           15,
+			maxBytes:      -1,
+			expectedMin:   3,
+			expectedMax:   15,
+			expectedBytes: defaultMaxRawConfigStoreBytes,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			validatedMin, validatedMax, validatedBytes := validateStoreConfigValues(tt.min, tt.max, tt.maxBytes)
+			assert.Equal(t, tt.expectedMin, validatedMin, "min")
+			assert.Equal(t, tt.expectedMax, validatedMax, "max")
+			assert.Equal(t, tt.expectedBytes, validatedBytes, "maxBytes")
+		})
+	}
+}
+
+func TestUpdateStoreConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		min           int
+		max           int
+		maxBytes      int64
+		expectedMin   int
+		expectedMax   int
+		expectedBytes int64
+	}{
+		{
+			name:          "applies valid custom values",
+			min:           2,
+			max:           20,
+			maxBytes:      9999,
+			expectedMin:   2,
+			expectedMax:   20,
+			expectedBytes: 9999,
+		},
+		{
+			name:          "keeps defaults when zeros are passed",
+			min:           0,
+			max:           0,
+			maxBytes:      0,
+			expectedMin:   defaultMinConfigsPerDevice,
+			expectedMax:   defaultMaxConfigsPerDevice,
+			expectedBytes: defaultMaxRawConfigStoreBytes,
+		},
+		{
+			name:          "resets min and max when min exceeds max",
+			min:           50,
+			max:           10,
+			maxBytes:      5000,
+			expectedMin:   defaultMinConfigsPerDevice,
+			expectedMax:   defaultMaxConfigsPerDevice,
+			expectedBytes: 5000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cs := newTestConfigStore(t)
+			cs.UpdateStoreConfig(tt.min, tt.max, tt.maxBytes)
+
+			assert.Equal(t, tt.expectedMin, cs.minConfigsPerDevice, "min")
+			assert.Equal(t, tt.expectedMax, cs.maxConfigsPerDevice, "max")
+			assert.Equal(t, tt.expectedBytes, cs.maxRawConfigStoreBytes, "maxBytes")
+		})
+	}
+
+	t.Run("successive updates apply correctly", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.UpdateStoreConfig(3, 30, 1000)
+		assert.Equal(t, 3, cs.minConfigsPerDevice)
+
+		cs.UpdateStoreConfig(6, 60, 2000)
+		assert.Equal(t, 6, cs.minConfigsPerDevice)
+		assert.Equal(t, 60, cs.maxConfigsPerDevice)
+		assert.Equal(t, int64(2000), cs.maxRawConfigStoreBytes)
+	})
+}
+
+func TestOpenSetsDefaults(t *testing.T) {
+	cs := newTestConfigStore(t)
+	assert.Equal(t, defaultMinConfigsPerDevice, cs.minConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, cs.maxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, cs.maxRawConfigStoreBytes)
+}
+
 func TestHashConfig(t *testing.T) {
 	t.Run("deterministic", func(t *testing.T) {
 		h1 := HashConfig("hello")
