@@ -1,0 +1,57 @@
+Subject: [PATCH] Honor explicit libffi flags on Darwin
+
+CPython's configure script probes the macOS SDK libffi before it tries
+pkg-config or caller-provided LIBFFI_CFLAGS/LIBFFI_LIBS. In Bazel we pass
+explicit libffi flags for the hermetic dependency staged by rules_foreign_cc;
+do not overwrite those with the SDK libffi choice.
+---
+ configure    | 6 ++++++
+ configure.ac | 2 ++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/configure b/configure
+index 0000000000..0000000000 100755
+--- a/configure
++++ b/configure
+@@ -14524,6 +14524,9 @@ have_libffi=missing
+ if test "x$ac_sys_system" = xDarwin
+ then :
+ 
++  if test -z "$LIBFFI_CFLAGS$LIBFFI_LIBS"
++then :
++
+   save_CFLAGS=$CFLAGS
+ save_CPPFLAGS=$CPPFLAGS
+ save_LDFLAGS=$LDFLAGS
+@@ -14596,6 +14599,9 @@ LDFLAGS=$save_LDFLAGS
+ LIBS=$save_LIBS
+ 
+ 
++fi
++
++
+ fi
+ if test "x$have_libffi" = xmissing
+ then :
+
+diff --git a/configure.ac b/configure.ac
+index 0000000000..0000000000 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -4098,6 +4098,7 @@ dnl detect libffi
+ have_libffi=missing
+ AS_VAR_IF([ac_sys_system], [Darwin], [
++  AS_IF([test -z "$LIBFFI_CFLAGS$LIBFFI_LIBS"], [
+   WITH_SAVE_ENV([
+     CFLAGS="-I${SDKROOT}/usr/include/ffi $CFLAGS"
+     AC_CHECK_HEADER([ffi.h], [
+@@ -4109,6 +4110,7 @@ AS_VAR_IF([ac_sys_system], [Darwin], [
+       ])
+     ])
+   ])
++  ])
+ ])
+ AS_VAR_IF([have_libffi], [missing], [
+   PKG_CHECK_MODULES([LIBFFI], [libffi], [have_libffi=yes], [
+-- 
+2.52.0

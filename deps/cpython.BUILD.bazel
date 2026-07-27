@@ -172,12 +172,31 @@ UNIX_BINS = [
 LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
 MACOS_DYLIB = "libpython{}.dylib".format(PYTHON_MAJOR_MINOR)
 
-python_deps = {
+python_deps = [
+    "libffi",
+    "libsqlite3",
+    "zlib",
+    "bzip2",
+    "liblzma",
+]
+
+python_dep_libs = {
     "libffi": "-lffi",
     "libsqlite3": "-lsqlite3",
     "zlib": "-lz",
     "bzip2": "-lbz2",
     "liblzma": "-llzma",
+}
+
+# On macOS, the hermetic SDK's /usr/lib is injected before Bazel dependency
+# library search paths. Use exact files from rules_foreign_cc's staged deps
+# directory so CPython extension modules cannot resolve to SDK libraries.
+python_dep_libs_explicit = {
+    "libffi": "$$EXT_BUILD_DEPS/lib/libffi.a",
+    "libsqlite3": "$$EXT_BUILD_DEPS/lib/libsqlite3.dylib",
+    "zlib": "$$EXT_BUILD_DEPS/lib/libz.dylib",
+    "bzip2": "$$EXT_BUILD_DEPS/lib/libbz2.dylib",
+    "liblzma": "$$EXT_BUILD_DEPS/lib/liblzma.dylib",
 }
 
 configure_make(
@@ -222,11 +241,17 @@ configure_make(
         "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
     } | {
         dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
-        for dep in python_deps.keys()
-    } | {
-        dep.upper() + "_LIBS": lib
-        for dep, lib in python_deps.items()
+        for dep in python_deps
     } | select({
+        "@platforms//os:macos": {
+            dep.upper() + "_LIBS": lib
+            for dep, lib in python_dep_libs_explicit.items()
+        },
+        "//conditions:default": {
+            dep.upper() + "_LIBS": lib
+            for dep, lib in python_dep_libs.items()
+        },
+    }) | select({
         "@platforms//os:macos": {
             # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the same flags
             # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead

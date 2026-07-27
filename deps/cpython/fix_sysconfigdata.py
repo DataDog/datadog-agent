@@ -54,11 +54,16 @@ def _fix_bazel_out_path(segment, install_prefix):
     """Best-effort: collapse bazel-out sandbox paths to the install prefix.
 
     Paths containing bazel-out are Bazel build artefacts that don't exist at
-    install time. If the path ends with a known suffix (lib, include, ...) we
-    keep that suffix; otherwise we map the whole path to the install prefix.
+    install time. If the path points into rules_foreign_cc's staged dependency
+    tree, preserve its install-prefix-relative suffix. If the path ends with a
+    known suffix (lib, include, ...) we keep that suffix; otherwise we map the
+    whole path to the install prefix.
     """
     if "bazel-out" not in segment:
         return segment
+    ext_build_deps_marker = ".ext_build_deps/"
+    if ext_build_deps_marker in segment:
+        return install_prefix + "/" + segment.split(ext_build_deps_marker, 1)[1]
     basename = os.path.basename(segment)
     if basename in _KNOWN_SUFFIXES:
         return install_prefix + "/" + basename

@@ -27,6 +27,7 @@ _FIXTURE = textwrap.dedent(f"""\
         "VERSION": "3.13.0",
         "LIBDIR": "{_SANDBOX_PREFIX}/lib",
         "INCLUDEPY": "{_SANDBOX_PREFIX}/include/python3.13",
+        "MODULE__SQLITE3_LDFLAGS": "/execroot/_main/bazel-out/arch/bin/external/+repo+cpython/python_unix.ext_build_deps/lib/libsqlite3.dylib",
         "prefix": "{_SANDBOX_PREFIX}",
     }}
 """)
@@ -56,6 +57,7 @@ class TestFixSysconfigdata(unittest.TestCase):
         self.assertEqual(build_time_vars["LIBDIR"], _PREFIX + "/lib")
         self.assertEqual(build_time_vars["INCLUDEPY"], _PREFIX + "/include/python3.13")
         self.assertEqual(build_time_vars["prefix"], _PREFIX)
+        self.assertEqual(build_time_vars["MODULE__SQLITE3_LDFLAGS"], _PREFIX + "/lib/libsqlite3.dylib")
 
         # FLAGS_TO_CLEAR: wiped entirely
         self.assertEqual(build_time_vars["CFLAGS"], "")
