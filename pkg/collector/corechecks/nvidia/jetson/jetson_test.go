@@ -623,7 +623,7 @@ func TestThor(t *testing.T) {
 
 func TestThorNoGpuFields(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// RAM 9038/125772MB (lfb 62x4MB)
@@ -676,7 +676,7 @@ func TestThorNoGpuFields(t *testing.T) {
 
 func TestGpuMetricSenderEMCWithoutGPU(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	gpuSender := &gpuMetricSender{}
 	require.NoError(t, gpuSender.Init())
 
