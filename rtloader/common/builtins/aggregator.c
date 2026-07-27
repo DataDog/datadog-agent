@@ -86,17 +86,24 @@ void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
 }
 
 
-/*! \fn py_tag_to_c(PyObject *py_tags)
+// PY_TAG_TO_C_STACK_SIZE is the threshold below which py_tag_to_c uses the
+// caller-provided stack buffer instead of a heap allocation for the pointer
+// array. Callers must declare: char *tags_buf[PY_TAG_TO_C_STACK_SIZE].
+#define PY_TAG_TO_C_STACK_SIZE 33
+
+/*! \fn py_tag_to_c(PyObject *py_tags, char **buf, int buf_size)
     \brief A function to convert a list of python strings (tags) into an
     array of C-strings.
+    \param buf   Caller-provided stack buffer used when len < buf_size.
+    \param buf_size  Number of slots in buf (must be >= PY_TAG_TO_C_STACK_SIZE).
     \return a char ** pointer to the C-representation of the provided python
-    tag list. In the event of failure NULL is returned.
+    tag list, or NULL on failure. When the returned pointer equals buf the
+    array is stack-owned; otherwise it is heap-owned and must be _free'd.
 
-    The returned char ** string array pointer is heap allocated here and should
-    be subsequently freed by the caller. This function may set and raise python
-    interpreter errors. The function is static and not in the builtin's API.
+    This function may set and raise python interpreter errors.
+    The function is static and not in the builtin's API.
 */
-static char **py_tag_to_c(PyObject *py_tags)
+static char **py_tag_to_c(PyObject *py_tags, char **buf, int buf_size)
 {
     char **tags = NULL;
     PyObject *py_tags_list = NULL; // new reference
@@ -111,12 +118,9 @@ static char **py_tag_to_c(PyObject *py_tags)
         PyErr_SetString(PyExc_RuntimeError, "could not compute tags length");
         return NULL;
     } else if (len == 0) {
-        if (!(tags = _malloc(sizeof(*tags)))) {
-            PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
-            return NULL;
-        }
-        tags[0] = NULL;
-        return tags;
+        // Use the stack buffer even for the empty case to avoid a malloc.
+        buf[0] = NULL;
+        return buf;
     }
 
     py_tags_list = PySequence_Fast(py_tags, "py_tags is not a sequence"); // new reference
@@ -124,10 +128,14 @@ static char **py_tag_to_c(PyObject *py_tags)
         goto done;
     }
 
-    if (!(tags = _malloc(sizeof(*tags) * (len + 1)))) {
+    // Use the caller's stack buffer when it fits; heap-allocate for large lists.
+    if (len < buf_size) {
+        tags = buf;
+    } else if (!(tags = _malloc(sizeof(*tags) * (len + 1)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
         goto done;
     }
+
     int nb_valid_tag = 0;
     int i;
     for (i = 0; i < len; i++) {
@@ -148,20 +156,22 @@ done:
     return tags;
 }
 
-/*! \fn free_tags(char **tags)
-    \brief A helper function to free the memory allocated by the py_tag_to_c() function.
+/*! \fn free_tags(char **tags, char **buf)
+    \brief Frees memory allocated by py_tag_to_c.
 
-    This function is for internal use and expects the tag array to be properly intialized,
-    and have a NULL canary at the end of the array, just like py_tag_to_c() initializes and
-    populates the array. Be mindful if using this function in any other context.
+    \param buf  The stack buffer originally passed to py_tag_to_c.
+    When tags == buf the pointer array is stack-owned and only the
+    individual strings are freed; otherwise the array itself is also _free'd.
 */
-static void free_tags(char **tags)
+static void free_tags(char **tags, char **buf)
 {
     int i;
     for (i = 0; tags[i] != NULL; i++) {
         _free(tags[i]);
     }
-    _free(tags);
+    if (tags != buf) {
+        _free(tags);
+    }
 }
 
 /*! \fn submit_metric(PyObject *self, PyObject *args)
@@ -188,6 +198,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     char *hostname = NULL;
     char *check_id = NULL;
     char **tags = NULL;
+    char *tags_buf[PY_TAG_TO_C_STACK_SIZE];
     int mt;
     double value;
     bool flush_first_value = false;
@@ -197,12 +208,12 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
         goto error;
     }
 
-    if ((tags = py_tag_to_c(py_tags)) == NULL)
+    if ((tags = py_tag_to_c(py_tags, tags_buf, PY_TAG_TO_C_STACK_SIZE)) == NULL)
         goto error;
 
     cb_submit_metric(check_id, mt, name, value, tags, hostname, flush_first_value);
 
-    free_tags(tags);
+    free_tags(tags, tags_buf);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -239,18 +250,19 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args)
     char *message = NULL;
     char *check_id = NULL;
     char **tags = NULL;
+    char *tags_buf[PY_TAG_TO_C_STACK_SIZE];
 
     // aggregator.submit_service_check(self, check_id, name, status, tags, hostname, message)
     if (!PyArg_ParseTuple(args, "OssiOss", &check, &check_id, &name, &status, &py_tags, &hostname, &message)) {
         goto error;
     }
 
-    if ((tags = py_tag_to_c(py_tags)) == NULL)
+    if ((tags = py_tag_to_c(py_tags, tags_buf, PY_TAG_TO_C_STACK_SIZE)) == NULL)
         goto error;
 
     cb_submit_service_check(check_id, name, status, tags, hostname, message);
 
-    free_tags(tags);
+    free_tags(tags, tags_buf);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
@@ -328,9 +340,10 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     ev->source_type_name = as_string(PyDict_GetItemString(event_dict, "source_type_name"));
     ev->event_type = as_string(PyDict_GetItemString(event_dict, "event_type"));
     // process the list of tags, set ev->tags = NULL if tags are missing
+    char *ev_tags_buf[PY_TAG_TO_C_STACK_SIZE];
     py_tags = PyDict_GetItemString(event_dict, "tags");
     if (py_tags != NULL) {
-        ev->tags = py_tag_to_c(py_tags);
+        ev->tags = py_tag_to_c(py_tags, ev_tags_buf, PY_TAG_TO_C_STACK_SIZE);
         if (ev->tags == NULL) {
             // we need to return NULL to raise the exception set by PyErr_SetString in py_tag_to_c
             retval = NULL;
@@ -349,7 +362,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
 
 ev_cleanup:
     if (ev->tags != NULL) {
-        free_tags(ev->tags);
+        free_tags(ev->tags, ev_tags_buf);
     }
     _free(ev->title);
     _free(ev->text);
@@ -385,6 +398,7 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     int monotonic;
     char *hostname = NULL;
     char **tags = NULL;
+    char *tags_buf[PY_TAG_TO_C_STACK_SIZE];
     bool flush_first_value = false;
 
     // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags, flush_first_value)
@@ -392,12 +406,12 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
         goto error;
     }
 
-    if ((tags = py_tag_to_c(py_tags)) == NULL)
+    if ((tags = py_tag_to_c(py_tags, tags_buf, PY_TAG_TO_C_STACK_SIZE)) == NULL)
         goto error;
 
     cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
 
-    free_tags(tags);
+    free_tags(tags, tags_buf);
 
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
