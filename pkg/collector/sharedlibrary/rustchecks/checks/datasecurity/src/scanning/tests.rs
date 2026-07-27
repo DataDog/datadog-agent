@@ -30,6 +30,7 @@ fn builds_scanner_from_all_rule_kinds() {
         r#"
 scanning_rules:
   - id: rule-included
+    license: "Datadog Confidential and Proprietary"
     pattern: '\d{6}'
     proximity_keywords:
       look_ahead_character_count: 30
@@ -71,6 +72,7 @@ scanning_rules:
         // included proximity keyword
         ScanningRule {
             id: "rule-included".to_string(),
+            license: "Datadog Confidential and Proprietary".to_string(),
             config: RootRuleConfig::new(RegexRuleConfig {
                 pattern: r"\d{6}".to_string(),
                 proximity_keywords: Some(ProximityKeywordsConfig {
@@ -86,6 +88,7 @@ scanning_rules:
         // excluded proximity keyword
         ScanningRule {
             id: "rule-excluded".to_string(),
+            license: String::new(),
             config: RootRuleConfig::new(RegexRuleConfig {
                 pattern: r"\d{6}".to_string(),
                 proximity_keywords: Some(ProximityKeywordsConfig {
@@ -101,6 +104,7 @@ scanning_rules:
         // ends_with / exact_match suppressions
         ScanningRule {
             id: "rule-suppression".to_string(),
+            license: String::new(),
             config: RootRuleConfig::new(RegexRuleConfig {
                 pattern: r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+".to_string(),
                 proximity_keywords: None,
@@ -117,6 +121,7 @@ scanning_rules:
         // secondary validator
         ScanningRule {
             id: "rule-luhn".to_string(),
+            license: String::new(),
             config: RootRuleConfig::new(RegexRuleConfig {
                 pattern: r"\d{16}".to_string(),
                 proximity_keywords: None,
