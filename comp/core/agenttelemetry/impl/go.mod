@@ -14,6 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/http v0.75.4
@@ -28,6 +29,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v2 v2.4.4
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
 require (
@@ -103,7 +105,6 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

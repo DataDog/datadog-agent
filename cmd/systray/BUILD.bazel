@@ -41,6 +41,7 @@ SUBSYSTEM = "windows"
 
 dd_agent_go_binary(
     name = "systray",
+    out = "ddtray.exe",
     cgo = True,
     embed = [":systray_lib"],
     # Subtle: This should be passed to the C linker, so the -Wl is redundant,

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "exec",
@@ -18,4 +18,104 @@ go_library(
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
     ],
+)
+
+go_test(
+    name = "exec_test",
+    srcs = ["installer_exec_nix_test.go"],
+    embed = [":exec"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
