@@ -198,6 +198,7 @@ func TestProcessorRunRetainsAgentCPUUsageBaselineWhenListedContainerHasNoCPUStat
 			Name: "node-agent-pod",
 			Labels: map[string]string{
 				kubernetes.KubeAppComponentLabelKey: "agent",
+				"agent.datadoghq.com/component":   "agent",
 			},
 		},
 	}

@@ -173,7 +173,7 @@ func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
 	recorder := newRecorder(tel)
 
 	recorder.ResetRuntimeMetrics()
-	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), time.Unix(100, 0), newTestPod(nodeAgentComponent, "node-agent-pod"))
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), time.Unix(100, 0), newNodeAgentTestPod("node-agent-pod"))
 	recorder.CompleteRuntimeMetrics()
 
 	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
@@ -194,7 +194,7 @@ func TestRecorderCPUUsageInvalidTotalsDoNotEmitOrReplaceBaseline(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tel := telemetrymock.New(t)
 			recorder := newRecorder(tel)
-			pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+			pod := newNodeAgentTestPod("node-agent-pod")
 			collectionStart := time.Unix(0, 0)
 
 			recorder.ResetRuntimeMetrics()
@@ -218,7 +218,7 @@ func TestRecorderCPUUsageInvalidTotalsDoNotEmitOrReplaceBaseline(t *testing.T) {
 func TestRecorderCPUUsageAggregatesNodeAgentContainers(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
-	nodeAgentPod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
 	collectionStart := time.Unix(100, 0)
 
 	recorder.ResetRuntimeMetrics()
@@ -238,7 +238,7 @@ func TestRecorderCPUUsageKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
 	collectionStart := time.Unix(100, 0)
-	nodeAgentPod := newTestPod(nodeAgentComponent, "agent-pod")
+	nodeAgentPod := newNodeAgentTestPod("agent-pod")
 	clusterAgentPod := newTestPod(clusterAgentComponent, "agent-pod")
 
 	recorder.ResetRuntimeMetrics()
@@ -258,7 +258,7 @@ func TestRecorderCPUUsageKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
 func TestRecorderCPUUsageDecreasedCounterReestablishesBaseline(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
-	pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	pod := newNodeAgentTestPod("node-agent-pod")
 	collectionStart := time.Unix(100, 0)
 
 	recorder.ResetRuntimeMetrics()
@@ -281,7 +281,7 @@ func TestRecorderCPUUsageDecreasedCounterReestablishesBaseline(t *testing.T) {
 func TestRecorderCPUUsageRetainsBaselineForListedContainerWithoutCPUStats(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
-	pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	pod := newNodeAgentTestPod("node-agent-pod")
 	collectionStart := time.Unix(100, 0)
 
 	recorder.ResetRuntimeMetrics()
@@ -302,7 +302,7 @@ func TestRecorderCPUUsageRetainsBaselineForListedContainerWithoutCPUStats(t *tes
 func TestRecorderCPUUsageEmptyLaterSnapshotClearsOldContribution(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
-	pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	pod := newNodeAgentTestPod("node-agent-pod")
 	collectionStart := time.Unix(100, 0)
 
 	recorder.ResetRuntimeMetrics()
