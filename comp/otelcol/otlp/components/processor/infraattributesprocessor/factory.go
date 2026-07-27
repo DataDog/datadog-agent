@@ -109,6 +109,7 @@ func (f *factory) createDefaultConfig() component.Config {
 	return &Config{
 		Cardinality:                taggerTypes.LowCardinality,
 		TraceContainerTagPromotion: ContainerTagPromotionOff,
+		LogsTagsAsDDTags:           false,
 	}
 }
 
