@@ -276,10 +276,7 @@ files:
             description: |
               A mapping of tag key to Go regexp pattern. A certificate must match ALL include rules
               to be reported. A certificate with no tag for a given include key is excluded.
-              A rule referencing a tag key that isn't collected (its `*_tag` flag is disabled, or
-              the key is never available — see below) is skipped with a warning instead of
-              excluding every certificate.
-              Note: `certificate_store` and `server` are not available as filter keys.
+              Note: `certificate_store` and `server` are not supported as filter keys.
           exclude:
             type: object
             additionalProperties:
@@ -288,17 +285,12 @@ files:
             description: |
               A mapping of tag key to Go regexp pattern. A certificate is dropped if ANY exclude
               rule matches one of its tag values.
-              A rule referencing a tag key that isn't collected (its `*_tag` flag is disabled, or
-              the key is never available — see below) is skipped with a warning.
-              Note: `certificate_store` and `server` are not available as filter keys.
+              Note: `certificate_store` and `server` are not supported as filter keys.
       description: |
-        Filter which collected certificates are reported to Datadog. Each rule maps a tag key
-        to a Go regexp pattern matched against the tag's value. A rule only ever matches a tag
-        that is actually collected — opt-in tag keys (e.g. `subject_alt_name_dns`,
-        `certificate_template_name`) require the corresponding `*_tag` flag to be enabled.
-        A rule referencing a tag that isn't collected is skipped (with a warning logged) rather
-        than matching against a tag that can never be present. Invalid regexp patterns cause the
-        check to fail at configuration time.
+        Each rule maps a tag key to a Go regexp pattern matched against the tag's value.
+        Opt-in tag keys (e.g. `subject_alt_name_dns`, `certificate_template_name`) require
+        the corresponding `*_tag` flag to be enabled. Invalid regexp patterns cause the check
+        to fail at configuration time.
       required: false
     - name: tags
       fleet_configurable: true

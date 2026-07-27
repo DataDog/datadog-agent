@@ -1089,12 +1089,12 @@ func pruneUncollectedFilterKeys(f *compiledCertFilters, cfg Config) {
 	prune := func(rules map[string]*regexp.Regexp, direction string) {
 		for key := range rules {
 			if key == "certificate_store" || key == "server" {
-				log.Warnf("filters.%s references %q, which is not available as a filter key because it is appended to metrics after filtering runs; this rule will not be applied", direction, key)
+				log.Warnf("filters.%s: %q is not a supported filter key, ignoring", direction, key)
 				delete(rules, key)
 				continue
 			}
 			if flagName, gated := filterKeyTagFlag(key); gated && !tagFlagEnabled(cfg, flagName) {
-				log.Warnf("filters.%s references %q, which is not collected because %q is not enabled; this rule will not be applied", direction, key, flagName)
+				log.Warnf("filters.%s: %q requires %q to be enabled, ignoring", direction, key, flagName)
 				delete(rules, key)
 			}
 		}
