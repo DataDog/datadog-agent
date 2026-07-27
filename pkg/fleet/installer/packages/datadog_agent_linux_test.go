@@ -20,7 +20,6 @@ import (
 func TestAgentPackageUninstallPathsRemoveGeneratedProcmgrConfigs(t *testing.T) {
 	installRoot := t.TempDir()
 	generatedConfigs := []string{
-		filepath.Join("processes.d", "datadog-agent-ddot.yaml"),
 		filepath.Join("processes.d", "datadog-agent-action-executor.yaml"),
 	}
 	customConfigs := []string{
