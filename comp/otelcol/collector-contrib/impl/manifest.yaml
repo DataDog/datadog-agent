@@ -1,4 +1,6 @@
 connectors:
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector
+    v0.156.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector
     v0.156.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
@@ -29,6 +31,8 @@ extensions:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver
     v0.156.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver
+    v0.156.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector
     v0.156.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension
     v0.156.0
@@ -75,6 +79,8 @@ receivers:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver
     v0.156.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
+    v0.156.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver
     v0.156.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver
     v0.156.0

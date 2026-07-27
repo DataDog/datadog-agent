@@ -151,6 +151,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		ProfileContexts: make(map[string]*adprotov1.ProfileContext),
 		Tree:            activity_tree.ToProto(p.ActivityTree),
 		Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
+		Disabled:        !p.isEnabled,
 	}
 
 	for key, ctx := range p.versionContexts {
@@ -199,6 +200,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 	output.selector = cgroupModel.ProtoToWorkloadSelector(input.Selector)
+	output.isEnabled = !input.Disabled
 
 	for key, ctx := range input.ProfileContexts {
 		outCtx := &VersionContext{
