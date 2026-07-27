@@ -1118,6 +1118,22 @@ func TestSchedulerRetriesFailedSendBeforeExistingHeartbeat(t *testing.T) {
 	assert.True(t, nextCollection.Before(oldHeartbeat))
 }
 
+func TestSchedulerCapsRetryIntervalAtHeartbeatInterval(t *testing.T) {
+	var jitterLimit time.Duration
+	s := &adScheduler{
+		heartbeatInterval:      10 * time.Second,
+		heartbeatJitter:        5 * time.Second,
+		heartbeatRetryInterval: 5 * time.Minute,
+		jitter: func(limit time.Duration) time.Duration {
+			jitterLimit = limit
+			return 0
+		},
+	}
+
+	assert.Equal(t, 10*time.Second, s.nextRetryDelay())
+	assert.Equal(t, 5*time.Second, jitterLimit)
+}
+
 func TestSchedulerRejectsCollectionFromReplacedWatch(t *testing.T) {
 	s := newTestADScheduler(targetResolver{}, nil, nil, nil)
 	defer s.Stop()

@@ -564,12 +564,17 @@ func heartbeatJitterLimit(interval time.Duration) time.Duration {
 }
 
 func (s *adScheduler) nextRetryDelay() time.Duration {
+	retryInterval := s.heartbeatRetryInterval
+	if retryInterval > s.heartbeatInterval {
+		retryInterval = s.heartbeatInterval
+	}
+
 	retryJitter := s.heartbeatJitter
-	maxRetryJitter := s.heartbeatRetryInterval / 2
+	maxRetryJitter := retryInterval / 2
 	if retryJitter > maxRetryJitter {
 		retryJitter = maxRetryJitter
 	}
-	return s.heartbeatRetryInterval + s.jitter(retryJitter)
+	return retryInterval + s.jitter(retryJitter)
 }
 
 // Unschedule is called when autodiscovery removes integration configs. Remove
