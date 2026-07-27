@@ -254,10 +254,14 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
     } else if (index == HTTP2_CONTENT_TYPE_IDX && str_len >= GRPC_CONTENT_TYPE_LEN) {
         // Indexed content-type name (static index 31) with a literal value. If the value begins with the
         // huffman-encoded "application/grpc" (this also matches "application/grpc+proto" and similar), record it.
-        // The value is only peeked (not advanced); the trailing pktbuf_advance skips it.
-        char content_type_buf[GRPC_CONTENT_TYPE_PREFIX_LEN];
-        if (pktbuf_load_bytes_from_current_offset(pkt, content_type_buf, GRPC_CONTENT_TYPE_PREFIX_LEN) >= 0 &&
-            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_PREFIX_LEN) == 0) {
+        // A per-cpu scratch buffer is used (not an on-stack one) because this program is near the 512-byte BPF
+        // stack limit; the key is a rodata constant so it adds no stack. The value is only peeked (not advanced);
+        // the trailing pktbuf_advance skips it.
+        static const __u32 grpc_ct_key = 0;
+        __u8 *content_type_buf = bpf_map_lookup_elem(&http2_grpc_ct_scratch, &grpc_ct_key);
+        if (content_type_buf != NULL &&
+            pktbuf_load_bytes_from_current_offset(pkt, content_type_buf, GRPC_CONTENT_TYPE_LEN) >= 0 &&
+            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0) {
             *is_grpc = true;
         }
     }
