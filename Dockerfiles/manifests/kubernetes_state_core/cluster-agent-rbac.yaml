@@ -275,6 +275,15 @@ rules:
       - list
       - watch
       - get
+  # Required by the workload autoscaler (DatadogPodAutoscaler) to release
+  # the cluster agent's `.spec.replicas` managedFields entry on Argo
+  # Rollouts (which expose a /scale subresource and can be DPA targets).
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+    verbs:
+      - patch
   - apiGroups:
       - source.toolkit.fluxcd.io
     resources:
