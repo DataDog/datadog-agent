@@ -1779,7 +1779,30 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
-	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
+	// this is a list of the statsd prefixes used by the agent and its components
+	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", []string{
+		"datadog.agent",
+		"datadog.dogstatsd",
+		"datadog.process",
+		"datadog.trace_agent",
+		"datadog.tracer",
+		"activemq",
+		"activemq_58",
+		"airflow",
+		"cassandra",
+		"confluent",
+		"hazelcast",
+		"hive",
+		"ignite",
+		"jboss",
+		"jvm",
+		"kafka",
+		"presto",
+		"sidekiq",
+		"solr",
+		"tomcat",
+		"runtime",
+	})
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
