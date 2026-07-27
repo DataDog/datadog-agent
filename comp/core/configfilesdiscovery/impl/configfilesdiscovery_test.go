@@ -644,7 +644,7 @@ func TestSchedulerFlushesPendingConfigCollectionBatchOnStop(t *testing.T) {
 	assert.Equal(t, "abc123", batches[0][0].RuntimeID)
 }
 
-func TestSchedulerAppliesSharedStartupJitter(t *testing.T) {
+func TestSchedulerStartsSharedStartupJitterWithFirstValidConfig(t *testing.T) {
 	mockClock := clock.NewMock()
 	collector := &recordingConfigCollector{
 		files: []ConfigFile{
@@ -672,7 +672,6 @@ func TestSchedulerAppliesSharedStartupJitter(t *testing.T) {
 	defer s.Stop()
 
 	mockClock.Add(time.Minute)
-	s.beginStartupWindow()
 
 	firstConfig := checkConfig(testRedisIntegrationName, "docker://abc123")
 	secondConfig := checkConfig(testRedisIntegrationName, "docker://def456")
@@ -695,7 +694,7 @@ func TestSchedulerAppliesSharedStartupJitter(t *testing.T) {
 	collector.waitForRuns(t, 3)
 }
 
-func TestSchedulerDoesNotApplyStartupJitterAfterStartupWindow(t *testing.T) {
+func TestSchedulerDoesNotStartStartupJitterForInvalidConfigs(t *testing.T) {
 	mockClock := clock.NewMock()
 	collector := &recordingConfigCollector{
 		files: []ConfigFile{
@@ -722,41 +721,21 @@ func TestSchedulerDoesNotApplyStartupJitterAfterStartupWindow(t *testing.T) {
 	)
 	defer s.Stop()
 
-	s.beginStartupWindow()
+	s.Schedule([]integration.Config{checkConfig("unsupported", "docker://ignored")})
+	s.mu.Lock()
+	startupNotBefore := s.startupNotBefore
+	s.mu.Unlock()
+	assert.True(t, startupNotBefore.IsZero())
+
 	mockClock.Add(time.Minute)
-	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://abc123")})
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{config})
 
-	collector.waitForRuns(t, 1)
-}
-
-func TestSchedulerDoesNotRestartStartupWindow(t *testing.T) {
-	mockClock := clock.NewMock()
-	s := newADSchedulerWithConfig(
-		targetResolver{},
-		nil,
-		nil,
-		nil,
-		adSchedulerConfig{
-			startupJitter: time.Minute,
-			clock:         mockClock,
-			jitter:        fixedJitter(0),
-		},
-	)
-	defer s.Stop()
-
-	s.beginStartupWindow()
-	s.mu.Lock()
-	firstDeadline := s.startupNotBefore
-	s.mu.Unlock()
-
-	mockClock.Add(10 * time.Second)
-	s.beginStartupWindow()
-	s.mu.Lock()
-	secondDeadline := s.startupNotBefore
-	s.mu.Unlock()
-
-	assert.Equal(t, firstDeadline, secondDeadline)
-	assert.Equal(t, mockClock.Now().Add(20*time.Second), secondDeadline)
+	nextCollection, inFlight, ok := watchedConfigState(s, config)
+	require.True(t, ok)
+	assert.False(t, inFlight)
+	assert.Equal(t, mockClock.Now().Add(30*time.Second), nextCollection)
+	assert.Empty(t, collector.recordedRuns())
 }
 
 func TestSchedulerSchedulesBatchHeartbeatsTogether(t *testing.T) {
@@ -1228,7 +1207,7 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	assert.Equal(t, schedulerName, ac.removedName)
 }
 
-func TestComponentStartsStartupJitterBeforeReplayingConfigs(t *testing.T) {
+func TestComponentAppliesStartupJitterToFirstConfigDiscoveredAfterRegistration(t *testing.T) {
 	mockClock := clock.NewMock()
 	collector := &recordingConfigCollector{
 		files: []ConfigFile{
@@ -1240,9 +1219,7 @@ func TestComponentStartsStartupJitterBeforeReplayingConfigs(t *testing.T) {
 	}
 	firstConfig := checkConfig(testRedisIntegrationName, "docker://abc123")
 	secondConfig := checkConfig(testRedisIntegrationName, "docker://def456")
-	ac := &fakeAutodiscovery{
-		replayConfigs: []integration.Config{firstConfig, secondConfig},
-	}
+	ac := &fakeAutodiscovery{}
 	c := newComponentWithSchedulerConfig(
 		ac,
 		targetResolver{},
@@ -1258,17 +1235,20 @@ func TestComponentStartsStartupJitterBeforeReplayingConfigs(t *testing.T) {
 			jitter:                 fixedJitter(0),
 		},
 	)
-	c.scheduler.readers[RuntimeDocker] = fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
+	adScheduler.readers[RuntimeDocker] = fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})
 	defer func() {
 		require.NoError(t, c.stop(context.Background()))
 	}()
 
-	mockClock.Add(time.Minute)
 	require.NoError(t, c.start(context.Background()))
+	mockClock.Add(time.Minute)
+	ac.scheduler.Schedule([]integration.Config{firstConfig, secondConfig})
 
 	wantStartup := mockClock.Now().Add(30 * time.Second)
 	for _, config := range []integration.Config{firstConfig, secondConfig} {
-		nextCollection, inFlight, ok := watchedConfigState(c.scheduler, config)
+		nextCollection, inFlight, ok := watchedConfigState(adScheduler, config)
 		require.True(t, ok)
 		assert.False(t, inFlight)
 		assert.Equal(t, wantStartup, nextCollection)
@@ -1282,14 +1262,18 @@ func TestComponentStartsStartupJitterBeforeReplayingConfigs(t *testing.T) {
 func TestComponentRegistersProvidedCollectors(t *testing.T) {
 	collector := &recordingConfigCollector{}
 	c := newComponent(nil, targetResolver{}, noopCollectedConfigSender{}, map[string]ConfigCollector{"custom": collector})
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
 
-	assert.Same(t, collector, c.scheduler.collectors["custom"])
+	assert.Same(t, collector, adScheduler.collectors["custom"])
 }
 
 func TestComponentRegistersKubernetesConfigReader(t *testing.T) {
 	c := newComponent(nil, targetResolver{}, noopCollectedConfigSender{}, nil)
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
 
-	assert.Contains(t, c.scheduler.readers, RuntimeKubernetes)
+	assert.Contains(t, adScheduler.readers, RuntimeKubernetes)
 }
 
 func TestComponentUsesEventPlatformSenderWhenAvailable(t *testing.T) {
@@ -1298,8 +1282,10 @@ func TestComponentUsesEventPlatformSenderWhenAvailable(t *testing.T) {
 		forwarder: forwarder,
 		ok:        true,
 	}, "test-host"), nil)
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
 
-	_, ok := c.scheduler.sender.(*eventPlatformCollectedConfigSender)
+	_, ok = adScheduler.sender.(*eventPlatformCollectedConfigSender)
 	require.True(t, ok)
 }
 
@@ -1820,20 +1806,16 @@ func newWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 type fakeAutodiscovery struct {
 	autodiscovery.Component
 
-	addedName     string
-	removedName   string
-	scheduler     scheduler.Scheduler
-	replay        bool
-	replayConfigs []integration.Config
+	addedName   string
+	removedName string
+	scheduler   scheduler.Scheduler
+	replay      bool
 }
 
 func (a *fakeAutodiscovery) AddScheduler(name string, scheduler scheduler.Scheduler, replay bool) {
 	a.addedName = name
 	a.scheduler = scheduler
 	a.replay = replay
-	if replay {
-		scheduler.Schedule(a.replayConfigs)
-	}
 }
 
 func (a *fakeAutodiscovery) RemoveScheduler(name string) {
