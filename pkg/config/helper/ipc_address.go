@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package setup
+package helper
 
 import (
 	"fmt"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
+func GetIPCAddress(config model.Reader) (string, error) {
 	var key string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host
@@ -33,6 +33,6 @@ func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
 }
 
 // GetIPCPort returns the IPC port
-func GetIPCPort() string {
-	return Datadog().GetString("cmd_port")
+func GetIPCPort(config model.Reader) string {
+	return config.GetString("cmd_port")
 }
