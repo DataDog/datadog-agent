@@ -434,6 +434,14 @@ func run(
 	return err
 }
 
+// usageMetricTagProvider is satisfied by cloud services whose enhanced usage
+// metric needs a tag that isn't known until after Init — e.g. MicroVM's
+// per-instance tag, only available once the /run lifecycle hook fires.
+// Ignored (via the type assertion in setup) by every other cloud service.
+type usageMetricTagProvider interface {
+	CurrentUsageMetricTags() []string
+}
+
 func setup(
 	secretComp secrets.Component,
 	delegatedAuthComp delegatedauth.Component,
@@ -496,7 +504,7 @@ func setup(
 				}),
 				BaseTags: logTagsBase,
 				TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-					traceAgent.SetTags(tags)
+					traceAgent.UpdateRuntimeTags(tags)
 				}),
 				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 			},
@@ -532,7 +540,7 @@ func setup(
 			}),
 			BaseTags: logTagsBase,
 			TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-				traceAgent.SetTags(tags)
+				traceAgent.UpdateRuntimeTags(tags)
 			}),
 			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 		},
@@ -548,9 +556,14 @@ func setup(
 
 	setupOtlpAgent(metricAgent, tagger)
 
+	var usageMetricTagsFunc func() []string
+	if p, ok := cloudService.(usageMetricTagProvider); ok {
+		usageMetricTagsFunc = p.CurrentUsageMetricTags
+	}
+
 	var enhancedMetricsCollector *enhancedmetrics.Collector
 	if enhancedMetricsEnabled {
-		enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricSuffix(), 3*time.Second)
+		enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricSuffix(), 3*time.Second, usageMetricTagsFunc)
 		if err != nil {
 			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
 		} else {

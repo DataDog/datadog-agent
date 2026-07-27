@@ -310,14 +310,93 @@ func TestCollectorSendsUsageMetricOnCgroupFailure(t *testing.T) {
 
 func TestNewCollectorNilMetricAgent(t *testing.T) {
 	// Untyped nil interface.
-	c, err := NewCollector(nil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
+	c, err := NewCollector(nil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second, nil)
 	assert.Nil(t, c)
 	assert.Error(t, err)
 
 	// Typed nil implementing EnhancedMetricSender, which is what main.go passes
 	// when metricAgent is a nil *ServerlessMetricAgent (use_dogstatsd disabled).
 	var typedNil *mockEnhancedMetricSender
-	c, err = NewCollector(typedNil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
+	c, err = NewCollector(typedNil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second, nil)
 	assert.Nil(t, c)
 	assert.Error(t, err)
+}
+
+// TestCollectorUsageMetricIncludesDynamicTags verifies that when
+// usageMetricTagsFunc is set (MicroVM's use case: attaching the per-instance
+// tag once known from /run), its return value is forwarded as extraTags on
+// every AddEnhancedUsageMetric call.
+func TestCollectorUsageMetricIncludesDynamicTags(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+	mockAgent.On("AddEnhancedUsageMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	mockReader := &mockCgroupReader{refreshErr: errors.New("cgroup failure"), version: 1}
+
+	c := &Collector{
+		metricAgent:         mockAgent,
+		metricSource:        metrics.MetricSourceAWSMicroVMEnhanced,
+		cgroupReader:        mockReader,
+		metricPrefix:        "aws.lambda.microvm.enhanced.",
+		usageMetricSuffix:   "instance",
+		previousRateStats:   NullServerlessRateStats,
+		usageMetricTagsFunc: func() []string { return []string{"instance:vm-abc123"} },
+	}
+
+	c.collect()
+
+	mockAgent.AssertCalled(t, "AddEnhancedUsageMetric",
+		"aws.lambda.microvm.enhanced.instance", float64(1),
+		metrics.MetricSourceAWSMicroVMEnhanced, mock.Anything, []string{"instance:vm-abc123"})
+}
+
+// TestCollectorUsageMetricNilTagsFuncSendsNoExtraTags verifies that when
+// usageMetricTagsFunc is nil (every cloud service except MicroVM), no extra
+// tags are added to the usage metric — pinning today's behavior.
+func TestCollectorUsageMetricNilTagsFuncSendsNoExtraTags(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+	mockAgent.On("AddEnhancedUsageMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	mockReader := &mockCgroupReader{refreshErr: errors.New("cgroup failure"), version: 1}
+
+	c := &Collector{
+		metricAgent:       mockAgent,
+		metricSource:      metrics.MetricSourceGoogleCloudRunEnhanced,
+		cgroupReader:      mockReader,
+		metricPrefix:      "gcp.run.container.enhanced.",
+		usageMetricSuffix: "instance",
+		previousRateStats: NullServerlessRateStats,
+	}
+
+	c.collect()
+
+	mockAgent.AssertCalled(t, "AddEnhancedUsageMetric",
+		"gcp.run.container.enhanced.instance", float64(1),
+		metrics.MetricSourceGoogleCloudRunEnhanced, mock.Anything, []string(nil))
+}
+
+// TestNewCollectorWiresUsageMetricTagsFunc verifies that NewCollector stores
+// the provided usageMetricTagsFunc on the returned Collector so collect()
+// picks it up on every tick.
+func TestNewCollectorWiresUsageMetricTagsFunc(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+	tagsFunc := func() []string { return []string{"instance:vm-abc123"} }
+
+	c, err := NewCollector(mockAgent, metrics.MetricSourceAWSMicroVMEnhanced, "aws.lambda.microvm.", "instance", time.Second, tagsFunc)
+
+	assert.NoError(t, err)
+	if assert.NotNil(t, c.usageMetricTagsFunc) {
+		assert.Equal(t, []string{"instance:vm-abc123"}, c.usageMetricTagsFunc())
+	}
+}
+
+// TestNewCollectorNilUsageMetricTagsFuncIsAccepted verifies that
+// NewCollector accepts a nil usageMetricTagsFunc — the case for every cloud
+// service except MicroVM.
+func TestNewCollectorNilUsageMetricTagsFuncIsAccepted(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+
+	c, err := NewCollector(mockAgent, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.container.", "instance", time.Second, nil)
+
+	assert.NoError(t, err)
+	assert.Nil(t, c.usageMetricTagsFunc)
 }

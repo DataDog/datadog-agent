@@ -134,15 +134,15 @@ func TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest(t *testing.
 		"DisableKeepAlives must open a fresh TCP connection per request; with keep-alives enabled only 1 connection would be accepted")
 }
 
-// NewForwarder defaults reflect the configured wire.go constants. /ready keeps
-// a 60s budget (matches the platform hook timeout); the remaining hooks default
-// to 1s. Changing these defaults is a deliberate behavior change — the test
-// failure is intentional.
+// NewForwarder defaults reflect the configured wire.go constants. /ready and
+// /validate each keep a 30s budget, and runtime hooks default to 1s. Changing
+// these defaults is a deliberate behavior change — the test failure is
+// intentional.
 func TestNewForwarder_Defaults(t *testing.T) {
 	f := NewForwarder(8080, defaultForwardTimeout, defaultReadyTimeout, defaultValidateTimeout)
 	assert.Equal(t, 1*time.Second, f.forwardTimeout, "forwardTimeout default must be 1s")
-	assert.Equal(t, 60*time.Second, f.readyTimeout, "readyTimeout default must be 60s (matches platform /ready hook timeout)")
-	assert.Equal(t, 1*time.Second, f.validateTimeout, "validateTimeout default must be 1s")
+	assert.Equal(t, 30*time.Second, f.readyTimeout, "readyTimeout default must be 30s (matches platform /ready hook timeout)")
+	assert.Equal(t, 30*time.Second, f.validateTimeout, "validateTimeout default must be 30s")
 	assert.Equal(t, defaultMaxResponseBodyBytes, f.maxResponseBodyBytes, "maxResponseBodyBytes default must be 1 MiB")
 	tr, ok := f.client.Transport.(*http.Transport)
 	require.True(t, ok, "transport must be *http.Transport")
@@ -267,7 +267,8 @@ func TestForwarder_PassThroughWaiting_MirrorsStatusAndBody(t *testing.T) {
 // PassThroughWaiting must honor the timeout it receives. The caller (server.go)
 // passes readyTimeout or validateTimeout — PassThroughWaiting must not apply
 // any other field. This test uses a 50ms timeout against a 200ms upstream: the
-// context expires and the call returns 504.
+// context expires and the call returns 503 (per the /ready and /validate hook
+// contract, only 200 and 503 are meaningful — never 504).
 func TestForwarder_PassThroughWaiting_HonorsProvidedTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(200 * time.Millisecond)
@@ -279,8 +280,8 @@ func TestForwarder_PassThroughWaiting_HonorsProvidedTimeout(t *testing.T) {
 	resp := f.PassThroughWaiting(50*time.Millisecond, "/ready", nil, nil)
 	require.NotNil(t, resp)
 	defer resp.Body.Close()
-	assert.Equal(t, http.StatusGatewayTimeout, resp.StatusCode,
-		"PassThroughWaiting must time out on the provided timeout")
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode,
+		"PassThroughWaiting must time out on the provided timeout and return 503, never 504")
 }
 
 // On the happy path the response body is wrapped by cancelOnCloseReader.
@@ -329,29 +330,36 @@ func TestWrapResponseBody_CapZero_DisablesCap(t *testing.T) {
 		"cap=0 must read the full body — LimitReader must NOT be applied")
 }
 
-// PassThroughWaiting retries TCP dials until the context expires when the port
-// is unbound, so the response is always 504 (deadline exceeded) — never 503.
-// This is distinct from PassThrough which returns 503 on the very first
-// connect-refused error. The behavioral difference is intentional: /ready and
-// /validate must wait for the user app to start, not fail-fast on a transient
-// dial error.
-func TestForwarder_PassThroughWaiting_UnboundPort_RetriesUntilTimeout504(t *testing.T) {
+// PassThroughWaiting makes a single reachability dial attempt, bounded by
+// dialCheckTimeout — it must not retry/poll, and must not wait out the
+// timeout parameter, before answering. Per the hook contract the platform
+// (not the hook) owns the retry loop for /ready and /validate, so an
+// unreachable app must return 503 fast, the same fail-fast contract
+// PassThrough already applies to connect-refused errors.
+func TestForwarder_PassThroughWaiting_UnboundPort_FailsFastWith503(t *testing.T) {
 	f := &Forwarder{
-		target: "http://127.0.0.1:1", // unbound — every dial attempt is refused
+		target: "http://127.0.0.1:1", // unbound — dial attempt is refused
 		client: &http.Client{},
 	}
-	resp := f.PassThroughWaiting(150*time.Millisecond, "/ready", nil, nil)
+	start := time.Now()
+	// timeout is deliberately much larger than dialCheckTimeout so a passing
+	// assertion below can only be explained by the fast dial-check path, not
+	// by this parameter.
+	resp := f.PassThroughWaiting(2*time.Second, "/ready", nil, nil)
+	elapsed := time.Since(start)
 	require.NotNil(t, resp)
 	defer resp.Body.Close()
-	assert.Equal(t, http.StatusGatewayTimeout, resp.StatusCode,
-		"unbound port must retry until timeout (504), not immediately 503 like PassThrough")
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode,
+		"unreachable app must return 503, not 504")
+	assert.Less(t, elapsed, dialCheckTimeout+100*time.Millisecond,
+		"an unreachable app must fail within dialCheckTimeout, not retry until the much larger timeout parameter (2s) elapses")
 }
 
-// passThroughWaiting buffers the request body before the TCP wait so it is
-// still available after waitForUserApp returns. Without buffering, the body
-// reader would be exhausted during the wait loop and f.do would send an empty
-// body to the user app. This pins the buffer-then-forward contract.
-func TestForwarder_PassThroughWaiting_ForwardsBodyAfterTCPWait(t *testing.T) {
+// passThroughWaiting buffers the request body before the reachability check
+// so it is still available once that check returns. Without buffering, the
+// body reader would be exhausted during the dial attempt and f.do would send
+// an empty body to the user app. This pins the buffer-then-forward contract.
+func TestForwarder_PassThroughWaiting_ForwardsBodyAfterReachabilityCheck(t *testing.T) {
 	received := make(chan []byte, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
@@ -381,7 +389,8 @@ func (errReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
 
 // A failed read of the inbound body must NOT forward a partial body to the
 // user app. PassThroughWaiting returns 500 (server-side read failure) and
-// short-circuits before the TCP wait so no partial body reaches the user app.
+// short-circuits before the reachability check so no partial body reaches the
+// user app.
 func TestForwarder_PassThroughWaiting_BodyReadError_Returns500(t *testing.T) {
 	var reached atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
