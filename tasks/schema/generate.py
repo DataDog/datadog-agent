@@ -286,9 +286,13 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
     hints = extract_imperative_code_hints()
 
+    if not keep_orig_order:
+        print("dda inv schema.codegen requires flag --keep-orig-order")
+        raise Exit(code=1)
+
     tmpdir = tempfile.mkdtemp()
-    run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
-    run_codegen(system_probe_schema, filter(True, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
+    run_codegen(core_schema, filter(False, "system_probe_codegen.go"), hints, keep_orig_order, tmpdir)
+    run_codegen(system_probe_schema, filter(True, "system_probe_codegen.go"), hints, keep_orig_order, tmpdir)
     run_constant_codegen(core_schema, system_probe_schema, tmpdir)
 
     display = not check and not fix
@@ -300,7 +304,8 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         # Compare tmpdir against SETUP_INIT_DIR, fail if different
         try:
             for file in os.listdir(tmpdir):
-                ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/")
+                compare_against = file.replace('_codegen.go', '_settings.go')
+                ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/{compare_against}")
         except Failure as e:
             print(
                 color_message(
@@ -311,8 +316,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
 
     if fix:
         # Fix any differences by copying the codegen results into SETUP_INIT_DIR
-        ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
-        ctx.run(f"cp {tmpdir}/*generated.go {SETUP_INIT_DIR}/")
+        ctx.run(f"cp {tmpdir}/*_codegen.go {SETUP_INIT_DIR}/")
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)

@@ -11,6 +11,8 @@ file_header = """// Unless explicitly stated otherwise all files in this reposit
 
 // NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
 
+//go:build unused_codegen
+
 package setup
 """
 
@@ -69,6 +71,8 @@ class CodeGeneratorTarget:
                 print(f"[WARN] not found: {funcname}")
                 continue
             (filename, settings) = h['filename'], h['settings']
+            # Rename generated filenames so they don't conflict with files in tree
+            filename = filename.replace('_settings.go', '_codegen.go')
             if filename_filter and not filename_filter(filename):
                 continue
 
@@ -106,7 +110,7 @@ class CodeGeneratorTarget:
             self.filesystem[filename] = sourcecode
 
         # Afterwards: run over buffer to get everything else
-        other_filename = 'other_settings.go'
+        other_filename = 'other_cfg_codegen.go'
         self._add_file_header(other_filename, [])
         sourcecode = self.filesystem[other_filename]
         output_func_header("otherSettings", sourcecode)
@@ -145,7 +149,7 @@ class CodeGeneratorTarget:
         return sourcecode
 
     def output_result_for_all_settings(self, filename_filter):
-        if filename_filter("system_probe_settings.go"):
+        if filename_filter("system_probe_codegen.go"):
             return self.output_result_for_sysprobe_settings()
         return self.output_result_for_core_agent_settings()
 
@@ -155,7 +159,7 @@ class CodeGeneratorTarget:
         res += ['func initSystemProbeConfig(config pkgconfigmodel.Setup) {']
         res += self.output_everything
         res += ['}']
-        self.filesystem = {'system_probe_settings.go': res}
+        self.filesystem = {'system_probe_codegen.go': res}
 
     def output_result_for_core_agent_settings(self):
         res = self.header_text.split('\n')
@@ -166,7 +170,7 @@ class CodeGeneratorTarget:
         res += ['func initEverything(config pkgconfigmodel.Setup) {']
         res += self.output_everything
         res += ['}']
-        self.filesystem = {'all_settings.go': res}
+        self.filesystem = {'all_cfg_codegen.go': res}
 
     def write_to_directory(self, out_dir, filename_filter):
         for filename in self.filesystem:
@@ -797,9 +801,9 @@ def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
         generator(core_schema, system_probe_schema, core_out, system_probe_out)
 
     for filename, sourcecode in (
-        ("generated.go", core_out),
+        ("constants_codegen.go", core_out),
         # For now we don't have any content for system_probe.
-        # ("system_probe_generated.go", system_probe_out),
+        # ("system_probe_constants_codegen.go", system_probe_out),
     ):
         print('Output %s' % filename)
         out_filename = os.path.join(outsource_dir, filename)
