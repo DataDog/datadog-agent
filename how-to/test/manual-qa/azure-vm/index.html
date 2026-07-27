@@ -4025,19 +4025,19 @@
   
 
 
-<h1 id="azure-vm">Azure VM</h1>
+<h1 id="azure-vm">Azure VM<a class="headerlink" href="#azure-vm" title="Permanent link">&para;</a></h1>
 <p>Provisions an Azure virtual machine with the Datadog Agent installed. Use this
 to test agent behavior on Azure infrastructure or Windows Server environments.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <p>Azure support must be enabled during setup:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>e2e.setup<span class="w"> </span>--with-azure
 </span></code></pre></div>
 <p>This adds an <code>azure.publicKeyPath</code> entry to <code>~/.test_infra_config.yaml</code>, which
 is required for all Azure VM tasks.</p>
-<h2 id="create">Create</h2>
+<h2 id="create">Create<a class="headerlink" href="#create" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>az.create-vm
 </span></code></pre></div>
-<h3 id="key-options">Key options</h3>
+<h3 id="key-options">Key options<a class="headerlink" href="#key-options" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4099,20 +4099,20 @@ is required for all Azure VM tasks.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="examples">Examples</h3>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Ubuntu VM on Azure</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>az.create-vm<span class="w"> </span>--os-family<span class="o">=</span>ubuntu
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Windows VM with a specific agent version</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>dda<span class="w"> </span>inv<span class="w"> </span>az.create-vm<span class="w"> </span>--os-family<span class="o">=</span>windows<span class="w"> </span>--agent-version<span class="o">=</span><span class="m">7</span>.58.0-1
 </span></code></pre></div>
-<h2 id="connect">Connect</h2>
+<h2 id="connect">Connect<a class="headerlink" href="#connect" title="Permanent link">&para;</a></h2>
 <p>SSH connection details are printed after creation (Linux). For Windows, the
 task outputs RDP connection information.</p>
-<h2 id="destroy">Destroy</h2>
+<h2 id="destroy">Destroy<a class="headerlink" href="#destroy" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>az.destroy-vm
 </span></code></pre></div>
-<h2 id="limitations">Limitations</h2>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Only <code>windows</code> and <code>ubuntu</code> OS families are supported.</li>
 <li>FakeIntake is not supported for Azure VMs.</li>
