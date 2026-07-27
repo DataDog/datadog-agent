@@ -9,9 +9,17 @@
 fixes:
   - |
     Logs Agent: fixed an issue where a log source could stop collecting permanently
-    (``Bytes Read: 0``) after a log file was rotated or truncated while the Agent was
-    stopped. On start, the Agent reused the offset stored in ``registry.json`` even when
-    that offset was past the end of the current file, so the tailer seeked beyond EOF and
-    read nothing. The Agent now verifies the stored offset against the file size and
-    restarts from the beginning of the file when the offset is out of range. Sources whose
-    stored offset is still within the file continue to resume from it as before.
+    (``Bytes Read: 0``) after a log file was rotated or truncated below the offset the
+    Agent had already read. On start, the Agent reused the offset stored in
+    ``registry.json`` without checking it against the file, so the tailer seeked beyond
+    the end of the file and read nothing. It now verifies the stored offset against the
+    file size and restarts from the beginning of the file when the offset is out of range.
+    Sources whose stored offset is still within the file continue to resume from it as
+    before.
+  - |
+    Logs Agent: fixed rotation detection when ``fingerprint_config`` is enabled. The
+    fingerprint-based check reported "no rotation" for a file whose first lines were
+    unchanged, even when the file had been truncated below the offset already read, so a
+    running tailer could stay parked past the end of its file and stop collecting. The
+    fingerprint check now also compares the file size against the last read offset, the
+    same protection sources without fingerprinting already had.

@@ -847,6 +847,69 @@ func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
 }
 
 // Tests whether or not rotation was accurately detected
+// TestDidRotateViaFingerprintTruncatedBelowOffset covers a file that is truncated below the
+// tailer's read offset while its head content -- and therefore its fingerprint -- stays identical.
+// The fingerprint comparison alone reports "no rotation" for that file, so without the size check
+// the tailer would stay parked past the end of the file and never read anything again. The
+// non-fingerprint path gets this protection from DidRotate(); enabling fingerprinting must not
+// silently drop it.
+func (suite *FingerprintTestSuite) TestDidRotateViaFingerprintTruncatedBelowOffset() {
+	const header = "header line stays the same\n"
+	_, err := suite.testFile.WriteString(header + "body 1\nbody 2\nbody 3\nbody 4\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	fingerprintConfig := &types.FingerprintConfig{
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            102400,
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+	}
+	tailer := suite.createTailer()
+	fingerprinter := NewFingerprinter(*fingerprintConfig, opener.NewFileOpener())
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+	tailer.osFile = osFile
+	tailer.fullpath = suite.testPath
+
+	initialFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Nil(err)
+	suite.True(initialFingerprint.ValidFingerprint())
+	tailer.fingerprint = initialFingerprint
+
+	// The tailer has read the file through to the end.
+	st, err := osFile.Stat()
+	suite.Nil(err)
+	tailer.lastReadOffset.Store(st.Size())
+
+	// Nothing has changed yet, so there is no rotation to report.
+	rotated, err := tailer.DidRotateViaFingerprint(fingerprinter)
+	suite.Nil(err)
+	suite.False(rotated, "Should not detect rotation on an unchanged file")
+
+	// Truncate the file below the read offset, but keep the first line identical so the
+	// fingerprint still matches.
+	suite.Nil(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Nil(err)
+	_, err = suite.testFile.WriteString(header)
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	// Guard the premise of this test: the fingerprint must still be valid and still match, so that
+	// only the size comparison can detect what happened.
+	afterTruncate, err := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Nil(err)
+	suite.True(afterTruncate.ValidFingerprint(), "truncated file should still produce a valid fingerprint")
+	suite.True(tailer.fingerprint.Equals(afterTruncate), "fingerprint must still match for this test to be meaningful")
+
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
+	suite.Nil(err)
+	suite.True(rotated, "Truncation below the read offset must be detected even when the fingerprint matches")
+}
+
 func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// 1. Start with a file with content and create a tailer.
 	suite.T().Log("Writing initial content and creating tailer")

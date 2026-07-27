@@ -6,6 +6,8 @@
 package file
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -103,6 +105,42 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter Fingerprinter) (bool, err
 	if rotated {
 		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
 			t.file.Path, t.fingerprint.Value, newFingerprint.Value)
+		return true, nil
 	}
-	return rotated, nil
+
+	// The fingerprints match, so the head of the file is unchanged. That alone does not prove our
+	// read offset is still valid: the file may have been truncated below it while its head content
+	// stayed the same. Fingerprinting cannot see that, so apply the same size check the
+	// non-fingerprint path gets from DidRotate(). Without it, enabling fingerprinting would drop
+	// that protection and a tailer parked past the end of its file would never recover.
+	truncated, err := t.offsetPastEndOfFile()
+	if err != nil {
+		return false, err
+	}
+	if truncated {
+		log.Debugf("File rotation detected due to size change for %s despite matching fingerprint 0x%x",
+			t.file.Path, newFingerprint.Value)
+	}
+	return truncated, nil
+}
+
+// offsetPastEndOfFile reports whether the tailer's last read offset lies beyond the end of the file
+// on disk, which means the file was truncated or rotated out from under that offset. This is the
+// same comparison DidRotate() makes on both platforms, without the platform-specific file identity
+// checks, so it can be reused by the fingerprint-based rotation check.
+func (t *Tailer) offsetPastEndOfFile() (bool, error) {
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
+	if err != nil {
+		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
+	}
+	defer f.Close()
+
+	// Read the size before the offset: the offset increases monotonically and only after the file
+	// size has grown, so polling size first keeps the size < offset comparison valid under
+	// concurrent writes.
+	st, err := f.Stat()
+	if err != nil {
+		return false, fmt.Errorf("stat %q: %w", t.fullpath, err)
+	}
+	return st.Size() < t.lastReadOffset.Load(), nil
 }
