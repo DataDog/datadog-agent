@@ -341,6 +341,9 @@ new-e2e-containers-kind-local:
     # The job image doesn't ship the docker CLI; install a static build to talk to the
     # docker-in-docker runner's daemon (kind shells out to `docker`).
     - curl --retry 10 -fsSLo /tmp/docker.tgz "https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz" && tar -xzf /tmp/docker.tgz -C /tmp && mv /tmp/docker/docker /usr/local/bin/docker && rm -rf /tmp/docker.tgz /tmp/docker
+    # Pulumi's file:// backend does not create its target directory on its own; it fails
+    # stack selection with "no such file or directory" if it doesn't already exist.
+    - mkdir -p "${CI_PROJECT_DIR}/.pulumi-local-backend"
   script:
     - !reference [.new_e2e_template_script_pre_dynamic_tests]
     - export DYNAMIC_TESTS_BREAKGLASS="false"
