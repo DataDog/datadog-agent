@@ -189,6 +189,36 @@ func shardableSuppressesTotal(shardable integration.Data) (mode string, flag boo
 		s.PodCollectionMode == clusterUnassignedMode && s.ClusterAggregatesEnabled
 }
 
+// suppressionDiagnostic reports what to log, if anything, about the shardable
+// instance failing to suppress its own .total when a cluster_aggregates_only
+// instance is also configured. ok is true when there's nothing to report
+// (the shardable suppresses fine). Pure and directly testable, so tests don't
+// need to capture actual log output.
+func suppressionDiagnostic(shardable integration.Data, groups []resourceGroup) (message string, isError bool, ok bool) {
+	mode, flag, suppresses := shardableSuppressesTotal(shardable)
+	if suppresses {
+		return "", false, true
+	}
+
+	hasPodsGroup := false
+	for _, group := range groups {
+		if group.Name == "pods" {
+			hasPodsGroup = true
+			break
+		}
+	}
+
+	// Without a pods group, non-suppression isn't a certain double-count — but
+	// it's not certainly safe either. A shard's collectors can be filtered
+	// against what the live API server exposes and fall back to full defaults
+	// (including "pods"; see kubernetes_state.go Configure()), which this
+	// static analysis can't see. ERROR when certain, WARN when not.
+	if hasPodsGroup {
+		return fmt.Sprintf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q, cluster_aggregates_enabled=%v) will not suppress its own .total — this double-counts the .total family. Set pod_collection_mode: cluster_unassigned and cluster_aggregates_enabled: true on the shardable instance.", clusterAggregatesOnlyMode, mode, flag), true, false
+	}
+	return fmt.Sprintf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q, cluster_aggregates_enabled=%v) will not suppress its own .total. None of its shards statically include a pods collector, but if any shard's collectors are unavailable on this cluster it falls back to defaults (including pods) and may already be double-counting. Set pod_collection_mode: cluster_unassigned and cluster_aggregates_enabled: true on the shardable instance.", clusterAggregatesOnlyMode, mode, flag), false, false
+}
+
 // shouldShardKSMCheck determines if a KSM check should be sharded
 func (m *ksmShardingManager) shouldShardKSMCheck(config integration.Config) bool {
 	if !m.enabled || !m.isKSMCheck(config) {
@@ -261,8 +291,12 @@ func (m *ksmShardingManager) createShardedKSMConfigs(
 		if len(passthrough) > 1 {
 			log.Errorf("KSM sharding: %d %s instances configured; each does a full-pod watch and emits the .total family, which double-counts. Configure exactly one.", len(passthrough), clusterAggregatesOnlyMode)
 		}
-		if mode, flag, ok := shardableSuppressesTotal(shardable); !ok {
-			log.Errorf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q, cluster_aggregates_enabled=%v) will not suppress its own .total — this double-counts the .total family. Set pod_collection_mode: cluster_unassigned and cluster_aggregates_enabled: true on the shardable instance.", clusterAggregatesOnlyMode, mode, flag)
+		if message, isError, ok := suppressionDiagnostic(shardable, groups); !ok {
+			if isError {
+				log.Error(message)
+			} else {
+				log.Warn(message)
+			}
 		}
 	}
 
@@ -315,7 +349,12 @@ func (m *ksmShardingManager) createKSMConfigForResourceGroup(
 	shardableInstance integration.Data,
 	group resourceGroup,
 ) integration.Config {
-	// Create a new config by copying fields manually
+	// Deliberately not a full struct copy: CELSelector/Discovery are omitted,
+	// or the shard's IsTemplate() would flip true on the runner and it would
+	// wait to match a service instead of being scheduled directly.
+	//
+	// PodNamespace/ImageName ARE copied: configmgr.go's secret resolution reads
+	// them for its namespace/image ACL checks, which would otherwise fail open.
 	config := integration.Config{
 		Name:                    baseConfig.Name,
 		InitConfig:              baseConfig.InitConfig,
@@ -332,6 +371,8 @@ func (m *ksmShardingManager) createKSMConfigForResourceGroup(
 		IgnoreAutodiscoveryTags: baseConfig.IgnoreAutodiscoveryTags,
 		MetricsExcluded:         baseConfig.MetricsExcluded,
 		LogsExcluded:            baseConfig.LogsExcluded,
+		PodNamespace:            baseConfig.PodNamespace,
+		ImageName:               baseConfig.ImageName,
 	}
 
 	// Parse the shardable instance config (not necessarily Instances[0])

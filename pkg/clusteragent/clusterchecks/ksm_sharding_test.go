@@ -358,6 +358,29 @@ func TestCreateShardedKSMConfigs_PreservesTags(t *testing.T) {
 	}
 }
 
+// TestCreateShardedKSMConfigs_PreservesSecretResolutionContext guards against
+// createKSMConfigForResourceGroup silently dropping PodNamespace/ImageName.
+// comp/core/autodiscovery/impl/configmgr.go resolves secrets on a sharded
+// config directly (it's not a template), passing these two fields into
+// secrets.Component.Resolve for its namespace/image ACL checks — dropping
+// them makes that check fail open on the runner instead of enforcing it.
+func TestCreateShardedKSMConfigs_PreservesSecretResolutionContext(t *testing.T) {
+	manager := newKSMShardingManager(true)
+
+	config := createKSMConfig([]string{"pods", "nodes"})
+	config.PodNamespace = "some-namespace"
+	config.ImageName = "some-image"
+
+	configs, err := manager.createShardedKSMConfigs(config)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(configs))
+
+	for _, shardConfig := range configs {
+		assert.Equal(t, "some-namespace", shardConfig.PodNamespace)
+		assert.Equal(t, "some-image", shardConfig.ImageName)
+	}
+}
+
 func TestShouldShardKSMCheck_MultipleInstances(t *testing.T) {
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithMultipleInstances()
@@ -468,6 +491,75 @@ func TestCreateShardedKSMConfigs_AggregateFallbackNoPods(t *testing.T) {
 	assert.True(t, standaloneAggregate, "aggregate dispatched standalone when there is no pods shard")
 }
 
+// TestCreateShardedKSMConfigs_PodsGroup_WarnsOnNonSuppression: WITH a pods
+// group, a non-suppressing shardable is a certain .total double-count — ERROR.
+func TestCreateShardedKSMConfigs_PodsGroup_WarnsOnNonSuppression(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	config := createKSMConfigWithAggregateAndSuppression([]string{"pods", "nodes"}, false)
+
+	message, isError, ok := diagnosticFor(t, manager, config)
+	assert.False(t, ok)
+	assert.True(t, isError, "a genuine pods group must be a certain double-count, not downgraded to a warning")
+	assert.Contains(t, message, "will not suppress its own .total")
+
+	_, err := manager.createShardedKSMConfigs(config)
+	require.NoError(t, err)
+}
+
+// TestCreateShardedKSMConfigs_SafeNoPodsCollectors_WarnsNotErrors: with
+// collectors that are always available (nodes, deployments — ordinary
+// built-in resources), no shard will ever build pods_extended, so the
+// standalone aggregate really is the only .total source. A non-suppressing
+// shardable here is a conditional risk, not a certainty — WARN, not ERROR.
+func TestCreateShardedKSMConfigs_SafeNoPodsCollectors_WarnsNotErrors(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	config := createKSMConfigWithAggregateAndSuppression([]string{"nodes", "deployments"}, false)
+
+	message, isError, ok := diagnosticFor(t, manager, config)
+	assert.False(t, ok)
+	assert.False(t, isError, "no pods group and always-available collectors means this isn't a certain double-count")
+	assert.Contains(t, message, "will not suppress its own .total")
+
+	configs, err := manager.createShardedKSMConfigs(config)
+	require.NoError(t, err)
+	require.Len(t, configs, 3, "nodes shard + others shard + standalone aggregate")
+}
+
+// TestCreateShardedKSMConfigs_UnavailableCollectorRisk_WarnsOnNonSuppression:
+// a shardable with no "pods" collector still gets the suppression diagnostic
+// (as a WARN, not silence). kubernetes_state.go's Configure() filters the
+// configured collectors against what the live API server actually exposes and
+// falls back to the full default set (including "pods") if that filtering
+// empties the list — e.g. an "others" shard whose only collector is a CRD
+// resource that isn't installed yet. That collapse happens on the runner,
+// invisible to this static analysis, so the diagnostic can't be silenced just
+// because none of the analyzed groups is named "pods".
+func TestCreateShardedKSMConfigs_UnavailableCollectorRisk_WarnsOnNonSuppression(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	config := createKSMConfigWithAggregateAndSuppression([]string{"nodes", "unavailable-resource"}, false)
+
+	message, _, ok := diagnosticFor(t, manager, config)
+	assert.False(t, ok)
+	assert.Contains(t, message, "will not suppress its own .total",
+		"the 'others' shard's only collector could be filtered out by the runner and fall back to full defaults (including pods) — this risk must still surface")
+
+	configs, err := manager.createShardedKSMConfigs(config)
+	require.NoError(t, err)
+	require.Len(t, configs, 3, "nodes shard + others shard (unavailable-resource) + standalone aggregate")
+}
+
+// diagnosticFor re-derives the shardable+groups from config and calls
+// suppressionDiagnostic directly, so severity/wording can be asserted without
+// capturing actual log output.
+func diagnosticFor(t *testing.T, manager *ksmShardingManager, config integration.Config) (message string, isError bool, ok bool) {
+	t.Helper()
+	shardable, _, err := classifyKSMInstances(config)
+	require.NoError(t, err)
+	groups, err := manager.analyzeKSMConfig(shardable)
+	require.NoError(t, err)
+	return suppressionDiagnostic(shardable, groups)
+}
+
 // TestCreateShardedKSMConfigs_AggregateFirstOrdering guards order-independence:
 // the shardable instance must be used as the shard base even when the
 // cluster_aggregates_only instance is listed first. If the sharder regressed to
@@ -539,10 +631,17 @@ func mustYAML(m map[string]interface{}) integration.Data {
 // cluster_unassigned instance (given collectors) plus a cluster_aggregates_only
 // instance — the "one config, both features" shape.
 func createKSMConfigWithAggregate(shardableCollectors []string) integration.Config {
+	return createKSMConfigWithAggregateAndSuppression(shardableCollectors, true)
+}
+
+// createKSMConfigWithAggregateAndSuppression is like createKSMConfigWithAggregate
+// but lets the caller control whether the shardable instance suppresses .total,
+// to exercise the non-suppressing (misconfigured) case.
+func createKSMConfigWithAggregateAndSuppression(shardableCollectors []string, suppress bool) integration.Config {
 	shardable := map[string]interface{}{
 		"collectors":                 shardableCollectors,
 		"pod_collection_mode":        "cluster_unassigned",
-		"cluster_aggregates_enabled": true,
+		"cluster_aggregates_enabled": suppress,
 	}
 	aggregate := map[string]interface{}{
 		"pod_collection_mode": "cluster_aggregates_only",
