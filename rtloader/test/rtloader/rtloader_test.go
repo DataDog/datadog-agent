@@ -15,6 +15,31 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
+// BenchmarkRunCheckResult_GoString benchmarks the old runCheckImpl approach:
+// unconditionally calling C.GoString on run()'s result even when it is empty.
+// Run with:
+//
+//	go test -bench=BenchmarkRunCheckResult -benchtime=5s ./rtloader/test/rtloader/
+func BenchmarkRunCheckResult_GoString(b *testing.B) {
+	initBenchRunCheckResult()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = runCheckResult_GoString()
+	}
+}
+
+// BenchmarkRunCheckResult_ByteCheck benchmarks the new fast path: a single
+// byte dereference skips C.GoString on the common empty-result case.
+func BenchmarkRunCheckResult_ByteCheck(b *testing.B) {
+	initBenchRunCheckResult()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = runCheckResult_ByteCheck()
+	}
+}
+
 func TestMain(m *testing.M) {
 	err := setUp()
 	if err != nil {
