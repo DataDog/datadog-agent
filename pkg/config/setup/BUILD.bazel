@@ -79,7 +79,6 @@ dd_agent_go_test(
         "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
-        "//pkg/networkpath/traceroute/config",
         "//pkg/util/defaultpaths",
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
