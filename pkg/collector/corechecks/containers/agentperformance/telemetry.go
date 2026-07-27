@@ -121,6 +121,7 @@ func (t *Recorder) WithRuntimeMetrics(callback func() error) error {
 }
 
 // ResetRuntimeMetrics clears runtime-sourced aggregates and initializes the next CPU sample snapshot.
+// It mutates CPU snapshot maps and must be called from a WithRuntimeMetrics callback in production.
 func (t *Recorder) ResetRuntimeMetrics() {
 	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{kindTag: kind}
@@ -134,6 +135,7 @@ func (t *Recorder) ResetRuntimeMetrics() {
 }
 
 // CompleteRuntimeMetrics finalizes CPU samples from the completed runtime snapshot.
+// It mutates CPU snapshot maps and must be called from a WithRuntimeMetrics callback in production.
 func (t *Recorder) CompleteRuntimeMetrics() {
 	for containerID := range t.currentCPUContainerIDs {
 		if _, hasCurrentSample := t.currentCPUSamples[containerID]; hasCurrentSample {
