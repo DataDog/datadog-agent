@@ -141,6 +141,19 @@ extensions:
     transport: tcp
     write_timeout: 30s
 processors:
+  cumulativetodelta/dd-autoconfigured:
+    exclude:
+      match_type: ""
+      metric_types: []
+      metrics: []
+      regexp: null
+    include:
+      match_type: ""
+      metric_types: []
+      metrics: []
+      regexp: null
+    initial_value: 0
+    max_staleness: 1h0m0s
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
@@ -285,6 +298,7 @@ service:
         - datadog
       processors:
         - infraattributes/dd-autoconfigured
+        - cumulativetodelta/dd-autoconfigured
       receivers:
         - otlp
         - datadog/connector
