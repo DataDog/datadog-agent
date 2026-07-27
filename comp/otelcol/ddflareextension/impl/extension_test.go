@@ -23,6 +23,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"github.com/stretchr/testify/assert"
@@ -215,6 +216,7 @@ func components() (otelcol.Factories, error) {
 	}
 
 	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
+		cumulativetodeltaprocessor.NewFactory(),
 		transformprocessor.NewFactory(),
 	)
 	if err != nil {
