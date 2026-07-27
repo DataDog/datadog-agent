@@ -128,6 +128,46 @@ func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) 
 	assertGaugeValue(t, tel, MemoryUsage, "agent", podName, 5)
 }
 
+func TestRecorderRuntimeMetricsTransactionSerializesSnapshots(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+
+	recorder.BeginRuntimeMetrics()
+
+	secondReady := make(chan struct{})
+	startSecond := make(chan struct{})
+	secondBegan := make(chan struct{})
+	secondCompleted := make(chan struct{})
+	go func() {
+		close(secondReady)
+		<-startSecond
+		recorder.BeginRuntimeMetrics()
+		close(secondBegan)
+		recorder.EndRuntimeMetrics()
+		close(secondCompleted)
+	}()
+
+	<-secondReady
+	close(startSecond)
+	select {
+	case <-secondBegan:
+		assert.Fail(t, "second runtime metrics transaction began before the first completed")
+	case <-time.After(time.Second):
+	}
+
+	recorder.EndRuntimeMetrics()
+	select {
+	case <-secondBegan:
+	case <-time.After(time.Second):
+		assert.Fail(t, "second runtime metrics transaction did not begin after the first completed")
+	}
+	select {
+	case <-secondCompleted:
+	case <-time.After(time.Second):
+		assert.Fail(t, "second runtime metrics transaction did not complete")
+	}
+}
+
 func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
@@ -236,6 +276,27 @@ func TestRecorderCPUUsageDecreasedCounterReestablishesBaseline(t *testing.T) {
 	recorder.CompleteRuntimeMetrics()
 
 	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.25)
+}
+
+func TestRecorderCPUUsageRetainsBaselineForListedContainerWithoutCPUStats(t *testing.T) {
+	tel := telemetrymock.New(t)
+	recorder := newRecorder(tel)
+	pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+	collectionStart := time.Unix(100, 0)
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
+	recorder.CompleteRuntimeMetrics()
+
+	recorder.ResetRuntimeMetrics()
+	recorder.MarkCPUContainerPresent("node-agent-container")
+	recorder.CompleteRuntimeMetrics()
+
+	recorder.ResetRuntimeMetrics()
+	recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+	recorder.CompleteRuntimeMetrics()
+
+	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.125)
 }
 
 func TestRecorderCPUUsageEmptyLaterSnapshotClearsOldContribution(t *testing.T) {

@@ -174,7 +174,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	}
 }
 
-func TestProcessorRunRecordsAgentPodCPUUsage(t *testing.T) {
+func TestProcessorRunRetainsAgentCPUUsageBaselineWhenListedContainerHasNoCPUStats(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	container := CreateContainerMeta("containerd", "node-agent-container")
 	cpuTotal := float64(time.Second)
@@ -207,15 +207,22 @@ func TestProcessorRunRecordsAgentPodCPUUsage(t *testing.T) {
 	_, err := telemetry.GetGaugeMetric("agent_performance", agentperformance.CPUUsage)
 	assert.Error(t, err)
 
-	cpuTotal = float64(3*time.Second + 500*time.Millisecond)
+	containerStats.CPU = nil
 	processor.now = func() time.Time { return collectionStart.Add(10 * time.Second) }
+	assert.NoError(t, processor.Run(mockSender, 0))
+	_, err = telemetry.GetGaugeMetric("agent_performance", agentperformance.CPUUsage)
+	assert.Error(t, err)
+
+	cpuTotal = float64(3*time.Second + 500*time.Millisecond)
+	containerStats.CPU = &provider.ContainerCPUStats{Total: &cpuTotal}
+	processor.now = func() time.Time { return collectionStart.Add(20 * time.Second) }
 	assert.NoError(t, processor.Run(mockSender, 0))
 
 	metrics, err := telemetry.GetGaugeMetric("agent_performance", agentperformance.CPUUsage)
 	if !assert.NoError(t, err) || !assert.Len(t, metrics, 1) {
 		return
 	}
-	assert.Equal(t, 0.25, metrics[0].Value())
+	assert.Equal(t, 0.125, metrics[0].Value())
 	assert.Equal(t, "agent", metrics[0].Tags()["kind"])
 	assert.Equal(t, "node-agent-pod", metrics[0].Tags()[tags.KubePod])
 }

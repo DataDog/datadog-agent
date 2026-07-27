@@ -66,8 +66,8 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 // Run executes the check
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
 	if p.agentPerformance != nil {
-		p.agentPerformance.ResetRuntimeMetrics()
-		defer p.agentPerformance.CompleteRuntimeMetrics()
+		p.agentPerformance.BeginRuntimeMetrics()
+		defer p.agentPerformance.EndRuntimeMetrics()
 	}
 	collectionTime := p.now()
 
@@ -83,6 +83,10 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 	}
 
 	for _, container := range allContainers {
+		if p.agentPerformance != nil {
+			p.agentPerformance.MarkCPUContainerPresent(container.ID)
+		}
+
 		if p.ctrFilter != nil && p.ctrFilter.IsExcluded(container) {
 			log.Tracef("Container excluded due to filter, name: %s - image: %s - namespace: %s", container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
 			continue

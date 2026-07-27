@@ -52,6 +52,7 @@ type Recorder struct {
 	memoryLimits         telemetry.Gauge
 	cpuUsage             telemetry.Gauge
 
+	runtimeSnapshotMu      sync.Mutex
 	cpuMu                  sync.Mutex
 	previousCPUSamples     map[string]cpuSample
 	currentCPUSamples      map[string]cpuSample
@@ -109,6 +110,19 @@ func newRecorder(tm telemetry.Component) *Recorder {
 	}
 }
 
+// BeginRuntimeMetrics starts an exclusive runtime metrics snapshot transaction.
+// It must be paired with EndRuntimeMetrics after all containers in the snapshot have been processed.
+func (t *Recorder) BeginRuntimeMetrics() {
+	t.runtimeSnapshotMu.Lock()
+	t.resetRuntimeMetrics()
+}
+
+// EndRuntimeMetrics completes an exclusive runtime metrics snapshot transaction started by BeginRuntimeMetrics.
+func (t *Recorder) EndRuntimeMetrics() {
+	t.CompleteRuntimeMetrics()
+	t.runtimeSnapshotMu.Unlock()
+}
+
 // ResetRuntimeMetrics clears runtime-sourced aggregates and initializes the next CPU sample snapshot.
 func (t *Recorder) ResetRuntimeMetrics() {
 	t.resetRuntimeMetrics()
@@ -131,6 +145,20 @@ func (t *Recorder) CompleteRuntimeMetrics() {
 	t.previousCPUSamples = t.currentCPUSamples
 	t.currentCPUSamples = make(map[string]cpuSample)
 	t.currentCPUContainerIDs = make(map[string]struct{})
+}
+
+// MarkCPUContainerPresent retains the prior CPU sample for a listed container without a new sample.
+func (t *Recorder) MarkCPUContainerPresent(containerID string) {
+	if containerID == "" {
+		return
+	}
+
+	t.cpuMu.Lock()
+	defer t.cpuMu.Unlock()
+
+	if _, hasPreviousSample := t.previousCPUSamples[containerID]; hasPreviousSample {
+		t.currentCPUContainerIDs[containerID] = struct{}{}
+	}
 }
 
 // RecordCPUUsage adds a container's delta-derived CPU cores to its eligible Agent pod aggregate.
