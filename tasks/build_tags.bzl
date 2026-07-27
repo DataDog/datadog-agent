@@ -58,6 +58,7 @@ ALL_TAGS = set([
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "python",
+    "python_runtime_optional",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
