@@ -19,7 +19,7 @@ profiles:
         preserve_tags:
           - check_name
           - state
-      - name: openmetrics.max_returned_metrics_reached
+      - name: checks.max_returned_metrics_reached
         preserve_tags:
           - check_name
       - name: pymem.inuse

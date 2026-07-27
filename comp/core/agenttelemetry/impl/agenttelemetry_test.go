@@ -2304,7 +2304,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
 }
 
-func TestOpenMetricsMaxReturnedMetricsProfilePreservesOnlyCheckName(t *testing.T) {
+func TestMaxReturnedMetricsProfilePreservesOnlyCheckName(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2312,7 +2312,7 @@ func TestOpenMetricsMaxReturnedMetricsProfilePreservesOnlyCheckName(t *testing.T
         - name: checks
           metric:
             metrics:
-              - name: openmetrics.max_returned_metrics_reached
+              - name: checks.max_returned_metrics_reached
                 preserve_tags:
                   - check_name
     `
@@ -2323,7 +2323,7 @@ func TestOpenMetricsMaxReturnedMetricsProfilePreservesOnlyCheckName(t *testing.T
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	counter := tel.NewCounter("openmetrics", "max_returned_metrics_reached", []string{"check_name", "url"}, "")
+	counter := tel.NewCounter("checks", "max_returned_metrics_reached", []string{"check_name", "url"}, "")
 	counter.AddWithTags(1, map[string]string{"check_name": "openmetrics", "url": "http://one.example"})
 	counter.AddWithTags(2, map[string]string{"check_name": "openmetrics", "url": "http://two.example"})
 
@@ -2331,7 +2331,7 @@ func TestOpenMetricsMaxReturnedMetricsProfilePreservesOnlyCheckName(t *testing.T
 	require.NoError(t, err)
 	var foundRaw bool
 	for _, family := range families {
-		if family.GetName() != "openmetrics__max_returned_metrics_reached" {
+		if family.GetName() != "checks__max_returned_metrics_reached" {
 			continue
 		}
 		foundRaw = true
@@ -2346,13 +2346,13 @@ func TestOpenMetricsMaxReturnedMetricsProfilePreservesOnlyCheckName(t *testing.T
 	}
 	require.True(t, foundRaw)
 
-	metric, ok := getPayloadMetric(a, "openmetrics.max_returned_metrics_reached")
+	metric, ok := getPayloadMetric(a, "checks.max_returned_metrics_reached")
 	require.True(t, ok)
 	assert.Equal(t, 3.0, metric.Value)
 	assert.Equal(t, map[string]interface{}{"check_name": "openmetrics"}, metric.Tags)
 }
 
-func TestOpenMetricsMaxReturnedMetricsProfileDropsMissingCheckName(t *testing.T) {
+func TestMaxReturnedMetricsProfileDropsMissingCheckName(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2360,7 +2360,7 @@ func TestOpenMetricsMaxReturnedMetricsProfileDropsMissingCheckName(t *testing.T)
         - name: checks
           metric:
             metrics:
-              - name: openmetrics.max_returned_metrics_reached
+              - name: checks.max_returned_metrics_reached
                 preserve_tags:
                   - check_name
     `
@@ -2371,7 +2371,7 @@ func TestOpenMetricsMaxReturnedMetricsProfileDropsMissingCheckName(t *testing.T)
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	counter := tel.NewCounter("openmetrics", "max_returned_metrics_reached", []string{"check_name_typo"}, "")
+	counter := tel.NewCounter("checks", "max_returned_metrics_reached", []string{"check_name_typo"}, "")
 	counter.AddWithTags(1, map[string]string{"check_name_typo": "openmetrics"})
 
 	payload, err := getPayload(a)
@@ -2381,7 +2381,7 @@ func TestOpenMetricsMaxReturnedMetricsProfileDropsMissingCheckName(t *testing.T)
 	assert.Empty(t, payloads)
 }
 
-func TestOpenMetricsMaxReturnedMetricsCoalescesRegularAndDefaultRegistries(t *testing.T) {
+func TestMaxReturnedMetricsCoalescesRegularAndDefaultRegistries(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2389,7 +2389,7 @@ func TestOpenMetricsMaxReturnedMetricsCoalescesRegularAndDefaultRegistries(t *te
         - name: checks
           metric:
             metrics:
-              - name: openmetrics.max_returned_metrics_reached
+              - name: checks.max_returned_metrics_reached
                 preserve_tags:
                   - check_name
     `
@@ -2400,12 +2400,12 @@ func TestOpenMetricsMaxReturnedMetricsCoalescesRegularAndDefaultRegistries(t *te
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	regularCounter := tel.NewCounterWithOpts("openmetrics", "max_returned_metrics_reached", []string{"check_name"}, "", telemetry.DefaultOptions)
-	defaultCounter := tel.NewCounterWithOpts("openmetrics", "max_returned_metrics_reached", []string{"check_name"}, "", telemetry.Options{DefaultMetric: true})
+	regularCounter := tel.NewCounterWithOpts("checks", "max_returned_metrics_reached", []string{"check_name"}, "", telemetry.DefaultOptions)
+	defaultCounter := tel.NewCounterWithOpts("checks", "max_returned_metrics_reached", []string{"check_name"}, "", telemetry.Options{DefaultMetric: true})
 	regularCounter.AddWithTags(1, map[string]string{"check_name": "openmetrics"})
 	defaultCounter.AddWithTags(2, map[string]string{"check_name": "openmetrics_default"})
 
-	metrics, ok := getPayloadFilteredMetricList(a, "openmetrics.max_returned_metrics_reached")
+	metrics, ok := getPayloadFilteredMetricList(a, "checks.max_returned_metrics_reached")
 	require.True(t, ok)
 	require.Len(t, metrics, 2)
 
@@ -2513,9 +2513,9 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 		}
 	}
 	require.NotNil(t, checksProfile)
-	metric, ok := checksProfile.metricsMap["openmetrics_max_returned_metrics_reached"]
+	metric, ok := checksProfile.metricsMap["checks_max_returned_metrics_reached"]
 	require.True(t, ok)
-	assert.Equal(t, "openmetrics.max_returned_metrics_reached", metric.Name)
+	assert.Equal(t, "checks.max_returned_metrics_reached", metric.Name)
 	assert.Equal(t, []string{"check_name"}, metric.PreserveTags)
 	assert.True(t, metric.preserveTagsExists)
 	_, ok = metric.preserveTagsMap["check_name"]
