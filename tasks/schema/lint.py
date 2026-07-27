@@ -523,6 +523,47 @@ def check_env_parser(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 14: generate_const tag validation
+# ---------------------------------------------------------------------------
+
+GENERATE_CONST_PREFIX = "generate_const:"
+# The constant name must start with an ASCII letter (any case) and otherwise be composed only of
+# ASCII letters and digits.
+GENERATE_CONST_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+
+def check_generate_const_tag(path, schema):
+    """
+    Check that 'generate_const:<name>' tags:
+      - only appear on setting nodes (not section nodes)
+      - have the form 'generate_const:<name>' where <name> starts with a letter and is
+        otherwise composed only of ASCII letters (lower and upper case) and digits
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        for tag in get_tags(node):
+            if not isinstance(tag, str) or not tag.startswith(GENERATE_CONST_PREFIX):
+                continue
+            if node.get("node_type") != "setting":
+                errors.append(
+                    f"{path}: [{node_path}] '{tag}' tag is only valid on setting nodes, not sections. "
+                    f"Fix: remove the '{GENERATE_CONST_PREFIX}...' tag from this section node."
+                )
+                continue
+            name = tag[len(GENERATE_CONST_PREFIX) :]
+            if not GENERATE_CONST_NAME_RE.match(name):
+                errors.append(
+                    f"{path}: [{node_path}] Invalid tag '{tag}'. "
+                    f"The name must have the form '{GENERATE_CONST_PREFIX}<name>' where <name> starts "
+                    f"with a letter and is otherwise composed only of letters and digits. "
+                    f"Fix: use a valid Go constant name after '{GENERATE_CONST_PREFIX}'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -591,6 +632,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_text_scalar_mode(schema_path))
         all_errors.extend(check_relative_defaults(schema_path, schema))
         all_errors.extend(check_env_parser(schema_path, schema))
+        all_errors.extend(check_generate_const_tag(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

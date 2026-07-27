@@ -33,8 +33,6 @@ const (
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
 	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
-	RShellCommandNamespacePrefix       = "rshell:"
-	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
 	RShellPathAllowAll                 = "/"
 	RShellPathAllowMapContainerizedKey = "containerized"
 	RShellPathAllowMapDefaultKey       = "default"

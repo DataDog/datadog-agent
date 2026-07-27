@@ -545,6 +545,32 @@ Existing tags:
   - `golang_type:map[string]interface{}`: will used a `golang_type:map[string]interface{}{}`.
   - `golang_type:nil`: will use `nil` from Go (should not be used for any new setting).
 - `no-env`: mark the settings as not configurable through en vars (should not be used by new settings).
+- `generate_const:<name>`: generate a Go constant from this setting's default value.
 
-> **Note**: except from `template_section`, all the other tags exists to support legacy behavior and should not be used
-> for new settings.
+  Adding `generate_const:<name>` to a setting tells the code generator to emit a Go constant named
+  `<name>` in the `pkg/config/setup` package whose value is this setting's default. Reference that
+  constant from your Go code instead of hardcoding the value, so the constant and the setting default
+  can never drift apart — the schema stays the single source of truth.
+
+  Use it when a Go constant in the Agent must always equal a setting's default (for example, a default
+  port, timeout, or path that other code needs to read directly).
+
+  - `<name>` is the Go constant name and must contain only letters (upper or lower case) and digits.
+  - Only valid on **setting** nodes, never on sections.
+  - The same `<name>` may be reused on several settings, but they must all share the same default — a
+    constant can only have one value.
+
+  ```yaml
+  security_agent:
+    node_type: section
+    properties:
+      cmd_port:
+        node_type: setting
+        type: integer
+        default: 5010
+        tags:
+          - generate_const:DefaultSecurityAgentCmdPort   # emits: DefaultSecurityAgentCmdPort = 5010
+  ```
+
+> **Note**: except from `template_section` and `generate_const`, all the other tags exists to support legacy behavior
+> and should not be used for new settings.
