@@ -16,6 +16,7 @@ go_test(
     name = "metrics_test",
     srcs = [
         "metric_add_test.go",
+        "metric_drain_test.go",
         "metric_test.go",
     ],
     embed = [":metrics"],
@@ -30,6 +31,7 @@ go_test(
         "//comp/core/log/mock",
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/fx-mock",
         "//comp/forwarder/defaultforwarder/def",
