@@ -179,7 +179,7 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "processors/no-changes",
 			provided:       "processors/no-changes/config.yaml",
-			expectedResult: "processors/no-changes/config.yaml",
+			expectedResult: "processors/no-changes/config-result.yaml",
 		},
 		{
 			name:           "receivers/empty-receivers",
@@ -194,17 +194,17 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "receivers/no-changes",
 			provided:       "receivers/no-changes/config.yaml",
-			expectedResult: "receivers/no-changes/config.yaml",
+			expectedResult: "receivers/no-changes/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-changes-multiple-dd",
 			provided:       "receivers/no-changes-multiple-dd/config.yaml",
-			expectedResult: "receivers/no-changes-multiple-dd/config.yaml",
+			expectedResult: "receivers/no-changes-multiple-dd/config-result.yaml",
 		},
 		{
-			name:           "receivers/no-changes-multiple-dd-same-pipeline",
-			provided:       "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
-			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
+			name:           "receivers/multi-dd-same-pipeline",
+			provided:       "receivers/multi-dd-same-pipeline/config.yaml",
+			expectedResult: "receivers/multi-dd-same-pipeline/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-prometheus-receiver",
@@ -332,7 +332,7 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "dd-core-cfg/all/no-overrides",
 			provided:       "dd-core-cfg/all/no-overrides/config.yaml",
-			expectedResult: "dd-core-cfg/all/no-overrides/config.yaml",
+			expectedResult: "dd-core-cfg/all/no-overrides/config-result.yaml",
 			agentConfig:    "dd-core-cfg/all/no-overrides/acfg.yaml",
 		},
 		{
@@ -456,6 +456,59 @@ func TestConvert(t *testing.T) {
 			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
 			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
 		},
+		// cumulativetodelta auto-injection (OTAGENT-1128).
+		{
+			name:           "cumulativetodelta/injected",
+			provided:       "cumulativetodelta/injected/config.yaml",
+			expectedResult: "cumulativetodelta/injected/config-result.yaml",
+			agentConfig:    "cumulativetodelta/injected/acfg.yaml",
+		},
+		{
+			// No-op expected: a user-defined cumulativetodelta is already present, so
+			// the provided config doubles as the expected result (no injection).
+			name:           "cumulativetodelta/dedup",
+			provided:       "cumulativetodelta/dedup/config.yaml",
+			expectedResult: "cumulativetodelta/dedup/config.yaml",
+			agentConfig:    "cumulativetodelta/dedup/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/metrics-only",
+			provided:       "cumulativetodelta/metrics-only/config.yaml",
+			expectedResult: "cumulativetodelta/metrics-only/config-result.yaml",
+			agentConfig:    "cumulativetodelta/metrics-only/acfg.yaml",
+		},
+		{
+			// No-op expected: the metrics pipeline has no datadog exporter, so the
+			// provided config doubles as the expected result (no injection).
+			name:           "cumulativetodelta/no-dd-exporter",
+			provided:       "cumulativetodelta/no-dd-exporter/config.yaml",
+			expectedResult: "cumulativetodelta/no-dd-exporter/config.yaml",
+			agentConfig:    "cumulativetodelta/no-dd-exporter/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/mixed-exporters",
+			provided:       "cumulativetodelta/mixed-exporters/config.yaml",
+			expectedResult: "cumulativetodelta/mixed-exporters/config-result.yaml",
+			agentConfig:    "cumulativetodelta/mixed-exporters/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/multi-metrics",
+			provided:       "cumulativetodelta/multi-metrics/config.yaml",
+			expectedResult: "cumulativetodelta/multi-metrics/config-result.yaml",
+			agentConfig:    "cumulativetodelta/multi-metrics/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/feature-disabled",
+			provided:       "cumulativetodelta/feature-disabled/config.yaml",
+			expectedResult: "cumulativetodelta/feature-disabled/config-result.yaml",
+			agentConfig:    "cumulativetodelta/feature-disabled/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/no-processors-section",
+			provided:       "cumulativetodelta/no-processors-section/config.yaml",
+			expectedResult: "cumulativetodelta/no-processors-section/config-result.yaml",
+			agentConfig:    "cumulativetodelta/no-processors-section/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
@@ -473,19 +526,19 @@ func TestConvert(t *testing.T) {
 				}
 			}
 			converter, err := NewComponent(r)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			conf, err := resolver.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			converter.Convert(context.Background(), conf)
 
 			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			confResult, err := resolverResult.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 		})
@@ -501,16 +554,16 @@ func TestConvert(t *testing.T) {
 			converter := newConverter(confmap.ConverterSettings{Logger: nopLogger})
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			conf, err := resolver.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			converter.Convert(context.Background(), conf)
 
 			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			confResult, err := resolverResult.Resolve(context.Background())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 		})
@@ -598,6 +651,59 @@ func TestHostmetricsWarning(t *testing.T) {
 				assert.Contains(t, hostmetricsWarnings[0].Message, "connected mode")
 			} else {
 				assert.Empty(t, hostmetricsWarnings, "expected no hostmetrics warning log")
+			}
+		})
+	}
+}
+
+func TestCumulativeToDeltaMixedExporterWarning(t *testing.T) {
+	tests := []struct {
+		name        string
+		provided    string
+		agentConfig string
+		wantWarning bool
+	}{
+		{
+			name:        "mixed-exporter metrics pipeline warns and skips injection",
+			provided:    "cumulativetodelta/mixed-exporters/config.yaml",
+			agentConfig: "cumulativetodelta/mixed-exporters/acfg.yaml",
+			wantWarning: true,
+		},
+		{
+			name:        "datadog-only metrics pipeline injects without warning",
+			provided:    "cumulativetodelta/injected/config.yaml",
+			agentConfig: "cumulativetodelta/injected/acfg.yaml",
+			wantWarning: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			observedCore, logs := observer.New(zapcore.WarnLevel)
+
+			f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
+			require.NoError(t, err)
+			acfg := config.NewMockFromYAML(t, string(f))
+
+			conv := &ddConverter{
+				coreConfig: acfg,
+				hostname:   &mockHostname{hostname: "test-host"},
+				logger:     zap.New(observedCore),
+			}
+
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			require.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			require.NoError(t, err)
+
+			conv.Convert(context.Background(), conf)
+
+			warnings := filterLogsBySubstring(logs, "non-Datadog exporter")
+			if tc.wantWarning {
+				assert.NotEmpty(t, warnings, "expected a mixed-exporter warning log")
+				assert.Contains(t, warnings[0].Message, "cumulativetodelta")
+			} else {
+				assert.Empty(t, warnings, "expected no mixed-exporter warning log")
 			}
 		})
 	}
