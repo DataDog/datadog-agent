@@ -23,9 +23,12 @@ func TestAgentPackageUninstallPathsRemoveGeneratedProcmgrConfigs(t *testing.T) {
 		filepath.Join("processes.d", "datadog-agent-ddot.yaml"),
 		filepath.Join("processes.d", "datadog-agent-action-executor.yaml"),
 	}
-	customConfig := filepath.Join("processes.d", "custom.yaml")
+	customConfigs := []string{
+		filepath.Join("processes.d", "custom.yaml"),
+		filepath.Join("processes.d", "datadog-agent-custom.yaml"),
+	}
 
-	for _, relPath := range append(generatedConfigs, customConfig) {
+	for _, relPath := range append(generatedConfigs, customConfigs...) {
 		fullPath := filepath.Join(installRoot, relPath)
 		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
 		require.NoError(t, os.WriteFile(fullPath, []byte("description: test\n"), 0644))
@@ -37,6 +40,8 @@ func TestAgentPackageUninstallPathsRemoveGeneratedProcmgrConfigs(t *testing.T) {
 		_, err := os.Stat(filepath.Join(installRoot, relPath))
 		assert.True(t, os.IsNotExist(err), "%s should be removed", relPath)
 	}
-	_, err := os.Stat(filepath.Join(installRoot, customConfig))
-	assert.NoError(t, err, "non-Datadog process manager configs should be preserved")
+	for _, relPath := range customConfigs {
+		_, err := os.Stat(filepath.Join(installRoot, relPath))
+		assert.NoError(t, err, "non-generated process manager config %s should be preserved", relPath)
+	}
 }
