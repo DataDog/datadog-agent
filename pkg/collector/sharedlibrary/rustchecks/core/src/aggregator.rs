@@ -286,4 +286,32 @@ impl Aggregator {
 
         Ok(())
     }
+
+    // TODO(dsec-157): refactor so submit_event_platform_event depends on
+    // submit_event_platform_event_bytes.
+    pub fn submit_event_platform_event_bytes(
+        &self,
+        check_id: &str,
+        raw_event: &[u8],
+        raw_event_size: c_int,
+        event_type: &str,
+    ) -> Result<()> {
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_event_type = CStringGuard::new(event_type)?;
+
+        // `raw_event` needs no guard: it is borrowed (not allocated here) and the
+        // Go callback copies it synchronously via `C.GoBytes`, so there is nothing
+        // to free. A `CString` wouldn't work, as protobuf bytes may contain NULs.
+        let raw_event_ptr = raw_event.as_ptr() as *mut c_char;
+
+        (self.cb_submit_event_platform_event)(
+            cstr_check_id.as_ptr(),
+            raw_event_ptr,
+            raw_event_size,
+            cstr_event_type.as_ptr(),
+        );
+
+        Ok(())
+    }
 }

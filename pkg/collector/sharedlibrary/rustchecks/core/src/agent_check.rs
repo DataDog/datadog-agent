@@ -247,4 +247,18 @@ impl AgentCheck {
             event_track_type,
         )
     }
+
+    // TODO(dsec-157): make event_platform_event delegate to this.
+    pub fn event_platform_event_bytes(
+        &self,
+        raw_event: &[u8],
+        event_track_type: &str,
+    ) -> Result<()> {
+        self.aggregator.submit_event_platform_event_bytes(
+            &self.check_id,
+            raw_event,
+            raw_event.len() as c_int,
+            event_track_type,
+        )
+    }
 }
