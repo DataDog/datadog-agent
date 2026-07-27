@@ -230,10 +230,10 @@ end:
 }
 
 // Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
-// It also detects a "content-type: application/grpc" header and, if found, classifies the connection as gRPC. This is
-// the decrypted/TLS-capable equivalent of the plaintext socket-filter gRPC classifier (see is_grpc in grpc/helpers.h):
-// because it runs on the shared pktbuf decode path, it classifies gRPC for both plaintext and TLS HTTP/2 traffic.
-static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index, conn_tuple_t *tup) {
+// It also detects a "content-type: application/grpc" header; on a match it only sets *is_grpc, and the caller sets the
+// connection protocol once (keeping the map update out of this heavily-unrolled decode path). Running on the shared
+// pktbuf path, this is the decrypted/TLS-capable equivalent of the plaintext socket-filter gRPC classifier.
+static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index, bool *is_grpc) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -253,12 +253,12 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
         }
     } else if (index == HTTP2_CONTENT_TYPE_IDX && str_len >= GRPC_CONTENT_TYPE_LEN) {
         // Indexed content-type name (static index 31) with a literal value. If the value begins with the
-        // huffman-encoded "application/grpc" (this also matches "application/grpc+proto" and similar), mark the
-        // connection as gRPC. The value is compared without advancing; the trailing pktbuf_advance skips it.
-        char content_type_buf[GRPC_CONTENT_TYPE_LEN];
-        if (pktbuf_load_bytes_from_current_offset(pkt, content_type_buf, GRPC_CONTENT_TYPE_LEN) >= 0 &&
-            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0) {
-            update_protocol_stack(tup, PROTOCOL_GRPC);
+        // huffman-encoded "application/grpc" (this also matches "application/grpc+proto" and similar), record it.
+        // The value is only peeked (not advanced); the trailing pktbuf_advance skips it.
+        char content_type_buf[GRPC_CONTENT_TYPE_PREFIX_LEN];
+        if (pktbuf_load_bytes_from_current_offset(pkt, content_type_buf, GRPC_CONTENT_TYPE_PREFIX_LEN) >= 0 &&
+            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_PREFIX_LEN) == 0) {
+            *is_grpc = true;
         }
     }
     pktbuf_advance(pkt, str_len);
@@ -272,6 +272,7 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
 static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
+    bool is_grpc = false;
     http2_header_t *current_header;
     const __u32 frame_end = pktbuf_data_offset(pkt) + frame_length;
     const __u32 end = frame_end < pktbuf_data_end(pkt) + 1 ? frame_end : pktbuf_data_end(pkt) + 1;
@@ -368,10 +369,15 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        // Pass the connection tuple so a "content-type: application/grpc" header can classify the connection as gRPC.
-        if (!pktbuf_process_and_skip_literal_headers(pkt, index, &dynamic_index->tup)){
+        // Detect a "content-type: application/grpc" header (sets is_grpc) so the connection can be classified as gRPC.
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index, &is_grpc)){
             break;
         }
+    }
+
+    // Classify the connection as gRPC once, outside the unrolled header loops, to keep the map update small.
+    if (is_grpc) {
+        update_protocol_stack(&dynamic_index->tup, PROTOCOL_GRPC);
     }
 
     return interesting_headers;
