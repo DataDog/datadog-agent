@@ -70,12 +70,10 @@ func TestNewFlareBuilder(t *testing.T) {
 	archive, err := fb.Save()
 	require.NoError(t, err)
 
-	// On Windows CI runners the file can be briefly invisible right after a successful os.Rename
-	// (e.g. antivirus/real-time-scan locking), so poll before doing the real assertion below.
 	assert.Eventually(t, func() bool {
 		info, err := os.Lstat(archive)
 		return err == nil && !info.IsDir()
-	}, time.Second, 10*time.Millisecond, "unable to find file %q", archive)
+	}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", archive)
 	assert.FileExists(t, archive)
 	os.RemoveAll(archive)
 
@@ -94,12 +92,10 @@ func TestSave(t *testing.T) {
 	require.NoError(t, err)
 	assert.NoDirExists(t, fb.tmpDir)
 
-	// On Windows CI runners the file can be briefly invisible right after a successful os.Rename
-	// (e.g. antivirus/real-time-scan locking), so poll before doing the real assertion below.
 	require.Eventually(t, func() bool {
 		info, err := os.Lstat(archivePath)
 		return err == nil && !info.IsDir()
-	}, time.Second, 10*time.Millisecond, "unable to find file %q", archivePath)
+	}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", archivePath)
 	require.FileExists(t, archivePath)
 
 	defer os.RemoveAll(archivePath)
