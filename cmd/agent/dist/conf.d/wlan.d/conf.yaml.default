@@ -1,5 +1,33 @@
 ad_identifiers:
   - _end_user_device
 init_config:
+  ## @param ap_scan - boolean - optional - default: true
+  ## Emit system.wlan.scan.rssi for every visible access point (the connected
+  ## one and nearby ones), tagged with ssid, bssid, and connected:1|0.
+  ## Set to false to disable scanning for nearby access points.
+  # ap_scan: true
+
+  ## @param ap_scan_limit - integer - optional
+  ## Report only the N strongest nearby access points by RSSI. The connected
+  ## access point is always reported and does not count against this limit.
+  # ap_scan_limit: 20
+
+  ## @param ap_scan_rssi_cutoff - integer - optional
+  ## Drop nearby access points whose RSSI (in dBm) is below this value, e.g.
+  ## -80 to ignore weak signals. The connected access point is exempt.
+  # ap_scan_rssi_cutoff: -80
+
+  ## @param ssid_include / ssid_exclude / bssid_include / bssid_exclude - list of strings - optional
+  ## Glob patterns (case-insensitive) gating the connected-AP metrics by the
+  ## currently connected network. ssid_*/bssid_* combine as OR; exclude wins;
+  ## empty lists allow everything.
+  # ssid_include:
+  #   - "Corp-*"
+
+  ## @param scan_ssid_include / scan_ssid_exclude / scan_bssid_include / scan_bssid_exclude - list of strings - optional
+  ## Same glob semantics, gating whether the nearby-AP scan runs at all, matched
+  ## on the connected network. Example: scan only at work.
+  # scan_ssid_include:
+  #   - "Corp-*"
 instances:
   - {}

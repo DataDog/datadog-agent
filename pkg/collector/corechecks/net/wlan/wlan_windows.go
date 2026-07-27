@@ -26,10 +26,10 @@ var (
 	wlanAPI            = windows.NewLazyDLL("wlanapi.dll")
 	wlanOpenHandle     = wlanAPI.NewProc("WlanOpenHandle")
 	wlanCloseHandle    = wlanAPI.NewProc("WlanCloseHandle")
-	wlanEnumInterfaces = wlanAPI.NewProc("WlanEnumInterfaces")
-	wlanQueryInterface = wlanAPI.NewProc("WlanQueryInterface")
-	// wlanGetNetworkBssList = wlanAPI.NewProc("WlanGetNetworkBssList")
-	wlanFreeMemory = wlanAPI.NewProc("WlanFreeMemory")
+	wlanEnumInterfaces    = wlanAPI.NewProc("WlanEnumInterfaces")
+	wlanQueryInterface    = wlanAPI.NewProc("WlanQueryInterface")
+	wlanGetNetworkBssList = wlanAPI.NewProc("WlanGetNetworkBssList")
+	wlanFreeMemory        = wlanAPI.NewProc("WlanFreeMemory")
 
 	iphlpapi                   = windows.NewLazyDLL("iphlpapi.dll")
 	getIfEntry2                = iphlpapi.NewProc("GetIfEntry2")
@@ -38,6 +38,10 @@ var (
 	// getWiFiInfo is a package-level function variable for testability
 	// Tests can reassign this to mock WiFi data retrieval
 	getWiFiInfo func() (wifiInfo, error)
+
+	// getNearbyAPs is a package-level function variable for testability
+	// Tests can reassign this to mock nearby access point scanning
+	getNearbyAPs func() ([]accessPointInfo, error)
 )
 
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ne-wlanapi-wlan_interface_state-r1
@@ -211,6 +215,55 @@ type WLAN_CONNECTION_ATTRIBUTES struct {
 	profileName               [256]uint16
 	wlanAssociationAttributes WLAN_ASSOCIATION_ATTRIBUTES
 	wlanSecurityAttributes    WLAN_SECURITY_ATTRIBUTES
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/nativewifi/dot11-bss-type
+type WLAN_BSS_TYPE uint32
+
+const (
+	dot11BssTypeInfrastructure WLAN_BSS_TYPE = 1
+	dot11BssTypeIndependent    WLAN_BSS_TYPE = 2
+	dot11BssTypeAny            WLAN_BSS_TYPE = 3
+)
+
+// DOT11_RATE_SET_MAX_LENGTH from the Native WiFi headers.
+const dot11RateSetMaxLength = 126
+
+// https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_rate_set
+type WLAN_RATE_SET struct {
+	uRateSetLength uint32
+	usRateSet      [dot11RateSetMaxLength]uint16
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_bss_entry
+//
+// The field order and types mirror the C struct exactly so the in-memory
+// layout matches; Go's automatic padding aligns with MSVC's for these types
+// on windows/amd64 (the only Windows architecture the Agent ships).
+type WLAN_BSS_ENTRY struct {
+	dot11Ssid               DOT11_SSID
+	uPhyId                  uint32
+	dot11Bssid              [6]byte
+	dot11BssType            uint32 // WLAN_BSS_TYPE
+	dot11BssPhyType         uint32 // DOT11_PHY_TYPE
+	lRssi                   int32  // signal strength in dBm
+	uLinkQuality            uint32
+	bInRegDomain            byte // BOOLEAN
+	usBeaconPeriod          uint16
+	ullTimestamp            uint64
+	ullHostTimestamp        uint64
+	usCapabilityInformation uint16
+	ulChCenterFrequency     uint32
+	wlanRateSet             WLAN_RATE_SET
+	ulIeOffset              uint32
+	ulIeSize                uint32
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_bss_list
+type WLAN_BSS_LIST struct {
+	TotalSize      uint32
+	NumberOfItems  uint32
+	wlanBssEntries [1]WLAN_BSS_ENTRY
 }
 
 // ------------------------------------------------------
@@ -503,6 +556,91 @@ func getFirstConnectedWlanInfo() (*wifiInfo, error) {
 	}
 
 	log.Tracef("No connected WLAN interfaces are found")
+	return nil, nil
+}
+
+// getNetworkBssList returns one accessPointInfo per visible BSS for the given
+// interface. It uses the cached BSS list (no forced WlanScan), which is
+// lightweight enough for the check's collection interval.
+func getNetworkBssList(wlanClient uintptr, itfGuid windows.GUID) ([]accessPointInfo, error) {
+	// https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/nf-wlanapi-wlangetnetworkbsslist
+	var bssList *WLAN_BSS_LIST
+	ret, _, _ := wlanGetNetworkBssList.Call(
+		wlanClient,
+		uintptr(unsafe.Pointer(&itfGuid)),
+		0, // pDot11Ssid = NULL -> return BSSs for all SSIDs
+		uintptr(dot11BssTypeAny),
+		0, // bSecurityEnabled (ignored when pDot11Ssid is NULL)
+		0, // pReserved
+		uintptr(unsafe.Pointer(&bssList)),
+	)
+	if ret != 0 {
+		return nil, fmt.Errorf("wlanGetNetworkBssList failed: %d", ret)
+	}
+	if bssList == nil {
+		return nil, nil
+	}
+	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(bssList))) //nolint:errcheck
+
+	n := int(bssList.NumberOfItems)
+	if n == 0 {
+		return nil, nil
+	}
+
+	aps := make([]accessPointInfo, 0, n)
+	entrySize := unsafe.Sizeof(WLAN_BSS_ENTRY{})
+	base := unsafe.Pointer(&bssList.wlanBssEntries[0])
+	for i := 0; i < n; i++ {
+		// unsafe.Add keeps pointer provenance (vet-clean), unlike a
+		// uintptr round-trip. bssList stays live via the defer above.
+		entry := (*WLAN_BSS_ENTRY)(unsafe.Add(base, uintptr(i)*entrySize))
+		bssid, err := formatMacAddress(entry.dot11Bssid[:])
+		if err != nil {
+			log.Warnf("Skipping access point with invalid BSSID: %v", err)
+			continue
+		}
+		aps = append(aps, accessPointInfo{
+			rssi:  int(entry.lRssi),
+			ssid:  formatSSID(entry.dot11Ssid),
+			bssid: bssid,
+		})
+	}
+	return aps, nil
+}
+
+// GetNearbyAccessPoints scans for all visible access points on Windows.
+func (c *WLANCheck) GetNearbyAccessPoints() ([]accessPointInfo, error) {
+	// Check for test override
+	if getNearbyAPs != nil {
+		return getNearbyAPs()
+	}
+
+	wlanClient, err := getWlanHandle()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get WLAN client handle: %v", err)
+	}
+	defer wlanCloseHandle.Call(wlanClient, 0) //nolint:errcheck
+
+	itfs, err := getWlanInterfacesList(wlanClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get WLAN interfaces: %v", err)
+	}
+	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(itfs))) //nolint:errcheck
+
+	if itfs.NumberOfItems == 0 {
+		return nil, nil
+	}
+
+	// Scan using the first connected interface (consistent with the
+	// connected-AP path in getFirstConnectedWlanInfo).
+	for i := 0; i < int(itfs.NumberOfItems); i++ {
+		itf := &itfs.InterfaceInfo[i]
+		if itf.IsState != uint32(wlanInterfaceStateConnected) {
+			continue
+		}
+		return getNetworkBssList(wlanClient, itf.InterfaceGUID)
+	}
+
 	return nil, nil
 }
 

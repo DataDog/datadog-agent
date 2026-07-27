@@ -21,6 +21,13 @@ struct WiFiIPCResponse: Codable {
     let error: String?
 }
 
+/// Response structure for the get_wifi_scan command.
+struct WiFiScanIPCResponse: Codable {
+    let success: Bool
+    let data: WiFiScanData?
+    let error: String?
+}
+
 /// WiFiIPCServer handles Unix socket communication for WiFi data
 class WiFiIPCServer {
     private let wifiDataProvider: WiFiDataProvider
@@ -228,13 +235,20 @@ class WiFiIPCServer {
             let response = WiFiIPCResponse(success: true, data: wifiData, error: nil)
             sendResponse(clientFD, response: response)
 
+        case "get_wifi_scan":
+            let scanData = wifiDataProvider.scanForNetworks(
+                requestLocationPermission: request.requestLocationPermission ?? false
+            )
+            let response = WiFiScanIPCResponse(success: true, data: scanData, error: nil)
+            sendResponse(clientFD, response: response)
+
         default:
             Logger.error("Unknown command: \(request.command)", context: "WiFiIPCServer")
             sendErrorResponse(clientFD, error: "Unknown command: \(request.command)")
         }
     }
 
-    private func sendResponse(_ clientFD: Int32, response: WiFiIPCResponse) {
+    private func sendResponse<T: Encodable>(_ clientFD: Int32, response: T) {
         guard let responseData = try? JSONEncoder().encode(response) else {
             Logger.error("Failed to encode response", context: "WiFiIPCServer")
             return
