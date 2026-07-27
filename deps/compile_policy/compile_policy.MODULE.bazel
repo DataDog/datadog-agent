@@ -2,7 +2,7 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "0.1.2"
+VERSION = "0.1.13"
 
 # Define URLs for each architecture. This is used for the Linux build only; Windows and Darwin are not supported yet.
 # When we do those, we can make this parameterized.
