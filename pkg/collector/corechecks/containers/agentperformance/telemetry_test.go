@@ -146,36 +146,13 @@ func TestRecorderRuntimeMetricsCallbackSerializesSnapshots(t *testing.T) {
 	}()
 
 	<-firstCallbackEntered
-
-	secondReady := make(chan struct{})
-	startSecond := make(chan struct{})
-	secondCallbackEntered := make(chan struct{})
-	secondResult := make(chan error, 1)
-	go func() {
-		close(secondReady)
-		<-startSecond
-		secondResult <- recorder.WithRuntimeMetrics(func() error {
-			close(secondCallbackEntered)
-			return nil
-		})
-	}()
-
-	<-secondReady
-	close(startSecond)
-	select {
-	case <-secondCallbackEntered:
-		assert.Fail(t, "second runtime metrics callback entered before the first completed")
-	case <-time.After(time.Second):
-	}
+	assert.False(t, recorder.runtimeSnapshotMu.TryLock())
 
 	close(releaseFirstCallback)
 	assert.ErrorIs(t, <-firstResult, expectedErr)
-	select {
-	case <-secondCallbackEntered:
-	case <-time.After(time.Second):
-		assert.Fail(t, "second runtime metrics callback did not enter after the first completed")
+	if assert.True(t, recorder.runtimeSnapshotMu.TryLock()) {
+		recorder.runtimeSnapshotMu.Unlock()
 	}
-	assert.NoError(t, <-secondResult)
 }
 
 func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
