@@ -65,3 +65,46 @@ func TestGetenvAgentUserKeepRightsFallback(t *testing.T) {
 		})
 	}
 }
+
+// TestArgsHaveProperty verifies the guard used by installAgentPackage to detect that an MSI
+// property was already supplied explicitly via install args, so a registry-derived fallback
+// (e.g. AgentUserKeepRights) doesn't silently override an operator's explicit request.
+func TestArgsHaveProperty(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		property string
+		expected bool
+	}{
+		{
+			name:     "property present",
+			args:     []string{"FLEET_INSTALL=1", "DDAGENTUSER_KEEP_RIGHTS=0"},
+			property: "DDAGENTUSER_KEEP_RIGHTS",
+			expected: true,
+		},
+		{
+			name:     "property absent",
+			args:     []string{"FLEET_INSTALL=1"},
+			property: "DDAGENTUSER_KEEP_RIGHTS",
+			expected: false,
+		},
+		{
+			name:     "no args",
+			args:     nil,
+			property: "DDAGENTUSER_KEEP_RIGHTS",
+			expected: false,
+		},
+		{
+			name:     "does not match on property name prefix alone",
+			args:     []string{"DDAGENTUSER_KEEP_RIGHTS_EXTRA=1"},
+			property: "DDAGENTUSER_KEEP_RIGHTS",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, argsHaveProperty(tt.args, tt.property))
+		})
+	}
+}

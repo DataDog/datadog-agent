@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -531,7 +532,12 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	if env.MsiParams.AgentUserKeepRights != "" {
+	// msi.Cmd() always places typed properties (WithDdAgentUserKeepRights, etc.) after raw
+	// additional args on the final command line, regardless of option order here, so an
+	// explicit DDAGENTUSER_KEEP_RIGHTS already present in args must win over the
+	// registry-derived fallback in env.MsiParams.AgentUserKeepRights, or an operator's
+	// explicit opt-in/opt-out would be silently overridden by a stale registry value.
+	if env.MsiParams.AgentUserKeepRights != "" && !argsHaveProperty(args, "DDAGENTUSER_KEEP_RIGHTS") {
 		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
 	opts = append(opts, msi.WithProperties(props))
@@ -552,6 +558,18 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		return err
 	}
 	return nil
+}
+
+// argsHaveProperty returns true if args already contains an explicit "property=value" entry
+// for the given MSI property.
+func argsHaveProperty(args []string, property string) bool {
+	prefix := property + "="
+	for _, arg := range args {
+		if strings.HasPrefix(arg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func removeProductIfInstalled(ctx context.Context, product string) (err error) {
