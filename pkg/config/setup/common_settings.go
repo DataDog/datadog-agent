@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
@@ -925,7 +926,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// resolve the hostname to get the IP address
 	config.BindEnvAndSetDefault("metadata_ip_resolution_from_hostname", false)
 
-	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", constants.DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", "${log_path}/security-agent.log")
 	config.BindEnvAndSetDefault("security_agent.disable_thp", true)

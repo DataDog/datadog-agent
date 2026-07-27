@@ -7,8 +7,11 @@ package helper
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -35,4 +38,38 @@ func GetIPCAddress(config model.Reader) (string, error) {
 // GetIPCPort returns the IPC port
 func GetIPCPort(config model.Reader) string {
 	return config.GetString("cmd_port")
+}
+
+// GetProcessAPIAddressPort returns the API endpoint of the process agent
+func GetProcessAPIAddressPort(config model.Reader) (string, error) {
+	address, err := GetIPCAddress(config)
+	if err != nil {
+		return "", err
+	}
+
+	port := config.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, constants.DefaultProcessCmdPort)
+		port = constants.DefaultProcessCmdPort
+	}
+
+	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
+	return addrPort, nil
+}
+
+// GetSecurityAgentAPIAddressPort returns the API endpoint of the security agent
+func GetSecurityAgentAPIAddressPort(config model.Reader) (string, error) {
+	address, err := GetIPCAddress(config)
+	if err != nil {
+		return "", err
+	}
+
+	port := config.GetInt("security_agent.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid security.cmd_port -- %d, using default port %d", port, constants.DefaultSecurityAgentCmdPort)
+		port = constants.DefaultProcessCmdPort
+	}
+
+	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
+	return addrPort, nil
 }
