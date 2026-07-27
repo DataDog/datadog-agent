@@ -104,6 +104,7 @@ var (
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
+		"processes.d/datadog-agent-*.yaml",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
