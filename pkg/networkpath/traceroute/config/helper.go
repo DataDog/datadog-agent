@@ -7,16 +7,14 @@ package config
 
 import "time"
 
+// DefaultMaxTTL is the default maximum number of hops for Network Path
+// traceroute tests.
+const DefaultMaxTTL = 30
+
 // tracerouteExecutionBudgetRatio allocates 90% of the total timeout to per-hop
 // probes. The remaining 10% leaves time for traceroute-library overhead and
 // for the call to return before the total test deadline expires.
-const (
-	// DefaultMaxTTL is the default maximum number of hops for Network Path
-	// traceroute tests.
-	DefaultMaxTTL = 30
-
-	tracerouteExecutionBudgetRatio = 0.9
-)
+const tracerouteExecutionBudgetRatio = 0.9
 
 // PerHopTimeout converts a total traceroute execution budget into a timeout
 // for each hop while preserving the return-path buffer described by
