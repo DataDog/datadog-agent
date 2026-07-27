@@ -355,6 +355,7 @@ func (r *HTTPReceiver) Start() {
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 			killProcess("Error creating tcp listener: %v", err)
+			return
 		}
 		go func() {
 			defer watchdog.LogOnPanic(r.statsd)
@@ -416,6 +417,7 @@ func (r *HTTPReceiver) Start() {
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
+			return
 		}
 		go func() {
 			defer watchdog.LogOnPanic(r.statsd)
