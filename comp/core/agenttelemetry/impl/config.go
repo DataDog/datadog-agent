@@ -116,10 +116,11 @@ type Event struct {
 //
 // profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
-// metric will be aggregated without any tags. If specified, only these tags are kept; all
-// others are dropped and their timeseries values are summed. In case none of the tags match
-// any timeseries, those timeseries are removed from the metric's JSON object.
+// Every emitted metric includes the mandatory system tag "emitter". preserve_tags allowlists
+// additional user labels to keep during aggregation. If omitted or empty, timeseries aggregate
+// by emitter alone. If specified, only emitter and the listed labels are emitted; timeseries
+// missing every listed label are removed from the metric's JSON object. Listing emitter remains
+// accepted for compatibility but is a no-op because emitter is always included.
 // The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
 //
 // profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
@@ -130,9 +131,9 @@ type Event struct {
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
-// When included, specifies whether the metric should be aggregated as a total. A
-// special tag "total" will be added to the metric's JSON object (accordingly "total" is a
-// reserved tag). Only meaningful when preserve_tags is also specified.
+// When included, emits one total independently for each emitter. A special tag "total"
+// containing that emitter's source-timeseries count is added to the metric's JSON object
+// (accordingly "total" is a reserved tag).
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -183,7 +184,7 @@ type Event struct {
 // The value is required and used in the corresponding payload
 
 // Default agent telemetry profiles config if not specified in the agent config file.
-// Note: If "preserve_tags" are not specified, metric will be aggregated without any tags.
+// Note: If "preserve_tags" are not specified, metric will be aggregated by emitter only.
 //
 //go:embed defaultProfiles.yaml
 var defaultProfiles string

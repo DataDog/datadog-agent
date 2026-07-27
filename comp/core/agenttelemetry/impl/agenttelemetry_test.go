@@ -2833,6 +2833,46 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	assert.Equal(t, 20.0, m2.Value)
 }
 
+func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	metricsByName := make(map[string]*MetricConfig)
+	for _, profile := range cfg.Profiles {
+		if profile.Metric == nil {
+			continue
+		}
+		for i := range profile.Metric.Metrics {
+			metric := &profile.Metric.Metrics[i]
+			require.NotContains(t, metric.PreserveTags, emitterTagName, metric.Name)
+			metricsByName[metric.Name] = metric
+		}
+	}
+
+	for _, testCase := range []struct {
+		name           string
+		preserveTags   []string
+		aggregateTotal bool
+	}{
+		{name: "dogstatsd.udp_packets_bytes"},
+		{name: "dogstatsd.uds_packets_bytes"},
+		{name: "logs.bytes_sent", aggregateTotal: true},
+		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
+		{name: "point.sent", preserveTags: []string{"domain"}},
+		{name: "point.dropped", preserveTags: []string{"domain"}},
+		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},
+		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
+		{name: "transactions.http_errors", preserveTags: []string{"code", "endpoint"}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			metric := metricsByName[testCase.name]
+			require.NotNil(t, metric)
+			require.Equal(t, testCase.preserveTags, metric.PreserveTags)
+			require.Equal(t, testCase.aggregateTotal, metric.AggregateTotal)
+		})
+	}
+}
+
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	c := defaultProfiles
 	cfg := configmock.NewFromYAML(t, c)
