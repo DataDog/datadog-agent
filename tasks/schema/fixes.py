@@ -12,7 +12,7 @@ import re
 # Directory holding the Go config setup package, relative to this file.
 SETUP_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "pkg", "config", "setup"))
 
-# Some GetPlatformDefault map values are Go identifiers or function calls rather than literals. They are
+# Some getPlatformDefault map values are Go identifiers or function calls rather than literals. They are
 # platform-independent constants resolved at build time; map each to the value it returns on the matching platform.
 GO_VALUE_RESOLUTIONS = {
     "defaultpaths.GetDefaultReceiverSocket()": "/var/run/datadog/apm.socket",
@@ -20,15 +20,15 @@ GO_VALUE_RESOLUTIONS = {
     "DefaultRuntimePoliciesDir": "/etc/datadog-agent/runtime-security.d",
 }
 
-# Matches `"<config.key>", GetPlatformDefault(map[string]interface{}{ <body> })`, allowing the key and the
-# GetPlatformDefault call to be on separate lines. The body stops at the first `})` which closes the map literal;
+# Matches `"<config.key>", getPlatformDefault(map[string]interface{}{ <body> })`, allowing the key and the
+# getPlatformDefault call to be on separate lines. The body stops at the first `})` which closes the map literal;
 # `${...}` substitutions inside string values never produce a `})`, so this stays unambiguous.
 PLATFORM_DEFAULT_RE = re.compile(
-    r'"(?P<key>[\w.]+)"\s*,\s*GetPlatformDefault\(map\[string\]interface\{\}\{(?P<body>.*?)\}\)',
+    r'"(?P<key>[\w.]+)"\s*,\s*getPlatformDefault\(map\[string\]interface\{\}\{(?P<body>.*?)\}\)',
     re.DOTALL,
 )
 
-# Matches a single `"platform": value` entry inside a GetPlatformDefault map literal.
+# Matches a single `"platform": value` entry inside a getPlatformDefault map literal.
 PLATFORM_ENTRY_RE = re.compile(r'^"(?P<platform>\w+)"\s*:\s*(?P<value>.+?),?$')
 
 # A `generate_const:<name>` tag records that a setting's default value comes from the Go constant
@@ -382,11 +382,11 @@ def _parse_go_value(value):
         return value[1:-1]
     if value in GO_VALUE_RESOLUTIONS:
         return GO_VALUE_RESOLUTIONS[value]
-    raise RuntimeError(f"cannot resolve Go GetPlatformDefault value {value!r}; add it to GO_VALUE_RESOLUTIONS")
+    raise RuntimeError(f"cannot resolve Go getPlatformDefault value {value!r}; add it to GO_VALUE_RESOLUTIONS")
 
 
 def parse_platform_defaults():
-    """Parse the GetPlatformDefault calls in pkg/config/setup into a {config_key: {platform: value}} mapping."""
+    """Parse the getPlatformDefault calls in pkg/config/setup into a {config_key: {platform: value}} mapping."""
     platform_defaults = {}
     for fname in sorted(os.listdir(SETUP_DIR)):
         if not fname.endswith(".go") or fname.endswith("_test.go"):
@@ -411,7 +411,7 @@ def parse_platform_defaults():
 
 
 def fix_defaults(core_schema, sysprobe_schema):
-    # Platform-specific defaults pulled from the GetPlatformDefault calls in pkg/config/setup. A setting can live in
+    # Platform-specific defaults pulled from the getPlatformDefault calls in pkg/config/setup. A setting can live in
     # the core schema, the system-probe schema, or both (some are duplicated), so apply to whichever schemas have it.
     for key, values in parse_platform_defaults().items():
         for schema in (core_schema, sysprobe_schema):

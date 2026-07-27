@@ -385,7 +385,7 @@ def retrieve_default_value(keypath, schema):
 
     if node.get('platform_default'):
         platform_default = as_go_value(node['platform_default'], split_lines=True)
-        return f"GetPlatformDefault(map[string]interface{{}}{platform_default})"
+        return f"getPlatformDefault(map[string]interface{{}}{platform_default})"
 
     if settingType == 'array' or settingType == 'object':
         return to_vartype(node, as_go_value(settingDefault))

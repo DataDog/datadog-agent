@@ -1450,7 +1450,7 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	return true
 }
 
-func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+func getPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if pkgconfigenv.IsECSFargate() {
 		if val, found := platformValues["fargate"]; found {
 			return val
