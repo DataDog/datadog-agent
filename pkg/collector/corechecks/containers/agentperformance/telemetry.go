@@ -7,6 +7,7 @@
 package agentperformance
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -122,7 +123,7 @@ func (t *Recorder) CompleteRuntimeMetrics() {
 
 // RecordCPUUsage adds a container's delta-derived CPU cores to its eligible Agent pod aggregate.
 func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp time.Time, pod *workloadmeta.KubernetesPod) {
-	if containerID == "" || total == nil {
+	if containerID == "" || total == nil || *total < 0 || math.IsNaN(*total) || math.IsInf(*total, 0) {
 		return
 	}
 

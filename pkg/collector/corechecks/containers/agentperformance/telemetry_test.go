@@ -6,6 +6,7 @@
 package agentperformance
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -136,6 +137,39 @@ func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
 	recorder.CompleteRuntimeMetrics()
 
 	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
+}
+
+func TestRecorderCPUUsageInvalidTotalsDoNotEmitOrReplaceBaseline(t *testing.T) {
+	tests := []struct {
+		name         string
+		invalidTotal float64
+	}{
+		{name: "negative", invalidTotal: -float64(time.Second)},
+		{name: "NaN", invalidTotal: math.NaN()},
+		{name: "positive infinity", invalidTotal: math.Inf(1)},
+		{name: "negative infinity", invalidTotal: math.Inf(-1)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tel := telemetrymock.New(t)
+			recorder := newRecorder(tel)
+			pod := newTestPod(nodeAgentComponent, "node-agent-pod")
+			collectionStart := time.Unix(100, 0)
+
+			recorder.ResetRuntimeMetrics()
+			recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
+			recorder.CompleteRuntimeMetrics()
+
+			recorder.ResetRuntimeMetrics()
+			recorder.RecordCPUUsage("node-agent-container", ptr(tt.invalidTotal), collectionStart.Add(10*time.Second), pod)
+			assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
+			assert.NotContains(t, recorder.currentCPUSamples, "node-agent-container")
+
+			recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+			assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.125)
+		})
+	}
 }
 
 func TestRecorderCPUUsageAggregatesNodeAgentContainers(t *testing.T) {
