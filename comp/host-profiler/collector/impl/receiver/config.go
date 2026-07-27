@@ -87,7 +87,7 @@ func defaultConfig(profilerName string) component.Config {
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
-
+	cfg.Interpreters.Ruby.SkipNativeResume = true
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{
 		EbpfCollectorConfig: cfg,
