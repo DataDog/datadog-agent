@@ -427,11 +427,10 @@ func (s *adScheduler) runHeartbeatWorker() {
 }
 
 func (s *adScheduler) enqueueDueCollections() {
-	now := s.clock.Now()
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	now := s.clock.Now()
 	for _, watch := range s.watches {
 		if watch.inFlight || !watch.hasDueCollection(now) {
 			continue
