@@ -785,10 +785,14 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 	if matches[3] != "" {
 		for _, pair := range strings.Split(matches[3], ",") {
 			kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
-			if len(kv) != 2 || kv[0] == "" {
+			if len(kv) != 2 {
 				return delaDirective{}, false
 			}
-			params[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+			key, val := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
+			if key == "" || val == "" {
+				return delaDirective{}, false
+			}
+			params[key] = val
 		}
 	}
 

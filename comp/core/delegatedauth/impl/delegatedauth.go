@@ -592,9 +592,21 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 }
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config value at
-// instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing only the
-// value this instance previously wrote there. Serialized via additionalEndpointsMu since multiple
-// instances can refresh concurrently.
+// instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing the
+// value this instance previously wrote there (starting with the original DELA(...) directive text)
+// without disturbing any other entry for that domain, static or otherwise. Serialized via
+// additionalEndpointsMu since multiple instances (one per DELA(...) entry, possibly across
+// different config keys) can refresh concurrently.
+//
+// Writes at SourceSecret, not SourceAgentRuntime: a domain's additional_endpoints list can mix
+// DELA(...) and ENC[...] entries (e.g. one static ENC[]-backed key plus one WIF-managed key for
+// dual shipping). Both this function and the secrets resolver's configAssignAtPath read the
+// current value of this same key, mutate their own entry, and write the whole list back.
+// SourceAgentRuntime outranks SourceSecret, so writing there would let this component's first
+// write permanently shadow the secrets layer for the entire key - any later secret rotation would
+// update the SourceSecret layer but Get() would keep returning this stale SourceAgentRuntime
+// snapshot. Sharing SourceSecret means whichever side wrote last read the other's latest value
+// first, so both keep composing correctly.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
@@ -622,7 +634,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	}
 	merged[domain] = keys
 
-	d.config.Set(configKey, merged, pkgconfigmodel.SourceAgentRuntime)
+	d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
 	instance.lastWrittenValue = apiKey
 	if isFallback {
 		log.Infof("Using fallback API key for additional endpoint '%s' at '%s' (delegated auth unavailable), ending with: %s", domain, configKey, scrubber.HideKeyExceptLastChars(apiKey))
@@ -674,8 +686,11 @@ func caseInsensitiveStringField(entry map[string]any, field string) (string, boo
 }
 
 // mergeIntoAdditionalEndpointsList writes apiKey into the list-shape config value at
-// instance.additionalEndpointsListConfigKey, replacing the entry whose api_key still holds
-// lastWrittenValue - matched by value, not index, so a reordered list doesn't drop the key.
+// instance.additionalEndpointsListConfigKey (a list of {api_key, Host, Port, ...} entries),
+// replacing the entry whose api_key still holds this instance's lastWrittenValue - matching by
+// value rather than list index/position, so a reordered or resized list doesn't silently drop the
+// resolved key. Serialized via additionalEndpointsMu for the same reason, and writes at
+// SourceSecret for the same reason, as mergeIntoAdditionalEndpoints.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
@@ -708,7 +723,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		return
 	}
 
-	d.config.Set(configKey, merged, pkgconfigmodel.SourceAgentRuntime)
+	d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
 	instance.lastWrittenValue = apiKey
 	if isFallback {
 		log.Infof("Using fallback API key for additional endpoint entry at '%s' (delegated auth unavailable), ending with: %s", configKey, scrubber.HideKeyExceptLastChars(apiKey))
