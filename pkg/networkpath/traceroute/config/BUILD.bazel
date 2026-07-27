@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
-    srcs = ["config.go"],
+    srcs = [
+        "config.go",
+        "helper.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config",
     visibility = ["//visibility:public"],
     deps = ["//pkg/networkpath/payload"],
@@ -11,7 +14,7 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["config_test.go"],
+    srcs = ["helper_test.go"],
     embed = [":config"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
