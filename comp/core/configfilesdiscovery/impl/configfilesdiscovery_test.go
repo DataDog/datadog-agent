@@ -694,6 +694,39 @@ func TestSchedulerAppliesSharedStartupJitter(t *testing.T) {
 	collector.waitForRuns(t, 3)
 }
 
+func TestSchedulerDoesNotApplyStartupJitterAfterStartupWindow(t *testing.T) {
+	mockClock := clock.NewMock()
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:    "/etc/redis/redis.conf",
+				Content: []byte("port 6379\n"),
+			},
+		},
+	}
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		nil,
+		adSchedulerConfig{
+			heartbeatInterval:      time.Hour,
+			heartbeatJitter:        0,
+			startupJitter:          time.Minute,
+			heartbeatRetryInterval: time.Minute,
+			heartbeatCheckInterval: time.Hour,
+			clock:                  mockClock,
+			jitter:                 fixedJitter(0),
+		},
+	)
+	defer s.Stop()
+
+	mockClock.Add(time.Minute)
+	s.Schedule([]integration.Config{checkConfig(testRedisIntegrationName, "docker://abc123")})
+
+	collector.waitForRuns(t, 1)
+}
+
 func TestSchedulerSchedulesBatchHeartbeatsTogether(t *testing.T) {
 	mockClock := clock.NewMock()
 	sender := &recordingCollectedConfigSender{}

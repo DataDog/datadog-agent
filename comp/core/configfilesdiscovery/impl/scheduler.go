@@ -40,10 +40,9 @@ type adScheduler struct {
 
 	heartbeatInterval time.Duration
 	heartbeatJitter   time.Duration
-	// startupDelay is selected once and starts with the first valid AD config.
-	startupDelay time.Duration
-	// startupNotBefore is shared by configs discovered during Agent startup so
-	// their first collections stay batchable while Agents spread their sends.
+	// startupNotBefore is fixed when the scheduler is created and shared by
+	// configs discovered during Agent startup so their first collections stay
+	// batchable while Agents spread their sends.
 	startupNotBefore time.Time
 	// startupTimer releases startup configs at their shared deadline.
 	startupTimer *clock.Timer
@@ -186,6 +185,7 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 	}
 	cfg = normalizeADSchedulerConfig(cfg)
 	initialDelay := startupDelay(cfg.startupJitter, cfg.jitter)
+	startupNotBefore := cfg.clock.Now().Add(initialDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &adScheduler{
@@ -195,7 +195,7 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 		sender:                 sender,
 		heartbeatInterval:      cfg.heartbeatInterval,
 		heartbeatJitter:        cfg.heartbeatJitter,
-		startupDelay:           initialDelay,
+		startupNotBefore:       startupNotBefore,
 		heartbeatRetryInterval: cfg.heartbeatRetryInterval,
 		heartbeatCheckInterval: cfg.heartbeatCheckInterval,
 		clock:                  cfg.clock,
@@ -208,6 +208,9 @@ func newADSchedulerWithConfig(resolver targetResolver, readers map[RuntimeType]c
 	s.workerDone.Add(2)
 	go s.runCollectionWorker()
 	go s.runHeartbeatWorker()
+	if remaining := startupNotBefore.Sub(s.clock.Now()); remaining > 0 {
+		s.startupTimer = s.clock.AfterFunc(remaining, s.enqueueDueCollections)
+	}
 	return s
 }
 
@@ -269,12 +272,6 @@ func (s *adScheduler) trackAndEnqueue(config integration.Config, target target) 
 
 	key := watchKey(config)
 	watch, ok := s.watches[key]
-	if s.startupNotBefore.IsZero() {
-		s.startupNotBefore = s.clock.Now().Add(s.startupDelay)
-		if s.startupDelay > 0 {
-			s.startupTimer = s.clock.AfterFunc(s.startupDelay, s.enqueueDueCollections)
-		}
-	}
 	if !ok {
 		watch = &watchedConfig{
 			key: key,
