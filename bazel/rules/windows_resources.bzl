@@ -37,16 +37,19 @@ def _cc_env(ctx):
 
 def _win_messagetable_impl(ctx):
     src = ctx.file.src
-
-    rc_out = ctx.actions.declare_file(ctx.label.name + ".rc")
-    h_out = ctx.actions.declare_file(ctx.label.name + ".h")
+    # Pick output names based on the input file name rather than the
+    # canonical ctx.label.name. WindMC always writes output that matches
+    # the input file name. There is no option to set the output name.
+    basename = src.basename.replace(".mc", "")
+    rc_out = ctx.actions.declare_file(basename + ".rc")
+    h_out = ctx.actions.declare_file(basename + ".h")
     bin_out = ctx.actions.declare_file("MSG00409.bin")
 
     windmc_args = ctx.actions.args()
     windmc_args.add("--target", "pe-x86-64")
     windmc_args.add("-r", rc_out.dirname)
     windmc_args.add("-h", rc_out.dirname)
-    windmc_args.add(src.path)
+    windmc_args.add(src)
 
     ctx.actions.run(
         executable = ctx.executable._windmc,
@@ -57,7 +60,7 @@ def _win_messagetable_impl(ctx):
         progress_message = "Compiling message table %s" % src.short_path,
     )
 
-    syso_name = "%s.syso" % ctx.label.name
+    syso_name = basename + ".syso"
     syso_out = ctx.actions.declare_file(syso_name)
     env, cc_toolchain = _cc_env(ctx)
 
