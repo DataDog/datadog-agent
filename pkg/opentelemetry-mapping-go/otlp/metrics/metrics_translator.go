@@ -293,10 +293,25 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 	dims *Dimensions,
 	slice pmetric.NumberDataPointSlice,
 ) {
+	t.logger.Warn("OTLP cumulative monotonic sum mapping started",
+		zap.String("debug_path", "otlp_cumulative_sum.mapping_start"),
+		zap.String("metric_name", dims.name),
+		zap.Int("data_point_count", slice.Len()),
+		zap.Strings("base_tags", dims.tags),
+		zap.String("host", dims.host),
+		zap.String("number_mode", string(t.cfg.NumberMode)),
+		zap.String("initial_cumulative_monotonic_mode", string(t.cfg.InitialCumulMonoValueMode)),
+		zap.Uint64("agent_process_start_time_ns", getProcessStartTimeNano()),
+	)
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
-			// No recorded value, skip.
+			t.logger.Warn("OTLP cumulative monotonic sum not emitted",
+				zap.String("debug_path", "otlp_cumulative_sum.not_emitted"),
+				zap.String("metric_name", dims.name),
+				zap.Int("point_index", i),
+				zap.String("reason", "no_recorded_value"),
+			)
 			continue
 		}
 
@@ -312,29 +327,160 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 			val = float64(p.IntValue())
 		}
 
-		if isSkippable(t.logger, pointDims.name, val) {
+		skippable := isSkippable(t.logger, pointDims.name, val)
+		t.logger.Warn("OTLP cumulative monotonic sum input point",
+			zap.String("debug_path", "otlp_cumulative_sum.input_point"),
+			zap.String("metric_name", pointDims.name),
+			zap.Int("point_index", i),
+			zap.Int("data_point_count", slice.Len()),
+			zap.Uint64("start_timestamp_ns", startTs),
+			zap.Uint64("timestamp_ns", ts),
+			zap.Uint64("timestamp_s", ts/1e9),
+			zap.Float64("value", val),
+			zap.Strings("tags", pointDims.Tags()),
+			zap.String("host", pointDims.Host()),
+			zap.String("value_type", p.ValueType().String()),
+			zap.Bool("is_skippable", skippable),
+		)
+		if skippable {
+			t.logger.Warn("OTLP cumulative monotonic sum not emitted",
+				zap.String("debug_path", "otlp_cumulative_sum.not_emitted"),
+				zap.String("metric_name", pointDims.name),
+				zap.Int("point_index", i),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Float64("value", val),
+				zap.String("reason", "skippable_value"),
+			)
 			continue
 		}
 
+		previous, previousFound := t.prevPts.previousNumberCounter(pointDims)
+		t.logger.Warn("OTLP cumulative cache previous state before diff",
+			zap.String("debug_path", "otlp_cumulative_cache.before_diff"),
+			zap.String("metric_name", pointDims.name),
+			zap.Uint64("start_timestamp_ns", startTs),
+			zap.Uint64("timestamp_ns", ts),
+			zap.Float64("value", val),
+			zap.Bool("previous_found", previousFound),
+			zap.Uint64("previous_start_timestamp_ns", previous.startTs),
+			zap.Uint64("previous_timestamp_ns", previous.ts),
+			zap.Float64("previous_value", previous.value),
+			zap.Bool("same_timestamp", previousFound && previous.ts == ts),
+			zap.Bool("older_or_equal_timestamp", previousFound && ts <= previous.ts),
+			zap.Bool("possible_reset", previousFound && val < previous.value),
+		)
+
 		if _, ok := rateAsGaugeMetrics[pointDims.name]; ok {
 			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicRate(pointDims, startTs, ts, val)
-			if shouldDropPoint {
-				t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
-			} else if !isFirstPoint {
+			willEmitDelta := !shouldDropPoint && !isFirstPoint
+			t.logger.Warn("OTLP cumulative monotonic sum diff result",
+				zap.String("debug_path", "otlp_cumulative_sum.diff_result"),
+				zap.String("metric_name", pointDims.name),
+				zap.Int("point_index", i),
+				zap.Int("data_point_count", slice.Len()),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Uint64("timestamp_s", ts/1e9),
+				zap.Float64("point_value", val),
+				zap.Float64("delta", dx),
+				zap.Bool("rate_as_gauge", true),
+				zap.Bool("is_first_point", isFirstPoint),
+				zap.Bool("should_drop_point", shouldDropPoint),
+				zap.Bool("will_emit_delta", willEmitDelta),
+				zap.Bool("will_emit_initial", false),
+				zap.Bool("will_emit_any", willEmitDelta),
+			)
+			if shouldDropPoint || isFirstPoint {
+				t.logger.Warn("OTLP cumulative monotonic sum not emitted",
+					zap.String("debug_path", "otlp_cumulative_sum.not_emitted"),
+					zap.String("metric_name", pointDims.name),
+					zap.Int("point_index", i),
+					zap.Uint64("start_timestamp_ns", startTs),
+					zap.Uint64("timestamp_ns", ts),
+					zap.Float64("value", val),
+					zap.Float64("delta", dx),
+					zap.Bool("is_first_point", isFirstPoint),
+					zap.Bool("should_drop_point", shouldDropPoint),
+					zap.String("reason", "drop_from_monotonic_rate_or_first_point"),
+				)
+			} else {
+				t.logger.Warn("OTLP cumulative monotonic sum emitting delta",
+					zap.String("debug_path", "otlp_cumulative_sum.emit_delta"),
+					zap.String("metric_name", pointDims.name),
+					zap.Int("point_index", i),
+					zap.Uint64("timestamp_ns", ts),
+					zap.Uint64("timestamp_s", ts/1e9),
+					zap.Float64("delta", dx),
+					zap.Strings("tags", pointDims.Tags()),
+					zap.String("host", pointDims.Host()),
+				)
 				consumer.ConsumeTimeSeries(ctx, pointDims, Gauge, ts, 0, dx)
 			}
 			continue
 		}
 
 		dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(pointDims, startTs, ts, val)
-		if shouldDropPoint {
-			t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
+		initialAllowed := shouldConsumeInitialValue(t.cfg.InitialCumulMonoValueMode, startTs, ts)
+		willEmitInitial := i == 0 && isFirstPoint && initialAllowed
+		willEmitDelta := !shouldDropPoint && !isFirstPoint
+		t.logger.Warn("OTLP cumulative monotonic sum diff result",
+			zap.String("debug_path", "otlp_cumulative_sum.diff_result"),
+			zap.String("metric_name", pointDims.name),
+			zap.Int("point_index", i),
+			zap.Int("data_point_count", slice.Len()),
+			zap.Uint64("start_timestamp_ns", startTs),
+			zap.Uint64("timestamp_ns", ts),
+			zap.Uint64("timestamp_s", ts/1e9),
+			zap.Float64("point_value", val),
+			zap.Float64("delta", dx),
+			zap.Bool("is_first_point", isFirstPoint),
+			zap.Bool("should_drop_point", shouldDropPoint),
+			zap.Bool("initial_value_allowed", initialAllowed),
+			zap.Bool("will_emit_delta", willEmitDelta),
+			zap.Bool("will_emit_initial", willEmitInitial),
+			zap.Bool("will_emit_any", willEmitDelta || willEmitInitial),
+		)
+		if shouldDropPoint || (!willEmitDelta && !willEmitInitial) {
+			t.logger.Warn("OTLP cumulative monotonic sum not emitted",
+				zap.String("debug_path", "otlp_cumulative_sum.not_emitted"),
+				zap.String("metric_name", pointDims.name),
+				zap.Int("point_index", i),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Float64("value", val),
+				zap.Float64("delta", dx),
+				zap.Bool("is_first_point", isFirstPoint),
+				zap.Bool("should_drop_point", shouldDropPoint),
+				zap.String("reason", "drop_from_monotonic_diff_or_initial_value_policy"),
+			)
 			continue
 		}
 
-		if !isFirstPoint {
+		if willEmitDelta {
+			t.logger.Warn("OTLP cumulative monotonic sum emitting delta",
+				zap.String("debug_path", "otlp_cumulative_sum.emit_delta"),
+				zap.String("metric_name", pointDims.name),
+				zap.Int("point_index", i),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Uint64("timestamp_s", ts/1e9),
+				zap.Float64("delta", dx),
+				zap.Strings("tags", pointDims.Tags()),
+				zap.String("host", pointDims.Host()),
+			)
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, dx)
-		} else if i == 0 && shouldConsumeInitialValue(t.cfg.InitialCumulMonoValueMode, startTs, ts) {
+		} else if willEmitInitial {
+			t.logger.Warn("OTLP cumulative monotonic sum emitting initial value",
+				zap.String("debug_path", "otlp_cumulative_sum.emit_initial"),
+				zap.String("metric_name", pointDims.name),
+				zap.Int("point_index", i),
+				zap.Uint64("start_timestamp_ns", startTs),
+				zap.Uint64("timestamp_ns", ts),
+				zap.Uint64("timestamp_s", ts/1e9),
+				zap.Float64("value", val),
+				zap.Strings("tags", pointDims.Tags()),
+				zap.String("host", pointDims.Host()),
+			)
 			// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
 			// Todo: Investigate why we don't compute first val if i > 0 and add reason as comment.
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, val)
