@@ -110,22 +110,30 @@ func newRecorder(tm telemetry.Component) *Recorder {
 	}
 }
 
-// BeginRuntimeMetrics starts an exclusive runtime metrics snapshot transaction.
-// It must be paired with EndRuntimeMetrics after all containers in the snapshot have been processed.
-func (t *Recorder) BeginRuntimeMetrics() {
+// WithRuntimeMetrics runs callback within an exclusive runtime metrics snapshot transaction.
+func (t *Recorder) WithRuntimeMetrics(callback func() error) error {
 	t.runtimeSnapshotMu.Lock()
-	t.resetRuntimeMetrics()
-}
+	defer t.runtimeSnapshotMu.Unlock()
 
-// EndRuntimeMetrics completes an exclusive runtime metrics snapshot transaction started by BeginRuntimeMetrics.
-func (t *Recorder) EndRuntimeMetrics() {
-	t.CompleteRuntimeMetrics()
-	t.runtimeSnapshotMu.Unlock()
+	t.ResetRuntimeMetrics()
+	defer t.CompleteRuntimeMetrics()
+
+	return callback()
 }
 
 // ResetRuntimeMetrics clears runtime-sourced aggregates and initializes the next CPU sample snapshot.
 func (t *Recorder) ResetRuntimeMetrics() {
-	t.resetRuntimeMetrics()
+	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
+		match := map[string]string{kindTag: kind}
+		t.memoryUsage.DeletePartialMatch(match)
+		t.memoryLimits.DeletePartialMatch(match)
+		t.cpuUsage.DeletePartialMatch(match)
+	}
+
+	t.cpuMu.Lock()
+	defer t.cpuMu.Unlock()
+	t.currentCPUSamples = make(map[string]cpuSample)
+	t.currentCPUContainerIDs = make(map[string]struct{})
 }
 
 // CompleteRuntimeMetrics finalizes CPU samples from the completed runtime snapshot.
@@ -217,20 +225,6 @@ func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workload
 		return
 	}
 	t.record(metricName, *value, kind, pod.Name, reason)
-}
-
-func (t *Recorder) resetRuntimeMetrics() {
-	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
-		match := map[string]string{kindTag: kind}
-		t.memoryUsage.DeletePartialMatch(match)
-		t.memoryLimits.DeletePartialMatch(match)
-		t.cpuUsage.DeletePartialMatch(match)
-	}
-
-	t.cpuMu.Lock()
-	defer t.cpuMu.Unlock()
-	t.currentCPUSamples = make(map[string]cpuSample)
-	t.currentCPUContainerIDs = make(map[string]struct{})
 }
 
 func (t *Recorder) resetKubeletMetrics() {

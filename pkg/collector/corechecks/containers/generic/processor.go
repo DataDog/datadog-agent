@@ -63,12 +63,18 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 	p.extensions[id] = extension
 }
 
-// Run executes the check
+// Run executes the check.
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
-	if p.agentPerformance != nil {
-		p.agentPerformance.BeginRuntimeMetrics()
-		defer p.agentPerformance.EndRuntimeMetrics()
+	if p.agentPerformance == nil {
+		return p.run(sender, cacheValidity)
 	}
+
+	return p.agentPerformance.WithRuntimeMetrics(func() error {
+		return p.run(sender, cacheValidity)
+	})
+}
+
+func (p *Processor) run(sender sender.Sender, cacheValidity time.Duration) error {
 	collectionTime := p.now()
 
 	allContainers := p.ctrLister.ListRunning()

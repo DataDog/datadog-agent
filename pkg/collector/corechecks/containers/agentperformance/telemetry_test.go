@@ -6,6 +6,7 @@
 package agentperformance
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -106,7 +107,7 @@ func TestRecordAgentMetricUsesPodMetadata(t *testing.T) {
 func TestRecorderTelemetryAggregatesNodeAgentPodMetrics(t *testing.T) {
 	tel := telemetrymock.New(t)
 	agentPerformance := newRecorder(tel)
-	agentPerformance.resetRuntimeMetrics()
+	agentPerformance.ResetRuntimeMetrics()
 
 	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
 	agentPerformance.RecordMetric(MemoryUsage, ptr(10), nodeAgentPod, "")
@@ -118,7 +119,7 @@ func TestRecorderTelemetryAggregatesNodeAgentPodMetrics(t *testing.T) {
 func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
 	tel := telemetrymock.New(t)
 	agentPerformance := newRecorder(tel)
-	agentPerformance.resetRuntimeMetrics()
+	agentPerformance.ResetRuntimeMetrics()
 
 	const podName = "agent-pod"
 	agentPerformance.RecordMetric(MemoryUsage, ptr(10), newTestPod(clusterAgentComponent, podName), "")
@@ -128,44 +129,53 @@ func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) 
 	assertGaugeValue(t, tel, MemoryUsage, "agent", podName, 5)
 }
 
-func TestRecorderRuntimeMetricsTransactionSerializesSnapshots(t *testing.T) {
+func TestRecorderRuntimeMetricsCallbackSerializesSnapshots(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
+	firstCallbackEntered := make(chan struct{})
+	releaseFirstCallback := make(chan struct{})
+	firstResult := make(chan error, 1)
+	expectedErr := errors.New("first callback failed")
 
-	recorder.BeginRuntimeMetrics()
+	go func() {
+		firstResult <- recorder.WithRuntimeMetrics(func() error {
+			close(firstCallbackEntered)
+			<-releaseFirstCallback
+			return expectedErr
+		})
+	}()
+
+	<-firstCallbackEntered
 
 	secondReady := make(chan struct{})
 	startSecond := make(chan struct{})
-	secondBegan := make(chan struct{})
-	secondCompleted := make(chan struct{})
+	secondCallbackEntered := make(chan struct{})
+	secondResult := make(chan error, 1)
 	go func() {
 		close(secondReady)
 		<-startSecond
-		recorder.BeginRuntimeMetrics()
-		close(secondBegan)
-		recorder.EndRuntimeMetrics()
-		close(secondCompleted)
+		secondResult <- recorder.WithRuntimeMetrics(func() error {
+			close(secondCallbackEntered)
+			return nil
+		})
 	}()
 
 	<-secondReady
 	close(startSecond)
 	select {
-	case <-secondBegan:
-		assert.Fail(t, "second runtime metrics transaction began before the first completed")
+	case <-secondCallbackEntered:
+		assert.Fail(t, "second runtime metrics callback entered before the first completed")
 	case <-time.After(time.Second):
 	}
 
-	recorder.EndRuntimeMetrics()
+	close(releaseFirstCallback)
+	assert.ErrorIs(t, <-firstResult, expectedErr)
 	select {
-	case <-secondBegan:
+	case <-secondCallbackEntered:
 	case <-time.After(time.Second):
-		assert.Fail(t, "second runtime metrics transaction did not begin after the first completed")
+		assert.Fail(t, "second runtime metrics callback did not enter after the first completed")
 	}
-	select {
-	case <-secondCompleted:
-	case <-time.After(time.Second):
-		assert.Fail(t, "second runtime metrics transaction did not complete")
-	}
+	assert.NoError(t, <-secondResult)
 }
 
 func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
@@ -328,7 +338,7 @@ func TestRecorderTelemetryAggregatesSelectedComponents(t *testing.T) {
 	tel := telemetrymock.New(t)
 	agentPerformance := newRecorder(tel)
 	agentPerformance.resetKubeletMetrics()
-	agentPerformance.resetRuntimeMetrics()
+	agentPerformance.ResetRuntimeMetrics()
 
 	agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
 	agentPerformance.record(MemoryUsage, 5, clusterAgentComponent, "cluster-agent-pod", "")
@@ -357,7 +367,7 @@ func TestRecorderTelemetryResetClearsStaleValues(t *testing.T) {
 	agentPerformance.RecordMetric(ContainerRestarts, ptr(3), nodeAgentPod, "")
 	agentPerformance.RecordMetric(ContainerTerminated, ptr(2), nodeAgentPod, "error")
 	agentPerformance.resetKubeletMetrics()
-	agentPerformance.resetRuntimeMetrics()
+	agentPerformance.ResetRuntimeMetrics()
 
 	assertGaugeMissing(t, tel, MemoryUsage, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeMissing(t, tel, MemoryLimit, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod")
@@ -378,7 +388,7 @@ func TestRecorderTelemetrySplitResets(t *testing.T) {
 	agentPerformance.record(ContainerRestarts, 2, clusterAgentComponent, "cluster-agent-pod", "")
 	agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "containercannotrun")
 
-	agentPerformance.resetRuntimeMetrics()
+	agentPerformance.ResetRuntimeMetrics()
 
 	assertGaugeMissing(t, tel, MemoryUsage, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeMissing(t, tel, MemoryLimit, clusterAgentComponent, "cluster-agent-pod")
