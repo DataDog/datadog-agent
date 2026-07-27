@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed the kubernetes_state.deployment.rollout_duration emtric occasionally reporting erroneous large values after a cluster agent restart
+    Fixed the kubernetes_state.deployment.rollout_duration metric occasionally reporting erroneous large values after a cluster agent restart
