@@ -172,14 +172,6 @@ UNIX_BINS = [
 LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
 MACOS_DYLIB = "libpython{}.dylib".format(PYTHON_MAJOR_MINOR)
 
-python_deps = [
-    "libffi",
-    "libsqlite3",
-    "zlib",
-    "bzip2",
-    "liblzma",
-]
-
 python_dep_libs = {
     "libffi": "-lffi",
     "libsqlite3": "-lsqlite3",
@@ -241,7 +233,7 @@ configure_make(
         "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
     } | {
         dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
-        for dep in python_deps
+        for dep in python_dep_libs.keys()
     } | select({
         "@platforms//os:macos": {
             dep.upper() + "_LIBS": lib
