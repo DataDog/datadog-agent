@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
@@ -267,12 +268,18 @@ func setupMetrics(statsd statsd.Component, cfg traceconfigdef.Component, telemet
 }
 
 func stop(ag component) error {
+	stopStart := time.Now()
+	log.Infof("[aas-repro] shutdown_stop_begin pid=%d at=%s", os.Getpid(), stopStart.UTC().Format(time.RFC3339Nano))
 	ag.cancel()
+	log.Infof("[aas-repro] shutdown_context_cancelled pid=%d elapsed_ms=%d", os.Getpid(), time.Since(stopStart).Milliseconds())
 	ag.wg.Wait()
+	log.Infof("[aas-repro] shutdown_agent_wg_done pid=%d elapsed_ms=%d", os.Getpid(), time.Since(stopStart).Milliseconds())
 	if err := ag.Statsd.Flush(); err != nil {
 		log.Error("Could not flush statsd: ", err)
 	}
+	log.Infof("[aas-repro] shutdown_statsd_flushed pid=%d elapsed_ms=%d", os.Getpid(), time.Since(stopStart).Milliseconds())
 	stopAgentSidekicks(ag.config, ag.Statsd, ag.params.DisableInternalProfiling)
+	log.Infof("[aas-repro] shutdown_process_exiting pid=%d elapsed_total_ms=%d", os.Getpid(), time.Since(stopStart).Milliseconds())
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
 	}
@@ -308,6 +315,7 @@ func handleSignal(shutdowner fx.Shutdowner, statsd ddgostatsd.ClientInterface) {
 	for signo := range sigChan {
 		switch signo {
 		case syscall.SIGINT, syscall.SIGTERM:
+			log.Infof("[aas-repro] shutdown_signal_received pid=%d signal=%d signal_name=%v at=%s", os.Getpid(), signo, signo, time.Now().UTC().Format(time.RFC3339Nano))
 			log.Infof("Received signal %d (%v)", signo, signo)
 			_ = shutdowner.Shutdown()
 			return
