@@ -37,17 +37,16 @@ def _cc_env(ctx):
 
 def _win_messagetable_impl(ctx):
     src = ctx.file.src
-    basename = src.basename.replace(".mc", "")
 
-    rc_out = ctx.actions.declare_file(basename + ".rc")
-    h_out = ctx.actions.declare_file(basename + ".h")
+    rc_out = ctx.actions.declare_file(ctx.label.name + ".rc")
+    h_out = ctx.actions.declare_file(ctx.label.name + ".h")
     bin_out = ctx.actions.declare_file("MSG00409.bin")
 
     windmc_args = ctx.actions.args()
     windmc_args.add("--target", "pe-x86-64")
     windmc_args.add("-r", rc_out.dirname)
     windmc_args.add("-h", rc_out.dirname)
-    windmc_args.add(src)
+    windmc_args.add(src.path)
 
     ctx.actions.run(
         executable = ctx.executable._windmc,
@@ -58,7 +57,8 @@ def _win_messagetable_impl(ctx):
         progress_message = "Compiling message table %s" % src.short_path,
     )
 
-    syso_out = ctx.actions.declare_file("rsrc.syso")
+    syso_name = "%s.syso" % ctx.label.name
+    syso_out = ctx.actions.declare_file(syso_name)
     env, cc_toolchain = _cc_env(ctx)
 
     windres_args = ctx.actions.args()
@@ -66,7 +66,7 @@ def _win_messagetable_impl(ctx):
     windres_args.add("--target", "pe-x86-64")
     windres_args.add("-i", rc_out)
     windres_args.add("-O", "coff")
-    windres_args.add("-o", syso_out)
+    windres_args.add("-o", syso_out.path)
 
     ctx.actions.run(
         executable = ctx.executable._windres,
@@ -112,7 +112,8 @@ win_messagetable = macro(
 
 def _win_resource_impl(ctx):
     src = ctx.file.src
-    syso_out = ctx.actions.declare_file("rsrc.syso")
+    syso_name = "%s.syso" % ctx.label.name
+    syso_out = ctx.actions.declare_file(syso_name)
 
     env, cc_toolchain = _cc_env(ctx)
 
@@ -130,7 +131,7 @@ def _win_resource_impl(ctx):
 
     windres_args.add("-i", src)
     windres_args.add("-O", "coff")
-    windres_args.add("-o", syso_out)
+    windres_args.add("-o", syso_out.path)
 
     ctx.actions.run(
         executable = ctx.executable._windres,

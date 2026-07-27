@@ -1,4 +1,4 @@
-load("//bazel/rules:windows_resources.bzl", "win_resource")
+load("//bazel/rules:windows_resources.bzl", "win_messagetable", "win_resource")
 
 win_resource(
     name = "rsrc",
@@ -8,4 +8,24 @@ win_resource(
         "version.h",
         "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
     ],
+)
+
+win_messagetable(
+    name = "messagetable",
+    src = "trace-agent-msg.mc",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "messagestrings",
+    srcs = [
+        # keep
+        ":messagetable",
+        "messages.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
+    visibility = ["//visibility:public"],
 )
