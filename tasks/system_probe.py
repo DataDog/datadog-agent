@@ -1130,7 +1130,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
 _BAZEL_WINDOWS_RESOURCE_COPIES = (
-    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.syso", "pkg/util/winutil/messagestrings/messagestrings.syso"),
     ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
     ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
 )
@@ -1141,8 +1141,8 @@ def bazel_build_windows_resources(ctx: Context) -> None:
 
     Replaces the ninja-based windmc/windres pipeline for system-probe.
     Produces:
-      - pkg/util/winutil/messagestrings/rsrc.syso + messagestrings.h  (shared message table)
-      - cmd/system-probe/rsrc.syso                                    (system-probe versioninfo)
+      - pkg/util/winutil/messagestrings/messagestrings.syso + messagestrings.h  (shared message table)
+      - cmd/system-probe/rsrc.syso                                              (system-probe versioninfo)
     """
     import shutil
 

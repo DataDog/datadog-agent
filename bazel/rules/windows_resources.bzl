@@ -37,6 +37,7 @@ def _cc_env(ctx):
 
 def _win_messagetable_impl(ctx):
     src = ctx.file.src
+
     # Pick output names based on the input file name rather than the
     # canonical ctx.label.name. WindMC always writes output that matches
     # the input file name. There is no option to set the output name.
@@ -67,9 +68,9 @@ def _win_messagetable_impl(ctx):
     windres_args = ctx.actions.args()
     windres_args.add("--use-temp-file")
     windres_args.add("--target", "pe-x86-64")
-    windres_args.add("-i", rc_out)
-    windres_args.add("-O", "coff")
+    windres_args.add("-i", rc_out.path)
     windres_args.add("-o", syso_out.path)
+    windres_args.add("-O", "coff")
 
     ctx.actions.run(
         executable = ctx.executable._windres,
