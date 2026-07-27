@@ -205,7 +205,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.19
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
-	github.com/DataDog/ebpf-manager v0.8.0
+	github.com/DataDog/ebpf-manager v0.8.1-0.20260723114030-df952c39a4e3
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.4
 	github.com/DataDog/jsonapi v0.13.0
