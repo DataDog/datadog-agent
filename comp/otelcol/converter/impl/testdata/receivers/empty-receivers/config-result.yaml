@@ -26,6 +26,7 @@ extensions:
   datadog/user-defined:
 
 processors:
+  cumulativetodelta/dd-autoconfigured:
   infraattributes/user-defined:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     metrics:
@@ -43,7 +44,7 @@ service:
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         metrics:
-            processors: [infraattributes/user-defined]
+            processors: [infraattributes/user-defined, cumulativetodelta/dd-autoconfigured]
             exporters: [datadog]
         logs:
             processors: [infraattributes/user-defined]

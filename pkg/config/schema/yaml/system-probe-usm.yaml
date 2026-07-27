@@ -270,6 +270,8 @@ properties:
             node_type: setting
             type: string
             default: /bin/envoy
+            tags:
+            - generate_const:defaultEnvoyPath
       native:
         node_type: section
         type: object

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,7 +87,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 	}
 
 	if !r.isStaticWorkerCount {
-		numWorkers = pkgconfigsetup.DefaultNumWorkers
+		numWorkers = constants.DefaultNumWorkers
 	}
 
 	r.ensureMinWorkers(numWorkers)
@@ -211,7 +212,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = pkgconfigsetup.MaxNumWorkers
+		desiredNumWorkers = constants.MaxNumWorkers
 	}
 
 	r.ensureMinWorkers(desiredNumWorkers)

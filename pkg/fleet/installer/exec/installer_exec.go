@@ -196,6 +196,12 @@ func (i *InstallerExec) InstallConfigExperiment(
 		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
 	}
 
+	// Capture stderr so a failed run surfaces the installer's error (e.g. which
+	// config file failed to parse and why) instead of a bare "exit status N".
+	// This path can't use installerCmd.Run since it must stream secrets to stdin.
+	var errBuf bytes.Buffer
+	cmd.Stderr = &errBuf
+
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("error creating stdin pipe: %w", err)
@@ -203,17 +209,25 @@ func (i *InstallerExec) InstallConfigExperiment(
 
 	defer func() { cmd.span.Finish(err) }()
 
-	if err := cmd.Start(); err != nil {
+	if err = cmd.Start(); err != nil {
 		return fmt.Errorf("error starting command: %w", err)
 	}
 
 	// Write secrets to stdin
-	if _, err := stdinPipe.Write(secretsBytes); err != nil {
+	if _, err = stdinPipe.Write(secretsBytes); err != nil {
 		stdinPipe.Close()
 		return fmt.Errorf("error writing secrets to stdin: %w", err)
 	}
 	stdinPipe.Close()
-	return cmd.Wait()
+
+	if err = cmd.Wait(); err != nil {
+		if errBuf.Len() == 0 {
+			return err
+		}
+		installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
+		return fmt.Errorf("%w \n%s", installerError, err.Error())
+	}
+	return nil
 }
 
 // RemoveConfigExperiment removes an experiment.

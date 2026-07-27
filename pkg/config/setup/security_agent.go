@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DefaultSecurityAgentCmdPort is the default port used by security-agent to run a runtime settings server
-const DefaultSecurityAgentCmdPort = 5010
-
 // GetSecurityAgentAPIAddressPort returns the API endpoint of the security agent
 func GetSecurityAgentAPIAddressPort(config pkgconfigmodel.Reader) (string, error) {
 	address, err := GetIPCAddress(config)

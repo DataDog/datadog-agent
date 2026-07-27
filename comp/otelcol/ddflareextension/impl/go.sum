@@ -586,6 +586,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometh
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.157.0/go.mod h1:pH9Ms+fPtLFcfarHFb8sNElK29HjMNpolQc6Cic0IUQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheusremotewrite v0.157.0 h1:RB2c9DHQRjMPUZ32meb2nenNNbDAI//xT69FejI0DHM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheusremotewrite v0.157.0/go.mod h1:BM4bjjmvAR6yAimFUJuz8Ve8S4K2lcoZzUSkzTTDLVw=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.157.0 h1:PxIhbyNzmG6lW26zjv4xhDDxIYjsg7lIuXV7Kv67pIs=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.157.0/go.mod h1:NKo6JL5S7Vui9VLNnoHuwaN0dZGiotF7wpsjQBT37mI=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.157.0 h1:y/Uf4K+H3WOWIFEbqymmBcw6s5QQe/hxTy23UERke7w=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.157.0/go.mod h1:2J1/XjEfj6pQkRGOjE81TjDFUxH+v0JnMtELt0VhOtA=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.157.0 h1:XSqKw9EHJ6G8CyR01DKvxzp0OFpwpZtfw65CkLSKybk=

@@ -240,7 +240,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 		suite.config.SetInTest("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
-		suite.Equal(endpoints.BatchWait, pkgconfigsetup.DefaultBatchWait*time.Second)
+		suite.Equal(endpoints.BatchWait, time.Duration(pkgconfigsetup.DefaultBatchWait)*time.Second)
 	}
 }
 

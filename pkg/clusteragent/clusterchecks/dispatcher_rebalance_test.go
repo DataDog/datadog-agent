@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -45,7 +45,7 @@ func (d *rebalanceTestClcRunnerClient) GetRunnerStats(ip string) (types.CLCRunne
 
 func (d *rebalanceTestClcRunnerClient) GetRunnerWorkers(string) (types.Workers, error) {
 	// Return default worker count
-	return types.Workers{Count: pkgconfigsetup.DefaultNumWorkers}, nil
+	return types.Workers{Count: constants.DefaultNumWorkers}, nil
 }
 
 func TestRebalance(t *testing.T) {
@@ -1584,9 +1584,9 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	node1Stats := map[string]types.CLCRunnerStats{
 		// This is the check with the highest utilization. The code will try to
@@ -1680,9 +1680,9 @@ func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testi
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	// node1: two heavy multi-instance configs. node2: one lightweight config.
 	node1Stats := map[string]types.CLCRunnerStats{
@@ -1803,9 +1803,9 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	// All three checks start on node1: two with AverageExecutionTime == 0
 	// (pinned) and one with real data (eligible to move).
@@ -1887,9 +1887,9 @@ func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *t
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	// node1: pinned (0.6 workers) + movable (0.7 workers). node2: empty.
 	// With a default 15s interval, AvgExecTime in ms equals workersNeeded * 15000.
@@ -1939,7 +1939,7 @@ func TestCurrentDistribution_SeparatesConfigsByDigest(t *testing.T) {
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 
 	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkPgA": {AverageExecutionTime: 1000, IsClusterCheck: true},

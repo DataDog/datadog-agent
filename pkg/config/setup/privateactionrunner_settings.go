@@ -56,7 +56,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_paths", []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_paths", config)
 
-	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{RShellCommandAllowAllWildcard})
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{"rshell:*"})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
 
 	config.BindEnvAndSetDefault("private_action_runner.opms_extra_headers", map[string]string{})

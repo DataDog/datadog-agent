@@ -11,7 +11,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,7 +49,7 @@ func TestOnlyRshellPrefixedCommands(t *testing.T) {
 		},
 		{
 			name: "the wildcard token itself is rshell-prefixed and would be admitted, note that this should never happen in practice",
-			in:   []string{setup.RShellCommandAllowAllWildcard},
+			in:   []string{rShellCommandAllowAllWildcard},
 			want: []string{},
 		},
 		{
