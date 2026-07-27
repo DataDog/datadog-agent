@@ -129,6 +129,76 @@ func TestSetupComponents_SidecarMode_InvalidTimeoutMs_NoError(t *testing.T) {
 	}
 }
 
+// --- HookToggles (DD_AWS_MICROVM_ENABLE_*) ---
+
+// Every hook toggle defaults to false — a hook is not forwarded unless
+// explicitly enabled, even when a Forwarder is configured.
+func TestSetupComponents_EnabledHooks_DefaultFalse(t *testing.T) {
+	got, err := setupComponents(setupInput{userAppPort: "8080"})
+	require.NoError(t, err)
+	require.NotNil(t, got.Forwarder)
+	assert.Equal(t, HookToggles{}, got.EnabledHooks)
+}
+
+// TestSetupComponents_EnabledHooks_ParsedFromEnv enables exactly one hook per
+// case and asserts that ONLY that hook ends up true. Setting all six at once
+// would not catch a field-swap bug (e.g. Resume accidentally wired to
+// in.enableSuspend) since both inputs would be "true" either way; isolating
+// each hook makes such a swap show up as an unexpected field being set.
+func TestSetupComponents_EnabledHooks_ParsedFromEnv(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input setupInput
+		want  HookToggles
+	}{
+		{"ready", setupInput{enableReady: "true"}, HookToggles{Ready: true}},
+		{"validate", setupInput{enableValidate: "true"}, HookToggles{Validate: true}},
+		{"run", setupInput{enableRun: "true"}, HookToggles{Run: true}},
+		{"resume", setupInput{enableResume: "true"}, HookToggles{Resume: true}},
+		{"suspend", setupInput{enableSuspend: "true"}, HookToggles{Suspend: true}},
+		{"terminate", setupInput{enableTerminate: "true"}, HookToggles{Terminate: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := tc.input
+			in.userAppPort = "8080"
+			got, err := setupComponents(in)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.EnabledHooks)
+		})
+	}
+}
+
+// A hook enabled without a Forwarder configured (no USER_APP_PORT) has no
+// effect on the Forwarder — the toggle is still recorded on EnabledHooks —
+// but there's nothing to forward to, so server.go's fwd!=nil check keeps it
+// on the built-in path.
+func TestSetupComponents_EnabledHooks_TrueWithoutUserAppPort_NoForwarder(t *testing.T) {
+	got, err := setupComponents(setupInput{enableRun: "true"})
+	require.NoError(t, err)
+	assert.Nil(t, got.Forwarder)
+	assert.True(t, got.EnabledHooks.Run)
+}
+
+// A malformed toggle value falls back to false for that hook only — it does
+// not fail setup or affect the Forwarder or the other hooks' toggles.
+func TestSetupComponents_EnabledHooks_MalformedValue_ScopedToThatHook(t *testing.T) {
+	got, err := setupComponents(setupInput{userAppPort: "8080", enableRun: "not-a-bool", enableSuspend: "true"})
+	require.NoError(t, err)
+	require.NotNil(t, got.Forwarder)
+	assert.False(t, got.EnabledHooks.Run, "malformed value must fall back to false")
+	assert.True(t, got.EnabledHooks.Suspend, "other hooks must be unaffected by a malformed sibling toggle")
+}
+
+// Sidecar mode returns before the enable-toggle parsing block (the forwarder
+// is never built there), so EnabledHooks stays zero-value regardless of the
+// env vars — mirrors how userAppPort and the timeouts are ignored in sidecar
+// mode.
+func TestSetupComponents_SidecarMode_EnabledHooksIgnored(t *testing.T) {
+	got, err := setupComponents(setupInput{sidecarMode: true, enableRun: "true"})
+	require.NoError(t, err)
+	assert.Equal(t, HookToggles{}, got.EnabledHooks)
+}
+
 // SetupFromEnv must read UserAppPortEnvVar from the process environment
 // and delegate to setupComponents. Pins the env binding so a refactor
 // can't silently swap the env-var name or skip the lookup.
@@ -145,6 +215,34 @@ func TestSetupFromEnv_UnsetEnv_NoForwarder(t *testing.T) {
 	got, err := SetupFromEnv(false)
 	require.NoError(t, err)
 	assert.Nil(t, got.Forwarder)
+}
+
+// SetupFromEnv must read each DD_AWS_MICROVM_ENABLE_* env var from the
+// process environment. Pins the env-var-name binding for all six toggles the
+// same way TestSetupFromEnv_ReadsEnvVar_BuildsForwarder pins UserAppPortEnvVar
+// — setupComponents-level tests alone can't catch a typo'd env var name in
+// SetupFromEnv's os.Getenv calls, since they bypass os.Getenv entirely.
+func TestSetupFromEnv_ReadsEnableEnvVars(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		envVar string
+		want   HookToggles
+	}{
+		{"ready", EnableReadyEnvVar, HookToggles{Ready: true}},
+		{"validate", EnableValidateEnvVar, HookToggles{Validate: true}},
+		{"run", EnableRunEnvVar, HookToggles{Run: true}},
+		{"resume", EnableResumeEnvVar, HookToggles{Resume: true}},
+		{"suspend", EnableSuspendEnvVar, HookToggles{Suspend: true}},
+		{"terminate", EnableTerminateEnvVar, HookToggles{Terminate: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(UserAppPortEnvVar, "8080")
+			t.Setenv(tc.envVar, "true")
+			got, err := SetupFromEnv(false /*sidecar*/)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.EnabledHooks)
+		})
+	}
 }
 
 func TestSetupFromEnv_PropagatesParseError(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"math"
 	"strconv"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DefaultPort is the port the MicroVM platform expects the lifecycle hook server on.
@@ -30,6 +32,38 @@ const ReadyTimeoutMsEnvVar = "DD_AWS_MICROVM_READY_TIMEOUT_MS"
 
 // ValidateTimeoutMsEnvVar overrides the timeout (ms) for /validate.
 const ValidateTimeoutMsEnvVar = "DD_AWS_MICROVM_VALIDATE_TIMEOUT_MS"
+
+// EnableReadyEnvVar opts the /ready hook into forwarding. Requires UserAppPortEnvVar too; defaults to false.
+const EnableReadyEnvVar = "DD_AWS_MICROVM_ENABLE_READY"
+
+// EnableValidateEnvVar opts the /validate hook into forwarding. Requires UserAppPortEnvVar too; defaults to false.
+const EnableValidateEnvVar = "DD_AWS_MICROVM_ENABLE_VALIDATE"
+
+// EnableRunEnvVar opts the /run hook into forwarding. Requires UserAppPortEnvVar too; defaults to false.
+const EnableRunEnvVar = "DD_AWS_MICROVM_ENABLE_RUN"
+
+// EnableResumeEnvVar opts the /resume hook into forwarding. Requires UserAppPortEnvVar too; defaults to false.
+const EnableResumeEnvVar = "DD_AWS_MICROVM_ENABLE_RESUME"
+
+// EnableSuspendEnvVar opts the /suspend hook into forwarding. Requires UserAppPortEnvVar too; defaults to false.
+const EnableSuspendEnvVar = "DD_AWS_MICROVM_ENABLE_SUSPEND"
+
+// EnableTerminateEnvVar opts the /terminate hook into forwarding. Requires UserAppPortEnvVar too; defaults to false.
+const EnableTerminateEnvVar = "DD_AWS_MICROVM_ENABLE_TERMINATE"
+
+// HookToggles controls, per lifecycle hook, whether the hook is forwarded to
+// the user app (true) or handled by the agent itself (false, the default).
+// A hook is only actually forwarded when both its toggle is true AND a
+// Forwarder is configured (UserAppPortEnvVar set); a toggle set to true with
+// no Forwarder configured has no effect (see setupComponents in wire.go).
+type HookToggles struct {
+	Ready     bool
+	Validate  bool
+	Run       bool
+	Resume    bool
+	Suspend   bool
+	Terminate bool
+}
 
 // parsePort parses a port number from a raw env-var string.
 // Returns defaultVal when raw is empty. Parsed port must not equal any value in forbidden.
@@ -68,4 +102,20 @@ func parseDurationMs(envVar, raw string, defaultVal time.Duration) (time.Duratio
 		return 0, fmt.Errorf("%s: too large to represent as a duration (got %d ms)", envVar, ms)
 	}
 	return time.Duration(ms) * time.Millisecond, nil
+}
+
+// parseBoolFlag parses a boolean env var. Returns defaultVal when raw is
+// empty. Unlike parsePort/parseDurationMs, a malformed (non-empty, non-bool)
+// value does not fail setup — it logs a warning and falls back to defaultVal,
+// so a typo in one hook's toggle cannot take down the others.
+func parseBoolFlag(envVar, raw string, defaultVal bool) bool {
+	if raw == "" {
+		return defaultVal
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		log.Warnf("%s: invalid boolean value %q; using default %t", envVar, raw, defaultVal)
+		return defaultVal
+	}
+	return v
 }

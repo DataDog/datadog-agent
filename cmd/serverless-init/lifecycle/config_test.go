@@ -151,3 +151,29 @@ func TestParseDurationMs_RejectsOverflow(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, ForwardTimeoutMsEnvVar)
 }
+
+// --- parseBoolFlag ---
+
+func TestParseBoolFlag_UnsetReturnsDefault(t *testing.T) {
+	assert.False(t, parseBoolFlag(EnableRunEnvVar, "", false))
+	assert.True(t, parseBoolFlag(EnableRunEnvVar, "", true))
+}
+
+func TestParseBoolFlag_ValidTrue(t *testing.T) {
+	assert.True(t, parseBoolFlag(EnableRunEnvVar, "true", false))
+}
+
+func TestParseBoolFlag_ValidFalse(t *testing.T) {
+	assert.False(t, parseBoolFlag(EnableRunEnvVar, "false", true))
+}
+
+// TestParseBoolFlag_Malformed_FallsBackToDefault verifies that a malformed
+// (non-empty, non-bool) value does not error — it logs a warning and falls
+// back to defaultVal, so a typo in one hook's toggle cannot fail the whole
+// lifecycle setup the way an invalid port or timeout does.
+func TestParseBoolFlag_Malformed_FallsBackToDefault(t *testing.T) {
+	for _, raw := range []string{"yes", "on", "enabled", "2"} {
+		assert.False(t, parseBoolFlag(EnableRunEnvVar, raw, false), "raw=%q should fall back to default", raw)
+		assert.True(t, parseBoolFlag(EnableRunEnvVar, raw, true), "raw=%q should fall back to default", raw)
+	}
+}
