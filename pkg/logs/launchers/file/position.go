@@ -7,17 +7,34 @@ package file
 
 import (
 	"io"
-	"os"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// fileSize returns the size of the file at the given path. The file is opened through the provided
+// FileOpener rather than stat'ed directly so that log files only reachable through the privileged
+// logs client are handled the same way the file provider and the tailers handle them.
+func fileSize(fileOpener opener.FileOpener, path string) (int64, error) {
+	f, err := fileOpener.OpenLogFile(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
+}
+
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter, fileOpener opener.FileOpener) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -55,8 +72,14 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	offsetBeyondEOF := false
 	if filePath != "" && value != "" {
 		if storedOffset, perr := strconv.ParseInt(value, 10, 64); perr == nil {
-			if fi, serr := os.Stat(filePath); serr == nil && storedOffset > fi.Size() {
-				log.Infof("Stored offset %d for file %s is beyond its size %d, restarting from the beginning of the file", storedOffset, filePath, fi.Size())
+			size, serr := fileSize(fileOpener, filePath)
+			switch {
+			case serr != nil:
+				// The size could not be determined, so the offset cannot be validated. Leave the
+				// stored offset in place rather than re-reading the file from the start.
+				log.Warnf("Could not determine the size of file %s to validate its stored offset: %v", filePath, serr)
+			case storedOffset > size:
+				log.Infof("Stored offset %d for file %s is beyond its size %d, restarting from the beginning of the file", storedOffset, filePath, size)
 				offsetBeyondEOF = true
 			}
 		}
