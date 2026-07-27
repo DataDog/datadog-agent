@@ -54,9 +54,8 @@ type controller struct {
 	closed        bool
 }
 
-// NewController creates a new Data Security controller instance. The caller is
-// responsible for only creating it when `data_security.enabled` is set (see the
-// agent run command).
+// NewController creates a new Data Security controller instance. Only call it
+// when `data_security.enabled` is set.
 func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
 	c := &controller{
 		ac:            ac,
