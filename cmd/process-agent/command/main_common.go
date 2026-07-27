@@ -50,8 +50,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
-	"github.com/DataDog/datadog-agent/comp/networkpath"
-	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
+	"github.com/DataDog/datadog-agent/comp/network"
 	"github.com/DataDog/datadog-agent/comp/process"
 	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
@@ -60,7 +59,6 @@ import (
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	processstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -145,12 +143,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 
-		// Provides the rdnssquerier module
-		rdnsquerierfx.Module(),
-
-		remotetraceroute.Module(),
-		// Provide network path bundle
-		networkpath.Bundle(),
+		// Provide network monitoring bundle (rdnsquerier, traceroute, npcollector)
+		network.Bundle(),
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
