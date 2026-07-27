@@ -3854,16 +3854,16 @@
   
 
 
-<h1 id="manual-qa-infrastructure">Manual QA Infrastructure</h1>
+<h1 id="manual-qa-infrastructure">Manual QA Infrastructure<a class="headerlink" href="#manual-qa-infrastructure" title="Permanent link">&para;</a></h1>
 <p>The E2E framework can provision real cloud infrastructure for manual QA without
 running automated tests. Environments stay alive until you explicitly destroy
 them (or our cleaner destroys it, every week), giving you direct access (SSH, kubectl, RDP) to inspect the agent in a
 realistic environment.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <p>Complete the <a href="../e2e/#one-time-setup">one-time setup</a> from the E2E testing guide
 before creating any environment.</p>
 <p>If you do not want to rely on fake intake, and send data to the real Datadog backend, you should make sure you set a valid API in ~/.test_infra_config.yaml</p>
-<h2 id="stack-lifecycle">Stack lifecycle</h2>
+<h2 id="stack-lifecycle">Stack lifecycle<a class="headerlink" href="#stack-lifecycle" title="Permanent link">&para;</a></h2>
 <p>Each environment is a named Pulumi stack. Stacks are automatically prefixed
 with your OS username:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;username&gt;-&lt;stack-name&gt;
@@ -3874,7 +3874,7 @@ with your OS username:</p>
 when you are done to avoid leaving cloud resources running.</p>
 <p>Agents are automatically tagged <code>stackid:&lt;stack-name&gt;</code> so you can filter
 metrics and logs in the Datadog UI to a specific environment.</p>
-<h2 id="scenarios">Scenarios</h2>
+<h2 id="scenarios">Scenarios<a class="headerlink" href="#scenarios" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -3922,7 +3922,7 @@ metrics and logs in the Datadog UI to a specific environment.</p>
 </tbody>
 </table>
 <p>Pass <code>--no-interactive</code> to any scenario to disable the clipboard prompt and desktop notification, which is useful when running from an AI agent or CI context.</p>
-<h2 id="see-also">See Also</h2>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../e2e/">Running E2E tests</a> — automated test execution against the same infrastructure</li>
 </ul>

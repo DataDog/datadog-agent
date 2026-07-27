@@ -3936,12 +3936,12 @@
   
 
 
-<h1 id="flare">Flare</h1>
+<h1 id="flare">Flare<a class="headerlink" href="#flare" title="Permanent link">&para;</a></h1>
 <p>The general idea is to register a callback within your component to be called each time a flare is created. This uses
 <a href="../../fx/">Fx</a> groups under the hood, but helpers are there to abstract all the complexity.</p>
 <p>Once the callback is created, you will have to migrate the code related to your component from <code>pkg/flare</code> to your
 component.</p>
-<h2 id="creating-a-callback">Creating a callback</h2>
+<h2 id="creating-a-callback">Creating a callback<a class="headerlink" href="#creating-a-callback" title="Permanent link">&para;</a></h2>
 <p>To add data to a flare, you first need to register a callback, also known as a <code>FlareBuilder</code>.</p>
 <p>Within your component, create a method with the following signature: <code>func (c *yourComp) fillFlare(fb flaretypes.FlareBuilder) error</code>.</p>
 <p>This function is called every time the Agent generates a flare—whether from the CLI, RemoteConfig, or from the running
@@ -3974,7 +3974,7 @@ most cases, you can ignore errors returned by the <code>FlareBuilder</code> meth
 <p>Returning an error from your callback does not stop the flare from being created or sent. Rather, the error is logged into the
 flare too.</p>
 <p>While it's possible to register multiple callbacks from the same component, try to keep all the flare code in a single callback.</p>
-<h2 id="register-your-callback">Register your callback</h2>
+<h2 id="register-your-callback">Register your callback<a class="headerlink" href="#register-your-callback" title="Permanent link">&para;</a></h2>
 <p>Now you need to register your callback to be called each time a flare is created. To do this, your component constructor
 needs to provide a new <a href="https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/types#Provider">Provider</a>.
 Use <a href="https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/types#NewProvider">NewProvider</a> function for this.</p>
@@ -4001,7 +4001,7 @@ Use <a href="https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare
 </span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
 </span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="testing">Testing</h2>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <p>The flare component offers a
 <a href="https://github.com/DataDog/datadog-agent/blob/d0035f997e796204ec4ec07a8bc467c85b9ee6fb/comp/core/flare/helpers/builder_mock.go#L22">FlareBuilder mock</a> to test your callback.</p>
 <p>Example:</p>
@@ -4022,7 +4022,7 @@ Use <a href="https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare
 </span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="c1">// ...</span>
 </span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="migrating-your-code">Migrating your code</h2>
+<h2 id="migrating-your-code">Migrating your code<a class="headerlink" href="#migrating-your-code" title="Permanent link">&para;</a></h2>
 <p>Now comes the hard part: migrating the code from
 <a href="https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/flare"><code>pkg/flare</code></a> related to your component to your new
 callback.</p>
