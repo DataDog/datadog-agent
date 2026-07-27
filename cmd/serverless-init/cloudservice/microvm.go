@@ -237,9 +237,6 @@ func (m *MicroVM) Shutdown(_ *serverlessMetrics.ServerlessMetricAgent, _ bool, _
 // metric when the /run hook fires; emitting it here would double-count.
 func (m *MicroVM) AddStartMetric(_ *serverlessMetrics.ServerlessMetricAgent) {}
 
-// ShouldForceFlushAllOnForceFlushToSerializer returns false for MicroVM.
-func (m *MicroVM) ShouldForceFlushAllOnForceFlushToSerializer() bool { return false }
-
 // isMicroVM returns true when running inside an AWS Lambda MicroVM.
 func isMicroVM() bool {
 	_, exists := os.LookupEnv(serverlessenv.MicroVMImageARNEnvVar)

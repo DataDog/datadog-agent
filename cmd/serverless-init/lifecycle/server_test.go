@@ -46,6 +46,16 @@ func (m *mockFlusher) Flush() {
 	}
 }
 
+// mockForceFlusher tracks Flush and FlushAll calls separately; it satisfies
+// both Flusher and ForceFlusher.
+type mockForceFlusher struct {
+	flushCount    atomic.Int32
+	flushAllCount atomic.Int32
+}
+
+func (m *mockForceFlusher) Flush()    { m.flushCount.Add(1) }
+func (m *mockForceFlusher) FlushAll() { m.flushAllCount.Add(1) }
+
 // mockLogsAgent counts how many times Flush was called and records when each
 // call returned. onFlush, if set, is invoked after each Flush.
 type mockLogsAgent struct {
@@ -319,6 +329,30 @@ func TestHandleTerminate_NoForwarder_FlushesAndEmitsMetric_NoSigterm(t *testing.
 	case <-time.After(100 * time.Millisecond):
 		// Pass — no synthetic signal observed.
 	}
+}
+
+// TestHandleSuspend_UsesFlushNotFlushAll pins that /suspend calls Flush, not
+// FlushAll (see ForceFlusher for why).
+func TestHandleSuspend_UsesFlushNotFlushAll(t *testing.T) {
+	metric := &mockForceFlusher{}
+	srv := NewServer(0, metric, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, int32(1), metric.flushCount.Load(), "/suspend must call Flush")
+	assert.Equal(t, int32(0), metric.flushAllCount.Load(), "/suspend must not call FlushAll")
+}
+
+// TestHandleTerminate_UsesFlushAllNotFlush pins that /terminate calls
+// FlushAll, not Flush (see ForceFlusher for why).
+func TestHandleTerminate_UsesFlushAllNotFlush(t *testing.T) {
+	metric := &mockForceFlusher{}
+	srv := NewServer(0, metric, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(1), metric.flushAllCount.Load(), "/terminate must call FlushAll")
+	assert.Equal(t, int32(0), metric.flushCount.Load(), "/terminate must not call Flush")
 }
 
 // TestEmittedMetricsCarryCurrentTimestamp verifies the lifecycle handlers pass
@@ -1379,7 +1413,7 @@ func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
-	srv.flushAll(ctx)
+	srv.flushAll(ctx, false)
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must return within flushTimeout even when drainer blocks")
 }
 
@@ -1403,7 +1437,7 @@ func TestFlushAllNilLogsFlusherDoesNotPanic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
-	assert.NotPanics(t, func() { srv.flushAll(ctx) })
+	assert.NotPanics(t, func() { srv.flushAll(ctx, false) })
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must not fall back to the flushTimeout path when logsFlusher is nil")
 	assert.Equal(t, int32(1), metric.count.Load())
 	assert.Equal(t, int32(1), trace.count.Load())
@@ -1442,7 +1476,7 @@ func TestHandleRun_StartsHeartbeat(t *testing.T) {
 
 // /run must extract the MicroVM ID from the JSON body and apply it to the
 // heartbeat before Start so the very first emission carries the correct
-// microvm_id. The test calls handleRun then inspects the tags that the
+// lambda_microvm_id. The test calls handleRun then inspects the tags that the
 // heartbeat would emit on its next tick.
 func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
@@ -1452,7 +1486,7 @@ func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	body := strings.NewReader(`{"microvmId":"vm-from-body"}`)
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
-	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:vm-from-body")
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "lambda_microvm_id:vm-from-body")
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-from-body", id)
 }
@@ -1466,7 +1500,7 @@ func TestHandleRun_MissingBodyIDUsesUnknown(t *testing.T) {
 
 	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 
-	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:unknown")
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "lambda_microvm_id:unknown")
 }
 
 // traced_invocations is emitted by the Heartbeat on each tick, not directly by

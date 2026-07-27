@@ -61,7 +61,7 @@ type Heartbeat struct {
 	// construction. Supplied by cloudservice.MicroVM.Init, which currently
 	// passes a single entry: "microvm_image_arn:<arn>" (the raw image ARN from
 	// AWS_LAMBDA_MICROVM_IMAGE_ARN, or "unknown" when the env var is unset). The
-	// per-emit "microvm_id:<id>" tag is appended separately in tagsForEmit.
+	// per-emit "lambda_microvm_id:<id>" tag is appended separately in tagsForEmit.
 	baseTags []string
 
 	mu          sync.Mutex
@@ -74,7 +74,7 @@ type Heartbeat struct {
 // NewHeartbeat constructs a Heartbeat. Non-positive interval falls back to
 // DefaultHeartbeatInterval. baseTags are tags known at construction time
 // (typically derived from env vars, e.g., microvm_image_arn); the
-// microvm_id tag is appended at emit time and is set at runtime via
+// lambda_microvm_id tag is appended at emit time and is set at runtime via
 // SetMicroVMID from the /run request.
 func NewHeartbeat(interval time.Duration, emitter MetricEmitter, source metrics.MetricSource, baseTags []string) *Heartbeat {
 	if interval <= 0 {
@@ -220,13 +220,13 @@ func (h *Heartbeat) emit() {
 }
 
 // tagsForEmit returns a fresh tag slice combining the immutable base tags
-// (set at construction) with the current microvm_id (set at /run).
+// (set at construction) with the current lambda_microvm_id (set at /run).
 func (h *Heartbeat) tagsForEmit() []string {
 	h.mu.Lock()
 	id := h.microVMID
 	h.mu.Unlock()
 	tags := make([]string, 0, len(h.baseTags)+1)
 	tags = append(tags, h.baseTags...)
-	tags = append(tags, "microvm_id:"+id)
+	tags = append(tags, lambdaMicroVMIDPrefix+id)
 	return tags
 }
