@@ -12,6 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+const tracerouteExecutionBudgetRatio = 0.9
+
+// PerHopTimeout converts a total traceroute execution budget into a timeout
+// for each hop. Ten percent of the total budget is reserved so the traceroute
+// library call has time to return after the per-hop work completes.
+// maxTTL must be greater than zero.
+func PerHopTimeout(totalTimeout time.Duration, maxTTL uint8) time.Duration {
+	return time.Duration(float64(totalTimeout) * tracerouteExecutionBudgetRatio / float64(maxTTL))
+}
+
 // Config specifies the configuration of an instance
 // of Traceroute, on the system-probe side
 type Config struct {

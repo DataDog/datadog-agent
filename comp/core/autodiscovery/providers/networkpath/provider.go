@@ -15,6 +15,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"go.yaml.in/yaml/v2"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -375,11 +377,10 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 }
 
 func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
-	// Reserve 10% of the total test budget so the traceroute library call has
-	// time to return after the per-hop work completes. Round up because the
-	// check's timeout is expressed in whole milliseconds and zero would make it
-	// fall back to the unrelated local default.
-	return int64(math.Ceil(float64(totalTimeoutMS) * 0.9 / float64(maxTTL)))
+	perHopTimeout := tracerouteconfig.PerHopTimeout(time.Duration(totalTimeoutMS)*time.Millisecond, uint8(maxTTL))
+	// Round up because the check's timeout is expressed in whole milliseconds
+	// and zero would make it fall back to the unrelated local default.
+	return int64(math.Ceil(float64(perHopTimeout) / float64(time.Millisecond)))
 }
 
 func sameConfigs(a, b []integration.Config) bool {
