@@ -8,5 +8,7 @@
 ---
 fixes:
   - |
-    Change default EVP track for AI usage to 'eudm-intake' and disable
-    AI usage agent by default.
+    Change default EVP track for AI usage to ``eudm-intake`` and disable
+    AI usage agent by default. AI usage agent's ``ai_usage_native_host.yaml``
+    configuration file is now regenerated from the packaged template on
+    every Agent install and upgrade to ensure the default changes take effect.

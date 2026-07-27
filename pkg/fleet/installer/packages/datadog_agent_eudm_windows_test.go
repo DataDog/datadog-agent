@@ -57,7 +57,7 @@ func TestWriteAIUsageManifest(t *testing.T) {
 	assert.NoFileExists(t, obsolete)
 }
 
-func TestWriteAIUsageConfigSubstitutesTraceURLAndPreservesExisting(t *testing.T) {
+func TestWriteAIUsageConfigSubstitutesTraceURLAndOverwritesExisting(t *testing.T) {
 	dir := t.TempDir()
 	examplePath := filepath.Join(dir, aiUsageConfigName+".example")
 	configPath := filepath.Join(dir, aiUsageConfigName)
@@ -69,12 +69,15 @@ func TestWriteAIUsageConfigSubstitutesTraceURLAndPreservesExisting(t *testing.T)
 	assert.Contains(t, string(rendered), "trace_agent_url: ")
 	assert.Contains(t, string(rendered), "evp_proxy_api_version: 2")
 
-	// An existing config must be preserved.
+	// An existing config (e.g. from a previous install, or hand-edited) must be overwritten so
+	// packaged default changes reach already-installed machines on upgrade.
 	require.NoError(t, os.WriteFile(configPath, []byte("preserved"), 0o644))
 	require.NoError(t, writeAIUsageConfig(examplePath, configPath))
 	after, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	assert.Equal(t, "preserved", string(after))
+	assert.NotEqual(t, "preserved", string(after))
+	assert.Contains(t, string(after), "trace_agent_url: ")
+	assert.Contains(t, string(after), "evp_proxy_api_version: 2")
 }
 
 func TestBuildAIUsageTaskXML(t *testing.T) {

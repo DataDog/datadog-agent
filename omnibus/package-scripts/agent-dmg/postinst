@@ -104,7 +104,9 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
 fi
 
-if [ ! -f "$CONF_DIR/ai_usage_native_host.yaml" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
+# Always regenerate from the packaged template (even on upgrade) so default changes
+# (e.g. EVP track, desktop monitoring defaults) reach already-installed machines.
+if [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
     cp "$CONF_DIR/ai_usage_native_host.yaml.example" "$CONF_DIR/ai_usage_native_host.yaml"
     apm_receiver_port=$(awk '
         /^[[:space:]]*#/ { next }
