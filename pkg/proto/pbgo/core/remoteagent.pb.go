@@ -31,7 +31,7 @@ type RegisterRemoteAgentRequest struct {
 	Flavor string `protobuf:"bytes,2,opt,name=flavor,proto3" json:"flavor,omitempty"`
 	// Human-friendly display name of the remote agent.
 	//
-	// SHOULD be the common name for the remote agent, such as "OpenTelemetry Collector".
+	// MUST be a non-empty common name for the remote agent, such as "OpenTelemetry Collector".
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// gRPC endpoint address where the remote agent can be reached.
 	//

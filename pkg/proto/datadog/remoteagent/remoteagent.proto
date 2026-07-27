@@ -26,7 +26,7 @@ message RegisterRemoteAgentRequest {
   string flavor = 2;
   // Human-friendly display name of the remote agent.
   //
-  // SHOULD be the common name for the remote agent, such as "OpenTelemetry Collector".
+  // MUST be a non-empty common name for the remote agent, such as "OpenTelemetry Collector".
   string display_name = 3;
   // gRPC endpoint address where the remote agent can be reached.
   //
