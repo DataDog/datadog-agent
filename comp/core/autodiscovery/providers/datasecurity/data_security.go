@@ -32,6 +32,8 @@ const (
 	postgresIntegrationName = "postgres"
 	// postgresPlatform is the entity platform value backed by the postgres engine.
 	postgresPlatform = "postgres"
+	// defaultPostgresPort is used when the matched postgres instance omits the port.
+	defaultPostgresPort = 5432
 )
 
 // isConnectedToPostgres reports whether any postgres integration is configured.
@@ -244,28 +246,17 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 	host, _ := instance["host"].(string)
 	username, _ := instance["username"].(string)
 	password, _ := instance["password"].(string)
+	// The postgres integration types `port` as an integer (see integrations-core
+	// postgres spec.yaml / InstanceConfig), so YAML decodes it to an int.
+	port, ok := instance["port"].(int)
+	if !ok {
+		port = defaultPostgresPort
+	}
 	return connection{
 		Host:     host,
-		Port:     toInt(instance["port"], 5432),
+		Port:     port,
 		DBName:   e.Database,
 		Username: username,
 		Password: password,
-	}
-}
-
-// toInt coerces a value decoded from YAML (int, int64, uint16, float64) into an int,
-// falling back to def when the value is missing or of an unexpected type.
-func toInt(v any, def int) int {
-	switch n := v.(type) {
-	case int:
-		return n
-	case int64:
-		return int(n)
-	case uint16:
-		return int(n)
-	case float64:
-		return int(n)
-	default:
-		return def
 	}
 }

@@ -182,24 +182,3 @@ func asYAML(t *testing.T, doc string) map[string]any {
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &out))
 	return out
 }
-
-func TestToInt(t *testing.T) {
-	tests := []struct {
-		name     string
-		value    any
-		expected int
-	}{
-		{"int", 42, 42},
-		{"int64", int64(42), 42},
-		{"uint16", uint16(42), 42},
-		{"float64", float64(42), 42},
-		{"nil falls back to default", nil, 5432},
-		{"string falls back to default", "42", 5432},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, toInt(tt.value, 5432))
-		})
-	}
-}
