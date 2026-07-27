@@ -62,6 +62,7 @@ services:
       DD_OTEL_STANDALONE: "true"
       DOCKER_DD_AGENT: "true"
       DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_LOG_LEVEL: debug
       DO_NOT_START_PROFILER:
       DD_HOSTPROFILER_DEBUG:
       HOST_PROFILER_CONFIG: cmd/host-profiler/dist/host-profiler-config-dogtel.yaml

@@ -1,4 +1,11 @@
 extensions:
+  ddprofiling:
+    # host-profiler-standalone-dogtel isn't network_mode: service:datadog-agent
+    # (unlike the plain host-profiler service), so it can't reach the sidecar
+    # at localhost:8126 - route to it via the compose network's service DNS name instead.
+    agent_addr: "datadog-agent:8126"
+    profiler_options:
+      service: host-profiler-dogtel
   dogtel:
     # Tagger server settings. Must stay disabled here: host-profiler's standalone
     # wiring (collectorimpl.NewExtraFactoriesWithoutAgentCore) passes a nil
@@ -55,7 +62,10 @@ exporters:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 service:
-  extensions: [dogtel]
+  telemetry:
+    logs:
+      level: debug
+  extensions: [ddprofiling, dogtel]
   pipelines:
     profiles:
       receivers: [profiling]
