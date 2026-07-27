@@ -81,12 +81,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// the darwin and bsd network check has not been ported from python
 	// If true, then new version of network v2 check will be used.
 	// Otherwise, the python version of network check will be used.
-	config.BindEnvAndSetDefault("use_networkv2_check", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("use_networkv2_check", getPlatformDefault(map[string]interface{}{
 		"linux":   true,
 		"windows": true,
 		"other":   false,
 	}))
-	config.BindEnvAndSetDefault("network_check.use_core_loader", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("network_check.use_core_loader", getPlatformDefault(map[string]interface{}{
 		"linux":   true,
 		"windows": true,
 		"other":   false,
@@ -967,7 +967,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("compliance_config.exclude_pause_container", true)
 
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("runtime_security_config.socket", getPlatformDefault(map[string]interface{}{
 		"windows": "localhost:3335",
 		"other":   "${install_path}/run/runtime-security.sock",
 	}))
@@ -1308,7 +1308,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// 		By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
 	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
-	config.BindEnvAndSetDefault("GUI_port", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("GUI_port", getPlatformDefault(map[string]interface{}{
 		"darwin":  5002,
 		"windows": 5002,
 		"other":   -1,
@@ -1705,7 +1705,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("dogstatsd_socket", getPlatformDefault(map[string]interface{}{
 		"linux": "/var/run/datadog/dsd.socket",
 		"aix":   "/var/run/datadog/dsd.socket",
 		"other": "",
@@ -1840,7 +1840,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// There is no effective limit for windows due to use of CreateFile win32 API
 	// The OS default for most linux distributions is 1024
 	config.BindEnvAndSetDefault("logs_config.open_files_limit",
-		GetPlatformDefault(map[string]interface{}{
+		getPlatformDefault(map[string]interface{}{
 			"darwin": 200,
 			"other":  500,
 		}))
@@ -2052,7 +2052,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write",
-		GetPlatformDefault(map[string]interface{}{
+		getPlatformDefault(map[string]interface{}{
 			"fargate": false,
 			"other":   true,
 		}),
@@ -2165,11 +2165,11 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 	config.BindEnvAndSetDefault("kubernetes_kube_service_ignore_readiness", false)
 
-	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\kubelet-pod-resources`,
 		"other":   "/var/lib/kubelet/pod-resources/kubelet.sock",
 	}))
-	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\kubelet-device-plugins`,
 		"other":   "/var/lib/kubelet/device-plugins",
 	}))

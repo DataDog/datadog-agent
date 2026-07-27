@@ -38,7 +38,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("process_config.intervals.container", 10, "DD_PROCESS_CONFIG_INTERVALS_CONTAINER", "DD_PROCESS_AGENT_INTERVALS_CONTAINER")
 	config.BindEnvAndSetDefault("process_config.intervals.container_realtime", 2, "DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME", "DD_PROCESS_AGENT_INTERVALS_CONTAINER_REALTIME")
 	config.BindEnvAndSetDefault("process_config.intervals.connections", 30, "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS", "DD_PROCESS_AGENT_INTERVALS_CONNECTIONS")
-	config.BindEnvAndSetDefault("process_config.dd_agent_bin", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("process_config.dd_agent_bin", getPlatformDefault(map[string]interface{}{
 		"linux":   "${install_path}/bin/agent/agent",
 		"darwin":  "${install_path}/bin/agent/agent",
 		"aix":     "${install_path}/bin/agent/agent",
