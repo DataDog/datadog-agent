@@ -30,6 +30,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -108,7 +109,7 @@ const (
 	DefaultNetworkPathTimeout = 1000
 
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
-	DefaultNetworkPathMaxTTL = 30
+	DefaultNetworkPathMaxTTL = tracerouteconfig.DefaultMaxTTL
 
 	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
 	DefaultNetworkPathStaticPathTracerouteQueries = 3

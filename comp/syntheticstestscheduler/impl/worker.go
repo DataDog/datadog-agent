@@ -30,9 +30,6 @@ const (
 	// defaultTestTimeoutSeconds is the total test timeout applied when the test
 	// config does not specify one, matching the default added on the RC path.
 	defaultTestTimeoutSeconds = 60
-	// defaultMaxTTL is the fallback max-TTL used only when computing the
-	// per-hop timeout and neither the test config nor cfg.MaxTTL is set.
-	defaultMaxTTL = 30
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
@@ -241,7 +238,7 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	if ncr.MaxTTL != nil {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
 	} else {
-		cfg.MaxTTL = defaultMaxTTL
+		cfg.MaxTTL = config.DefaultMaxTTL
 	}
 	timeoutSec := defaultTestTimeoutSeconds
 	if ncr.Timeout != nil {
