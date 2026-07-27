@@ -147,6 +147,8 @@ To check agent status:
 
 def _parse_image(image: str) -> tuple[str, str]:
     """Parse image string into (repository, tag)."""
-    if ":" in image:
-        return image.rsplit(":", 1)
+    last_colon = image.rfind(":")
+    last_slash = image.rfind("/")
+    if last_colon > last_slash:
+        return image[:last_colon], image[last_colon + 1 :]
     return image, "latest"
