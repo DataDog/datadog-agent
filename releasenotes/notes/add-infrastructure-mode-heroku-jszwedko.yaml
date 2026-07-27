@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not differ between releases and is easy to understand.
+---
+features:
+  - |
+    Added a new ``infrastructure_mode`` value, ``heroku``, which constrains the
+    regular Agent to the Heroku Agent flavor's runtime feature set (no container,
+    Kubernetes, cloud-provider, orchestration, or SBOM collection; APM and
+    integrations kept) with DogStatsD served by Agent Data Plane. Proof-of-concept
+    migration target for the Heroku Agent distribution.

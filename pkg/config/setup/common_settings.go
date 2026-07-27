@@ -1236,7 +1236,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+	// The possible values are: full, basic, end_user_device, cloud_cost_only, heroku, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)

@@ -1401,6 +1401,28 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
 		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "heroku" {
+		// Mirror the Heroku Agent build flavor's runtime behavior on the regular
+		// Agent. The heroku build drops container runtimes, Kubernetes, cloud-provider
+		// (ec2/fargate), orchestration, and SBOM, but keeps APM (trace-agent),
+		// integrations, and DogStatsD. This disables the corresponding subsystems at
+		// runtime and routes DogStatsD through ADP so the Go DogStatsD server is not
+		// needed. It does NOT reproduce the smaller heroku *package* (that is a build
+		// difference, not a runtime one) — see the "Freezing the Heroku Agent" proposal.
+		//
+		// As with the other modes these use SourceInfraMode, so an explicit user
+		// config file or environment variable still takes precedence.
+		config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_image.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_lifecycle.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("orchestrator_explorer.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("sbom.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Serve DogStatsD via ADP rather than the Go DogStatsD server. APM and
+		// host integrations are intentionally left enabled (the heroku flavor ships them).
+		config.Set("data_plane.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("data_plane.dogstatsd.enabled", true, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
