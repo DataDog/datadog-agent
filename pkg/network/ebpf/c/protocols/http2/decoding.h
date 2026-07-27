@@ -273,10 +273,9 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel, bool *is_grpc) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
-    bool is_grpc = false;
     http2_header_t *current_header;
     const __u32 frame_end = pktbuf_data_offset(pkt) + frame_length;
     const __u32 end = frame_end < pktbuf_data_end(pkt) + 1 ? frame_end : pktbuf_data_end(pkt) + 1;
@@ -373,15 +372,10 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        // Detect a "content-type: application/grpc" header (sets is_grpc) so the connection can be classified as gRPC.
-        if (!pktbuf_process_and_skip_literal_headers(pkt, index, &is_grpc)){
+        // Detect a "content-type: application/grpc" header (sets *is_grpc) so the connection can be classified as gRPC.
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index, is_grpc)){
             break;
         }
-    }
-
-    // Classify the connection as gRPC once, outside the unrolled header loops, to keep the map update small.
-    if (is_grpc) {
-        update_protocol_stack(&dynamic_index->tup, PROTOCOL_GRPC);
     }
 
     return interesting_headers;
@@ -1010,8 +1004,19 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             }
         }
 
-        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
+        bool is_grpc = false;
+        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel, &is_grpc);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+        // A "content-type: application/grpc" header classifies the connection as gRPC. The connection_protocol
+        // entry already exists (the dispatcher created it when classifying HTTP2), so we update it in place using
+        // the already-normalized stream tuple - avoiding the tuple copy in get_or_create_protocol_stack, which
+        // would overflow this program's near-full BPF stack.
+        if (is_grpc) {
+            protocol_stack_t *grpc_stack = __get_protocol_stack_if_exists(&http2_ctx->http2_stream_key.tup);
+            if (grpc_stack != NULL) {
+                set_protocol(grpc_stack, PROTOCOL_GRPC);
+            }
+        }
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
