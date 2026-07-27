@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -88,7 +89,7 @@ func loadProcessTransforms(config pkgconfigmodel.Config) {
 
 // GetProcessAPIAddressPort returns the API endpoint of the process agent
 func GetProcessAPIAddressPort(config pkgconfigmodel.Reader) (string, error) {
-	address, err := GetIPCAddress(config)
+	address, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}
