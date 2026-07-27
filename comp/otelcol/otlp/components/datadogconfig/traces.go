@@ -182,6 +182,14 @@ type TracesConnectorConfig struct {
 	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
 	// OTLP span attribute exists, otherwise we will leave it empty.
 	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
+
+	// SpanDerivedPrimaryTags is an optional list of attribute keys to attach to the trace metrics
+	// computed by the connector, so that those metrics can be broken down by the tag's value.
+	// Each key is resolved off the span first and, if absent there, off the span's resource; keys
+	// found in neither place are omitted. Unlike peer tags, these are not restricted by span kind.
+	// A high cardinality of values increases the metric volume the connector generates, so prefer
+	// keys with a small, bounded set of values.
+	SpanDerivedPrimaryTags []string `mapstructure:"span_derived_primary_tags"`
 }
 
 func (c *TracesConnectorConfig) Validate() error {
