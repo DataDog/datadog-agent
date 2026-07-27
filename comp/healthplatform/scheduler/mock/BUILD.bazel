@@ -7,7 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/healthplatform/runner/def",
-        "//comp/healthplatform/scheduler/def",
-        "//pkg/util/fxutil",
+        "//comp/healthplatform/store/def",
     ],
 )

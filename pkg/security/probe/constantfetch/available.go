@@ -14,7 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
-	pkgebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -45,7 +45,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version) []C
 }
 
 func getBTFFuncProto(funcName string) (*btf.FuncProto, error) {
-	spec, err := pkgebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +75,32 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	}
 
 	return proto.Params[0].Name != "dentry", nil
+}
+
+// GetExitItimersTakesTaskStructWithBtf uses BTF to check whether exit_itimers takes a
+// struct task_struct* as its first argument (kernel >= 5.19 and its stable backports) rather
+// than the legacy struct signal_struct*.
+func GetExitItimersTakesTaskStructWithBtf() (bool, error) {
+	proto, err := getBTFFuncProto("exit_itimers")
+	if err != nil {
+		return false, err
+	}
+
+	if len(proto.Params) == 0 {
+		return false, errors.New("exit_itimers has no parameters")
+	}
+
+	ptr, ok := btf.UnderlyingType(proto.Params[0].Type).(*btf.Pointer)
+	if !ok {
+		return false, errors.New("exit_itimers first parameter is not a pointer")
+	}
+
+	strct, ok := btf.UnderlyingType(ptr.Target).(*btf.Struct)
+	if !ok {
+		return false, errors.New("exit_itimers first parameter is not a pointer to a struct")
+	}
+
+	return strct.Name == "task_struct", nil
 }
 
 // GetHasVFSRenameStructArgs uses BTF to check if the vfs_rename function has a struct renamedata as its only argument
@@ -107,7 +133,7 @@ func GetBTFFunctionArgCount(funcName string) (int, error) {
 
 // AreFentryTailCallsBroken checks if fentry tail calls are broken
 func AreFentryTailCallsBroken() (bool, error) {
-	spec, err := pkgebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return false, err
 	}

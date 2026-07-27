@@ -79,7 +79,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     struct dentry *container_d;
 #ifdef DEBUG_CGROUP
-    struct qstr container_qstr;
     char *container_id;
 #endif
 
@@ -95,15 +94,16 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     case CGROUP_DEFAULT: {
         // Retrieve the container ID from the cgroup path.
         struct kernfs_open_file *kern_f = (struct kernfs_open_file *)CTX_PARM1(ctx);
+        u64 kernfs_open_file_file_offset;
+        LOAD_CONSTANT("kernfs_open_file_file_offset", kernfs_open_file_file_offset);
         struct file *f;
-        bpf_probe_read(&f, sizeof(f), &kern_f->file);
+        bpf_probe_read(&f, sizeof(f), (void *)kern_f + kernfs_open_file_file_offset);
         struct dentry *dentry = get_file_dentry(f);
 
         // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
-        bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
+        container_d = get_dentry_parent(dentry);
 #ifdef DEBUG_CGROUP
-        bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
-        container_id = (void *)container_qstr.name;
+        container_id = (void *)get_dentry_name_ptr(container_d);
 #endif
 
         resolver->key.ino = get_dentry_ino(container_d);
@@ -116,8 +116,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
 
 #ifdef DEBUG_CGROUP
-        bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
-        container_id = (void *)container_qstr.name;
+        container_id = (void *)get_dentry_name_ptr(container_d);
 #endif
 
         u64 inode = get_dentry_ino(container_d);
@@ -142,7 +141,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     new_entry.cgroup.path_key = resolver->key;
 
 #ifdef DEBUG_CGROUP
-    bpf_printk("container id: %s\n", container_qstr.name);
+    bpf_printk("container id: %s\n", container_id);
 #endif
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
@@ -233,8 +232,7 @@ static __attribute__((always_inline)) int trace__cgroup_open(ctx_t *ctx) {
 
     cache_file(dentry, mount_id);
 
-    struct dentry *d_parent;
-    bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
+    struct dentry *d_parent = get_dentry_parent(dentry);
     cache_file(d_parent, mount_id);
 
     return 0;

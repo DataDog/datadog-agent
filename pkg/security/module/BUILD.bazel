@@ -61,7 +61,7 @@ go_library(
         "//pkg/util/startstop",
         "//pkg/util/system/socket",
         "//pkg/version",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_mailru_easyjson//:easyjson",
         "@com_github_mdlayher_vsock//:vsock",

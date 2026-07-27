@@ -107,7 +107,9 @@ func newFactoryForAgent(data *data) xprocessor.Factory {
 
 func (f *factory) createDefaultConfig() component.Config {
 	return &Config{
-		Cardinality: taggerTypes.LowCardinality,
+		Cardinality:                taggerTypes.LowCardinality,
+		TraceContainerTagPromotion: ContainerTagPromotionOff,
+		LogsTagsAsDDTags:           false,
 	}
 }
 

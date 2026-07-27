@@ -46,9 +46,10 @@ func (s *NCMStub) ErrorMsg() string {
 	return s.GetError().Error()
 }
 
-func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error          { return s.GetError() }
-func (s *NCMStub) ReportConfig(_ string) error                            { return s.GetError() }
-func (s *NCMStub) ReportConfigWithSender(_ string, _ sender.Sender) error { return s.GetError() }
+func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error { return s.GetError() }
+func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) error {
+	return s.GetError()
+}
 func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) error { return s.GetError() }
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration)                   {}
 

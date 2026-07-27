@@ -29,7 +29,7 @@ http_archive(
         "//deps/cpython:0001-customize-windows-build-script.patch",
         "//deps/cpython:0002-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
-        "//deps/cpython:0004-Drop-hardcoded-d-LIBDEST-from-libinstall-compileall.patch",
+        "//deps/cpython:0004-Skip-bytecode-compilation-during-install.patch",
     ],
     sha256 = "5ae535a36af0ebca6fca176ecb8197f5db9c1cb8c8f0cd12cdf1787046db1f41",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),

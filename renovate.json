@@ -5,6 +5,8 @@
     "updateNotScheduled": false,
     "ignorePaths": [],
     "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
+    "prCreation": "not-pending",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
@@ -68,7 +70,7 @@
       },
       {
         "matchManagers": ["cargo"],
-        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
+        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
         "matchManagers": ["cargo"],
@@ -82,6 +84,12 @@
       {
         "matchManagers": ["gomod"],
         "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "description": "Require Dependency Dashboard approval for major Go dependency updates",
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["major"],
+        "dependencyDashboardApproval": true
       },
       {
         "matchManagers": ["gomod"],
@@ -165,7 +173,21 @@
       },
       {
         "matchManagers": ["bazel-module"],
+        "matchDepTypes": ["archive_override"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchPackageNames": [
+          "package_metadata",
+          "rules_license",
+          "supply_chain_tools"
+        ],
         "enabled": false
       },
       {
@@ -303,6 +325,25 @@
         "depNameTemplate": "datadog.dd",
         "datasourceTemplate": "custom.ansible-galaxy-datadog-dd",
         "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\"npm:(?<depName>[^\"]+)\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "datasourceTemplate": "npm",
+        "versioningTemplate": "npm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\\bnode\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "node",
+        "datasourceTemplate": "node",
+        "versioningTemplate": "node"
       }
     ],
     "customDatasources": {

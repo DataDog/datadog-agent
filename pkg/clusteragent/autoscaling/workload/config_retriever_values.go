@@ -21,6 +21,7 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -129,52 +130,55 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 
 	// Update PodAutoscalers with buffered values
 	for paID, item := range p.state {
-		podAutoscaler, podAutoscalerFound, unlock := p.store.LockRead(paID, false)
-		// If the PodAutoscaler is not found, it must be created through the controller
-		// discarding the values received here.
-		// The store is not locked as we call LockRead with lockOnMissing = false
-		if !podAutoscalerFound {
-			continue
-		}
-
-		// In case of custom recommender, we partially merge vertical values if available.
-		if podAutoscaler.CustomRecommenderConfiguration() != nil {
-			if item.scalingValues.HasVerticalValues() {
-				podAutoscaler.PartialUpdateFromMainValues(item.scalingValues, false, true, item.receivedVersion)
-			} else {
-				unlock()
-				continue
+		func() {
+			storeItem, podAutoscalerFound := p.store.Get(paID)
+			// Release is a safety net; it becomes a no-op once a terminal (Upsert) runs.
+			defer storeItem.Release()
+			// If the PodAutoscaler is not found, it must be created through the controller
+			// discarding the values received here.
+			if !podAutoscalerFound {
+				return
 			}
-		} else {
-			// Update PodAutoscaler values with received values
-			podAutoscaler.UpdateFromMainValues(item.scalingValues, item.receivedVersion)
-		}
+			podAutoscaler := storeItem.Value()
 
-		p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
+			// In case of custom recommender, we partially merge vertical values if available.
+			if podAutoscaler.CustomRecommenderConfiguration() != nil {
+				if item.scalingValues.HasVerticalValues() {
+					podAutoscaler.PartialUpdateFromMainValues(item.scalingValues, false, true, item.receivedVersion)
+				} else {
+					return
+				}
+			} else {
+				// Update PodAutoscaler values with received values
+				podAutoscaler.UpdateFromMainValues(item.scalingValues, item.receivedVersion)
+			}
+
+			storeItem.Upsert(podAutoscaler, configRetrieverStoreID)
+		}()
 	}
 
 	// Clear values for all configs that were removed (only if no error occurred while processing new data)
 	if !p.lastProcessingError {
-		p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
+		p.store.ProcessAll(configRetrieverStoreID, func(_ string, podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, autoscalingstore.ItemAction) {
 			if _, found := p.state[podAutoscaler.ID()]; !found {
 				if podAutoscaler.CustomRecommenderConfiguration() != nil {
 					if podAutoscaler.MainScalingValues().HasVerticalValues() {
 						podAutoscaler.PartialUpdateFromMainValues(model.ScalingValues{}, false, true, 0)
-						return podAutoscaler, true
+						return podAutoscaler, autoscalingstore.SetItem
 					}
 
-					return podAutoscaler, false
+					return podAutoscaler, autoscalingstore.KeepItem
 				}
 
 				removed, previousMainScalingValues := podAutoscaler.RemoveMainValues()
 				if removed {
 					log.Infof("Autoscaling values not present from remote values, removed for PodAutoscaler %s, before: %+v", podAutoscaler.ID(), previousMainScalingValues)
 				}
-				return podAutoscaler, true
+				return podAutoscaler, autoscalingstore.SetItem
 			}
 
-			return podAutoscaler, false
-		}, configRetrieverStoreID)
+			return podAutoscaler, autoscalingstore.KeepItem
+		})
 	} else {
 		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data")
 	}

@@ -56,6 +56,7 @@ func newMockConnection() *MockConnection {
 			"show running-config": ok(runningOutput),
 			"show startup-config": ok(startupOutput),
 			"show version":        ok(versionOutput),
+			"show system":         ok("Test System"),
 		},
 	}
 }
@@ -90,7 +91,10 @@ func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
 		var ok bool
 		r, ok = m.OutputMap[cmd.Command]
 		if !ok {
-			r = fail(fmt.Errorf("unknown command %q", cmd))
+			r = fail(fmt.Errorf("unknown command %q", cmd.Command))
+		}
+		if r.err == nil {
+			r.err = cmd.Validator.Validate(r.response)
 		}
 	}
 	return []byte(r.response), r.err
@@ -102,6 +106,11 @@ func (m *MockConnection) RetrieveRunningConfig(_ context.Context) ([]byte, error
 
 func (m *MockConnection) RetrieveStartupConfig(_ context.Context) ([]byte, error) {
 	return m.execute(m.Profile.Commands.GetStartup)
+}
+
+func (m *MockConnection) Verify(_ context.Context) error {
+	_, err := m.execute(m.Profile.Commands.Verify)
+	return err
 }
 
 func (m *MockConnection) PushConfig(_ context.Context, _ string) error {
@@ -229,7 +238,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err = comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.NoError(t, err)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed after run")
 	expectedTags := []string{
@@ -243,26 +252,28 @@ func TestCheck_Run_Success(t *testing.T) {
 		Namespace: "default",
 		Configs: []report.NetworkDeviceConfig{
 			{
-				DeviceID:     "default:10.0.0.1",
-				DeviceIP:     "10.0.0.1",
-				ConfigType:   "running",
-				ConfigSource: "cli",
-				Timestamp:    1754043600,
-				Tags:         expectedTags,
-				Content:      runningOutput,
-				ID:           "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				ConfigHash:   hashConfigForTest(runningOutput),
+				DeviceID:      "default:10.0.0.1",
+				DeviceIP:      "10.0.0.1",
+				ConfigType:    "running",
+				ConfigSource:  "cli",
+				ConfigProfile: "p2",
+				Timestamp:     1754043600,
+				Tags:          expectedTags,
+				Content:       runningOutput,
+				ID:            "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				ConfigHash:    hashConfigForTest(runningOutput),
 			},
 			{
-				DeviceID:     "default:10.0.0.1",
-				DeviceIP:     "10.0.0.1",
-				ConfigType:   "startup",
-				ConfigSource: "cli",
-				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
-				Tags:         expectedTags,
-				Content:      startupOutput,
-				ID:           "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				ConfigHash:   hashConfigForTest(startupOutput),
+				DeviceID:      "default:10.0.0.1",
+				DeviceIP:      "10.0.0.1",
+				ConfigType:    "startup",
+				ConfigSource:  "cli",
+				ConfigProfile: "p2",
+				Timestamp:     1754043600, // timestamp taken from agent collection (could not be extracted from config)
+				Tags:          expectedTags,
+				Content:       startupOutput,
+				ID:            "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				ConfigHash:    hashConfigForTest(startupOutput),
 			},
 		},
 		Inventories: []report.InventoryEntry{
@@ -356,7 +367,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
 
-	err = comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
@@ -364,17 +375,16 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 
 func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	reqs.connFactory.conn.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
 
 	device := createTestDevice()
 	device.Profile = ""
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
-	dc, ok := comp.devices.Load(device.DeviceID())
-	assert.True(t, ok)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
 	assert.Nil(t, dc.profile)
 
-	err = comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
 	assert.Nil(t, dc.profile)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed even on failure")
@@ -387,19 +397,20 @@ func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.ErrorContains(t, err, "nonexistent NCM profile \"not-a-profile\" specified for device default:10.0.0.1")
 
-	err = comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "unknown device", "Device should not be registered if profile lookup failed.")
 	assert.False(t, reqs.connFactory.conn.Opened, "Remote client should not be opened if config is faulty")
 }
 
 func TestCheck_Run_ProfileMatch(t *testing.T) {
 	comp, reqs := createTestComponent(t)
+	reqs.connFactory.conn.OutputMap["show system"] = ok("OS: System P2.1")
 	device := createTestDevice()
 	device.Profile = ""
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
-	dc, ok := comp.devices.Load(device.DeviceID())
-	assert.True(t, ok)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
 	assert.Nil(t, dc.profile)
 
 	mockSender := reqs.sender
@@ -409,12 +420,12 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err = comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.NoError(t, err)
 	assert.True(t, reqs.connFactory.conn.Closed)
 
 	if assert.NotNil(t, dc.profile) {
-		assert.Equal(t, "p2", dc.profile.Name, "Device profile should be detected as p2")
+		assert.Equal(t, "p2", string(dc.profile.Name), "Device profile should be detected as p2")
 	}
 
 	t.Run("reloading config resets detected profile", func(t *testing.T) {
@@ -426,6 +437,7 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 
 func TestCheck_FindMatchingProfile(t *testing.T) {
 	comp, reqs := createTestComponent(t)
+	reqs.connFactory.conn.OutputMap["show system"] = ok("OS: System P2.1")
 	device := createTestDevice()
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
@@ -437,7 +449,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	actual, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.True(t, ok)
 	if assert.NotNil(t, actual) {
-		assert.Equal(t, "p2", actual.Name)
+		assert.Equal(t, "p2", string(actual.Name))
 	}
 }
 

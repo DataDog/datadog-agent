@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -30,6 +31,14 @@ type ExporterConfig struct {
 	HTTPConfig confighttp.ClientConfig `mapstructure:",squash"`
 
 	QueueBatchConfig configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
+
+	// RetryConfig drives the OTel exporterhelper retry/backoff layer on top of
+	// ConsumeMetrics. Effective only when the
+	// datadog.serializerexporter.UseSyncForwarder feature gate is enabled —
+	// under the legacy async forwarder ConsumeMetrics returns before the
+	// network call so there is nothing for exporterhelper to retry. Defaults
+	// to the legacy forwarder_backoff_* values for parity.
+	RetryConfig configretry.BackOffConfig `mapstructure:"retry_on_failure"`
 
 	configtls.ClientConfig `mapstructure:"tls"`
 

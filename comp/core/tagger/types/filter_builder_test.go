@@ -57,6 +57,7 @@ func TestFilterBuilderOps(t *testing.T) {
 					ECSTask:                {},
 					KubernetesKueueQueue:   {},
 					KueueResourceFlavor:    {},
+					KueueWorkload:          {},
 					KubernetesMetadata:     {},
 					KubernetesPodUID:       {},
 					Process:                {},

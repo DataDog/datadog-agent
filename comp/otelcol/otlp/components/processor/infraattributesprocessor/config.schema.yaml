@@ -7,3 +7,10 @@ properties:
     description: 'Cardinality controls which tag cardinality is enriched onto the signal. Accepted values: 0 = low (host-level, default), 1 = orchestrator (per-pod/task), 2 = high (per-container/request).'
     type: integer
     x-customType: github.com/DataDog/datadog-agent/comp/core/tagger/types.TagCardinality
+  trace_container_tag_promotion:
+    description: 'TraceContainerTagPromotion controls how tags emitted by this processor are surfaced for promotion into Datadog container tags. See the ContainerTagPromotionMode constants for the supported values. An empty value is treated as "off".'
+    type: string
+    x-customType: github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor.ContainerTagPromotionMode
+  logs_tags_as_ddtags:
+    description: 'LogsTagsAsDDTags controls whether custom tags emitted by the tagger (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are written as a `ddtags` log record attribute -- which the Datadog logs intake turns into real log tags -- instead of as resource attributes, which surface as log attributes.'
+    type: boolean

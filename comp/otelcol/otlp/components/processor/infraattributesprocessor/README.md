@@ -37,6 +37,56 @@ The cardinality option sets the [TagCardinality](../../../../../../comp/core/tag
 * `cardinality: 1` - **OrchestratorCardinality**: tags that change value for each pod or task
 * `cardinality: 2` - **HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
 
+### Container tag promotion
+
+**This option only affects the traces pipeline.** `_dd.tags.container` promotion is a trace-agent-specific mechanism; logs, metrics, and profiles never go through it, so the logs/metrics/profiles processors always behave as `off` regardless of this setting. (Metrics in particular already recognize DD-format keys directly, so prefixing them would only risk stranding data under `rename`.)
+
+Downstream (trace-agent / Datadog exporter) only promotes a resource attribute into `_dd.tags.container` (visible in the Infrastructure tab of a span) if its key matches a known DD or OTel container-tag convention, or if it carries the `datadog.container.tag.` prefix. Custom tags emitted by this processor — for example tags produced by `podLabelsAsTags` — fall into neither category and are therefore silently dropped from container tags.
+
+The `trace_container_tag_promotion` option opts into rewriting these custom tags so the downstream promotion path picks them up:
+
+* `trace_container_tag_promotion: off` *(default)* — tags are written as-is. Existing behavior.
+* `trace_container_tag_promotion: duplicate` — each non-exempt tag is written twice: once under its non-prefixed key **and** once under the `datadog.container.tag.<key>` prefixed key. The non-prefixed tag survives for any downstream consumer that reads the raw key; the prefixed copy reaches `_dd.tags.container`.
+* `trace_container_tag_promotion: rename` — each non-exempt tag is written **only** under the `datadog.container.tag.<key>` prefixed key. Smaller resource payload, but consumers that read the non-prefixed key lose access to the value.
+
+In `duplicate` mode the non-prefixed and prefixed forms are written independently, so the two can coexist. If a `datadog.container.tag.<key>` prefixed attribute is already present on the incoming resource (see exemptions below), the processor keeps that value and still writes the tagger-derived non-prefixed key alongside it — the result is both the pre-existing prefixed tag and the non-prefixed tag.
+
+**Exemptions (never prefixed, regardless of mode):**
+* Keys recognized by trace-agent's container-tag promotion path (`ConsumeContainerTagsFromResource`) — the union of `attributes.ContainerMappings` keys (OTel semantic conventions: `k8s.pod.name`, `container.id`, `container.image.name`, ...) and its values (DD-format names produced by the OTel→DD mapping: `pod_name`, `kube_namespace`, `container_id`, `runtime`, `cloud_provider`, ...). These already reach `_dd.tags.container` under their canonical key.
+* USM keys (`service`, `env`, `version`) — flow through their own path to `service.name` / `deployment.environment` / `service.version`.
+* `datadog.host.name` (when `allow_hostname_override: true`) — reserved host attribute.
+* Keys already starting with `datadog.container.tag.` — idempotent, never re-prefixed.
+* A `datadog.container.tag.<X>` attribute already present on the incoming resource (typically set by the sender as a manual workaround) — preserved as-is. The processor only writes its prefixed copy when the key is absent, so a user-supplied value is never overwritten by the tagger-derived one.
+
+Note that DD-format keys emitted by the tagger that are **not** in `ContainerMappings` (`kube_service`, `pod_phase`, `kube_qos`, `kube_priority_class`, `kube_app_*`, `image_id`, `docker_image`, `git.commit.sha`, ...) are treated as custom for this feature and **are** prefixed by `duplicate` / `rename` — trace-agent does not recognize them for container-tag promotion on their own.
+
+Example:
+```
+processors:
+  infraattributes:
+    cardinality: 2
+    trace_container_tag_promotion: duplicate
+```
+
+### Log tags as ddtags
+
+**This option only affects the logs pipeline.** By default, custom tags emitted by this processor — for example tags produced by [`kubernetesResourcesLabelsAsTags` / `kubernetesResourcesAnnotationsAsTags`](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#custom-tags) — are written as resource attributes, which surface in Datadog as **log attributes**, not as **log tags**. This differs from non-OTLP (native) log ingestion, where the same settings produce real log tags.
+
+The `logs_tags_as_ddtags` option closes this gap by writing these custom tags into a `ddtags` log record attribute instead. The Datadog logs intake recognizes `ddtags` and turns its contents into real log tags.
+
+* `logs_tags_as_ddtags: false` *(default)* — custom tags remain resource attributes (log attributes). Existing behavior.
+* `logs_tags_as_ddtags: true` — custom tags are removed from resource attributes and instead appended to a `ddtags` log record attribute (log tags). If a log record already carries a `ddtags` attribute (e.g. set by the SDK), the processor's tags are appended to it rather than overwriting it.
+
+Keys recognized by known DD / OTel semantic conventions, and USM keys (`service`, `env`, `version`), are unaffected by this option and always remain resource attributes — the Datadog logs intake already promotes them into tags on its own via its curated attribute-to-tag mapping.
+
+Example:
+```
+processors:
+  infraattributes:
+    cardinality: 2
+    logs_tags_as_ddtags: true
+```
+
 ## Expected Attributes
 
 The infra attributes processor [looks up the following resource attributes](https://github.com/DataDog/datadog-agent/blob/a7e58c617398e40e4d9f730f855b5bda963f3d42/comp/otelcol/otlp/components/processor/infraattributesprocessor/common.go#L90-L125) in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:

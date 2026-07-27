@@ -35,7 +35,7 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
 	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -63,7 +63,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -84,7 +84,7 @@ func TestTransactionRetryQueueFlushAllToDisk(t *testing.T) {
 	a := assert.New(t)
 	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// We're under the limit here, so should all be in memory
 	for _, payloadSize := range []int{9, 10, 11} {
@@ -108,7 +108,7 @@ func TestTransactionRetryQueueFlushAllToDisk(t *testing.T) {
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))
@@ -133,7 +133,7 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 
 	maxMemSizeInBytes := 0
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
@@ -151,11 +151,11 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 // before high-priority ones regardless of insertion order.
 //
 // Setup: max=15, queue has high(5)+normal(5)=10. Adding new(10) needs 5 bytes freed.
-// The drop sorter extracts from the low-priority tail, so normal(5) is dropped, high(5) survives.
+// Extraction happens from the low-priority tail, so normal(5) is dropped, high(5) survives.
 func TestTransactionRetryQueueDropsNormalPriorityBeforeHigh(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 15, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(nil, 15, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	high := createTransactionWithPayloadSize(5)
 	high.Priority = transaction.TransactionPriorityHigh
@@ -190,7 +190,7 @@ func TestTransactionRetryQueueDropsNormalPriorityBeforeHigh(t *testing.T) {
 func TestTransactionRetryQueueDropsOldestFirst(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 25, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	container := NewTransactionRetryQueue(nil, 25, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	old := createTransactionWithPayloadSize(10)
 	old.Priority = transaction.TransactionPriorityNormal
@@ -242,10 +242,6 @@ func assertPayloadSizeFromExtractTransactions(
 		payloadSizes = append(payloadSizes, t.GetPayloadSize())
 	}
 	a.EqualValues(expectedPayloadSize, payloadSizes)
-}
-
-func createDropPrioritySorter() transaction.SortByCreatedTimeAndPriority {
-	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 }
 
 func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQueue {

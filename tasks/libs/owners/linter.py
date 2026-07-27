@@ -8,6 +8,7 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
     """Check every package in `pkg` has an owner"""
 
     error = False
+    folder_path = "/" + folder
 
     for x in os.listdir(folder):
         # Use forward slash concatenation instead of os.path.join to ensure consistent
@@ -16,7 +17,17 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
         # to match against the CODEOWNERS rules. os.path.join would use backslashes on
         # Windows, causing the comparison to fail.
         path = "/" + folder + "/" + x
-        if all(owner[1].rstrip('/') != path for owner in owners.paths):
+        stripped = path.lstrip('/')
+        # codeowners represents directories with a trailing slash without
+        # it, a directory-only rule like `/pkg/api/` won't match.
+        if os.path.isdir(os.path.join(folder, x)):
+            stripped += '/'
+        rule_owners, _, rule_path, _ = owners.matching_line(stripped)
+        # A match against the folder's own blanket rule (e.g. `/pkg/`) doesn't count as a
+        # dedicated owner for this specific package — it covers everything under `folder`
+        # indiscriminately. A match with no owners (e.g. a "do not notify anyone" rule) doesn't
+        # count either.
+        if not rule_owners or (rule_path is not None and rule_path.rstrip('/') == folder_path):
             if not error:
                 print(
                     color_message("The following packages don't have owner in CODEOWNER file", "red"), file=sys.stderr
@@ -71,7 +82,7 @@ def ai_artefacts_have_owner(ctx, owners):
     """Check that every AI artefact file has an explicit owner in CODEOWNERS — i.e. is not
     solely covered by a broad catch-all rule like /.*  or /*.md, and has a non-empty owner list.
 
-    AI artefacts are: AGENTS.md, CLAUDE.md, GEMINI.md (any depth), and everything under .claude/.
+    AI artefacts are AGENTS.md, CLAUDE.md, and GEMINI.md at any depth, plus everything under .agents/ or .claude/.
     """
 
     # Collect all AI artefact paths from tracked files only (respects .gitignore).
@@ -80,7 +91,8 @@ def ai_artefacts_have_owner(ctx, owners):
     ai_files = [
         p
         for p in tracked
-        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith(".claude/")) and not os.path.islink(p)
+        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith((".claude/", ".agents/")))
+        and not os.path.islink(p)
     ]
 
     unowned = []
@@ -102,6 +114,30 @@ def ai_artefacts_have_owner(ctx, owners):
             print(color_message(f"\t- /{path}", "orange"), file=sys.stderr)
 
     return bool(unowned)
+
+
+def skills_use_agents_directory(ctx, _owners=None):
+    """Fail if any file is tracked under the repo-root `.claude/skills/`, which must remain a symlink
+    into the canonical `.agents/skills/`. This prevents regressing the layout when a skill is created
+    under `.claude/skills/` directly. Nested `.claude/skills/` elsewhere in the tree is out of scope.
+    """
+    tracked = ctx.run("git ls-files", hide=True).stdout.splitlines()
+    # Only a real (non-symlink) `.claude/skills/` directory yields tracked child paths.
+    offenders = [p for p in tracked if p.startswith(".claude/skills/")]
+    if offenders:
+        print(
+            color_message(
+                "Skills must live under `.agents/skills/` with `.claude/skills` as a symlink into it"
+                " (`.claude/skills` -> ../.agents/skills). The following files are tracked under"
+                " `.claude/skills/` and must be moved to `.agents/skills/`:",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+        for path in offenders:
+            print(color_message(f"	- {path}", "orange"), file=sys.stderr)
+
+    return bool(offenders)
 
 
 def _get_static_root(pattern):

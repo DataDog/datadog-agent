@@ -149,7 +149,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	// TODO: Implementation is slow
-	podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
+	podAutoscalers := pa.store.List(func(podAutoscaler model.PodAutoscalerInternal) bool {
 		if podAutoscaler.Namespace() == pod.Namespace &&
 			podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
 			podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
