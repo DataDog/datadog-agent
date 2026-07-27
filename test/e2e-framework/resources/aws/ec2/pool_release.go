@@ -15,13 +15,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// ScheduleReleaseOnDestroy attaches instanceID/leaseToken/imageID's release-and-revert
-// logic to opts' owning stack via a local.Command whose Delete handler runs
+// ScheduleReleaseOnDestroy attaches instanceID/leaseToken's release-and-revert logic
+// to opts' owning stack via a local.Command whose Delete handler runs
 // pool.BuildReleaseScript. Create is a no-op; the resource exists to carry a Delete
-// action. imageID may be empty, in which case the Delete handler skips the
-// root-volume replacement but still releases the lease. leaseToken is passed via
-// Triggers so a new lease on the same instance produces a fresh trigger value.
-func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string, leaseToken string, imageID string, opts ...pulumi.ResourceOption) (*local.Command, error) {
+// action. The Delete handler reads the lease's current imageId from S3 at release
+// time and skips the root-volume replacement if none is published. leaseToken is
+// passed via Triggers so a new lease on the same instance produces a fresh trigger
+// value.
+func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string, leaseToken string, opts ...pulumi.ResourceOption) (*local.Command, error) {
 	if instanceID == "" {
 		return nil, fmt.Errorf("instanceID is required to schedule a pool release")
 	}
@@ -31,7 +32,7 @@ func ScheduleReleaseOnDestroy(e aws.Environment, name string, instanceID string,
 
 	return local.NewCommand(e.Ctx(), e.Namer.ResourceName(name), &local.CommandArgs{
 		Create:      pulumi.String("true"),
-		Delete:      pulumi.String(pool.BuildReleaseScript(instanceID, leaseToken, imageID)),
+		Delete:      pulumi.String(pool.BuildReleaseScript(instanceID, leaseToken)),
 		Environment: awsCommandEnvironment(e),
 		Triggers:    pulumi.Array{pulumi.String(leaseToken)},
 	}, opts...)
