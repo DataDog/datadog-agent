@@ -126,12 +126,11 @@ func (t *Recorder) resetRuntimeMetrics() {
 		t.cpuUsage.DeletePartialMatch(match)
 	}
 
-	t.currentCPUSamples = make(map[string]cpuSample)
+	clear(t.currentCPUSamples)
 }
 
 func (t *Recorder) completeRuntimeMetrics() {
-	t.previousCPUSamples = t.currentCPUSamples
-	t.currentCPUSamples = make(map[string]cpuSample)
+	t.previousCPUSamples, t.currentCPUSamples = t.currentCPUSamples, t.previousCPUSamples
 }
 
 // MarkCPUContainerPresent retains the prior CPU sample for a listed container without a new sample.
