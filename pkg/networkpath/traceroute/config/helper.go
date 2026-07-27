@@ -8,7 +8,9 @@ package config
 import "time"
 
 // DefaultMaxTTL is the default maximum number of hops for Network Path
-// traceroute tests.
+// traceroute tests. Keep this value in sync with
+// pkg/config/setup.DefaultNetworkPathMaxTTL, which is generated from the
+// configuration schema.
 const DefaultMaxTTL = 30
 
 // tracerouteExecutionBudgetRatio allocates 90% of the total timeout to per-hop

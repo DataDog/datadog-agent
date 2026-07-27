@@ -22,9 +22,14 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+func TestDefaultNetworkPathMaxTTLMatchesTracerouteDefault(t *testing.T) {
+	assert.Equal(t, tracerouteconfig.DefaultMaxTTL, DefaultNetworkPathMaxTTL)
+}
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
