@@ -682,9 +682,7 @@ func TestSchedulerAppliesSharedStartupJitter(t *testing.T) {
 		assert.False(t, inFlight)
 		assert.Equal(t, wantStartup, nextCollection)
 	}
-	require.Never(t, func() bool {
-		return len(collector.recordedRuns()) > 0
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	assert.Empty(t, collector.recordedRuns())
 
 	mockClock.Add(30 * time.Second)
 	collector.waitForRuns(t, 2)
@@ -815,12 +813,12 @@ func TestSchedulerHeartbeatsCollectedFilesWithJitter(t *testing.T) {
 	sender.waitForCollectedConfigs(t, 1)
 	waitForWatchScheduled(t, s, config)
 
-	mockClock.Add(69 * time.Minute)
-	require.Never(t, func() bool {
-		return len(sender.recordedCollectedConfigs()) > 1
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	nextCollection, inFlight, ok := watchedConfigState(s, config)
+	require.True(t, ok)
+	assert.False(t, inFlight)
+	assert.Equal(t, mockClock.Now().Add(70*time.Minute), nextCollection)
 
-	mockClock.Add(time.Minute)
+	mockClock.Add(70 * time.Minute)
 	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
 	assert.Equal(t, collectedConfigs[0], collectedConfigs[1])
 }
@@ -869,9 +867,11 @@ func TestSchedulerCollectsChangedFilesAtNextHeartbeat(t *testing.T) {
 		config,
 	})
 
-	require.Never(t, func() bool {
-		return len(collector.recordedRuns()) > 1
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	nextCollection, inFlight, ok := watchedConfigState(s, config)
+	require.True(t, ok)
+	assert.False(t, inFlight)
+	assert.Equal(t, mockClock.Now().Add(time.Hour), nextCollection)
+	assert.Len(t, collector.recordedRuns(), 1)
 
 	mockClock.Add(time.Hour)
 	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
@@ -920,9 +920,7 @@ func TestSchedulerIgnoresRescheduleReceivedInFlight(t *testing.T) {
 	require.Len(t, collectedConfigs, 1)
 	assert.Equal(t, []byte("port 6379\n"), collectedConfigs[0].ConfigFiles[0].Content)
 	waitForWatchScheduled(t, s, config)
-	require.Never(t, func() bool {
-		return len(collector.recordedRuns()) > 1
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	assert.Len(t, collector.recordedRuns(), 1)
 }
 
 func TestSchedulerUnscheduleStopsHeartbeats(t *testing.T) {
@@ -958,11 +956,13 @@ func TestSchedulerUnscheduleStopsHeartbeats(t *testing.T) {
 	waitForWatchScheduled(t, s, config)
 
 	s.Unschedule([]integration.Config{config})
-	mockClock.Add(2 * time.Hour)
+	_, _, ok := watchedConfigState(s, config)
+	assert.False(t, ok)
 
-	require.Never(t, func() bool {
-		return len(sender.recordedCollectedConfigs()) > 1
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	mockClock.Add(2 * time.Hour)
+	s.enqueueDueCollections()
+
+	assert.Len(t, sender.recordedCollectedConfigs(), 1)
 }
 
 func TestSchedulerContinuesHeartbeatingAfterEmptyCollection(t *testing.T) {
