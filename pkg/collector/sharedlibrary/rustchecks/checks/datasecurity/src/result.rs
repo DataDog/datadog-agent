@@ -4,10 +4,6 @@ use crate::proto::{
 };
 
 /// Builds the `SdsResultPayload` protobuf for one sub task.
-///
-/// Mirrors the Data Observability crawler payload (`Resource`, `RuleIds`,
-/// `ScanningSource`, `ScanResults`), swapping the snowflake location for a
-/// postgres one and adding the scan-task metadata block.
 pub(crate) fn build_sds_result(
     config: &CheckConfig,
     sub_task: &SubTask,
@@ -83,8 +79,7 @@ fn now_unix_millis() -> i64 {
         .unwrap_or(0)
 }
 
-/// Resource name (`<instance_name>.<database>.<schema>.<table>`), following the
-/// DO crawler convention.
+/// Resource name (`<instance_name>.<database>.<schema>.<table>`).
 fn resource_name(sub_task: &SubTask) -> String {
     let entity = &sub_task.entity;
     format!(
