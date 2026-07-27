@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import click
 
+from lab.capabilities import FakeintakeCapability
 from lab.providers import BaseProvider, MissingPrerequisite, ProviderConfig, ProviderOptions, register_provider
 
 if TYPE_CHECKING:
@@ -33,6 +34,8 @@ class KindOptions(ProviderOptions):
     helm_values: str = ""
     devenv: str = ""
     force: bool = False
+    fakeintake: bool = False
+    update: bool = False
     # Credentials (resolved from config/env)
     api_key: str = ""
     app_key: str = ""
@@ -54,6 +57,8 @@ class KindOptions(ProviderOptions):
             helm_values=config.options.get("helm_values", ""),
             devenv=config.options.get("devenv", ""),
             force=config.options.get("force", False),
+            fakeintake=config.options.get("fakeintake", False),
+            update=config.options.get("update", False),
             api_key=config.get_api_key() or "",
             app_key=config.get_app_key() or "",
             nodes_count=config.options.get("nodes_count", 2),
@@ -67,13 +72,19 @@ class KindOptions(ProviderOptions):
 
 
 @register_provider
-class KindProvider(BaseProvider):
-    """Provider for local Kind clusters."""
+class KindProvider(BaseProvider, FakeintakeCapability):
+    """Provider for local Kind clusters with fakeintake support."""
 
     name = "kind"
     category = "local"
     description = "Kind cluster (Kubernetes in Docker)"
     options_class = KindOptions
+
+    # Fakeintake configuration constants
+    FAKEINTAKE_NAMESPACE = "fakeintake"
+    FAKEINTAKE_SERVICE = "fakeintake"
+    FAKEINTAKE_LOCAL_PORT = 8080
+    FAKEINTAKE_REMOTE_PORT = 80
 
     create_options = [
         click.option("--k8s-version", default="v1.32.0", help="Kubernetes version"),
@@ -89,6 +100,10 @@ class KindProvider(BaseProvider):
         click.option("--devenv", default="", help="Developer environment ID for building (see dda env dev)"),
         click.option("--force", "-f", is_flag=True, help="Recreate if exists"),
         click.option("--nodes-count", default=2, help="Number of nodes in the cluster"),
+        click.option("--fakeintake", is_flag=True, default=False, help="Deploy fakeintake for local testing"),
+        click.option(
+            "--update", "-u", is_flag=True, default=False, help="Update agent in existing cluster (much faster)"
+        ),
     ]
 
     def check_prerequisites(self, app: Application, opts: ProviderOptions) -> list[MissingPrerequisite]:
@@ -149,6 +164,13 @@ class KindProvider(BaseProvider):
         from lab.kind import cluster_exists, create_cluster, delete_cluster, load_image, show_cluster_info
 
         name = options.name
+        fakeintake_url = None
+
+        # Ensure fakeintake image is available (pull from Docker Hub if needed)
+        if options.fakeintake:
+            from lab.fakeintake import ensure_fakeintake_image
+
+            ensure_fakeintake_image(app)
 
         # Build local agent image if we are going to install the agent and no image was provided.
         # (Do this before cluster operations.)
@@ -160,7 +182,11 @@ class KindProvider(BaseProvider):
 
         existing = cluster_exists(app, name)
         if existing:
-            if options.force:
+            if options.update:
+                # Fast update path: skip cluster creation, fakeintake deployment
+                app.display_info(f"Cluster '{name}' exists. Updating agent only (fast mode)...")
+                existing = True
+            elif options.force:
                 app.display_info(f"Deleting existing cluster '{name}'...")
                 delete_cluster(app, name)
                 existing = False
@@ -168,7 +194,7 @@ class KindProvider(BaseProvider):
                 # Cluster exists but user wants to install/update agent - that's fine
                 app.display_info(f"Cluster '{name}' exists. Installing/updating agent...")
             else:
-                app.abort(f"Cluster '{name}' exists. Use --force to recreate.")
+                app.abort(f"Cluster '{name}' exists. Use --force to recreate or --update to update agent.")
 
         # Create cluster if needed
         if not existing:
@@ -196,6 +222,16 @@ nodes:
             app.display_success(f"Cluster '{name}' created")
             show_cluster_info(app, name)
 
+        # Deploy fakeintake if requested (skip if updating)
+        if options.fakeintake and not (options.update and existing):
+            from lab.fakeintake import deploy_fakeintake
+
+            fakeintake_url = deploy_fakeintake(app, name)
+        elif options.fakeintake and options.update:
+            # Fakeintake already deployed, just use existing URL
+            fakeintake_url = "http://fakeintake.fakeintake.svc.cluster.local"
+            app.display_info("Using existing fakeintake deployment")
+
         # Load built image into cluster
         if options.agent_image and options._local_image:
             load_image(app, name, options.agent_image)
@@ -209,10 +245,15 @@ nodes:
 
         # Install agent if requested
         if options.wants_agent:
-            self._install_agent(app, name, options)
+            self._install_agent(app, name, options, fakeintake_url)
 
         app.display_success(f"Cluster '{name}' is ready")
         app.display_info(f"Use: kubectl config use-context kind-{name}")
+
+        if options.fakeintake:
+            app.display_info("\n📊 Fakeintake is ready! Query metrics with:")
+            app.display_info(f"  dda lab query --id {name} --list")
+            app.display_info(f"  dda lab query --id {name} --metric system.cpu.idle")
 
         # Return metadata about what was created
         return {
@@ -220,6 +261,8 @@ nodes:
             "k8s_version": options.k8s_version,
             "agent_installed": options.wants_agent,
             "agent_image": options.agent_image or None,
+            "fakeintake_enabled": options.fakeintake,
+            "fakeintake_url": fakeintake_url if options.fakeintake else None,
         }
 
     def destroy(self, app: Application, name: str) -> None:
@@ -243,11 +286,18 @@ nodes:
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         return result.returncode == 0 and "started" in result.stdout.lower()
 
-    def _install_agent(self, app: Application, name: str, options: KindOptions) -> None:
+    def _install_agent(
+        self, app: Application, name: str, options: KindOptions, fakeintake_url: str | None = None
+    ) -> None:
         from lab.agent import install_with_helm
 
-        if not options.api_key:
-            app.abort("API key required. Set E2E_API_KEY environment variable or configure in lab config.")
+        # When using fakeintake, API key is not required (can be anything)
+        api_key = options.api_key
+        if not api_key:
+            if options.fakeintake:
+                api_key = "fakeintake"  # Dummy API key for fakeintake
+            else:
+                app.abort("API key required. Set E2E_API_KEY environment variable or configure in lab config.")
 
         # Use Never pull policy for local images (built or loaded)
         image_pull_policy = "Never" if options._local_image else "IfNotPresent"
@@ -255,9 +305,68 @@ nodes:
         install_with_helm(
             app,
             cluster_name=name,
-            api_key=options.api_key,
+            api_key=api_key,
             app_key=options.app_key,
             agent_image=options.agent_image,
             helm_values=options.helm_values or None,
             image_pull_policy=image_pull_policy,
+            fakeintake_url=fakeintake_url,
         )
+
+    # Fakeintake Capability Implementation
+
+    def _get_fakeintake_port_forward(self, app: Application, name: str) -> int:
+        """
+        Get or create port-forward for fakeintake service.
+
+        Args:
+            app: Application instance
+            name: Environment name
+
+        Returns:
+            Local port number
+        """
+        from lab.port_forward import get_port_forward_manager
+
+        pf_manager = get_port_forward_manager()
+        return pf_manager.get_port_forward(
+            app=app,
+            env_name=name,
+            service=self.FAKEINTAKE_SERVICE,
+            namespace=self.FAKEINTAKE_NAMESPACE,
+            local_port=self.FAKEINTAKE_LOCAL_PORT,
+            remote_port=self.FAKEINTAKE_REMOTE_PORT,
+            context=f"kind-{name}",
+        )
+
+    def query_fakeintake(
+        self,
+        app: Application,
+        name: str,
+        *,
+        metric_name: str | None = None,
+        list_metrics: bool = False,
+        output_format: str = "pretty",
+    ) -> str:
+        """Query fakeintake for metrics."""
+        from lab.fakeintake_client import ensure_client_built, query_metrics
+
+        # Ensure client is built
+        ensure_client_built(app)
+
+        # Get or create port-forward
+        local_port = self._get_fakeintake_port_forward(app, name)
+
+        # Query fakeintake
+        fakeintake_url = f"http://localhost:{local_port}"
+        return query_metrics(
+            fakeintake_url=fakeintake_url,
+            metric_name=metric_name,
+            list_metrics=list_metrics,
+            output_format=output_format,
+        )
+
+    def get_fakeintake_url(self, app: Application, name: str) -> str:
+        """Get the URL to access fakeintake (with automatic port-forwarding)."""
+        local_port = self._get_fakeintake_port_forward(app, name)
+        return f"http://localhost:{local_port}"

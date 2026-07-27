@@ -89,6 +89,57 @@ kubectl exec -n datadog daemonset/datadog-agent -- agent status
 kubectl logs -n datadog -l app=datadog -f
 ```
 
+## Using Fakeintake for Local Testing
+
+[Fakeintake](../../../fakeintake) is a lightweight mock of the Datadog intake that allows you to test the agent locally without sending data to Datadog.
+
+### Deploy with Fakeintake
+
+```bash
+# Create a cluster with fakeintake
+dda lab local kind --id dev --fakeintake
+
+# The agent will automatically be configured to send data to fakeintake
+# No API key required when using fakeintake
+```
+
+### Query Fakeintake
+
+After deployment, you need to port-forward to access fakeintake:
+
+```bash
+# In a separate terminal, run:
+kubectl port-forward -n fakeintake svc/fakeintake 8080:80
+
+# Then use the fakeintake client to query metrics:
+./test/fakeintake/build/fakeintakectl --url http://localhost:8080 get metric-names
+
+# Get specific metrics:
+./test/fakeintake/build/fakeintakectl --url http://localhost:8080 get metric --name system.cpu.idle
+
+# View all available commands:
+./test/fakeintake/build/fakeintakectl --help
+```
+
+### Development Loop with Fakeintake
+
+```bash
+# 1. Create cluster with fakeintake
+dda lab local kind --id dev --fakeintake
+
+# 2. Port-forward fakeintake (in separate terminal)
+kubectl port-forward -n fakeintake svc/fakeintake 8080:80
+
+# 3. Make changes to agent code
+# ... edit files ...
+
+# 4. Rebuild and redeploy
+dda lab local kind --id dev --fakeintake --build-command "dda inv agent.hacky-dev-image-build --target-image datadog/agent-dev:local"
+
+# 5. Query fakeintake to verify your changes
+./test/fakeintake/build/fakeintakectl --url http://localhost:8080 get metric-names
+```
+
 ## Options
 
 | Option | Description |
@@ -103,3 +154,4 @@ kubectl logs -n datadog -l app=datadog -f
 | `--devenv` | Developer environment ID (see `dda env dev`) |
 | `--force`, `-f` | Recreate cluster if exists |
 | `--nodes-count` | Number of nodes in the cluster (default: 2) |
+| `--fakeintake` | Deploy fakeintake for local testing (no API key required) |

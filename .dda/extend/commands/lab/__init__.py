@@ -4,6 +4,7 @@ from dda.cli.base import dynamic_group
 
 # Import providers to register them
 from lab.providers.local import kind  # noqa: F401
+from lab.providers.pulumi import EC2Provider, EKSProvider  # noqa: F401
 
 
 @dynamic_group(
