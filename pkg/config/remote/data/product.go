@@ -48,6 +48,8 @@ const (
 	ProductDOQueryActions Product = "DO_QUERY_ACTIONS"
 	// ProductNetworkPath is to configure Network Path scheduled tests
 	ProductNetworkPath Product = "NETWORK_PATH"
+	// ProductDebug is used to remotely trigger debug/diagnostic checks (e.g. Data Security)
+	ProductDebug Product = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list

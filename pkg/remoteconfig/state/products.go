@@ -48,6 +48,7 @@ var validProducts = map[string]struct{}{
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
+	ProductDebug:                        {},
 }
 
 const (
@@ -139,4 +140,6 @@ const (
 	ProductK8SActions = "K8S_ACTIONS"
 	// ProductNetworkPath configures Network Path scheduled tests
 	ProductNetworkPath = "NETWORK_PATH"
+	// ProductDebug remotely triggers debug/diagnostic checks (e.g. Data Security)
+	ProductDebug = "DEBUG"
 )
