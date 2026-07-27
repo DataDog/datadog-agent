@@ -128,6 +128,11 @@ go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/proto/pbgo/procmgr",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:linux": [
             "//pkg/proto/pbgo/procmgr",
             "@com_github_stretchr_testify//assert",
