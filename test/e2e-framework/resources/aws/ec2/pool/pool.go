@@ -247,20 +247,27 @@ func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, 
 }
 
 // BuildReleaseScript returns a shell script that reverts instanceID's root volume to
-// imageID's snapshot, then releases the lease at leasePrefix+instanceID conditioned on
-// leaseToken. If imageID is empty, or no longer resolves to an existing AMI/snapshot,
-// the root-volume replacement is skipped, IMAGE_ID is cleared to "" before it's written
-// back to the lease, and the lease is released directly.
+// the lease's current baseline imageId (read fresh from S3 at release time, not the
+// value baked in at acquire time, so a baseline rotated mid-checkout is still
+// honored), then releases the lease at leasePrefix+instanceID conditioned on
+// leaseToken. If the current imageId is empty, or no longer resolves to an existing
+// AMI/snapshot, the root-volume replacement is skipped, IMAGE_ID is cleared to ""
+// before it's written back to the lease, and the lease is released directly.
 //
 // This runs as a Pulumi local.Command's Delete handler, since `pulumi destroy` never
 // re-invokes the Go provisioner program.
-func BuildReleaseScript(instanceID, leaseToken, imageID string) string {
+func BuildReleaseScript(instanceID, leaseToken string) string {
 	return fmt.Sprintf(`set -e
 INSTANCE_ID=%q
-IMAGE_ID=%q
 LEASE_TOKEN=%q
 LEASE_BUCKET=%q
 LEASE_KEY=%q
+
+LEASE_FILE=$(mktemp)
+BODY_FILE=$(mktemp)
+trap 'rm -f "$LEASE_FILE" "$BODY_FILE"' EXIT
+aws s3api get-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" "$LEASE_FILE" >/dev/null
+IMAGE_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("imageId") or "")' "$LEASE_FILE")
 
 if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
   echo "no baseline image published for instance ${INSTANCE_ID}, skipping root volume replacement" >&2
@@ -290,9 +297,10 @@ else
 fi
 
 BODY=$(printf '{"status":"idle","imageId":"%%s"}' "$IMAGE_ID")
+printf '%%s' "$BODY" > "$BODY_FILE"
 aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
-  --body <(printf '%%s' "$BODY") --if-match "$LEASE_TOKEN"
-`, instanceID, imageID, leaseToken, leaseBucket, leasePrefix+instanceID)
+  --body "$BODY_FILE" --if-match "$LEASE_TOKEN"
+`, instanceID, leaseToken, leaseBucket, leasePrefix+instanceID)
 }
 
 func newS3Client(ctx context.Context, region, profile string) (*s3.Client, error) {
