@@ -61,7 +61,7 @@ dd_agent_go_test(
     embed = [":impl"],
     tag_sets = [
         "containerd+cri",
-        "docker",
+        "docker+kubelet",
     ],
     deps = [
         "//comp/core/autodiscovery/def",

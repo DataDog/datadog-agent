@@ -37,9 +37,9 @@ dd_agent_go_test(
     embed = [":container"],
     include_default = False,
     tag_sets = [
-        "docker",
+        "docker+kubelet",
         "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
-    ],
+    ],  # keep
     deps = [
         "//comp/logs/agent/config",
         "//comp/logs/auditor/mock",

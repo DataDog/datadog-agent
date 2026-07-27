@@ -29,7 +29,7 @@ dd_agent_go_test(
     data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
     embed = [":cadvisor"],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

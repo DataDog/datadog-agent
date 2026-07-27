@@ -19,7 +19,7 @@ dd_agent_go_test(
     srcs = ["provider_test.go"],
     embed = [":health"],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//pkg/aggregator/mocksender",

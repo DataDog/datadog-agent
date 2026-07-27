@@ -33,7 +33,7 @@ dd_agent_go_test(
     data = ["//pkg/util/ecs/metadata/v1:testdata"],
     embed = [":metadata"],
     include_default = False,
-    tag_sets = ["docker"],
+    tag_sets = ["docker+kubelet"],
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",

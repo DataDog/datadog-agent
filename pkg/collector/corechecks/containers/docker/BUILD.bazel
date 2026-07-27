@@ -62,7 +62,7 @@ dd_agent_go_test(
     ],
     embed = [":docker"],
     include_default = False,
-    tag_sets = ["docker"],
+    tag_sets = ["docker+kubelet"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

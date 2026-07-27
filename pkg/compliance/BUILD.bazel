@@ -200,7 +200,10 @@ dd_agent_go_test(
         "status_provider_test.go",
     ],
     embed = [":compliance"],
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    tag_sets = [
+        "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+        "docker+kubelet",
+    ],
     deps = [
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",

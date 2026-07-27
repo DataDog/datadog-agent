@@ -70,7 +70,11 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":kubelet"],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    tag_sets = [
+        "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+        "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator",
+        "docker+kubelet",
+    ],
     deps = [
         "//pkg/config/create",
         "//pkg/config/mock",

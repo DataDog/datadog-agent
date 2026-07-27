@@ -85,8 +85,8 @@ dd_agent_go_test(
     ],
     embed = [":flare"],
     tag_sets = [
-        "docker",
         "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+        "docker+kubelet",
     ],
     deps = [
         "//comp/core/autodiscovery/integration",

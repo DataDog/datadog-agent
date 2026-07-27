@@ -22,7 +22,7 @@ dd_agent_go_test(
     data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
     embed = [":slis"],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

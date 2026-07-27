@@ -26,7 +26,7 @@ dd_agent_go_test(
     srcs = ["collector_test.go"],
     embed = [":ecsfargate"],
     include_default = False,
-    tag_sets = ["docker"],
+    tag_sets = ["docker+kubelet"],
     deps = [
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/ecs/metadata/v2:metadata",

@@ -154,6 +154,8 @@ dd_agent_go_test(
         "etcd",
         "zk",
         "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
+        "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator",
+        "docker+kubelet",
     ],
     deps = [
         "//comp/core/autodiscovery/common/types",

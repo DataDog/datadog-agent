@@ -30,7 +30,7 @@ dd_agent_go_test(
     srcs = ["tailer_test.go"],
     embed = [":tailers"],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/logs/tailers/container",
         "@com_github_stretchr_testify//require",

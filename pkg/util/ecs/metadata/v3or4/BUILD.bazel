@@ -24,7 +24,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":v3or4"],
     include_default = False,
-    tag_sets = ["docker"],
+    tag_sets = ["docker+kubelet"],
     deps = [
         "//pkg/util/ecs/metadata/testutil",
         "//pkg/util/pointer",
