@@ -184,21 +184,21 @@ func TestProcessorRunRetainsAgentCPUUsageBaselineWhenListedContainerHasNoCPUStat
 	collectionStart := time.Unix(100, 0)
 
 	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", container.ID), "foo", []string{"container_id:" + container.ID}, nil, nil, nil)
-	mockSender, processor, accessor := createTestProcessor(t,
+	mockSender, processor, accessor := CreateTestProcessor(t,
 		[]*workloadmeta.Container{container},
 		map[string]mock.ContainerEntry{container.ID: {ContainerStats: containerStats}},
 		GenericMetricsAdapter{},
 		nil,
 		fakeTagger,
-		recorder,
 		false,
 	)
+	processor.agentPerformance = recorder
 	accessor.pods[container.ID] = &workloadmeta.KubernetesPod{
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "node-agent-pod",
 			Labels: map[string]string{
 				kubernetes.KubeAppComponentLabelKey: "agent",
-				"agent.datadoghq.com/component":   "agent",
+				"agent.datadoghq.com/component":     "agent",
 			},
 		},
 	}

@@ -15,7 +15,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 )
@@ -49,18 +48,6 @@ func CreateTestProcessor(t testing.TB,
 	tagger tagger.Component,
 	extendedMetrics bool,
 ) (*mocksender.MockSender, *Processor, *MockContainerAccessor) {
-	return createTestProcessor(t, listerContainers, metricsContainers, metricsAdapter, containerFilter, tagger, nil, extendedMetrics)
-}
-
-func createTestProcessor(t testing.TB,
-	listerContainers []*workloadmeta.Container,
-	metricsContainers map[string]mock.ContainerEntry,
-	metricsAdapter MetricsAdapter,
-	containerFilter ContainerFilter,
-	tagger tagger.Component,
-	agentPerformance *agentperformance.Recorder,
-	extendedMetrics bool,
-) (*mocksender.MockSender, *Processor, *MockContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
@@ -78,7 +65,7 @@ func createTestProcessor(t testing.TB,
 	mockedSender := mocksender.NewMockSender(t, "generic-container")
 	mockedSender.SetupAcceptAll()
 
-	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, agentPerformance, extendedMetrics)
+	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, nil, extendedMetrics)
 
 	return mockedSender, &p, &mockAccessor
 }
