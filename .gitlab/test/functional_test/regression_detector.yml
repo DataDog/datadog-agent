@@ -36,6 +36,18 @@ single_machine_performance-regression_detector-merge_base_check:
           # On the base branch, use the parent commit as the baseline
           BASELINE_SHA=$(git rev-parse "${CI_COMMIT_SHA}^")
           echo "On base branch, using parent commit ${BASELINE_SHA} as initial baseline"
+      elif [[ "$SMP_BASE_BRANCH" =~ ^[0-9]+\.[0-9]+\.x$ ]]; then
+          # On a branch targeting a release branch (e.g. a backport PR), use
+          # the release branch's tip as the baseline instead of the merge
+          # base. Release branches get an SMP image built unconditionally on
+          # every commit (see .if_release_branch/.on_main_or_release_branch
+          # in .gitlab-ci.yml), so the tip reliably has a recent image. The
+          # merge base, by contrast, can go stale while a backport PR sits in
+          # review and the release branch keeps moving -- and once it's
+          # stale enough to lack an image, the one-shot age-check bypass
+          # below can't help, because it only protects the merge base itself.
+          BASELINE_SHA=$(git rev-parse "origin/${SMP_BASE_BRANCH}")
+          echo "Targeting release branch ${SMP_BASE_BRANCH}, using its tip ${BASELINE_SHA} as initial baseline"
       else
           # On a dev branch, compute the merge base with the base branch
           echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
@@ -43,7 +55,6 @@ single_machine_performance-regression_detector-merge_base_check:
           echo "Merge base is ${SMP_MERGE_BASE}"
           BASELINE_SHA="${SMP_MERGE_BASE}"
       fi
-    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
     # Setup AWS credentials for single-machine-performance AWS account to check ECR images
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
@@ -68,6 +79,10 @@ single_machine_performance-regression_detector-merge_base_check:
     # that we can still use it on predecessor commits that are usually older than
     # the current commit under test -- this check gives us a fast-fail condition so
     # we avoid wasting time checking for expired images in common cases.
+    #
+    # For branches targeting a release branch, BASELINE_SHA is already the
+    # release branch's tip (set above), which normally has a fresh image and
+    # clears this bypass without needing special-casing here.
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
       while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
@@ -78,7 +93,7 @@ single_machine_performance-regression_detector-merge_base_check:
           BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
-              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              echo "ERROR: Baseline commit for this branch is too old for SMP. Please update your branch by merging or rebasing it onto an up-to-date ${SMP_BASE_BRANCH} branch."
               datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
               exit 1
           fi
