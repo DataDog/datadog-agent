@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux || darwin
-
 package coat
 
 import (
@@ -73,6 +71,14 @@ func serviceSnapshotByID(t *testing.T, snapshot Snapshot, id string) ServiceSnap
 	return ServiceSnapshot{}
 }
 
+func installMarkerForTest(t *testing.T, root string, service MigratableService, index int) string {
+	t.Helper()
+
+	markers := installMarkerPaths(root, service)
+	require.Greater(t, len(markers), index)
+	return markers[index]
+}
+
 func setupDDOTInstallFixture(t *testing.T) string {
 	t.Helper()
 
@@ -80,7 +86,7 @@ func setupDDOTInstallFixture(t *testing.T) string {
 	require.True(t, ok)
 
 	root := t.TempDir()
-	marker := filepath.Join(root, ddot.InstallMarkerRels[0])
+	marker := installMarkerForTest(t, root, ddot, 0)
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
@@ -97,7 +103,7 @@ func TestCollectInstalledViaStandaloneMarkerOnly(t *testing.T) {
 	require.True(t, ok)
 
 	root := t.TempDir()
-	standalone := filepath.Join(root, ddot.InstallMarkerRels[1])
+	standalone := installMarkerForTest(t, root, ddot, 1)
 	require.NoError(t, os.MkdirAll(filepath.Dir(standalone), 0o755))
 	require.NoError(t, os.WriteFile(standalone, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
@@ -152,7 +158,7 @@ func TestCollectADPProcmgrRunning(t *testing.T) {
 	}, adp.LegacySystemdUnits)
 
 	root := t.TempDir()
-	marker := filepath.Join(root, "embedded", "bin", "agent-data-plane")
+	marker := installMarkerForTest(t, root, adp, 0)
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
@@ -236,7 +242,7 @@ func TestCollectProcmgrConfigAbsent(t *testing.T) {
 	require.True(t, ok)
 
 	root := t.TempDir()
-	marker := filepath.Join(root, ddot.InstallMarkerRels[0])
+	marker := installMarkerForTest(t, root, ddot, 0)
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 
