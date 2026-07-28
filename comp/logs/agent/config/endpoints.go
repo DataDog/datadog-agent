@@ -67,10 +67,16 @@ type Endpoint struct {
 	// the index of this endpoint config within "additional_endpoints" settings. This is needed to not
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
 	additionalEndpointsIdx int
-	// hasPendingDelegatedAuth is true when this endpoint's api_key was a DELA(...) directive at
-	// construction, i.e. this endpoint is WIF-managed for its entire lifetime - mirrors
-	// domainResolver.hasPendingDelegatedAuth in comp/forwarder/defaultforwarder/resolver, letting
-	// a sender tell a transient WIF auth failure apart from a genuinely bad static key.
+	// hasPendingDelegatedAuth is true when this endpoint is managed by the delegatedauth component
+	// (delegatedAuthComp.IsManaged() at construction), i.e. this endpoint is WIF-managed for its
+	// entire lifetime - mirrors domainResolver.hasPendingDelegatedAuth in
+	// comp/forwarder/defaultforwarder/resolver, letting a sender tell a transient WIF auth failure
+	// apart from a genuinely bad static key. IsManaged() must be the SOLE source of truth: a
+	// DELA(...) directive that configureAdditionalEndpointsDelegatedAuth/
+	// configureListShapeAdditionalEndpointsDelegatedAuth rejected (malformed, unsupported provider)
+	// is never registered with delegatedAuthComp, so it must not be marked pending - otherwise it
+	// would retry 403s forever with a blanked-out API key (see delaAwareAPIKey) instead of failing
+	// like a normal bad key.
 	hasPendingDelegatedAuth bool
 
 	Host                    string `mapstructure:"host" json:"host"`
@@ -131,11 +137,19 @@ func delaAwareAPIKey(apiKey string) string {
 }
 
 // isManagedByDelegatedAuth reports whether target is currently managed by delegatedAuthComp,
-// nil-safe since not every caller has a real component to pass. Checking this - not just
-// pkgconfigutils.IsDelaDirective on the current api_key value - matters because delegated auth's
-// initial fetch resolves a DELA(...) directive to a real key synchronously during config loading,
-// before any Endpoint is ever constructed; by the time an Endpoint checks the api_key string, the
-// directive is usually already gone.
+// nil-safe since not every caller has a real component to pass. This is deliberately the ONLY
+// signal used for hasPendingDelegatedAuth - not pkgconfigutils.IsDelaDirective on the raw api_key
+// string, which is true for any value merely prefixed with "DELA(" regardless of whether it was
+// ever accepted. configureDelegatedAuth (pkg/config/setup/config.go) runs synchronously inside
+// LoadDatadog and, via configureAdditionalEndpointsDelegatedAuth/
+// configureListShapeAdditionalEndpointsDelegatedAuth, calls AddInstance for every valid DELA(...)
+// directive - or skips it entirely if the directive is malformed or names an unsupported provider.
+// LoadDatadog always completes before Fx constructs comp/logs/agent/config's Endpoints (which is
+// what calls this function), so by construction time a directive is either already registered
+// with delegatedAuthComp (IsManaged returns true) or was rejected and never will be (IsManaged
+// correctly and permanently returns false). Falling back to the string-sniffed IsDelaDirective
+// check here would mark a rejected directive "pending" forever, defeating the point of asking
+// IsManaged() at all.
 func isManagedByDelegatedAuth(delegatedAuthComp delegatedauth.Component, target delegatedauth.Target) bool {
 	if delegatedAuthComp == nil {
 		return false
@@ -170,7 +184,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool, delegated
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		useSSL:                  !logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
-		hasPendingDelegatedAuth: pkgconfigutils.IsDelaDirective(apiKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{APIKeyConfigKey: configPath}),
+		hasPendingDelegatedAuth: isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{APIKeyConfigKey: configPath}),
 	}
 	if registerCallback {
 		e.onConfigUpdate(logsConfig)
@@ -199,7 +213,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool, delegate
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
 		useSSL:                  !logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
-		hasPendingDelegatedAuth: pkgconfigutils.IsDelaDirective(apiKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{APIKeyConfigKey: configPath}),
+		hasPendingDelegatedAuth: isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{APIKeyConfigKey: configPath}),
 	}
 	if registerCallback {
 		e.onConfigUpdate(logsConfig)
@@ -221,7 +235,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{
+		newE.hasPendingDelegatedAuth = isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{
 			AdditionalEndpointsListConfigKey: configKeyUsed,
 			ListEntryIndex:                   idx,
 		})
@@ -270,7 +284,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{
+		newE.hasPendingDelegatedAuth = isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{
 			AdditionalEndpointsListConfigKey: configKeyUsed,
 			ListEntryIndex:                   idx,
 		})

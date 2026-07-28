@@ -672,9 +672,11 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 func (suite *EndpointsTestSuite) TestEndpointOnUpdateDelegatedAuthDirective() {
 	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
 		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
-			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true)
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true, delegatedauthnoopimpl.NewComponent().Comp)
 		},
-		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l, true) },
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
+			return loadTCPAdditionalEndpoints(main, l, true, delegatedauthnoopimpl.NewComponent().Comp)
+		},
 	}
 
 	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
@@ -841,15 +843,63 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsHasPendingDelegatedAuth(
 	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
+	managedDelegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.AdditionalEndpointsListConfigKey == "logs_config.additional_endpoints" && target.ListEntryIndex == 0
+		},
+	}
+
+	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true, managedDelegatedAuth)
 	suite.Suite.Require().Len(tcpEndpoints, 2)
 	suite.True(tcpEndpoints[0].HasPendingDelegatedAuth())
 	suite.False(tcpEndpoints[1].HasPendingDelegatedAuth())
 
-	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true, delegatedauthnoopimpl.NewComponent().Comp)
+	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true, managedDelegatedAuth)
 	suite.Suite.Require().Len(httpEndpoints, 2)
 	suite.True(httpEndpoints[0].HasPendingDelegatedAuth())
 	suite.False(httpEndpoints[1].HasPendingDelegatedAuth())
+}
+
+// TestAdditionalEndpointsRejectedDirectiveIsNotPending covers the PR #54170 review finding:
+// IsManaged() must be the SOLE source of truth for hasPendingDelegatedAuth, not an OR against the
+// raw api_key's "DELA(" prefix. Entry 0 has a DELA(...) directive in config, but
+// configureListShapeAdditionalEndpointsDelegatedAuth rejected it (malformed directive or
+// unsupported provider) and never called AddInstance for it, so IsManaged reports false for it -
+// even though entry 1, an unrelated valid instance in the same process, reports true. If the old
+// "IsDelaDirective(apiKey) || IsManaged(...)" OR were still in place, entry 0 would incorrectly
+// stay marked pending forever (retrying 403s with a blanked-out API key) just because its raw
+// config value happened to start with "DELA(".
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsRejectedDirectiveIsNotPending() {
+	jsonString := `[{
+			"api_key": "DELA(malformed-directive-that-was-rejected)",
+			"Host":    "localhost1",
+			"Port":    1234
+		},
+		{
+			"api_key": "apiKey2",
+			"Host":    "localhost2",
+			"Port":    5678
+		}]`
+	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	// Simulate: entry 0's directive was rejected during config load (never registered), while
+	// entry 1 is a genuinely valid, unrelated delegated-auth instance elsewhere in the process.
+	partiallyManagedDelegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.AdditionalEndpointsListConfigKey == "logs_config.additional_endpoints" && target.ListEntryIndex == 1
+		},
+	}
+
+	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true, partiallyManagedDelegatedAuth)
+	suite.Suite.Require().Len(tcpEndpoints, 2)
+	suite.False(tcpEndpoints[0].HasPendingDelegatedAuth(), "rejected DELA(...) directive must not be marked pending just because IsManaged is false for it")
+	suite.True(tcpEndpoints[1].HasPendingDelegatedAuth(), "the unrelated valid instance should still be marked pending")
+
+	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true, partiallyManagedDelegatedAuth)
+	suite.Suite.Require().Len(httpEndpoints, 2)
+	suite.False(httpEndpoints[0].HasPendingDelegatedAuth(), "rejected DELA(...) directive must not be marked pending just because IsManaged is false for it")
+	suite.True(httpEndpoints[1].HasPendingDelegatedAuth(), "the unrelated valid instance should still be marked pending")
 }
 
 func (suite *EndpointsTestSuite) TestHasPendingDelegatedAuthSurvivesResolvedAPIKey() {
