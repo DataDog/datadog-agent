@@ -267,6 +267,11 @@ func GetDefaultDataPlaneLogFile() string {
 	return commonRootOrPath(commonRoot, defaultDataPlaneLogFile)
 }
 
+// GetDefaultDataPlaneBin returns the default path to the data-plane agent binary.
+func GetDefaultDataPlaneBin() string {
+	return filepath.Join(GetEmbeddedBinPath(), "agent-data-plane")
+}
+
 // commonRootOrPath will optionally transform the path to use the common root path provided
 //
 //	/etc/datadog-agent/** -> {root}/etc/**
