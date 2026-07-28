@@ -133,14 +133,21 @@ archive_override(
 
 find_macos_codesign = use_repo_rule("//bazel/toolchains/codesign:configure.bzl", "find_macos_codesign")
 
-find_macos_codesign(name = "macos_codesign", exec_compatible_with = ["@platforms//os:macos"], verbose = True)
+find_macos_codesign(
+    name = "macos_codesign",
+    exec_compatible_with = ["@platforms//os:macos"],
+)
 
-#find_macos_pkgbuild = use_extension("//bazel/toolchains/pkgbuild:configure.bzl", "find_macos_pkgbuild", dev_dependency = True)
-#use_repo(find_macos_pkgbuild, "macos_pkgbuild")
+find_macos_pkgbuild = use_repo_rule("//bazel/toolchains/pkgbuild:configure.bzl", "find_macos_pkgbuild")
+
+find_macos_pkgbuild(
+    name = "macos_pkgbuild",
+    exec_compatible_with = ["@platforms//os:macos"],
+)
 
 register_toolchains(
     "@macos_codesign//:all",
-    # "@macos_pkgbuild//:all",
+    "@macos_pkgbuild//:all",
     dev_dependency = True,
 )
 

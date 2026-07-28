@@ -46,11 +46,11 @@ def _default_repo_builder_impl(rctx):
 def make_repo_builder(name, tool_name, impl = _default_repo_builder_impl):
     return repository_rule(
         implementation = impl,
-        doc = """Create a repository that defines an {name} toolchain based on the system {name}.""".format(name = name),
+        doc = """Create a repository that defines a {name} toolchain based on tool in the default $PATH.""".format(name = name),
         local = True,
         environ = ["PATH"],
         attrs = {
-            "tool_name": attr.string(doc = "The name of the tool to find.", default=tool_name),
+            "tool_name": attr.string(doc = "The name of the tool to find.", default = tool_name),
             "exec_compatible_with": attr.string_list(
                 doc = "exec_compatible_with list to apply to the created toolchain.",
             ),
