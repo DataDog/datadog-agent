@@ -90,9 +90,10 @@ func TestReplacementWaitsForSameContainerToTerminate(t *testing.T) {
 	}
 
 	now := time.Now()
-	old.deletionTimestamp = &now
-	old.containers[0] = localContainer{name: "test-agent", terminated: true}
-	source.setResponses(podResponse{pods: []localPod{selfPod(), old}})
+	terminatedOld := siblingPod("old-pod-uid", "old-agent")
+	terminatedOld.deletionTimestamp = &now
+	terminatedOld.containers = []localContainer{{name: "test-agent", terminated: true}}
+	source.setResponses(podResponse{pods: []localPod{selfPod(), terminatedOld}})
 	require.NoError(t, <-result)
 }
 
@@ -141,8 +142,9 @@ func TestNonCoreWaitsForReplacementCoreReadiness(t *testing.T) {
 		t.Fatalf("non-core component started before replacement core was ready: %v", err)
 	default:
 	}
-	self.containers[0].ready = true
-	source.setResponses(podResponse{pods: []localPod{self, old}})
+	readySelf := selfPod()
+	readySelf.containers[0].ready = true
+	source.setResponses(podResponse{pods: []localPod{readySelf, old}})
 	require.NoError(t, <-result)
 }
 

@@ -101,7 +101,7 @@ agent flavors and binaries.
 
 ### [comp/core/agentlifecycle](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agentlifecycle)
 
-Package agentlifecycle defines the experimental prepared/active Agent lifecycle component.
+Package agentlifecycle defines the experimental Agent startup gate.
 
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
