@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
 	"github.com/google/go-cmp/cmp"
@@ -188,13 +188,6 @@ func TestProcessSetEntity(t *testing.T) {
 }
 
 func TestProcessSetEntityAfterTagWaitTimeout(t *testing.T) {
-	pod := &workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   "pod1",
-		},
-	}
-
 	processed := false
 	listener := newTestListenerWithWait(
 		t,
@@ -202,20 +195,27 @@ func TestProcessSetEntityAfterTagWaitTimeout(t *testing.T) {
 		func(workloadmeta.Entity) bool { return false },
 		10*time.Second,
 	)
-	mockClock := clock.NewMock()
-	listener.clock = mockClock
 
-	listener.processSetEntity(pod)
-	require.False(t, processed)
+	synctest.Test(t, func(t *testing.T) {
+		pod := &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   "pod1",
+			},
+		}
 
-	mockClock.Add(9 * time.Second)
-	listener.retryPendingEntities()
-	require.False(t, processed)
+		listener.processSetEntity(pod)
+		require.False(t, processed)
 
-	mockClock.Add(time.Second)
-	listener.retryPendingEntities()
-	require.True(t, processed)
-	require.Empty(t, listener.pendingEntities)
+		time.Sleep(9 * time.Second)
+		listener.retryPendingEntities()
+		require.False(t, processed)
+
+		time.Sleep(time.Second)
+		listener.retryPendingEntities()
+		require.True(t, processed)
+		require.Empty(t, listener.pendingEntities)
+	})
 }
 
 func newTestListenerWithWait(
