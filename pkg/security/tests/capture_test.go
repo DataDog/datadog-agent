@@ -128,4 +128,10 @@ func TestActionCaptureInherited(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	// the extraction itself must stay silent: a rule firing on every benign SSM
+	// operation is exactly what attaching the artifact to real events avoids
+	if msg := test.msgSender.getMsg("capture_ssm_command_id"); msg != nil {
+		t.Error("the silent capture rule should not have sent an event")
+	}
 }
