@@ -295,6 +295,30 @@ func (a *Agent) MustSetProcessManagerEnabled(enabled bool) {
 	require.NoError(a.t(), a.SetProcessManagerEnabled(enabled))
 }
 
+// SwitchProcessManager persists the service manager choice and restarts the Agent so that it takes
+// effect on a running host.
+//
+// The restart is required, not tidiness: the installer daemon reads the environment file only when
+// it starts, and hooks inherit the daemon's environment, so an edit is invisible to a Fleet-driven
+// update until the daemon has been recycled.
+func (a *Agent) SwitchProcessManager(enabled bool) error {
+	if err := a.SetProcessManagerEnabled(enabled); err != nil {
+		return err
+	}
+	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return nil
+	}
+	if _, err := a.host.RemoteHost.Execute("sudo systemctl restart datadog-agent.service"); err != nil {
+		return fmt.Errorf("could not restart the Agent to pick up the process manager setting: %w", err)
+	}
+	return nil
+}
+
+// MustSwitchProcessManager switches the service manager and fails the test on error.
+func (a *Agent) MustSwitchProcessManager(enabled bool) {
+	require.NoError(a.t(), a.SwitchProcessManager(enabled))
+}
+
 func apiKey() string {
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	if apiKey == "" || err != nil {

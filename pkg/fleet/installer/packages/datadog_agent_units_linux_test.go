@@ -9,6 +9,7 @@ package packages
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
 )
 
 var unitFlavors = []struct {
@@ -131,6 +133,42 @@ func TestProcmgrProcessesResolveInBothHalves(t *testing.T) {
 			assert.NoError(t, err, "%s: %s missing from processes-exp.d", unitType, process)
 		}
 	}
+}
+
+// TestProcmgrConfigDirMatchesUnit is the guard for the one invariant that spans a Go helper and a
+// generated unit: procmgrInstallRoot decides where the installer writes processes.d entries, while
+// DD_PM_CONFIG_DIR decides where the daemon reads them. If they drift, the installer writes
+// definitions nobody loads, and no build or runtime error says so.
+func TestProcmgrConfigDirMatchesUnit(t *testing.T) {
+	tests := []struct {
+		packageType PackageType
+		unitType    embedded.SystemdUnitType
+		experiment  bool
+		unit        string
+	}{
+		{PackageTypeOCI, embedded.SystemdUnitTypeOCI, false, "datadog-agent-procmgr.service"},
+		{PackageTypeOCI, embedded.SystemdUnitTypeOCI, true, "datadog-agent-procmgr-exp.service"},
+		{PackageTypeDEB, embedded.SystemdUnitTypeDebRpm, false, "datadog-agent-procmgr.service"},
+		{PackageTypeDEB, embedded.SystemdUnitTypeDebRpm, true, "datadog-agent-procmgr-exp.service"},
+		{PackageTypeRPM, embedded.SystemdUnitTypeDebRpm, false, "datadog-agent-procmgr.service"},
+		{PackageTypeRPM, embedded.SystemdUnitTypeDebRpm, true, "datadog-agent-procmgr-exp.service"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/%s", tt.packageType, tt.unit), func(t *testing.T) {
+			root, err := procmgrInstallRoot(HookContext{PackageType: tt.packageType}, tt.experiment)
+			require.NoError(t, err)
+
+			unit := string(mustGetProcmgrUnit(t, tt.unit, tt.unitType, true))
+			want := `Environment="DD_PM_CONFIG_DIR=` + filepath.Join(root, procmgr.ProcessesDirName) + `"`
+			assert.Contains(t, unit, want)
+		})
+	}
+}
+
+func TestProcmgrInstallRootRejectsUnknownPackageType(t *testing.T) {
+	_, err := procmgrInstallRoot(HookContext{PackageType: PackageType("bogus")}, false)
+	assert.Error(t, err)
 }
 
 func mustGetSystemdUnit(t *testing.T, name string, unitType embedded.SystemdUnitType, ambCaps bool) []byte {

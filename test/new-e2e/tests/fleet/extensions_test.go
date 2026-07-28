@@ -257,7 +257,10 @@ func (s *extensionsSuite) TestExtensionSurvivesServiceManagerSwitch() {
 	initialDDOTVersion := s.getDDOTAgentVersion()
 	s.setInstallerRegistryConfig()
 
-	s.Agent.MustSetProcessManagerEnabled(targetProcmgr)
+	// Switching restarts the Agent: the installer daemon reads the setting only at start and hooks
+	// inherit its environment, so without the restart the update below would still run under the
+	// starting manager and the test would prove nothing.
+	s.Agent.MustSwitchProcessManager(targetProcmgr)
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	s.Require().NoError(s.Backend.StartExperiment("datadog-agent", targetVersion))

@@ -550,6 +550,14 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
+	// A config experiment writes the experiment artifacts into the tree the experiment link points
+	// at, which for a config experiment is the stable version. Rewriting the stable set restores the
+	// invariant that stable's artifacts describe stable; without it the promoted host keeps
+	// experiment-flavoured definitions and would resolve them through the experiment link the next
+	// time a package experiment moves it.
+	if err := agentService.WriteStable(ctx); err != nil {
+		return err
+	}
 	err := agentService.RestartStable(ctx)
 	if err != nil {
 		return err
@@ -884,24 +892,25 @@ func systemdUnitType(ctx HookContext) (embedded.SystemdUnitType, error) {
 	}
 }
 
-// procmgrProcessesPath returns the processes.d directory dd-procmgrd reads for the given lifecycle
+// procmgrInstallRoot returns the tree whose processes.d dd-procmgrd reads for the given lifecycle
 // half. It matches DD_PM_CONFIG_DIR in datadog-agent-procmgr{,-exp}.service and must stay in step
 // with it. It is resolved from the package type rather than ctx.PackagePath because hooks do not
 // always run from the tree they operate on: preStartExperiment runs from stable while managing
 // experiment artifacts, and postPromoteExperiment runs from the experiment link after it has been
 // pointed at the new stable version.
-func procmgrProcessesPath(ctx HookContext, experiment bool) (string, error) {
-	if ctx.PackageType != PackageTypeOCI {
-		if _, err := systemdUnitsPath(ctx); err != nil {
-			return "", err
+func procmgrInstallRoot(ctx HookContext, experiment bool) (string, error) {
+	switch ctx.PackageType {
+	case PackageTypeDEB, PackageTypeRPM:
+		return "/opt/datadog-agent", nil
+	case PackageTypeOCI:
+		half := "stable"
+		if experiment {
+			half = "experiment"
 		}
-		return procmgr.ConfigDir("/opt/datadog-agent"), nil
+		return filepath.Join(paths.PackagesPath, "datadog-agent", half), nil
+	default:
+		return "", fmt.Errorf("unsupported package type: %s", ctx.PackageType)
 	}
-	half := "stable"
-	if experiment {
-		half = "experiment"
-	}
-	return procmgr.ConfigDir(filepath.Join(paths.PackagesPath, "datadog-agent", half)), nil
 }
 
 func removeUnits(ctx HookContext, units ...string) error {
@@ -967,11 +976,10 @@ func writeEmbeddedProcessesAndReload(ctx HookContext, experiment bool, processes
 	if err != nil {
 		return err
 	}
-	processesPath, err := procmgrProcessesPath(ctx, experiment)
+	installRoot, err := procmgrInstallRoot(ctx, experiment)
 	if err != nil {
 		return err
 	}
-	installRoot := filepath.Dir(processesPath)
 	for _, process := range processes {
 		content, err := embedded.GetProcmgrConfig(process, unitType, experiment)
 		if err != nil {
@@ -990,11 +998,11 @@ func removeProcesses(ctx HookContext, experiment bool, processes ...string) erro
 	if len(processes) == 0 {
 		return nil
 	}
-	processesPath, err := procmgrProcessesPath(ctx, experiment)
+	installRoot, err := procmgrInstallRoot(ctx, experiment)
 	if err != nil {
 		return err
 	}
-	return procmgr.RemoveConfigs(filepath.Dir(processesPath), processes...)
+	return procmgr.RemoveConfigs(installRoot, processes...)
 }
 
 // restoreStableProcesses rewrites the stable processes.d entries and drops anything else, so the
@@ -1004,11 +1012,10 @@ func removeProcesses(ctx HookContext, experiment bool, processes ...string) erro
 // points at the stable version, so the experiment and stable processes.d are the same directory and
 // a delete would strip stable's definitions.
 func (s *datadogAgentService) restoreStableProcesses(ctx HookContext) error {
-	processesPath, err := procmgrProcessesPath(ctx, false)
+	installRoot, err := procmgrInstallRoot(ctx, false)
 	if err != nil {
 		return err
 	}
-	installRoot := filepath.Dir(processesPath)
 	present, err := procmgr.ListConfigs(installRoot)
 	if err != nil {
 		return err
