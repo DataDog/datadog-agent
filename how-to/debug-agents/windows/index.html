@@ -3925,15 +3925,15 @@
   
 
 
-<h1 id="windows-troubleshooting">Windows Troubleshooting<a class="headerlink" href="#windows-troubleshooting" title="Permanent link">&para;</a></h1>
+<h1 id="windows-troubleshooting">Windows Troubleshooting</h1>
 <p>Prior to 7.23, Agent binaries (Datadog Agent, Process Agent, Trace Agent, etc.) on Windows contain symbol information.</p>
 <p>Starting from 7.23, Agent binaries on Windows have debugging information stripped. The original files are packed in a
 file called debug package.</p>
-<h2 id="prerequisite">Prerequisite<a class="headerlink" href="#prerequisite" title="Permanent link">&para;</a></h2>
+<h2 id="prerequisite">Prerequisite</h2>
 <p>To debug Agent process, Golang Runtime, Git and Golang Delve must be installed.</p>
 <p>Download the matching debug package. If the MSI file is <code>datadog-agent-7.23.0-x86_64.msi</code>, the debug package should be
 <code>datadog-agent-7.23.0-x86_64.debug.zip</code>.</p>
-<h2 id="live-debugging">Live Debugging<a class="headerlink" href="#live-debugging" title="Permanent link">&para;</a></h2>
+<h2 id="live-debugging">Live Debugging</h2>
 <p>Delve debugger on Windows cannot attach to the service process. The corresponding Windows service must be stopped and
 disabled.</p>
 <p>For pre 7.23, start the Agent executable in the interactive session.</p>
@@ -3942,7 +3942,7 @@ disabled.</p>
 <code>\omnibus-ruby\src\cf-root\bin</code>. Use either one is fine. Copy the file to replace the executable file you want to debug,
 start the agent executable in the interactive session.</p>
 <p>Use <code>dlv attach PID</code> to attach to the running process and start debugging.</p>
-<h2 id="non-live-debugging">Non-live Debugging<a class="headerlink" href="#non-live-debugging" title="Permanent link">&para;</a></h2>
+<h2 id="non-live-debugging">Non-live Debugging</h2>
 <p>Use <code>dlv core DUMPFILE EXEFILE</code> to debug against a dump file.</p>
 <p>For 7.23 or newer, the EXEFILE is the .debug file in the debug package.</p>
 
