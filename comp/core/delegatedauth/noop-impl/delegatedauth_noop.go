@@ -44,6 +44,11 @@ func (d *DelegatedAuthNoop) Refresh() bool {
 	return false
 }
 
+// IsManaged always returns false in the noop implementation - there are never any instances.
+func (d *DelegatedAuthNoop) IsManaged(_ delegatedauth.Target) bool {
+	return false
+}
+
 // Status Provider implementation for noop
 
 // Name returns the name for status sorting

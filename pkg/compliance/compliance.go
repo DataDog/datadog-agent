@@ -53,7 +53,7 @@ func StartCompliance(log log.Component,
 		return nil, nil
 	}
 
-	endpoints, context, err := common.NewLogContextCompliance()
+	endpoints, context, err := common.NewLogContextCompliance(delegatedAuthComp)
 	if err != nil {
 		log.Error(err)
 	}

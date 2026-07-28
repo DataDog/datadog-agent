@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
@@ -57,9 +58,9 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 
 // buildEndpoints builds endpoints for the logs agent, either HTTP or TCP,
 // dependent on configuration and connectivity
-func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig model.Reader, delegatedAuthComp delegatedauth.Component) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
+	if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig, delegatedAuthComp); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
 
@@ -70,13 +71,13 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 		metrics.TlmHTTPConnectivityCheck.Inc("failure")
 	}
 
-	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin, delegatedAuthComp)
 }
 
 // buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only.
 // Uses BuildEndpointsForDiagnostic to avoid registering config update callbacks since these
 // endpoints are transient and will be discarded after the connectivity check.
-func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader) (*config.Endpoints, error) {
+func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader, delegatedAuthComp delegatedauth.Component) (*config.Endpoints, error) {
 	return config.BuildEndpointsForDiagnostic(
 		coreConfig,
 		config.DefaultLogsConfigKeysWithVectorOverride(coreConfig),
@@ -85,6 +86,7 @@ func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader) (*config.En
 		intakeTrackType,
 		config.AgentJSONIntakeProtocol,
 		config.DefaultIntakeOrigin,
+		delegatedAuthComp,
 	)
 }
 
@@ -95,9 +97,9 @@ func checkHTTPConnectivityStatus(endpoint config.Endpoint, coreConfig model.Read
 
 // buildHTTPEndpointsForRestart builds HTTP endpoints for restart without connectivity check
 // This is used when we've already verified HTTP connectivity and are upgrading from TCP
-func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, error) {
+func buildHTTPEndpointsForRestart(coreConfig model.Reader, delegatedAuthComp delegatedauth.Component) (*config.Endpoints, error) {
 	// Force HTTP endpoints since we already confirmed connectivity
-	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin, delegatedAuthComp)
 }
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration

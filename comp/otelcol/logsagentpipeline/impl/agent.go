@@ -232,11 +232,11 @@ func (a *Agent) SetupPipeline(
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(coreConfig pkgconfigmodel.Reader, log log.Component, intakeOrigin config.IntakeOrigin) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin, delegatedauthnoopimpl.NewComponent().Comp); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 		if !httpConnectivity {
 			log.Warn("Error while validating API key")
 		}
 	}
-	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin)
+	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin, delegatedauthnoopimpl.NewComponent().Comp)
 }

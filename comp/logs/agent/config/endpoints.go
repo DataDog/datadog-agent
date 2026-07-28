@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -129,6 +130,19 @@ func delaAwareAPIKey(apiKey string) string {
 	return apiKey
 }
 
+// isManagedByDelegatedAuth reports whether target is currently managed by delegatedAuthComp,
+// nil-safe since not every caller has a real component to pass. Checking this - not just
+// pkgconfigutils.IsDelaDirective on the current api_key value - matters because delegated auth's
+// initial fetch resolves a DELA(...) directive to a real key synchronously during config loading,
+// before any Endpoint is ever constructed; by the time an Endpoint checks the api_key string, the
+// directive is usually already gone.
+func isManagedByDelegatedAuth(delegatedAuthComp delegatedauth.Component, target delegatedauth.Target) bool {
+	if delegatedAuthComp == nil {
+		return false
+	}
+	return delegatedAuthComp.IsManaged(target)
+}
+
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, pathPrefix string, useSSL bool) Endpoint {
 	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
@@ -147,7 +161,7 @@ func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, 
 // socks proxy and SSL settings from the configuration.
 // If registerCallback is true, the endpoint will register for config updates to receive API key rotations.
 // Use registerCallback=false for transient/diagnostic endpoints that will be discarded after use.
-func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint {
+func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool, delegatedAuthComp delegatedauth.Component) Endpoint {
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
 		apiKey:                  atomic.NewString(apiKey),
@@ -156,6 +170,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint 
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		useSSL:                  !logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
+		hasPendingDelegatedAuth: pkgconfigutils.IsDelaDirective(apiKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{APIKeyConfigKey: configPath}),
 	}
 	if registerCallback {
 		e.onConfigUpdate(logsConfig)
@@ -167,7 +182,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint 
 // the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
 // If registerCallback is true, the endpoint will register for config updates to receive API key rotations.
 // Use registerCallback=false for transient/diagnostic endpoints that will be discarded after use.
-func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint {
+func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool, delegatedAuthComp delegatedauth.Component) Endpoint {
 
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
@@ -184,6 +199,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
 		useSSL:                  !logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
+		hasPendingDelegatedAuth: pkgconfigutils.IsDelaDirective(apiKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{APIKeyConfigKey: configPath}),
 	}
 	if registerCallback {
 		e.onConfigUpdate(logsConfig)
@@ -196,7 +212,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint
 // key from the loaded data instead of 'api_key'/'logs_config.api_key'.
 // If registerCallback is true, the endpoints will register for config updates to receive API key rotations.
 // Use registerCallback=false for transient/diagnostic endpoints that will be discarded after use.
-func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallback bool) []Endpoint {
+func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallback bool, delegatedAuthComp delegatedauth.Component) []Endpoint {
 	additionals, configKeyUsed := l.getAdditionalEndpoints()
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
@@ -205,7 +221,10 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey)
+		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{
+			AdditionalEndpointsListConfigKey: configKeyUsed,
+			ListEntryIndex:                   idx,
+		})
 
 		newE.UseCompression = e.UseCompression
 		newE.CompressionLevel = e.CompressionLevel
@@ -242,7 +261,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 // loadHTTPAdditionalEndpoints loads additional HTTP endpoints from configuration.
 // If registerCallback is true, the endpoints will register for config updates to receive API key rotations.
 // Use registerCallback=false for transient/diagnostic endpoints that will be discarded after use.
-func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, registerCallback bool) []Endpoint {
+func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, registerCallback bool, delegatedAuthComp delegatedauth.Component) []Endpoint {
 	additionals, configKeyUsed := l.getAdditionalEndpoints()
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
@@ -251,7 +270,10 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey)
+		newE.hasPendingDelegatedAuth = pkgconfigutils.IsDelaDirective(e.APIKey) || isManagedByDelegatedAuth(delegatedAuthComp, delegatedauth.Target{
+			AdditionalEndpointsListConfigKey: configKeyUsed,
+			ListEntryIndex:                   idx,
+		})
 		newE.UseCompression = main.UseCompression
 		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel

@@ -84,7 +84,7 @@ func (a *logAgent) restart(_ context.Context, newEndpoints *config.Endpoints) er
 // error to trigger retry - ensuring we eventually upgrade to HTTP since connectivity exists.
 func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
 	// Build HTTP endpoints since we already verified HTTP connectivity
-	endpoints, err := buildHTTPEndpointsForRestart(a.config)
+	endpoints, err := buildHTTPEndpointsForRestart(a.config, a.delegatedAuth)
 	if err != nil {
 		message := fmt.Sprintf("Failed to build HTTP endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
@@ -216,7 +216,7 @@ func (a *logAgent) httpRetryLoop(ctx context.Context) {
 		return
 	}
 
-	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config)
+	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config, a.delegatedAuth)
 	if err != nil {
 		a.log.Errorf("Failed to build HTTP endpoints: %v", err)
 		return
@@ -272,7 +272,7 @@ func (a *logAgent) httpRetryLoop(ctx context.Context) {
 
 // checkHTTPConnectivity tests if HTTP endpoints are reachable
 func (a *logAgent) checkHTTPConnectivity() bool {
-	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config)
+	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config, a.delegatedAuth)
 	if err != nil {
 		a.log.Debugf("Failed to build HTTP endpoints for connectivity check: %v", err)
 		return false

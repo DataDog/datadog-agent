@@ -69,6 +69,10 @@ type authInstance struct {
 	// being written to apiKeyConfigKey as a flat value. Mutually exclusive with
 	// additionalEndpointDomain.
 	additionalEndpointsListConfigKey string
+	// listEntryIndex is this instance's position within additionalEndpointsListConfigKey's list.
+	// Only meaningful when additionalEndpointsListConfigKey is set - it's how IsManaged tells
+	// apart several DELA(...) entries at the same list-shape config key.
+	listEntryIndex int
 	// lastWrittenValue is the value this instance most recently wrote into its target (the
 	// domain's key list in a map-shape additional_endpoints value, or the matching entry's
 	// api_key in a list-shape one), starting with the literal DELA(...) directive text that
@@ -312,6 +316,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
+		listEntryIndex:                   params.ListEntryIndex,
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
 		backoff:                          newBackoff(refreshInterval),
 		refreshCtx:                       refreshCtx,
@@ -578,8 +583,40 @@ func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
+		listEntryIndex:                   params.ListEntryIndex,
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
 	}
+}
+
+// IsManaged reports whether an active instance currently manages target, matching on whichever
+// identity fields target sets (see delegatedauth.Target's doc). Unlike inspecting the current
+// api_key config value, this stays true after AddInstance's initial fetch has already replaced
+// the DELA(...) directive with a real key - which is the common case, since that fetch runs
+// synchronously during config loading, before any Endpoint/domainResolver exists to check.
+func (d *delegatedAuthComponent) IsManaged(target delegatedauth.Target) bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, instance := range d.instances {
+		switch {
+		case target.AdditionalEndpointsListConfigKey != "":
+			if instance.additionalEndpointsListConfigKey == target.AdditionalEndpointsListConfigKey &&
+				instance.listEntryIndex == target.ListEntryIndex {
+				return true
+			}
+		case target.AdditionalEndpointsConfigKey != "":
+			if instance.additionalEndpointsConfigKey == target.AdditionalEndpointsConfigKey &&
+				instance.additionalEndpointDomain == target.AdditionalEndpointDomain {
+				return true
+			}
+		case target.APIKeyConfigKey != "":
+			if instance.apiKeyConfigKey == target.APIKeyConfigKey &&
+				instance.additionalEndpointDomain == "" &&
+				instance.additionalEndpointsListConfigKey == "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // updateConfigWithAPIKey writes a newly-fetched, real (non-fallback) API key. Only called on

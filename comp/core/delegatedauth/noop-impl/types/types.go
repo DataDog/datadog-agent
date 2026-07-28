@@ -26,3 +26,8 @@ func (r *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.Insta
 func (r *DelegatedAuthNoop) Refresh() bool {
 	return false
 }
+
+// IsManaged always returns false in the noop implementation - there are never any instances.
+func (r *DelegatedAuthNoop) IsManaged(_ delegatedauth.Target) bool {
+	return false
+}

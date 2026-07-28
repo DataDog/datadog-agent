@@ -17,6 +17,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/delegatedauth/def",
         "//comp/logs-library/utils/tls",
         "//pkg/config/model",
         "//pkg/config/setup",
@@ -45,6 +46,9 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/mock",
+        "//comp/core/delegatedauth/noop-impl",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",

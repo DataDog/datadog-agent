@@ -53,6 +53,7 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 		log.Error("Misconfiguration of agent endpoints: ", err)
 		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
+	markPendingDelegatedAuthDomains(endpoints, config, delegatedAuth)
 
 	if !params.Resolver() {
 		options, err = NewOptionsWithOPW(config, log, endpoints)
@@ -87,6 +88,35 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 		log.Infof("domain '%s' has %d keys: %s", resolver.GetBaseDomain(), len(scrubbedKeys), strings.Join(scrubbedKeys, ", "))
 	}
 	return options, nil
+}
+
+// markPendingDelegatedAuthDomains OR's in delegatedAuth.IsManaged for each domain, since
+// utils.GetMultipleEndpoints only ever sets HasPendingDelegatedAuth by checking whether the
+// current api_key config value is still a literal DELA(...) directive - which is normally no
+// longer true by the time this runs, since delegated auth's initial fetch resolves it
+// synchronously during config loading. This also covers the primary domain, which
+// GetMultipleEndpoints never marks at all (it only inspects `additional_endpoints`).
+func markPendingDelegatedAuthDomains(endpoints utils.EndpointDescriptorSet, config config.Component, delegatedAuth delegatedauth.Component) {
+	if delegatedAuth == nil {
+		return
+	}
+	primaryDomain := utils.GetInfraEndpoint(config)
+	for domain, ed := range endpoints {
+		if ed.HasPendingDelegatedAuth {
+			continue
+		}
+		managed := delegatedAuth.IsManaged(delegatedauth.Target{
+			AdditionalEndpointsConfigKey: "additional_endpoints",
+			AdditionalEndpointDomain:     domain,
+		})
+		if !managed && domain == primaryDomain {
+			managed = delegatedAuth.IsManaged(delegatedauth.Target{APIKeyConfigKey: "api_key"})
+		}
+		if managed {
+			ed.HasPendingDelegatedAuth = true
+			endpoints[domain] = ed
+		}
+	}
 }
 
 // NewForwarder returns a new forwarder component.

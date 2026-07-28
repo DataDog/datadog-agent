@@ -10,6 +10,7 @@ package agentimpl
 import (
 	"time"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -89,8 +90,8 @@ func (a *logAgent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
-	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+func buildEndpoints(coreConfig model.Reader, delegatedAuthComp delegatedauth.Component) (*config.Endpoints, error) {
+	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol, delegatedAuthComp)
 	if err != nil {
 		return nil, err
 	}

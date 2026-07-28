@@ -203,6 +203,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 				"", // intakeTrackType not needed
 				"", // protocol not needed
 				"", // origin not needed
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 			suite.Require().NoError(err)
 

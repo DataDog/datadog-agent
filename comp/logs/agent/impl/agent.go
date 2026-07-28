@@ -197,7 +197,7 @@ func (a *logAgent) start(context.Context) error {
 	a.log.Info("Starting logs-agent...")
 
 	// setup the server config
-	endpoints, err := buildEndpoints(a.config)
+	endpoints, err := buildEndpoints(a.config, a.delegatedAuth)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)

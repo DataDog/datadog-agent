@@ -44,7 +44,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	stopper.Add(agent)
 
 	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
-	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
+	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack, delegatedAuthComp)
 	if err != nil {
 		_ = log.Error(err)
 	}
@@ -55,7 +55,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 		return nil, err
 	}
 
-	secInfoEndpoints, secInfoCtx, err := common.NewLogContextSecInfo()
+	secInfoEndpoints, secInfoCtx, err := common.NewLogContextSecInfo(delegatedAuthComp)
 	if err != nil {
 		_ = log.Error(err)
 	}

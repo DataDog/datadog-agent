@@ -187,7 +187,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 }
 
 func reportComplianceEvents(hostname string, events []*compliance.CheckEvent, compression logscompression.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) error {
-	endpoints, context, err := common.NewLogContextCompliance()
+	endpoints, context, err := common.NewLogContextCompliance(delegatedAuthComp)
 	if err != nil {
 		return fmt.Errorf("reporter: could not create log context for compliance: %w", err)
 	}

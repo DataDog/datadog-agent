@@ -139,7 +139,7 @@ func Diagnose() []diagnose.Diagnosis {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
 		// Use ForDiagnostic variant to avoid registering config update callbacks
 		// since these endpoints are transient and will be discarded after the diagnostic check
-		endpoints, err := config.BuildEndpointsForDiagnostic(cfg, configKeys, desc.hostnameEndpointPrefix, config.DiagnosticHTTP, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err := config.BuildEndpointsForDiagnostic(cfg, configKeys, desc.hostnameEndpointPrefix, config.DiagnosticHTTP, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin, delegatedauthnoopimpl.NewComponent().Comp)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
@@ -310,6 +310,7 @@ func newHTTPPassthroughPipeline(
 		config.DefaultIntakeProtocol,
 		config.DefaultIntakeOrigin,
 		compressionOptions,
+		delegatedAuthComp,
 	)
 	if err != nil {
 		return nil, err

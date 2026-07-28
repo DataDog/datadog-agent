@@ -57,9 +57,15 @@ type InstanceParams struct {
 	// list-shape config value at this path (a list of {api_key, Host, Port, ...} entries, e.g.
 	// "logs_config.additional_endpoints", "database_monitoring.samples.additional_endpoints"),
 	// replacing the entry whose api_key still holds the DELA(...) directive that requested it.
-	// Requires AdditionalEndpointDirective to also be set. Mutually exclusive with
-	// AdditionalEndpointDomain.
+	// Requires AdditionalEndpointDirective and ListEntryIndex to also be set. Mutually exclusive
+	// with AdditionalEndpointDomain.
 	AdditionalEndpointsListConfigKey string
+
+	// ListEntryIndex is this entry's position within the list-shape value at
+	// AdditionalEndpointsListConfigKey. Only used (and required) when
+	// AdditionalEndpointsListConfigKey is set - it's the identity Component.IsManaged uses to
+	// find this instance again, since a list can hold several DELA(...) entries at the same key.
+	ListEntryIndex int
 
 	// AdditionalEndpointDirective is the literal DELA(...) directive text that requested this
 	// instance - either a value inside AdditionalEndpointsConfigKey[AdditionalEndpointDomain], or
@@ -90,6 +96,23 @@ type InstanceParams struct {
 	ProviderConfig common.ProviderConfig
 }
 
+// Target identifies which delegated-auth instance a Component.IsManaged query is asking about.
+// It mirrors the identity-establishing subset of InstanceParams' routing fields - set exactly one
+// of the three combinations:
+//   - APIKeyConfigKey alone, for a flat (non-additional-endpoints) instance, e.g. "api_key" or
+//     "logs_config.api_key".
+//   - AdditionalEndpointsConfigKey + AdditionalEndpointDomain, for a map-shape instance.
+//   - AdditionalEndpointsListConfigKey + ListEntryIndex, for a list-shape instance.
+type Target struct {
+	APIKeyConfigKey string
+
+	AdditionalEndpointsConfigKey string
+	AdditionalEndpointDomain     string
+
+	AdditionalEndpointsListConfigKey string
+	ListEntryIndex                   int
+}
+
 // Component manages cloud-based delegated authentication.
 //
 // Usage: Call AddInstance() for each API key to manage.
@@ -114,4 +137,13 @@ type Component interface {
 	// if there are no delegated-auth instances at all (e.g. the noop implementation, or delegated
 	// auth isn't configured). Non-blocking - never performs the fetch itself.
 	Refresh() bool
+
+	// IsManaged reports whether an active delegated-auth instance currently manages target.
+	// Unlike inspecting the current api_key config value for a literal DELA(...) directive, this
+	// stays true even after the directive has been resolved to a real key - which is the common
+	// case by the time callers query this, since AddInstance's initial fetch runs synchronously
+	// during config loading, before any Endpoint/domainResolver is ever constructed from that
+	// value. Callers should use this (not string-sniffing api_key) to decide whether a 403 on an
+	// endpoint should be treated as a transient WIF auth failure rather than a bad static key.
+	IsManaged(target Target) bool
 }

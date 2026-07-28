@@ -72,6 +72,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/mock",

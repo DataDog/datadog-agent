@@ -41,7 +41,7 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmet
 }
 
 func startCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) error {
-	endpoints, destinationsCtx, err := seccommon.NewLogContextCompliance()
+	endpoints, destinationsCtx, err := seccommon.NewLogContextCompliance(delegatedAuthComp)
 	if err != nil {
 		log.Error(err)
 	}

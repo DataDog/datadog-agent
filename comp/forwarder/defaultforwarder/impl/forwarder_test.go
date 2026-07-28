@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
@@ -973,4 +975,34 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 
 	require.Len(t, txn, 1)
 	assert.Equal(t, "https://example.test", txn[0].Domain)
+}
+
+func TestMarkPendingDelegatedAuthDomains(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("api_key", "resolved-primary-key")
+	mockConfig.SetInTest("dd_url", "https://example.test")
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://second-org.test": {"resolved-additional-key"},
+	})
+	endpoints, err := configUtils.GetMultipleEndpoints(mockConfig)
+	require.NoError(t, err)
+
+	// Neither domain's api_key is a literal DELA(...) directive anymore (both already resolved to
+	// real keys), so GetMultipleEndpoints alone can't tell either one is WIF-managed.
+	require.False(t, endpoints["https://example.test"].HasPendingDelegatedAuth)
+	require.False(t, endpoints["https://second-org.test"].HasPendingDelegatedAuth)
+
+	delegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			if target.APIKeyConfigKey == "api_key" {
+				return true
+			}
+			return target.AdditionalEndpointsConfigKey == "additional_endpoints" && target.AdditionalEndpointDomain == "https://second-org.test"
+		},
+	}
+
+	markPendingDelegatedAuthDomains(endpoints, mockConfig, delegatedAuth)
+
+	assert.True(t, endpoints["https://example.test"].HasPendingDelegatedAuth, "primary domain must be marked once IsManaged reports it")
+	assert.True(t, endpoints["https://second-org.test"].HasPendingDelegatedAuth, "additional endpoint domain must be marked once IsManaged reports it")
 }
