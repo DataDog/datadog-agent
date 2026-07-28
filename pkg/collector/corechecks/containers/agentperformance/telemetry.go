@@ -118,17 +118,6 @@ func (t *Recorder) WithRuntimeMetrics(callback func() error) error {
 	return callback()
 }
 
-func (t *Recorder) resetRuntimeMetrics() {
-	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
-		match := map[string]string{kindTag: kind}
-		t.memoryUsage.DeletePartialMatch(match)
-		t.memoryLimits.DeletePartialMatch(match)
-		t.cpuUsage.DeletePartialMatch(match)
-	}
-
-	clear(t.currentCPUSamples)
-}
-
 func (t *Recorder) completeRuntimeMetrics() {
 	t.previousCPUSamples, t.currentCPUSamples = t.currentCPUSamples, t.previousCPUSamples
 }
@@ -199,6 +188,17 @@ func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workload
 		return
 	}
 	t.record(metricName, *value, kind, pod.Name, reason)
+}
+
+func (t *Recorder) resetRuntimeMetrics() {
+	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
+		match := map[string]string{kindTag: kind}
+		t.memoryUsage.DeletePartialMatch(match)
+		t.memoryLimits.DeletePartialMatch(match)
+		t.cpuUsage.DeletePartialMatch(match)
+	}
+
+	clear(t.currentCPUSamples)
 }
 
 func (t *Recorder) resetKubeletMetrics() {
