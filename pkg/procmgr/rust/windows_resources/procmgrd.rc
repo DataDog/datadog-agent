@@ -29,7 +29,7 @@ BEGIN
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "procmgrd"
             VALUE "LegalCopyright", "Copyright (C) 2017"
-            VALUE "OriginalFilename", "process-agent.exe"
+            VALUE "OriginalFilename", "dd-procmgrd.exe"
             VALUE "ProductName", "Datadog Process Manager"
             VALUE "ProductVersion", FILE_VERSION_STRING
         END

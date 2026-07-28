@@ -46,6 +46,10 @@ def _syso_cc_info(ctx, name, syso_out, cc_toolchain, feature_configuration):
     the .syso extension is load-bearing for Go's build (it auto-links
     *_windows.syso files), so we symlink a .o-suffixed alias for cc_common's sake
     rather than renaming the actual windres output.
+
+    alwayslink is mandatory: the archived object defines no symbols, so a normal
+    archive member is never pulled in by the linker and the resources silently
+    vanish from the binary.
     """
     obj_alias = ctx.actions.declare_file(name + "_syso_alias.o")
     ctx.actions.symlink(output = obj_alias, target_file = syso_out)
@@ -57,6 +61,7 @@ def _syso_cc_info(ctx, name, syso_out, cc_toolchain, feature_configuration):
         cc_toolchain = cc_toolchain,
         compilation_outputs = compilation_outputs,
         disallow_dynamic_library = True,
+        alwayslink = True,
     )
     return CcInfo(linking_context = linking_context)
 
