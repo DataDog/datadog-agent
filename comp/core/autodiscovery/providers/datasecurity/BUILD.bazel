@@ -32,6 +32,7 @@ dd_agent_go_test(
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
+        "//comp/core/autodiscovery/providers/types",
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",

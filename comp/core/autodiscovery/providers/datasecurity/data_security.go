@@ -64,12 +64,29 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) type
 		// TODO(dsec-198): include backpressure to avoid blocking indefinitely
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
+	// Send an empty initial sync so Autodiscovery's config poller unblocks startup; real configs
+	// are streamed later as scan tasks arrive over RC.
 	c.configChanges <- integration.ConfigChanges{}
-	go c.manageSubscriptionToRC()
+	// Subscribe immediately when a postgres integration is already configured; otherwise
+	// poll until one appears.
+	if !c.subscribeIfReady() {
+		go c.manageSubscriptionToRC()
+	}
 	return c
 }
 
-// manageSubscriptionToRC waits until a postgres integration is configured before subscribing to RC.
+// subscribeIfReady subscribes to the Data Security RC product once a postgres integration is
+// configured. It reports whether the subscription happened.
+func (c *controller) subscribeIfReady() bool {
+	if !isConnectedToPostgres(c.ac) {
+		return false
+	}
+	c.rcclient.Subscribe(data.ProductDataSecurityDBScanTasks, c.update)
+	return true
+}
+
+// manageSubscriptionToRC polls until a postgres integration is configured, then subscribes to RC.
+// TODO(dsec-198): change here to connect to RC in an event-driven fashion rather than polling
 func (c *controller) manageSubscriptionToRC() {
 	ticker := time.NewTicker(rcSubscriptionRetryInterval)
 	defer ticker.Stop()
@@ -80,9 +97,7 @@ func (c *controller) manageSubscriptionToRC() {
 			return
 		}
 		c.closeMutex.RUnlock()
-		// TODO(dsec-198): change here to connect to RC in an event-driven fashion rather than polling
-		if isConnectedToPostgres(c.ac) {
-			c.rcclient.Subscribe(data.ProductDataSecurityDBScanTasks, c.update)
+		if c.subscribeIfReady() {
 			return
 		}
 	}

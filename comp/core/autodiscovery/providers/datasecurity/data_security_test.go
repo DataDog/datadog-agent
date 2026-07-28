@@ -8,6 +8,7 @@ package datasecurity
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,16 +17,26 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockedRcClient struct{}
+// mockedRcClient captures the product and callback the controller registers so the test can
+// drive updates through the same callback the controller subscribes with, rather than calling
+// the unexported update method directly.
+type mockedRcClient struct {
+	product  data.Product
+	callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
 
 func (m *mockedRcClient) SubscribeAgentTask() {}
 
-func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockedRcClient) Subscribe(product data.Product, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	m.product = product
+	// callback is the controller's update method, which RC would normally invoke on each config change.
+	m.callback = callback
 }
 
 type mockedAutodiscovery struct {
@@ -79,6 +90,31 @@ const scanTaskConfig = `{
   ]
 }`
 
+// scanTaskUnknownHostConfig is a valid scan task whose entity host does not match any configured
+// postgres instance, so the connection cannot be resolved.
+const scanTaskUnknownHostConfig = `{
+  "task_id": "task-1",
+  "scanning_rules": [
+    {"id": "rule-1", "license": "proprietary", "pattern": "\\d+"}
+  ],
+  "scan_data": [
+    {
+      "sub_task_id": "sub-1",
+      "query": "SELECT * FROM users",
+      "timeout_seconds": 30,
+      "entity": {
+        "platform": "postgres",
+        "database_cluster_name": "cluster",
+        "database_instance_name": "instance",
+        "database_host_name": "unknown-host",
+        "database": "app",
+        "schema": "public",
+        "table": "users"
+      }
+    }
+  ]
+}`
+
 // wantCheckInstance is the check instance the provider is expected to emit for
 // scanTaskConfig once the local postgres connection has been resolved. The
 // scanning rule (with its license) is forwarded verbatim.
@@ -116,23 +152,39 @@ func postgresIntegration() integration.Config {
 	}
 }
 
+// newTestController builds a controller with the given autodiscovery configs and returns the mock
+// RC client it subscribes through along with the provider.
+func newTestController(t *testing.T, adConfigs []integration.Config) (*mockedRcClient, types.ConfigProvider) {
+	rc := &mockedRcClient{}
+	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc)
+	return rc, provider
+}
+
+// TestControllerDoesNotSubscribeWithoutPostgres asserts the controller does not subscribe to RC
+// until a postgres integration is configured.
+func TestControllerDoesNotSubscribeWithoutPostgres(t *testing.T) {
+	rc, _ := newTestController(t, nil)
+
+	assert.Nil(t, rc.callback, "controller should not subscribe without a postgres integration")
+}
+
 func TestControllerUpdate(t *testing.T) {
 	tests := []struct {
 		name            string
-		adConfigs       []integration.Config
+		scanTask        string
 		wantState       state.ApplyState
 		wantErrContains string
 		wantInstance    string // expected emitted check instance (YAML); empty means nothing scheduled
 	}{
 		{
-			name:         "postgres integration present schedules check",
-			adConfigs:    []integration.Config{postgresIntegration()},
+			name:         "matching scan task schedules check",
+			scanTask:     scanTaskConfig,
 			wantState:    state.ApplyStateAcknowledged,
 			wantInstance: wantCheckInstance,
 		},
 		{
-			name:            "no postgres integration returns error",
-			adConfigs:       []integration.Config{},
+			name:            "scan task with unknown host returns error",
+			scanTask:        scanTaskUnknownHostConfig,
 			wantState:       state.ApplyStateError,
 			wantErrContains: "postgres integration",
 		},
@@ -140,29 +192,42 @@ func TestControllerUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &controller{
-				ac:            getMockedAutodiscovery(t, tt.adConfigs),
-				rcclient:      &mockedRcClient{},
-				configChanges: make(chan integration.ConfigChanges, 10),
-			}
+			// A postgres integration is present, so the controller subscribes immediately and we
+			// can drive the update through the callback it registered.
+			rc, provider := newTestController(t, []integration.Config{postgresIntegration()})
+
+			// rc.callback is equal to update method the controller subscribes with
+			require.NotNil(t, rc.callback, "controller should subscribe when a postgres integration is present")
+
+			// check if the controller subscribes to the correct product
+			assert.Equal(t, data.ProductDataSecurityDBScanTasks, rc.product)
+
+			streaming, ok := provider.(types.StreamingConfigProvider)
+			require.True(t, ok, "controller should be a streaming config provider")
+			changes := streaming.Stream(context.Background())
+
+			// drain the initial empty snapshot pushed on creation
+			receiveChanges(t, changes)
 
 			updateStatus := map[string]state.ApplyStatus{}
-			c.update(map[string]state.RawConfig{
-				"config_1": {Config: []byte(scanTaskConfig), Metadata: state.Metadata{ID: "rc-id"}},
+
+			// simulate an RC update
+			rc.callback(map[string]state.RawConfig{
+				"task-1": {Config: []byte(tt.scanTask), Metadata: state.Metadata{ID: "rc-id"}},
 			}, func(path string, status state.ApplyStatus) {
 				updateStatus[path] = status
 			})
 
-			assert.Equal(t, tt.wantState, updateStatus["config_1"].State)
+			assert.Equal(t, tt.wantState, updateStatus["task-1"].State)
 			if tt.wantErrContains != "" {
-				assert.Contains(t, updateStatus["config_1"].Error, tt.wantErrContains)
+				assert.Contains(t, updateStatus["task-1"].Error, tt.wantErrContains)
 			}
 
 			if tt.wantInstance == "" {
 				return
 			}
 
-			cfg := <-c.Stream(context.Background())
+			cfg := receiveChanges(t, changes)
 			require.Len(t, cfg.Schedule, 1)
 			assert.Empty(t, cfg.Unschedule)
 
@@ -171,6 +236,19 @@ func TestControllerUpdate(t *testing.T) {
 			require.Len(t, scheduled.Instances, 1)
 			assert.Equal(t, asYAML(t, tt.wantInstance), asYAML(t, string(scheduled.Instances[0])))
 		})
+	}
+}
+
+// receiveChanges reads one ConfigChanges from the stream, failing the test instead of blocking
+// indefinitely if nothing is emitted.
+func receiveChanges(t *testing.T, changes <-chan integration.ConfigChanges) integration.ConfigChanges {
+	t.Helper()
+	select {
+	case cfg := <-changes:
+		return cfg
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for config changes")
+		return integration.ConfigChanges{}
 	}
 }
 
