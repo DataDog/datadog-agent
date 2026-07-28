@@ -46,11 +46,14 @@ pub struct SubTask {
     pub timeout: Duration,
 }
 
-/// TODO(dsec-140): add the other entity values (scan location) when needed,
-/// e.g. database_cluster_name, database_instance_name, database, schema, table.
 #[derive(Debug, Default, Deserialize)]
 pub struct Entity {
     pub platform: String,
+    pub database_cluster_name: String,
+    pub database_instance_name: String,
+    pub database: String,
+    pub schema: String,
+    pub table: String,
 }
 
 /// Deserializes a timeout given in seconds into a `Duration`, rejecting zero so
