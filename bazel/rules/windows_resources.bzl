@@ -12,13 +12,14 @@ We still resolve the CC toolchain to get the correct PATH for gcc itself.
 load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
 load("@rules_cc//cc:defs.bzl", "cc_common")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("//bazel/rules:version_info.bzl", "agent_version_defines")
 
 _WINDRES = "@winlibs_mingw64//:windres"
 _WINDMC = "@winlibs_mingw64//:windmc"
 
 def _cc_env(ctx):
-    """Returns (env, cc_toolchain) from the resolved CC toolchain."""
+    """Returns (env, cc_toolchain, feature_configuration) from the resolved CC toolchain."""
     cc_toolchain = find_cc_toolchain(ctx)
     feature_configuration = cc_common.configure_features(
         ctx = ctx,
@@ -31,7 +32,33 @@ def _cc_env(ctx):
         action_name = C_COMPILE_ACTION_NAME,
         variables = cc_common.empty_variables(),
     )
-    return env, cc_toolchain
+    return env, cc_toolchain, feature_configuration
+
+def _syso_cc_info(ctx, name, syso_out, cc_toolchain, feature_configuration):
+    """Wraps a .syso object file in a CcInfo so cc/rust link_deps can consume it.
+
+    cc_common.create_library_to_link requires a prebuilt static/dynamic library
+    artifact -- it can't wrap a bare object file on its own. Archiving the
+    object via create_linking_context_from_compilation_outputs (the same path
+    cc_library uses for precompiled .o srcs) sidesteps that.
+
+    create_compilation_outputs only accepts objects named *.o/.obj/.opb/.bc, but
+    the .syso extension is load-bearing for Go's build (it auto-links
+    *_windows.syso files), so we symlink a .o-suffixed alias for cc_common's sake
+    rather than renaming the actual windres output.
+    """
+    obj_alias = ctx.actions.declare_file(name + "_syso_alias.o")
+    ctx.actions.symlink(output = obj_alias, target_file = syso_out)
+    compilation_outputs = cc_common.create_compilation_outputs(objects = depset([obj_alias]))
+    linking_context, _linking_outputs = cc_common.create_linking_context_from_compilation_outputs(
+        actions = ctx.actions,
+        name = name,
+        feature_configuration = feature_configuration,
+        cc_toolchain = cc_toolchain,
+        compilation_outputs = compilation_outputs,
+        disallow_dynamic_library = True,
+    )
+    return CcInfo(linking_context = linking_context)
 
 # --- win_messagetable ---------------------------------------------------------
 
@@ -63,7 +90,7 @@ def _win_messagetable_impl(ctx):
 
     syso_name = basename + ".syso"
     syso_out = ctx.actions.declare_file(syso_name)
-    env, cc_toolchain = _cc_env(ctx)
+    env, cc_toolchain, feature_configuration = _cc_env(ctx)
 
     windres_args = ctx.actions.args()
     windres_args.add("--use-temp-file")
@@ -82,7 +109,8 @@ def _win_messagetable_impl(ctx):
         progress_message = "Linking message resource %s" % rc_out.short_path,
     )
 
-    return [DefaultInfo(files = depset([syso_out, h_out]))]
+    cc_info = _syso_cc_info(ctx, ctx.label.name, syso_out, cc_toolchain, feature_configuration)
+    return [DefaultInfo(files = depset([syso_out, h_out])), cc_info]
 
 _win_messagetable = rule(
     implementation = _win_messagetable_impl,
@@ -119,7 +147,7 @@ def _win_resource_impl(ctx):
     syso_name = "%s.syso" % ctx.label.name
     syso_out = ctx.actions.declare_file(syso_name)
 
-    env, cc_toolchain = _cc_env(ctx)
+    env, cc_toolchain, feature_configuration = _cc_env(ctx)
 
     windres_args = ctx.actions.args()
     windres_args.add("--use-temp-file")
@@ -147,7 +175,8 @@ def _win_resource_impl(ctx):
         progress_message = "Linking resource %s" % src.short_path,
     )
 
-    return [DefaultInfo(files = depset([syso_out]))]
+    cc_info = _syso_cc_info(ctx, ctx.label.name, syso_out, cc_toolchain, feature_configuration)
+    return [DefaultInfo(files = depset([syso_out])), cc_info]
 
 _win_resource = rule(
     implementation = _win_resource_impl,
