@@ -17,16 +17,3 @@ win_messagetable(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
 )
-
-go_library(
-    name = "messagestrings",
-    srcs = [
-        # keep
-        ":messagetable",
-        "messages.go",
-    ],
-    cgo = True,
-    importpath = "github.com/DataDog/datadog-agent/cme/trace-agent/windows/resources",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
-    visibility = ["//visibility:public"],
-)
