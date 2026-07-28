@@ -42,7 +42,6 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -98,7 +97,6 @@ type AutoConfig struct {
 	providerCatalog          map[string]providerTypes.ConfigProviderFactory
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
-	taggerSubscription       taggertypes.Subscription
 	logs                     logComp.Component
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
@@ -266,23 +264,10 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
-		case events := <-ac.taggerEvents():
-			for _, event := range events {
-				ac.processTaggerUpdate(event)
-			}
 		case origin := <-ac.refreshConfig:
 			ac.processRefreshConfig(origin)
 		}
 	}
-}
-
-// taggerEvents returns the subscription channel, or nil when tagger updates
-// are unavailable. A nil channel disables this select case.
-func (ac *AutoConfig) taggerEvents() <-chan []taggertypes.EntityEvent {
-	if ac.taggerSubscription == nil {
-		return nil
-	}
-	return ac.taggerSubscription.EventsChan()
 }
 
 func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
@@ -381,12 +366,6 @@ func (ac *AutoConfig) start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
 	setupAcErrors()
-	filter := taggertypes.NewFilterBuilder().Include(taggertypes.ContainerID).Build(taggertypes.ChecksConfigCardinality)
-	if subscription, err := ac.taggerComp.Subscribe("autodiscovery", filter); err != nil {
-		log.Debugf("autodiscovery: unable to subscribe to tagger updates: %v", err)
-	} else {
-		ac.taggerSubscription = subscription
-	}
 	// Start the service listener
 	go ac.serviceListening()
 	ac.cfgMgr.start()
@@ -437,9 +416,6 @@ func (ac *AutoConfig) stop() {
 	// stop all the listeners
 	for _, l := range ac.listeners {
 		l.Stop()
-	}
-	if ac.taggerSubscription != nil {
-		ac.taggerSubscription.Unsubscribe()
 	}
 }
 
@@ -764,20 +740,6 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
-}
-
-func (ac *AutoConfig) processTaggerUpdate(event taggertypes.EntityEvent) {
-	entityID := event.Entity.ID
-	if entityID.GetPrefix() != taggertypes.ContainerID {
-		return
-	}
-
-	for svcID := range ac.cfgMgr.getActiveServices() {
-		if strings.HasSuffix(svcID, "://"+entityID.GetID()) {
-			ac.applyChanges(ac.cfgMgr.processServiceUpdate(svcID))
-			return
-		}
-	}
 }
 
 // processRefreshConfig takes a secret origin and matches it against an active config. If found

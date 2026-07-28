@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -58,6 +60,7 @@ type workloadmetaListenerImpl struct {
 	delService chan<- Service
 
 	telemetryStore *telemetry.Store
+	clock          clock.Clock
 
 	isReadyFn       func(workloadmeta.Entity) bool // when nil, consider ready
 	pendingEntities map[string]pendingEntityInfo   // svcID → pending info
@@ -91,6 +94,7 @@ func newWorkloadmetaListener(
 		children: make(map[string]map[string]struct{}),
 
 		telemetryStore: telemetryStore,
+		clock:          clock.New(),
 	}, nil
 }
 
@@ -168,10 +172,10 @@ func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- S
 	log.Infof("%s initialized successfully", l.name)
 
 	go func() {
-		var retryTicker *time.Ticker
+		var retryTicker *clock.Ticker
 		var retryChan <-chan time.Time
 		if l.isReadyFn != nil {
-			retryTicker = time.NewTicker(tagCompletenessRetryInterval)
+			retryTicker = l.clock.Ticker(tagCompletenessRetryInterval)
 			retryChan = retryTicker.C
 		}
 
@@ -275,7 +279,7 @@ func (l *workloadmetaListenerImpl) waitIfNotReady(svcID string, entity workloadm
 		return false
 	}
 
-	now := time.Now()
+	now := l.clock.Now()
 
 	pending, exists := l.pendingEntities[svcID]
 	if !exists {
@@ -306,7 +310,7 @@ func (l *workloadmetaListenerImpl) resolvePending(svcID string) {
 		return
 	}
 
-	delay := time.Since(pending.firstSeen).Seconds()
+	delay := l.clock.Since(pending.firstSeen).Seconds()
 	if l.telemetryStore != nil {
 		l.telemetryStore.TagCompletenessDelay.Observe(delay, l.name)
 	}

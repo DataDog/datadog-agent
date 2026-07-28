@@ -37,7 +37,6 @@ go_library(
         "//comp/core/secrets/utils",
         "//comp/core/status",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",

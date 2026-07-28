@@ -36,9 +36,6 @@ type configManager interface {
 	// processNewService handles a new service
 	processNewService(svc listeners.Service) integration.ConfigChanges
 
-	// processServiceUpdate re-resolves the configs for an already tracked service.
-	processServiceUpdate(svcID string) integration.ConfigChanges
-
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
 	processDelService(svc listeners.Service) integration.ConfigChanges
@@ -187,30 +184,6 @@ func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) int
 	changes := cm.reconcileService(svcID)
 
 	//  4. update scheduledConfigs
-	return cm.applyChanges(changes)
-}
-
-// processServiceUpdate re-resolves all configs for a service whose tagger data
-// changed. Resolved configs contain a snapshot of the service tags, so keeping
-// the old resolutions would keep checks running with stale tags.
-func (cm *reconcilingConfigManager) processServiceUpdate(svcID string) integration.ConfigChanges {
-	cm.m.Lock()
-	defer cm.m.Unlock()
-
-	if _, found := cm.activeServices[svcID]; !found {
-		return integration.ConfigChanges{}
-	}
-
-	var changes integration.ConfigChanges
-	if existing, found := cm.serviceResolutions[svcID]; found {
-		for _, resolvedDigest := range existing {
-			if resolved, ok := cm.scheduledConfigs[resolvedDigest]; ok {
-				changes.UnscheduleConfig(resolved)
-			}
-		}
-		delete(cm.serviceResolutions, svcID)
-	}
-	changes.Merge(cm.reconcileService(svcID))
 	return cm.applyChanges(changes)
 }
 
