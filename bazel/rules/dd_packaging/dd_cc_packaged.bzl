@@ -25,7 +25,7 @@ def _dd_packaged_files_impl(ctx):
             ctx,
             inputs = inputs,
             rpath = rpath,
-            relative = ctx.attr._relative_rpaths[BuildSettingInfo].value,
+            relative = ctx.attr.use_relative_rpaths,
         )
 
         for out in outputs:
@@ -48,7 +48,7 @@ _dd_packaged_files_rule = rule(
             default = "{install_dir}/embedded/lib",
         ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
-        "_relative_rpaths": attr.label(default = "@@//:relative_rpaths"),
+        "use_relative_rpaths": attr.bool(mandatory = True),
     },
     toolchains = [
         "//bazel/toolchains/rpath_rewriter",
@@ -99,11 +99,16 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
     patched_name = "{}_patched".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
+    use_relative_rpaths = select({
+        "@platforms//os:macos": True,
+        "//conditions:default": False,
+    })
 
     rewrite_rpath(
         name = patched_name,
         inputs = [input],
         destination = "{install_dir}/embedded/" + package_dest_dir,
+        use_relative_rpaths = use_relative_rpaths,
         package_metadata = [],
     )
     extra_files = []
@@ -112,6 +117,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
         _dd_packaged_files_rule(
             name = exec_files_name,
             srcs = installed_executables,
+            use_relative_rpaths = use_relative_rpaths,
             package_metadata = [],
             visibility = visibility,
         )

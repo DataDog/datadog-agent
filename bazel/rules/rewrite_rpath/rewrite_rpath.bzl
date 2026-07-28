@@ -107,7 +107,7 @@ def _rewrite_rpath_impl(ctx):
         ctx,
         inputs = inputs,
         rpath = rpath,
-        relative = ctx.attr._relative_rpaths[BuildSettingInfo].value,
+        relative = ctx.attr.use_relative_rpaths,
     )))
 
 rewrite_rpath = rule(
@@ -130,13 +130,13 @@ rewrite_rpath = rule(
             Supports '{install_dir}' variable and is used only when relative rpaths are enabled.""",
             default = "{install_dir}/embedded/lib",
         ),
+        "use_relative_rpaths": attr.bool(
+            doc = "Whether rpaths should be relative.",
+            mandatory = True,
+        ),
         "_install_dir": attr.label(
             doc = "Private label used for the default rpath and destination",
             default = "@@//:install_dir",
-        ),
-        "_relative_rpaths": attr.label(
-            doc = "Private label used to decide whether rpaths should be relative",
-            default = "@@//:relative_rpaths",
         ),
     },
     toolchains = [_RPATH_REWRITER_TOOLCHAIN],
