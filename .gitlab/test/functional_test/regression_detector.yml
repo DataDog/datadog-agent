@@ -65,6 +65,38 @@ single_machine_performance-regression_detector-merge_base_check:
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
 
+    # If a release branch's own tip has no published image (e.g. a dormant
+    # release branch whose last image aged out of ECR), trigger a full
+    # pipeline on that branch to rebuild it. This can't rescue the current
+    # run -- a rebuild takes far longer than this job's timeout -- but it
+    # means a developer can just re-run this job once the triggered
+    # pipeline finishes, instead of noticing the failure and rebuilding by
+    # hand. Best-effort: a failure here is logged and does not change this
+    # job's own pass/fail outcome.
+    #
+    # This intentionally only applies to release branches, not to dev
+    # branches targeting main. Rebuilding a base branch's own image this
+    # way costs two pipelines run in sequence -- the triggered rebuild,
+    # then a re-run of this pipeline to pick up the image it published --
+    # roughly double the wait. For a dev branch targeting main, that
+    # penalty isn't worth paying: main gets frequent commits, so the
+    # merge-base with main almost always already has an image in ECR from
+    # some other recent PR, and if it doesn't, merging or rebasing onto an
+    # up-to-date main is a single pipeline, not two. Release branches
+    # don't have that option -- they can go long stretches without a
+    # commit, so their tip image can go stale with no cheaper way to
+    # refresh it than rebuilding it directly.
+    - |
+      if [[ "$SMP_BASE_BRANCH" =~ ^[0-9]+\.[0-9]+\.x$ ]] && [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]; then
+          echo "No image published for ${SMP_BASE_BRANCH} tip (${BASELINE_SHA}) -- triggering a pipeline on ${SMP_BASE_BRANCH} to rebuild it"
+          curl --silent --show-error --fail \
+              --request POST \
+              --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+              --data "ref=${SMP_BASE_BRANCH}" \
+              "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipeline" \
+            || echo "WARNING: failed to trigger rebuild pipeline on ${SMP_BASE_BRANCH} -- a developer will need to trigger one manually"
+      fi
+
     # Check if image exists for the baseline SHA, walking backwards on the
     # commit graph until a container corresponding to the possible baseline is
     # found, or the possible baseline commit is too old. If the commit is too
