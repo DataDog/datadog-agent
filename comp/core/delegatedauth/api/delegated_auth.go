@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -48,11 +49,33 @@ const (
 // "subdomain" label.
 var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?(?:[^./]+\.)+?((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
 
+// hostOnly extracts just the host (no scheme, no path/query, no fragment) from endpoint so
+// domainURLRegexp - which expects a bare hostname - can be matched against it even when endpoint
+// carries a path. This is the normal shape of some additional_endpoints-style config keys (e.g.
+// apm_config.profiling_additional_endpoints uses full URLs like
+// "https://intake.profile.datadoghq.eu/api/v2/profile" as map keys). If endpoint has no scheme, one
+// is added temporarily so url.Parse treats the string as an authority rather than a path. If
+// endpoint can't be parsed as a URL at all, it is returned unchanged so the caller can fall back to
+// matching the raw string directly (preserving prior behavior for unusual inputs).
+func hostOnly(endpoint string) string {
+	raw := endpoint
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return endpoint
+	}
+	return u.Host
+}
+
 // getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., api.datad0g.com)
-// for known Datadog domains. This ensures API operations use the correct subdomain.
+// for known Datadog domains. This ensures API operations use the correct subdomain. endpoint may be
+// a bare hostname, a full URL, or a full URL with a path - only the host is matched against the
+// known Datadog domain pattern.
 // If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged with a debug log.
 func getAPIDomain(endpoint string) string {
-	matches := domainURLRegexp.FindStringSubmatch(endpoint)
+	matches := domainURLRegexp.FindStringSubmatch(hostOnly(endpoint))
 	if matches == nil {
 		// Not a known Datadog domain pattern - this could be a custom endpoint or unexpected format
 		log.Debugf("Endpoint '%s' does not match known Datadog domain pattern, using unchanged", endpoint)

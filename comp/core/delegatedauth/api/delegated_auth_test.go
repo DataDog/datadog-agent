@@ -240,6 +240,24 @@ func TestGetAPIDomain(t *testing.T) {
 			endpoint: "https://agent.datadoghq.com/",
 			want:     "https://api.datadoghq.com",
 		},
+		// Regression: map-shaped additional_endpoints entries can be full URLs with a path (e.g.
+		// apm_config.profiling_additional_endpoints uses the full intake URL, path included, as
+		// its map key). The regex must be matched against the host only, not the whole URL.
+		{
+			name:     "path-shaped endpoint (profiling intake URL)",
+			endpoint: "https://intake.profile.datadoghq.eu/api/v2/profile",
+			want:     "https://api.datadoghq.eu",
+		},
+		{
+			name:     "path-shaped endpoint with regional prefix",
+			endpoint: "https://agent-http-intake.logs.us3.datadoghq.com/v1/input",
+			want:     "https://api.us3.datadoghq.com",
+		},
+		{
+			name:     "custom domain with path unchanged",
+			endpoint: "https://custom.example.com/some/path",
+			want:     "https://custom.example.com/some/path",
+		},
 	}
 
 	for _, tt := range tests {
