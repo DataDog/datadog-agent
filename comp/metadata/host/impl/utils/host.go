@@ -87,25 +87,26 @@ type OtlpMeta struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Os            string            `json:"os"`
-	AgentFlavor   string            `json:"agent-flavor"`
-	PythonVersion string            `json:"python"`
-	SystemStats   *systemStats      `json:"systemStats"`
-	Meta          *Meta             `json:"meta"`
-	HostTags      *hosttags.Tags    `json:"host-tags"`
-	ContainerMeta map[string]string `json:"container-meta,omitempty"`
-	NetworkMeta   *NetworkMeta      `json:"network"`
-	LogsMeta      *LogsMeta         `json:"logs"`
-	InstallMethod *InstallMethod    `json:"install-method"`
-	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
-	OtlpMeta      *OtlpMeta         `json:"otlp"`
-	FipsMode      bool              `json:"fips_mode"`
+	Os               string            `json:"os"`
+	AgentFlavor      string            `json:"agent-flavor"`
+	PythonVersion    string            `json:"python"`
+	SystemStats      *systemStats      `json:"systemStats"`
+	Meta             *Meta             `json:"meta"`
+	HostTags         *hosttags.Tags    `json:"host-tags"`
+	ContainerMeta    map[string]string `json:"container-meta,omitempty"`
+	NetworkMeta      *NetworkMeta      `json:"network"`
+	LogsMeta         *LogsMeta         `json:"logs"`
+	InstallMethod    *InstallMethod    `json:"install-method"`
+	ProxyMeta        *ProxyMeta        `json:"proxy-info"`
+	OtlpMeta         *OtlpMeta         `json:"otlp"`
+	FipsMode         bool              `json:"fips_mode"`
+	FipsProxyEnabled bool              `json:"fips_proxy_enabled"`
 }
 
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
 	nid, err := network.GetNetworkID(ctx)
 	if err != nil {
-		log.Infof("could not get network metadata: %s", err)
+		log.Debugf("could not get network metadata: %s", err)
 		return nil
 	}
 
@@ -172,6 +173,10 @@ func getFipsMode() bool {
 	return false
 }
 
+func isFipsProxyEnabled(conf model.Reader) bool {
+	return conf.GetBool("fips.enabled") && !getFipsMode()
+}
+
 // GetOSVersion returns the current OS version
 func GetOSVersion() string {
 	hostInfo := hostinfoutils.GetInformation()
@@ -191,19 +196,20 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 	meta.Hostname = hostnameData.Hostname
 
 	p := &Payload{
-		Os:            osName,
-		AgentFlavor:   flavor.GetFlavor(),
-		PythonVersion: python.GetPythonInfo(),
-		SystemStats:   getSystemStats(),
-		Meta:          meta,
-		HostTags:      hosttags.Get(ctx, false, conf),
-		ContainerMeta: containerMetadata.Get(1 * time.Second),
-		NetworkMeta:   getNetworkMeta(ctx),
-		LogsMeta:      getLogsMeta(conf),
-		InstallMethod: getInstallMethod(conf),
-		ProxyMeta:     getProxyMeta(conf),
-		OtlpMeta:      &OtlpMeta{Enabled: otlpIsEnabled(conf)},
-		FipsMode:      getFipsMode(),
+		Os:               osName,
+		AgentFlavor:      flavor.GetFlavor(),
+		PythonVersion:    python.GetPythonInfo(),
+		SystemStats:      getSystemStats(),
+		Meta:             meta,
+		HostTags:         hosttags.Get(ctx, false, conf),
+		ContainerMeta:    containerMetadata.Get(1 * time.Second),
+		NetworkMeta:      getNetworkMeta(ctx),
+		LogsMeta:         getLogsMeta(conf),
+		InstallMethod:    getInstallMethod(conf),
+		ProxyMeta:        getProxyMeta(conf),
+		OtlpMeta:         &OtlpMeta{Enabled: otlpIsEnabled(conf)},
+		FipsMode:         getFipsMode(),
+		FipsProxyEnabled: isFipsProxyEnabled(conf),
 	}
 
 	// Cache the metadata for use in other payloads

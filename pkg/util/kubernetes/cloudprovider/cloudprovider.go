@@ -9,6 +9,7 @@ import (
 	"context"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -24,6 +25,10 @@ var (
 // GetName returns the name of the kube distribution for the current node.
 // GetName shouldn't be used on DCA. For DCA please refer to DCAGetName.
 func GetName(ctx context.Context) (string, error) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
+		return "", nil
+	}
+
 	cacheKey := cache.BuildAgentKey(constants.NodeKubeDistributionKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
 		return cloudProvider.(string), nil

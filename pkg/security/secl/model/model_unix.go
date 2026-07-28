@@ -20,10 +20,8 @@ import (
 
 	"github.com/google/gopacket"
 
-	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -395,9 +393,6 @@ type Process struct {
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
-
 	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
@@ -425,7 +420,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
+	Tracer Tracer `field:"-"`
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -659,6 +654,8 @@ type OpenEvent struct {
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 
+	SampleCookie uint32 `field:"-"`
+
 	// Syscall context aliases
 	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 	SyscallFlags uint32 `field:"syscall.flags,ref:open.syscall.int2"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
@@ -885,19 +882,27 @@ type NetworkDeviceContext struct {
 type BindEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Bound address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr         IPPortContext `field:"addr"`        // Bound address
+	AddrFamily   uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol     uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	SampleCookie uint32        `field:"-"`
 }
 
 // ConnectEvent represents a connect event
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                                          // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr         IPPortContext `field:"addr"`                                                                          // Connection address
+	Hostnames    []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily   uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol     uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
+	SampleCookie uint32        `field:"-"`
+}
+
+// SampleRefreshEvent is a lightweight internal event sent when a dedup map
+// detects a duplicate and wants to refresh the cookie timestamp in userspace.
+type SampleRefreshEvent struct {
+	Cookie uint32
 }
 
 // AcceptEvent represents an accept event

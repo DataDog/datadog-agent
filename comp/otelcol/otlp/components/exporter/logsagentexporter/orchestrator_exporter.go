@@ -42,6 +42,9 @@ func newOrchestratorExporter(config OrchestratorConfig) orchestratorExporter {
 }
 
 func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	result := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger)
 
 	hostname, err := e.orchestratorExporter.config.Hostname.Get(ctx)

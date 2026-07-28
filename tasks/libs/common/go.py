@@ -15,6 +15,8 @@ from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
+from tasks.libs.build.bazel import bazel
+from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
 
@@ -97,22 +99,19 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
-def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str]:
     """
     Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
     build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
     build image's default mingw is ld 2.43, whose `--pdb` output those tools
-    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+    can't parse (WINA-2770).
 
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
-    # bazel fetch is idempotent: it extracts @winlibs_mingw64 only if missing.
-    if not ctx.run("bazelisk fetch --repo=@winlibs_mingw64", hide=True, warn=True).ok:
-        return env
-    res = ctx.run("bazelisk info output_base", hide=True, warn=True)
-    if not res.ok:
-        return env
-    mingw_bin = f"{res.stdout.strip()}/external/+winlibs_mingw_repository+winlibs_mingw64/bin"
+    # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
+    gcc = bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
+    output_base = bazel(ctx, "info", "output_base", capture_output=True).strip()
+    mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
 
@@ -134,6 +133,10 @@ def go_build(
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
+    if check_deadcode and sys.platform == "aix":
+        print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
+        check_deadcode = False
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
@@ -165,7 +168,7 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{' '.join(build_tags)}\""
+        cmd += f" -tags \"{','.join(build_tags)}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:
@@ -208,74 +211,27 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     _ = runner.input_sleep  # please linters
 
     # -dumpdep is very verbose so we hide that
-    # any unrecognized log line is shown by whydeadcode anyway
     result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
 
-    # worst case it's already installed and nothing happens
-    with ctx.cd("internal/tools"):
-        # pass the env to the command so that it can check GOPATH/GOBIN if provided
-        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
-
-    # whydeadcode prints unexpected input on stderr (eg. build warnings), and
-    # dead code call stack on stdout
-    # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
+    # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
+    # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
-    whydeadcoderes = cast(
-        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
+    whydeadcode_out = bazel(
+        runner,
+        "run",
+        *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
+        "@com_github_aarzilli_whydeadcode//:whydeadcode",
+        "--",
+        "--ignore-unrecognized-input",
+        input_stream=CustomReader(result.stderr),
+        capture_output=True,
     )
-    arch = platform.machine()
-    osname = sys.platform
-    dce_enabled = not bool(whydeadcoderes.stdout)
-    if not dce_enabled:
+    if whydeadcode_out:
         print(
-            f"dead code elimination is disabled for {name} on {osname} {arch} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
         )
 
-    _emit_dce_metric(name, dce_enabled, osname, arch)
-
     return result
-
-
-def _emit_dce_metric(name: str, dce_enabled: bool, osname: str, arch: str) -> None:
-    """Emit a gauge metric for dead code elimination status. Only runs in CI on the main branch."""
-    from tasks.libs.common.utils import running_in_ci
-
-    if not running_in_ci():
-        return
-    if os.environ.get("CI_COMMIT_BRANCH") != "main":
-        return
-
-    import datetime
-
-    from tasks.libs.common.datadog_api import create_gauge, send_metrics
-
-    tags = [
-        f"binary:{name}",
-        f"os:{osname}",
-        f"arch:{arch}",
-    ]
-    for env_var, tag_name in [
-        ("BUCKET_BRANCH", "bucket_branch"),
-        ("CI_COMMIT_REF_NAME", "git_ref"),
-        ("CI_PIPELINE_ID", "pipeline_id"),
-        ("CI_COMMIT_SHA", "ci_commit_sha"),
-    ]:
-        value = os.environ.get(env_var)
-        if value:
-            tags.append(f"{tag_name}:{value}")
-
-    timestamp = int(datetime.datetime.utcnow().timestamp())
-    metric = create_gauge(
-        "datadog.agent.go.dead_code_elimination.enabled",
-        timestamp,
-        1 if dce_enabled else 0,
-        tags=tags,
-    )
-
-    try:
-        send_metrics([metric])
-    except Exception as e:
-        print(f"[WARN] Failed to send DCE metric to Datadog: {e}", file=sys.stderr)
 
 
 class CustomReader(io.StringIO):

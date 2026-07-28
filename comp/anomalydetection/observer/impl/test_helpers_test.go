@@ -71,9 +71,10 @@ type dynamicCorrelator struct {
 	currentIndex int
 }
 
-func (c *dynamicCorrelator) Name() string                         { return "dynamic_correlator" }
-func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *dynamicCorrelator) Advance(_ int64)                      {}
+func (c *dynamicCorrelator) Name() string                                 { return "dynamic_correlator" }
+func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *dynamicCorrelator) Advance(_ int64)                              {}
+func (c *dynamicCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{
 		{
@@ -84,15 +85,6 @@ func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation
 	}
 }
 func (c *dynamicCorrelator) Reset() { c.currentIndex = 0 }
-
-// noopLogExtractor is a LogMetricsExtractor that returns no metrics.
-// This simulates a log at a timestamp that produces no virtual metrics.
-type noopLogExtractor struct{}
-
-func (e *noopLogExtractor) Name() string { return "noop_extractor" }
-func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	return observerdef.LogMetricsExtractorOutput{}
-}
 
 type sharedTagsExtractor struct{}
 

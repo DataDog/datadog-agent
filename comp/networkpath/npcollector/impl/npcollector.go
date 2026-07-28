@@ -82,8 +82,10 @@ type npCollectorImpl struct {
 	TimeNowFn func() time.Time
 
 	networkDevicesNamespace string
+	filterMutex             sync.RWMutex
 	filter                  *connfilter.ConnFilter
 	localIPs                *localIPCache
+	remoteConfigState       dynamicRemoteConfigState
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -204,41 +206,49 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 	return true
 }
 
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) bool {
+type pathEvaluation struct {
+	shouldSchedule bool
+	testConfigID   string
+}
+
+func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) pathEvaluation {
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
-		return false
+		return pathEvaluation{}
 	}
 	if conn.SystemProbeConn {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1)
-		return false
+		return pathEvaluation{}
 	}
 	if conn.Direction != model.ConnectionDirection_outgoing {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1)
-		return false
+		return pathEvaluation{}
 	}
 	// only ipv4 is supported currently
 	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
 	if conn.Domain == "" && conn.Family != model.ConnectionFamily_v4 {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1)
-		return false
+		return pathEvaluation{}
 	}
 
 	if s.shouldSkipNetflowAgentSource(conn, origin) {
-		return false
+		return pathEvaluation{}
 	}
 
 	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1)
-		return false
+		return pathEvaluation{}
 	}
 
-	if !s.filter.IsIncluded(conn.Domain, conn.Dest.Addr()) {
+	s.filterMutex.RLock()
+	included, testConfigID := s.filter.Evaluate(conn.Domain, conn.Dest.Addr())
+	s.filterMutex.RUnlock()
+	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
-		return false
+		return pathEvaluation{}
 	}
 
-	return true
+	return pathEvaluation{shouldSchedule: true, testConfigID: testConfigID}
 }
 
 func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) bool {
@@ -303,11 +313,16 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		if !s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets) {
+		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
+		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		pathtest.TestConfigID = evaluation.testConfigID
+		if evaluation.testConfigID != "" {
+			pathtest.TestConfigSource = payload.TestConfigSourceRemote
+		}
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -391,17 +406,18 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 
 	cfg := config.Config{
-		DestHostname:              ptest.Pathtest.Hostname,
-		DestPort:                  ptest.Pathtest.Port,
-		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
-		Timeout:                   s.collectorConfigs.timeout,
-		Protocol:                  ptest.Pathtest.Protocol,
-		TCPMethod:                 s.collectorConfigs.tcpMethod,
-		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
-		DisableWindowsDriver:      s.collectorConfigs.disableWindowsDriver,
-		ReverseDNS:                false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
-		TracerouteQueries:         s.collectorConfigs.tracerouteQueries,
-		E2eQueries:                s.collectorConfigs.e2eQueries,
+		DestHostname:                    ptest.Pathtest.Hostname,
+		DestPort:                        ptest.Pathtest.Port,
+		MaxTTL:                          uint8(s.collectorConfigs.maxTTL),
+		Timeout:                         s.collectorConfigs.timeout,
+		Protocol:                        ptest.Pathtest.Protocol,
+		TCPMethod:                       s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode:       s.collectorConfigs.tcpSynParisTracerouteMode,
+		DisableWindowsDriver:            s.collectorConfigs.disableWindowsDriver,
+		DisableSourcePublicIPCollection: s.collectorConfigs.disableSourcePublicIPCollection,
+		ReverseDNS:                      false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
+		TracerouteQueries:               s.collectorConfigs.tracerouteQueries,
+		E2eQueries:                      s.collectorConfigs.e2eQueries,
 	}
 
 	s.logger.Debugf("Running traceroute with config: %+v", cfg)
@@ -425,6 +441,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 	path.Origin = ptest.Pathtest.Origin
 	path.TestRunType = payload.TestRunTypeDynamic
+	path.TestConfigID = ptest.Pathtest.TestConfigID
+	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
 		path.SourceProduct = payload.SourceProductNetflow

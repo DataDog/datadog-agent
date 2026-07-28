@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -100,7 +102,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// check that the pip package is still installed
 	s.checkPipPackageInstalled(vm, pipPackage)
@@ -417,7 +419,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	s.Require().NoError(err, "should write file")
 
 	// check to see if datadog-ping==1.0.2 is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// upgrade again without failure
 	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
@@ -432,7 +434,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		s.T().FailNow()
 	}
 
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	s.uninstallAgent()
 
@@ -515,7 +517,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// check that the pip package is still installed
 	s.checkPipPackageInstalled(vm, pipPackage)
@@ -613,12 +615,35 @@ func (s *baseAgentMSISuite) getInstalledIntegrations(vm *components.RemoteHost) 
 	return out, nil
 }
 
-func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
+func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string, msiLogFile string) {
 	out, err := s.getInstalledIntegrations(vm)
 	s.Require().NoError(err, "should get installed integrations")
 
 	// we use strings.Contains to limit output on failure
-	assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed")
+	if !assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed") {
+		// Check the MSI log for known transient failure modes to aid investigation
+		if content, readErr := readMSILog(msiLogFile); readErr == nil {
+			for _, line := range strings.Split(content, "\n") {
+				if strings.Contains(line, "DownloadHTTPError") {
+					s.T().Logf("NOTE: %s: TUF DownloadHTTPError detected — the post-upgrade integration restore failed because the download service was temporarily unavailable. This is a transient infrastructure flake unrelated to the MSI code. For a permanent fix, contact agent-delivery/agent-integrations.\n  %s", filepath.Base(msiLogFile), strings.TrimSpace(line))
+				}
+			}
+		}
+	}
+}
+
+// readMSILog reads an MSI log file and returns its contents as a UTF-8 string.
+// MSI log files are written in UTF-16LE with a BOM.
+func readMSILog(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	decoded, _, err := transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), data)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
 }
 
 func (s *baseAgentMSISuite) checkIntegrationNotInstalled(vm *components.RemoteHost, integration string) {

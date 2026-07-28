@@ -1006,9 +1006,47 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 	assert.Equal(t, linkName, "valid_name")
 }
 
+// TestNormalizeTraceChunkV1TraceIDLength verifies that normalizeTraceChunkV1
+// coerces a chunk TraceID to exactly 16 bytes, so downstream fixed-offset slices
+// (LegacyTraceID's TraceID[8:], the probabilistic sampler's TraceID[:8]) cannot
+// panic on a malformed/truncated v1.0 payload. A short ID is right-aligned
+// (big-endian zero-pad), an over-long ID keeps its low-order 16 bytes.
+func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want []byte
+	}{
+		{"empty", []byte{}, make([]byte, 16)},
+		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}},
+		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &Agent{conf: config.New()}
+			ts := newTagStats()
+			st := idx.NewStringTable()
+			chunk := &idx.InternalTraceChunk{
+				Strings: st,
+				TraceID: tc.tid,
+				Spans:   []*idx.InternalSpan{newTestSpanV1(st)},
+			}
+			require.NoError(t, a.normalizeTraceChunkV1(ts, chunk))
+			assert.Len(t, chunk.TraceID, 16)
+			assert.Equal(t, tc.want, chunk.TraceID)
+			// Downstream fixed-offset slices must not panic after normalization.
+			assert.NotPanics(t, func() {
+				_ = chunk.LegacyTraceID()
+				_ = chunk.TraceID[:8]
+			})
+		})
+	}
+}
+
 func TestNormalizeUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptDDEnv maps to "x.test.env" instead of "env".
-	customJSON := `{"version":"test","concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()

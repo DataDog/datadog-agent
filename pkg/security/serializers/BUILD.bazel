@@ -147,6 +147,7 @@ go_test(
             "//pkg/security/events",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/model/utils",
             "//pkg/security/secl/schemas",
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
@@ -157,6 +158,7 @@ go_test(
             "//pkg/security/events",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/model/utils",
             "//pkg/security/secl/schemas",
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
@@ -165,4 +167,15 @@ go_test(
         ],
         "//conditions:default": [],
     }),
+)
+
+# Expose all .go sources so //pkg/security/generators/backend_doc can read
+# them via AddGoComments when running as a Bazel run_binary tool.
+filegroup(
+    name = "serializers_sources",
+    srcs = glob(["*.go"]),
+    visibility = [
+        "//docs/cloud-workload-security:__pkg__",
+        "//pkg/security/generators/backend_doc:__pkg__",
+    ],
 )

@@ -39,7 +39,7 @@ var (
 		"python": "v4",
 		"ruby":   "v2",
 		"dotnet": "v3",
-		"js":     "v5",
+		"js":     "v6",
 		"php":    "v1",
 	}
 
@@ -166,6 +166,21 @@ func TestMutatePod(t *testing.T) {
 					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
 				},
 			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		// CSI mode has no init container, so the guard relies on the instrumentation volume that
+		// every mode adds. Without this, a webhook reinvocation (e.g. on GKE Autopilot) would
+		// re-mutate the pod and append the injector to LD_PRELOAD twice.
+		"re-admission with CSI mode instrumentation volume already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: func() *corev1.Pod {
+				pod := mutatecommon.FakePodWithNamespace("foo-service", "application")
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: libraryinjection.InstrumentationVolumeName})
+				return pod
+			}(),
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
@@ -783,7 +798,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -839,7 +854,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),

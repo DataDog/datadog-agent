@@ -7,6 +7,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::desktop::config;
+pub use crate::desktop::config::DesktopMonitoringConfig;
+
 const CONFIG_BASENAME: &str = "ai_usage_native_host.yaml";
 const AI_USAGE_EVP_SUBDOMAIN: &str = "softinv-intake";
 const AI_USAGE_EVP_PATH: &str = "/api/v2/aiusage";
@@ -31,6 +34,28 @@ struct AiUsageNativeHostFile {
     evp_proxy_api_version: Option<u32>,
     #[serde(default)]
     ai_usage_evp_subdomain: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AiProcessConfig {
+    pub process_names: Vec<String>,
+    pub tool: String,
+    pub provider: String,
+    #[serde(default)]
+    pub match_scope: AiProcessMatchScope,
+    #[serde(default)]
+    pub approved: bool,
+    #[serde(default)]
+    pub secondary: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AiProcessMatchScope {
+    Direct,
+    HostedChild,
+    #[default]
+    Both,
 }
 
 impl DatadogClient {
@@ -58,47 +83,33 @@ impl DatadogClient {
         let mut evp_subdomain = AI_USAGE_EVP_SUBDOMAIN.to_string();
 
         let yaml_path: Option<PathBuf> = if let Some(ref p) = config_path {
-            if p.is_file() {
-                Some(p.clone())
-            } else {
-                eprintln!(
-                    "[datadog] warning: --config path is not a readable file: {}",
-                    p.display()
-                );
-                None
-            }
+            if p.is_file() { Some(p.clone()) } else { None }
         } else {
             Self::yaml_config_path()
         };
 
-        if let Some(ref yaml_path) = yaml_path {
-            if let Ok(contents) = fs::read_to_string(yaml_path) {
-                Self::apply_yaml(
-                    &contents,
-                    &mut agent_base,
-                    &mut proxy_version,
-                    &mut evp_subdomain,
-                );
-            } else {
-                eprintln!(
-                    "[datadog] warning: could not read config file: {}",
-                    yaml_path.display()
-                );
-            }
+        if let Some(ref yaml_path) = yaml_path
+            && let Ok(contents) = fs::read_to_string(yaml_path)
+        {
+            Self::apply_yaml(
+                &contents,
+                &mut agent_base,
+                &mut proxy_version,
+                &mut evp_subdomain,
+            );
         }
 
         let base = agent_base.trim_end_matches('/').to_string();
         let intake_url = format!("{}/evp_proxy/v{}{}", base, proxy_version, AI_USAGE_EVP_PATH);
 
-        eprintln!(
-            "[datadog] client initialised, agent_proxy_url={}, evp_subdomain={}",
-            intake_url, evp_subdomain
-        );
-
         Self {
             intake_url,
             evp_subdomain,
         }
+    }
+
+    pub fn load_desktop_monitoring_config(config_path: Option<PathBuf>) -> DesktopMonitoringConfig {
+        config::load_desktop_monitoring_config(config_path, Self::yaml_config_path)
     }
 
     fn apply_yaml(
@@ -198,32 +209,17 @@ impl DatadogClient {
     pub fn send_event(&self, payload: &AiUsageEvent) -> bool {
         let body = match Self::ai_usage_body(payload) {
             Ok(v) => v,
-            Err(e) => {
-                eprintln!("[datadog] failed to build AI usage payload: {}", e);
-                return false;
-            }
+            Err(_) => return false,
         };
 
-        match ureq::post(&self.intake_url)
+        ureq::post(&self.intake_url)
             .config()
             .timeout_global(Some(AGENT_REQUEST_TIMEOUT))
             .build()
             .header("Content-Type", "application/json")
             .header("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
             .send_json(&body)
-        {
-            Ok(resp) => {
-                eprintln!(
-                    "[datadog] AI usage event shipped via agent ({})",
-                    resp.status()
-                );
-                true
-            }
-            Err(e) => {
-                eprintln!("[datadog] failed to ship AI usage event via agent: {}", e);
-                false
-            }
-        }
+            .is_ok()
     }
 
     /// Build `{ ... }` for POST /api/v2/aiusage.
@@ -252,7 +248,6 @@ pub struct AiUsageEvent {
     pub detection_type: String,
     pub source: String,
     pub tool: String,
-    pub user_id: String,
     pub hostname: String,
     pub approved: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -261,10 +256,20 @@ pub struct AiUsageEvent {
 
 impl AiUsageEvent {
     /// Create a new event with the fixed fields pre-populated.
-    pub fn new(
+    pub fn new(detection_type: &str, tool: String, hostname: String, approved: bool) -> Self {
+        Self::new_with_source(
+            detection_type,
+            "browser_extension",
+            tool,
+            hostname,
+            approved,
+        )
+    }
+
+    pub fn new_with_source(
         detection_type: &str,
+        source: &str,
         tool: String,
-        user_id: String,
         hostname: String,
         approved: bool,
     ) -> Self {
@@ -272,9 +277,8 @@ impl AiUsageEvent {
             event_type: "ai_usage".to_string(),
             timestamp: Utc::now().to_rfc3339(),
             detection_type: detection_type.to_string(),
-            source: "browser_extension".to_string(),
+            source: source.to_string(),
             tool,
-            user_id,
             hostname,
             approved,
             provider: None,
@@ -296,13 +300,8 @@ mod tests {
 
     #[test]
     fn ai_usage_body_keeps_event_fields_at_top_level() {
-        let mut event = AiUsageEvent::new(
-            "observed",
-            "gemini".to_string(),
-            "user@example.com".to_string(),
-            "host-1".to_string(),
-            true,
-        );
+        let mut event =
+            AiUsageEvent::new("observed", "gemini".to_string(), "host-1".to_string(), true);
         event.provider = Some("Google".to_string());
 
         let body = DatadogClient::ai_usage_body(&event).expect("AI usage body should serialize");
@@ -320,6 +319,7 @@ mod tests {
             Some(&Value::String("Google".to_string()))
         );
         assert_eq!(body.get("approved"), Some(&Value::Bool(true)));
+        assert!(!body.contains_key("user_id"));
         assert!(!body.contains_key("message"));
         assert!(!body.contains_key("ddsource"));
         assert!(!body.contains_key("service"));

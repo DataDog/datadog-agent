@@ -38,7 +38,6 @@ _LIB_SRCS = glob(
 )
 
 _LIB_DEPS = [
-    ":cpp_stdlib",
     "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
     "@crates//:anyhow",
     "@crates//:hyper-util",
@@ -70,6 +69,7 @@ rust_library(
     srcs = _LIB_SRCS,
     crate_name = "dd_procmgrd",
     edition = "2024",
+    link_deps = [":cpp_stdlib"],
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -83,6 +83,7 @@ rust_library(
     crate_features = ["test-helpers"],
     crate_name = "dd_procmgrd",
     edition = "2024",
+    link_deps = [":cpp_stdlib"],
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = _LIB_DEPS,
@@ -174,6 +175,14 @@ rust_test(
         "@crates//:tempfile",
         "@crates//:tower",
     ],
+)
+
+rust_test(
+    name = "dd-procmgr_test",
+    crate = ":dd-procmgr",
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
 rust_test(

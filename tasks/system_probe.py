@@ -48,6 +48,7 @@ NPM_TAG = "npm"
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
+    "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
@@ -1240,7 +1241,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     }
 
     platform_flags = []
-    if arch.kmt_arch in platform_map:
+    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
@@ -1823,11 +1824,11 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
+def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False, ci: bool = False):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
-        go_parallelism = compute_go_parallelism(debug, ci=False)
+        go_parallelism = compute_go_parallelism(debug, ci=ci)
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",

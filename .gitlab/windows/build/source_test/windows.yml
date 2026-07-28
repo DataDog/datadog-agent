@@ -20,7 +20,6 @@
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
-      --storage-opt "size=100GB"
       -v "$(Get-Location):c:\mnt"
       -e DD_ENV=prod
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
@@ -48,8 +47,8 @@
       -e EXTRA_OPTS="${FAST_TESTS_FLAG}"
       -e TEST_WASHER=true
       -e GO_TEST_SKIP_FLAKE
-      -e API_KEY_ORG2
-      -e CODECOV_TOKEN
+      -e AGENT_API_KEY_ORG2
+      -e CODECOV
       -e S3_PERMANENT_ARTIFACTS_URI
       -e COVERAGE_CACHE_FLAG
       -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"
@@ -88,6 +87,7 @@ tests_windows-x64:
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true
@@ -117,6 +117,7 @@ tests_windows-x64:
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true

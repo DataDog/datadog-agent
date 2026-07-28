@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metriclookback",
+    srcs = [
+        "egress_controller.go",
+        "egress_policy.go",
+        "retention.go",
+        "sketch_projection.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//pkg/metriclookback/monitor",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/metrics",
+        "//pkg/serializer",
+    ],
+)
+
+go_test(
+    name = "metriclookback_test",
+    srcs = [
+        "egress_controller_test.go",
+        "egress_policy_test.go",
+        "retention_test.go",
+    ],
+    embed = [":metriclookback"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/metriclookback/monitor",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/metrics",
+        "//pkg/serializer/mocks",
+        "//pkg/tagset",
+        "//pkg/util/quantile",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

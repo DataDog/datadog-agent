@@ -181,7 +181,18 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
-	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// The admission can be re-run for the same pod (e.g. webhook reinvocation triggered by another
+	// mutating webhook, as happens on GKE Autopilot). Fast return if we injected the library
+	// already, otherwise we would mutate the pod a second time and, for instance, append the
+	// injector to LD_PRELOAD twice.
+	//
+	// The instrumentation volume is added by every injection mode (init_container, image_volume and
+	// CSI), so checking for it guards all modes. The CSI mode in particular has no init container,
+	// so the per-init-container checks below would miss it.
+	if containsVolume(pod, libraryinjection.InstrumentationVolumeName) {
+		log.Debugf("Instrumentation volume %q already exists in pod %q", libraryinjection.InstrumentationVolumeName, mutatecommon.PodString(pod))
+		return false, nil
+	}
 	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
@@ -514,6 +525,16 @@ func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]s
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	for _, container := range pod.Spec.InitContainers {
 		if container.Name == initContainerName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsVolume(pod *corev1.Pod, volumeName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == volumeName {
 			return true
 		}
 	}

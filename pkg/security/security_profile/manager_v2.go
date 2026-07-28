@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -48,6 +49,41 @@ type pendingProfile struct {
 	events    *list.List
 }
 
+// sampleCookieEntry maps a kernel dedup cookie to the profile and tree nodes it refreshes.
+type sampleCookieEntry struct {
+	profile       *profile.Profile
+	processNode   *activity_tree.ProcessNode
+	eventNodeBase *activity_tree.NodeBase
+	imageTag      string
+}
+
+// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + bind_samples + connect_samples)
+// so the cookie LRU can hold mappings for every possible dedup entry.
+const sampleCookieMapSize = 4096
+
+const (
+	metricSourceRuntime = iota
+	metricSourceReplay
+	metricSourceRelated
+	metricSourceCount
+)
+
+// insertionErrorKey identifies an unexpected activity-tree insertion failure by
+// event type and a bounded error-type label.
+type insertionErrorKey struct {
+	eventType model.EventType
+	errorType string
+}
+
+// perEventTypeMetrics holds the precomputed statsd tags and the counters for a
+// (source, event_type) pair.
+type perEventTypeMetrics struct {
+	tags            []string
+	eventsReceived  *atomic.Uint64
+	eventsImmediate *atomic.Uint64
+	eventsDropped   *atomic.Uint64
+}
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -63,6 +99,10 @@ type ManagerV2 struct {
 	pathsReducer *activity_tree.PathsReducer
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
+
+	insertionErrors map[insertionErrorKey]*atomic.Uint64
+
+	eventMetrics [metricSourceCount]map[model.EventType]*perEventTypeMetrics
 
 	// storage
 	localStorage              *storage.Directory
@@ -83,6 +123,12 @@ type ManagerV2 struct {
 	// Pending profile removals (selector -> time when removal was queued)
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
+
+	// Sample refresh: maps kernel dedup cookie → (process node, event node, imageTag)
+	sampleCookieMap       *lru.Cache[uint32, sampleCookieEntry]
+	sampleRefreshReceived *atomic.Uint64
+	sampleRefreshHits     *atomic.Uint64
+	sampleRefreshMisses   *atomic.Uint64
 
 	containerFilters workloadfilter.FilterBundle
 	imageExcluder    *imageExcluder
@@ -117,6 +163,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
+	cookieMap, _ := lru.New[uint32, sampleCookieEntry](sampleCookieMapSize)
+
 	var containerFilter workloadfilter.FilterBundle
 	if filterStore != nil {
 		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
@@ -146,19 +194,28 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		hostname:                  hostname,
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
+		sampleRefreshReceived:     atomic.NewUint64(0),
+		sampleRefreshHits:         atomic.NewUint64(0),
+		sampleRefreshMisses:       atomic.NewUint64(0),
 		containerFilters:          containerFilter,
 		imageExcluder:             imgExcluder,
 	}
 
 	m.initMetricsMap()
+	m.initEventMetrics()
 	return m, nil
 }
 
 // initMetricsMap initializes the event filtering metrics map with all combinations of event types, states, and results
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		for _, errorType := range activity_tree.InsertionErrorTypes {
+			m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+		}
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
 				m.eventFiltering[eventFilteringEntry{
@@ -169,6 +226,43 @@ func (m *ManagerV2) initMetricsMap() {
 			}
 		}
 	}
+}
+
+// initEventMetrics precomputes the {source, event_type} tags and counters for every source and
+// every configured profile event type. Event types that are never captured by V2 profiles are
+// filtered out in ProcessEvent, so there's no point allocating counters for them.
+func (m *ManagerV2) initEventMetrics() {
+	sources := [metricSourceCount]model.EventSource{
+		metricSourceRuntime: model.EventSourceRuntime,
+		metricSourceReplay:  model.EventSourceReplay,
+		metricSourceRelated: model.EventSourceRelated,
+	}
+	eventTypes := m.config.RuntimeSecurity.SecurityProfileV2EventTypes
+	for src, sourceName := range sources {
+		m.eventMetrics[src] = make(map[model.EventType]*perEventTypeMetrics, len(eventTypes))
+		for _, et := range eventTypes {
+			m.eventMetrics[src][et] = &perEventTypeMetrics{
+				tags:            []string{"source:" + string(sourceName), "event_type:" + et.String()},
+				eventsReceived:  atomic.NewUint64(0),
+				eventsImmediate: atomic.NewUint64(0),
+				eventsDropped:   atomic.NewUint64(0),
+			}
+		}
+	}
+}
+
+// eventMetricsFor returns the metric counters for the given source/event type, or nil if the
+// event type isn't one of the configured profile event types. The three known sources (runtime,
+// replay, related) each map to their own shard so related traffic isn't misreported as runtime.
+func (m *ManagerV2) eventMetricsFor(source model.EventSource, et model.EventType) *perEventTypeMetrics {
+	src := metricSourceRuntime
+	switch source {
+	case model.EventSourceReplay:
+		src = metricSourceReplay
+	case model.EventSourceRelated:
+		src = metricSourceRelated
+	}
+	return m.eventMetrics[src][et]
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
@@ -301,6 +395,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 		}
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+		m.purgeCookiesForProfile(prof)
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
@@ -329,24 +424,34 @@ func (m *ManagerV2) persistAllProfiles() {
 
 // persistProfile encodes and persists a single profile to all configured storage backends
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
-	if !p.IsEnabled() {
-		return
+	enabled := p.IsEnabled()
+
+	encoded := make(map[config.StorageFormat]*bytes.Buffer)
+	for format, requests := range m.configuredStorageRequests {
+		for _, request := range requests {
+			// Avoid sending a disabled profile to the backend
+			if !enabled && request.Type != config.LocalStorage {
+				continue
+			}
+
+			data, ok := encoded[format]
+			if !ok {
+				var err error
+				data, err = p.Encode(format)
+				if err != nil {
+					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+					break
+				}
+				encoded[format] = data
+			}
+
+			m.persistProfileToStorage(p, request, data)
+		}
 	}
 
-	format := config.Protobuf
-	requests := m.configuredStorageRequests[format]
-
-	data, err := p.Encode(format)
-	if err != nil {
-		seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-		return
+	if enabled {
+		p.SetHasAlreadyBeenSent()
 	}
-
-	for _, request := range requests {
-		m.persistProfileToStorage(p, request, data)
-	}
-
-	p.SetHasAlreadyBeenSent()
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
@@ -388,14 +493,13 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
-
-	// Filter out events that are not in the configured V2 event types
-	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
+	// Filter out systemd cgroups for now, we will add support for them later
+	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return
 	}
 
-	// Filter out systemd cgroups for now, we will add support for them later
-	if event.ProcessContext.Process.ContainerContext.IsNull() {
+	// Filter out events that are not in the configured V2 event types
+	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
 		return
 	}
 
@@ -404,14 +508,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	// Resolve event source (runtime or replay) and event type
+	// Resolve event source and look up its precomputed (source, event_type) counters.
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
-	eventType := event.GetType()
-	metricTags := []string{"source:" + source, "event_type:" + eventType}
+	em := m.eventMetricsFor(source, model.EventType(event.Type))
 
-	// Emit metric for events that pass initial filters
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, metricTags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsReceived, err)
+	if em != nil {
+		em.eventsReceived.Inc()
 	}
 
 	// Try to resolve tags for this workload
@@ -422,12 +524,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		// Set resolved tags on the event for downstream processing
 		event.ProcessContext.Process.ContainerContext.Tags = workloadTags
 
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, metricTags, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsImmediate, err)
+		if em != nil {
+			em.eventsImmediate.Inc()
 		}
 		m.processEventWithResolvedTags(event)
 	} else {
-		m.queueEventForTagResolution(event, metricTags)
+		m.queueEventForTagResolution(event, em)
 	}
 }
 
@@ -495,7 +597,7 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 }
 
 // queueEventForTagResolution queues an event while waiting for tag resolution
-func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string) {
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventTypeMetrics) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
 	m.profilePendingEventsLock.Lock()
@@ -521,9 +623,8 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string
 			// Decrement queue size BEFORE clearing the list
 			m.queueSize.Sub(uint64(eventsLen))
 			pendingEvents.events.Init()
-			// Emit dropped metric
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), tags, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
+			if em != nil {
+				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
 		return
@@ -567,7 +668,6 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 }
 
 func (m *ManagerV2) SendStats() error {
-
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
 		return err
@@ -600,6 +700,23 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Sample refresh metrics
+	if value := m.sampleRefreshReceived.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshReceived, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshHits.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshHits, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshMisses.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshMisses, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
 	// Event filtering metrics
 	for entry, count := range m.eventFiltering {
 		tags := []string{
@@ -610,6 +727,37 @@ func (m *ManagerV2) SendStats() error {
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return err
+			}
+		}
+	}
+
+	// Activity-tree insertion errors (unexpected failures only)
+	for key, count := range m.insertionErrors {
+		if value := count.Swap(0); value > 0 {
+			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2InsertionErrors, int64(value), tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Per-(source, event_type) event counters.
+	for src := range m.eventMetrics {
+		for _, em := range m.eventMetrics[src] {
+			if value := em.eventsReceived.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsImmediate.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsDropped.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -701,10 +849,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if !secprof.IsEnabled() {
-		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
-	}
 
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
@@ -718,12 +862,34 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Insert the event into the profile's activity tree
 	imageTag := secprof.GetTagValue("image_tag")
-	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
+			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
+	}
+
+	// Register the sample cookie → (process node, event node) mapping for sample refresh events
+	if processNode != nil {
+		var sampleCookie uint32
+		switch event.GetEventType() {
+		case model.FileOpenEventType:
+			sampleCookie = event.Open.SampleCookie
+		case model.BindEventType:
+			sampleCookie = event.Bind.SampleCookie
+		case model.ConnectEventType:
+			sampleCookie = event.Connect.SampleCookie
+		}
+		if sampleCookie != 0 {
+			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+				profile:       secprof,
+				processNode:   processNode,
+				eventNodeBase: eventNodeBase,
+				imageTag:      imageTag,
+			})
+		}
 	}
 
 	return secprof, inserted
@@ -1022,6 +1188,15 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	}
 }
 
+// incrementInsertionError records an unexpected activity-tree insertion failure for the given
+// event type, categorizing err into a bounded error-type label.
+func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
+	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
+	if entry, ok := m.insertionErrors[key]; ok {
+		entry.Inc()
+	}
+}
+
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
 func (m *ManagerV2) evictUnusedNodes() {
 	// Emit eviction run metric
@@ -1039,7 +1214,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 	defer m.profilesLock.Unlock()
 
 	for selector, profile := range m.profiles {
-		if profile == nil {
+		if profile == nil || !profile.IsEnabled() {
 			continue
 		}
 
@@ -1050,9 +1225,6 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
-			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
-				profile.Enable()
-			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
@@ -1235,6 +1407,47 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 //
 // These methods will be removed once V2 is fully validated and V1 is deprecated.
 // ============================================================================
+
+// HandleSampleRefresh handles a sample refresh event from the kernel.
+// It updates the LastSeen timestamp of the process node associated with the given cookie.
+func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
+	m.sampleRefreshReceived.Inc()
+
+	entry, ok := m.sampleCookieMap.Get(cookie)
+	if !ok {
+		m.sampleRefreshMisses.Inc()
+		return
+	}
+
+	m.sampleRefreshHits.Inc()
+
+	entry.profile.Lock()
+	defer entry.profile.Unlock()
+
+	if entry.processNode == nil || entry.processNode.SeenIsEmpty() {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
+	imageTagID := entry.profile.ActivityTree.GetImageTagID(entry.imageTag)
+	if imageTagID == 0 {
+		return
+	}
+
+	now := time.Now()
+	entry.processNode.AppendImageTagID(imageTagID, now)
+	if entry.eventNodeBase != nil {
+		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
+	}
+}
+
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+	for _, key := range m.sampleCookieMap.Keys() {
+		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
+			m.sampleCookieMap.Remove(key)
+		}
+	}
+}
 
 // LookupEventInProfiles lookups event in profiles.
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds

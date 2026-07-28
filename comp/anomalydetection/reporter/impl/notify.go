@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -165,6 +166,102 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
 	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+// sendEpisodeEvent sends a v2 change event for a scorer EpisodeStarted or EpisodeEnded
+// lifecycle event. Unlike send(), this path is driven by the correlator's own PendingEvents
+// and requires no reporter-side deduplication.
+func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
+	var title, direction string
+	switch evt.Kind {
+	case observerdef.CorrelatorEventEpisodeStarted:
+		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
+			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+		direction = "started"
+	case observerdef.CorrelatorEventEpisodeEnded:
+		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
+			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+		direction = "ended"
+	default:
+		return fmt.Errorf("unsupported CorrelatorEventKind %d", evt.Kind)
+	}
+
+	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
+	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
+	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
+		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+
+	var host string
+	if s.hostname != nil {
+		host = s.hostname.GetSafe(context.TODO())
+	}
+
+	s.logger.Infof("[observer] sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+		evt.Correlation.Pattern, direction, aggKey, ts)
+
+	tags := []string{
+		"source:edge-intelligence",
+		"pattern:" + evt.Correlation.Pattern,
+		"scorer:" + evt.CorrelatorName,
+		"episode_direction:" + direction,
+	}
+	payload := map[string]any{
+		"data": map[string]any{
+			"type": "event",
+			"attributes": map[string]any{
+				"title":           title,
+				"message":         msg,
+				"category":        "change",
+				"integration_id":  changeEventIntegrationID,
+				"tags":            tags,
+				"timestamp":       ts,
+				"aggregation_key": aggKey,
+				"attributes": map[string]any{
+					"changed_resource": map[string]any{
+						"name": truncateChars(evt.Correlation.Pattern, changedResourceNameMaxLen),
+						"type": changedResourceType,
+					},
+					"author": map[string]any{
+						"name": "datadog-agent-observer",
+						"type": "automation",
+					},
+					"change_metadata": map[string]any{
+						"episode_pattern":   evt.Correlation.Pattern,
+						"episode_direction": direction,
+						"from_level":        severityLevelName(evt.FromLevel),
+						"to_level":          severityLevelName(evt.ToLevel),
+						"first_seen":        time.Unix(evt.Correlation.FirstSeen, 0).UTC().Format(time.RFC3339),
+						"last_updated":      time.Unix(evt.Correlation.LastUpdated, 0).UTC().Format(time.RFC3339),
+					},
+				},
+			},
+		},
+	}
+	if host != "" {
+		payload["data"].(map[string]any)["attributes"].(map[string]any)["host"] = host
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal scorer episode event payload: %w", err)
+	}
+
+	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
+	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+// severityLevelName returns a human-readable label for a SeverityLevel.
+func severityLevelName(level severityeventsdef.SeverityLevel) string {
+	switch level {
+	case severityeventsdef.SeverityLow:
+		return "low"
+	case severityeventsdef.SeverityMedium:
+		return "medium"
+	case severityeventsdef.SeverityHigh:
+		return "high"
+	default:
+		return fmt.Sprintf("level(%d)", int(level))
+	}
 }
 
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a

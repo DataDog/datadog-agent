@@ -10,10 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp"
+	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pulumiConfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )
@@ -22,6 +23,30 @@ const (
 	gcpConfigNamespace = "gcp"
 	gcpNamerNamespace  = "gcp"
 
+	// MaxResourceLabelValueLen is the maximum length allowed by GCP for a
+	// resource label value (in bytes). Values longer than this are rejected
+	// by the API with `Resource_labels.value must be less than 63 bytes`.
+	// See https://cloud.google.com/resource-manager/docs/labels-overview.
+	MaxResourceLabelValueLen = 63
+)
+
+// TruncateLabelValue truncates v to at most MaxResourceLabelValueLen bytes
+// without splitting a multi-byte UTF-8 rune. GCP rejects label values longer
+// than MaxResourceLabelValueLen bytes; a naive byte slice could cut through the
+// middle of a rune and make Pulumi send a corrupted value, so any trailing
+// partial rune is dropped.
+func TruncateLabelValue(v string) string {
+	if len(v) <= MaxResourceLabelValueLen {
+		return v
+	}
+	truncated := v[:MaxResourceLabelValueLen]
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated
+}
+
+const (
 	// GCP Infra
 	DDInfraDefaultPublicKeyPath            = "gcp/defaultPublicKeyPath"
 	DDInfraDefaultPrivateKeyPath           = "gcp/defaultPrivateKeyPath"
@@ -33,7 +58,11 @@ const (
 	DDInfraDefaultZoneNameParamName        = "gcp/defaultZone"
 	DDInfraDefautVMServiceAccountParamName = "gcp/defaultVMServiceAccount"
 	DDInfraGKEEnableAutopilot              = "gcp/gke/enableAutopilot"
+	DDInfraGKENodeCountParamName           = "gcp/gke/nodeCount"
 	DDInfraOpenShiftPullSecretPath         = "gcp/openshift/pullSecretPath"
+	DDInfraOpenShiftCPUs                   = "gcp/openshift/cpus"
+	DDInfraOpenShiftMemory                 = "gcp/openshift/memory"
+	DDInfraOpenShiftDisk                   = "gcp/openshift/disk"
 	DDInfraEnableNestedVirtualization      = "gcp/enableNestedVirtualization"
 )
 
@@ -69,7 +98,7 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	defaultLabels := env.ResourcesTags()
 	defaultLabels = defaultLabels.ToStringMapOutput().ApplyT(func(labels map[string]string) map[string]string {
 		for k, v := range labels {
-			labels[k] = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+			labels[k] = TruncateLabelValue(strings.ReplaceAll(strings.ToLower(v), ".", "-"))
 		}
 		return labels
 	}).(pulumi.StringMapOutput)
@@ -170,8 +199,13 @@ func (e *Environment) DefaultSubnet() string {
 func (e *Environment) GetCommonEnvironment() *config.CommonEnvironment {
 	return e.CommonEnvironment
 }
+
 func (e *Environment) DefaultInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInstanceTypeParamName, e.envDefault.ddInfra.defaultInstanceType)
+}
+
+func (e *Environment) DefaultGKENodeCount() int {
+	return e.GetIntWithDefault(e.InfraConfig, DDInfraGKENodeCountParamName, e.envDefault.ddInfra.defaultGKENodeCount)
 }
 
 func (e *Environment) DefaultVMServiceAccount() string {
@@ -196,6 +230,30 @@ func (e *Environment) Zone() string {
 // OpenShiftPullSecretPath returns the path to the OpenShift pull secret file
 func (e *Environment) OpenShiftPullSecretPath() string {
 	return e.InfraConfig.Get(DDInfraOpenShiftPullSecretPath)
+}
+
+// OpenShiftCPUs returns the number of CPUs to allocate to the CRC cluster (default: 12).
+func (e *Environment) OpenShiftCPUs() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftCPUs); v != "" {
+		return v
+	}
+	return "12"
+}
+
+// OpenShiftMemory returns the memory in MB to allocate to the CRC cluster (default: 32768).
+func (e *Environment) OpenShiftMemory() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftMemory); v != "" {
+		return v
+	}
+	return "32768"
+}
+
+// OpenShiftDisk returns the disk size in GB to allocate to the CRC cluster (default: 100).
+func (e *Environment) OpenShiftDisk() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftDisk); v != "" {
+		return v
+	}
+	return "100"
 }
 
 // EnableNestedVirtualization returns whether to enable nested virtualization

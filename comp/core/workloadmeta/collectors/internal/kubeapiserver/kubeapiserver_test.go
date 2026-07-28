@@ -126,7 +126,7 @@ func TestShouldHavePodStore(t *testing.T) {
 	}
 }
 
-func TestShouldHaveKueueQueueStores(t *testing.T) {
+func TestShouldHaveKueueMetadata(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      map[string]interface{}
@@ -165,7 +165,7 @@ func TestShouldHaveKueueQueueStores(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := config.NewMockWithOverrides(t, test.cfg)
-			assert.Equal(t, test.expected, shouldHaveKueueQueueStores(cfg))
+			assert.Equal(t, test.expected, shouldHaveKueueMetadata(cfg))
 		})
 	}
 }

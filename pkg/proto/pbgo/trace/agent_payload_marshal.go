@@ -49,11 +49,11 @@ const (
 	fieldTPContainerDebug     = 12 // ContainerDebug
 
 	// ContainerDebug message fields
-	fieldCDError                = 1 // string
-	fieldCDLatencyMs            = 2 // int64
-	fieldCDWasBuffered          = 3 // bool
-	fieldCDBufferMs             = 4 // int64
-	fieldCDBufferEvictionReason = 5 // string
+	fieldCDErrorRef                = 1 // uint32 (string table ref)
+	fieldCDLatencyMs               = 2 // int64
+	fieldCDWasBuffered             = 3 // bool
+	fieldCDBufferMs                = 4 // int64
+	fieldCDBufferEvictionReasonRef = 5 // uint32 (string table ref)
 )
 
 // Field numbers for idx.TraceChunk (from idx/tracer_payload.proto)
@@ -185,6 +185,10 @@ func newStringCompactor(tp *idx.TracerPayload) *stringCompactor {
 	markRef(tp.HostnameRef)
 	markRef(tp.AppVersionRef)
 	c.collectAttributeRefs(tp.Attributes, markRef)
+	if tp.ContainerDebug != nil {
+		markRef(tp.ContainerDebug.ErrorRef)
+		markRef(tp.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Collect from chunks
 	for _, chunk := range tp.Chunks {
@@ -733,7 +737,7 @@ func sizeTracerPayloadCompacting(tp *idx.TracerPayload, c *stringCompactor) int 
 
 	// Field 12: containerDebug
 	if tp.ContainerDebug != nil {
-		cdSize := sizeContainerDebug(tp.ContainerDebug)
+		cdSize := sizeContainerDebug(tp.ContainerDebug, c)
 		size += sizeTag(fieldTPContainerDebug, wireLengthDelim)
 		size += sizeVarint(uint64(cdSize))
 		size += cdSize
@@ -1052,10 +1056,10 @@ func appendTracerPayloadCompacting(buf []byte, tp *idx.TracerPayload, c *stringC
 
 	// Field 12: containerDebug
 	if tp.ContainerDebug != nil {
-		cdSize := sizeContainerDebug(tp.ContainerDebug)
+		cdSize := sizeContainerDebug(tp.ContainerDebug, c)
 		buf = appendTag(buf, fieldTPContainerDebug, wireLengthDelim)
 		buf = appendVarint(buf, uint64(cdSize))
-		buf = appendContainerDebug(buf, tp.ContainerDebug)
+		buf = appendContainerDebug(buf, tp.ContainerDebug, c)
 	}
 
 	// Field 1: strings (compacted) - serialized last
@@ -1453,12 +1457,13 @@ func appendMapEntry(buf []byte, key, value string) []byte {
 }
 
 // sizeContainerDebug calculates the serialized size of a ContainerDebug message.
-func sizeContainerDebug(cd *idx.ContainerDebug) int {
+// String references are remapped through the compactor since they index into the
+// tracer payload's string table.
+func sizeContainerDebug(cd *idx.ContainerDebug, c *stringCompactor) int {
 	size := 0
-	if len(cd.Error) > 0 {
-		size += sizeTag(fieldCDError, wireLengthDelim)
-		size += sizeVarint(uint64(len(cd.Error)))
-		size += len(cd.Error)
+	if ref := c.remap(cd.ErrorRef); ref != 0 {
+		size += sizeTag(fieldCDErrorRef, wireVarint)
+		size += sizeVarint(uint64(ref))
 	}
 	if cd.LatencyMs != 0 {
 		size += sizeTag(fieldCDLatencyMs, wireVarint)
@@ -1472,20 +1477,20 @@ func sizeContainerDebug(cd *idx.ContainerDebug) int {
 		size += sizeTag(fieldCDBufferMs, wireVarint)
 		size += sizeVarint(uint64(cd.BufferMs))
 	}
-	if len(cd.BufferEvictionReason) > 0 {
-		size += sizeTag(fieldCDBufferEvictionReason, wireLengthDelim)
-		size += sizeVarint(uint64(len(cd.BufferEvictionReason)))
-		size += len(cd.BufferEvictionReason)
+	if ref := c.remap(cd.BufferEvictionReasonRef); ref != 0 {
+		size += sizeTag(fieldCDBufferEvictionReasonRef, wireVarint)
+		size += sizeVarint(uint64(ref))
 	}
 	return size
 }
 
 // appendContainerDebug serializes a ContainerDebug message to the buffer.
-func appendContainerDebug(buf []byte, cd *idx.ContainerDebug) []byte {
-	if len(cd.Error) > 0 {
-		buf = appendTag(buf, fieldCDError, wireLengthDelim)
-		buf = appendVarint(buf, uint64(len(cd.Error)))
-		buf = append(buf, cd.Error...)
+// String references are remapped through the compactor since they index into the
+// tracer payload's string table.
+func appendContainerDebug(buf []byte, cd *idx.ContainerDebug, c *stringCompactor) []byte {
+	if ref := c.remap(cd.ErrorRef); ref != 0 {
+		buf = appendTag(buf, fieldCDErrorRef, wireVarint)
+		buf = appendVarint(buf, uint64(ref))
 	}
 	if cd.LatencyMs != 0 {
 		buf = appendTag(buf, fieldCDLatencyMs, wireVarint)
@@ -1499,10 +1504,9 @@ func appendContainerDebug(buf []byte, cd *idx.ContainerDebug) []byte {
 		buf = appendTag(buf, fieldCDBufferMs, wireVarint)
 		buf = appendVarint(buf, uint64(cd.BufferMs))
 	}
-	if len(cd.BufferEvictionReason) > 0 {
-		buf = appendTag(buf, fieldCDBufferEvictionReason, wireLengthDelim)
-		buf = appendVarint(buf, uint64(len(cd.BufferEvictionReason)))
-		buf = append(buf, cd.BufferEvictionReason...)
+	if ref := c.remap(cd.BufferEvictionReasonRef); ref != 0 {
+		buf = appendTag(buf, fieldCDBufferEvictionReasonRef, wireVarint)
+		buf = appendVarint(buf, uint64(ref))
 	}
 	return buf
 }

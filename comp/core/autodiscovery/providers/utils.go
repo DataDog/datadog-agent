@@ -14,7 +14,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,11 +24,11 @@ const (
 	//nolint needed as these constants are defined in a file without a build tag,
 	// but only used in multiple files with different build tags, none of which
 	// are used in the IoT Agent.
-	//nolint:unused,deadcode
+	//nolint:unused
 	instancePath string = "instances"
-	//nolint:unused,deadcode
+	//nolint:unused
 	checkNamePath string = "check_names"
-	//nolint:unused,deadcode
+	//nolint:unused
 	initConfigPath string = "init_configs"
 )
 
@@ -72,7 +72,7 @@ type providerCache struct {
 // but only used in multiple files with different build tags, none of which
 // are used in the IoT Agent.
 //
-//nolint:deadcode,unused
+//nolint:unused
 func newProviderCache() *providerCache {
 	return &providerCache{
 		mostRecentMod: 0,
@@ -83,7 +83,7 @@ func newProviderCache() *providerCache {
 // ignoreADTagsFromAnnotations returns of the `ad.datadoghq.com/{endpoints,service}.ignore_autodiscovery_tags` annotation
 // TODO(CINT)(Agent 7.53+) Remove support for hybrid scenarios
 //
-//nolint:deadcode,unused
+//nolint:unused
 func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) bool {
 	ignoreAdForHybridScenariosTags, _ := strconv.ParseBool(annotations[prefix+"ignore_autodiscovery_tags"])
 	return ignoreAdForHybridScenariosTags
@@ -93,7 +93,7 @@ func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) b
 // error on the given entity. The build and resolve paths must use the same id,
 // so both call this helper rather than inlining the string.
 func adAnnotationIssueID(entityName string) string {
-	return "ad-annotation:" + entityName
+	return admisconfig.AnnotationIssueID + ":" + entityName
 }
 
 // reportConfigurationError reports the AD configuration errors for an entity to
@@ -119,13 +119,14 @@ func reportConfigurationError(hp healthplatformdef.Component, entityName string,
 		"errorMessage": errorMsg,
 		"errorSource":  string(errorSource),
 	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	issue, buildErr := admisconfig.NewADAnnotationIssue().BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			IssueName: admisconfig.AnnotationIssueName,
+			IssueType: admisconfig.AnnotationIssueType,
 			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
-			Source:    healthplatformdef.ADMisconfigurationSource,
+			Source:    admisconfig.Source,
 		}
 	} else {
 		issue.Id = issueID

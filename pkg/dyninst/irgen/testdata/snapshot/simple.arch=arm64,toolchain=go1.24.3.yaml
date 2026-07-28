@@ -17288,6 +17288,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 987
       Name: Probe[main.PointerChainArg]
@@ -17307,6 +17308,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: ptr
           Offset: 9
           Kind: argument
@@ -17320,6 +17322,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 988
       Name: Probe[main.PointerSmallChainArg]
@@ -17339,6 +17342,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 963
       Name: Probe[main.anyAllBigKeyMap]
@@ -17358,6 +17362,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 964
       Name: Probe[main.anyAllBigKeyMap]Return
@@ -17380,6 +17385,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 962
       Name: Probe[main.anyAllBigValMap]Return
@@ -17402,6 +17408,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 923
       Name: Probe[main.anyAllIntArray]
@@ -17421,6 +17428,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 925
       Name: Probe[main.anyAllIntArray]
@@ -17440,6 +17448,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 927
       Name: Probe[main.anyAllIntArray]
@@ -17482,6 +17491,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -17495,6 +17505,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 922
       Name: Probe[main.anyAllIntArray]Return
@@ -17526,6 +17537,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 931
       Name: Probe[main.anyAllIntMap]
@@ -17545,6 +17557,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 933
       Name: Probe[main.anyAllIntMap]
@@ -17564,6 +17577,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 935
       Name: Probe[main.anyAllIntMap]
@@ -17583,6 +17597,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 937
       Name: Probe[main.anyAllIntMap]
@@ -17602,6 +17617,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 939
       Name: Probe[main.anyAllIntMap]
@@ -17621,6 +17637,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 941
       Name: Probe[main.anyAllIntMap]
@@ -17644,6 +17661,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 945
       Name: Probe[main.anyAllIntMap]
@@ -17667,6 +17685,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: capture_expression
@@ -17680,6 +17699,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 930
       Name: Probe[main.anyAllIntMap]Return
@@ -17723,6 +17743,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 860
       Name: Probe[main.anyAllIntSlice]
@@ -17742,6 +17763,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 862
       Name: Probe[main.anyAllIntSlice]
@@ -17761,6 +17783,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 864
       Name: Probe[main.anyAllIntSlice]
@@ -17780,6 +17803,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 866
       Name: Probe[main.anyAllIntSlice]
@@ -17799,6 +17823,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 868
       Name: Probe[main.anyAllIntSlice]
@@ -17840,6 +17865,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 870
       Name: Probe[main.anyAllIntSlice]
@@ -17881,6 +17907,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 872
       Name: Probe[main.anyAllIntSlice]
@@ -17928,6 +17955,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 878
       Name: Probe[main.anyAllIntSlice]
@@ -17950,6 +17978,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: capture_expression
@@ -17963,6 +17992,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 882
       Name: Probe[main.anyAllIntSlice]
@@ -17985,6 +18015,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 887
       Name: Probe[main.anyAllIntSlice]
@@ -18004,6 +18035,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 889
       Name: Probe[main.anyAllIntSlice]
@@ -18045,6 +18077,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -18058,6 +18091,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 891
       Name: Probe[main.anyAllIntSlice]
@@ -18099,6 +18133,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -18112,6 +18147,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 893
       Name: Probe[main.anyAllIntSlice]
@@ -18153,6 +18189,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -18166,6 +18203,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 895
       Name: Probe[main.anyAllIntSlice]
@@ -18207,6 +18245,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -18220,6 +18259,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 897
       Name: Probe[main.anyAllIntSlice]
@@ -18261,6 +18301,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -18274,6 +18315,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 859
       Name: Probe[main.anyAllIntSlice]Return
@@ -18347,6 +18389,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 955
       Name: Probe[main.anyAllPtrIntSlice]
@@ -18375,6 +18418,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 950
       Name: Probe[main.anyAllPtrMap]Return
@@ -18397,6 +18441,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 917
       Name: Probe[main.anyAllPtrSlice]
@@ -18416,6 +18461,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 919
       Name: Probe[main.anyAllPtrSlice]
@@ -18435,6 +18481,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 916
       Name: Probe[main.anyAllPtrSlice]Return
@@ -18463,6 +18510,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 952
       Name: Probe[main.anyAllPtrStrSlice]Return
@@ -18485,6 +18533,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 960
       Name: Probe[main.anyAllPtrStructKeyMap]Return
@@ -18507,6 +18556,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 979
       Name: Probe[main.anyAllStringArray]
@@ -18526,6 +18576,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 978
       Name: Probe[main.anyAllStringArray]Return
@@ -18551,6 +18602,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 967
       Name: Probe[main.anyAllStringSlice]
@@ -18590,6 +18642,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 969
       Name: Probe[main.anyAllStringSlice]
@@ -18612,6 +18665,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: capture_expression
@@ -18625,6 +18679,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 973
       Name: Probe[main.anyAllStringSlice]
@@ -18644,6 +18699,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 975
       Name: Probe[main.anyAllStringSlice]
@@ -18683,6 +18739,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -18696,6 +18753,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 966
       Name: Probe[main.anyAllStringSlice]Return
@@ -18730,6 +18788,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 958
       Name: Probe[main.anyAllStructKeyMap]Return
@@ -18752,6 +18811,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 901
       Name: Probe[main.anyAllStructSlice]
@@ -18771,6 +18831,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 903
       Name: Probe[main.anyAllStructSlice]
@@ -18790,6 +18851,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 905
       Name: Probe[main.anyAllStructSlice]
@@ -18809,6 +18871,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 907
       Name: Probe[main.anyAllStructSlice]
@@ -18850,6 +18913,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 909
       Name: Probe[main.anyAllStructSlice]
@@ -18872,6 +18936,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: capture_expression
@@ -18885,6 +18950,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 913
       Name: Probe[main.anyAllStructSlice]
@@ -18904,6 +18970,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 900
       Name: Probe[main.anyAllStructSlice]Return
@@ -18944,6 +19011,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 770
       Name: Probe[main.bigArrayArg]
@@ -18963,6 +19031,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 769
       Name: Probe[main.bigArrayArg]Return
@@ -18992,6 +19061,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 773
       Name: Probe[main.bigArrayStructArg]Return
@@ -19014,6 +19084,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: m
           Offset: 9
           Kind: argument
@@ -19027,6 +19098,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 456
       Name: Probe[main.bigMapArg]Return
@@ -19049,6 +19121,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 529
       Name: Probe[main.condBool]
@@ -19068,6 +19141,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 531
       Name: Probe[main.condBool]
@@ -19087,6 +19161,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 533
       Name: Probe[main.condBool]
@@ -19106,6 +19181,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: argument
@@ -19119,6 +19195,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 535
       Name: Probe[main.condBool]
@@ -19138,6 +19215,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -19151,6 +19229,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 528
       Name: Probe[main.condBool]Return
@@ -19185,6 +19264,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 654
       Name: Probe[main.condContainsMap]
@@ -19204,6 +19284,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 656
       Name: Probe[main.condContainsMap]
@@ -19223,6 +19304,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 658
       Name: Probe[main.condContainsMap]
@@ -19266,6 +19348,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 660
       Name: Probe[main.condContainsMap]
@@ -19285,6 +19368,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 662
       Name: Probe[main.condContainsMap]
@@ -19304,6 +19388,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 664
       Name: Probe[main.condContainsMap]
@@ -19323,6 +19408,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 666
       Name: Probe[main.condContainsMap]
@@ -19342,6 +19428,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 668
       Name: Probe[main.condContainsMap]
@@ -19385,6 +19472,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -19398,6 +19486,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 670
       Name: Probe[main.condContainsMap]
@@ -19441,6 +19530,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: template_segment
@@ -19454,6 +19544,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 672
       Name: Probe[main.condContainsMap]
@@ -19473,6 +19564,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 653
       Name: Probe[main.condContainsMap]Return
@@ -19525,6 +19617,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 524
       Name: Probe[main.condFloat32]Return
@@ -19547,6 +19640,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 526
       Name: Probe[main.condFloat64]Return
@@ -19569,6 +19663,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 607
       Name: Probe[main.condGuarded]
@@ -19588,6 +19683,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 609
       Name: Probe[main.condGuarded]
@@ -19607,6 +19703,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 611
       Name: Probe[main.condGuarded]
@@ -19626,6 +19723,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 606
       Name: Probe[main.condGuarded]Return
@@ -19645,6 +19743,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 608
       Name: Probe[main.condGuarded]Return
@@ -19664,6 +19763,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 610
       Name: Probe[main.condGuarded]Return
@@ -19683,6 +19783,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 612
       Name: Probe[main.condGuarded]Return
@@ -19702,6 +19803,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 463
       Name: Probe[main.condInt16]
@@ -19721,6 +19823,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 465
       Name: Probe[main.condInt16]
@@ -19740,6 +19843,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 3
           Kind: argument
@@ -19753,6 +19857,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 464
       Name: Probe[main.condInt16]Return
@@ -19778,6 +19883,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 5
           Kind: template_segment
@@ -19791,6 +19897,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 469
       Name: Probe[main.condInt32]
@@ -19810,6 +19917,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 471
       Name: Probe[main.condInt32]
@@ -19829,6 +19937,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 473
       Name: Probe[main.condInt32]
@@ -19848,6 +19957,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 475
       Name: Probe[main.condInt32]
@@ -19867,6 +19977,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 477
       Name: Probe[main.condInt32]
@@ -19886,6 +19997,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 479
       Name: Probe[main.condInt32]
@@ -19905,6 +20017,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 481
       Name: Probe[main.condInt32]
@@ -19924,6 +20037,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 483
       Name: Probe[main.condInt32]
@@ -19943,6 +20057,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 485
       Name: Probe[main.condInt32]
@@ -19962,6 +20077,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 487
       Name: Probe[main.condInt32]
@@ -19981,6 +20097,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 489
       Name: Probe[main.condInt32]
@@ -20000,6 +20117,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 5
           Kind: argument
@@ -20013,6 +20131,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 468
       Name: Probe[main.condInt32]Return
@@ -20068,6 +20187,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 493
       Name: Probe[main.condInt64]
@@ -20087,6 +20207,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -20100,6 +20221,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 492
       Name: Probe[main.condInt64]Return
@@ -20125,6 +20247,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 461
       Name: Probe[main.condInt8]
@@ -20144,6 +20267,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: argument
@@ -20157,6 +20281,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 460
       Name: Probe[main.condInt8]Return
@@ -20182,6 +20307,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: template_segment
@@ -20195,6 +20321,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 640
       Name: Probe[main.condLine]Line
@@ -20214,6 +20341,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 641
       Name: Probe[main.condLine]Line
@@ -20233,6 +20361,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: local
@@ -20246,6 +20375,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 848
       Name: Probe[main.condMultiReturn]
@@ -20277,6 +20407,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 851
       Name: Probe[main.condMultiReturn]Return
@@ -20296,6 +20427,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: '@return.r1'
           Offset: 9
           Kind: template_segment
@@ -20309,6 +20441,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 853
       Name: Probe[main.condMultiReturn]Return
@@ -20328,6 +20461,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 855
       Name: Probe[main.condMultiReturn]Return
@@ -20350,6 +20484,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 597
       Name: Probe[main.condNilPtrStruct]
@@ -20369,6 +20504,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 599
       Name: Probe[main.condNilPtrStruct]
@@ -20388,6 +20524,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 601
       Name: Probe[main.condNilPtrStruct]
@@ -20407,6 +20544,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 603
       Name: Probe[main.condNilPtrStruct]
@@ -20426,6 +20564,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -20439,6 +20578,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 596
       Name: Probe[main.condNilPtrStruct]Return
@@ -20473,6 +20613,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 649
       Name: Probe[main.condNullIface]Return
@@ -20495,6 +20636,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 647
       Name: Probe[main.condNullMap]Return
@@ -20517,6 +20659,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 643
       Name: Probe[main.condNullPtr]Return
@@ -20539,6 +20682,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 645
       Name: Probe[main.condNullSlice]Return
@@ -20561,6 +20705,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 651
       Name: Probe[main.condNullUnsafePtr]Return
@@ -20583,6 +20728,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -20596,6 +20742,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 637
       Name: Probe[main.condOnly]
@@ -20615,6 +20762,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -20628,6 +20776,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 636
       Name: Probe[main.condOnly]Return
@@ -20653,6 +20802,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 591
       Name: Probe[main.condPtrStructArg]
@@ -20672,6 +20822,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 593
       Name: Probe[main.condPtrStructArg]
@@ -20691,6 +20842,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -20704,6 +20856,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 590
       Name: Probe[main.condPtrStructArg]Return
@@ -20732,6 +20885,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: b
           Offset: 9
           Kind: template_segment
@@ -20745,6 +20899,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 615
       Name: Probe[main.condReturnAndLocal]
@@ -20764,6 +20919,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 617
       Name: Probe[main.condReturnAndLocal]
@@ -20783,6 +20939,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 619
       Name: Probe[main.condReturnAndLocal]
@@ -20802,6 +20959,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 621
       Name: Probe[main.condReturnAndLocal]
@@ -20821,6 +20979,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 623
       Name: Probe[main.condReturnAndLocal]
@@ -20840,6 +20999,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 625
       Name: Probe[main.condReturnAndLocal]
@@ -20859,6 +21019,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 627
       Name: Probe[main.condReturnAndLocal]
@@ -20878,6 +21039,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 629
       Name: Probe[main.condReturnAndLocal]
@@ -20897,6 +21059,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 631
       Name: Probe[main.condReturnAndLocal]
@@ -20916,6 +21079,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 633
       Name: Probe[main.condReturnAndLocal]
@@ -20935,6 +21099,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: b
           Offset: 9
           Kind: argument
@@ -20948,6 +21113,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 614
       Name: Probe[main.condReturnAndLocal]Return
@@ -20973,6 +21139,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 620
       Name: Probe[main.condReturnAndLocal]Return
@@ -20992,6 +21159,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 622
       Name: Probe[main.condReturnAndLocal]Return
@@ -21011,6 +21179,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 624
       Name: Probe[main.condReturnAndLocal]Return
@@ -21030,6 +21199,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 626
       Name: Probe[main.condReturnAndLocal]Return
@@ -21049,6 +21219,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 628
       Name: Probe[main.condReturnAndLocal]Return
@@ -21068,6 +21239,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 630
       Name: Probe[main.condReturnAndLocal]Return
@@ -21087,6 +21259,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 632
       Name: Probe[main.condReturnAndLocal]Return
@@ -21109,6 +21282,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 856
       Name: Probe[main.condReturnPtr]
@@ -21128,6 +21302,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 857
       Name: Probe[main.condReturnPtr]Return
@@ -21150,6 +21325,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 539
       Name: Probe[main.condString]
@@ -21169,6 +21345,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 541
       Name: Probe[main.condString]
@@ -21194,6 +21371,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 543
       Name: Probe[main.condString]
@@ -21213,6 +21391,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 545
       Name: Probe[main.condString]
@@ -21238,6 +21417,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 547
       Name: Probe[main.condString]
@@ -21257,6 +21437,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 549
       Name: Probe[main.condString]
@@ -21276,6 +21457,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 551
       Name: Probe[main.condString]
@@ -21295,6 +21477,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 553
       Name: Probe[main.condString]
@@ -21314,6 +21497,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 555
       Name: Probe[main.condString]
@@ -21333,6 +21517,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 557
       Name: Probe[main.condString]
@@ -21352,6 +21537,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 559
       Name: Probe[main.condString]
@@ -21371,6 +21557,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 561
       Name: Probe[main.condString]
@@ -21390,6 +21577,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 563
       Name: Probe[main.condString]
@@ -21409,6 +21597,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 17
           Kind: argument
@@ -21422,6 +21611,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 565
       Name: Probe[main.condString]
@@ -21441,6 +21631,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 17
           Kind: argument
@@ -21454,6 +21645,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 538
       Name: Probe[main.condString]Return
@@ -21518,6 +21710,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 17
           Kind: template_segment
@@ -21531,6 +21724,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 569
       Name: Probe[main.condStructArg]
@@ -21550,6 +21744,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: x.S
           Offset: 6
           Kind: template_segment
@@ -21563,6 +21758,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 22
           Kind: template_segment
@@ -21576,6 +21772,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 571
       Name: Probe[main.condStructArg]
@@ -21595,6 +21792,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 573
       Name: Probe[main.condStructArg]
@@ -21614,6 +21812,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 575
       Name: Probe[main.condStructArg]
@@ -21633,6 +21832,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 577
       Name: Probe[main.condStructArg]
@@ -21652,6 +21852,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 579
       Name: Probe[main.condStructArg]
@@ -21671,6 +21872,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 581
       Name: Probe[main.condStructArg]
@@ -21690,6 +21892,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 583
       Name: Probe[main.condStructArg]
@@ -21709,6 +21912,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 585
       Name: Probe[main.condStructArg]
@@ -21728,6 +21932,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 587
       Name: Probe[main.condStructArg]
@@ -21747,6 +21952,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 81
           Kind: argument
@@ -21760,6 +21966,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 568
       Name: Probe[main.condStructArg]Return
@@ -21812,6 +22019,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 503
       Name: Probe[main.condUint16]
@@ -21831,6 +22039,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 3
           Kind: argument
@@ -21844,6 +22053,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 502
       Name: Probe[main.condUint16]Return
@@ -21869,6 +22079,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 507
       Name: Probe[main.condUint32]
@@ -21888,6 +22099,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 509
       Name: Probe[main.condUint32]
@@ -21907,6 +22119,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 511
       Name: Probe[main.condUint32]
@@ -21926,6 +22139,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 513
       Name: Probe[main.condUint32]
@@ -21945,6 +22159,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 515
       Name: Probe[main.condUint32]
@@ -21964,6 +22179,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 517
       Name: Probe[main.condUint32]
@@ -21983,6 +22199,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 5
           Kind: argument
@@ -21996,6 +22213,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 506
       Name: Probe[main.condUint32]Return
@@ -22036,6 +22254,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 521
       Name: Probe[main.condUint64]
@@ -22055,6 +22274,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -22068,6 +22288,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 520
       Name: Probe[main.condUint64]Return
@@ -22093,6 +22314,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 497
       Name: Probe[main.condUint8]
@@ -22112,6 +22334,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 499
       Name: Probe[main.condUint8]
@@ -22131,6 +22354,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 2
           Kind: argument
@@ -22144,6 +22368,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 496
       Name: Probe[main.condUint8]Return
@@ -22173,6 +22398,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: 0
+          Redacted: false
     - __kind: EventRootType
       ID: 984
       Name: Probe[main.genericIdentity[go.shape.int]]Return
@@ -22193,6 +22419,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: 0
+          Redacted: false
     - __kind: EventRootType
       ID: 981
       Name: Probe[main.genericIdentity[go.shape.string]]
@@ -22213,6 +22440,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: 0
+          Redacted: false
     - __kind: EventRootType
       ID: 982
       Name: Probe[main.genericIdentity[go.shape.string]]Return
@@ -22233,6 +22461,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: 0
+          Redacted: false
     - __kind: EventRootType
       ID: 794
       Name: Probe[main.indexMemberWrapperArg]
@@ -22260,6 +22489,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 796
       Name: Probe[main.indexMemberWrapperArg]
@@ -22287,6 +22517,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 798
       Name: Probe[main.indexMemberWrapperArg]
@@ -22318,6 +22549,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 800
       Name: Probe[main.indexMemberWrapperArg]
@@ -22349,6 +22581,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 795
       Name: Probe[main.indexMemberWrapperArg]Return
@@ -22390,6 +22623,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 762
       Name: Probe[main.indexNilPtrSlice]
@@ -22409,6 +22643,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 764
       Name: Probe[main.indexNilPtrSlice]
@@ -22438,6 +22673,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 761
       Name: Probe[main.indexNilPtrSlice]Return
@@ -22466,6 +22702,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 986
       Name: Probe[main.inlined]Return
@@ -22488,6 +22725,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 413
       Name: Probe[main.intArg]Return
@@ -22516,6 +22754,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 440
       Name: Probe[main.intArrayArg]
@@ -22538,6 +22777,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 435
       Name: Probe[main.intArrayArg]Return
@@ -22578,6 +22818,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 422
       Name: Probe[main.intSliceArg]
@@ -22606,6 +22847,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 426
       Name: Probe[main.intSliceArg]
@@ -22631,6 +22873,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 428
       Name: Probe[main.intSliceArg]
@@ -22659,6 +22902,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 432
       Name: Probe[main.intSliceArg]
@@ -22678,6 +22922,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 421
       Name: Probe[main.intSliceArg]Return
@@ -22718,6 +22963,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -22731,6 +22977,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 754
       Name: Probe[main.lenErrInt]
@@ -22759,6 +23006,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 81
           Kind: argument
@@ -22772,6 +23020,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 758
       Name: Probe[main.lenErrStruct]
@@ -22800,6 +23049,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 708
       Name: Probe[main.lenMap]
@@ -22831,6 +23081,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 710
       Name: Probe[main.lenMap]
@@ -22854,6 +23105,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 712
       Name: Probe[main.lenMap]
@@ -22873,6 +23125,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 714
       Name: Probe[main.lenMap]
@@ -22896,6 +23149,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 716
       Name: Probe[main.lenMap]
@@ -22915,6 +23169,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -22928,6 +23183,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 707
       Name: Probe[main.lenMap]Return
@@ -22969,6 +23225,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 720
       Name: Probe[main.lenPtrString]
@@ -22988,6 +23245,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -23001,6 +23259,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 719
       Name: Probe[main.lenPtrString]Return
@@ -23036,6 +23295,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 744
       Name: Probe[main.lenPtrStructFields]
@@ -23055,6 +23315,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 9
           Kind: argument
@@ -23068,6 +23329,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 746
       Name: Probe[main.lenPtrStructFields]
@@ -23095,6 +23357,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 748
       Name: Probe[main.lenPtrStructFields]
@@ -23118,6 +23381,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 750
       Name: Probe[main.lenPtrStructFields]
@@ -23141,6 +23405,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 743
       Name: Probe[main.lenPtrStructFields]Return
@@ -23175,6 +23440,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 696
       Name: Probe[main.lenSlice]
@@ -23202,6 +23468,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 698
       Name: Probe[main.lenSlice]
@@ -23221,6 +23488,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 700
       Name: Probe[main.lenSlice]
@@ -23240,6 +23508,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 702
       Name: Probe[main.lenSlice]
@@ -23259,6 +23528,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 704
       Name: Probe[main.lenSlice]
@@ -23278,6 +23548,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 25
           Kind: argument
@@ -23291,6 +23562,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 695
       Name: Probe[main.lenSlice]Return
@@ -23328,6 +23600,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 17
           Kind: template_segment
@@ -23341,6 +23614,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 676
       Name: Probe[main.lenString]
@@ -23368,6 +23642,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 678
       Name: Probe[main.lenString]
@@ -23395,6 +23670,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 680
       Name: Probe[main.lenString]
@@ -23422,6 +23698,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 682
       Name: Probe[main.lenString]
@@ -23441,6 +23718,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 684
       Name: Probe[main.lenString]
@@ -23468,6 +23746,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 686
       Name: Probe[main.lenString]
@@ -23487,6 +23766,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 688
       Name: Probe[main.lenString]
@@ -23506,6 +23786,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 690
       Name: Probe[main.lenString]
@@ -23525,6 +23806,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 692
       Name: Probe[main.lenString]
@@ -23544,6 +23826,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 17
           Kind: argument
@@ -23557,6 +23840,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 675
       Name: Probe[main.lenString]Return
@@ -23612,6 +23896,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 724
       Name: Probe[main.lenStructFields]
@@ -23631,6 +23916,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 73
           Kind: argument
@@ -23644,6 +23930,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 726
       Name: Probe[main.lenStructFields]
@@ -23667,6 +23954,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 728
       Name: Probe[main.lenStructFields]
@@ -23690,6 +23978,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 730
       Name: Probe[main.lenStructFields]
@@ -23713,6 +24002,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 732
       Name: Probe[main.lenStructFields]
@@ -23732,6 +24022,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 734
       Name: Probe[main.lenStructFields]
@@ -23751,6 +24042,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 736
       Name: Probe[main.lenStructFields]
@@ -23770,6 +24062,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 738
       Name: Probe[main.lenStructFields]
@@ -23789,6 +24082,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 740
       Name: Probe[main.lenStructFields]
@@ -23808,6 +24102,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 723
       Name: Probe[main.lenStructFields]Return
@@ -23857,6 +24152,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: m
           Offset: 9
           Kind: argument
@@ -23870,6 +24166,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 454
       Name: Probe[main.mapArg]Return
@@ -23916,6 +24213,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 840
       Name: Probe[main.mapIndexBoolKey]
@@ -23959,6 +24257,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 839
       Name: Probe[main.mapIndexBoolKey]Return
@@ -24008,6 +24307,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 833
       Name: Probe[main.mapIndexEmptyKey]Return
@@ -24054,6 +24354,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 803
       Name: Probe[main.mapIndexIntKey]Return
@@ -24100,6 +24401,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 835
       Name: Probe[main.mapIndexKeyLen16]Return
@@ -24146,6 +24448,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 837
       Name: Probe[main.mapIndexKeyLen17]Return
@@ -24192,6 +24495,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 823
       Name: Probe[main.mapIndexKeyLen200]Return
@@ -24238,6 +24542,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 817
       Name: Probe[main.mapIndexKeyLen24]Return
@@ -24284,6 +24589,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 819
       Name: Probe[main.mapIndexKeyLen48]Return
@@ -24330,6 +24636,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 815
       Name: Probe[main.mapIndexKeyLen8]Return
@@ -24376,6 +24683,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 821
       Name: Probe[main.mapIndexKeyLen96]Return
@@ -24422,6 +24730,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 811
       Name: Probe[main.mapIndexLargeMap]Return
@@ -24472,6 +24781,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 847
       Name: Probe[main.mapIndexLargeValue]Return
@@ -24518,6 +24828,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 813
       Name: Probe[main.mapIndexMissing]Return
@@ -24568,6 +24879,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 845
       Name: Probe[main.mapIndexNilPtrVal]Return
@@ -24618,6 +24930,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 830
       Name: Probe[main.mapIndexPtrStructVal]
@@ -24665,6 +24978,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 829
       Name: Probe[main.mapIndexPtrStructVal]Return
@@ -24714,6 +25028,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 806
       Name: Probe[main.mapIndexStringKey]
@@ -24760,6 +25075,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 805
       Name: Probe[main.mapIndexStringKey]Return
@@ -24812,6 +25128,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 826
       Name: Probe[main.mapIndexStructVal]
@@ -24855,6 +25172,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 825
       Name: Probe[main.mapIndexStructVal]Return
@@ -24904,6 +25222,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 843
       Name: Probe[main.mapIndexZeroValue]Return
@@ -24936,6 +25255,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 792
       Name: Probe[main.ptrStructArrayArg]
@@ -24959,6 +25279,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 791
       Name: Probe[main.ptrStructArrayArg]Return
@@ -24994,6 +25315,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 788
       Name: Probe[main.ptrStructSliceArg]
@@ -25023,6 +25345,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 787
       Name: Probe[main.ptrStructSliceArg]Return
@@ -25048,6 +25371,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 416
       Name: Probe[main.stringArg]
@@ -25070,6 +25394,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s
           Offset: 17
           Kind: argument
@@ -25083,6 +25408,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 415
       Name: Probe[main.stringArg]Return
@@ -25111,6 +25437,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 448
       Name: Probe[main.stringArrayArg]
@@ -25130,6 +25457,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 450
       Name: Probe[main.stringArrayArg]
@@ -25149,6 +25477,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 449
       Name: Probe[main.stringArrayArg]Return
@@ -25180,6 +25509,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 446
       Name: Probe[main.stringSliceArg]
@@ -25199,6 +25529,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 445
       Name: Probe[main.stringSliceArg]Return
@@ -25224,6 +25555,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 784
       Name: Probe[main.structArrayArg]
@@ -25243,6 +25575,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 783
       Name: Probe[main.structArrayArg]Return
@@ -25274,6 +25607,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 776
       Name: Probe[main.structSliceArg]
@@ -25299,6 +25633,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 778
       Name: Probe[main.structSliceArg]
@@ -25318,6 +25653,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 780
       Name: Probe[main.structSliceArg]
@@ -25343,6 +25679,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 775
       Name: Probe[main.structSliceArg]Return
@@ -25377,6 +25714,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 990
       Name: Probe[runtime.recovery]
@@ -25407,6 +25745,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 95
       Name: '[0]uint8'

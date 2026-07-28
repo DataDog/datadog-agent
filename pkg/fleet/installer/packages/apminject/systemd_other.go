@@ -26,5 +26,5 @@ func (s *SystemdServiceManager) Setup(_ context.Context) error { return nil }
 // Uninstall is a no-op on non-Linux platforms.
 func (s *SystemdServiceManager) Uninstall(_ context.Context) error { return nil }
 
-// serviceFileExists always returns false on non-Linux platforms.
-func (s *SystemdServiceManager) serviceFileExists() bool { return false }
+// ServiceFileExists always returns false on non-Linux platforms.
+func (s *SystemdServiceManager) ServiceFileExists() bool { return false }

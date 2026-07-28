@@ -42,6 +42,7 @@ func newClusterStore() *clusterStore {
 func (s *clusterStore) reset() {
 	for _, node := range s.nodes {
 		dispatchedConfigs.Delete(node.name, le.JoinLeaderValue)
+		nodeAgents.Dec(le.JoinLeaderValue)
 	}
 
 	s.active = false

@@ -64,7 +64,7 @@
           INPUT_FILE=$(resolve_artifact "${OCI_PRODUCT}" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz") || exit 1
         fi
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
-        MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
+        MERGED_FILE=$(basename "${INPUT_FILE}" | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
         INPUT_DIR="/tmp/input_${ARCH}"
         mkdir -p ${INPUT_DIR}
@@ -111,18 +111,23 @@
           ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
 
-        # Build the FIPS-flavored variant of the agent into the same OCI index.
-        # Distinguished from the base manifest by Platform.Variant="fips" — the
-        # installer requests this variant when DD_FIPS_MODE=true. See
-        # downloadIndex() in pkg/fleet/installer/oci/download.go.
+        # Build the FIPS-flavored variant (Platform.Variant="fips") into the same OCI index.
+        # The installer selects this variant when DD_FIPS_MODE=true.
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           FIPS_INPUT_FILE=$(resolve_artifact "FIPS agent" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-*${ARCH}.tar.xz" "ddot") || exit 1
-          FIPS_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INPUT_FILE})"
           FIPS_INPUT_DIR="/tmp/input_fips_${ARCH}"
+          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
+        fi
+        if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
+          FIPS_INPUT_FILE=$(resolve_artifact "FIPS installer" "${OMNIBUS_PACKAGE_DIR}datadog-fips-installer-*${ARCH}.tar.xz") || exit 1
+          FIPS_INPUT_DIR="/tmp/input_fips_installer_${ARCH}"
+          FIPS_EXTRA_FLAGS="--installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
+        fi
+        if [ -n "${FIPS_INPUT_FILE:-}" ]; then
+          FIPS_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INPUT_FILE})"
           mkdir -p ${FIPS_INPUT_DIR}
-          echo "Extracting FIPS agent ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
+          echo "Extracting FIPS ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
           tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
-          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
           echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
           datadog-package create \
             --version ${PACKAGE_VERSION} \
@@ -175,6 +180,8 @@ installer_oci:
     [
       "installer-arm64-oci",
       "installer-amd64-oci",
+      "installer-fips-arm64-oci",
+      "installer-fips-amd64-oci",
       "go_tools_deps",
     ]
   variables:

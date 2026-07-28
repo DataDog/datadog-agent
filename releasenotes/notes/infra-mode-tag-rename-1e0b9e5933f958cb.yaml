@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The ``infra_mode`` host tag emitted in ``end_user_device`` mode now uses
+    the same key as the system CPU checks (``infra_mode:``), replacing the
+    mismatched ``infrastructure_mode:`` key.

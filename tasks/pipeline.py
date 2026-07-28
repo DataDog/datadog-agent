@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import yaml
 from gitlab import GitlabError
+from gitlab.exceptions import GitlabGetError
 from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit
@@ -717,8 +718,14 @@ def compare_to_itself(ctx):
         for attempt in range(max_attempts):
             print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
             time.sleep(10)
-            if agent.branches.get(new_branch, raise_exception=False):
-                break
+            try:
+                if agent.branches.get(new_branch):
+                    break
+            except GitlabGetError as e:
+                if e.response_code != 404:
+                    raise
+                # Branch not mirrored to GitLab yet, keep waiting.
+                continue
         else:
             print(f"{color_message('ERROR', Color.RED)}: Branch {new_branch} not created", file=sys.stderr)
             raise RuntimeError(f"No branch found for {new_branch}")

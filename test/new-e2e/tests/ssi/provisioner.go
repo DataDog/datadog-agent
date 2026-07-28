@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	scenarioeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	scenariogke "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
@@ -44,6 +46,8 @@ const (
 	ProvisionerAKS ProvisionerType = "aks"
 	// ProvisionerGKE uses Google Kubernetes Engine.
 	ProvisionerGKE ProvisionerType = "gke"
+	// ProvisionerGKEAutopilot uses Google Kubernetes Engine in Autopilot mode.
+	ProvisionerGKEAutopilot ProvisionerType = "gke-autopilot"
 	// ProvisionerOpenShift uses OpenShift VM on GCP.
 	ProvisionerOpenShift ProvisionerType = "openshift"
 	// ProvisionerOpenShiftLocal uses local OpenShift (CRC).
@@ -59,7 +63,7 @@ type ProvisionerOptions struct {
 }
 
 // Provisioner returns a Kubernetes provisioner based on E2E_PROVISIONER and E2E_DEV_LOCAL parameters.
-// Supported provisioners: "kind" (default), "kind-local", "eks", "gke", "aks", "openshift", "openshift-local".
+// Supported provisioners: "kind" (default), "kind-local", "eks", "gke", "gke-autopilot", "aks", "openshift", "openshift-local".
 // E2E_DEV_LOCAL=true is a shortcut for E2E_PROVISIONER=kind-local.
 func Provisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	provisionerType := getProvisionerType()
@@ -71,7 +75,9 @@ func Provisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environm
 	case ProvisionerAKS:
 		return aksProvisioner(opts)
 	case ProvisionerGKE:
-		return gkeProvisioner(opts)
+		return gkeProvisioner(opts, false)
+	case ProvisionerGKEAutopilot:
+		return gkeProvisioner(opts, true)
 	case ProvisionerOpenShift:
 		return openShiftProvisioner(opts)
 	case ProvisionerOpenShiftLocal:
@@ -130,7 +136,9 @@ func kindLocalProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 
 // kindProvisioner returns an AWS Kind VM provisioner
 func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
-	var runOpts []kindvm.RunOption
+	runOpts := []kindvm.RunOption{
+		kindvm.WithFakeintakeOptions(fakeintake.WithMemory(4096)),
+	}
 	if len(opts.AgentOptions) > 0 {
 		runOpts = append(runOpts, kindvm.WithAgentOptions(opts.AgentOptions...))
 	}
@@ -162,12 +170,73 @@ func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 	return proveks.Provisioner(proveks.WithRunOptions(runOpts...))
 }
 
+// autopilotHelmValues adapts the agent install to GKE Autopilot's constraints, following
+// https://docs.datadoghq.com/containers/kubernetes/distributions/#autopilot:
+//   - admissionController.configMode "service": the default "hostip" mode points workloads at
+//     the node IP, which requires the agent DaemonSet to expose the trace-agent on a fixed
+//     hostPort, and the "socket" mode mounts the UDS through a writable hostPath volume.
+//     Autopilot disallows both (fixed hostPorts and write-mode hostPath volumes, on top of
+//     hostNetwork), so traces injected by SSI can only reach the trace-agent through cluster
+//     networking via the agent's service DNS name.
+//   - apm.portEnabled: expose the trace-agent TCP port (8126) on the agent's local service so
+//     that the service DNS name injected in "service" mode actually resolves to an open port.
+//     This uses a container port (no hostPort), so it stays Autopilot-compatible.
+//   - kubelet.useApiServer: query the pod list from the API server instead of the deprecated
+//     read-only kubelet port, which Datadog recommends on Autopilot.
+//   - container resources requests: Autopilot's low default limit (50m CPU, 100Mi memory) can
+//     OOMKill the agent and trace-agent, which breaks trace ingestion in the SSI tests.
+//   - priorityClassCreate: ensure the agent gets scheduled on Autopilot.
+const autopilotHelmValues = `
+datadog:
+  apm:
+    portEnabled: true
+  kubelet:
+    useApiServer: true
+clusterAgent:
+  admissionController:
+    configMode: service
+agents:
+  priorityClassCreate: true
+  containers:
+    agent:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+    traceAgent:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+    processAgent:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+    systemProbe:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 400Mi
+`
+
 // gkeProvisioner returns a Google Kubernetes Engine provisioner.
-func gkeProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
+// When autopilot is true, the cluster is created in Autopilot mode and the agent is
+// installed with Autopilot-compatible Helm values.
+func gkeProvisioner(opts ProvisionerOptions, autopilot bool) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var gkeOpts []provgke.ProvisionerOption
 
-	if len(opts.AgentOptions) > 0 {
-		gkeOpts = append(gkeOpts, provgke.WithAgentOptions(opts.AgentOptions...))
+	agentOptions := opts.AgentOptions
+	if autopilot {
+		gkeOpts = append(gkeOpts, provgke.WithGKEOptions(scenariogke.WithAutopilot()))
+		// Prepend the Autopilot agent option so the Helm install only keeps Autopilot-compatible values.
+		agentOptions = append([]kubernetesagentparams.Option{kubernetesagentparams.WithGKEAutopilot()}, agentOptions...)
+		// Append an override last so it wins over the suite's configMode (which uses "hostip").
+		agentOptions = append(agentOptions, kubernetesagentparams.WithHelmValues(autopilotHelmValues))
+	}
+
+	if len(agentOptions) > 0 {
+		gkeOpts = append(gkeOpts, provgke.WithAgentOptions(agentOptions...))
 	}
 	if opts.WorkloadAppFunc != nil {
 		gkeOpts = append(gkeOpts, provgke.WithWorkloadApp(provgke.WorkloadAppFunc(opts.WorkloadAppFunc)))

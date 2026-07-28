@@ -91,6 +91,102 @@ func TestKueueQueueParser(t *testing.T) {
 	}
 }
 
+func TestKueueResourceFlavorParser(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":        "a100",
+				"labels":      map[string]interface{}{"team": "ml"},
+				"annotations": map[string]interface{}{"owner": "batch"},
+				"uid":         "uid-a100",
+			},
+			"spec": map[string]interface{}{
+				"nodeLabels": map[string]interface{}{
+					"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+				},
+			},
+		},
+	}
+
+	expected := &workloadmeta.KubernetesKueueResourceFlavor{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+			ID:   "a100",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "a100",
+			Labels:      map[string]string{"team": "ml"},
+			Annotations: map[string]string{"owner": "batch"},
+			UID:         "uid-a100",
+		},
+		NodeAffinityLabels: map[string]string{
+			"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+		},
+	}
+
+	parser := NewKueueResourceFlavorParser()
+	assert.Equal(t, expected, parser.Parse(obj))
+}
+
+func TestKueueWorkloadParser(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":        "job-sample-df83f",
+				"namespace":   "team-a",
+				"labels":      map[string]interface{}{"team": "a"},
+				"annotations": map[string]interface{}{"owner": "batch"},
+				"uid":         "uid-workload",
+			},
+			"spec": map[string]interface{}{
+				"queueName": "gpu",
+			},
+			"status": map[string]interface{}{
+				"admission": map[string]interface{}{
+					"clusterQueue": "team-a-gpu",
+					"podSetAssignments": []interface{}{
+						map[string]interface{}{
+							"name": "main",
+							"flavors": map[string]interface{}{
+								"nvidia.com/gpu": "a100",
+								"cpu":            "default",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   "team-a/job-sample-df83f",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "job-sample-df83f",
+			Namespace:   "team-a",
+			Labels:      map[string]string{"team": "a"},
+			Annotations: map[string]string{"owner": "batch"},
+			UID:         "uid-workload",
+		},
+		QueueName:        "gpu",
+		ClusterQueueName: "team-a-gpu",
+		PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+			{
+				Name: "main",
+				Flavors: map[string]string{
+					"nvidia.com/gpu": "a100",
+					"cpu":            "default",
+				},
+			},
+		},
+	}
+
+	parser := NewKueueWorkloadParser()
+	assert.Equal(t, expected, parser.Parse(obj))
+}
+
 func TestGenerateKueueQueueEntityID(t *testing.T) {
 	tests := []struct {
 		name        string

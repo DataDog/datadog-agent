@@ -387,7 +387,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
