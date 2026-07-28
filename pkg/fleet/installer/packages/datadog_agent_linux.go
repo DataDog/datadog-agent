@@ -219,7 +219,7 @@ func installFilesystem(ctx HookContext) (err error) {
 
 	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
-		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
+		log.Warnf("failed to retire legacy procmgr units: %v", err)
 	}
 	return nil
 }
