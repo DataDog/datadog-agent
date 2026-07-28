@@ -39,7 +39,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -333,6 +335,12 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 				defaultpaths.GetEmbeddedBinPath(),
 				"secret-generic-connector.exe",
 			)
+		} else if flavor.GetFlavor() == flavor.ClusterAgent {
+			// The cluster-agent image isn't built via omnibus, so it never gets an
+			// .install_root marker and defaultpaths.GetEmbeddedBinPath falls back to a
+			// path that doesn't match where the binary actually ships.
+			here, _ := executable.Folder()
+			r.backendCommand = filepath.Join(here, "secret-generic-connector")
 		} else {
 			r.backendCommand = filepath.Join(
 				defaultpaths.GetEmbeddedBinPath(),
