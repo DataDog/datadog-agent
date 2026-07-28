@@ -35,17 +35,14 @@ def _{TOOL_NAME}_toolchain_impl(ctx):
     },
 )
 
-# Expose the presence of {TOOL_NAME} in the resolved toolchain as a flag.
-# The signal is to look at the default toolchain of the {TOOL_NAME}_toolchan_type
-# and see that it is valid (that is, it has a path).
+# Expose the presence of {TOOL_NAME} as a flag.
 def _is_{TOOL_NAME}_available_impl(ctx):
-    toolchain = ctx.toolchains["@{REPO_NAME}//:{TOOL_NAME}_toolchain_type"].{TOOL_NAME}
     return [config_common.FeatureFlagInfo(
-        value = ("1" if toolchain.valid else "0"),
+        value = ("1" if ctx.build_setting_value else "0"),
     )]
 
 is_{TOOL_NAME}_available = rule(
     implementation = _is_{TOOL_NAME}_available_impl,
     attrs = {},
-    toolchains = ["@{REPO_NAME}//:{TOOL_NAME}_toolchain_type"],
+    build_setting = config.bool(flag = False),
 )

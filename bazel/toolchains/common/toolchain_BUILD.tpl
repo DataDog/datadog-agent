@@ -33,10 +33,11 @@ toolchain(
     toolchain_type = ":{TOOL_NAME}_toolchain_type",
 )
 
-# Expose the availability of an actual otool as a feature flag, so we can
+# Expose the availability of the actual tool as a flag, so we can
 # create a config_setting from it.
 is_{TOOL_NAME}_available(
     name = "is_{TOOL_NAME}_available",
+    build_setting_default = {AVAILABLE},
 )
 
 # Expose the availability of the toolchain as a config_setting, so we can

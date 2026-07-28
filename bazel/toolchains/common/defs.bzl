@@ -7,12 +7,13 @@ def _write_toolchain_repo(rctx, repo_name, tool_name, tool_path, tool_version = 
         "BUILD",
         Label("@@//bazel/toolchains/common:toolchain_BUILD.tpl"),
         substitutions = {
+            "{AVAILABLE}": "1" if tool_path else "0",
+            "{EXEC_COMPATIBLE_WITH}": repr(exec_compatible_with),
             "{GENERATOR}": "//bazel/toolchains/common:defs.bzl",
             "{REPO_NAME}": repo_name,
             "{TOOL_NAME}": tool_name,
             "{TOOL_PATH}": str(tool_path),
             "{TOOL_VERSION}": tool_version,
-            "{EXEC_COMPATIBLE_WITH}": repr(exec_compatible_with),
         },
         executable = False,
     )
@@ -20,6 +21,7 @@ def _write_toolchain_repo(rctx, repo_name, tool_name, tool_path, tool_version = 
         "defs.bzl",
         Label("@@//bazel/toolchains/common:toolchain_defs.bzl.tpl"),
         substitutions = {
+            "{AVAILABLE}": "1" if tool_path else "0",
             "{GENERATOR}": "//bazel/toolchains/common:defs.bzl",
             "{REPO_NAME}": repo_name,
             "{TOOL_NAME}": tool_name,
