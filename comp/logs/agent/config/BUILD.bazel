@@ -10,6 +10,7 @@ go_library(
         "constants.go",
         "endpoints.go",
         "endpoints_mock.go",
+        "endpoints_test_utils.go",
         "integration_config.go",
         "messages.go",
         "parser.go",

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -27,6 +27,8 @@ type SyncDestination struct {
 }
 
 // NewSyncDestination returns a new synchronous Destination.
+// delegatedAuthComp is used to nudge a delegated-auth (WIF) refresh on 403 responses for a
+// pending endpoint; pass a DelegatedAuthNoop when WIF isn't in use.
 func NewSyncDestination(
 	endpoint config.Endpoint,
 	contentType string,
@@ -34,12 +36,13 @@ func NewSyncDestination(
 	senderDoneChan chan *sync.WaitGroup,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
+	delegatedAuthComp delegatedauth.Component,
 ) *SyncDestination {
 	minConcurrency := 1
 	maxConcurrency := minConcurrency
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp),
+		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", secretsnoopimpl.NewComponent().Comp, delegatedAuthComp),
 		senderDoneChan: senderDoneChan,
 	}
 }

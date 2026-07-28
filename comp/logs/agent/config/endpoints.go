@@ -164,7 +164,7 @@ func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, 
 func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool, delegatedAuthComp delegatedauth.Component) Endpoint {
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
-		apiKey:                  atomic.NewString(apiKey),
+		apiKey:                  atomic.NewString(delaAwareAPIKey(apiKey)),
 		configSettingPath:       configPath,
 		ProxyAddress:            logsConfig.socks5ProxyAddress(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
@@ -186,7 +186,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool, delegate
 
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
-		apiKey:                  atomic.NewString(apiKey),
+		apiKey:                  atomic.NewString(delaAwareAPIKey(apiKey)),
 		configSettingPath:       configPath,
 		UseCompression:          logsConfig.useCompression(),
 		CompressionKind:         logsConfig.compressionKind(),
@@ -401,6 +401,7 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 				// missed
 				log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
 			}
+			newAPIKey = delaAwareAPIKey(newAPIKey)
 			log.Infof("rotating API key for '%s': %s -> %s",
 				e.configSettingPath,
 				scrubber.HideKeyExceptLastChars(e.apiKey.Load()),

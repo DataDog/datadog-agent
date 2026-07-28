@@ -96,7 +96,7 @@ func httpDestinationFactory(
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
 			destMeta := client.NewDestinationMetadata(componentName, instanceID, "reliable", strconv.Itoa(i), evpCategory)
 			if serverlessMeta.IsEnabled() {
-				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
+				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg, delegatedAuthComp))
 			} else {
 				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp, delegatedAuthComp))
 			}
@@ -104,7 +104,7 @@ func httpDestinationFactory(
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 			destMeta := client.NewDestinationMetadata(componentName, instanceID, "unreliable", strconv.Itoa(i), evpCategory)
 			if serverlessMeta.IsEnabled() {
-				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
+				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg, delegatedAuthComp))
 			} else {
 				additionals = append(additionals, http.NewDestination(endpoint, contentyType, destinationsContext, false, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp, delegatedAuthComp))
 			}
