@@ -695,7 +695,7 @@ func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
-		"mysql.service": systemServiceActions("read", "stop"),
+		"mysql.service": systemServiceActions("read", "reboot"),
 	})
 
 	out, err := handler.Run(context.Background(), task, nil)
@@ -705,7 +705,7 @@ func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
 	assert.Equal(t, 0, result.ExitCode)
 	assert.Equal(t, "hello\n", result.Stdout)
 	assert.Contains(t, result.SandboxWarnings,
-		`AllowedSystemServices: skipping unsupported action "stop" in grant 0 for "mysql.service"`)
+		`AllowedSystemServices: skipping unsupported action "reboot" in grant 0 for "mysql.service"`)
 }
 
 func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
