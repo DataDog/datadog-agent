@@ -373,13 +373,35 @@ func (k *KubeASCheck) startEventCollection() error {
 	k.mu.Unlock()
 
 	// If the checkpoint is present, seed the watermark from it so the initial list only forwards newer events.
-	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
-		log.Warnf("Could not read persisted event checkpoint, starting fresh: %s", err)
+	resVer, err := k.readEventCheckpointWithRetry()
+	if err != nil {
+		log.Warnf("Could not read persisted event checkpoint after retries, starting fresh: %s", err)
 	} else {
 		ec.SetCheckpoint(resVer)
 	}
 
 	return ec.Start(stopCh)
+}
+
+// readEventCheckpointWithRetry reads the persisted event checkpoint, retrying with backoff
+func (k *KubeASCheck) readEventCheckpointWithRetry() (string, error) {
+	const maxAttempts = 5
+
+	delay := time.Second
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
+		if err == nil {
+			return resVer, nil
+		}
+		lastErr = err
+		if attempt < maxAttempts {
+			log.Warnf("Could not read persisted event checkpoint (attempt %d/%d): %s", attempt, maxAttempts, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+	return "", lastErr
 }
 
 // stopEventCollection stops the running EventCollector by closing its stop
