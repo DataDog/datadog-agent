@@ -58,8 +58,9 @@ type controller struct {
 // NewController creates a Data Security controller. Only call it when `data_security.enabled` is set.
 func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
 	c := &controller{
-		ac:            ac,
-		rcclient:      rcclient,
+		ac:       ac,
+		rcclient: rcclient,
+		// TODO(dsec-198): include backpressure to avoid blocking indefinitely
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 	c.configChanges <- integration.ConfigChanges{}
@@ -78,6 +79,7 @@ func (c *controller) manageSubscriptionToRC() {
 			return
 		}
 		c.closeMutex.RUnlock()
+		// TODO(dsec-198): change here to connect to RC in an event-driven fashion rather than polling
 		if isConnectedToPostgres(c.ac) {
 			c.rcclient.Subscribe(data.ProductDataSecurityDBScanTasks, c.update)
 			return
