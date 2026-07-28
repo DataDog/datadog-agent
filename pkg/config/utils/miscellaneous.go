@@ -61,6 +61,13 @@ func IsAPMEnabled(cfg pkgconfigmodel.Reader) bool {
 		cfg.GetBool("apm_config.error_tracking_standalone.enabled")
 }
 
+// IsDataSecurityEnabled returns true if Data Security is enabled. It requires both
+// data_security.enabled and shared_library_check.enabled, as it relies on the datasecurity
+// shared-library check.
+func IsDataSecurityEnabled(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetBool("data_security.enabled") && cfg.GetBool("shared_library_check.enabled")
+}
+
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
 func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Remote Config for GovCloud if it's not explicitly enabled

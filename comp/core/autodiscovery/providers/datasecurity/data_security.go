@@ -55,7 +55,8 @@ type controller struct {
 	closed        bool
 }
 
-// NewController creates a Data Security controller. Only call it when `data_security.enabled` is set.
+// NewController creates a Data Security controller. Only call it when both `data_security.enabled`
+// and `shared_library_check.enabled` are set (see configUtils.IsDataSecurityEnabled).
 func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
 	c := &controller{
 		ac:       ac,

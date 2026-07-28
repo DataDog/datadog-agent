@@ -677,7 +677,7 @@ func startAgent(
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 
-		if cfg.GetBool("data_security.enabled") {
+		if configUtils.IsDataSecurityEnabled(cfg) {
 			dataSecurityController := datasecurity.NewController(ac, rcclient)
 			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
