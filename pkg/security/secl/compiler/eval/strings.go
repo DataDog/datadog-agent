@@ -305,14 +305,17 @@ func (c *CaptureStringMatcher) String() string {
 // first group participating, returns false.
 func (c *CaptureStringMatcher) Capture(value string) (string, bool) {
 	// FindStringSubmatchIndex is used over FindStringSubmatch to avoid allocating a
-	// slice of strings for every group: the returned indexes let us slice the input,
-	// which shares its backing array.
+	// slice of strings for every group of the pattern
 	indexes := c.re.FindStringSubmatchIndex(value)
 	if indexes == nil || indexes[2] < 0 {
 		return "", false
 	}
 
-	return value[indexes[2]:indexes[3]], true
+	// slicing would share the backing array of the whole field value, keeping it alive
+	// for as long as the captured value is stored. Captures end up in variables that
+	// can be inherited across a process tree and outlive the event by a long time, so
+	// a small artifact must not pin the path it was extracted from.
+	return strings.Clone(value[indexes[2]:indexes[3]]), true
 }
 
 // NewStringMatcher returns a new string matcher
