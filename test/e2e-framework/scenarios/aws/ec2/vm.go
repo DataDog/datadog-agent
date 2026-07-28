@@ -6,6 +6,7 @@
 package ec2
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -17,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -62,9 +65,12 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			VolumeThroughput:   vmArgs.volumeThroughput,
 		}
 
-		// isMacOSPoolMember/poolAcquired drive the pool-release wiring below, once
-		// the instance itself has been imported.
+		// isMacOSPoolMember/poolAcquired drive the pool-acquire/pool-provision/
+		// pool-release wiring below, once the instance itself has been created or
+		// imported.
 		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
+		isLocalRun := e.PipelineID() == ""
+		username := e.DefaultResourceTags()["username"]
 		var poolAcquired pool.AcquireResult
 
 		if isMacOSPoolMember {
@@ -72,9 +78,31 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			if err != nil {
 				return err
 			}
-			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID())
+
+			// A local run (no CI pipeline driving it) is scoped to the developer's
+			// own previously-provisioned instance via the username tag, and a cache
+			// miss (poolAcquired.Found == false) means "provision one" rather than a
+			// hard error. See notes/MACOS_POOL_LOCAL_AUTOPROVISION_PROPOSAL.md.
+			var localOpts *pool.LocalProvisionOptions
+			if isLocalRun {
+				localOpts = &pool.LocalProvisionOptions{Username: username}
+			}
+
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID(), localOpts)
 			if err != nil {
 				return err
+			}
+
+			if localOpts != nil && poolAcquired.Found {
+				revertBeforeRun, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.RevertBeforeRun, false)
+				if err != nil {
+					return err
+				}
+				if revertBeforeRun {
+					if err := pool.RevertInPlace(e.Ctx().Context(), e.Region(), e.Profile(), poolAcquired.InstanceID, poolAcquired.LeaseToken); err != nil {
+						return fmt.Errorf("failed to revert local pool instance %s before run: %w", poolAcquired.InstanceID, err)
+					}
+				}
 			}
 
 			// Deleting a Dedicated Host requires it to have lived for at least 24
@@ -82,45 +110,59 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			// Pulumi; BaseSuite.releasePoolInstanceIfAny releases it back to idle
 			// instead, once the test suite completes.
 			opts = append(opts, pulumi.RetainOnDelete(true))
-
-			// Import the existing pool member instead of creating a new instance,
-			// and pin HostID/Tenancy/SubnetID to what it's actually running on.
-			// SubnetID must be pinned: the instance's AZ is fixed by its Dedicated
-			// Host, and AWS doesn't support moving an existing instance to a subnet
-			// in a different AZ, so leaving it on the environment's random subnet
-			// pick would make this resource non-importable or replace-triggering.
-			// Instance creation is owned by an external provisioning job, never by
-			// NewVM.
-			opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
-			instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
 			instanceArgs.Tenancy = "host"
-			instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
 
-			// Tags (e.g. the pool-membership tag pool.PoolTagKey) are also owned
-			// externally: NewInstance's Tags only ever declares "Name", so without
-			// this, importing the pool member would make Pulumi reconcile the
-			// instance's real tags down to just that, stripping the pool tag and
-			// making the instance invisible to future Acquire calls.
-			//
-			// AMI and key pair are also owned externally: the pool member's AMI is
-			// whatever it was actually launched from (fixed at launch, unrelated to
-			// whatever the environment resolves as "latest" on a given run) and the
-			// pool provisioning job may not attach a key pair at all. Since imported
-			// instances can't be replaced, leaving either out of IgnoreChanges makes
-			// every run against a pool member fail as soon as either drifts from the
-			// program's freshly-resolved defaults.
-			opts = append(opts, pulumi.IgnoreChanges([]string{"tags", "ami", "keyName"}))
+			if poolAcquired.Found {
+				// Import the existing pool member instead of creating a new instance,
+				// and pin HostID/SubnetID to what it's actually running on. SubnetID
+				// must be pinned: the instance's AZ is fixed by its Dedicated Host,
+				// and AWS doesn't support moving an existing instance to a subnet in
+				// a different AZ, so leaving it on the environment's random subnet
+				// pick would make this resource non-importable or replace-triggering.
+				opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
+				instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
+				instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
 
-			// Exported so BaseSuite.releasePoolInstanceIfAny can revert and release
-			// the instance once the test suite completes, independent of region/
-			// profile resolution happening again on the test-harness side.
-			c.PoolInstanceID = pulumi.String(poolAcquired.InstanceID).ToStringOutput()
-			c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
-			c.PoolRegion = pulumi.String(e.Region()).ToStringOutput()
-			c.PoolProfile = pulumi.String(e.Profile()).ToStringOutput()
+				// Tags (e.g. the pool-membership tag pool.PoolTagKey) are also owned
+				// externally: NewInstance's Tags only ever declares "Name", so without
+				// this, importing the pool member would make Pulumi reconcile the
+				// instance's real tags down to just that, stripping the pool tag and
+				// making the instance invisible to future Acquire calls.
+				//
+				// AMI and key pair are also owned externally: the pool member's AMI is
+				// whatever it was actually launched from (fixed at launch, unrelated to
+				// whatever the environment resolves as "latest" on a given run) and the
+				// pool provisioning job may not attach a key pair at all. Since imported
+				// instances can't be replaced, leaving either out of IgnoreChanges makes
+				// every run against a pool member fail as soon as either drifts from the
+				// program's freshly-resolved defaults.
+				opts = append(opts, pulumi.IgnoreChanges([]string{"tags", "ami", "keyName"}))
+
+				// Exported so BaseSuite.releasePoolInstanceIfAny can revert and release
+				// the instance once the test suite completes, independent of region/
+				// profile resolution happening again on the test-harness side.
+				c.PoolInstanceID = pulumi.String(poolAcquired.InstanceID).ToStringOutput()
+				c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
+			} else {
+				// Local cache miss: no pool member owned by this developer exists
+				// yet. Provision a new Dedicated Host + instance through ordinary
+				// Pulumi resources instead of an out-of-band AWS SDK call, so the
+				// created resources are tracked in the stack like any other resource.
+				host, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{InstanceType: vmArgs.instanceType}, opts...)
+				if err != nil {
+					return err
+				}
+				instanceArgs.HostID = host.ID()
+			}
 		} else {
 			c.PoolInstanceID = pulumi.String("").ToStringOutput()
 			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
+		}
+
+		if isMacOSPoolMember {
+			c.PoolRegion = pulumi.String(e.Region()).ToStringOutput()
+			c.PoolProfile = pulumi.String(e.Profile()).ToStringOutput()
+		} else {
 			c.PoolRegion = pulumi.String("").ToStringOutput()
 			c.PoolProfile = pulumi.String("").ToStringOutput()
 		}
@@ -148,6 +190,22 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 
 		if err != nil {
 			return err
+		}
+
+		if isMacOSPoolMember && !poolAcquired.Found {
+			// Freshly created local instance: bake its current disk state into a
+			// golden AMI and register it as a pool member now that InitHost's setup
+			// has completed, not immediately after creation, since reverting to a
+			// bare-OS AMI later would otherwise discard InitHost's work. The
+			// resulting AMI becomes this instance's permanent, immutable golden
+			// baseline (see leaseRecord.Persistent) — this must only ever run once,
+			// right after creation. See notes/MACOS_POOL_LOCAL_AUTOPROVISION_PROPOSAL.md.
+			registerCmd, err := ec2.ScheduleRegisterOnCreate(e, name, instance.ID().ToStringOutput(), e.PipelineID(), username, pulumi.Parent(c))
+			if err != nil {
+				return err
+			}
+			c.PoolInstanceID = instance.ID().ToStringOutput()
+			c.PoolLeaseToken = registerCmd.Stdout
 		}
 
 		// reset the windows password on Windows

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,6 +42,11 @@ const (
 	PoolTagValue = "true"
 )
 
+// OwnerUsernameTagKey additionally scopes discovery to a single developer's own
+// locally-provisioned instance (see LocalProvisionOptions), so local runs never
+// discover another developer's instance or a CI pool member.
+const OwnerUsernameTagKey = "username"
+
 // Lease statuses stored in leaseRecord.Status. statusDevMode marks an instance
 // released from a dev-mode test run: like statusInUse it is unclaimable, but it is
 // tracked separately since its root volume was deliberately left unreverted for
@@ -59,6 +65,13 @@ type leaseRecord struct {
 	ImageID  string `json:"imageId,omitempty"`
 	Owner    string `json:"owner,omitempty"`
 	LeasedAt int64  `json:"leased_at,omitempty"`
+
+	// Persistent marks a locally-provisioned, developer-owned instance whose
+	// root volume must never be reverted by RevertAndRelease: its ImageID is a
+	// golden baseline captured once at creation time (see ScheduleRegisterOnCreate),
+	// and reverting to it on every teardown would defeat the point of reusing the
+	// same instance across local runs.
+	Persistent bool `json:"persistent,omitempty"`
 }
 
 // PoolInstance is one EC2 instance discovered by ListPoolInstances, with the
@@ -71,23 +84,24 @@ type PoolInstance struct {
 	SubnetID   string
 }
 
-// ListPoolInstances returns every running or stopped EC2 instance carrying
-// tagKey=tagValue.
-func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagValue string) ([]PoolInstance, error) {
-	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
-		Filters: []awsec2types.Filter{
-			{
-				Name:   pointer.Ptr("tag:" + tagKey),
-				Values: []string{tagValue},
-			},
-			{
-				Name:   pointer.Ptr("instance-state-name"),
-				Values: []string{"running", "stopped"},
-			},
-		},
+// ListPoolInstances returns every running or stopped EC2 instance carrying every
+// tag in tags.
+func ListPoolInstances(ctx context.Context, client *awsec2.Client, tags map[string]string) ([]PoolInstance, error) {
+	filters := make([]awsec2types.Filter, 0, len(tags)+1)
+	for tagKey, tagValue := range tags {
+		filters = append(filters, awsec2types.Filter{
+			Name:   pointer.Ptr("tag:" + tagKey),
+			Values: []string{tagValue},
+		})
+	}
+	filters = append(filters, awsec2types.Filter{
+		Name:   pointer.Ptr("instance-state-name"),
+		Values: []string{"running", "stopped"},
 	})
+
+	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{Filters: filters})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list instances tagged %s=%s: %w", tagKey, tagValue, err)
+		return nil, fmt.Errorf("failed to list instances tagged %v: %w", tags, err)
 	}
 
 	var instances []PoolInstance
@@ -180,6 +194,12 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 // instead of statusIdle, so the instance remains unclaimable by other jobs while
 // staying visibly distinguishable from a normal in-use lease.
 //
+// If the lease's Persistent field is true (a locally-provisioned, developer-owned
+// instance; see leaseRecord.Persistent), the revert is likewise skipped, since its
+// ImageID is a golden baseline captured once at creation time, not a snapshot that
+// should be reapplied on every teardown. The lease is still released to statusIdle
+// so a later local run can reacquire the same instance.
+//
 // If the lease's current imageId is empty, or no longer resolves to an existing
 // AMI/snapshot, the root-volume revert is skipped, imageId is cleared before it's
 // written back to the lease, and the lease is released directly.
@@ -206,21 +226,86 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 	}
 
 	imageID := current.ImageID
-	if imageID != "" {
+	if imageID != "" && !current.Persistent {
 		ec2Client, err := NewEC2Client(ctx, region, profile)
 		if err != nil {
 			return err
 		}
 
-		snapshotID, resolveErr := resolveSnapshotID(ctx, ec2Client, imageID)
-		if resolveErr != nil {
-			imageID = "" // baseline no longer resolvable: skip revert, clear it, still release
-		} else if err := replaceRootVolume(ctx, ec2Client, instanceID, snapshotID); err != nil {
-			return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, err)
+		if revertErr := revertRootVolume(ctx, ec2Client, instanceID, imageID); revertErr != nil {
+			if errors.Is(revertErr, errImageUnresolvable) {
+				imageID = "" // baseline no longer resolvable: skip revert, clear it, still release
+			} else {
+				return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
+			}
 		}
 	}
 
 	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID)
+}
+
+// RevertInPlace reverts instanceID's root volume to the lease's current baseline
+// image, like RevertAndRelease, but re-publishes the lease as statusInUse under its
+// current owner instead of releasing it. It's used to reset a developer's own
+// drifted local instance back to its golden baseline immediately before a test run
+// (see parameters.RevertBeforeRun), rather than on teardown.
+func RevertInPlace(ctx context.Context, region, profile, instanceID, leaseToken string) error {
+	s3Client, err := newS3Client(ctx, region, profile)
+	if err != nil {
+		return err
+	}
+
+	key := leasePrefix + instanceID
+	getOut, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
+	if err != nil {
+		return fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
+	}
+	var current leaseRecord
+	decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
+	getOut.Body.Close()
+	if decodeErr != nil {
+		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
+	}
+
+	if current.ImageID == "" {
+		return fmt.Errorf("instance %s has no baseline image to revert to", instanceID)
+	}
+
+	ec2Client, err := NewEC2Client(ctx, region, profile)
+	if err != nil {
+		return err
+	}
+	if revertErr := revertRootVolume(ctx, ec2Client, instanceID, current.ImageID); revertErr != nil {
+		return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
+	}
+
+	body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: current.Owner, LeasedAt: current.LeasedAt, Persistent: current.Persistent})
+	if err != nil {
+		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
+	}
+	if _, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:  aws.String(leaseBucket),
+		Key:     aws.String(key),
+		Body:    bytes.NewReader(body),
+		IfMatch: aws.String(leaseToken),
+	}); err != nil {
+		return fmt.Errorf("failed to re-publish lease for instance %s: %w", instanceID, err)
+	}
+	return nil
+}
+
+// errImageUnresolvable marks a revertRootVolume failure caused by imageID no longer
+// resolving to an existing AMI/snapshot, as opposed to an actual revert failure.
+var errImageUnresolvable = errors.New("baseline image no longer resolvable")
+
+// revertRootVolume resolves imageID to its root EBS snapshot and replaces
+// instanceID's root volume with it, blocking until the replacement completes.
+func revertRootVolume(ctx context.Context, client *awsec2.Client, instanceID, imageID string) error {
+	snapshotID, resolveErr := resolveSnapshotID(ctx, client, imageID)
+	if resolveErr != nil {
+		return fmt.Errorf("%w: %s: %w", errImageUnresolvable, imageID, resolveErr)
+	}
+	return replaceRootVolume(ctx, client, instanceID, snapshotID)
 }
 
 // resolveSnapshotID returns the root EBS snapshot ID backing imageID.
@@ -294,8 +379,11 @@ func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken
 }
 
 // AcquireResult is a successfully claimed pool member: InstanceID/HostID/SubnetID to
-// import it, LeaseToken to release it, and ImageID to revert it to baseline on release.
+// import it, LeaseToken to release it, and ImageID to revert it to baseline on
+// release. Found is false only when local is non-nil and the developer's own
+// instance doesn't exist yet, signaling the caller to provision one.
 type AcquireResult struct {
+	Found      bool
 	InstanceID string
 	HostID     string
 	SubnetID   string
@@ -303,15 +391,43 @@ type AcquireResult struct {
 	ImageID    string
 }
 
-// Acquire lists every instance tagged PoolTagKey=PoolTagValue and claims one idle
-// member via AcquireIdleInstance. An empty or fully-unavailable pool is an error.
-func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string) (AcquireResult, error) {
-	instances, err := ListPoolInstances(ctx, client, PoolTagKey, PoolTagValue)
+// LocalProvisionOptions scopes Acquire to a single developer's own
+// locally-provisioned instance, and turns an empty/fully-claimed pool from an
+// error into AcquireResult{Found: false} so the caller can provision one instead.
+type LocalProvisionOptions struct {
+	// Username identifies the developer's own instance via OwnerUsernameTagKey,
+	// e.g. aws.Environment.DefaultResourceTags()["username"].
+	Username string
+}
+
+// Acquire lists every instance tagged PoolTagKey=PoolTagValue (additionally scoped
+// to OwnerUsernameTagKey=local.Username when local is non-nil) and claims one idle
+// member via AcquireIdleInstance.
+//
+// When local is nil (CI), an empty or fully-unavailable pool is an error, and the
+// retry budget/error behavior are unchanged from before LocalProvisionOptions was
+// introduced.
+//
+// When local is non-nil, the same maxAcquireRetries/acquireRetryInterval budget is
+// reused (a developer can run tests in parallel and contend with their own sibling
+// runs for the same instance, so shortening the local retry budget would be
+// incorrect) but exhausting it returns AcquireResult{Found: false} instead of an
+// error, signaling the caller to provision a new instance for this developer.
+func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string, local *LocalProvisionOptions) (AcquireResult, error) {
+	tags := map[string]string{PoolTagKey: PoolTagValue}
+	if local != nil {
+		tags[OwnerUsernameTagKey] = local.Username
+	}
+
+	instances, err := ListPoolInstances(ctx, client, tags)
 	if err != nil {
 		return AcquireResult{}, err
 	}
 	if len(instances) == 0 {
-		return AcquireResult{}, fmt.Errorf("no macOS pool instances found (tag %s=%s)", PoolTagKey, PoolTagValue)
+		if local != nil {
+			return AcquireResult{Found: false}, nil
+		}
+		return AcquireResult{}, fmt.Errorf("no macOS pool instances found (tags %v)", tags)
 	}
 
 	byID := make(map[string]PoolInstance, len(instances))
@@ -323,15 +439,71 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 
 	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID)
 	if err != nil {
+		if local != nil {
+			return AcquireResult{Found: false}, nil
+		}
 		return AcquireResult{}, err
 	}
 	return AcquireResult{
+		Found:      true,
 		InstanceID: instanceID,
 		HostID:     byID[instanceID].HostID,
 		SubnetID:   byID[instanceID].SubnetID,
 		LeaseToken: leaseToken,
 		ImageID:    imageID,
 	}, nil
+}
+
+// BuildRegisterScript returns a shell script that bakes instanceID's current disk
+// state into a golden AMI, tags the instance as a pool member owned by username,
+// and publishes its first lease record to S3 (Persistent: true, so RevertAndRelease
+// never reverts it and it's revertable only via RevertInPlace).
+//
+// This is a shell script, not a Go function, because it must run as a Pulumi
+// local.Command's Create handler (see ScheduleRegisterOnCreate): pool.go has no
+// *pulumi.Context, and the instance's ID is only known as a pulumi.StringOutput at
+// this point in NewVM, so the registration logic has to be driven from within
+// Pulumi's own resource graph rather than called directly as a Go function.
+//
+// CreateImage is called with --no-reboot: this runs against the very instance the
+// current test run is about to use, so rebooting it here to guarantee a
+// crash-consistent image (the default CreateImage behavior) would disrupt the
+// live SSH connection InitHost just established. The current-run risk of a
+// slightly inconsistent baseline is accepted in exchange for not breaking the run
+// that's capturing it.
+func BuildRegisterScript(instanceID, ownerPipelineID, username string) string {
+	return fmt.Sprintf(`set -e
+INSTANCE_ID=%q
+OWNER=%q
+USERNAME=%q
+POOL_TAG_KEY=%q
+POOL_TAG_VALUE=%q
+OWNER_TAG_KEY=%q
+LEASE_BUCKET=%q
+LEASE_KEY=%q
+
+IMAGE_ID=$(aws ec2 create-image --instance-id "$INSTANCE_ID" \
+  --name "macos-e2e-pool-${USERNAME}-${INSTANCE_ID}" --no-reboot \
+  --query 'ImageId' --output text)
+
+for i in $(seq 1 60); do
+  STATE=$(aws ec2 describe-images --image-ids "$IMAGE_ID" --query 'Images[0].State' --output text)
+  case "$STATE" in
+    available) break ;;
+    failed) echo "image ${IMAGE_ID} failed to bake" >&2; exit 1 ;;
+    *) sleep 10 ;;
+  esac
+done
+
+aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
+  Key="$POOL_TAG_KEY",Value="$POOL_TAG_VALUE" \
+  Key="$OWNER_TAG_KEY",Value="$USERNAME" \
+  Key=Name,Value="macos-e2e-pool-$USERNAME"
+
+BODY=$(printf '{"status":"in-use","imageId":"%%s","owner":"%%s","persistent":true}' "$IMAGE_ID" "$OWNER")
+aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
+  --body <(printf '%%s' "$BODY") --if-none-match "*" --query 'ETag' --output text
+`, instanceID, ownerPipelineID, username, PoolTagKey, PoolTagValue, OwnerUsernameTagKey, leaseBucket, leasePrefix+instanceID)
 }
 
 // NewEC2Client builds an EC2 API client scoped to region/profile.
