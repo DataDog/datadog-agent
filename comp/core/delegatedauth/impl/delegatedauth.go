@@ -334,6 +334,49 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		log.Warnf("Refresh interval was set to %d for '%s', defaulting to 60 minutes", params.RefreshInterval, apiKeyConfigKey)
 	}
 
+	targetSite := resolveTargetSite(params)
+
+	// If a repeat call registers the exact same target with the exact same identity-defining
+	// parameters as an instance that's already resolved a real API key, treat it as a true no-op
+	// and skip the teardown/re-fetch below entirely. This matters because callers legitimately do
+	// call AddInstance more than once for the same DELA(...) directive - e.g. comp/core/config's
+	// newConfig scans and registers delegated-auth directives once against the primary config, then
+	// again after merging security-agent.yaml, so that a directive living only in
+	// security-agent.yaml still gets picked up. Without this check, every such repeat call would
+	// unconditionally cancel the existing instance's background refresh goroutine and build a
+	// brand-new instance with a nil apiKey, forcing a fresh synchronous WIF exchange even though the
+	// old instance already had a perfectly good, already-resolved key - wasting a network round trip
+	// on every call, and worse, if that redundant exchange transiently fails and a fallback=<key> is
+	// configured, overwriting the good key with the static fallback.
+	//
+	// "Same registration" is judged on the fields that decide where the key is written and how it's
+	// obtained - the same fields IsManaged's target-matching and the "replacing existing instance"
+	// log message below both treat as identity: OrgUUID, the resolved refresh interval, targetSite,
+	// and the additional-endpoints routing (domain/config-key/list-key/index). A genuine
+	// reconfiguration - e.g. a different org_uuid or refresh interval for the same
+	// apiKeyConfigKey - must still fall through to the replace-and-refetch path below.
+	//
+	// Only skip when the existing instance's apiKey is already resolved (non-nil). If it's still
+	// nil - the initial fetch failed and background retries are in progress - there's no working
+	// key a redundant re-fetch could clobber, so it's fine (and gives the retry a fresh, sooner
+	// shot) to fall through to the normal replace path instead.
+	d.mu.RLock()
+	if existing, ok := d.instances[apiKeyConfigKey]; ok &&
+		existing.apiKey != nil &&
+		existing.authConfig != nil &&
+		existing.authConfig.OrgUUID == params.OrgUUID &&
+		existing.refreshInterval == refreshInterval &&
+		existing.targetSite == targetSite &&
+		existing.additionalEndpointDomain == params.AdditionalEndpointDomain &&
+		existing.additionalEndpointsConfigKey == params.AdditionalEndpointsConfigKey &&
+		existing.additionalEndpointsListConfigKey == params.AdditionalEndpointsListConfigKey &&
+		existing.listEntryIndex == params.ListEntryIndex {
+		d.mu.RUnlock()
+		log.Debugf("Delegated auth for '%s' is already configured and resolved with identical parameters; skipping redundant re-registration", apiKeyConfigKey)
+		return nil
+	}
+	d.mu.RUnlock()
+
 	// Create the appropriate provider based on the provider config type
 	var tokenProvider common.Provider
 	switch cfg := providerConfig.(type) {
@@ -356,7 +399,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		authConfig:                       authConfig,
 		refreshInterval:                  refreshInterval,
 		apiKeyConfigKey:                  apiKeyConfigKey,
-		targetSite:                       resolveTargetSite(params),
+		targetSite:                       targetSite,
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,

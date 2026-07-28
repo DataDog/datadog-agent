@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +22,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// countingProvider is a test double for common.Provider that counts how many times
+// GenerateAuthProof is invoked, so tests can assert whether a WIF exchange actually happened
+// without needing a real cloud provider or network call.
+type countingProvider struct {
+	calls atomic.Int32
+}
+
+func (p *countingProvider) GenerateAuthProof(_ context.Context, _ pkgconfigmodel.Reader, _ *common.AuthConfig) (string, error) {
+	p.calls.Add(1)
+	return "fake-auth-proof", nil
+}
 
 func TestContextCancellationStopsRefresh(t *testing.T) {
 	// NOTE: This test uses a simplified goroutine that simulates the context cancellation
@@ -1321,6 +1334,116 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	comp.mu.RUnlock()
 	require.NotNil(t, instance)
 	instance.refreshCancel()
+}
+
+func TestAddInstanceSkipsRedundantReRegistrationOfResolvedInstance(t *testing.T) {
+	// Regression test for the P1 bug found in adversarial review: comp/core/config's newConfig
+	// legitimately calls AddInstance twice for the same DELA(...) directive - once against the
+	// primary config, and again after merging security-agent.yaml, so a directive that lives only
+	// in security-agent.yaml still gets picked up. AddInstance must treat the second call as a
+	// true no-op when the target is already resolved with identical parameters, not tear down the
+	// working instance and perform a brand-new synchronous WIF exchange.
+	mockConfig := mock.New(t)
+
+	fakeProvider := &countingProvider{}
+	apiKeyConfigKey := "api_key"
+	resolvedKey := "already-resolved-key"
+
+	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+	existingInstance := &authInstance{
+		apiKey:          &resolvedKey,
+		provider:        fakeProvider,
+		authConfig:      &common.AuthConfig{OrgUUID: "test-org"},
+		refreshInterval: 60 * time.Minute,
+		apiKeyConfigKey: apiKeyConfigKey,
+		backoff:         newBackoff(60 * time.Minute),
+		refreshCtx:      refreshCtx,
+		refreshCancel:   refreshCancel,
+		done:            make(chan struct{}),
+		triggerRefresh:  make(chan struct{}, 1),
+	}
+
+	comp := &delegatedAuthComponent{
+		instances:   map[string]*authInstance{apiKeyConfigKey: existingInstance},
+		initialized: true,
+		config:      mockConfig,
+	}
+
+	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		OrgUUID:         "test-org",
+		RefreshInterval: 60,
+		APIKeyConfigKey: apiKeyConfigKey,
+	})
+	require.NoError(t, err)
+
+	// The instance must not have been replaced or torn down: same pointer still registered,
+	// its background-refresh context still live, and its provider never invoked again.
+	comp.mu.RLock()
+	current := comp.instances[apiKeyConfigKey]
+	comp.mu.RUnlock()
+	assert.Same(t, existingInstance, current, "a redundant re-registration with identical params must not replace the existing, already-resolved instance")
+	assert.NoError(t, refreshCtx.Err(), "the existing instance's background refresh goroutine must not be canceled by a redundant re-registration")
+	assert.Equal(t, int32(0), fakeProvider.calls.Load(), "a redundant re-registration must not trigger a new WIF exchange")
+}
+
+func TestAddInstanceReplacesInstanceWhenParamsChange(t *testing.T) {
+	// Companion to TestAddInstanceSkipsRedundantReRegistrationOfResolvedInstance: a genuine
+	// reconfiguration (here, a different OrgUUID for the same api_key config key) must still
+	// replace the existing instance and attempt a fresh exchange - the no-op skip must not
+	// swallow real reconfigurations.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	mockConfig := mock.New(t)
+
+	fakeProvider := &countingProvider{}
+	apiKeyConfigKey := "api_key"
+	resolvedKey := "already-resolved-key"
+
+	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+	existingInstance := &authInstance{
+		apiKey:          &resolvedKey,
+		provider:        fakeProvider,
+		authConfig:      &common.AuthConfig{OrgUUID: "test-org"},
+		refreshInterval: 60 * time.Minute,
+		apiKeyConfigKey: apiKeyConfigKey,
+		backoff:         newBackoff(60 * time.Minute),
+		refreshCtx:      refreshCtx,
+		refreshCancel:   refreshCancel,
+		done:            make(chan struct{}),
+		triggerRefresh:  make(chan struct{}, 1),
+	}
+	// No goroutine is running for this instance, so close "done" immediately to unblock
+	// AddInstance's wait-for-old-goroutine-to-exit logic.
+	close(existingInstance.done)
+
+	comp := &delegatedAuthComponent{
+		instances:      map[string]*authInstance{apiKeyConfigKey: existingInstance},
+		initialized:    true,
+		config:         mockConfig,
+		providerConfig: &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
+	}
+
+	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		ProviderConfig:  &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
+		OrgUUID:         "different-org", // <-- genuine reconfiguration
+		RefreshInterval: 60,
+		APIKeyConfigKey: apiKeyConfigKey,
+	})
+	require.NoError(t, err)
+
+	comp.mu.RLock()
+	current := comp.instances[apiKeyConfigKey]
+	comp.mu.RUnlock()
+	require.NotNil(t, current)
+	assert.NotSame(t, existingInstance, current, "a genuine reconfiguration must replace the existing instance")
+	assert.Error(t, refreshCtx.Err(), "the old instance's background refresh goroutine must be canceled when replaced")
+	assert.Equal(t, int32(0), fakeProvider.calls.Load(), "the old (replaced) instance's provider must not be reused for the new registration")
+
+	// Clean up the new instance's background refresh goroutine.
+	current.refreshCancel()
 }
 
 func TestRefreshReturnsFalseWhenNoInstances(t *testing.T) {

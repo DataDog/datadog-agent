@@ -513,7 +513,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	// Cloud provider detection happens automatically within the delegatedauth component
 	// Use a background context since LoadDatadog doesn't take a context parameter.
 	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
-	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp, secretResolver); err != nil {
+	if err := ConfigureDelegatedAuth(context.Background(), config, delegatedAuthComp, secretResolver); err != nil {
 		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
 
@@ -547,14 +547,22 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	return setupFipsEndpoints(config)
 }
 
-// configureDelegatedAuth initializes the delegated auth component with configuration parameters.
+// ConfigureDelegatedAuth initializes the delegated auth component with configuration parameters.
 // This allows the component to fetch API keys from cloud providers and write them to the config
 // before other components are initialized.
 // Delegated auth can be configured for any config prefix that has an api_key.
 // Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
 // Cloud provider detection happens automatically within the delegatedauth component.
 // The context is used for cloud provider detection and initial API key fetch.
-func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, secretResolver secrets.Component) error {
+//
+// LoadDatadog calls this once as part of the normal config-loading sequence. Callers that merge
+// additional config files (e.g. security-agent.yaml) or apply a config snapshot from another
+// source (e.g. remote-config streaming) after LoadDatadog returns should call this again once
+// that additional config is in place, so that any DELA(...) directive or delegated-auth prefix
+// that only appeared in the later config is still picked up. AddInstance is keyed by
+// APIKeyConfigKey and safely replaces an existing instance for the same key, so calling this
+// function multiple times over overlapping config is idempotent.
+func ConfigureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, secretResolver secrets.Component) error {
 	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
 	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
 	// during config initialization (see bindDelegatedAuthConfig for examples)
