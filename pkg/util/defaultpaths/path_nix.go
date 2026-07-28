@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
@@ -249,6 +250,12 @@ func getInstallPathFromExecutable(start string) string {
 
 // GetEmbeddedBinPath returns the path of the embedded binary.
 func GetEmbeddedBinPath() string {
+	// The cluster-agent Docker image is not built via omnibus, so it never gets an
+	// .install_root marker file and GetInstallPath falls back to defaultInstallPath,
+	// which doesn't account for the actual "bin" subdirectory the binary ships in.
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return _here
+	}
 	return commonRootOrPath(commonRoot, filepath.Join(GetInstallPath(), "embedded", "bin"))
 }
 

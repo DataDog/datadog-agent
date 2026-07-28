@@ -40,7 +40,6 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -335,17 +334,10 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 				"secret-generic-connector.exe",
 			)
 		} else {
-			if flavor.GetFlavor() != flavor.ClusterAgent {
-				r.backendCommand = filepath.Join(
-					defaultpaths.GetEmbeddedBinPath(),
-					"secret-generic-connector",
-				)
-			} else {
-				r.backendCommand = filepath.Join(
-					defaultpaths.GetInstallPath(),
-					"secret-generic-connector",
-				)
-			}
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
 		}
 		r.embeddedBackendPermissiveRights = true
 	}
