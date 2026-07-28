@@ -196,9 +196,9 @@ func dumpAPMTelemetryPayloadsOnFailure(t *testing.T, env *environments.Host) {
 	}
 }
 
-// TestPayloadShape verifies the happy path for every origin this branch
-// wires into errortracking: core agent Python/Go paths, process-agent,
-// security-agent, trace-agent, and system-probe.
+// TestPayloadShape verifies the happy path for errortracking logs from the
+// core agent (Python/Go paths), process-agent, security-agent, trace-agent,
+// and system-probe.
 func (s *errorTrackingSuite) TestPayloadShape() {
 	dumpDiagnosticsOnFailure(s.T(), s.Env())
 	// BeforeTest already reset the environment to the suite's original
