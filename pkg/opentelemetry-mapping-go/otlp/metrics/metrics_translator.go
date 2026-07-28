@@ -127,6 +127,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		fallbackSourceProvider:               &noSourceProvider{},
 		originProduct:                        OriginProductUnknown,
 		withRuntimeRemapping:                 true,
+		withSDKTraceMetrics:                  true,
 	}
 
 	for _, opt := range options {
