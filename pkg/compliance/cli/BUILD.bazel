@@ -14,6 +14,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -36,6 +37,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -61,6 +63,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -83,6 +86,7 @@ go_library(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -105,6 +109,7 @@ go_library(
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -127,6 +132,7 @@ go_library(
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -149,6 +155,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -171,6 +178,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -196,6 +204,7 @@ go_library(
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -218,6 +227,7 @@ go_library(
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
@@ -240,6 +250,7 @@ go_library(
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/core/config",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/ipc/def",
             "//comp/core/log/def",
