@@ -30,6 +30,10 @@ docker_image_build_otel:
   # tests on non-DinD runners. DinD runners avoid the code path entirely (Docker
   # is reached over TCP), which is why the same image worked there before.
   tags: ["docker-in-docker:amd64"]
+  # Override the 30m timeout inherited from .docker_build_job_definition. On
+  # release branches the docker registry cache isn't used, so the build (and its
+  # apt install steps) can run noticeably slower and occasionally exceed 30m.
+  timeout: 40m
   variables:
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
