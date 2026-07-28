@@ -25,7 +25,9 @@ dd_agent_go_test(
     srcs = ["domain_resolver_test.go"],
     embed = [":resolver"],
     deps = [
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/mock",
+        "//comp/core/secrets/mock",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/mock",
