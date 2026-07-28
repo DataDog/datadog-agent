@@ -20,7 +20,7 @@ type scanTaskPayload struct {
 	ScanData      []subTask         `json:"scan_data"`
 }
 
-// validate reports whether the payload is a well-formed Data Security scan task.
+// TODO(dsec-197): validate data security scan task payload if needed
 func (p scanTaskPayload) validate() error {
 	if p.TaskID == "" {
 		return errors.New("missing task_id")
