@@ -4167,19 +4167,19 @@
   
 
 
-<h1 id="set-up-development-requirements">Set up development requirements</h1>
+<h1 id="set-up-development-requirements">Set up development requirements<a class="headerlink" href="#set-up-development-requirements" title="Permanent link">&para;</a></h1>
 <hr />
-<h2 id="tooling">Tooling</h2>
+<h2 id="tooling">Tooling<a class="headerlink" href="#tooling" title="Permanent link">&para;</a></h2>
 <p>The <code>dda</code> <a href="https://datadoghq.dev/datadog-agent-dev/">CLI</a> is required in all aspects of development and must be available on <code>PATH</code>.</p>
-<h3 id="package-managers">Package managers</h3>
-<h4 id="homebrew">Homebrew</h4>
+<h3 id="package-managers">Package managers<a class="headerlink" href="#package-managers" title="Permanent link">&para;</a></h3>
+<h4 id="homebrew">Homebrew<a class="headerlink" href="#homebrew" title="Permanent link">&para;</a></h4>
 <p>Install the <code>dda</code> <a href="https://formulae.brew.sh/cask/dda">cask</a> using <a href="https://brew.sh">Homebrew</a>.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>brew install --cask dda
 </span></code></pre></div>
 <p>You can upgrade to the latest version by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>brew upgrade --cask dda
 </span></code></pre></div>
-<h4 id="winget">WinGet</h4>
+<h4 id="winget">WinGet<a class="headerlink" href="#winget" title="Permanent link">&para;</a></h4>
 <p>Install the <code>Datadog.dda</code> <a href="https://github.com/microsoft/winget-pkgs/tree/master/manifests/d/Datadog/dda">package</a> using <a href="https://learn.microsoft.com/en-us/windows/package-manager/winget/">WinGet</a>.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>winget install --id Datadog.dda
 </span></code></pre></div>
@@ -4190,7 +4190,7 @@
 <p class="admonition-title">Note</p>
 <p><code>dda</code> is the name of both the package and binary placed on PATH; the ID selection is for safety.</p>
 </div>
-<h3 id="installers">Installers</h3>
+<h3 id="installers">Installers<a class="headerlink" href="#installers" title="Permanent link">&para;</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="macos" name="__tabbed_1" type="radio" /><input id="windows" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="macos">macOS</label><label for="windows">Windows</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -4270,7 +4270,7 @@ msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest
 </div>
 </div>
 </div>
-<h3 id="standalone-binaries">Standalone binaries</h3>
+<h3 id="standalone-binaries">Standalone binaries<a class="headerlink" href="#standalone-binaries" title="Permanent link">&para;</a></h3>
 <p>After downloading the archive corresponding to your platform and architecture, extract the binary to a directory that is on your PATH and rename to <code>dda</code>.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="4:3"><input checked="checked" id="macos_1" name="__tabbed_4" type="radio" /><input id="windows_1" name="__tabbed_4" type="radio" /><input id="linux" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="macos_1">macOS</label><label for="windows_1">Windows</label><label for="linux">Linux</label></div>
 <div class="tabbed-content">
@@ -4296,12 +4296,12 @@ msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest
 </div>
 </div>
 </div>
-<h3 id="upgrade">Upgrade</h3>
+<h3 id="upgrade">Upgrade<a class="headerlink" href="#upgrade" title="Permanent link">&para;</a></h3>
 <p>You can upgrade to the latest version by running the following command.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>dda self update
 </span></code></pre></div>
 <p>If you installed <code>dda</code> using a <a href="#package-managers">package manager</a>, prefer its native upgrade mechanism.</p>
-<h2 id="docker">Docker</h2>
+<h2 id="docker">Docker<a class="headerlink" href="#docker" title="Permanent link">&para;</a></h2>
 <p><a href="https://docs.docker.com/get-started/docker-overview/">Docker</a> is required for both running the developer environment and building images containing the Agent.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="5:3"><input checked="checked" id="macos_2" name="__tabbed_5" type="radio" /><input id="windows_2" name="__tabbed_5" type="radio" /><input id="linux_1" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="macos_2">macOS</label><label for="windows_2">Windows</label><label for="linux_1">Linux</label></div>
 <div class="tabbed-content">
@@ -4341,10 +4341,10 @@ msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest
 </div>
 </div>
 </div>
-<h2 id="ssh">SSH</h2>
+<h2 id="ssh">SSH<a class="headerlink" href="#ssh" title="Permanent link">&para;</a></h2>
 <p>Accessing and contributing to the Datadog Agent repositories requires using <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/about-ssh">SSH</a>. Your local SSH agent must be <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent">configured</a> with a key that is <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account">added</a> to your GitHub account.</p>
 <p>If these requirements are met, you can skip this section.</p>
-<h3 id="key-generation">Key generation</h3>
+<h3 id="key-generation">Key generation<a class="headerlink" href="#key-generation" title="Permanent link">&para;</a></h3>
 <p>Run the following command to generate a new SSH key, replacing <code>&lt;EMAIL_ADDRESS&gt;</code> with one of the email addresses associated with your GitHub account. This email will be used for every Git commit you make to the Datadog Agent repositories.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>ssh-keygen -t ed25519 -C &quot;&lt;EMAIL_ADDRESS&gt;&quot;
 </span></code></pre></div>
@@ -4352,7 +4352,7 @@ msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest
 <div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Enter file in which to save the key (/root/.ssh/id_ed25519): /root/.ssh/dda
 </span></code></pre></div>
 <p>Finally, you will be asked to enter an optional <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/working-with-ssh-key-passphrases">passphrase</a>.</p>
-<h3 id="key-awareness">Key awareness</h3>
+<h3 id="key-awareness">Key awareness<a class="headerlink" href="#key-awareness" title="Permanent link">&para;</a></h3>
 <p>Add the key from the previous step to your local SSH agent.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>ssh-add /root/.ssh/dda
 </span></code></pre></div>
@@ -4360,7 +4360,7 @@ msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest
 <div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>ssh-add -L
 </span></code></pre></div>
 <p>Follow GitHub's <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account">guide</a> for adding the key to your GitHub account and <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh/testing-your-ssh-connection">test</a> that it works. The path to the public key is the path to the key from the previous step with a <code>.pub</code> file extension e.g. <code>/root/.ssh/dda.pub</code>.</p>
-<h2 id="repository-configuration">Repository configuration</h2>
+<h2 id="repository-configuration">Repository configuration<a class="headerlink" href="#repository-configuration" title="Permanent link">&para;</a></h2>
 <p>The Agent is a monorepo containing many Go submodules. Each submodule is published with its own version tag (<code>pkg/&lt;name&gt;/v*</code>, <code>comp/&lt;name&gt;/v*</code>, <code>cmd/&lt;name&gt;/v*</code>, <code>test/&lt;name&gt;/v*</code>), so the repository accumulates tens of thousands of tags over time. By default <code>git fetch</code> auto-follows tags and <code>fetch.pruneTags</code> reconciles them on every pull, which can make <code>git pull</code> and <code>git fetch</code> extremely slow — sometimes minutes or hours — against a long-lived clone.</p>
 <p>After cloning, configure the local repository to skip these tags:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>git config remote.origin.tagOpt --no-tags
@@ -4371,7 +4371,7 @@ msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest
 <p>You can still fetch a specific submodule tag on demand when you need one:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>git fetch origin tag pkg/aggregator/v0.65.0
 </span></code></pre></div>
-<h2 id="next-steps">Next steps</h2>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <p>Follow the developer environment <a href="../../tutorials/dev/env/">tutorial</a> to get started.</p>
 
 
