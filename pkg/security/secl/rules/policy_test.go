@@ -1918,6 +1918,153 @@ func TestActionSetVariableCapture(t *testing.T) {
 	})
 }
 
+func TestActionSetVariableCaptureRuntime(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "capture_rule",
+			Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+			Actions: []*ActionDefinition{{
+				Set: &SetDefinition{
+					Name:      "ssm_command_id",
+					Scope:     ScopeProcess,
+					Inherited: true,
+					Field:     "open.file.path",
+					Capture:   "/orchestration/([^/]+)/",
+				},
+			}},
+		}, {
+			// only matches if the captured value is the command id alone, and not the
+			// whole path the capture was extracted from
+			ID:         "assert_rule",
+			Expression: `open.file.path == "/tmp/check" && ${process.ssm_command_id} == "a1b2c3d4"`,
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err.ErrorOrNil() != nil {
+		t.Fatal(err)
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+	event.SetFieldValue("open.flags", syscall.O_RDONLY)
+
+	// nothing has been captured yet
+	event.SetFieldValue("open.file.path", "/tmp/check")
+	if rs.Evaluate(event) {
+		t.Error("expected event to match no rule")
+	}
+
+	// capture the command id out of the orchestration directory
+	event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
+	if !rs.Evaluate(event) {
+		t.Error("expected event to match the capture rule")
+	}
+
+	event.SetFieldValue("open.file.path", "/tmp/check")
+	if !rs.Evaluate(event) {
+		t.Error("expected the captured value to be the command id alone")
+	}
+
+	// the rule matches but the capture pattern doesn't: the variable has to keep its
+	// previous value rather than being overwritten or cleared
+	event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/session/xxx")
+	rs.Evaluate(event)
+
+	event.SetFieldValue("open.file.path", "/tmp/check")
+	if !rs.Evaluate(event) {
+		t.Error("expected a capture miss to leave the variable untouched")
+	}
+}
+
+func BenchmarkRunSetActions(b *testing.B) {
+	bench := func(b *testing.B, set *SetDefinition) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "bench_rule",
+				Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+				Actions:    []*ActionDefinition{{Set: set}},
+			}},
+		}
+
+		tmpDir := b.TempDir()
+
+		if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+			b.Fatal(err)
+		}
+
+		provider, err := NewPoliciesDirProvider(tmpDir)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		rs := newRuleSet()
+		if _, errs := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
+			b.Fatal(errs)
+		}
+
+		rule := rs.GetRuleByID("bench_rule")
+		if rule == nil {
+			b.Fatal("failed to find bench_rule in ruleset")
+		}
+
+		event := model.NewFakeEvent()
+		event.Type = uint32(model.FileOpenEventType)
+		event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+		event.SetFieldValue("open.flags", syscall.O_RDONLY)
+		event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
+
+		ctx := rs.pool.Get(event)
+		defer rs.pool.Put(ctx)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if err := rs.runSetActions(event, ctx, rule); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	b.Run("without capture", func(b *testing.B) {
+		bench(b, &SetDefinition{
+			Name:  "ssm_command_id",
+			Scope: ScopeProcess,
+			Field: "open.file.path",
+		})
+	})
+
+	b.Run("with capture", func(b *testing.B) {
+		bench(b, &SetDefinition{
+			Name:    "ssm_command_id",
+			Scope:   ScopeProcess,
+			Field:   "open.file.path",
+			Capture: "/orchestration/([^/]+)/",
+		})
+	})
+
+	b.Run("with capture, no match", func(b *testing.B) {
+		bench(b, &SetDefinition{
+			Name:    "ssm_command_id",
+			Scope:   ScopeProcess,
+			Field:   "open.file.path",
+			Capture: "/this-never-matches/([^/]+)/",
+		})
+	})
+}
+
 func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
 	rs := newRuleSet()
 

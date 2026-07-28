@@ -1086,6 +1086,24 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 						value = evaluator.Eval(ctx)
 					}
 				}
+
+				// extract the correlation artifact out of the field value. A value that
+				// doesn't match is a no-op leaving the variable untouched: capture rules
+				// can be attached to high frequency events, so this must stay silent.
+				if action.CaptureMatcher != nil {
+					strValue, ok := value.(string)
+					if !ok {
+						break
+					}
+
+					captured, found := action.CaptureMatcher.Capture(strValue)
+					if !found {
+						break
+					}
+
+					value = captured
+				}
+
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						if errors.Is(err, eval.ErrScopeNotAvailable) {
