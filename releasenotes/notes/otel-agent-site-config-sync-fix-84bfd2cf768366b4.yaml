@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a bug in ``otel-agent`` where the ``dd_url``, ``logs_config.logs_dd_url``,
+    and ``apm_config.apm_dd_url`` endpoints derived from ``site`` would not pick up
+    later corrections to ``site`` delivered via config sync, causing traces, logs,
+    and metrics to be sent to the wrong Datadog site after a config refresh.
