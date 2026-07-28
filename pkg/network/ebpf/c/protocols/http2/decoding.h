@@ -230,10 +230,10 @@ end:
 }
 
 // Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
-// It also detects a "content-type: application/grpc" header; on a match it only sets *is_grpc, and the caller sets the
-// connection protocol once (keeping the map update out of this heavily-unrolled decode path). Running on the shared
-// pktbuf path, this is the decrypted/TLS-capable equivalent of the plaintext socket-filter gRPC classifier.
-static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index, bool *is_grpc) {
+// If it sees an indexed "content-type" header with a long-enough literal value, it records the packet offset of that
+// value in *grpc_ct_value_off. The actual "application/grpc" comparison is done once by the caller, after the header
+// loop, to keep the expensive load+compare out of this doubly-unrolled path (it would blow the verifier budget).
+static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index, __u32 *grpc_ct_value_off) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -252,18 +252,10 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
             return false;
         }
     } else if (index == HTTP2_CONTENT_TYPE_IDX && str_len >= GRPC_CONTENT_TYPE_LEN) {
-        // Indexed content-type name (static index 31) with a literal value. If the value begins with the
-        // huffman-encoded "application/grpc" (this also matches "application/grpc+proto" and similar), record it.
-        // Uses a per-cpu scratch buffer (not an on-stack one) because this program is near the 512-byte BPF stack
-        // limit. The key is a plain stack u32 (not a rodata const), since read-only .rodata maps need kernel >= 5.2.
-        // The value is only peeked (not advanced); the trailing pktbuf_advance skips it.
-        __u32 grpc_ct_key = 0;
-        __u8 *content_type_buf = bpf_map_lookup_elem(&http2_grpc_ct_scratch, &grpc_ct_key);
-        if (content_type_buf != NULL &&
-            pktbuf_load_bytes_from_current_offset(pkt, content_type_buf, GRPC_CONTENT_TYPE_LEN) >= 0 &&
-            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0) {
-            *is_grpc = true;
-        }
+        // Indexed content-type name (static index 31) with a long-enough literal value. Record the offset of the
+        // value bytes; the caller compares them once against the huffman-encoded "application/grpc" prefix. The
+        // value is not consumed here - the trailing pktbuf_advance skips it as usual.
+        *grpc_ct_value_off = pktbuf_data_offset(pkt);
     }
     pktbuf_advance(pkt, str_len);
     return true;
@@ -283,6 +275,8 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
     bool is_literal = false;
     __u64 max_bits = 0;
     __u64 index = 0;
+    // Offset of a candidate "content-type" value (0 = none seen). Compared once after the loop.
+    __u32 grpc_ct_value_off = 0;
 
     pktbuf_handle_dynamic_table_update(pkt);
 
@@ -372,9 +366,24 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        // Detect a "content-type: application/grpc" header (sets *is_grpc) so the connection can be classified as gRPC.
-        if (!pktbuf_process_and_skip_literal_headers(pkt, index, is_grpc)){
+        // Records the content-type value offset (if any) for the single gRPC check below.
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index, &grpc_ct_value_off)){
             break;
+        }
+    }
+
+    // A content-type value was seen: compare it once here, outside the unrolled header loop, against the
+    // huffman-encoded "application/grpc" prefix (this also matches "application/grpc+proto" and similar). A match
+    // classifies the connection as gRPC. Doing it once - rather than per header inside the doubly-unrolled loop -
+    // keeps the program under the verifier's instruction budget. Uses a per-cpu scratch buffer since this program is
+    // near the 512-byte BPF stack limit; the key is a plain stack u32 (read-only .rodata maps require kernel >= 5.2).
+    if (grpc_ct_value_off != 0) {
+        __u32 grpc_ct_key = 0;
+        __u8 *content_type_buf = bpf_map_lookup_elem(&http2_grpc_ct_scratch, &grpc_ct_key);
+        if (content_type_buf != NULL &&
+            pktbuf_load_bytes(pkt, grpc_ct_value_off, content_type_buf, GRPC_CONTENT_TYPE_LEN) >= 0 &&
+            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0) {
+            *is_grpc = true;
         }
     }
 
