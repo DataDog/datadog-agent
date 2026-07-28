@@ -34,7 +34,7 @@ def _pkg_mac_pkg_impl(ctx):
     )
 
     output = ctx.outputs.out
-    inputs = [root_dir]
+    inputs = [root_dir, ctx.file._materialize_root_py]
 
     preinstall_path = ""
     if ctx.file.preinstall:
@@ -51,6 +51,7 @@ def _pkg_mac_pkg_impl(ctx):
         progress_message = "Building macOS pkg %s" % ctx.label,
         executable = ctx.executable._pkgbuild_wrapper,
         arguments = [
+            ctx.file._materialize_root_py.path,
             root_dir.path,
             ctx.attr.identifier,
             ctx.attr.version,
@@ -75,7 +76,7 @@ _pkg_mac_pkg = rule(
         "installer": attr.label(
             mandatory = True,
             executable = True,
-            cfg = "exec",
+            cfg = "target",
             providers = [DefaultInfo],
             doc = "pkg_install target used to materialize srcs onto disk.",
         ),
@@ -90,6 +91,10 @@ _pkg_mac_pkg = rule(
             default = Label("//bazel/rules/macos/pkg:build_mac_pkg"),
             executable = True,
             cfg = "exec",
+        ),
+        "_materialize_root_py": attr.label(
+            default = Label("//bazel/rules/macos/pkg:materialize_root.py"),
+            allow_single_file = True,
         ),
     },
 )

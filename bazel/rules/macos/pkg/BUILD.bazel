@@ -1,4 +1,4 @@
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 load(":pkg_mac_pkg.bzl", "pkg_mac_pkg")
 
@@ -11,7 +11,10 @@ sh_binary(
     visibility = ["//visibility:public"],
 )
 
-exports_files(["pkg_mac_pkg.bzl"])
+exports_files([
+    "pkg_mac_pkg.bzl",
+    "materialize_root.py",
+])
 
 # Manual smoke test: exercises the full materialize+pkgbuild pipeline against
 # real pkg_files srcs. Not wired into any real package yet.
@@ -22,9 +25,27 @@ pkg_files(
     tags = ["manual"],
 )
 
+# Exercises the pkg_mklink path: a real, intentional symlink that
+# materialize_root.py must ship as a symlink, not a duplicate file.
+pkg_mklink(
+    name = "smoketest_link",
+    link_name = "bin/build_mac_pkg_link.sh",
+    tags = ["manual"],
+    target = "build_mac_pkg.sh",
+)
+
+pkg_filegroup(
+    name = "smoketest_all",
+    srcs = [
+        ":smoketest_files",
+        ":smoketest_link",
+    ],
+    tags = ["manual"],
+)
+
 pkg_mac_pkg(
     name = "smoketest",
-    srcs = [":smoketest_files"],
+    srcs = [":smoketest_all"],
     identifier = "com.datadoghq.smoketest",
     install_location = "/opt/datadog-agent",
     tags = ["manual"],
