@@ -79,9 +79,7 @@ func (c *controller) manageSubscriptionToRC() {
 		}
 		c.closeMutex.RUnlock()
 		if isConnectedToPostgres(c.ac) {
-			// TODO(data-security): DATA_SECURITY_DB_SCAN_TASKS does not exist yet; use the
-			// generic DEBUG product until the dedicated product is provisioned.
-			c.rcclient.Subscribe(data.ProductDebug, c.update)
+			c.rcclient.Subscribe(data.ProductDataSecurityDBScanTasks, c.update)
 			return
 		}
 	}

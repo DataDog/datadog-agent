@@ -21,9 +21,6 @@ type scanTaskPayload struct {
 }
 
 // validate reports whether the payload is a well-formed Data Security scan task.
-//
-// TODO(data-security): the DEBUG product is generic, so it carries configs that are
-// not scan tasks. Drop this check once we subscribe to the dedicated product.
 func (p scanTaskPayload) validate() error {
 	if p.TaskID == "" {
 		return errors.New("missing task_id")
