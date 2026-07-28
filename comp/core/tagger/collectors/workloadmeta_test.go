@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -30,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -4218,6 +4222,136 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	require.NotNil(t, actualStaticSourceEvent)
 	assert.Equal(t, types.GetGlobalEntityID(), actualStaticSourceEvent.EntityID)
 	assert.True(t, actualStaticSourceEvent.IsComplete)
+}
+
+// findStaticSourceEvent returns the staticSource TagInfo out of a batch, failing the test if absent.
+func findStaticSourceEvent(t *testing.T, tagInfos []*types.TagInfo) *types.TagInfo {
+	t.Helper()
+	for _, event := range tagInfos {
+		if event.Source == staticSource {
+			return event
+		}
+	}
+	t.Fatal("no staticSource event found")
+	return nil
+}
+
+func hasOrchClusterIDTag(tagInfo *types.TagInfo, value string) bool {
+	want := tags.OrchClusterID + ":" + value
+	for _, tag := range tagInfo.LowCardTags {
+		if tag == want {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRefreshGlobalTags verifies the orch cluster ID tag gets corrected once it becomes available.
+func TestRefreshGlobalTags(t *testing.T) {
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.ClusterAgent)
+
+	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
+	cache.Cache.Delete(clusterIDCacheKey)
+	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+	collectorCh := make(chan []*types.TagInfo, 10)
+
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
+
+	firstTagInfos := <-collectorCh
+	firstEvent := findStaticSourceEvent(t, firstTagInfos)
+	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
+	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
+
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	collector.collectStaticGlobalTags(context.Background(), mockConfig)
+
+	secondTagInfos := <-collectorCh
+	secondEvent := findStaticSourceEvent(t, secondTagInfos)
+	assert.True(t, hasOrchClusterIDTag(secondEvent, "87654321-4321-4321-4321-210987654321"))
+	assert.Contains(t, secondEvent.LowCardTags, "some:tag", "previously collected static tags must not be lost on refresh")
+}
+
+// TestRefreshGlobalTags_ConcurrentWithEventProcessing must not race, deadlock, or panic under -race.
+func TestRefreshGlobalTags_ConcurrentWithEventProcessing(t *testing.T) {
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.ClusterAgent)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+
+	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	collectorCh := make(chan []*types.TagInfo, 1000)
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, fakeStore, &fakeProcessor{collectorCh})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go collector.Run(ctx)
+
+	stopDrain := make(chan struct{})
+	t.Cleanup(func() { close(stopDrain) })
+	go func() {
+		for {
+			select {
+			case <-collectorCh:
+			case <-stopDrain:
+				return
+			}
+		}
+	}()
+
+	// Drive processEvents directly so it reliably overlaps with RefreshGlobalTags below.
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "refresh-race-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "refresh-race-container",
+		},
+	}
+
+	// refreshDone stops the reader loop once the refresh side is done.
+	refreshDone := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-refreshDone:
+				return
+			default:
+				collector.processEvents(workloadmeta.EventBundle{
+					Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: container}},
+					Ch:     make(chan struct{}),
+				})
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		defer close(refreshDone)
+		for i := 0; i < 20; i++ {
+			collector.RefreshGlobalTags(context.Background())
+		}
+	}()
+
+	wg.Wait()
 }
 
 func TestParseJSONValue(t *testing.T) {
