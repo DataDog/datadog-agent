@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "otlp",
+    srcs = [
+        "otlp.go",
+        "otlp_no_otlp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/otlp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/tagger/def",
+        "//comp/otelcol/otlp",
+        "//comp/otelcol/otlp/configcheck",
+        "//pkg/config/setup",
+        "//pkg/serializer",
+        "//pkg/util/log",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+    ],
+)
+
+go_test(
+    name = "otlp_test",
+    srcs = ["otlp_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":otlp"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/tagger/impl-noop",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/metrics/metricstest",
+        "//pkg/serverless/trace",
+        "//pkg/trace/testutil",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlptrace//:otlptrace",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc//:otlptracegrpc",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracehttp//:otlptracehttp",
+        "@io_opentelemetry_go_otel_sdk//trace",
+    ],
+)
