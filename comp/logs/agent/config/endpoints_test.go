@@ -860,15 +860,9 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsHasPendingDelegatedAuth(
 	suite.False(httpEndpoints[1].HasPendingDelegatedAuth())
 }
 
-// TestAdditionalEndpointsRejectedDirectiveIsNotPending covers the PR #54170 review finding:
-// IsManaged() must be the SOLE source of truth for hasPendingDelegatedAuth, not an OR against the
-// raw api_key's "DELA(" prefix. Entry 0 has a DELA(...) directive in config, but
-// configureListShapeAdditionalEndpointsDelegatedAuth rejected it (malformed directive or
-// unsupported provider) and never called AddInstance for it, so IsManaged reports false for it -
-// even though entry 1, an unrelated valid instance in the same process, reports true. If the old
-// "IsDelaDirective(apiKey) || IsManaged(...)" OR were still in place, entry 0 would incorrectly
-// stay marked pending forever (retrying 403s with a blanked-out API key) just because its raw
-// config value happened to start with "DELA(".
+// TestAdditionalEndpointsRejectedDirectiveIsNotPending verifies that a DELA(...) directive
+// rejected at config load (never registered with delegatedAuthComp) is not marked pending, even
+// though its raw api_key still looks like a directive.
 func (suite *EndpointsTestSuite) TestAdditionalEndpointsRejectedDirectiveIsNotPending() {
 	jsonString := `[{
 			"api_key": "DELA(malformed-directive-that-was-rejected)",

@@ -59,9 +59,7 @@ func NewLogContextSecInfo() (*logsconfig.Endpoints, *client.DestinationsContext,
 
 // NewLogContext returns the context fields to send events to the intake
 func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
-	// Not wired to a real delegatedauth.Component here: threading it through this package's own
-	// callers is the responsibility of the PR that adds delegated-auth support for CWS/compliance
-	// reporting. A noop keeps behavior unchanged in the meantime.
+	// No delegatedauth.Component wired here yet; a noop keeps behavior unchanged.
 	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, delegatedauthnoopimpl.NewComponent().Comp)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid endpoints: %w", err)
