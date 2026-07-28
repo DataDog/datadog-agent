@@ -184,7 +184,7 @@ func (c *SSHConnector) Connect() (Connection, error) {
 	}, nil
 }
 
-func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*PushResult, types.RollbackError) {
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.RollbackError) {
 
 	if c.prof == nil {
 		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.device.IPAddress)
@@ -193,7 +193,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*Push
 	if !pc.CanPush() {
 		return nil, types.WrapErrorf(types.ErrPushUnsupported, "no push commands for profile %q", c.prof.Name)
 	}
-	results := &PushResult{}
+	results := &types.PushResult{}
 	// Copy the raw configuration to the device
 	result, err := ExecuteSCP(ctx, c.client, pc.Copy, rawConfig)
 	if result != nil {
@@ -235,7 +235,7 @@ func (c *SSHConnection) Verify(ctx context.Context) error {
 }
 
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
-func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*CommandResult, error) {
+func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*types.CommandResult, error) {
 	if c.prof == nil {
 		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
@@ -247,7 +247,7 @@ func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*CommandResu
 }
 
 // RetrieveStartupConfig retrieves the startup configuration for the device connected via SSH
-func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*CommandResult, error) {
+func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.CommandResult, error) {
 	if c.prof == nil {
 		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
@@ -258,7 +258,7 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*CommandResu
 	return c.execute(ctx, cmd)
 }
 
-func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) (*CommandResult, error) {
+func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) (*types.CommandResult, error) {
 	return ExecuteCommand(ctx, c.client, cmd)
 }
 

@@ -17,7 +17,6 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
-	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -52,7 +51,7 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*ncmremote.PushResult, types.RollbackError) {
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 

@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -23,7 +22,7 @@ import (
 // even if this func returns an error, the config may still have been
 // successfully rolled back, or partially rolled back - check the returned
 // PushResult to see what commands were actually run on the device.
-func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (result *ncmremote.PushResult, rberr types.RollbackError) {
+func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (result *types.PushResult, rberr types.RollbackError) {
 	if n.store == nil {
 		return nil, types.RollbackDisabled
 	}

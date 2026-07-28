@@ -19,10 +19,9 @@ import (
 	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	networkconfigmanagementimpl "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/impl"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
+	ncmtypes "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -54,11 +53,11 @@ type RollbackConfigInputs struct {
 
 // RollbackConfigOutputs is the output of a rollbackConfig action.
 type RollbackConfigOutputs struct {
-	Success        bool                  `json:"success,omitempty"`
-	CommandResults *ncmremote.PushResult `json:"command_results"`
-	Error          string                `json:"error,omitempty"`
-	ErrorCode      string                `json:"error_code"`
-	FinishedAt     *time.Time            `json:"finished_at,omitempty"`
+	Success        bool                 `json:"success,omitempty"`
+	CommandResults *ncmtypes.PushResult `json:"command_results"`
+	Error          string               `json:"error,omitempty"`
+	ErrorCode      string               `json:"error_code"`
+	FinishedAt     *time.Time           `json:"finished_at,omitempty"`
 }
 
 // Run executes the rollbackConfig action
@@ -106,7 +105,7 @@ func (h *RollbackConfigHandler) Run(
 		}
 		return RollbackConfigOutputs{Error: errMsg}, err
 	}
-	var response *networkconfigmanagementimpl.RollbackResponse
+	var response *ncmtypes.RollbackResponse
 	if err := json.Unmarshal(resp, &response); err != nil {
 		return RollbackConfigOutputs{Error: err.Error()}, fmt.Errorf("unable to unmarshal rollback response: %w", err)
 	}

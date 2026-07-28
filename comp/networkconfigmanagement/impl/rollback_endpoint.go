@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -22,12 +22,6 @@ type RollbackRequest struct {
 	Hash          string `json:"hash"`
 }
 
-type RollbackResponse struct {
-	CommandResults *remote.PushResult `json:"command_results"`
-	ErrorCode      string             `json:"error_code"`
-	ErrorMsg       string             `json:"error_msg"`
-}
-
 // RollbackEndpointHandler returns an http.HandlerFunc for POST /agent/ncm/rollback
 func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +30,7 @@ func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 			httputils.SetJSONError(w, err, http.StatusBadRequest)
 			return
 		}
-		var response RollbackResponse
+		var response types.RollbackResponse
 		result, rberr := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash)
 		if result == nil && rberr == nil {
 			// this shouldn't be possible.

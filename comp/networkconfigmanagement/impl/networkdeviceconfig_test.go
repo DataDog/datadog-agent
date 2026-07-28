@@ -50,7 +50,7 @@ ip address 192.168.1.1 255.255.255.0`
 	versionOutput = `Cisco Device Version 1.0`
 )
 
-type result = ncmremote.CommandResult
+type result = types.CommandResult
 
 func ok(msg string) *result {
 	return &result{Output: msg}
@@ -83,7 +83,7 @@ type MockConnection struct {
 
 var _ ncmremote.Connection = (*MockConnection)(nil)
 
-func (m *MockConnection) execute(cmd *profile.PlainCommand) (*ncmremote.CommandResult, error) {
+func (m *MockConnection) execute(cmd *profile.PlainCommand) (*types.CommandResult, error) {
 	r := fail("unsupported command")
 	if cmd != nil {
 		var ok bool
@@ -92,7 +92,7 @@ func (m *MockConnection) execute(cmd *profile.PlainCommand) (*ncmremote.CommandR
 			r = fail(fmt.Sprintf("unknown command %q", cmd.Command))
 		}
 		r.CommandStr = cmd.Command
-		r.ApplyValidator(cmd.Validator)
+		cmd.Validator.ValidateResult(r)
 	}
 	return r, r.FormattedError()
 }
@@ -110,7 +110,7 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) (*ncmremote.PushResult, types.RollbackError) {
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.RollbackError) {
 	return nil, types.InternalError(errors.New("not implemented"))
 }
 
