@@ -325,6 +325,19 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 }
 
+func (suite *ConfigManagerSuite) TestServiceUpdateReconcilesResolvedConfigs() {
+	changes, _ := suite.cm.processNewConfig(templateConfig)
+	assertConfigsMatch(suite.T(), changes.Schedule)
+
+	changes = suite.cm.processNewService(myService)
+	assertConfigsMatch(suite.T(), changes.Schedule, matchName("template"))
+	assertConfigsMatch(suite.T(), changes.Unschedule)
+
+	changes = suite.cm.processServiceUpdate(myService.GetServiceID())
+	assertConfigsMatch(suite.T(), changes.Unschedule, matchName("template"))
+	assertConfigsMatch(suite.T(), changes.Schedule, matchName("template"))
+}
+
 // Fuzz the config manager to ensure it doesn't "leak" configs -- that schedule
 // and unschedule calls are always properly paired.
 func (suite *ConfigManagerSuite) TestFuzz() {
