@@ -441,6 +441,7 @@
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
+/comp/dataplane/dummymode @DataDog/agent-data-plane
 /comp/etw @DataDog/windows-products
 /comp/filterlist @DataDog/agent-metric-pipelines
 /comp/fleetstatus @DataDog/fleet

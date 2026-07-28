@@ -1,0 +1,20 @@
+---
+features:
+  - |
+    Adds an Agent Data Plane (ADP) "dummy mode" pre-flight, controlled by the new
+    ``data_plane.dummy_mode`` setting (enabled by default).
+
+    When ``data_plane.enabled`` has not been set at all, the Agent starts ADP once at
+    startup for 90 seconds in an isolated configuration, sends a single
+    throwaway metric through it, then stops it and reports any startup errors to Datadog
+    as agent telemetry. This surfaces environment-specific ADP problems before ADP is
+    enabled for real.
+
+    The dummy process handles no customer data: it runs in standalone mode, listens only on
+    a temporary DogStatsD endpoint under the Agent's run directory, does not register with
+    the Agent's remote agent registry, and never takes over the Agent's own DogStatsD port.
+    The temporary configuration it is given contains the Agent's resolved configuration,
+    including secrets, so it is written user-only and removed once the run finishes. Setting
+    ``data_plane.enabled`` explicitly to either ``true`` or ``false``, or setting
+    ``data_plane.dummy_mode`` to ``false``, disables the pre-flight. It also does not run
+    on Agent packages that do not ship ADP.

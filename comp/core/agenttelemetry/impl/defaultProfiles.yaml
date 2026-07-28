@@ -547,3 +547,30 @@ profiles:
     start_after: 300 # 5 minutes
     iterations: 1
     period: 900
+- name: data-plane-dummy-mode
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: data_plane.dummy_mode_result
+        preserve_tags:
+          - result
+      # The finding label values are the constants in comp/dataplane/dummymode/impl/logscan.go;
+      # TestFindingsAreAllowlisted there is the tripwire for that set changing.
+      - name: data_plane.dummy_mode_finding
+        preserve_tags:
+          - finding
+      - name: data_plane.dummy_mode_duration_seconds
+  schedule:
+    # Dummy mode runs once at startup for dummyModeDuration (90s, see
+    # comp/dataplane/dummymode/impl), so the first flush is delayed past that window;
+    # otherwise it would report an empty run.
+    #
+    # The schedule stays recurring (iterations: 0) so that raising that window cannot strand
+    # the outcome: a flush landing mid-run finds nothing, and with iterations: 1 there would be
+    # no later collection. Recurring costs nothing — the counters are delta-converted, so the
+    # increment ships on whichever flush first observes it and later flushes send zero, which
+    # zero_metric drops.
+    start_after: 120 # 2 minutes
+    iterations: 0
+    period: 900
