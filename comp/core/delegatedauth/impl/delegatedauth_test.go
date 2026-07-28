@@ -1337,12 +1337,9 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 }
 
 func TestAddInstanceSkipsRedundantReRegistrationOfResolvedInstance(t *testing.T) {
-	// Regression test for the P1 bug found in adversarial review: comp/core/config's newConfig
-	// legitimately calls AddInstance twice for the same DELA(...) directive - once against the
-	// primary config, and again after merging security-agent.yaml, so a directive that lives only
-	// in security-agent.yaml still gets picked up. AddInstance must treat the second call as a
-	// true no-op when the target is already resolved with identical parameters, not tear down the
-	// working instance and perform a brand-new synchronous WIF exchange.
+	// AddInstance can be called twice for the same key (e.g. once against the primary config,
+	// again after merging security-agent.yaml); the second call must be a true no-op when the
+	// target is already resolved with identical parameters.
 	mockConfig := mock.New(t)
 
 	fakeProvider := &countingProvider{}
@@ -1388,10 +1385,8 @@ func TestAddInstanceSkipsRedundantReRegistrationOfResolvedInstance(t *testing.T)
 }
 
 func TestAddInstanceReplacesInstanceWhenParamsChange(t *testing.T) {
-	// Companion to TestAddInstanceSkipsRedundantReRegistrationOfResolvedInstance: a genuine
-	// reconfiguration (here, a different OrgUUID for the same api_key config key) must still
-	// replace the existing instance and attempt a fresh exchange - the no-op skip must not
-	// swallow real reconfigurations.
+	// A genuine reconfiguration (different OrgUUID for the same api_key config key) must still
+	// replace the existing instance rather than being swallowed by the no-op skip.
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
