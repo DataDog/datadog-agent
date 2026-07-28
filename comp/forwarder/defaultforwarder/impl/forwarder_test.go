@@ -1006,3 +1006,41 @@ func TestMarkPendingDelegatedAuthDomains(t *testing.T) {
 	assert.True(t, endpoints["https://example.test"].HasPendingDelegatedAuth, "primary domain must be marked once IsManaged reports it")
 	assert.True(t, endpoints["https://second-org.test"].HasPendingDelegatedAuth, "additional endpoint domain must be marked once IsManaged reports it")
 }
+
+// TestMarkPendingDelegatedAuthDomains_RejectedDirectiveIsCleared covers a domain whose only
+// additional_endpoints value was a malformed/unsupported DELA(...) directive. configUtils.GetMultipleEndpoints
+// preserves that literal string (so HasPendingDelegatedAuth starts out true, purely because the
+// value has a DELA( prefix), but configureAdditionalEndpointsDelegatedAuth never actually
+// registers such a directive with delegated auth. IsManaged() must be the source of truth: a
+// domain that was never successfully registered should have its pending flag cleared so its
+// payloads eventually drop on repeated 403s instead of being retried forever, while a domain that
+// genuinely is managed must stay marked.
+func TestMarkPendingDelegatedAuthDomains_RejectedDirectiveIsCleared(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("api_key", "resolved-primary-key")
+	mockConfig.SetInTest("dd_url", "https://example.test")
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://rejected-org.test": {"DELA(unsupported-provider)"},
+		"https://managed-org.test":  {"DELA(resolved-additional-key)"},
+	})
+	endpoints, err := configUtils.GetMultipleEndpoints(mockConfig)
+	require.NoError(t, err)
+
+	// Both domains look "pending" from the initial string-sniffed guess alone, since both values
+	// have the DELA( prefix - regardless of whether the directive was ever actually registered.
+	require.True(t, endpoints["https://rejected-org.test"].HasPendingDelegatedAuth)
+	require.True(t, endpoints["https://managed-org.test"].HasPendingDelegatedAuth)
+
+	// Only the "managed" domain was actually registered with delegated auth; the "rejected" one
+	// was malformed/unsupported and configureAdditionalEndpointsDelegatedAuth never registered it.
+	delegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.AdditionalEndpointsConfigKey == "additional_endpoints" && target.AdditionalEndpointDomain == "https://managed-org.test"
+		},
+	}
+
+	markPendingDelegatedAuthDomains(endpoints, mockConfig, delegatedAuth)
+
+	assert.False(t, endpoints["https://rejected-org.test"].HasPendingDelegatedAuth, "a rejected/unregistered DELA directive must not leave the domain permanently pending")
+	assert.True(t, endpoints["https://managed-org.test"].HasPendingDelegatedAuth, "a genuinely managed domain must remain marked as pending")
+}
