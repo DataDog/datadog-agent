@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "sender",
+    srcs = [
+        "sender.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/sender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/networkdevice/utils",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sender_test",
+    srcs = ["sender_test.go"],
+    embed = [":sender"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

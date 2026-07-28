@@ -30,6 +30,8 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
@@ -189,6 +191,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
+				fx.Supply(configstreamconsumer.NewParams("security-agent", params.ConfigFilePaths[0])),
+				configstreamconsumerfx.Module(),
 			)
 		},
 	}

@@ -84,12 +84,14 @@ static_quality_gates:
     expire_in: 1 week
   variables:
     GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
+    GIT_STRATEGY: "clone" # needed because this job uses git merge-base
     KUBERNETES_CPU_REQUEST: 8
 
 manual_gate_threshold_update:
   stage: functional_test
   rules:
+    - !reference [.except_release_branch]
+    - !reference [.except_pr_targeting_release_branch]
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_manual]
     - !reference [.on_dev_branches_with_artifact_changes_manual]

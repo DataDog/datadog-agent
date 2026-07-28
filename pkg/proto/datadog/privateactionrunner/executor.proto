@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.executor;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor";
+
+import "datadog/privateactionrunner/error_code.proto";
+
+// Local control-plane <-> executor contract for the split Private Action Runner: the
+// Rust control plane dispatches one action to the Go executor over a local socket and
+// streams the outcome back.
+
+message HealthRequest {}
+
+// HealthResponse reports whether the executor can accept actions.
+message HealthResponse {
+  bool ready = 1;
+  int32 active_actions = 2;
+  string version = 3;
+}
+
+// RunActionRequest carries the raw task bytes as dequeued from OPMS so the executor
+// can verify the task signature itself.
+message RunActionRequest {
+  bytes task = 1;
+}
+
+// RunActionResponse is one event in the RunAction stream, ending with exactly one
+// ActionResult optionally preceded by ActionStatus updates.
+message RunActionResponse {
+  oneof event {
+    ActionStatus status = 1;
+    ActionResult result = 2;
+  }
+}
+
+// ActionStatus is an optional in-progress update emitted while an action runs.
+message ActionStatus {
+  string message = 1;
+}
+
+// ActionResult is the terminal outcome: a success output or a structured error.
+message ActionResult {
+  oneof outcome {
+    bytes output = 1;
+    datadog.privateactionrunner.errorcode.ActionPlatformError error = 2;
+  }
+}
+
+service Executor {
+  // RunAction runs a single action and streams updates ending in a final ActionResult.
+  rpc RunAction(RunActionRequest) returns (stream RunActionResponse);
+  // Health reports executor readiness and liveness; used to gate dispatch.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}

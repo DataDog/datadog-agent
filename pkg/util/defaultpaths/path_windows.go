@@ -22,7 +22,7 @@ import (
 //
 // defaultInstallPath is the default install path for the Agent. The install path is
 // customizable at install time, so we update it from the registry in init().
-const defaultInstallPath = `C:\Program Files\Datadog\Datadog Agent`
+const defaultInstallPath = `c:\Program Files\Datadog\Datadog Agent`
 
 var (
 	installPath string
@@ -36,40 +36,38 @@ var (
 // These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
 	defaultConfPath                   = "c:\\programdata\\datadog"
-	defaultConfdPath                  = "c:\\programdata\\datadog\\conf.d"
-	defaultAdditionalChecksPath       = "c:\\programdata\\datadog\\checks.d"
-	defaultLogFile                    = "c:\\programdata\\datadog\\logs\\agent.log"
-	defaultUpdaterLogFile             = "c:\\programdata\\datadog\\logs\\updater.log"
-	defaultSecurityAgentLogFile       = "c:\\programdata\\datadog\\logs\\security-agent.log"
-	defaultProcessAgentLogFile        = "c:\\programdata\\datadog\\logs\\process-agent.log"
-	defaultOTelAgentLogFile           = "c:\\programdata\\datadog\\logs\\otel-agent.log"
-	defaultHostProfilerLogFile        = "c:\\programdata\\datadog\\logs\\host-profiler.log"
-	defaultPrivateActionRunnerLogFile = "c:\\programdata\\datadog\\logs\\private-action-runner.log"
-	defaultStreamlogsLogFile          = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
-	defaultSystemProbeLogFile         = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	defaultLogPath                    = "c:\\programdata\\datadog\\logs"
+	defaultLogFile                    = defaultLogPath + "\\agent.log"
+	defaultUpdaterLogFile             = defaultLogPath + "\\updater.log"
+	defaultSecurityAgentLogFile       = defaultLogPath + "\\security-agent.log"
+	defaultProcessAgentLogFile        = defaultLogPath + "\\process-agent.log"
+	defaultOTelAgentLogFile           = defaultLogPath + "\\otel-agent.log"
+	defaultHostProfilerLogFile        = defaultLogPath + "\\host-profiler.log"
+	defaultPrivateActionRunnerLogFile = defaultLogPath + "\\private-action-runner.log"
+	defaultStreamlogsLogFile          = defaultLogPath + "\\streamlogs_info\\streamlogs.log"
+	defaultSystemProbeLogFile         = defaultLogPath + "\\system-probe.log"
 	defaultSystemProbeAddress         = `\\.\pipe\dd_system_probe`
 	defaultStatsdSocket               = ""
 	defaultReceiverSocket             = ""
 	defaultRunPath                    = "c:\\programdata\\datadog\\run"
 	defaultDDAgentBin                 = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
-	defaultDataPlaneLogFile           = "C:\\ProgramData\\Datadog\\logs\\agent-data-plane.log"
+	defaultDataPlaneLogFile           = defaultLogPath + "\\agent-data-plane.log"
 )
 
 // default paths for Windows systems.
 // These may be updated by init() based on the registry and ProgramData location.
 var (
 	// Config paths
-	confPath             = defaultConfPath
-	confdPath            = defaultConfdPath
-	additionalChecksPath = defaultAdditionalChecksPath
+	confPath = defaultConfPath
 
 	// Log files
+	logPath                    = defaultLogPath
 	logFile                    = defaultLogFile
-	dcaLogFile                 = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
-	jmxLogFile                 = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
-	dogstatsDProtocolLogFile   = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
-	dogstatsDServiceLogFile    = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
-	traceAgentLogFile          = "c:\\programdata\\datadog\\logs\\trace-agent.log"
+	dcaLogFile                 = defaultLogPath + "\\cluster-agent.log"
+	jmxLogFile                 = defaultLogPath + "\\jmxfetch.log"
+	dogstatsDProtocolLogFile   = defaultLogPath + "\\dogstatsd_info\\dogstatsd-stats.log"
+	dogstatsDServiceLogFile    = defaultLogPath + "\\dogstatsd.log"
+	traceAgentLogFile          = defaultLogPath + "\\trace-agent.log"
 	streamlogsLogFile          = defaultStreamlogsLogFile
 	updaterLogFile             = defaultUpdaterLogFile
 	securityAgentLogFile       = defaultSecurityAgentLogFile
@@ -78,10 +76,11 @@ var (
 	hostProfilerLogFile        = defaultHostProfilerLogFile
 	privateActionRunnerLogFile = defaultPrivateActionRunnerLogFile
 	systemProbeLogFile         = defaultSystemProbeLogFile
+	dataPlaneLogFile           = defaultDataPlaneLogFile
 
 	// Flare directories
-	checkFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
-	jmxFlareDirectory   = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
+	checkFlareDirectory = defaultLogPath + "\\checks\\"
+	jmxFlareDirectory   = defaultLogPath + "\\jmxinfo\\"
 
 	// Socket paths (empty on Windows by default - Windows uses named pipes)
 	statsdSocket   = defaultStatsdSocket
@@ -89,35 +88,31 @@ var (
 
 	// Run path
 	runPath = defaultRunPath
-
-	// PID file path
-	pidFilePath = "c:\\programdata\\datadog\\datadog-agent.pid"
 )
 
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		confPath = pd
-		confdPath = filepath.Join(pd, "conf.d")
-		additionalChecksPath = filepath.Join(pd, "checks.d")
-		logFile = filepath.Join(pd, "logs", "agent.log")
-		dcaLogFile = filepath.Join(pd, "logs", "cluster-agent.log")
-		jmxLogFile = filepath.Join(pd, "logs", "jmxfetch.log")
-		dogstatsDProtocolLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
-		dogstatsDServiceLogFile = filepath.Join(pd, "logs", "dogstatsd.log")
-		traceAgentLogFile = filepath.Join(pd, "logs", "trace-agent.log")
-		streamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
-		updaterLogFile = filepath.Join(pd, "logs", "updater.log")
-		securityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
-		processAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
-		otelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
-		hostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
-		privateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
-		systemProbeLogFile = filepath.Join(pd, "logs", "system-probe.log")
-		checkFlareDirectory = filepath.Join(pd, "logs", "checks") + "\\"
-		jmxFlareDirectory = filepath.Join(pd, "logs", "jmxinfo") + "\\"
-		runPath = filepath.Join(pd, "run")
-		pidFilePath = filepath.Join(pd, "datadog-agent.pid")
+		logPath = filepath.Join(confPath, "logs")
+		logFile = filepath.Join(logPath, "agent.log")
+		dcaLogFile = filepath.Join(logPath, "cluster-agent.log")
+		jmxLogFile = filepath.Join(logPath, "jmxfetch.log")
+		dogstatsDProtocolLogFile = filepath.Join(logPath, "dogstatsd_info", "dogstatsd-stats.log")
+		dogstatsDServiceLogFile = filepath.Join(logPath, "dogstatsd.log")
+		traceAgentLogFile = filepath.Join(logPath, "trace-agent.log")
+		streamlogsLogFile = filepath.Join(logPath, "streamlogs_info", "streamlogs.log")
+		updaterLogFile = filepath.Join(logPath, "updater.log")
+		securityAgentLogFile = filepath.Join(logPath, "security-agent.log")
+		processAgentLogFile = filepath.Join(logPath, "process-agent.log")
+		otelAgentLogFile = filepath.Join(logPath, "otel-agent.log")
+		hostProfilerLogFile = filepath.Join(logPath, "host-profiler.log")
+		privateActionRunnerLogFile = filepath.Join(logPath, "private-action-runner.log")
+		systemProbeLogFile = filepath.Join(logPath, "system-probe.log")
+		checkFlareDirectory = filepath.Join(logPath, "checks") + "\\"
+		jmxFlareDirectory = filepath.Join(logPath, "jmxinfo") + "\\"
+		runPath = filepath.Join(confPath, "run")
+		dataPlaneLogFile = filepath.Join(logPath, "agent-data-plane.log")
 	}
 	installPath = fetchInstallPath()
 	pyChecksPath = filepath.Join(installPath, "checks.d")
@@ -140,17 +135,12 @@ func GetDefaultSysProbeConfFile() string {
 	return filepath.Join(GetDefaultConfPath(), "system-probe.yaml")
 }
 
-// GetDefaultConfdPath returns the path to the conf.d directory
-func GetDefaultConfdPath() string {
-	return confdPath
-}
-
-// GetDefaultAdditionalChecksPath returns the path to the checks.d directory
-func GetDefaultAdditionalChecksPath() string {
-	return additionalChecksPath
-}
-
 // Log file getters
+
+// GetDefaultLogPath returns the path to the agent log directory
+func GetDefaultLogPath() string {
+	return logPath
+}
 
 // GetDefaultLogFile returns the path to the agent log file
 func GetDefaultLogFile() string {
@@ -246,11 +236,6 @@ func GetDefaultReceiverSocket() string {
 	return receiverSocket
 }
 
-// GetDefaultPidFilePath returns the path to the agent PID file
-func GetDefaultPidFilePath() string {
-	return pidFilePath
-}
-
 // GetDefaultRunPath returns the path to the run directory
 func GetDefaultRunPath() string {
 	return runPath
@@ -318,5 +303,5 @@ func GetDefaultDDAgentBin() string {
 
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
 func GetDefaultDataPlaneLogFile() string {
-	return defaultDataPlaneLogFile
+	return dataPlaneLogFile
 }

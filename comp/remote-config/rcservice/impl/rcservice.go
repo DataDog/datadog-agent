@@ -64,8 +64,8 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-// NewRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func NewRemoteConfigServiceOptional(deps Dependencies) Provides {
+// NewComponent conditionally creates and configures a new remote config service, based on whether RC is enabled.
+func NewComponent(deps Dependencies) Provides {
 	none := option.None[rcservice.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
 		return Provides{Comp: none}
@@ -107,16 +107,16 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	if deps.Cfg.IsConfigured("remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
 	}
-	if deps.Cfg.IsSet("remote_configuration.org_status_refresh_interval") {
+	if deps.Cfg.IsConfigured("remote_configuration.org_status_refresh_interval") {
 		options = append(options, remoteconfig.WithOrgStatusRefreshInterval(deps.Cfg.GetDuration("remote_configuration.org_status_refresh_interval"), "remote_configuration.org_status_refresh_interval"))
 	}
-	if deps.Cfg.IsSet("remote_configuration.max_backoff_interval") {
+	if deps.Cfg.IsConfigured("remote_configuration.max_backoff_interval") {
 		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))
 	}
-	if deps.Cfg.IsSet("remote_configuration.clients.ttl_seconds") {
+	if deps.Cfg.IsConfigured("remote_configuration.clients.ttl_seconds") {
 		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("remote_configuration.clients.ttl_seconds"), "remote_configuration.clients.ttl_seconds"))
 	}
-	if deps.Cfg.IsSet("remote_configuration.clients.cache_bypass_limit") {
+	if deps.Cfg.IsConfigured("remote_configuration.clients.cache_bypass_limit") {
 		options = append(options, remoteconfig.WithClientCacheBypassLimit(deps.Cfg.GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
 	}
 

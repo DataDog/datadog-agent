@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "pipeline",
@@ -14,6 +15,7 @@ go_library(
         "//comp/core/secrets/def",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs-library/processor",
         "//comp/logs-library/sender",
@@ -23,7 +25,6 @@ go_library(
         "//comp/serializer/logscompression/def",
         "//pkg/config/model",
         "//pkg/config/setup",
-        "//pkg/logs/diagnostic",
         "//pkg/logs/message",
         "//pkg/logs/status/statusinterface",
         "//pkg/util/compression",
@@ -32,7 +33,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "pipeline_test",
     srcs = [
         "provider_failover_integration_test.go",
@@ -40,11 +41,11 @@ go_test(
         "provider_test.go",
     ],
     embed = [":pipeline"],
-    gotags = ["test"],
     deps = [
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
@@ -52,7 +53,6 @@ go_test(
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
-        "//pkg/logs/diagnostic",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "//pkg/logs/status/statusinterface",

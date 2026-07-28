@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "debugging",
+    srcs = ["debugging.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/debugging",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/postgres",
+        "//pkg/process/util",
+        "//pkg/util/log",
+        "@com_github_datadog_sketches_go//ddsketch",
+    ],
+)

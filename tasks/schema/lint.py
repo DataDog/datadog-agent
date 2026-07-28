@@ -22,8 +22,8 @@ EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml"
 
 VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
-VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
-REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
+VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "aix", "container", "fargate", "other"}
+REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux", "aix"}
 VALID_ENV_PARSERS = {
     "comma_separated",
     "space_separated",
@@ -36,7 +36,7 @@ VALID_ENV_PARSERS = {
     "json_list_or_space_separated",
 }
 
-SLACK_HINT = "If you have any question please reach out on #agent-configuration"
+SLACK_HINT = "If you have any question please reach out on #fleet-automation"
 
 
 # ---------------------------------------------------------------------------
@@ -238,48 +238,22 @@ def check_node_types_present(path, schema):
 # ---------------------------------------------------------------------------
 
 
-def check_settings_have_default(path, schema, no_default_exceptions=None):
+def check_settings_have_default(path, schema):
     """
     Check that every setting node has a 'default' or 'platform_default' field.
 
-    Settings in *no_default_exceptions* (a set of dotted paths) are allowed to
-    skip the default **only if** they also carry the 'TODO:fix-no-default' tag.
-    A setting in the exception list without the required tag is still an error.
-
     Returns a list of error strings.
     """
-    if no_default_exceptions is None:
-        no_default_exceptions = set()
     errors = []
     for node_path, node in walk_nodes(schema):
         if node.get("node_type") != "setting":
             continue
         has_default = "default" in node or "platform_default" in node
-        tags = get_tags(node)
-        in_exceptions = node_path in no_default_exceptions
-
-        if in_exceptions:
-            # Accept TODO:fix-missing-type as an equivalent marker: settings registered
-            # with BindEnvAndSetDefault(key, nil) have no meaningful default and no
-            # derivable type; the builder tags them with TODO:fix-missing-type (and
-            # TODO:fix-no-default after the next schema regeneration with the updated
-            # builder). Either tag satisfies the requirement.
-            has_marker = "TODO:fix-no-default" in tags or "TODO:fix-missing-type" in tags
-            if not has_marker:
-                errors.append(
-                    f"{path}: [{node_path}] Setting is in the no-default exception list but is missing "
-                    f"the 'TODO:fix-no-default' tag (or 'TODO:fix-missing-type' as equivalent). "
-                    f"Fix: add 'TODO:fix-no-default' to the setting's tags list."
-                )
-            continue
 
         if not has_default:
             errors.append(
                 f"{path}: [{node_path}] Setting has no default value. "
                 f"Fix: add a 'default' or 'platform_default' field. "
-                f"If this setting genuinely cannot have a default, add it to "
-                f"'tasks/schema/lint_exceptions.yaml' under 'no_default' and add the "
-                f"'TODO:fix-no-default' tag to the setting."
             )
     return errors
 
@@ -289,46 +263,21 @@ def check_settings_have_default(path, schema, no_default_exceptions=None):
 # ---------------------------------------------------------------------------
 
 
-def check_settings_have_type(path, schema, no_type_exceptions=None):
+def check_settings_have_type(path, schema):
     """
     Check that every setting node has a 'type' field.
 
-    Settings in *no_type_exceptions* (a set of dotted paths) are allowed to
-    skip the type **only if** they also carry the 'TODO:fix-missing-type' tag.
-
     Returns a list of error strings.
     """
-    if no_type_exceptions is None:
-        no_type_exceptions = set()
     errors = []
     for node_path, node in walk_nodes(schema):
         if node.get("node_type") != "setting":
             continue
         has_type = "type" in node
-        tags = get_tags(node)
-        in_exceptions = node_path in no_type_exceptions
-
-        if in_exceptions:
-            # Accept TODO:fix-no-default as an equivalent marker: settings registered
-            # with BindEnv have no default and no derivable type; the builder tags them
-            # with TODO:fix-no-default (and TODO:fix-missing-type after the next schema
-            # regeneration with the updated builder). Either tag satisfies the requirement.
-            has_marker = "TODO:fix-missing-type" in tags or "TODO:fix-no-default" in tags
-            if not has_marker:
-                errors.append(
-                    f"{path}: [{node_path}] Setting is in the no-type exception list but is missing "
-                    f"the 'TODO:fix-missing-type' tag (or 'TODO:fix-no-default' as equivalent). "
-                    f"Fix: add 'TODO:fix-missing-type' to the setting's tags list."
-                )
-            continue
-
         if not has_type:
             errors.append(
                 f"{path}: [{node_path}] Setting has no 'type' field. "
                 f"Fix: add a 'type' field (one of: {sorted(VALID_TYPES)}). "
-                f"If the type genuinely cannot be determined, add this setting to "
-                f"'tasks/schema/lint_exceptions.yaml' under 'no_type' and add the "
-                f"'TODO:fix-missing-type' tag to the setting."
             )
     return errors
 
@@ -574,6 +523,47 @@ def check_env_parser(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 14: generate_const tag validation
+# ---------------------------------------------------------------------------
+
+GENERATE_CONST_PREFIX = "generate_const:"
+# The constant name must start with an ASCII letter (any case) and otherwise be composed only of
+# ASCII letters and digits.
+GENERATE_CONST_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+
+def check_generate_const_tag(path, schema):
+    """
+    Check that 'generate_const:<name>' tags:
+      - only appear on setting nodes (not section nodes)
+      - have the form 'generate_const:<name>' where <name> starts with a letter and is
+        otherwise composed only of ASCII letters (lower and upper case) and digits
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        for tag in get_tags(node):
+            if not isinstance(tag, str) or not tag.startswith(GENERATE_CONST_PREFIX):
+                continue
+            if node.get("node_type") != "setting":
+                errors.append(
+                    f"{path}: [{node_path}] '{tag}' tag is only valid on setting nodes, not sections. "
+                    f"Fix: remove the '{GENERATE_CONST_PREFIX}...' tag from this section node."
+                )
+                continue
+            name = tag[len(GENERATE_CONST_PREFIX) :]
+            if not GENERATE_CONST_NAME_RE.match(name):
+                errors.append(
+                    f"{path}: [{node_path}] Invalid tag '{tag}'. "
+                    f"The name must have the form '{GENERATE_CONST_PREFIX}<name>' where <name> starts "
+                    f"with a letter and is otherwise composed only of letters and digits. "
+                    f"Fix: use a valid Go constant name after '{GENERATE_CONST_PREFIX}'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -583,17 +573,13 @@ def load_exceptions(exceptions_file=EXCEPTIONS_FILE):
     Load the exception lists from lint_exceptions.yaml.
 
     Returns a dict with keys:
-      - no_default: set of dotted paths (require TODO:fix-no-default tag)
-      - no_type: set of dotted paths (require TODO:fix-missing-type tag)
       - array_no_items: set of dotted paths
     """
     if not os.path.isfile(exceptions_file):
-        return {k: set() for k in ("no_default", "no_type", "array_no_items")}
+        return {"array_no_items": set()}
     with open(exceptions_file) as f:
         data = yaml.safe_load(f) or {}
     return {
-        "no_default": set(data.get("no_default", []) or []),
-        "no_type": set(data.get("no_type", []) or []),
         "array_no_items": set(data.get("array_no_items", []) or []),
     }
 
@@ -638,14 +624,15 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_public_descriptions(schema_path, schema))
         all_errors.extend(check_public_parent_sections(schema_path, schema))
         all_errors.extend(check_node_types_present(schema_path, schema))
-        all_errors.extend(check_settings_have_default(schema_path, schema, exc["no_default"]))
-        all_errors.extend(check_settings_have_type(schema_path, schema, exc["no_type"]))
+        all_errors.extend(check_settings_have_default(schema_path, schema))
+        all_errors.extend(check_settings_have_type(schema_path, schema))
         all_errors.extend(check_platform_default_keys(schema_path, schema))
         all_errors.extend(check_sections_have_children(schema_path, schema))
         all_errors.extend(check_public_section_has_public_child(schema_path, schema))
         all_errors.extend(check_text_scalar_mode(schema_path))
         all_errors.extend(check_relative_defaults(schema_path, schema))
         all_errors.extend(check_env_parser(schema_path, schema))
+        all_errors.extend(check_generate_const_tag(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

@@ -1,9 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "observability",
     srcs = [
         "metrics.go",
+        "tagged_client.go",
         "tags.go",
         "traces.go",
     ],
@@ -14,5 +15,20 @@ go_library(
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
         "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "observability_test",
+    srcs = [
+        "metrics_test.go",
+        "tagged_client_test.go",
+    ],
+    embed = [":observability"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

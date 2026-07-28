@@ -5,6 +5,7 @@ exporters:
             dd-api-key: test-api-key
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 processors:
     ddhostname/dd-autoconfigured: {}
     resource/dd-profiler-internal-metadata:

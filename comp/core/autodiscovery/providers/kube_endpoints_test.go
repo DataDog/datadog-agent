@@ -26,6 +26,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -282,6 +283,45 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
 	}
+}
+
+func TestKubeEndpointsHealthPlatformReporting(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+	hp := healthplatformmock.New(t)
+	cfg := configmock.New(t)
+
+	provider := kubeEndpointsConfigProvider{
+		configErrors:   map[string]providerTypes.ErrorMsgSet{},
+		telemetryStore: telemetryStore,
+		healthPlatform: hp,
+	}
+
+	issueID := "ad-annotation:" + apiserver.EntityForEndpoints("default", "withErrors", "")
+
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+			UID:       "123",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.checks": `{"some_check": {"instances": [{"url" "%%host%%"}]}}`, // Invalid JSON (missing ":" after "url")
+			},
+		},
+	}
+
+	// A malformed annotation is reported as a health-platform issue.
+	provider.parseServiceAnnotationsForEndpoints([]*v1.Service{svc}, cfg)
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, issueID, issue.Id)
+	assert.Contains(t, issue.Description, "endpoint annotation")
+
+	// Fixing the annotation resolves the issue.
+	fixed := svc.DeepCopy()
+	fixed.Annotations["ad.datadoghq.com/endpoints.checks"] = `{"some_check": {"instances": [{"url": "%%host%%"}]}}`
+	provider.parseServiceAnnotationsForEndpoints([]*v1.Service{fixed}, cfg)
+	assert.Nil(t, hp.GetIssue(issueID))
 }
 
 func TestGenerateConfigs(t *testing.T) {
@@ -660,6 +700,12 @@ func TestInvalidateOnServiceDelete(t *testing.T) {
 			monitoredEndpoints: map[string]bool{},
 			deletedService:     serviceWithoutAnnotations,
 			expectedUpToDate:   true,
+		},
+		{
+			name:               "Delete unmonitored service with endpoint annotations invalidates",
+			monitoredEndpoints: map[string]bool{},
+			deletedService:     serviceWithAnnotations,
+			expectedUpToDate:   false,
 		},
 	}
 

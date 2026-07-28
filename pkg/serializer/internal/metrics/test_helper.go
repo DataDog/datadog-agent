@@ -20,13 +20,15 @@ import (
 func Makeseries(i int) *metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
 	ss := &metrics.SketchSeries{
-		Name: fmt.Sprintf("name.%d", i),
-		Tags: tagset.CompositeTagsFromSlice([]string{
-			fmt.Sprintf("a:%d", i),
-			fmt.Sprintf("b:%d", i),
-		}),
-		Host:     fmt.Sprintf("host.%d", i),
-		Interval: int64(i),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: fmt.Sprintf("name.%d", i),
+			Tags: tagset.CompositeTagsFromSlice([]string{
+				fmt.Sprintf("a:%d", i),
+				fmt.Sprintf("b:%d", i),
+			}),
+			Host:     fmt.Sprintf("host.%d", i),
+			Interval: int64(i),
+		},
 	}
 
 	// We create i+5 Sketch Points to insure all hosts have at least 5 Sketch Points for tests
@@ -66,7 +68,6 @@ func (s *serieSourceMock) Count() uint64 {
 	return uint64(len(s.series))
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func CreateSerieSource(series metrics.Series) metrics.SerieSource {
 	return &serieSourceMock{
 		series: series,

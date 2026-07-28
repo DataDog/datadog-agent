@@ -21,6 +21,8 @@ type fileQuerier struct {
 	files []uint64
 	pkgs  []*sbomtypes.Package
 
+	usrMerged bool
+
 	lastNegativeCache *fixedSizeQueue[uint64]
 }
 
@@ -34,33 +36,39 @@ and each part group is at the index of the given package
 for example here hash5 would match pkgs[2]
 */
 
-func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles) fileQuerier {
+// newFileQuerier builds the file->package index from report. It stores murmur3
+// hashes of the installed file paths — never the paths themselves — together with
+// pointers into backing, the caller's long-lived per-package metadata slice. Using
+// backing (rather than report) for the pointers keeps LastAccess/SuidBit/
+// AccessedByRoot updates visible to the forwarding path while allowing report and
+// its plain-text InstalledFiles to be garbage-collected once this returns.
+// backing[i] must correspond to report[i].Package.
+func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles, backing []sbomtypes.Package, usrMerged bool) fileQuerier {
 	fileCount := 0
-	pkgCount := 0
 	for _, pkg := range report {
 		fileCount += 2 + len(pkg.InstalledFiles)
-		pkgCount++
 	}
 
 	files := make([]uint64, 0, fileCount)
-	pkgs := make([]*sbomtypes.Package, 0, pkgCount)
+	pkgs := make([]*sbomtypes.Package, 0, len(backing))
 
 	for i := range report {
-		// IMPORTANT: Store pointer to Package field in the original slice, not a copy
-		// This ensures LastAccess updates are reflected in the stored packages
-		pkgs = append(pkgs, &report[i].Package)
+		// IMPORTANT: Store pointer into the retained backing slice, not into report,
+		// so LastAccess updates are reflected in the stored packages and report's
+		// InstalledFiles are not kept alive.
+		pkgs = append(pkgs, &backing[i])
 
 		files = append(files, uint64(len(report[i].InstalledFiles)))
 
 		for _, file := range report[i].InstalledFiles {
-			seclog.Tracef("indexing %s as %+v", file, report[i].Package)
+			seclog.Tracef("indexing %s as %+v", file, backing[i])
 
 			hash := murmur3.StringSum64(file)
 			files = append(files, hash)
 		}
 	}
 
-	return fileQuerier{files: files, pkgs: pkgs, lastNegativeCache: newFixedSizeQueue[uint64](2)}
+	return fileQuerier{files: files, pkgs: pkgs, usrMerged: usrMerged, lastNegativeCache: newFixedSizeQueue[uint64](2)}
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *sbomtypes.Package {
@@ -107,9 +115,19 @@ func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
 		return pkg
 	}
 
-	if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
-		if result := fq.queryHashWithNegativeCache(murmur3.StringSum64("/usr/" + path)); result != nil {
-			return result
+	// On usr-merged layouts /bin and /usr/bin are the same tree, so the package
+	// database and the resolved exec path may use either prefix for one file.
+	if fq.usrMerged {
+		if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
+			if result := fq.queryHashWithNegativeCache(murmur3.StringSum64("/usr" + path)); result != nil {
+				return result
+			}
+		}
+
+		if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
+			if result := fq.queryHashWithNegativeCache(murmur3.StringSum64(after)); result != nil {
+				return result
+			}
 		}
 	}
 

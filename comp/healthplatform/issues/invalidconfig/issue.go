@@ -7,6 +7,7 @@ package invalidconfig
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,11 @@ const (
 	contextKeyImpact     = "impact"
 )
 
+// contextErrorKey returns the Context key for the i-th error line.
+func contextErrorKey(i int) string {
+	return "error." + strconv.Itoa(i)
+}
+
 // InvalidConfigIssue is the template for "invalid-config" issues.
 type InvalidConfigIssue struct{}
 
@@ -31,29 +37,53 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		path = "(unknown path)"
 	}
 	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
-	errors := ctx[contextKeyErrors]
+
+	errLines := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		if v := ctx[contextErrorKey(i)]; v != "" {
+			errLines = append(errLines, v)
+		}
+	}
 
 	suffix := ""
 	if count != 1 {
 		suffix = "s"
 	}
 	desc := fmt.Sprintf("Found %d schema violation%s in %s", count, suffix, path)
-	if errors != "" {
-		desc += ": " + strings.ReplaceAll(errors, "\n", "; ")
+	if len(errLines) > 0 {
+		desc += ": " + strings.Join(errLines, "; ")
 	} else {
 		desc += "."
+	}
+
+	errGroups := make(map[string][]string, len(errLines))
+	for _, line := range errLines {
+		// Schema errors have the form: at '<path>': <message>
+		// Strip the "at '" prefix and trailing "'" to get a bare JSON path.
+		before, msg, _ := strings.Cut(line, ": ")
+		path := strings.TrimSuffix(strings.TrimPrefix(before, "at '"), "'")
+		errGroups[path] = append(errGroups[path], msg)
+	}
+	errMap := make(map[string]any, len(errGroups))
+	for path, msgs := range errGroups {
+		slice := make([]any, len(msgs))
+		for i, m := range msgs {
+			slice[i] = m
+		}
+		errMap[path] = slice
 	}
 
 	extra, _ := structpb.NewStruct(map[string]any{
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
-		contextKeyErrors:     strings.ReplaceAll(errors, "\n", " • "),
+		contextKeyErrors:     errMap,
 		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 	})
 
 	return &healthplatform.Issue{
-		IssueName:   IssueID,
-		Title:       fmt.Sprintf("Datadog Agent configuration has %d schema violation%s", count, suffix),
+		IssueName:   IssueName,
+		IssueType:   IssueType,
+		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s in %s", count, suffix, filepath.Base(path)),
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",

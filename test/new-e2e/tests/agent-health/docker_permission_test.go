@@ -104,13 +104,12 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		for _, p := range payloads {
 			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
 				if iss.PersistedIssue != nil &&
-					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
 					reloadedIssues = append(reloadedIssues, iss)
 				}
 			}
 		}
-		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as NEW or ONGOING after crash restart")
+		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as ACTIVE after crash restart")
 	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not re-reported after crash restart")
 
 	require.NotEmpty(suite.T(), reloadedIssues)
@@ -128,18 +127,16 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 
 	const issueID = "docker-socket-permissions"
 
-	suite.T().Run("PreCondition", func(t *testing.T) {
-		containers, err := suite.Env().Docker.Client.ListContainers()
-		require.NoError(t, err)
-		found := false
-		for _, name := range containers {
-			if strings.Contains(name, "spam") {
-				found = true
-				break
-			}
+	containers, err := suite.Env().Docker.Client.ListContainers()
+	require.NoError(suite.T(), err)
+	found := false
+	for _, name := range containers {
+		if strings.Contains(name, "spam") {
+			found = true
+			break
 		}
-		assert.True(t, found, "busybox spam containers should be running")
-	})
+	}
+	assert.True(suite.T(), found, "busybox spam containers should be running")
 
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		host.MustExecute("sudo chmod 660 /var/run/docker.sock")
@@ -151,18 +148,19 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			issues = nil
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, issueID) {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 						issues = append(issues, iss)
 					}
 				}
 			}
-			assert.NotEmpty(ct, issues, "docker socket permission issue not found as NEW in fakeintake")
-		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as NEW in fakeintake")
+			assert.NotEmpty(ct, issues, "docker socket permission issue not found as ACTIVE in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as ACTIVE in fakeintake")
 
 		require.NotEmpty(t, issues)
 		issue := issues[0]
 		assert.Equal(t, "docker-socket-permissions", issue.Id)
-		assert.Equal(t, "docker_file_tailing_disabled", issue.IssueName)
+		assert.Equal(t, "Docker File Tailing Disabled", issue.IssueName)
+		assert.Equal(t, "docker_file_tailing_disabled", issue.IssueType)
 		assert.Equal(t, "permissions", issue.Category)
 		assert.Equal(t, "logs-agent", issue.Location)
 		assert.Equal(t, "logs", issue.Source)
@@ -173,6 +171,14 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		assert.NotEmpty(t, issue.Remediation.Steps)
 	})
 
+	host.MustExecute("sudo chmod 666 /var/run/docker.sock")
+	perm := host.MustExecute("stat -c '%a' /var/run/docker.sock")
+	assert.Contains(suite.T(), strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
+	require.NoError(suite.T(), agent.Client.Restart())
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		assert.True(ct, agent.Client.IsReady())
+	}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
+
 	suite.T().Run("Resolution", func(t *testing.T) {
 		// Restore broken state on cleanup so infra can be re-used for re-runs.
 		t.Cleanup(func() {
@@ -180,26 +186,17 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			_ = agent.Client.Restart()
 		})
 
-		host.MustExecute("sudo chmod 666 /var/run/docker.sock")
-		perm := host.MustExecute("stat -c '%a' /var/run/docker.sock")
-		assert.Contains(t, strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
-
-		require.NoError(t, agent.Client.Restart())
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			assert.True(ct, agent.Client.IsReady())
-		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
-
-		require.Never(t, func() bool {
-			payloads, _ := fakeIntake.GetAgentHealth()
+			payloads, err := fakeIntake.GetAgentHealth()
+			assert.NoError(ct, err)
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, issueID) {
-					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
-						return true
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return
 					}
 				}
 			}
-			return false
-		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue still reported as non-resolved after fix")
+			assert.Fail(ct, "no payload found with the issue in RESOLVED state")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "issue never transitioned to RESOLVED after fix")
 	})
 }

@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "aggregator",
+    srcs = [
+        "aggregator.go",
+        "callbacks.go",
+        "check_context.go",
+        "check_context_test_util.go",
+        "helpers.go",
+        "inter.go",
+        "test_aggregator.go",
+    ],
+    cdeps = ["//rtloader:rtloader_dynamic"],
+    cgo = True,
+    copts = ["-I pkg/collector/aggregator/rtloader/include"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/aggregator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/impl-noop",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/fx-mock",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/mocksender",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+dd_agent_go_test(
+    name = "aggregator_test",
+    srcs = [
+        "aggregator_test.go",
+        "helpers_test.go",
+    ],
+    embed = [":aggregator"],
+)

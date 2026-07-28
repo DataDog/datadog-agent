@@ -1,5 +1,8 @@
 """Scripts and configuration embedded into the installer as data."""
 
+# Don't try to make a package for the generator functions. We do that here as :tmpl_lib.
+# gazelle:exclude tmpl/*.go
+
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 exports_files(
@@ -31,6 +34,9 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-trace-exp.service",
     "tmpl/gen/debrpm/datadog-agent-trace.service",
     "tmpl/gen/debrpm/datadog-agent.service",
+    "tmpl/gen/windows/datadog-agent-action.yaml",
+    "tmpl/gen/windows/datadog-agent-data-plane.yaml",
+    "tmpl/gen/windows/datadog-agent-ddot.yaml",
     "tmpl/gen/oci/datadog-agent-action-exp.service",
     "tmpl/gen/oci/datadog-agent-action.service",
     "tmpl/gen/oci/datadog-agent-data-plane-exp.service",
@@ -73,9 +79,12 @@ go_library(
     srcs = ["tmpl/main.go"],
     embedsrcs = [
         "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-action-windows.yaml.tmpl",
         "tmpl/datadog-agent-data-plane.service.tmpl",
+        "tmpl/datadog-agent-data-plane-windows.yaml.tmpl",
         "tmpl/datadog-agent-ddot.service.tmpl",
         "tmpl/datadog-agent-ddot.yaml.tmpl",
+        "tmpl/datadog-agent-ddot-windows.yaml.tmpl",
         "tmpl/datadog-agent-installer.service.tmpl",
         "tmpl/datadog-agent-process.service.tmpl",
         "tmpl/datadog-agent-procmgr.service.tmpl",

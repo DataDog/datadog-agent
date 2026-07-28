@@ -41,10 +41,13 @@ const secondaryThirdPartyIntegration = "datadog-puma==2.0.0"
 // snapshotIntegrationState dumps the on-host state that determines whether
 // integration save/restore worked: the installer journal (where the
 // save_custom_integrations / restore_custom_integrations spans land), the
-// contents of /opt/datadog-packages/tmp/ (where pre.py writes and post.py
-// reads the diff file), and the stable site-packages directory listing.
-// Captured to T.Logf at every upgrade phase boundary so that a red CI test
-// can be triaged from the log alone, without SSH. Linux-only; no-op on
+// contents of the baseline storage directories, and the stable site-packages
+// directory listing. The OCI integration baseline now lives in the persistent
+// /opt/datadog-packages/run directory (pre.py writes the diff there and post.py
+// reads it); the legacy /opt/datadog-packages/tmp directory is still dumped
+// because older Agent versions wrote the baseline there and pre.py falls back
+// to it. Captured to T.Logf at every upgrade phase boundary so that a red CI
+// test can be triaged from the log alone, without SSH. Linux-only; no-op on
 // other OS families.
 func snapshotIntegrationState(t *testing.T, env *environments.Host, phase string) {
 	if env.RemoteHost.OSFamily != e2eos.LinuxFamily {
@@ -56,9 +59,12 @@ func snapshotIntegrationState(t *testing.T, env *environments.Host, phase string
 		command string
 	}{
 		{"installer journal (last 200 lines)", "sudo journalctl -u 'datadog-agent-installer*.service' --since=-15m --no-pager --output=cat 2>&1 | tail -200"},
+		{"/opt/datadog-packages/run listing", "sudo ls -la /opt/datadog-packages/run/ 2>&1"},
+		{"run .diff_python_installed_packages.txt", "sudo cat /opt/datadog-packages/run/.diff_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
+		{"run .post_python_installed_packages.txt", "sudo cat /opt/datadog-packages/run/.post_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
 		{"/opt/datadog-packages/tmp listing", "sudo ls -la /opt/datadog-packages/tmp/ 2>&1"},
-		{".diff_python_installed_packages.txt", "sudo cat /opt/datadog-packages/tmp/.diff_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
-		{".post_python_installed_packages.txt", "sudo cat /opt/datadog-packages/tmp/.post_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
+		{"tmp .diff_python_installed_packages.txt", "sudo cat /opt/datadog-packages/tmp/.diff_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
+		{"tmp .post_python_installed_packages.txt", "sudo cat /opt/datadog-packages/tmp/.post_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
 		{"stable site-packages (datadog_* only)", "sudo ls /opt/datadog-packages/datadog-agent/stable/embedded/lib/python*/site-packages/ 2>/dev/null | grep -E '^datadog' || echo NONE"},
 		// Ownership of reinstalled integration files: root:root indicates post.py ran pip as root
 		// without a subsequent chown, which blocks dd-agent from writing __pycache__ later.
@@ -197,6 +203,94 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationStableToOCIExp
 		// Failure mode 4 (post-promote): integration show must still succeed after promotion.
 		_, showErr := s.Agent.IntegrationShow("datadog-ping")
 		assert.NoError(c, showErr, "integration show should succeed after promotion")
+	}, 60*time.Second, 5*time.Second)
+}
+
+// TestIntegrationPreservationSurvivesTmpReaping verifies that a third-party integration
+// survives an OCI→OCI upgrade even when the installer's garbage collector has reaped
+// /opt/datadog-packages/tmp between the install and the upgrade.
+//
+// Regression guard for the storage move: the integration baseline
+// (.post_python_installed_packages.txt) used to live in /opt/datadog-packages/tmp, which
+// the installer reaps on a 24h TTL. If the reaper ran before the next upgrade, pre.py
+// could not find the baseline, so the custom integration was silently dropped (or the
+// upgrade failed). The baseline now lives in the persistent /opt/datadog-packages/run
+// directory, which is never reaped, so purging tmp must not affect preservation.
+//
+// Like TestIntegrationPreservationOCIToOCI, this reaches an OCI-stable state running the
+// pipeline build (the version carrying the fix) by promoting from a released stable first,
+// so both the save (preStartExperiment) and restore (postStartExperiment) sides exercise
+// the new run-dir storage and pre.py's fallback logic.
+func (s *integrationPreservationSuite) TestIntegrationPreservationSurvivesTmpReaping() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after MustInstall (released OCI stable)")
+
+	// Reach an OCI stable running the pipeline build (which writes the baseline to the
+	// persistent run dir) by promoting the testing experiment to stable.
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", testingVersion)
+	s.Require().NoError(err)
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after preparatory promote to pipeline testing")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, testingVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
+
+	err = s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after InstallIntegration on pipeline stable")
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before the reaper purge")
+
+	// Simulate the installer's garbage collector reaping the legacy tmp baseline. Delete
+	// tmp's contents, not the directory itself: the real reaper (cleanupTmpDirectory) only
+	// removes stale entries inside tmp, and rm -rf of the directory forces a root-owned
+	// recreation that breaks the next experiment's MkdirTemp. The persistent baseline in
+	// /opt/datadog-packages/run must be unaffected so the integration still survives.
+	_, err = s.Env().RemoteHost.Execute("sudo find /opt/datadog-packages/tmp -mindepth 1 -delete")
+	s.Require().NoError(err)
+	// Confirm the legacy baseline is actually gone, so the test really exercises the
+	// persistent run-dir storage instead of silently passing on a stale tmp copy.
+	tmpBaseline, err := s.Env().RemoteHost.Execute("test -f /opt/datadog-packages/tmp/.post_python_installed_packages.txt && echo PRESENT || echo PURGED")
+	s.Require().NoError(err)
+	s.Require().Equal("PURGED", strings.TrimSpace(tmpBaseline), "legacy tmp baseline should be gone after the simulated reaper purge")
+	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after purging /opt/datadog-packages/tmp (simulated reaper)")
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
+	if targetVersion == testingVersion {
+		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
+	}
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after StartExperiment to released stable")
+
+	// The integration must survive: pre.py finds the baseline in the persistent run dir
+	// (not the purged tmp dir) and post.py reinstalls datadog-ping in the experiment.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved despite the reaped tmp dir")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration despite the reaped tmp dir")
+	}, 60*time.Second, 5*time.Second)
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after PromoteExperiment")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after promotion despite the reaped tmp dir")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after promotion despite the reaped tmp dir")
 	}, 60*time.Second, 5*time.Second)
 }
 

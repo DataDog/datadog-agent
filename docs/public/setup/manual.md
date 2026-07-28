@@ -54,7 +54,7 @@ Due to the [way some virtual environments handle executable paths](https://bugs.
     ```
     virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv
     ```
-- [Activate the virtualenv](https://virtualenv.pypa.io/en/latest/user_guide.html#activators) (OS-dependent). This must be done for every new terminal before you start.
+- [Activate the virtualenv](https://virtualenv.pypa.io/en/20.26.4/user_guide.html#activators) (OS-dependent). This must be done for every new terminal before you start.
 
 If using virtual environments when running the built Agent, you may need to override the built Agent's search path for Python check packages using the `PYTHONPATH` variable (your target path must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/) though).
 
@@ -112,9 +112,9 @@ sudo yum install systemd-devel
 
 ## Doxygen
 
-We use [Doxygen](http://www.doxygen.nl) to generate the documentation for the `rtloader` part of the Agent.
+We use [Doxygen](https://www.doxygen.nl) to generate the documentation for the `rtloader` part of the Agent.
 
-To generate it (using the `dda inv rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](http://www.doxygen.nl/manual/install.html). Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
+To generate it (using the `dda inv rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](https://www.doxygen.nl/manual/install.html). Alternatively, you can use already-compiled Doxygen binaries from [here](https://www.doxygen.nl/download.html).
 
 To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.
 

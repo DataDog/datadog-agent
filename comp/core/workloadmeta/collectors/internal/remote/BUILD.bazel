@@ -13,7 +13,7 @@ go_library(
         "//pkg/util/grpc",
         "//pkg/util/log",
         "//pkg/util/system/socket",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_mdlayher_vsock//:vsock",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",

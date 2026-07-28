@@ -290,7 +290,9 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 	defer p.Unlock()
 	if found := p.monitoredEndpoints[endpointsID]; found {
 		// Invalidate only when subsets change
-		p.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
+		if !equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets) {
+			p.upToDate = false
+		}
 	}
 }
 

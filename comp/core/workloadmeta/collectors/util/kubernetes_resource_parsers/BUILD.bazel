@@ -1,10 +1,12 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "kubernetes_resource_parsers",
     srcs = [
         "crd.go",
         "deployment.go",
+        "kueue.go",
         "metadata.go",
         "parser.go",
         "pod.go",
@@ -22,22 +24,27 @@ go_library(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/util/errors",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "kubernetes_resource_parsers_test",
     srcs = [
         "crd_test.go",
         "deployment_test.go",
+        "kueue_test.go",
         "metadata_test.go",
         "pod_test.go",
         "utils_test.go",
     ],
     embed = [":kubernetes_resource_parsers"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/collectors/util",
@@ -52,6 +59,7 @@ go_test(
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )

@@ -7,7 +7,10 @@
 
 package irgen
 
-import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
+import (
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
+)
 
 type config struct {
 	objectLoader             object.Loader
@@ -15,6 +18,7 @@ type config struct {
 	skipReturnEvents         bool
 	additionalTypes          []string
 	skipRuntimeRecoveryProbe bool
+	redaction                *redaction.Config
 }
 
 var defaultConfig = config{
@@ -61,6 +65,14 @@ func WithAdditionalTypes(typeNames []string) Option {
 // probes change.
 func WithSkipRuntimeRecoveryProbe(skip bool) Option {
 	return optionFunc(func(c *config) { c.skipRuntimeRecoveryProbe = skip })
+}
+
+// WithRedaction sets the policy used to scrub sensitive captured values. When
+// set, irgen attaches it to the generated program so the decoder can enforce
+// it, rejects probe conditions that reference a redacted identifier, and marks
+// capture expressions that reference one.
+func WithRedaction(cfg *redaction.Config) Option {
+	return optionFunc(func(c *config) { c.redaction = cfg })
 }
 
 type optionFunc func(c *config)

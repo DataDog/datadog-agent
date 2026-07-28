@@ -20,6 +20,9 @@ check whether an E2E test asserts the expected data arrives in fakeintake. Unit
 tests alone are not sufficient for validating the agent's end-to-end data
 pipeline.
 
+When a PR creates a new E2E test, use the `e2e-audit` skill to verify that its
+assertions require the deployed Agent or its real environment.
+
 ### Branch-conditional CI creates blind spots
 Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
 not on PR branches. Be extra careful reviewing:
@@ -55,14 +58,6 @@ incorrect assumptions.
 ## Go-specific guidelines
 
 Apply these when the PR touches Go code.
-
-### Atomics — use `go.uber.org/atomic`, not `sync/atomic`
-The standard `sync/atomic` package has an alignment bug on 32-bit and some ARM
-platforms and allows mixing atomic and non-atomic access to the same variable.
-Flag any new use of `sync/atomic`; the project standard is `go.uber.org/atomic`.
-Atomic values in structs must be declared as a pointer (`*atomic.Uint64` etc.)
-to guarantee alignment, unless placed as the first field with a comment
-explaining why a pointer was not used.
 
 ### Testing: `require` vs `assert`
 Use `require` (from `github.com/stretchr/testify/require`) when each assertion

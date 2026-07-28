@@ -1,9 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "setup",
     srcs = [
-        "apm.go",
+        "apm_settings.go",
         "common_settings.go",
         "config.go",
         "config_accessor.go",
@@ -15,18 +16,19 @@ go_library(
         "config_test_accessor.go",
         "config_windows.go",
         "fixup_init.go",
+        "generated.go",
         "ipc_address.go",
-        "multi_region_failover.go",
+        "multi_region_failover_settings.go",
         "otlp.go",
+        "otlp_settings.go",
         "privateactionrunner.go",
+        "privateactionrunner_settings.go",
         "process.go",
+        "process_settings.go",
         "security_agent.go",
         "standard_names.go",
         "system_probe.go",
-        "system_probe_cws.go",
-        "system_probe_cws_notwin.go",
-        "system_probe_cws_windows.go",
-        "system_probe_usm.go",
+        "system_probe_settings.go",
         "test_config_accessor.go",
         "test_helpers.go",
         "unexpectedunicodefinder.go",
@@ -54,13 +56,12 @@ go_library(
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
-            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "setup_test",
     srcs = [
         "config_change_checker_test.go",
@@ -73,7 +74,6 @@ go_test(
         "unexpectedunicodefinder_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",

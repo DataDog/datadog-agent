@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockResolver struct {
@@ -44,6 +43,10 @@ func (m *mockResolver) Resolve(string) ([]string, bool, error) {
 }
 
 func TestBuffer_DelayedSuccess(t *testing.T) {
+	synctest.Test(t, syncTestBufferDelayedSuccess)
+}
+
+func syncTestBufferDelayedSuccess(t *testing.T) {
 	mock := &mockResolver{tags: []string{"short_image:java"}}
 
 	buff := newContainerTagsBuffer(&config.AgentConfig{
@@ -52,7 +55,7 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 	}, &statsd.NoOpClient{})
 	buff.resolveFunc = mock.Resolve
 	buff.Start()
-	defer close(buff.exit)
+	defer buff.Stop()
 
 	resultCh := make(chan []string, 1)
 
@@ -145,6 +148,10 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 }
 
 func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
+	synctest.Test(t, syncTestAsyncEnrichmentMemoryLimit)
+}
+
+func syncTestAsyncEnrichmentMemoryLimit(t *testing.T) {
 	mock := &mockResolver{tags: []string{"short_image:java"}}
 	conf := &config.AgentConfig{
 		MaxMemory:                     100, // Max size will be 10 (10%)
@@ -157,12 +164,12 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 	defer ctb.Stop()
 
 	// 1. Fill memory (Payload 10 fills the 10 limit)
-	ctb.AsyncEnrichment("container-1", func([]string, error, *DebugInfo) {}, 10)
+	resolved := make(chan struct{})
+	onResolution := func([]string, error, *DebugInfo) { close(resolved) }
+	ctb.AsyncEnrichment("container-1", onResolution, 10)
 
-	// Wait for it to hit the map
-	require.Eventually(t, func() bool {
-		return ctb.memoryUsage.Load() == 10
-	}, 1*time.Second, 10*time.Millisecond)
+	// Memory usage is updated before AsyncEnrichment returns, no polling needed
+	assert.Equal(t, int64(10), ctb.memoryUsage.Load())
 
 	// 2. Try to add another container
 	called := false
@@ -178,9 +185,13 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 
 	// 3. memory cleaned post resolution
 	mock.setTags([]string{"kube_t:a"}, true)
-	require.Eventually(t, func() bool {
-		return ctb.memoryUsage.Load() == 0
-	}, 3*time.Second, 10*time.Millisecond)
+	select {
+	case <-resolved:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for container-1 resolution")
+	}
+	synctest.Wait()
+	assert.Zero(t, ctb.memoryUsage.Load())
 }
 
 func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
@@ -237,6 +248,10 @@ func TestAsyncEnrichment_CompleteWithoutKubeTagsDoesNotBuffer(t *testing.T) {
 }
 
 func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
+	synctest.Test(t, syncTestAsyncEnrichmentBufferedExpiration)
+}
+
+func syncTestAsyncEnrichmentBufferedExpiration(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
@@ -248,6 +263,7 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.bufferDuration = 1 * time.Nanosecond
 	ctb.Start()
+	defer ctb.Stop()
 
 	resultChan := make(chan []string, 1)
 	callback := func(tags []string, _ error, _ *DebugInfo) {
@@ -264,17 +280,20 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
-	// Memory is released via defer after the callback returns, so use Eventually
-	// to avoid a race between receiving the callback result and the defer executing
-	require.Eventually(t, func() bool {
-		return ctb.memoryUsage.Load() == 0
-	}, 1*time.Second, 10*time.Millisecond, "memory should be released after callback")
+	// Memory is released via defer after the callback returns, so use synctest.Wait
+	// to let it run before the assertion
+	synctest.Wait()
+	assert.Zero(t, ctb.memoryUsage.Load(), "memory should be released after callback")
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))
 }
 
 func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
+	synctest.Test(t, syncTestAsyncEnrichmentBufferedHardLimit)
+}
+
+func syncTestAsyncEnrichmentBufferedHardLimit(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
@@ -286,6 +305,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.hardTimeLimit = 100 * time.Millisecond
 	ctb.Start()
+	defer ctb.Stop()
 
 	resultChan := make(chan []string, 1)
 	callback := func(tags []string, _ error, _ *DebugInfo) {
@@ -302,11 +322,10 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
-	// Memory is released via defer after the callback returns, so use Eventually
-	// to avoid a race between receiving the callback result and the defer executing
-	require.Eventually(t, func() bool {
-		return ctb.memoryUsage.Load() == 0
-	}, 1*time.Second, 10*time.Millisecond, "memory should be released after callback")
+	// Memory is released via defer after the callback returns, so use synctest.Wait
+	// to let it run before the assertion
+	synctest.Wait()
+	assert.Zero(t, ctb.memoryUsage.Load(), "memory should be released after callback")
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))

@@ -9,6 +9,11 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	"github.com/spf13/cobra"
@@ -21,6 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	statsdfx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
@@ -33,6 +40,8 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -40,6 +49,41 @@ import (
 
 type cliParams struct {
 	*command.GlobalParams
+}
+
+func startTelemetryServer(lc fx.Lifecycle, cfg config.Component, logger log.Component, tel telemetry.Component) {
+	if os.Getenv(parconstants.InternalEnableTelemetryEnvVar) != "true" {
+		return
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/telemetry", tel.Handler())
+
+	addr := net.JoinHostPort(configutils.GetBindHost(cfg), strconv.Itoa(cfg.GetInt("metrics_port")))
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			listener, err := net.Listen("tcp", addr)
+			if err != nil {
+				return fmt.Errorf("unable to start private action runner telemetry server on %s: %w", addr, err)
+			}
+
+			logger.Infof("Starting private action runner telemetry server at http://%s/telemetry", listener.Addr().String())
+			go func() {
+				if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					logger.Warnf("Private action runner telemetry server stopped unexpectedly: %v", err)
+				}
+			}()
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			return server.Shutdown(ctx)
+		},
+	})
 }
 
 // runPrivateActionRunner runs the private action runner with the given configuration and context.
@@ -78,6 +122,8 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		statsdfx.Module(),
+		fx.Invoke(startTelemetryServer),
 		privateactionrunnerfx.Module(),
 	}
 

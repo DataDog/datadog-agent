@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "expvars",
@@ -11,7 +12,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/haagent/def",
-        "//comp/healthplatform/store/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
@@ -20,7 +20,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "expvars_test",
     srcs = [
         "expvars_test.go",
@@ -28,12 +28,9 @@ go_test(
         "workers_test.go",
     ],
     embed = [":expvars"],
-    gotags = ["test"],
-    # TODO: https://datadoghq.atlassian.net/browse/ABLD-481
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//comp/haagent/mock",
-        "//comp/healthplatform/store/mock",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",

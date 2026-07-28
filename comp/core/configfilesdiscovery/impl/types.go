@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -32,9 +33,25 @@ type target struct {
 
 // ConfigFile is the content read from a runtime-specific config file path.
 type ConfigFile struct {
-	Path      string
-	Content   []byte
-	Truncated bool
+	Path          string
+	Content       []byte
+	Truncated     bool
+	PayloadFormat agentdiscovery.AgentDiscoveryConfigFilePayloadFormat
+}
+
+// ConfigEnvVar is an environment variable relevant to a collected integration.
+type ConfigEnvVar struct {
+	Name  string
+	Value string
+}
+
+// CollectedConfig is the config data collected for one integration target.
+type CollectedConfig struct {
+	Integration string
+	Runtime     RuntimeType
+	RuntimeID   string
+	ConfigFiles []ConfigFile
+	EnvVars     []ConfigEnvVar
 }
 
 // TargetCommandline is the command line used to start the target service.
@@ -43,18 +60,20 @@ type TargetCommandline struct {
 	WorkingDir string
 }
 
-// ConfigReader is the runtime-specific config access layer used by config collectors.
+// ConfigReader is the runtime-specific config access layer managed by the scheduler.
 type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, string) (ConfigFile, error)
 	ReadEnvVars(context.Context, []string) (map[string]string, error)
 	ReadCommandline(context.Context) (TargetCommandline, error)
+	Close()
 }
 
 type configReaderFactory func(target) (ConfigReader, error)
 
-type configCollector interface {
-	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
+// ConfigCollector reads integration-specific config data through a collector reader.
+type ConfigCollector interface {
+	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 
 type targetResolver struct {
@@ -83,23 +102,29 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 		return resolvedTarget, true
 	case "docker":
 		resolvedTarget.runtime = RuntimeDocker
-	case "kubernetes_pod":
-		resolvedTarget.runtime = RuntimeKubernetes
 		return resolvedTarget, true
+	case "kubernetes_pod":
+		return target{}, false
 	}
 
-	// container:// IDs need workloadmeta to distinguish Kubernetes-owned
-	// containers from standalone Docker containers and unsupported runtimes.
+	if runtime != "container" && runtime != "containerd" {
+		return target{}, false
+	}
+
+	// Concrete container IDs need workloadmeta to distinguish Kubernetes-owned
+	// containerd containers from standalone Docker containers and unsupported
+	// runtimes. Pod-level IDs are intentionally skipped until there is a clear
+	// single-container selection rule.
 	if r.store == nil {
-		return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
+		return target{}, false
 	}
 
 	// AD schedules container services for Kubernetes pods as container://<id>;
-	// prefer the Kubernetes reader when workloadmeta links the container to a pod.
+	// use the Kubernetes reader only for containerd-backed pod containers.
 	pod, err := r.store.GetKubernetesPodForContainer(id)
 	if err != nil || pod == nil {
 		if runtime != "container" {
-			return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
+			return target{}, false
 		}
 
 		// Standalone container:// services only map to the Docker reader today.
@@ -111,6 +136,13 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 
 		resolvedTarget.runtime = RuntimeDocker
 		return resolvedTarget, true
+	}
+
+	if runtime == "container" {
+		container, err := r.store.GetContainer(id)
+		if err != nil || container == nil || container.Runtime != workloadmeta.ContainerRuntimeContainerd {
+			return target{}, false
+		}
 	}
 
 	resolvedTarget.runtime = RuntimeKubernetes

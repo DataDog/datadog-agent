@@ -30,10 +30,30 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
+// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
+// --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr substitutes at
+// launch with its config directory (stable or experiment).
 //
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
+
+// DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
+// (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-ddot.yaml
+var DDOTWindowsProcmgrConfig string
+
+// ADPWindowsProcmgrConfig is the codegen-rendered process manager config for ADP on Windows
+// (see embedded/tmpl/main.go). Install time replaces __ADP_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-data-plane.yaml
+var ADPWindowsProcmgrConfig string
+
+// PARWindowsProcmgrConfig is the codegen-rendered process manager config for PAR on Windows
+// (see embedded/tmpl/main.go). Install time replaces __PAR_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-action.yaml
+var PARWindowsProcmgrConfig string
 
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string

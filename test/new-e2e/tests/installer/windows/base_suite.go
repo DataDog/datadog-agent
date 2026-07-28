@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -197,8 +197,8 @@ func (s *BaseSuite) createStableAgent() {
 		return
 	}
 	// else, use the defaults (last stable release)
-	agentVersion := "7.77.0"
-	agentVersionPackage := "7.77.0-1"
+	agentVersion := "7.79.2"
+	agentVersionPackage := "7.79.2-1"
 	// Allow override of assertion values via environment variables
 	if val := os.Getenv("STABLE_AGENT_ASSERT_VERSION"); val != "" {
 		agentVersion = val
@@ -478,6 +478,11 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
 
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
 	s.WaitForDaemonToStop(func() {
 		_, err := s.startExperimentPreviousVersion()
@@ -689,6 +694,11 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
 
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
@@ -824,9 +834,6 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), opts ...backoff.RetryOption) {
 
 	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
 	s.Require().NoError(err)
-
-	s.startxperf()
-	defer s.collectxperf()
 
 	f()
 

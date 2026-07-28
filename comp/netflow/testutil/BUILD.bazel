@@ -11,6 +11,7 @@ go_library(
         "pcap_recordings/netflow5.pcapng",
         "pcap_recordings/netflow9.pcapng",
         "pcap_recordings/sflow.pcapng",
+        "pcap_recordings/biflow_netflow9.pcapng",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/testutil",
     visibility = ["//visibility:public"],

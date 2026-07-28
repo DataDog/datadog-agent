@@ -4,7 +4,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
-sqlite_ver = ("3", "53", "00")
+sqlite_ver = ("3", "53", "02")
 
 sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
@@ -14,7 +14,7 @@ http_archive(
         "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
         "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
     },
-    sha256 = "bf3733d7c71b3ab0f6fd8a9ea0052ad87fa037d94333e14ce09878ba3492c3b0",
+    sha256 = "8a310d0a16c7a90cacd4c884e70faa51c902afed2a89f63aaa0126ab83558a32",
     strip_prefix = sqlite_amalgamation,
     url = "https://www.sqlite.org/2026/{}.zip".format(sqlite_amalgamation),
 )
@@ -23,7 +23,7 @@ http_file(
     name = "sqlite3_license",
     downloaded_file_path = "LICENSE.md",
     sha256 = "ee6af51062b30d532991face5164136ae6f84e265ecf8abe89dc69dac45ca1e7",
-    urls = [url.format(".".join([v.replace("00", "0") for v in sqlite_ver])) for url in (
+    urls = [url.format(".".join([str(int(v)) for v in sqlite_ver])) for url in (
         "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
     )],
 )
@@ -103,21 +103,6 @@ register_toolchains(
     "@rules_foreign_cc//toolchains:preinstalled_automake_toolchain",
     "@rules_foreign_cc//toolchains:preinstalled_m4_toolchain",
     "@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain",
-)
-
-http_archive(
-    name = "openssl",
-    build_file = "//deps:openssl.BUILD.bazel",
-    patch_strip = 1,
-    patches = [
-        "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
-    ],
-    sha256 = "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
-    strip_prefix = "openssl-3.5.7",
-    urls = [
-        "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz",
-        "https://www.openssl.org/source/openssl-3.5.7.tar.gz",
-    ],
 )
 
 http_archive(
@@ -279,10 +264,10 @@ http_archive(
         "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
         "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
     },
-    sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
-    strip_prefix = "libgcrypt-1.11.2",
+    sha256 = "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e",
+    strip_prefix = "libgcrypt-1.12.2",
     urls = [
-        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.2.tar.bz2",
     ],
 )
 
@@ -401,17 +386,33 @@ http_archive(
 )
 
 http_archive(
+    name = "openssl",
+    build_file = "//deps:openssl.BUILD.bazel",
+    patch_strip = 1,
+    patches = [
+        "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
+    ],
+    sha256 = "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
+    strip_prefix = "openssl-3.5.7",
+    urls = [
+        "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz",
+        "https://www.openssl.org/source/openssl-3.5.7.tar.gz",
+    ],
+)
+
+http_archive(
     name = "openssl_fips",
     files = {
-        "openssl.cnf.tmp": "//deps:openssl_fips/openssl.cnf.tmp",
-        "fipsinstall.sh": "//deps:openssl_fips/fipsinstall.sh",
-        "configure_fips.py": "//deps:openssl_fips/configure_fips.py",
-        "BUILD.bazel": "//deps:openssl_fips.BUILD.bazel",
+        "BUILD.bazel": "//deps/openssl_fips:openssl_fips.BUILD.bazel",
+        "configure_fips.py": "//deps/openssl_fips:configure_fips.py",
+        "fipsinstall.sh": "//deps/openssl_fips:fipsinstall.sh",
+        "openssl.cnf.tmp": "//deps/openssl_fips:openssl.cnf.tmp",
     },
-    sha256 = "eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a603cabbf1b00a1dc90",
-    strip_prefix = "openssl-3.0.9",
+    # The LTS openssl is different than the FIPS certified version. See https://openssl-library.org/source/
+    sha256 = "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539",
+    strip_prefix = "openssl-3.1.2",
     urls = [
-        "https://www.openssl.org/source/openssl-3.0.9.tar.gz",
+        "https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz",
     ],
 )
 

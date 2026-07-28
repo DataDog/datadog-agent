@@ -49,13 +49,6 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 	}
 }
 
-func TestIsSupportedIntegration(t *testing.T) {
-	assert.True(t, isSupportedIntegration("postgres"))
-	assert.False(t, isSupportedIntegration("mysql"))
-	assert.False(t, isSupportedIntegration("redis"))
-	assert.False(t, isSupportedIntegration(""))
-}
-
 func TestInstanceHasDOEnabled(t *testing.T) {
 	assert.False(t, instanceHasDOEnabled(map[string]any{}))
 	assert.False(t, instanceHasDOEnabled(map[string]any{"data_observability": "not-a-map"}))

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -36,7 +37,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "client_test.go",
@@ -44,7 +45,6 @@ go_test(
         "services_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/flare/helpers",
@@ -59,7 +59,7 @@ go_test(
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",
         "@com_github_google_go_cmp//cmp",
-        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@com_github_grpc_ecosystem_go_grpc_middleware_v2//interceptors/auth",
         "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

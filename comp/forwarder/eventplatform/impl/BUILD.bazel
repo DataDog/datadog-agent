@@ -1,10 +1,24 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
     srcs = [
         "epforwarder.go",
         "epforwarder_mockgen.go",
+        "pipelines_agentdiscovery.go",
+        "pipelines_container.go",
+        "pipelines_dataobservability.go",
+        "pipelines_datastreams.go",
+        "pipelines_dbm.go",
+        "pipelines_eventmanagement.go",
+        "pipelines_genresources.go",
+        "pipelines_ndm_core.go",
+        "pipelines_ndm_integrations.go",
+        "pipelines_networkpath.go",
+        "pipelines_sbom.go",
+        "pipelines_softwareinventory.go",
+        "pipelines_synthetics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl",
     visibility = ["//visibility:public"],
@@ -39,11 +53,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["epforwarder_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/secrets/noop-impl",

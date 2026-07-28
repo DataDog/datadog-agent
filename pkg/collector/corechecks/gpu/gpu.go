@@ -11,12 +11,15 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -38,6 +41,8 @@ const (
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
+var _ check.IssueAwareCheck = (*Check)(nil)
+
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
@@ -54,6 +59,8 @@ type Check struct {
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
+	parallelCollectors bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
+	issueReporter      healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 }
 
 type checkTelemetry struct {
@@ -101,6 +108,11 @@ func (c *Check) SetContainerProvider(provider proccontainers.ContainerProvider) 
 	c.containerProvider = provider
 }
 
+// SetIssueReporter implements check.IssueAwareCheck.
+func (c *Check) SetIssueReporter(reporter healthplatformstore.Component) {
+	c.issueReporter = reporter
+}
+
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
 		metrics:            newCheckTelemetryMetrics(tm),
@@ -135,6 +147,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.disabledCollectors = pkgconfigsetup.Datadog().GetStringSlice("gpu.disabled_collectors")
 	for _, collectorName := range c.disabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
+	}
+	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
+	if c.parallelCollectors {
+		log.Infof("Enabled concurrent NVML collector collection")
 	}
 
 	if c.containerProvider == nil {
@@ -240,6 +256,18 @@ func (c *Check) Cancel() {
 	c.CheckBase.Cancel()
 }
 
+// Interval returns the scheduling interval for the check. When
+// gpu.collection_interval_override (DD_GPU_COLLECTION_INTERVAL_OVERRIDE) is set to
+// a positive number of seconds it overrides the cadence, taking precedence over
+// the instance's min_collection_interval. Otherwise the check falls back to the
+// instance's min_collection_interval / default.
+func (c *Check) Interval() time.Duration {
+	if iv := pkgconfigsetup.Datadog().GetInt("gpu.collection_interval_override"); iv > 0 {
+		return time.Duration(iv) * time.Second
+	}
+	return c.CheckBase.Interval()
+}
+
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
@@ -254,6 +282,7 @@ func (c *Check) Run() error {
 
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
+	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -312,6 +341,44 @@ func (c *Check) Run() error {
 	return nil
 }
 
+func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
+	if c.issueReporter == nil {
+		return
+	}
+
+	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	if !unavailable {
+		// Only mark the issue as resolved if we had a successful init of the
+		// NVML library. unavailable is only true after a certain amount of
+		// time, so we can't rely on that being false to resolve the issue. For
+		// example, after an agent restart, we would resolve the issue too early
+		// (unavailable will be false at the start) even if the NVML library is
+		// not available still.
+		if nvmlInitSuccess {
+			c.issueReporter.ResolveIssue(issueID)
+		}
+		return
+	}
+
+	context := map[string]string{
+		"reason": gpuenvironment.ReasonNvmlUnavailable,
+	}
+	issue, buildErr := gpuenvironment.NewGPUEnvironmentIssue().BuildIssue(context)
+	if buildErr != nil {
+		log.Warnf("failed to build GPU NVML health issue: %v", buildErr)
+		return
+	}
+	issue.Id = issueID
+
+	if err := c.issueReporter.ReportIssue(issue); err != nil {
+		log.Warnf("failed to report GPU NVML health issue: %v", err)
+	}
+}
+
+func gpuHealthIssueID(reason string) string {
+	return gpuenvironment.IssueID + ":" + reason
+}
+
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
 	if err != nil {
@@ -349,6 +416,14 @@ type deviceMetricsCollection struct {
 	totalCount       int                                       // total number of metrics across all collectors
 }
 
+type collectorMetricsCollection struct {
+	name       nvidia.CollectorName
+	deviceUUID string
+	metrics    []*nvidia.Metric
+	err        error
+	duration   time.Duration
+}
+
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
@@ -357,31 +432,34 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
-	var multiErr []error
-	for _, collector := range c.collectors {
-		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
-		startTime := time.Now()
-		metrics, collectErr := collector.Collect()
-		collectTime := time.Since(startTime)
-		c.telemetry.collectorTelemetry.Time.Observe(float64(collectTime.Milliseconds()), string(collector.Name()))
+	var collectorResults []collectorMetricsCollection
+	if c.parallelCollectors {
+		collectorResults = collectMetrics(c.collectors)
+	} else {
+		collectorResults = collectMetricsSerial(c.collectors)
+	}
 
-		if collectErr != nil {
-			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collector.Name()))
-			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+	var multiErr []error
+	for _, collectorResult := range collectorResults {
+		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), string(collectorResult.name))
+
+		if collectorResult.err != nil {
+			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collectorResult.name))
+			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
 		}
 
-		if len(metrics) > 0 {
-			deviceUUID := collector.DeviceUUID()
+		if len(collectorResult.metrics) > 0 {
+			deviceUUID := collectorResult.deviceUUID
 			if perDeviceMetrics[deviceUUID] == nil {
 				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
 					collectorMetrics: make(map[nvidia.CollectorName][]*nvidia.Metric),
 				}
 			}
-			perDeviceMetrics[deviceUUID].collectorMetrics[collector.Name()] = metrics
-			perDeviceMetrics[deviceUUID].totalCount += len(metrics)
+			perDeviceMetrics[deviceUUID].collectorMetrics[collectorResult.name] = collectorResult.metrics
+			perDeviceMetrics[deviceUUID].totalCount += len(collectorResult.metrics)
 		}
 
-		c.telemetry.metrics.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
+		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.metrics)), string(collectorResult.name))
 	}
 
 	//iterate through devices to emit its metrics
@@ -403,6 +481,48 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	}
 
 	return errors.Join(multiErr...)
+}
+
+func collectMetricsSerial(collectors []nvidia.Collector) []collectorMetricsCollection {
+	results := make([]collectorMetricsCollection, len(collectors))
+
+	for i, collector := range collectors {
+		results[i] = collectMetric(collector)
+	}
+
+	return results
+}
+
+func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection {
+	results := make([]collectorMetricsCollection, len(collectors))
+
+	var wg sync.WaitGroup
+	wg.Add(len(collectors))
+	for i, collector := range collectors {
+		go func(i int, collector nvidia.Collector) {
+			defer wg.Done()
+			results[i] = collectMetric(collector)
+		}(i, collector)
+	}
+	wg.Wait()
+
+	return results
+}
+
+func collectMetric(collector nvidia.Collector) (result collectorMetricsCollection) {
+	defer func() {
+		if r := recover(); r != nil {
+			result.err = fmt.Errorf("collector panicked: %v", r)
+			log.Errorf("Recovered from panic in collector %s: %v", result.name, r)
+		}
+	}()
+	result.name = collector.Name()
+	log.Debugf("Collecting metrics from NVML collector: %s", result.name)
+	startTime := time.Now()
+	result.metrics, result.err = collector.Collect()
+	result.deviceUUID = collector.DeviceUUID()
+	result.duration = time.Since(startTime)
+	return
 }
 
 func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
