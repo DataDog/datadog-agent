@@ -51,9 +51,6 @@ type PushResult struct {
 	// copying the running config to the startup config, so this will be empty
 	// if SetRunning contains errors
 	SetStartup ResultList `json:"set_startup"`
-	// CheckConfigError holds any error that came up trying to fetch the config
-	// after successfully executing the push.
-	CheckConfigError string `json:"check_config_error"`
 }
 
 // RollbackResponse is the JSON body returned by the /agent/ncm/rollback endpoint.
