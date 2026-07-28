@@ -28,7 +28,7 @@ def write_toolchain_repo(rctx, tool_name, tool_path, tool_version = "<unknown>")
         executable = False,
     )
 
-def default_repo_builder_impl(rctx):
+def _default_repo_builder_impl(rctx):
     tool_name = rctx.original_name
     tool_path = rctx.which(tool_name)
     if rctx.attr.verbose:
@@ -42,7 +42,7 @@ def default_repo_builder_impl(rctx):
         tool_path = tool_path,
     )
 
-def make_repo_builder(name, impl = default_repo_builder_impl):
+def make_repo_builder(name, impl = _default_repo_builder_impl):
     return repository_rule(
         implementation = impl,
         doc = """Create a repository that defines an {name} toolchain based on the system {name}.""".format(name = name),

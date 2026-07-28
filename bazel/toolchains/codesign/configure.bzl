@@ -1,6 +1,6 @@
 """Repository rule to autoconfigure a toolchain using the system codesign."""
 
-load("//bazel/toolchains/common:defs.bzl", "make_repo_builder", "write_toolchain_repo")
+load("//bazel/toolchains/common:defs.bzl", "make_repo_builder")
 
 # NOTE: this must match the name used by register_toolchains in consuming
 # MODULE.bazel files.  It seems like we should have a better interface that

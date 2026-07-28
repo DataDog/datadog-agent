@@ -1,6 +1,6 @@
 """Repository rule to autoconfigure a toolchain using the system pkgbuild."""
 
-load("//bazel/toolchains/common:defs.bzl", "make_repo_builder", "write_toolchain_repo")
+load("//bazel/toolchains/common:defs.bzl", "make_repo_builder")
 
 NAME = "pkgbuild"
 
