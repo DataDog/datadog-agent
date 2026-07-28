@@ -57,6 +57,7 @@ func newOptionalComponent(reqs Requires) Provides {
 
 	provides := configfilesdiscoveryimpl.NewComponent(configfilesdiscoveryimpl.Requires{
 		Lifecycle:     reqs.Lifecycle,
+		Config:        reqs.Config,
 		Autodiscovery: reqs.Autodiscovery,
 		Hostname:      reqs.Hostname,
 		WorkloadMeta:  reqs.WorkloadMeta,
