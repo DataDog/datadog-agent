@@ -98,7 +98,7 @@ func newFactoryForAgentWithType(
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
+		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings(), otlpmetrics.WithoutSDKTraceMetricsRemapping())
 	} else {
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
@@ -150,7 +150,7 @@ func newFactoryForAgentWithType(
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
+		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings(), otlpmetrics.WithoutSDKTraceMetricsRemapping())
 	} else {
 		options = append(options, otlpmetrics.WithRemapping())
 	}

@@ -92,7 +92,9 @@ func WithRemapping() TranslatorOption {
 
 // WithoutSDKTraceMetricsRemapping disables remapping the DD-SDK OTLP histogram
 // sdkTraceMetricName into trace.<operation>.* series. This remapping is enabled
-// by default, independently of WithRemapping.
+// by default, independently of WithRemapping. Callers that gate other metric
+// remapping behind a single kill switch (e.g. DisableMetricRemappingFeatureGate)
+// should also call this, rather than introducing a dedicated switch.
 func WithoutSDKTraceMetricsRemapping() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.withSDKTraceMetrics = false
