@@ -1,4 +1,3 @@
-load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules:windows_resources.bzl", "win_messagetable", "win_resource")
 
 win_resource(
@@ -14,6 +13,5 @@ win_resource(
 win_messagetable(
     name = "messagetable",
     src = "trace-agent-msg.mc",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
 )
