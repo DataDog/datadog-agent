@@ -1792,6 +1792,132 @@ func TestActionSetVariableExpression(t *testing.T) {
 	}}, value)
 }
 
+func TestActionSetVariableCapture(t *testing.T) {
+	capturePolicy := func(name string, field string, capture string, isAppend bool) *PolicyDef {
+		return &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:      name,
+						Scope:     ScopeProcess,
+						Inherited: true,
+						Field:     field,
+						Capture:   capture,
+						Append:    isAppend,
+					},
+				}},
+			}},
+		}
+	}
+
+	t.Run("string-field", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("ssm_command_id", "open.file.path", "/orchestration/([^/]+)/", false), PolicyLoaderOpts{})
+		assert.NoError(t, errs.ErrorOrNil())
+	})
+
+	t.Run("array-field", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("run_id", "process.envp", "^GITHUB_RUN_ID=(.+)$", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' is not supported on array field")
+	})
+
+	t.Run("array-field-with-append", func(t *testing.T) {
+		// 'append' makes the pre-existing array check pass, so capture has to reject it
+		// on its own or it would silently store nothing
+		_, errs := loadPolicy(t, capturePolicy("run_id", "process.envp", "^GITHUB_RUN_ID=(.+)$", true), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' is not supported on array field")
+	})
+
+	t.Run("non-string-field", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("some_pid", "process.pid", "([0-9]+)", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' is only supported on string fields")
+	})
+
+	t.Run("malformed-pattern", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("ssm_command_id", "open.file.path", "/orchestration/([^/]+", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "capture `/orchestration/([^/]+` error")
+	})
+
+	t.Run("no-capture-group", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("ssm_command_id", "open.file.path", "/orchestration/[^/]+/", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "no capture group")
+	})
+
+	t.Run("without-field", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:    "ssm_command_id",
+						Value:   "not_a_field",
+						Capture: "/orchestration/([^/]+)/",
+					},
+				}},
+			}},
+		}
+
+		_, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' can only be used along with 'field'")
+	})
+
+	t.Run("per-action-matcher", func(t *testing.T) {
+		// two rules capturing different patterns out of the very same field: the
+		// compiled matcher has to live on the action, not in a per-field cache
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "capture_ssm",
+					Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:    "ssm_command_id",
+							Scope:   ScopeProcess,
+							Field:   "open.file.path",
+							Capture: "/orchestration/([^/]+)/",
+						},
+					}},
+				},
+				{
+					ID:         "capture_ecs",
+					Expression: `open.file.path =~ "/var/lib/ecs/*"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:    "ecs_task_id",
+							Scope:   ScopeProcess,
+							Field:   "open.file.path",
+							Capture: "/ecs/([0-9a-f-]+)/",
+						},
+					}},
+				},
+			},
+		}
+
+		rs, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		patterns := make(map[string]string)
+		for _, rule := range rs.GetRules() {
+			for _, action := range rule.PolicyRule.Actions {
+				if action.CaptureMatcher != nil {
+					patterns[rule.ID] = action.CaptureMatcher.String()
+				}
+			}
+		}
+
+		assert.Equal(t, "/orchestration/([^/]+)/", patterns["capture_ssm"])
+		assert.Equal(t, "/ecs/([0-9a-f-]+)/", patterns["capture_ecs"])
+	})
+}
+
 func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
 	rs := newRuleSet()
 
@@ -3411,6 +3537,16 @@ rules:
           append: true
           size: 10
           ttl: 10s
+  - id: with_set_action_with_capture
+    description: Rule with a set action capturing part of an event field
+    expression: open.file.path =~ "/var/lib/amazon/ssm/*/document/orchestration/*"
+    actions:
+      - set:
+          name: ssm_command_id
+          scope: process
+          inherited: true
+          field: open.file.path
+          capture: "/orchestration/([^/]+)/"
   - id: with_set_action_with_value
     description: Rule with a set action using a value
     expression: exec.file.name == "foo"

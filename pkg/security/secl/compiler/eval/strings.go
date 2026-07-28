@@ -268,6 +268,53 @@ func (s *ScalarStringMatcher) Matches(value string) bool {
 	return s.value == value
 }
 
+// CaptureStringMatcher extracts a single capture group out of a value. Unlike the
+// StringMatcher implementations it is not used to match values, but to pull a
+// substring out of them, and is therefore compiled from a regexp with at least one
+// capture group.
+type CaptureStringMatcher struct {
+	pattern string
+	re      *regexp.Regexp
+}
+
+// Compile a capture pattern. The pattern must be a valid regular expression holding
+// at least one capture group, as only the first one is ever extracted.
+func (c *CaptureStringMatcher) Compile(pattern string) error {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return err
+	}
+
+	if re.NumSubexp() < 1 {
+		return errors.New("no capture group")
+	}
+
+	c.pattern = pattern
+	c.re = re
+
+	return nil
+}
+
+// String implements the stringer interface
+func (c *CaptureStringMatcher) String() string {
+	return c.pattern
+}
+
+// Capture returns the content of the first capture group, and whether the pattern
+// matched the value at all. A value that doesn't match, or that matches without the
+// first group participating, returns false.
+func (c *CaptureStringMatcher) Capture(value string) (string, bool) {
+	// FindStringSubmatchIndex is used over FindStringSubmatch to avoid allocating a
+	// slice of strings for every group: the returned indexes let us slice the input,
+	// which shares its backing array.
+	indexes := c.re.FindStringSubmatchIndex(value)
+	if indexes == nil || indexes[2] < 0 {
+		return "", false
+	}
+
+	return value[indexes[2]:indexes[3]], true
+}
+
 // NewStringMatcher returns a new string matcher
 func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (StringMatcher, error) {
 	if opts.Sanitize != nil {
