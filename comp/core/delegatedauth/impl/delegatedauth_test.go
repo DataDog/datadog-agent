@@ -886,6 +886,204 @@ func TestMergeIntoAdditionalEndpointsListLeavesListUnchangedWhenNoMatch(t *testi
 	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue, "lastWrittenValue must not advance on a failed match")
 }
 
+// raceInjectingConfig wraps a pkgconfigmodel.ReaderWriter and runs inject once, the first time the
+// wrapped GetStringMapStringSlice/Get is called for watchKey - simulating another writer (e.g. the
+// secrets resolver's configAssignAtPath) reading the same compound config value and writing its own
+// update in the narrow window between this component's read and write.
+type raceInjectingConfig struct {
+	pkgconfigmodel.ReaderWriter
+	watchKey  string
+	inject    func()
+	triggered bool
+}
+
+func (r *raceInjectingConfig) GetStringMapStringSlice(key string) map[string][]string {
+	v := r.ReaderWriter.GetStringMapStringSlice(key)
+	if key == r.watchKey && !r.triggered {
+		r.triggered = true
+		r.inject()
+	}
+	return v
+}
+
+func (r *raceInjectingConfig) Get(key string) any {
+	v := r.ReaderWriter.Get(key)
+	if key == r.watchKey && !r.triggered {
+		r.triggered = true
+		r.inject()
+	}
+	return v
+}
+
+// alwaysRevertingConfig wraps a pkgconfigmodel.ReaderWriter and, on every Set to watchKey made by
+// the component under test, immediately overwrites watchKey back to revertTo - simulating an
+// adversarial concurrent writer that undoes every one of our writes, so the read-write-verify retry
+// loop exhausts all its attempts and must give up without ever observing its own write stick.
+type alwaysRevertingConfig struct {
+	pkgconfigmodel.ReaderWriter
+	watchKey string
+	revertTo map[string][]string
+}
+
+func (r *alwaysRevertingConfig) Set(key string, value any, source pkgconfigmodel.Source) {
+	r.ReaderWriter.Set(key, value, source)
+	if key == r.watchKey {
+		r.ReaderWriter.Set(key, r.revertTo, pkgconfigmodel.SourceSecret)
+	}
+}
+
+func TestMergeIntoAdditionalEndpointsRetriesWhenRacedByConcurrentWriter(t *testing.T) {
+	// Regression test for the TOCTOU race between mergeIntoAdditionalEndpoints and the secrets
+	// resolver's configAssignAtPath (pkg/config/setup/config.go), which does its own
+	// unsynchronized read-modify-write on the same additional_endpoints value when an ENC[...]
+	// entry and a DELA(...) entry share one domain's key list. Simulates the race deterministically:
+	// on this function's first read, before it has written anything, an "external" writer rotates
+	// the sibling ENC[]-backed key using a snapshot taken at the same point in time (exactly the
+	// scenario that silently drops one side's update if there's no retry). The read-write-verify
+	// loop in mergeIntoAdditionalEndpoints must detect that its own write was based on a
+	// since-superseded snapshot, retry with a fresh read, and land both updates.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://mixed-org.datadoghq.com": {"resolved-secret-v1", "DELA(mixed-org-uuid, aws)"},
+	})
+
+	racy := &raceInjectingConfig{
+		ReaderWriter: mockConfig,
+		watchKey:     "additional_endpoints",
+		inject: func() {
+			// Mirrors configAssignAtPath: read-modify-write the whole compound value based on a
+			// snapshot from before our own write below.
+			rotated := mockConfig.GetStringMapStringSlice("additional_endpoints")
+			rotated["https://mixed-org.datadoghq.com"][0] = "resolved-secret-v2"
+			mockConfig.Set("additional_endpoints", rotated, pkgconfigmodel.SourceSecret)
+		},
+	}
+
+	comp := &delegatedAuthComponent{config: racy}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://mixed-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(mixed-org-uuid, aws)",
+		originalDirective:            "DELA(mixed-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"resolved-secret-v2", "wif-key-v1"}, got["https://mixed-org.datadoghq.com"],
+		"neither the concurrent secret rotation nor this component's own write should be lost")
+	assert.Equal(t, "wif-key-v1", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsHealsEntryRevertedByRace(t *testing.T) {
+	// If a racing write (see TestMergeIntoAdditionalEndpointsRetriesWhenRacedByConcurrentWriter)
+	// still manages to revert this instance's entry back to the raw DELA(...) directive text - by
+	// writing a stale snapshot captured before this instance's *previous* successful write - the
+	// component's in-memory lastWrittenValue (already advanced to the previously resolved key) no
+	// longer matches what's actually in config. Without a fallback, the next refresh would treat
+	// this as "previous value missing" and append a duplicate entry instead of healing the reverted
+	// one. originalDirective (the directive text, which never changes) is the fallback match that
+	// prevents that.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		// Simulates the entry having been reverted back to the literal directive by a racing write,
+		// even though this instance believes (via lastWrittenValue) that it already resolved it.
+		"https://reverted-org.datadoghq.com": {"DELA(reverted-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://reverted-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "wif-key-v1", // stale relative to config, per the scenario above
+		originalDirective:            "DELA(reverted-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v2", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"wif-key-v2"}, got["https://reverted-org.datadoghq.com"],
+		"the reverted entry should be healed in place, not duplicated")
+}
+
+func TestMergeIntoAdditionalEndpointsDoesNotClobberSiblingDomainRacedConcurrently(t *testing.T) {
+	// Regression test: the read-write-verify guard must compare the *entire* compound
+	// additional_endpoints value, not just the domain this instance is writing to. mergeInto
+	// AdditionalEndpoints always writes the whole map (d.config.Set(configKey, merged, ...)), built
+	// as a full copy of whatever it read at the top of the attempt. If a concurrent writer updates a
+	// *different* domain's entry under the same config key between our read and our write, a guard
+	// scoped to only our own domain wouldn't notice - and our write would silently revert that
+	// sibling domain back to the stale snapshot.
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://our-org.datadoghq.com":     {"DELA(our-org-uuid, aws)"},
+		"https://sibling-org.datadoghq.com": {"sibling-secret-v1"},
+	})
+
+	racy := &raceInjectingConfig{
+		ReaderWriter: mockConfig,
+		watchKey:     "additional_endpoints",
+		inject: func() {
+			// A concurrent writer (another delegated-auth instance, or the secrets resolver)
+			// updates a DIFFERENT domain under the same config key while we're mid-update.
+			rotated := mockConfig.GetStringMapStringSlice("additional_endpoints")
+			rotated["https://sibling-org.datadoghq.com"] = []string{"sibling-secret-v2"}
+			mockConfig.Set("additional_endpoints", rotated, pkgconfigmodel.SourceSecret)
+		},
+	}
+
+	comp := &delegatedAuthComponent{config: racy}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://our-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(our-org-uuid, aws)",
+		originalDirective:            "DELA(our-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"wif-key-v1"}, got["https://our-org.datadoghq.com"])
+	assert.Equal(t, []string{"sibling-secret-v2"}, got["https://sibling-org.datadoghq.com"],
+		"a concurrent update to an unrelated domain under the same config key must not be reverted")
+}
+
+func TestMergeIntoAdditionalEndpointsDoesNotAdvanceLastWrittenValueWhenWriteIsLost(t *testing.T) {
+	// Regression test: if every optimistic-retry attempt loses its race (the write never sticks),
+	// lastWrittenValue must NOT advance to apiKey - config doesn't actually contain apiKey, so
+	// advancing it would make the next refresh search for a value that was never written, causing it
+	// to append a duplicate entry instead of healing the real one. Simulates permanent loss with an
+	// adversarial writer that reverts every one of this function's own writes, so its post-write
+	// verify never succeeds and it exhausts maxAdditionalEndpointsWriteAttempts.
+	mockConfig := mock.New(t)
+	original := map[string][]string{
+		"https://contested-org.datadoghq.com": {"DELA(contested-org-uuid, aws)"},
+	}
+	mockConfig.SetInTest("additional_endpoints", original)
+
+	racy := &alwaysRevertingConfig{
+		ReaderWriter: mockConfig,
+		watchKey:     "additional_endpoints",
+		revertTo:     original,
+	}
+
+	comp := &delegatedAuthComponent{config: racy}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://contested-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(contested-org-uuid, aws)",
+		originalDirective:            "DELA(contested-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
+
+	assert.Equal(t, "DELA(contested-org-uuid, aws)", instance.lastWrittenValue,
+		"lastWrittenValue must not advance when the write never actually stuck in config")
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"DELA(contested-org-uuid, aws)"}, got["https://contested-org.datadoghq.com"],
+		"config should still show the adversary's value, confirming our write never stuck")
+}
+
 func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
 	t.Run("flat", func(t *testing.T) {
 		mockConfig := mock.New(t)
