@@ -26,14 +26,14 @@ import (
 
 const (
 	// dataSecurityCheckName is the Rust shared-library check scheduled on a scan task.
-	// See pkg/collector/sharedlibrary/rustchecks/checks/datasecurity.
 	dataSecurityCheckName = "datasecurity"
 
 	postgresIntegrationName = "postgres"
-	// postgresPlatform is the entity platform value backed by the postgres engine.
-	postgresPlatform = "postgres"
-	// defaultPostgresPort is used when the matched postgres instance omits the port.
+	postgresPlatform        = "postgres"
+	// defaultPostgresPort is used when the matched instance omits the port.
 	defaultPostgresPort = 5432
+	// rcSubscriptionRetryInterval is how often we re-check for a postgres integration.
+	rcSubscriptionRetryInterval = 10 * time.Second
 )
 
 // isConnectedToPostgres reports whether any postgres integration is configured.
@@ -46,8 +46,7 @@ func isConnectedToPostgres(ac autodiscovery.Component) bool {
 	return false
 }
 
-// controller listens to Data Security DB scan task RC updates and schedules a one-off run
-// of the datasecurity Rust check (min_collection_interval: 0).
+// controller schedules one-off datasecurity checks from Data Security DB scan task RC updates.
 type controller struct {
 	ac            autodiscovery.Component
 	rcclient      rcclient.Component
@@ -56,8 +55,7 @@ type controller struct {
 	closed        bool
 }
 
-// NewController creates a new Data Security controller instance. Only call it
-// when `data_security.enabled` is set.
+// NewController creates a Data Security controller. Only call it when `data_security.enabled` is set.
 func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
 	c := &controller{
 		ac:            ac,
@@ -66,13 +64,12 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) type
 	}
 	c.configChanges <- integration.ConfigChanges{}
 	go c.manageSubscriptionToRC()
-	log.Infof("poc datasecurity provider: controller created, waiting for postgres integration before subscribing to RC")
 	return c
 }
 
 // manageSubscriptionToRC waits until a postgres integration is configured before subscribing to RC.
 func (c *controller) manageSubscriptionToRC() {
-	ticker := time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(rcSubscriptionRetryInterval)
 	defer ticker.Stop()
 	for range ticker.C {
 		c.closeMutex.RLock()
@@ -82,14 +79,11 @@ func (c *controller) manageSubscriptionToRC() {
 		}
 		c.closeMutex.RUnlock()
 		if isConnectedToPostgres(c.ac) {
-			// TODO(data-security): DATA_SECURITY_DB_SCAN_TASKS does not exist yet. We subscribe
-			// to the generic DEBUG product for now; subscribe to the dedicated product once it
-			// is provisioned.
-			log.Infof("poc datasecurity provider: postgres integration detected, subscribing to RC product %q", data.ProductDebug)
+			// TODO(data-security): DATA_SECURITY_DB_SCAN_TASKS does not exist yet; use the
+			// generic DEBUG product until the dedicated product is provisioned.
 			c.rcclient.Subscribe(data.ProductDebug, c.update)
 			return
 		}
-		log.Infof("poc datasecurity provider: no postgres integration yet, will retry subscription")
 	}
 }
 
@@ -98,7 +92,7 @@ func (c *controller) String() string {
 	return names.DataSecurity
 }
 
-// GetConfigErrors returns errors that occurred on the last update.
+// GetConfigErrors returns errors from the last update, shown in `agent status`.
 func (c *controller) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return map[string]types.ErrorMsgSet{}
 }
@@ -120,64 +114,53 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 
 // update translates each RC scan task into a datasecurity check instance and schedules it.
 func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	log.Infof("poc datasecurity provider: received RC update with %d config(s)", len(updates))
 	changes := integration.ConfigChanges{}
 	for path, rawConfig := range updates {
-		log.Infof("poc datasecurity provider: processing RC config %s", path)
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
-			log.Errorf("poc datasecurity provider: can't decode Data Security scan task from remote-config: %v", err)
+			log.Errorf("failed to decode Data Security scan task from remote-config: %v", err)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 
-		// TODO(data-security): the DEBUG product is generic, so it carries configs that are
-		// not scan tasks. Skip anything that does not look like a "data-security-db-scan-tasks"
-		// payload. Drop this filter once we subscribe to the dedicated product.
-		if payload.TaskID == "" || len(payload.ScanningRules) == 0 || len(payload.ScanData) == 0 {
-			log.Infof("poc datasecurity provider: ignoring RC config %s: not a Data Security scan task", path)
+		if err := payload.validate(); err != nil {
+			log.Errorf("invalid Data Security scan task from remote-config: %v", err)
+			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 
 		instance, err := c.buildCheckInstance(payload)
 		if err != nil {
-			log.Warnf("poc datasecurity provider: failed to build datasecurity instance for scan task %s: %v", path, err)
+			log.Warnf("failed to build datasecurity instance for scan task %s: %v", path, err)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
-
-		// TODO(data-security): remove this debug log.
-		log.Infof("Data Security would schedule check %q with instance:\n%s", dataSecurityCheckName, string(instance))
 
 		changes.Schedule = append(changes.Schedule, integration.Config{
 			Name:      dataSecurityCheckName,
 			Source:    c.String(),
 			Instances: []integration.Data{integration.Data(instance)},
 		})
-		log.Infof("poc datasecurity provider: scheduled check %q for scan task %s", dataSecurityCheckName, path)
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
 	if len(changes.Schedule) == 0 {
-		log.Infof("poc datasecurity provider: no checks to schedule from this RC update")
 		return
 	}
 
 	c.closeMutex.RLock()
 	defer c.closeMutex.RUnlock()
 	if c.closed {
-		log.Infof("poc datasecurity provider: controller closed, dropping %d scheduled change(s)", len(changes.Schedule))
 		return
 	}
-	log.Infof("poc datasecurity provider: pushing %d scheduled change(s) to autodiscovery", len(changes.Schedule))
 	c.configChanges <- changes
 }
 
 // buildCheckInstance resolves the local connection for every sub task and marshals the
-// datasecurity check instance. scanning_rules are forwarded to the check untouched.
+// datasecurity check instance.
 func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error) {
 	inst := checkInstance{
-		// min_collection_interval: 0 schedules the check as a one-off run.
+		// min_collection_interval: 0 runs the check once.
 		MinCollectionInterval: 0,
 		TaskID:                payload.TaskID,
 		ScanningRules:         payload.ScanningRules,
@@ -186,69 +169,66 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 
 	for i := range payload.ScanData {
 		st := payload.ScanData[i]
-
-		// TODO(data-security): only postgres is supported for now; add the other engines
-		// (and route on entity.platform) as the check backends land.
 		if st.Entity.Platform != postgresPlatform {
-			return nil, fmt.Errorf("sub task %q: unsupported platform %q", st.SubTaskID, st.Entity.Platform)
+			return nil, fmt.Errorf("failed to build sub task %q: unsupported platform %q", st.SubTaskID, st.Entity.Platform)
 		}
 
 		conn, err := c.resolvePostgresConnection(st.Entity)
 		if err != nil {
-			return nil, fmt.Errorf("sub task %q: %w", st.SubTaskID, err)
+			return nil, fmt.Errorf("failed to build sub task %q: %w", st.SubTaskID, err)
 		}
 
-		// The check consumes the same sub task shape; only the resolved connection
-		// is added on top.
 		inst.ScanData = append(inst.ScanData, checkSubTask{
 			subTask:    st,
 			Connection: conn,
 		})
 	}
 
-	// JSON is a valid YAML document, which both the agent (Configure) and the Rust
-	// check (serde_yaml) parse. Marshalling with json keeps the snake_case field names
-	// and passes scanning_rules through as raw dd-sds JSON.
+	// JSON is valid YAML (parsed by the check's serde_yaml) and emits the scanning_rule (json.RawMessage) as-is.
 	return json.Marshal(inst)
 }
 
-// resolvePostgresConnection finds the local postgres instance matching the entity
-// (by host) and builds the connection used to scan the entity's database.
+// resolvePostgresConnection builds the scan connection from the local postgres instance
+// matching the entity's host.
 func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
 		if cfg.Name != postgresIntegrationName {
 			continue
 		}
-		log.Infof("poc datasecurity provider: inspecting postgres config with %d instance(s)", len(cfg.Instances))
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				log.Warnf("poc datasecurity provider: skipping postgres instance, failed to unmarshal: %v", err)
+				log.Warnf("skipping postgres instance: failed to unmarshal: %v", err)
 				continue
 			}
-			host, _ := instance["host"].(string)
-			// An empty target host matches the first postgres instance found.
-			if e.DatabaseHostName != "" && host != e.DatabaseHostName {
-				log.Infof("poc datasecurity provider: postgres instance host=%q does not match target host=%q, skipping", host, e.DatabaseHostName)
-				continue
+			if matchesHost(instance, e.DatabaseHostName) {
+				return buildPostgresConnection(instance, e), nil
 			}
-			log.Infof("poc datasecurity provider: matched postgres instance host=%q for target host=%q", host, e.DatabaseHostName)
-			return buildPostgresConnection(instance, e), nil
 		}
 	}
-	log.Warnf("poc datasecurity provider: no postgres integration found with host=%q", e.DatabaseHostName)
+	log.Warnf("no postgres integration found with host=%q", e.DatabaseHostName)
 	return connection{}, fmt.Errorf("postgres integration with host=%q not found", e.DatabaseHostName)
 }
 
-// buildPostgresConnection copies the credentials from the matched postgres instance and
-// targets the entity's database (the table to scan lives there).
+// matchesHost reports whether a postgres instance targets the given host: an exact match
+// or the "host:port" form some backends send.
+func matchesHost(instance map[string]any, targetHost string) bool {
+	host, _ := instance["host"].(string)
+	if host == targetHost {
+		return true
+	}
+	if port, ok := instancePort(instance); ok {
+		return fmt.Sprintf("%s:%d", host, port) == targetHost
+	}
+	return false
+}
+
+// buildPostgresConnection copies credentials from the matched instance and targets the entity's database.
 func buildPostgresConnection(instance map[string]any, e entity) connection {
 	host, _ := instance["host"].(string)
 	username, _ := instance["username"].(string)
 	password, _ := instance["password"].(string)
-	// The postgres integration types `port` as an integer (see integrations-core
-	// postgres spec.yaml / InstanceConfig), so YAML decodes it to an int.
-	port, ok := instance["port"].(int)
+	port, ok := instancePort(instance)
 	if !ok {
 		port = defaultPostgresPort
 	}
@@ -259,4 +239,18 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 		Username: username,
 		Password: password,
 	}
+}
+
+// instancePort returns the instance port, handling the numeric types YAML/JSON can produce
+// (int, int64, float64).
+func instancePort(instance map[string]any) (int, bool) {
+	switch v := instance["port"].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	}
+	return 0, false
 }

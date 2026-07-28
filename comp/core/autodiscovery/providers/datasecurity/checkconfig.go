@@ -7,10 +7,8 @@ package datasecurity
 
 import "encoding/json"
 
-// checkInstance is the instance config handed to the datasecurity Rust check.
-// It mirrors the check's `CheckConfig`: scanning_rules are passed through verbatim
-// (dd-sds rules, including their license), scan_data carries the resolved
-// connection per sub task.
+// checkInstance is the instance config handed to the datasecurity Rust check,
+// mirroring its `CheckConfig`. scanning_rules (dd-sds rules) are passed through verbatim.
 type checkInstance struct {
 	MinCollectionInterval int               `json:"min_collection_interval"`
 	TaskID                string            `json:"task_id"`

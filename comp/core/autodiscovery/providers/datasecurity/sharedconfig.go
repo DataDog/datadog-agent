@@ -5,12 +5,9 @@
 
 package datasecurity
 
-// These types are shared by the RC payload (rcconfig.go) and the check instance
-// (checkconfig.go): the sub task shape received from RC is the same one forwarded
-// to the check (checkSubTask embeds subTask and only adds the resolved connection).
+// Types shared by the RC payload (rcconfig.go) and the check instance (checkconfig.go).
 
-// subTask is a single scan sub task. It is received from RC and forwarded to the
-// check as-is (see checkSubTask, which embeds it and adds the resolved connection).
+// subTask is a single scan sub task, received from RC and forwarded to the check as-is.
 type subTask struct {
 	SubTaskID      string `json:"sub_task_id"`
 	Entity         entity `json:"entity"`
@@ -18,9 +15,8 @@ type subTask struct {
 	TimeoutSeconds int    `json:"timeout_seconds"`
 }
 
-// entity is the logical data asset (table) a sub task targets, as received from RC.
-// database_host_name is used to resolve the local connection; it is forwarded to
-// the check as-is (the check ignores it).
+// entity is the data asset (table) a sub task targets. DatabaseHostName resolves the
+// local connection; the rest is forwarded to the check.
 type entity struct {
 	Platform             string `json:"platform"`
 	DatabaseClusterName  string `json:"database_cluster_name"`
