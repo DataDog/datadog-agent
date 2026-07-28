@@ -376,21 +376,21 @@ func TestToEnvFIPSMode(t *testing.T) {
 	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
 }
 
-// TestToEnvProcmgrDisabled checks the opt-out reaches re-executed hooks, and that the zero value
+// TestToEnvProcessManagerDisabled checks the opt-out reaches re-executed hooks, and that the zero value
 // does not: expressed as an opt-out, a partially built Env keeps the product default instead of
 // silently forwarding a fallback to plain systemd.
-func TestToEnvProcmgrDisabled(t *testing.T) {
-	assert.NotContains(t, (&Env{}).ToEnv(), envProcmgrDisable+"=true")
-	assert.Contains(t, (&Env{ProcmgrDisabled: true}).ToEnv(), envProcmgrDisable+"=true")
-	assert.False(t, defaultEnv.ProcmgrDisabled)
+func TestToEnvProcessManagerDisabled(t *testing.T) {
+	assert.NotContains(t, (&Env{}).ToEnv(), envProcessManagerDisable+"=true")
+	assert.Contains(t, (&Env{ProcessManagerDisabled: true}).ToEnv(), envProcessManagerDisable+"=true")
+	assert.False(t, defaultEnv.ProcessManagerDisabled)
 }
 
 func TestFromEnvProcmgrDisable(t *testing.T) {
 	tests := map[string]bool{"": false, "false": false, "TRUE": true, "true": true, "yes": false}
 	for value, expected := range tests {
 		t.Run("value="+value, func(t *testing.T) {
-			t.Setenv(envProcmgrDisable, value)
-			assert.Equal(t, expected, FromEnv().ProcmgrDisabled)
+			t.Setenv(envProcessManagerDisable, value)
+			assert.Equal(t, expected, FromEnv().ProcessManagerDisabled)
 		})
 	}
 }

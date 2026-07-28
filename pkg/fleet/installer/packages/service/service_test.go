@@ -25,7 +25,7 @@ func withSelection(t *testing.T, base Type, disabled, installed bool) {
 	procmgrInstalled = func() bool { return installed }
 	t.Cleanup(func() {
 		initSystemType = sync.OnceValue(detectInitSystem)
-		procmgrDisabled = func() bool { return env.FromEnv().ProcmgrDisabled }
+		procmgrDisabled = func() bool { return env.FromEnv().ProcessManagerDisabled }
 		procmgrInstalled = procmgr.IsInstalled
 	})
 }
@@ -71,6 +71,6 @@ func TestGetServiceManagerTypeIsNotMemoized(t *testing.T) {
 // TestProcmgrIsTheDefault pins the point of expressing the setting as an opt-out: a zero-valued Env
 // selects procmgr, so a partially constructed Env cannot silently fall back to plain systemd.
 func TestProcmgrIsTheDefault(t *testing.T) {
-	assert.False(t, (&env.Env{}).ProcmgrDisabled)
-	assert.NotContains(t, (&env.Env{}).ToEnv(), "DD_PROCMGR_DISABLE=true")
+	assert.False(t, (&env.Env{}).ProcessManagerDisabled)
+	assert.NotContains(t, (&env.Env{}).ToEnv(), "DD_PROCESS_MANAGER_DISABLE=true")
 }

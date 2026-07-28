@@ -205,7 +205,7 @@ func ensureADPProcmgrConfig() error {
 		return err
 	}
 
-	if !env.FromEnv().ProcmgrDisabled {
+	if !env.FromEnv().ProcessManagerDisabled {
 		return processmanager.WriteADPProcmgrConfig(installRoot)
 	}
 	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
@@ -220,7 +220,7 @@ func ensurePARProcmgrConfig() error {
 		return err
 	}
 
-	if !env.FromEnv().ProcmgrDisabled {
+	if !env.FromEnv().ProcessManagerDisabled {
 		return processmanager.WritePARProcmgrConfig(installRoot)
 	}
 	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {

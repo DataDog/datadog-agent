@@ -155,7 +155,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
 	}
 	if !params.processManagerEnabled {
-		env[procmgrDisableEnvVar] = "true"
+		env[processManagerDisableEnvVar] = "true"
 		// Persisting it is not redundant: datadog-agent-installer.service only picks the setting up
 		// through EnvironmentFile, so without this a daemon-driven update would revert to
 		// dd-procmgrd and the systemd half of the matrix would test nothing.
@@ -261,8 +261,8 @@ const (
 	// agentEnvironmentFile is sourced by datadog-agent-installer.service via EnvironmentFile=-, so it
 	// is how an operator makes a service manager choice survive a Fleet-driven update.
 	agentEnvironmentFile = "/etc/datadog-agent/environment"
-	// procmgrDisableEnvVar is an opt-out, so it is only ever written to disable dd-procmgrd.
-	procmgrDisableEnvVar = "DD_PROCMGR_DISABLE"
+	// processManagerDisableEnvVar is an opt-out, so it is only ever written to disable dd-procmgrd.
+	processManagerDisableEnvVar = "DD_PROCESS_MANAGER_DISABLE"
 )
 
 // SetProcessManagerEnabled persists the service manager choice on the host. Enabling clears the
@@ -273,7 +273,7 @@ func (a *Agent) SetProcessManagerEnabled(enabled bool) error {
 	}
 	cmd := fmt.Sprintf(
 		`sudo mkdir -p %s && sudo sed -i '/^%s=/d' %s 2>/dev/null; true`,
-		"/etc/datadog-agent", procmgrDisableEnvVar, agentEnvironmentFile,
+		"/etc/datadog-agent", processManagerDisableEnvVar, agentEnvironmentFile,
 	)
 	if _, err := a.host.RemoteHost.Execute(cmd); err != nil {
 		return fmt.Errorf("could not reset the process manager setting: %w", err)
@@ -282,7 +282,7 @@ func (a *Agent) SetProcessManagerEnabled(enabled bool) error {
 		return nil
 	}
 	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(
-		`echo '%s=true' | sudo tee -a %s > /dev/null`, procmgrDisableEnvVar, agentEnvironmentFile,
+		`echo '%s=true' | sudo tee -a %s > /dev/null`, processManagerDisableEnvVar, agentEnvironmentFile,
 	))
 	if err != nil {
 		return fmt.Errorf("could not persist the process manager setting: %w", err)

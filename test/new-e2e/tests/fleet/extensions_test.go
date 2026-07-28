@@ -230,7 +230,7 @@ func (s *extensionsSuite) TestExtensionSurvivesExperimentManagedByProcmgr() {
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
 }
 
-// TestExtensionSurvivesServiceManagerSwitch flips DD_PROCMGR_DISABLE between installing the
+// TestExtensionSurvivesServiceManagerSwitch flips DD_PROCESS_MANAGER_DISABLE between installing the
 // agent and starting the experiment, so the update changes the service manager. The experiment must
 // come up under the new manager with exactly one collector, and promotion must leave stable there
 // too, with nothing from the previous manager still running.

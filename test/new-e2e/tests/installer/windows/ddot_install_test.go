@@ -86,7 +86,7 @@ type testDDOTExtensionProcmgrDisabledEnv struct {
 }
 
 // TestDDOTExtensionViaSubcommandProcessManagerDisabled verifies that when
-// DD_PROCMGR_DISABLE=true is set for the extension install hooks, the fleet installer
+// DD_PROCESS_MANAGER_DISABLE=true is set for the extension install hooks, the fleet installer
 // does not write processes.d/datadog-agent-ddot.yaml and DDOT runs via the legacy datadog-otel-agent SCM service.
 func TestDDOTExtensionViaSubcommandProcessManagerDisabled(t *testing.T) {
 	e2e.Run(t, &testDDOTExtensionProcmgrDisabledEnv{},
@@ -111,16 +111,16 @@ func (s *testDDOTExtensionProcmgrDisabledEnv) TestInstallSkipsFleetProcmgrConfig
 	s.Require().NoError(err)
 	agentExe := installPath + `\bin\agent.exe`
 	agentPackageURL := "oci://" + consts.PipelineOCIRegistry + "/agent-package:pipeline-" + s.Env().Environment.PipelineID()
-	// Hooks read DD_PROCMGR_DISABLE from the installer process environment (pkg/fleet/installer/env).
+	// Hooks read DD_PROCESS_MANAGER_DISABLE from the installer process environment (pkg/fleet/installer/env).
 	// Use cmd.exe + set: the e2e host wraps commands in PowerShell, and "$env:DD_..." inside a nested
 	// powershell -Command "..." is expanded by the *outer* shell, so the variable never reached agent.exe.
 	cmd := fmt.Sprintf(
-		`cmd /c "set DD_PROCMGR_DISABLE=true&& ""%s"" otel install --url %s"`,
+		`cmd /c "set DD_PROCESS_MANAGER_DISABLE=true&& ""%s"" otel install --url %s"`,
 		agentExe,
 		agentPackageURL,
 	)
 	output, err = s.Env().RemoteHost.Execute(cmd)
-	s.Require().NoErrorf(err, "failed to install ddot extension with DD_PROCMGR_DISABLE=true: %s", output)
+	s.Require().NoErrorf(err, "failed to install ddot extension with DD_PROCESS_MANAGER_DISABLE=true: %s", output)
 
 	ddotExtDir := filepath.Join(consts.GetStableDirFor(consts.AgentPackage), "ext", "ddot")
 	s.Require().Host(s.Env().RemoteHost).DirExists(ddotExtDir, "ddot extension directory should exist")

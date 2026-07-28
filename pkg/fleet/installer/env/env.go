@@ -51,7 +51,7 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
-	envProcmgrDisable        = "DD_PROCMGR_DISABLE"
+	envProcessManagerDisable = "DD_PROCESS_MANAGER_DISABLE"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
 	envFIPSMode = "DD_FIPS_MODE"
@@ -191,11 +191,11 @@ type Env struct {
 	Site                 string
 	RemoteUpdates        bool
 	OTelCollectorEnabled bool
-	// ProcmgrDisabled opts out of dd-procmgrd as the service manager. It is expressed as an opt-out
-	// so the zero value carries the product default, and a partially built Env cannot accidentally
-	// propagate the opt-out to a hook subprocess.
-	ProcmgrDisabled bool
-	ConfigID        string
+	// ProcessManagerDisabled opts out of dd-procmgrd as the service manager. It is expressed as an
+	// opt-out so the zero value carries the product default, and a partially built Env cannot
+	// accidentally propagate the opt-out to a hook subprocess.
+	ProcessManagerDisabled bool
+	ConfigID               string
 
 	Mirror                      string
 	RegistryOverride            string
@@ -293,11 +293,11 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
-		ProcmgrDisabled:      strings.ToLower(os.Getenv(envProcmgrDisable)) == "true",
+		APIKey:                 getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:                   getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:          strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		OTelCollectorEnabled:   strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
+		ProcessManagerDisabled: strings.ToLower(os.Getenv(envProcessManagerDisable)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -423,8 +423,8 @@ func (e *Env) ToEnv() []string {
 	if e.OTelCollectorEnabled {
 		env = append(env, envOTelCollectorEnabled+"=true")
 	}
-	if e.ProcmgrDisabled {
-		env = append(env, envProcmgrDisable+"=true")
+	if e.ProcessManagerDisabled {
+		env = append(env, envProcessManagerDisable+"=true")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")

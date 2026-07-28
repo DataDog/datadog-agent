@@ -72,7 +72,7 @@ func psLiteralPathNotExists(path string) string {
 }
 
 // AssertNoFleetDDOTProcmgrConfigFileWindows asserts the fleet DDOT extension did not write
-// processes.d/datadog-agent-ddot.yaml (e.g. when DD_PROCMGR_DISABLE=true during install hooks).
+// processes.d/datadog-agent-ddot.yaml (e.g. when DD_PROCESS_MANAGER_DISABLE=true during install hooks).
 func AssertNoFleetDDOTProcmgrConfigFileWindows(t *testing.T, host *components.RemoteHost) {
 	t.Helper()
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
