@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
@@ -62,11 +61,8 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 
 		sysProbeClient := &compliance.LocalSysProbeClient{}
 
-		// Not wired to a real delegatedauth.Component: system-probe's Fx graph has no real
-		// delegatedauth module installed, only the noop.
-		noopDelegatedAuth := delegatedauthnoopimpl.NewComponent().Comp
 		// start compliance agent
-		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient, deps.Secrets, noopDelegatedAuth)
+		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient, deps.Secrets, deps.DelegatedAuth)
 		if err != nil {
 			return nil, err
 		}

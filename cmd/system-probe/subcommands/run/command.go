@@ -34,7 +34,7 @@ import (
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -148,7 +148,7 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
-		delegatedauthnoopfx.Module(),
+		delegatedauthfx.Module(),
 		sysprobeconfigfx.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryfx.Module(),
