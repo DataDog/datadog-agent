@@ -179,7 +179,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
-	ddc, err := getDDExporterConfig(cfg)
+	ddc, ddcExplicit, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {
 		return pkgconfig, err
 	}
@@ -189,7 +189,16 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
 	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
-	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
+	// Only pin dd_url locally when the user explicitly set a custom metrics
+	// endpoint. Otherwise ddc.Metrics.Endpoint was auto-derived from api::site
+	// (see datadogconfig.Config.Unmarshal), which may itself be a hardcoded
+	// default ("datadoghq.com", see setSiteIfEmpty) rather than the org's real
+	// site. Pinning that derived value here would permanently short-circuit
+	// GetMainEndpoint's site-based fallback, even after config sync later
+	// corrects "site" from the core Agent (see incident-58405).
+	if ddcExplicit.metricsEndpoint {
+		pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
+	}
 	if ddc.ClientConfig.TLS.InsecureSkipVerify {
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
@@ -202,7 +211,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
-	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceFile)
+	if ddcExplicit.logsEndpoint {
+		pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceFile)
+	}
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceFile)
@@ -222,7 +233,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if v := ddc.Traces.TraceBuffer; v > 0 {
 		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceFile)
 	}
-	if addr := ddc.Traces.Endpoint; addr != "" {
+	if addr := ddc.Traces.Endpoint; addr != "" && ddcExplicit.tracesEndpoint {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
 	// Standalone mode runs without a core Datadog Agent on the same host, so
@@ -426,30 +437,57 @@ func getDogtelExtensionConfig(cfg *confmap.Conf) (*dogtelextensionimpl.Config, e
 	return nil, nil
 }
 
-func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
+// ddExporterEndpointFlags reports which datadog exporter endpoint settings
+// were explicitly configured by the user, as opposed to auto-derived from
+// api::site (which may itself be a hardcoded default, see setSiteIfEmpty).
+type ddExporterEndpointFlags struct {
+	metricsEndpoint bool
+	tracesEndpoint  bool
+	logsEndpoint    bool
+}
+
+// isExplicitlySet reports whether the dotted path is present in the raw
+// (pre-Unmarshal) datadog exporter config section, mirroring the semantics of
+// confmap.Conf.IsSet used by datadogconfig.Config.Unmarshal to decide whether
+// to auto-derive an endpoint from api::site.
+func isExplicitlySet(ddcfg any, path string) bool {
+	m, ok := ddcfg.(map[string]any)
+	if !ok {
+		return false
+	}
+	return confmap.NewFromStringMap(m).IsSet(path)
+}
+
+func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, ddExporterEndpointFlags, error) {
 	var configs []*datadogconfig.Config
+	var explicitFlags []ddExporterEndpointFlags
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
 			continue
 		}
 		exporters, ok := v.(map[string]any)
 		if !ok {
-			return nil, errors.New("invalid exporters config")
+			return nil, ddExporterEndpointFlags{}, errors.New("invalid exporters config")
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
+				flags := ddExporterEndpointFlags{
+					metricsEndpoint: isExplicitlySet(v, "metrics::endpoint"),
+					tracesEndpoint:  isExplicitlySet(v, "traces::endpoint"),
+					logsEndpoint:    isExplicitlySet(v, "logs::endpoint"),
+				}
 				ddcfg := datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
 				m, err := setSiteIfEmpty(v)
 				if err != nil {
-					return nil, err
+					return nil, ddExporterEndpointFlags{}, err
 				}
 				m, err = apiKeyItoa(m)
 				if err != nil {
-					return nil, err
+					return nil, ddExporterEndpointFlags{}, err
 				}
 				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
 				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal datadog exporter config\n%w", err)
+					return nil, ddExporterEndpointFlags{}, fmt.Errorf("failed to unmarshal datadog exporter config\n%w", err)
 				}
 				if ddcfg == nil {
 					ddcfg = datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
@@ -461,21 +499,21 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 				}
 
 				configs = append(configs, ddcfg)
+				explicitFlags = append(explicitFlags, flags)
 			}
 		}
 	}
 	if len(configs) == 0 {
-		return nil, ErrNoDDExporter
+		return nil, ddExporterEndpointFlags{}, ErrNoDDExporter
 	}
 	// Check if we have multiple datadog exporters
 	// We only support one exporter for now
 	// TODO: support multiple exporters
 	if len(configs) > 1 {
-		return nil, errors.New("multiple datadog exporters found")
+		return nil, ddExporterEndpointFlags{}, errors.New("multiple datadog exporters found")
 	}
 
-	datadogConfig := configs[0]
-	return datadogConfig, nil
+	return configs[0], explicitFlags[0], nil
 }
 
 // setSiteIfEmpty sets datadog::api::site to datadoghq.com if it is an empty string (default in helm)

@@ -17,13 +17,42 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/featuregate"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
+
+// assertMetricsEndpointNotPinned verifies that dd_url was NOT explicitly
+// pinned locally (see incident-58405): when the OTel exporter's metrics
+// endpoint is auto-derived from api::site rather than user-configured, it
+// must be left unset so that GetInfraEndpoint's site-based fallback -- which
+// stays correct after config sync later updates "site" -- is used instead.
+func assertMetricsEndpointNotPinned(t *testing.T, c config.Component, expectedSite string) {
+	assert.False(t, c.IsConfigured("dd_url"), "dd_url must not be pinned locally so config sync can later correct 'site'")
+	assert.Equal(t, configutils.BuildURLWithPrefix("https://app.", expectedSite), configutils.GetInfraEndpoint(c))
+}
+
+// assertLogsEndpointNotPinned is the logs_config.logs_dd_url analog of
+// assertMetricsEndpointNotPinned.
+func assertLogsEndpointNotPinned(t *testing.T, c config.Component, expectedSite string) {
+	assert.False(t, c.IsConfigured("logs_config.logs_dd_url"), "logs_config.logs_dd_url must not be pinned locally so config sync can later correct 'site'")
+	assert.Equal(t, configutils.BuildURLWithPrefix("https://agent-http-intake.logs.", expectedSite),
+		configutils.GetMainEndpoint(c, "https://agent-http-intake.logs.", "logs_config.logs_dd_url"))
+}
+
+// assertAPMEndpointNotPinned is the apm_config.apm_dd_url analog of
+// assertMetricsEndpointNotPinned.
+func assertAPMEndpointNotPinned(t *testing.T, c config.Component, expectedSite string) {
+	assert.False(t, c.IsConfigured("apm_config.apm_dd_url"), "apm_config.apm_dd_url must not be pinned locally so config sync can later correct 'site'")
+	assert.Equal(t, configutils.BuildURLWithPrefix("https://trace.agent.", expectedSite),
+		configutils.GetMainEndpoint(c, "https://trace.agent.", "apm_config.apm_dd_url"))
+}
 
 type ConfigTestSuite struct {
 	suite.Suite
@@ -71,7 +100,9 @@ func (suite *ConfigTestSuite) TestAgentConfig() {
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 1, c.Get("logs_config.compression_level"))
-	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+	// traces::endpoint is not explicitly set in config.yaml, so it was auto-derived
+	// from api::site and must not be pinned locally (see incident-58405).
+	assertAPMEndpointNotPinned(t, c, "datadoghq.eu")
 	assert.Equal(t, map[string]string{"io.opentelemetry.javaagent.spring.client": "spring.client"}, c.Get("otlp_config.traces.span_name_remappings"))
 	assert.Equal(t, []string{"(GET|POST) /healthcheck"}, c.Get("apm_config.ignore_resources"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
@@ -89,14 +120,17 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	}
 	assert.Equal(t, "DATADOG_API_KEY", c.Get("api_key"))
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	// None of metrics::endpoint, logs::endpoint, or traces::endpoint are set in
+	// config_default.yaml, so all three are auto-derived from api::site and
+	// must not be pinned locally (see incident-58405).
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, true, c.Get("logs_enabled"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, float64(5), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"},
@@ -113,14 +147,14 @@ func (suite *ConfigTestSuite) TestDisableOperationAndResourceNameV2FeatureGate()
 	}
 	assert.Equal(t, "DATADOG_API_KEY", c.Get("api_key"))
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, true, c.Get("logs_enabled"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, float64(5), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"disable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
@@ -172,14 +206,14 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	// all expected defaults
 	assert.Equal(t, "DATADOG_API_KEY", c.Get("api_key"))
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, true, c.Get("logs_enabled"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, float64(5), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
@@ -345,9 +379,9 @@ func (suite *ConfigTestSuite) TestNoDDAPISection() {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 }
 
 func (suite *ConfigTestSuite) TestNilDDAPISection() {
@@ -356,9 +390,9 @@ func (suite *ConfigTestSuite) TestNilDDAPISection() {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 }
 
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
@@ -374,9 +408,9 @@ func (suite *ConfigTestSuite) TestDDAPISiteEmpty() {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 }
 
 func (suite *ConfigTestSuite) TestDDAPISiteNotSet() {
@@ -385,9 +419,9 @@ func (suite *ConfigTestSuite) TestDDAPISiteNotSet() {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
+	assertLogsEndpointNotPinned(t, c, "datadoghq.com")
+	assertAPMEndpointNotPinned(t, c, "datadoghq.com")
 }
 
 func (suite *ConfigTestSuite) TestDDAPISiteSet() {
@@ -396,9 +430,36 @@ func (suite *ConfigTestSuite) TestDDAPISiteSet() {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "us3.datadoghq.com", c.Get("site"))
-	assert.Equal(t, "https://api.us3.datadoghq.com", c.Get("dd_url"))
-	assert.Equal(t, "https://agent-http-intake.logs.us3.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, "https://trace.agent.us3.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assertMetricsEndpointNotPinned(t, c, "us3.datadoghq.com")
+	assertLogsEndpointNotPinned(t, c, "us3.datadoghq.com")
+	assertAPMEndpointNotPinned(t, c, "us3.datadoghq.com")
+}
+
+// TestDDAPISiteConfigSyncCorrection is a regression test for incident-58405: an
+// otel-agent in connected mode that doesn't explicitly configure a custom
+// metrics/logs/traces endpoint must not have dd_url (or its logs/apm
+// equivalents) pinned to a value derived from the wrong site. Simulating a
+// config-sync correction of "site" after NewConfigComponent runs must be
+// enough for GetInfraEndpoint/GetMainEndpoint to reflect the corrected site --
+// exactly what config sync does in production via SourceLocalConfigProcess.
+func (suite *ConfigTestSuite) TestDDAPISiteConfigSyncCorrection() {
+	t := suite.T()
+	fileName := "testdata/config_site_not_set.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+
+	// Before config sync: local default site.
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assertMetricsEndpointNotPinned(t, c, "datadoghq.com")
+
+	// Config sync corrects "site" to the org's real site, exactly as
+	// comp/core/configsync's updater() does via cs.Config.Set.
+	c.Set("site", "us3.datadoghq.com", pkgconfigmodel.SourceLocalConfigProcess)
+
+	// The corrected site must now drive endpoint resolution -- this is what
+	// was broken when dd_url was unconditionally pinned to a value derived
+	// from the stale/default site at NewConfigComponent time.
+	assertMetricsEndpointNotPinned(t, c, "us3.datadoghq.com")
 }
 
 func (suite *ConfigTestSuite) TestProxyDDEnvVarsWithoutCoreConfig() {
