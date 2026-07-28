@@ -777,7 +777,6 @@ func TestExperimentalNodeAgentRolloutDefaults(t *testing.T) {
 
 	assert.False(t, config.GetBool(ExperimentalNodeAgentRolloutEnabled))
 	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutPodUID))
-	assert.Empty(t, config.GetString(ExperimentalNodeAgentRolloutStatePath))
 }
 
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {

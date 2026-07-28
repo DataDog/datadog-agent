@@ -12,12 +12,9 @@ const (
 	ExperimentalNodeAgentRolloutEnabled = "experimental.node_agent_rollout.enabled"
 	// ExperimentalNodeAgentRolloutPodUID identifies the Pod that must wait for older siblings owned by the same DaemonSet.
 	ExperimentalNodeAgentRolloutPodUID = "experimental.node_agent_rollout.pod_uid"
-	// ExperimentalNodeAgentRolloutStatePath reports the local lifecycle state of one Agent process. Shared configuration must include {component}.
-	ExperimentalNodeAgentRolloutStatePath = "experimental.node_agent_rollout.state_path"
 )
 
 func setupExperimentalNodeAgentRollout(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(ExperimentalNodeAgentRolloutEnabled, false)
 	config.BindEnvAndSetDefault(ExperimentalNodeAgentRolloutPodUID, "")
-	config.BindEnvAndSetDefault(ExperimentalNodeAgentRolloutStatePath, "")
 }

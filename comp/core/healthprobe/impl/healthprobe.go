@@ -48,11 +48,6 @@ type healthprobe struct {
 }
 
 func (h *healthprobe) start() error {
-	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", h.options.Port))
-	if err != nil {
-		return err
-	}
-	h.listener = ln
 	h.log.Debugf("Health check listening on port %d", h.options.Port)
 
 	go h.server.Serve(h.listener) //nolint:errcheck
@@ -77,12 +72,18 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return provides, nil
 	}
 
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", healthPort))
+	if err != nil {
+		return provides, err
+	}
+
 	server := buildServer(reqs.Options, reqs.Log)
 
 	probe := &healthprobe{
-		options: reqs.Options,
-		log:     reqs.Log,
-		server:  server,
+		options:  reqs.Options,
+		log:      reqs.Log,
+		server:   server,
+		listener: ln,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
