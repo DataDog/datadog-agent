@@ -76,10 +76,4 @@ const (
 	DefaultSecurityAgentCmdPort                   = 5010
 	DefaultSite                                   = "datadoghq.com"
 	DefaultZstdCompressionLevel                   = 1
-	defaultBTFOutputDir                           = "/var/tmp/datadog-agent/system-probe/btf"
-	defaultConnsMessageBatchSize                  = 600
-	defaultDynamicInstrumentationDebugInfoDir     = "${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info"
-	defaultEnvoyPath                              = "/bin/envoy"
-	defaultOffsetThreshold                        = int64(400)
-	defaultRuntimeCompilerOutputDir               = "/var/tmp/datadog-agent/system-probe/build"
 )
