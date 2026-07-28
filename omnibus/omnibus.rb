@@ -60,7 +60,7 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_region 'us-east-1'
   s3_force_path_style true
   s3_authenticated_download ENV.fetch('S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS', '') == '' ? true : false
-  if ENV['WINDOWS_BUILDER'] || Gem.darwin_platform?
+  if ENV['WINDOWS_BUILDER'] || RbConfig::CONFIG['host_os'] =~ /darwin/
     s3_profile "default"
     # Get the credentials path and expand Windows environment variables
     default_path = File.join(ENV['USERPROFILE'] || ENV['HOME'] || '', '.aws', 'credentials')
