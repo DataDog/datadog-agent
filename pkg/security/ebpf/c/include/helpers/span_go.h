@@ -157,7 +157,7 @@ static void __attribute__((always_inline)) collect_go_bucket_slot(
 // Snapshot the current goroutine's pprof labels into the go_labels_ctx ring.
 // Returns the id, 0 when the process is not a tracked Go tracer / no labels are
 // available.
-u32 __attribute__((always_inline)) collect_go_labels(void) {
+static u32 __attribute__((always_inline)) collect_go_labels(void) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -281,7 +281,7 @@ u32 __attribute__((always_inline)) collect_go_labels(void) {
     return id;
 }
 
-int __attribute__((always_inline)) unregister_go_labels() {
+static int __attribute__((always_inline)) unregister_go_labels() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     bpf_map_delete_elem(&go_labels_procs, &tgid);
