@@ -28,11 +28,12 @@ type InstallAgentOption = func(*InstallAgentParams)
 // NewInstallParams instantiates a new InstallAgentParams and runs all the given InstallAgentOption
 // Example usage:
 //
-//	awshost.WithAgentOptions(
-//	  agentparams.WithAdditionalInstallParameters(
-//		msiparams.NewInstallParams(
-//			msiparams.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
-//			msiparams.WithAgentUserPassword(TestPassword)))),
+//	winawshost.WithRunOptions(
+//		windows.WithAgentOptions(
+//			agentparams.WithAdditionalInstallParameters(
+//				msiparams.NewInstallParams(
+//					msiparams.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
+//					msiparams.WithAgentUserPassword(TestPassword))))),
 func NewInstallParams(msiInstallParams ...InstallAgentOption) []string {
 	msiInstallAgentParams := &InstallAgentParams{}
 	for _, o := range msiInstallParams {
