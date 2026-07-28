@@ -166,6 +166,21 @@ func TestGetAPIDomain(t *testing.T) {
 			endpoint: "https://metrics.eu1.datadoghq.com",
 			want:     "https://api.eu1.datadoghq.com",
 		},
+		{
+			name:     "multi-label subdomain (APM intake)",
+			endpoint: "https://trace.agent.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain (logs/EVP intake)",
+			endpoint: "https://agent-http-intake.logs.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain with regional prefix",
+			endpoint: "https://agent-http-intake.logs.us3.datadoghq.com",
+			want:     "https://api.us3.datadoghq.com",
+		},
 		// Staging/internal domains (datad0g.com)
 		{
 			name:     "staging intake domain",
