@@ -68,7 +68,7 @@ dd_agent_go_test(
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/internal/decoder/preprocessor",
         "//pkg/logs/internal/framer",
         "//pkg/logs/internal/parsers",

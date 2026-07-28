@@ -1485,7 +1485,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_include_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	// in hours
-	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1)
+	config.BindEnvAndSetDefault("container_exclude_stopped_age", constants.DefaultAuditorTTL-1)
 	// in seconds
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))
 	// in seconds, 0 means disabled
@@ -2037,7 +2037,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
 
 	// in hours
-	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL)
+	config.BindEnvAndSetDefault("logs_config.auditor_ttl", constants.DefaultAuditorTTL)
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
 	// It may be useful to increase it when logs writing is slowed down, that

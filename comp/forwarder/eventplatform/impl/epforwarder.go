@@ -16,7 +16,7 @@ import (
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -334,13 +335,13 @@ func newHTTPPassthroughPipeline(
 	if endpoints.BatchMaxConcurrentSend <= 0 {
 		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
 	}
-	if endpoints.BatchMaxContentSize <= pkgconfigsetup.DefaultBatchMaxContentSize {
+	if endpoints.BatchMaxContentSize <= constants.DefaultBatchMaxContentSize {
 		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
 	}
-	if endpoints.BatchMaxSize <= pkgconfigsetup.DefaultBatchMaxSize {
+	if endpoints.BatchMaxSize <= constants.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	if endpoints.InputChanSize <= pkgconfigsetup.DefaultInputChanSize {
+	if endpoints.InputChanSize <= constants.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 

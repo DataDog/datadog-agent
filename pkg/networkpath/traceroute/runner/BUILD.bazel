@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/network",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
