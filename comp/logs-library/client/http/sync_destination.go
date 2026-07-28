@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -38,7 +39,7 @@ func NewSyncDestination(
 	maxConcurrency := minConcurrency
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", secretsnoopimpl.NewComponent().Comp),
+		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp),
 		senderDoneChan: senderDoneChan,
 	}
 }

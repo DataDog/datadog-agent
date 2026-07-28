@@ -9,6 +9,7 @@ package http
 import (
 	"strconv"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
@@ -36,6 +37,7 @@ func NewHTTPSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component,
 	pipelineMonitor metrics.PipelineMonitor,
 ) *sender.Sender {
 	log.Debugf(
@@ -59,6 +61,7 @@ func NewHTTPSender(
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 		secretsComp,
+		delegatedAuthComp,
 	)
 
 	return sender.NewSender(
@@ -85,6 +88,7 @@ func httpDestinationFactory(
 	minConcurrency int,
 	maxConcurrency int,
 	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) sender.DestinationFactory {
 	return func(instanceID string) *client.Destinations {
 		reliable := []client.Destination{}
@@ -94,7 +98,7 @@ func httpDestinationFactory(
 			if serverlessMeta.IsEnabled() {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp))
+				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp, delegatedAuthComp))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
@@ -102,7 +106,7 @@ func httpDestinationFactory(
 			if serverlessMeta.IsEnabled() {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, contentyType, destinationsContext, false, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp))
+				additionals = append(additionals, http.NewDestination(endpoint, contentyType, destinationsContext, false, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp, delegatedAuthComp))
 			}
 		}
 		return client.NewDestinations(reliable, additionals)
