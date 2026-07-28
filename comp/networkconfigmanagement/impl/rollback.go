@@ -60,7 +60,8 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	}
 
 	if err := n.reportConfig(ctx, dc, n.sender); err != nil {
-		return result, types.AsRollbackError(err)
+		log.Warnf("Error reporting config after rollback: %v", err)
+		result.CheckConfigError = err.Error()
 	}
 	return result, nil
 }
