@@ -1,8 +1,8 @@
 """Toolchain to wrap the pkgbuild binary.
 
-Type: @pkgbuild//:tool_toolchain_type
+Type: @macos_pkgbuild//:tool_toolchain_type
 
 Toolchains:
-- @pkgbuild//:pkgbuild_toolchain: provides the tool
-- @pkgbuild//:pkgbuild_missing_toolchain: provides a fallback toolchain for exec platforms where pkgbuild might not be available.
+- @macos_pkgbuild//:macos_pkgbuild_toolchain: provides the tool
+- @macos_pkgbuild//:macos_pkgbuild_missing_toolchain: provides a fallback toolchain for exec platforms where pkgbuild might not be available.
 """

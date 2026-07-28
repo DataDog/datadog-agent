@@ -131,15 +131,15 @@ archive_override(
 ## Tools that ship with the OS ##
 #################################
 
-find_system_codesign = use_extension("//bazel/toolchains/codesign:configure.bzl", "find_system_codesign", dev_dependency = True)
-use_repo(find_system_codesign, "codesign")
+find_macos_codesign = use_extension("//bazel/toolchains/codesign:configure.bzl", "find_macos_codesign", dev_dependency = True)
+use_repo(find_macos_codesign, "macos_codesign")
 
-find_system_pkgbuild = use_extension("//bazel/toolchains/pkgbuild:configure.bzl", "find_system_pkgbuild", dev_dependency = True)
-use_repo(find_system_pkgbuild, "pkgbuild")
+find_macos_pkgbuild = use_extension("//bazel/toolchains/pkgbuild:configure.bzl", "find_macos_pkgbuild", dev_dependency = True)
+use_repo(find_macos_pkgbuild, "macos_pkgbuild")
 
 register_toolchains(
-    "@codesign//:all",
-    "@pkgbuild//:all",
+    "@macos_codesign//:all",
+    "@macos_pkgbuild//:all",
     dev_dependency = True,
 )
 
