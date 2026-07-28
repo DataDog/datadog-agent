@@ -34,6 +34,7 @@ go_test(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_google_go_cmp//cmp",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",
