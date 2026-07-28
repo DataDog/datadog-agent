@@ -46,6 +46,14 @@ type translatorConfig struct {
 	// withRuntimeRemapping reports whether runtime metrics should be mapped to Datadog counterparts.
 	withRuntimeRemapping bool
 
+	// withSDKTraceMetrics reports whether the DD-SDK OTLP histogram sdkTraceMetricName
+	// should be remapped into trace.<operation>.* series. Deliberately independent of
+	// withRemapping: that flag also renames unrelated host/container/system metrics
+	// (via withOTelPrefix) for the standalone-Collector-without-Agent case, which is
+	// wrong when a real Datadog Agent is present (Agent/DDOT) and already collects
+	// those natively under their un-prefixed names.
+	withSDKTraceMetrics bool
+
 	// cache configuration
 	sweepInterval int64
 	deltaTTL      int64
@@ -77,6 +85,18 @@ func WithRemapping() TranslatorOption {
 		// to maintain backward compatibility with the old remapping logic
 		// withRemapping must rename some otel metrics
 		t.withOTelPrefix = true
+		return nil
+	}
+}
+
+// WithSDKTraceMetricsRemapping enables remapping the DD-SDK OTLP histogram
+// sdkTraceMetricName into trace.<operation>.* series, regardless of whether
+// WithRemapping is also set. Use this on the Agent/DDOT path, where WithRemapping's
+// host/container/system metric renaming does not apply (the Agent already collects
+// those natively).
+func WithSDKTraceMetricsRemapping() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withSDKTraceMetrics = true
 		return nil
 	}
 }

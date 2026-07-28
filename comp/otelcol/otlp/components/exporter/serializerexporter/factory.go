@@ -103,6 +103,11 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
+	// Unlike WithRemapping (which also renames unrelated host/container/system
+	// metrics for the standalone-Collector-without-Agent case), this only enables
+	// the DD-SDK trace metric remap, which is safe and desired on the Agent/DDOT path.
+	options = append(options, otlpmetrics.WithSDKTraceMetricsRemapping())
+
 	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}

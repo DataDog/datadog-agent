@@ -575,19 +575,20 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				}
-				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && t.cfg.withRemapping) {
+				sdkTraceMetricsEnabled := t.cfg.withRemapping || t.cfg.withSDKTraceMetrics
+				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && sdkTraceMetricsEnabled) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					// The SDK trace metric is APM-only, so it does not mark the host as billable.
 					seenNonAPMMetrics = true
 				}
 
+				if md.Name() == sdkTraceMetricName && sdkTraceMetricsEnabled {
+					baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
+					remapSDKTraceMetrics(ctx, t.logger, consumer, baseDims, newMetrics, md)
+					continue // skip mapToDDFormat: the histogram is fully handled above; passing it through would also produce a raw DDSketch
+				}
 				if t.cfg.withRemapping {
-					if md.Name() == sdkTraceMetricName {
-						baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
-						remapSDKTraceMetrics(ctx, t.logger, consumer, baseDims, newMetrics, md)
-						continue // skip mapToDDFormat: the histogram is fully handled above; passing it through would also produce a raw DDSketch
-					}
 					remapMetrics(newMetrics, md)
 				}
 				if t.cfg.withOTelPrefix {
