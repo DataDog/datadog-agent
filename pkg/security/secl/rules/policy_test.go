@@ -1921,8 +1921,10 @@ func TestActionSetVariableCapture(t *testing.T) {
 func TestActionSetVariableCaptureRuntime(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
+			// matched on the file name so that the test doesn't depend on how patterns
+			// treat path separators: what matters here is the capture, not the match
 			ID:         "capture_rule",
-			Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+			Expression: `open.file.name == "awsrunShellScript"`,
 			Actions: []*ActionDefinition{{
 				Set: &SetDefinition{
 					Name:      "ssm_command_id",
@@ -1962,29 +1964,42 @@ func TestActionSetVariableCaptureRuntime(t *testing.T) {
 	event.ProcessCacheEntry = &model.ProcessCacheEntry{}
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
+	// the fake field handlers don't derive the basename from the path, so both have to
+	// be set
+	open := func(path string) {
+		if err := event.SetFieldValue("open.file.path", path); err != nil {
+			t.Fatal(err)
+		}
+		if err := event.SetFieldValue("open.file.name", filepath.Base(path)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// nothing has been captured yet
-	event.SetFieldValue("open.file.path", "/tmp/check")
+	open("/tmp/check")
 	if rs.Evaluate(event) {
 		t.Error("expected event to match no rule")
 	}
 
 	// capture the command id out of the orchestration directory
-	event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
+	open("/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
 	if !rs.Evaluate(event) {
 		t.Error("expected event to match the capture rule")
 	}
 
-	event.SetFieldValue("open.file.path", "/tmp/check")
+	open("/tmp/check")
 	if !rs.Evaluate(event) {
 		t.Error("expected the captured value to be the command id alone")
 	}
 
 	// the rule matches but the capture pattern doesn't: the variable has to keep its
 	// previous value rather than being overwritten or cleared
-	event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/session/xxx")
-	rs.Evaluate(event)
+	open("/var/lib/amazon/ssm/i-0abc/document/session/awsrunShellScript")
+	if !rs.Evaluate(event) {
+		t.Error("expected event to match the capture rule")
+	}
 
-	event.SetFieldValue("open.file.path", "/tmp/check")
+	open("/tmp/check")
 	if !rs.Evaluate(event) {
 		t.Error("expected a capture miss to leave the variable untouched")
 	}
@@ -2026,6 +2041,7 @@ func BenchmarkRunSetActions(b *testing.B) {
 		event.ProcessCacheEntry = &model.ProcessCacheEntry{}
 		event.SetFieldValue("open.flags", syscall.O_RDONLY)
 		event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
+		event.SetFieldValue("open.file.name", "awsrunShellScript")
 
 		ctx := rs.pool.Get(event)
 		defer rs.pool.Put(ctx)
