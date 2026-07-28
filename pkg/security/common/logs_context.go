@@ -9,7 +9,7 @@ package common
 import (
 	"fmt"
 
-	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -31,14 +31,14 @@ const (
 )
 
 // NewLogContextCompliance returns the context fields to send compliance events to the intake
-func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+func NewLogContextCompliance(delegatedAuthComp delegatedauth.Component) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("compliance_config.endpoints.", pkgconfigsetup.Datadog())
-	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logsconfig.AgentJSONIntakeProtocol)
+	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logsconfig.AgentJSONIntakeProtocol, delegatedAuthComp)
 }
 
 // NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake
 // This function will only be used on Linux. The only platforms where the runtime agent runs
-func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+func NewLogContextRuntime(useSecRuntimeTrack bool, delegatedAuthComp delegatedauth.Component) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	var trackType TrackType
 
 	if useSecRuntimeTrack {
@@ -48,19 +48,18 @@ func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *clie
 	}
 
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfigsetup.Datadog())
-	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", trackType, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
+	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", trackType, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol, delegatedAuthComp)
 }
 
 // NewLogContextSecInfo returns the context fields to send remediation events to the intake
-func NewLogContextSecInfo() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+func NewLogContextSecInfo(delegatedAuthComp delegatedauth.Component) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfigsetup.Datadog())
-	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", SecInfo, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
+	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", SecInfo, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol, delegatedAuthComp)
 }
 
 // NewLogContext returns the context fields to send events to the intake
-func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
-	// No delegatedauth.Component wired here yet; a noop keeps behavior unchanged.
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, delegatedauthnoopimpl.NewComponent().Comp)
+func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol, delegatedAuthComp delegatedauth.Component) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, delegatedAuthComp)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid endpoints: %w", err)
 	}

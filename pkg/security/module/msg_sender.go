@@ -9,6 +9,7 @@ package module
 import (
 	"fmt"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -114,12 +115,17 @@ func (ds *DirectEventMsgSender) GetEndpointsStatus() []string {
 func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, hostname string, secretsComp secrets.Component) (*DirectEventMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
-	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
+	// Not wired to a real delegatedauth.Component here: CWS runs in a separate binary/Fx graph
+	// from the logs agent this feature primarily targets. A noop keeps behavior unchanged
+	// (403s on a WIF-managed CWS endpoint still just drop, as before this PR).
+	noopDelegatedAuth := delegatedauthnoopimpl.NewComponent().Comp
+
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack, noopDelegatedAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
 
-	secInfoEndpoints, secInfoDestinationsCtx, err := common.NewLogContextSecInfo()
+	secInfoEndpoints, secInfoDestinationsCtx, err := common.NewLogContextSecInfo(noopDelegatedAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct secinfo endpoints: %w", err)
 	}
@@ -137,12 +143,12 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression, secretsComp)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression, secretsComp, noopDelegatedAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
 
-	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoDestinationsCtx, compression, secretsComp)
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoDestinationsCtx, compression, secretsComp, noopDelegatedAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct secinfo reporter: %w", err)
 	}

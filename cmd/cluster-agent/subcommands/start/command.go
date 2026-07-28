@@ -37,6 +37,7 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -306,6 +307,7 @@ func start(log log.Component,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
 	refreshTaggerGlobalTags option.Option[func(context.Context)],
 	helmactions helmactions.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -625,7 +627,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader, secretResolver); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader, secretResolver, delegatedAuthComp); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

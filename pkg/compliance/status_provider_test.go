@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -21,7 +22,7 @@ func TestStatus(t *testing.T) {
 	provider := statusProvider{
 		agent: &Agent{
 			opts: AgentOptions{
-				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressor(), secretsnoopimpl.NewComponent().Comp),
+				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressor(), secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp),
 			},
 		},
 	}
