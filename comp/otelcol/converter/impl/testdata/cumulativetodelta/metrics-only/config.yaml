@@ -1,0 +1,15 @@
+# All three pipelines export to datadog. The processor only implements CreateMetrics,
+# so it must be injected into the metrics pipeline ONLY (never traces/logs).
+processors:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      exporters: [datadog]

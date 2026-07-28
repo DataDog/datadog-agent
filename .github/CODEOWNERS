@@ -71,6 +71,9 @@
 /compliance/                            @DataDog/agent-build
 /third_party/                           @DataDog/agent-build
 /.copyright-overrides.yml               @DataDog/agent-build @DataDog/agent-devx
+/LICENSE*                               # do not notify anyone
+/rust/LICENSE*				# do not notify anyone
+/rust/deny.toml                         @DataDog/agent-build
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -81,9 +84,6 @@
 /AGENTS.md                              @DataDog/agent-devx
 /CLAUDE.md                              @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery
-
-/LICENSE*                               # do not notify anyone
-/rust/LICENSE*				# do not notify anyone
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
