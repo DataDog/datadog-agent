@@ -1035,56 +1035,7 @@ func compileCertFilters(filters CertFilters) (compiledCertFilters, error) {
 	return compiled, nil
 }
 
-// filterKeyTagFlag reports the *_tag config flag that must be enabled for a
-// tag key to ever be collected. gated is false for keys that are always
-// collected (no controlling flag), such as certificate_thumbprint or the
-// subject_* keys.
-func filterKeyTagFlag(key string) (flagName string, gated bool) {
-	switch {
-	case strings.HasPrefix(key, "issuer_"):
-		return "issuer_tag", true
-	case strings.HasPrefix(key, "subject_alt_name_"):
-		return "subject_alternative_names_tag", true
-	case strings.HasPrefix(key, "certificate_template_"):
-		return "certificate_template_tag", true
-	case key == "enhanced_key_usage":
-		return "enhanced_key_usage_tag", true
-	case key == "friendly_name":
-		return "friendly_name_tag", true
-	case key == "signature_algorithm":
-		return "signature_algorithm_tag", true
-	default:
-		return "", false
-	}
-}
-
-// tagFlagEnabled reports whether the named *_tag flag is enabled in cfg.
-func tagFlagEnabled(cfg Config, flagName string) bool {
-	switch flagName {
-	case "issuer_tag":
-		return cfg.IssuerTag
-	case "subject_alternative_names_tag":
-		return cfg.SubjectAlternativeNamesTag
-	case "certificate_template_tag":
-		return cfg.CertificateTemplateTag
-	case "enhanced_key_usage_tag":
-		return cfg.EnhancedKeyUsageTag
-	case "friendly_name_tag":
-		return cfg.FriendlyNameTag
-	case "signature_algorithm_tag":
-		return cfg.SignatureAlgorithmTag
-	default:
-		return false
-	}
-}
-
-// pruneUncollectedFilterKeys drops filter rules that reference a tag key
-// that can never appear on a collected certificate under cfg — either
-// because its *_tag flag is disabled, or because the key (certificate_store,
-// server) is appended to metrics after filtering runs and is never visible
-// to it. A warning is logged for each dropped rule; the rule is then simply
-// not applied, rather than matching against a tag that will never be
-// present and dropping every certificate.
+// pruneUncollectedFilterKeys warns and drops filters on uncollected tags.
 func pruneUncollectedFilterKeys(f *compiledCertFilters, cfg Config) {
 	prune := func(rules map[string]*regexp.Regexp, direction string) {
 		for key := range rules {
@@ -1093,7 +1044,7 @@ func pruneUncollectedFilterKeys(f *compiledCertFilters, cfg Config) {
 				delete(rules, key)
 				continue
 			}
-			if flagName, gated := filterKeyTagFlag(key); gated && !tagFlagEnabled(cfg, flagName) {
+			if flagName, requiresFlag := filterKeyTagFlag(key); requiresFlag && !tagFlagEnabled(cfg, flagName) {
 				log.Warnf("filters.%s: %q requires %q to be enabled, ignoring", direction, key, flagName)
 				delete(rules, key)
 			}

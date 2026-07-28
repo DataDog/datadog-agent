@@ -251,46 +251,96 @@ func getAttributeTypeName(oid string) string {
 	}
 }
 
+// optionalTagGroup ties one *_tag flag to the tags it emits and the filter
+// keys it gates, so tag emission and filter gating can't drift apart.
+type optionalTagGroup struct {
+	flagName   string // config yaml/json key, used in log messages
+	enabled    func(cfg Config) bool
+	keyMatches func(filterKey string) bool
+	tags       func(cert *x509.Certificate, friendlyName string) []string
+}
+
+var optionalTagGroups = []optionalTagGroup{
+	{
+		flagName:   "certificate_template_tag",
+		enabled:    func(cfg Config) bool { return cfg.CertificateTemplateTag },
+		keyMatches: func(filterKey string) bool { return strings.HasPrefix(filterKey, "certificate_template_") },
+		tags:       func(cert *x509.Certificate, _ string) []string { return getTemplateTags(cert) },
+	},
+	{
+		flagName:   "enhanced_key_usage_tag",
+		enabled:    func(cfg Config) bool { return cfg.EnhancedKeyUsageTag },
+		keyMatches: func(filterKey string) bool { return filterKey == "enhanced_key_usage" },
+		tags:       func(cert *x509.Certificate, _ string) []string { return getEnhancedKeyUsageTags(cert) },
+	},
+	{
+		flagName:   "friendly_name_tag",
+		enabled:    func(cfg Config) bool { return cfg.FriendlyNameTag },
+		keyMatches: func(filterKey string) bool { return filterKey == "friendly_name" },
+		tags: func(_ *x509.Certificate, friendlyName string) []string {
+			if friendlyName == "" {
+				return nil
+			}
+			return []string{"friendly_name:" + friendlyName}
+		},
+	},
+	{
+		flagName:   "subject_alternative_names_tag",
+		enabled:    func(cfg Config) bool { return cfg.SubjectAlternativeNamesTag },
+		keyMatches: func(filterKey string) bool { return strings.HasPrefix(filterKey, "subject_alt_name_") },
+		tags:       func(cert *x509.Certificate, _ string) []string { return getSANTags(cert) },
+	},
+	{
+		flagName:   "issuer_tag",
+		enabled:    func(cfg Config) bool { return cfg.IssuerTag },
+		keyMatches: func(filterKey string) bool { return strings.HasPrefix(filterKey, "issuer_") },
+		tags:       func(cert *x509.Certificate, _ string) []string { return getIssuerTags(cert) },
+	},
+	{
+		flagName:   "signature_algorithm_tag",
+		enabled:    func(cfg Config) bool { return cfg.SignatureAlgorithmTag },
+		keyMatches: func(filterKey string) bool { return filterKey == "signature_algorithm" },
+		tags:       func(cert *x509.Certificate, _ string) []string { return getSignatureAlgorithmTags(cert) },
+	},
+}
+
 // appendOptionalTags appends each optional tag group onto the base tag slice,
 // gated by the corresponding config flag.
 func appendOptionalTags(tags []string, cert *x509.Certificate, friendlyName string, cfg Config) []string {
-	if cfg.CertificateTemplateTag {
-		tags = append(tags, getTemplateTags(cert)...)
-	}
-	if cfg.EnhancedKeyUsageTag {
-		tags = append(tags, getEnhancedKeyUsageTags(cert)...)
-	}
-	if cfg.FriendlyNameTag && friendlyName != "" {
-		tags = append(tags, "friendly_name:"+friendlyName)
-	}
-	if cfg.SubjectAlternativeNamesTag {
-		tags = append(tags, getSANTags(cert)...)
-	}
-	if cfg.IssuerTag {
-		tags = append(tags, getIssuerTags(cert)...)
-	}
-	if cfg.SignatureAlgorithmTag {
-		tags = append(tags, getSignatureAlgorithmTags(cert)...)
+	for _, group := range optionalTagGroups {
+		if group.enabled(cfg) {
+			tags = append(tags, group.tags(cert, friendlyName)...)
+		}
 	}
 	return tags
 }
 
-// applyTagFilters returns the subset of certs that satisfy the compiled
-// include/exclude rules.
+// filterKeyTagFlag returns the *_tag flag that must be enabled for filterKey
+// to be collected. requiresFlag is false for keys like certificate_thumbprint
+// or subject_* that are always collected.
+func filterKeyTagFlag(filterKey string) (flagName string, requiresFlag bool) {
+	for _, group := range optionalTagGroups {
+		if group.keyMatches(filterKey) {
+			return group.flagName, true
+		}
+	}
+	return "", false
+}
+
+// tagFlagEnabled reports whether the named *_tag flag is enabled in cfg.
+func tagFlagEnabled(cfg Config, flagName string) bool {
+	for _, group := range optionalTagGroups {
+		if group.flagName == flagName {
+			return group.enabled(cfg)
+		}
+	}
+	return false
+}
+
+// applyTagFilters returns the certs that satisfy the compiled include/exclude
+// rules, evaluated against each cert's emitted Tags.
 //
-// Include semantics: for each include rule (tagKey → pattern), at least one
-// tag on the cert with that key must have a value matching the pattern. A cert
-// must satisfy ALL include rules to pass. A cert with no tag for an include key
-// fails that rule.
-//
-// Exclude semantics: if ANY exclude rule matches any tag value on the cert,
-// the cert is dropped.
-//
-// Filtering evaluates cert.Tags, so a rule only matches tag keys that are
-// actually collected under the current config; pruneUncollectedFilterKeys
-// removes rules that reference a *_tag flag that is disabled (or a key that
-// is never available) before this function runs, so those rules never
-// exclude every certificate.
+// include requires every rule to pass; exclude drops the cert on any match.
 func applyTagFilters(certs []certInfo, f compiledCertFilters) []certInfo {
 	if len(f.include) == 0 && len(f.exclude) == 0 {
 		return certs
