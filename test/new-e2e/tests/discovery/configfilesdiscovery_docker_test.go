@@ -79,6 +79,9 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_FORWARDER_USE_COMPRESSION", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_FORWARDER_BATCH_WAIT", pulumi.StringPtr("0.1")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_HEARTBEAT_INTERVAL", pulumi.StringPtr("10s")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_HEARTBEAT_JITTER", pulumi.StringPtr("0s")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_STARTUP_JITTER", pulumi.StringPtr("0s")),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR": pulumi.String(configFilesDiscoveryRedisConfigDir),
@@ -112,7 +115,7 @@ func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host
 	return configFile, nil
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilePayloadSentToEventPlatform() {
+func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilePayloadAndHeartbeatSentToEventPlatform() {
 	t := s.T()
 
 	var payloads []*aggregator.AgentDiscoveryPayload
@@ -125,23 +128,25 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilePayloadSentToEventP
 			return
 		}
 
-		payload, config, ok := findRedisConfigPayload(payloads)
-		assert.True(c, ok, "no redis config payload found in %+v", payloads)
-		if !ok {
+		redisPayloads := findRedisConfigPayloads(payloads)
+		assert.GreaterOrEqual(c, len(redisPayloads), 2, "fewer than two redis config payloads found in %+v", payloads)
+		if len(redisPayloads) < 2 {
 			return
 		}
 
-		assert.Equal(c, configFilesDiscoveryRedisIntegrationName, payload.Integration)
-		assert.Equal(c, configFilesDiscoveryRedisContainerRuntime, payload.Runtime)
-		assert.NotEmpty(c, payload.HostID)
-		assert.NotEmpty(c, payload.RuntimeID)
-		assert.False(c, payload.IngestionTimestamp.IsZero())
+		for _, redisPayload := range redisPayloads {
+			assert.Equal(c, configFilesDiscoveryRedisIntegrationName, redisPayload.payload.Integration)
+			assert.Equal(c, configFilesDiscoveryRedisContainerRuntime, redisPayload.payload.Runtime)
+			assert.NotEmpty(c, redisPayload.payload.HostID)
+			assert.NotEmpty(c, redisPayload.payload.RuntimeID)
+			assert.False(c, redisPayload.payload.IngestionTimestamp.IsZero())
 
-		assert.Equal(c, configFilesDiscoveryRedisContainerPath, config.Path)
-		assert.Equal(c, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, config.PayloadFormat)
-		assert.False(c, config.Truncated)
-		assert.Equal(c, configFilesDiscoveryRedisConfig, string(config.Content))
-		assert.Contains(c, string(config.Content), configFilesDiscoveryRedisConfigSentinel)
+			assert.Equal(c, configFilesDiscoveryRedisContainerPath, redisPayload.config.Path)
+			assert.Equal(c, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, redisPayload.config.PayloadFormat)
+			assert.False(c, redisPayload.config.Truncated)
+			assert.Equal(c, configFilesDiscoveryRedisConfig, string(redisPayload.config.Content))
+			assert.Contains(c, string(redisPayload.config.Content), configFilesDiscoveryRedisConfigSentinel)
+		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for config files discovery payload")
 
 	if t.Failed() {
@@ -149,18 +154,27 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilePayloadSentToEventP
 	}
 }
 
-func findRedisConfigPayload(payloads []*aggregator.AgentDiscoveryPayload) (*aggregator.AgentDiscoveryPayload, aggregator.AgentDiscoveryConfigFile, bool) {
+type redisConfigPayload struct {
+	payload *aggregator.AgentDiscoveryPayload
+	config  aggregator.AgentDiscoveryConfigFile
+}
+
+func findRedisConfigPayloads(payloads []*aggregator.AgentDiscoveryPayload) []redisConfigPayload {
+	var redisPayloads []redisConfigPayload
 	for _, payload := range payloads {
 		if payload.Integration != configFilesDiscoveryRedisIntegrationName {
 			continue
 		}
 		for _, config := range payload.ConfigFiles {
 			if config.Path == configFilesDiscoveryRedisContainerPath {
-				return payload, config, true
+				redisPayloads = append(redisPayloads, redisConfigPayload{
+					payload: payload,
+					config:  config,
+				})
 			}
 		}
 	}
-	return nil, aggregator.AgentDiscoveryConfigFile{}, false
+	return redisPayloads
 }
 
 func (s *configFilesDiscoveryDockerSuite) logConfigFilesDiscoveryDebug(t *testing.T) {
