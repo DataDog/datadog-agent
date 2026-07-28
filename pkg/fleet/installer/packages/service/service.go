@@ -8,7 +8,13 @@
 // Package service provides service manager utilities
 package service
 
-import "os/exec"
+import (
+	"os/exec"
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
+)
 
 // Type is the service manager type
 type Type string
@@ -22,21 +28,39 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
+	// ProcmgrType is returned when dd-procmgrd supervises the agent's auxiliary payloads. It
+	// implies systemd: dd-procmgrd itself is hosted by datadog-agent-procmgr.service.
+	ProcmgrType Type = "procmgr"
 )
 
-var cachedServiceManagerType *Type
+// initSystemType memoizes the init system probe. It never returns ProcmgrType: procmgr is a layer
+// on top of systemd, not an init system.
+var initSystemType = sync.OnceValue(detectInitSystem)
 
-// GetServiceManagerType returns the service manager of the current system
+// procmgrDisabled and procmgrInstalled are indirected so tests can drive the selection.
+var (
+	procmgrDisabled  = func() bool { return env.FromEnv().ProcmgrDisabled }
+	procmgrInstalled = procmgr.IsInstalled
+)
+
+// GetServiceManagerType returns the service manager of the current system.
+//
+// procmgr is selected over plain systemd when the init system is systemd, the operator has not
+// opted out via DD_PROCMGR_DISABLE, and dd-procmgrd is actually installed. Only the init system
+// probe is memoized: the other two change during an install, so they are re-evaluated on every
+// call.
 func GetServiceManagerType() Type {
-	if cachedServiceManagerType != nil {
-		return *cachedServiceManagerType
+	base := initSystemType()
+	if base != SystemdType {
+		return base
 	}
-	serviceManagerType := getServiceManagerType()
-	cachedServiceManagerType = &serviceManagerType
-	return serviceManagerType
+	if procmgrDisabled() || !procmgrInstalled() {
+		return SystemdType
+	}
+	return ProcmgrType
 }
 
-func getServiceManagerType() Type {
+func detectInitSystem() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
 		return SystemdType

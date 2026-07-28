@@ -8,45 +8,69 @@
 package packages
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 )
 
-// TestWriteDDOTProcmgrConfig verifies the DDOT dd-procmgr config is written to the package
-// processes.d with a version-specific binary path (rewritten to installRoot) and config paths left
-// as the ${DD_CONF_DIR} placeholder, which the supervising dd-procmgr substitutes at launch with
-// its stable or experiment config directory. It must be a no-op when DDOT is not installed.
-func TestWriteDDOTProcmgrConfig(t *testing.T) {
-	installRoot := t.TempDir()
-	configPath := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
+// TestDDOTProcmgrConfigVariants verifies the generated DDOT process definition leaves the config
+// paths as the ${DD_CONF_DIR} placeholder, which the supervising dd-procmgr substitutes at launch
+// with its stable or experiment config directory, while the binary path is baked per install tree.
+func TestDDOTProcmgrConfigVariants(t *testing.T) {
+	tests := []struct {
+		name            string
+		unitType        embedded.SystemdUnitType
+		experiment      bool
+		wantCommand     string
+		wantInventories bool
+	}{
+		{
+			name:        "oci stable",
+			unitType:    embedded.SystemdUnitTypeOCI,
+			wantCommand: "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent",
+		},
+		{
+			name:            "oci experiment",
+			unitType:        embedded.SystemdUnitTypeOCI,
+			experiment:      true,
+			wantCommand:     "/opt/datadog-packages/datadog-agent/experiment/ext/ddot/embedded/bin/otel-agent",
+			wantInventories: true,
+		},
+		{
+			name:        "debrpm stable",
+			unitType:    embedded.SystemdUnitTypeDebRpm,
+			wantCommand: "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent",
+		},
+		{
+			name:            "debrpm experiment",
+			unitType:        embedded.SystemdUnitTypeDebRpm,
+			experiment:      true,
+			wantCommand:     "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent",
+			wantInventories: true,
+		},
+	}
 
-	// No-op when DDOT is not installed (the otel-agent binary is absent).
-	require.NoError(t, writeDDOTProcmgrConfig(installRoot))
-	_, err := os.Stat(configPath)
-	assert.True(t, os.IsNotExist(err), "must not write a procmgr config when DDOT is not installed")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := embedded.GetProcmgrConfig(ddotProcmgrConfigName, tt.unitType, tt.experiment)
+			require.NoError(t, err)
+			content := string(raw)
 
-	// Simulate an installed DDOT extension so the writer runs.
-	otelAgentDir := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin")
-	require.NoError(t, os.MkdirAll(otelAgentDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(otelAgentDir, "otel-agent"), []byte("#!/bin/true\n"), 0755))
+			assert.Contains(t, content, "${DD_CONF_DIR}/otel-config.yaml")
+			assert.Contains(t, content, "${DD_CONF_DIR}/datadog.yaml")
+			assert.Contains(t, content, "command: "+tt.wantCommand)
+			// The daemon skips the payload when the binary is absent, so the definition can be
+			// shipped unconditionally.
+			assert.Contains(t, content, "condition_path_exists: "+tt.wantCommand)
 
-	require.NoError(t, writeDDOTProcmgrConfig(installRoot))
-	content, err := os.ReadFile(configPath)
-	require.NoError(t, err)
-
-	// Config paths stay as the placeholder (resolved by dd-procmgr per stable/experiment).
-	assert.Contains(t, string(content), "${DD_CONF_DIR}/otel-config.yaml")
-	assert.Contains(t, string(content), "${DD_CONF_DIR}/datadog.yaml")
-	// The binary path is version-specific: rewritten to this installRoot, never left at /opt/datadog-agent.
-	assert.Contains(t, string(content), filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent"))
-	assert.NotContains(t, string(content), "/opt/datadog-agent/")
-
-	// Removal clears the file.
-	require.NoError(t, removeDDOTProcmgrConfig(installRoot))
-	_, err = os.Stat(configPath)
-	assert.True(t, os.IsNotExist(err))
+			if tt.wantInventories {
+				assert.Contains(t, content, "DD_INVENTORIES_FIRST_RUN_DELAY")
+			} else {
+				assert.NotContains(t, content, "DD_INVENTORIES_FIRST_RUN_DELAY")
+			}
+		})
+	}
 }

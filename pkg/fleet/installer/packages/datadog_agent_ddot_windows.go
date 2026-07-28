@@ -439,7 +439,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
+	if !env.FromEnv().ProcmgrDisabled {
 		if err := processmanager.WriteDDOTProcmgrConfig(packagePath); err != nil {
 			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 		}
@@ -470,7 +470,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
-	if env.FromEnv().ProcessManagerEnabled {
+	if !env.FromEnv().ProcmgrDisabled {
 		processmanager.ReloadOrRestartProcmgr()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {

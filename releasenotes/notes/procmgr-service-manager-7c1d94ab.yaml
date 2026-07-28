@@ -1,0 +1,17 @@
+---
+upgrade:
+  - |
+    On Linux, the Datadog process manager (``dd-procmgrd``) is now a first-class service manager
+    alongside systemd, upstart and sysvinit. When it is enabled, which is the default, the Agent's
+    OpenTelemetry Collector distribution is supervised through ``processes.d`` and the
+    ``datadog-agent-ddot`` systemd unit is no longer installed.
+
+    Set ``DD_PROCMGR_DISABLE=true`` to keep the systemd units instead. Persist it in
+    ``/etc/datadog-agent/environment`` so that Fleet-driven upgrades honour it: the Agent installer
+    service reads that file, and a value exported only in an interactive shell is not carried across
+    a remote update.
+
+    On Windows, the installer previously read ``DD_PROCESS_MANAGER_ENABLED`` to decide whether to
+    write ``processes.d`` entries. It now reads ``DD_PROCMGR_DISABLE``. The Agent's own
+    ``process_manager.enabled`` setting is unchanged and still controls the
+    ``dd-procmgr-service`` Windows service.

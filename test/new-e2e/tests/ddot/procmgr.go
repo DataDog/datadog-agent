@@ -27,6 +27,8 @@ const (
 	procmgrSocket           = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	ddotSystemdUnit         = "datadog-agent-ddot.service"
 	ddotSystemdUnitExp      = "datadog-agent-ddot-exp.service"
+	procmgrSystemdUnit      = "datadog-agent-procmgr.service"
+	procmgrSystemdUnitExp   = "datadog-agent-procmgr-exp.service"
 )
 
 // AssertDDOTSystemdUnitsNotActive fails if datadog-agent-ddot systemd units are active.
@@ -55,6 +57,41 @@ func AssertDDOTManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 func AssertDDOTNotManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 	t.Helper()
 	assertNotManagedByProcmgr(t, host, resolveAgentInstallRoot(host))
+}
+
+// AssertDDOTManagedBySystemd verifies DDOT runs under its own systemd unit and that the procmgr
+// service manager left no artifacts behind: no dd-procmgrd unit and no processes.d entry.
+func AssertDDOTManagedBySystemd(t *testing.T, host *components.RemoteHost) {
+	t.Helper()
+
+	installRoot := resolveAgentInstallRoot(host)
+	_, err := host.Execute("test ! -f " + procmgrConfigPath(installRoot))
+	assert.NoError(t, err, "no procmgr config should exist at %s under the systemd service manager", procmgrConfigPath(installRoot))
+
+	for _, unit := range []string{procmgrSystemdUnit, procmgrSystemdUnitExp} {
+		out, err := host.Execute("systemctl is-active " + unit + " 2>/dev/null || true")
+		require.NoError(t, err)
+		assert.NotEqual(t, "active", strings.TrimSpace(out),
+			"%s should not be active under the systemd service manager", unit)
+	}
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, err := host.Execute("systemctl is-active " + ddotSystemdUnit + " 2>/dev/null || true")
+		assert.NoError(c, err)
+		assert.Equal(c, "active", strings.TrimSpace(out), "%s should supervise DDOT", ddotSystemdUnit)
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// AssertDDOTManaged asserts DDOT is supervised by whichever service manager is active, so a test
+// body can cover both halves of the procmgr matrix without branching.
+func AssertDDOTManaged(t *testing.T, host *components.RemoteHost, procmgrEnabled bool) {
+	t.Helper()
+	if procmgrEnabled {
+		AssertDDOTSystemdUnitsNotActive(t, host)
+		AssertDDOTManagedByProcmgr(t, host)
+		return
+	}
+	AssertDDOTManagedBySystemd(t, host)
 }
 
 // AssertDDOTAutoInstallUnderProcmgr verifies DDOT after an env-driven install is not on the legacy

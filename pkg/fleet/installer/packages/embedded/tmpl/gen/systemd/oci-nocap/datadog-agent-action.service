@@ -1,0 +1,18 @@
+[Unit]
+Description=Datadog Private Action Runner
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-action-exp.service
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-/etc/datadog-agent/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
+ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/privateactionrunner run --cfgpath=/etc/datadog-agent/datadog.yaml
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

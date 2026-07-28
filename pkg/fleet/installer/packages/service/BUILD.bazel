@@ -1,8 +1,156 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "service",
     srcs = ["service.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "service_test",
+    srcs = ["service_test.go"],
+    embed = [":service"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/packages/service/procmgr",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )

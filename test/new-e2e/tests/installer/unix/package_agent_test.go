@@ -112,6 +112,21 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit} {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
+
+	s.assertServiceManagerArtifacts(state, systemdPath)
+}
+
+// assertServiceManagerArtifacts checks that only the procmgr service manager's artifacts are on
+// disk. The two managers used to coexist, with a ConditionPathExists=! in the DDOT unit deciding
+// which one ran; each now ships a disjoint set, so a leftover from the other one is a bug. This
+// suite always installs with the default manager — the systemd half is covered by the fleet matrix.
+func (s *packageAgentSuite) assertServiceManagerArtifacts(state host.State, systemdPath string) {
+	state.AssertUnitsLoaded(procmgrUnit)
+	state.AssertUnitsNotLoaded(ddotUnit, ddotUnitXP)
+	state.AssertPathDoesNotExist(filepath.Join(systemdPath, ddotUnit))
+	// Shipped unconditionally, like a systemd unit: condition_path_exists keeps the daemon from
+	// starting the collector when DDOT is not installed.
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/processes.d/datadog-agent-ddot.yaml", 0644, "dd-agent", "dd-agent")
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {

@@ -24,7 +24,6 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
-				ProcessManagerEnabled:          true,
 				Mirror:                         "",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
@@ -89,15 +88,14 @@ func TestFromEnv(t *testing.T) {
 				envAgentPipelineID:                            "118008542",
 			},
 			expected: &Env{
-				APIKey:                "123456",
-				Site:                  "datadoghq.eu",
-				Mirror:                "https://mirror.example.com",
-				RemoteUpdates:         true,
-				ProcessManagerEnabled: true,
-				RegistryOverride:      "registry.example.com",
-				RegistryAuthOverride:  "auth",
-				RegistryUsername:      "username",
-				RegistryPassword:      "password",
+				APIKey:               "123456",
+				Site:                 "datadoghq.eu",
+				Mirror:               "https://mirror.example.com",
+				RemoteUpdates:        true,
+				RegistryOverride:     "registry.example.com",
+				RegistryAuthOverride: "auth",
+				RegistryUsername:     "username",
+				RegistryPassword:     "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -156,7 +154,6 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
-				ProcessManagerEnabled:          true,
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
@@ -186,9 +183,8 @@ func TestFromEnv(t *testing.T) {
 				envApmInstrumentationEnabled: "all",
 			},
 			expected: &Env{
-				APIKey:                "123456",
-				Site:                  "datadoghq.com",
-				ProcessManagerEnabled: true,
+				APIKey: "123456",
+				Site:   "datadoghq.com",
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",
@@ -378,6 +374,25 @@ func TestFromEnvFIPSMode(t *testing.T) {
 func TestToEnvFIPSMode(t *testing.T) {
 	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
 	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
+}
+
+// TestToEnvProcmgrDisabled checks the opt-out reaches re-executed hooks, and that the zero value
+// does not: expressed as an opt-out, a partially built Env keeps the product default instead of
+// silently forwarding a fallback to plain systemd.
+func TestToEnvProcmgrDisabled(t *testing.T) {
+	assert.NotContains(t, (&Env{}).ToEnv(), envProcmgrDisable+"=true")
+	assert.Contains(t, (&Env{ProcmgrDisabled: true}).ToEnv(), envProcmgrDisable+"=true")
+	assert.False(t, defaultEnv.ProcmgrDisabled)
+}
+
+func TestFromEnvProcmgrDisable(t *testing.T) {
+	tests := map[string]bool{"": false, "false": false, "TRUE": true, "true": true, "yes": false}
+	for value, expected := range tests {
+		t.Run("value="+value, func(t *testing.T) {
+			t.Setenv(envProcmgrDisable, value)
+			assert.Equal(t, expected, FromEnv().ProcmgrDisabled)
+		})
+	}
 }
 
 func TestAgentUserVars(t *testing.T) {

@@ -71,6 +71,8 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
+	ddotConfig, err := embedded.GetProcmgrConfig("datadog-agent-ddot.yaml", embedded.SystemdUnitTypeDebRpm, false)
+	require.NoError(t, err)
 	s := &procmgrLinuxSuite{}
 	s.platform = linuxPlatform
 	e2e.Run(t, s, e2e.WithProvisioner(
@@ -78,7 +80,7 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithFile(linuxConfigDir+"/test-sleep.yaml", linuxTestProcessConfig, true),
-					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
+					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", string(ddotConfig), true),
 					agentparams.WithFile(linuxConfigDir+"/missing-binary.yaml", linuxMissingBinaryConfig, true),
 				),
 			),

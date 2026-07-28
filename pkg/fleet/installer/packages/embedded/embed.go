@@ -26,16 +26,17 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-//go:embed tmpl/gen/oci/*.service
-//go:embed tmpl/gen/debrpm/*.service
+// systemdUnits holds the unit set for the plain systemd service manager: one unit per payload, no
+// dd-procmgrd.
+//
+//go:embed tmpl/gen/systemd
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
-// --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr substitutes at
-// launch with its config directory (stable or experiment).
+// procmgrUnits holds the unit set for the procmgr service manager: dd-procmgrd's own units plus the
+// processes.d entries it supervises, and no unit for the payloads it took over.
 //
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
-var DDOTProcessConfig string
+//go:embed tmpl/gen/procmgr
+var procmgrUnits embed.FS
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
@@ -65,11 +66,30 @@ const (
 	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
 )
 
-// GetSystemdUnit returns the systemd unit for the given name.
+// GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
 func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	dir := string(unitType)
-	if !ambiantCapabilitiesSupported {
-		dir += "-nocap"
+	return systemdUnits.ReadFile(filepath.Join("tmpl/gen/systemd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+}
+
+// GetProcmgrUnit returns the unit for the given name, for the procmgr service manager.
+func GetProcmgrUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/procmgr", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+}
+
+// GetProcmgrConfig returns the processes.d entry for the given name. The name is the on-disk file
+// name, identical for stable and experiment: the two are told apart by the install tree they are
+// written to, so the variant is selected here instead.
+func GetProcmgrConfig(name string, unitType SystemdUnitType, experiment bool) ([]byte, error) {
+	processesDir := "processes.d"
+	if experiment {
+		processesDir = "processes-exp.d"
 	}
-	return systemdUnits.ReadFile(filepath.Join("tmpl/gen", dir, name))
+	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/procmgr", string(unitType), processesDir, name))
+}
+
+func flavorDir(unitType SystemdUnitType, ambiantCapabilitiesSupported bool) string {
+	if ambiantCapabilitiesSupported {
+		return string(unitType)
+	}
+	return string(unitType) + "-nocap"
 }

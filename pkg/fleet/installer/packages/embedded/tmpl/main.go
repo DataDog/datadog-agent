@@ -62,6 +62,14 @@ type installerTemplateData struct {
 	PIDDir                       string
 	Stable                       bool
 	AmbiantCapabilitiesSupported bool
+	// Procmgr selects the service manager the unit set belongs to. It drives which supervision
+	// path datadog-agent.service pulls up: dd-procmgrd, or the per-payload systemd units.
+	Procmgr bool
+}
+
+func (d installerTemplateData) withProcmgr() installerTemplateData {
+	d.Procmgr = true
+	return d
 }
 
 type templateData struct {
@@ -111,8 +119,11 @@ func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false)
 }
 
-func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
-	return map[string][]byte{
+// unitSet renders the units for one service manager. datadog-agent-ddot.service is present in both
+// sets: under procmgr the Agent package no longer references it, but the standalone
+// datadog-agent-ddot package still installs it.
+func unitSet(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
@@ -131,15 +142,19 @@ func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilities
 		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
 	}
+	if stableData.Procmgr {
+		units["datadog-agent-procmgr.service"] = mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported)
+		units["datadog-agent-procmgr-exp.service"] = mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported)
+	}
+	return units
 }
 
-func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
+// procmgrConfig renders a processes.d entry. The file name is the same for stable and experiment —
+// the two live in different install trees, and dd-procmgrd resolves ${DD_CONF_DIR} per daemon.
+func procmgrConfig(data installerTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
+		"datadog-agent-ddot.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", data),
 	}
 }
 
@@ -203,16 +218,24 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
 	}
+	// linuxProcmgrYAMLLayouts mirror the install layout: the processes.d entries sit in the
+	// subdirectory dd-procmgrd reads. Ambient capabilities are a systemd concept, so the -nocap
+	// flavors carry no configs.
 	linuxProcmgrYAMLLayouts = []embeddedLayout{
-		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
-		{subdir: "oci-nocap", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
-		{subdir: "debrpm", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
-		{subdir: "debrpm-nocap", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
+		{subdir: "procmgr/oci/processes.d", units: procmgrConfig(stableDataOCI.withProcmgr())},
+		{subdir: "procmgr/oci/processes-exp.d", units: procmgrConfig(expDataOCI.withProcmgr())},
+		{subdir: "procmgr/debrpm/processes.d", units: procmgrConfig(stableDataDebRpm.withProcmgr())},
+		{subdir: "procmgr/debrpm/processes-exp.d", units: procmgrConfig(expDataDebRpm.withProcmgr())},
 	}
 	systemdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "oci", units: systemdUnits(stableDataOCI, expDataOCI, true)},
-		{subdir: "debrpm", units: systemdUnits(stableDataDebRpm, expDataDebRpm, true)},
-		{subdir: "oci-nocap", units: systemdUnits(stableDataOCI, expDataOCI, false)},
-		{subdir: "debrpm-nocap", units: systemdUnits(stableDataDebRpm, expDataDebRpm, false)},
+		{subdir: "systemd/oci", units: unitSet(stableDataOCI, expDataOCI, true)},
+		{subdir: "systemd/debrpm", units: unitSet(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "systemd/oci-nocap", units: unitSet(stableDataOCI, expDataOCI, false)},
+		{subdir: "systemd/debrpm-nocap", units: unitSet(stableDataDebRpm, expDataDebRpm, false)},
+
+		{subdir: "procmgr/oci", units: unitSet(stableDataOCI.withProcmgr(), expDataOCI.withProcmgr(), true)},
+		{subdir: "procmgr/debrpm", units: unitSet(stableDataDebRpm.withProcmgr(), expDataDebRpm.withProcmgr(), true)},
+		{subdir: "procmgr/oci-nocap", units: unitSet(stableDataOCI.withProcmgr(), expDataOCI.withProcmgr(), false)},
+		{subdir: "procmgr/debrpm-nocap", units: unitSet(stableDataDebRpm.withProcmgr(), expDataDebRpm.withProcmgr(), false)},
 	}
 )

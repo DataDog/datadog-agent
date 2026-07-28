@@ -840,6 +840,7 @@ new-e2e-apm:
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
     TARGETS: ./tests/fleet
+    E2E_FLEET_PROCESS_MANAGER: "true"
 
 # Fleet e2e jobs are split by platform group (linux/windows) via E2E_FLEET_PLATFORM_GROUP.
 # Linux platforms are fast, so all their tests run in a single job. Windows is the
@@ -847,11 +848,16 @@ new-e2e-apm:
 # suite's test methods are sharded across two jobs (two VMs per platform) to roughly
 # halve its duration. Shard 1 runs an explicit subset; shard 2 runs the complement
 # (whole suite minus shard 1), so any newly added test still runs on Windows via shard 2.
+#
+# The Linux entries are additionally divided by E2E_FLEET_PROCESS_MANAGER, so every fleet test runs
+# once under dd-procmgr and once under plain systemd. The division is Linux-only: the procmgr service
+# manager is a Linux concept, and Windows gates dd-procmgr-service through a separate mechanism.
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
   parallel:
     matrix:
       - E2E_FLEET_PLATFORM_GROUP: linux
+        E2E_FLEET_PROCESS_MANAGER: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetConfig$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
@@ -865,6 +871,7 @@ new-e2e-fleet-upgrade:
       # TestFleetIntegrationPreservation is a separate Linux-only suite (provisions no
       # Windows VMs), so it runs alongside TestFleetUpgrade only in the linux entry.
       - E2E_FLEET_PLATFORM_GROUP: linux
+        E2E_FLEET_PROCESS_MANAGER: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
@@ -876,6 +883,7 @@ new-e2e-fleet-extensions:
   parallel:
     matrix:
       - E2E_FLEET_PLATFORM_GROUP: linux
+        E2E_FLEET_PROCESS_MANAGER: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetExtensions$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
