@@ -238,11 +238,15 @@ type Authorizer interface {
 	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
 }
 
-// PendingDelegatedAuthChecker reports whether a resolver's domain is managed by delegated auth
-// (WIF), so a 403 can be treated as transient rather than a bad static key. Kept separate from
-// Authorizer so resolvers that don't implement it safely fall back to a failed type assertion.
+// PendingDelegatedAuthChecker reports whether a specific API key (identified by its authorizer
+// index, i.e. transaction.APIKeyIndex) is a delegated-auth (WIF) placeholder still awaiting
+// resolution, so a 403 on that key can be treated as transient rather than a bad static key. This
+// is checked per key rather than once for the whole resolver because a single domain can mix a
+// statically-configured key with a DELA-managed one: a 403 from the static key's index must still
+// drop normally, even though the domain as a whole has a pending delegated-auth key. Kept separate
+// from Authorizer so resolvers that don't implement it safely fall back to a failed type assertion.
 type PendingDelegatedAuthChecker interface {
-	HasPendingDelegatedAuth() bool
+	HasPendingDelegatedAuth(apiKeyIdx uint) bool
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -478,7 +482,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 
 		// A WIF-managed domain may just not have a key resolved yet - not permanently bad like an
 		// unrecognized static key - so retry and nudge delegated auth to refresh sooner.
-		if checker, ok := t.Resolver.(PendingDelegatedAuthChecker); ok && checker.HasPendingDelegatedAuth() {
+		if checker, ok := t.Resolver.(PendingDelegatedAuthChecker); ok && checker.HasPendingDelegatedAuth(t.APIKeyIndex) {
 			if delegatedAuth != nil {
 				delegatedAuth.Refresh()
 			}
