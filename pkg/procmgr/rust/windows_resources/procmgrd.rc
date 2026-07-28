@@ -2,9 +2,6 @@
 #define RT_MANIFEST 24
 #define APP_MANIFEST 1
 
-
-//APP_MANIFEST RT_MANIFEST agent.exe.manifest
-
 #define MAIN_ICON 1
 
 MAIN_ICON ICON "..\\..\\..\\..\\tools\\windows\\DatadogAgentInstaller\\WixSetup\\assets\\project.ico"
