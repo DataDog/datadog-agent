@@ -19,6 +19,7 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 )
@@ -102,9 +103,15 @@ func (c *collector) initializeDaemonMode(ctx context.Context) error {
 		return nil
 	}
 
-	// Returning an error leaves the collector as a candidate, so workloadmeta retries
-	// Start and picks up the cluster name once the endpoint recovers.
-	return fmt.Errorf("ECS daemon mode requires metadata v1: %w", v1Err)
+	// Returning a retriable error leaves the collector in workloadmeta's candidate set, so
+	// Start is retried and picks up the cluster name once the endpoint recovers. This must
+	// be a *retry.Error: workloadmeta gates on retry.IsErrWillRetry, which type-asserts
+	// rather than unwrapping, so wrapping with %w here would drop the collector for good.
+	return &retry.Error{
+		LogicError:    fmt.Errorf("ECS daemon mode requires metadata v1: %w", v1Err),
+		RessourceName: componentName,
+		RetryStatus:   retry.FailWillRetry,
+	}
 }
 
 // setTaskCollectionParserForDaemon sets up the appropriate task parser for daemon deployment mode.

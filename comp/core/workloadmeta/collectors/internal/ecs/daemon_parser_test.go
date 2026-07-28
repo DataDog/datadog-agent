@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // taskParserName returns the name of the function backing the task parser for assertion.
@@ -260,6 +261,12 @@ func TestInitializeDaemonModeV1Unavailable(t *testing.T) {
 
 			if tt.expectErr {
 				require.Error(t, err)
+				// workloadmeta only keeps a collector in its candidate set when
+				// retry.IsErrWillRetry matches, and that helper type-asserts instead of
+				// unwrapping. A non-retriable error here would drop the ECS collector
+				// permanently instead of retrying Start.
+				assert.True(t, retry.IsErrWillRetry(err),
+					"startup error must be retriable, got %T: %v", err, err)
 				return
 			}
 
