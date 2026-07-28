@@ -753,6 +753,35 @@ func threadKey(info llmSpanInfo) string {
 	return info.sessionID + "\x00" + firstUser
 }
 
+// embeddingConvKey resolves which conversation agent an embeddings turn should
+// nest under. An embeddings request has a session id but no chat message, so its
+// own thread key ("<session>\x00") never matches the chat conversation's key
+// ("<session>\x00<first user message>"). When the session already has an open
+// conversation agent, return that (most-recently-active) agent's key so the
+// embedding nests under it — matching how the SDK groups an embedding inside the
+// conversation. Falls back to defaultKey when there's no session or no existing
+// conversation for it yet.
+func embeddingConvKey(agents map[string]*llmConvAgent, defaultKey, sessionID string) string {
+	if sessionID == "" {
+		return defaultKey
+	}
+	prefix := sessionID + "\x00"
+	var bestKey string
+	var bestActivity time.Time
+	for k, a := range agents {
+		if k == defaultKey || !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		if bestKey == "" || a.lastActivity.After(bestActivity) {
+			bestKey, bestActivity = k, a.lastActivity
+		}
+	}
+	if bestKey != "" {
+		return bestKey
+	}
+	return defaultKey
+}
+
 // emitIntoConversation emits one turn under the shared agent span for its
 // conversation thread (creating that agent on first use), so all the LLM/tool
 // calls of one conversation nest inside a single agent flow instead of each turn
@@ -782,6 +811,15 @@ func (h *StatKeeper) emitIntoConversation(info llmSpanInfo, latencyNs float64) {
 	key := threadKey(info)
 	h.llmConvMu.Lock()
 	defer h.llmConvMu.Unlock()
+
+	// An embeddings call carries a session id but no chat message to thread on, so
+	// its own key never matches the chat conversation's; attach it to that
+	// session's existing conversation agent so it nests under the same agent the
+	// SDK would use, instead of forming a separate same-session trace.
+	if info.isEmbedding {
+		key = embeddingConvKey(h.llmConvAgents, key, info.sessionID)
+	}
+
 	sa := h.llmConvAgents[key]
 	if sa == nil {
 		// Bound peak memory against a burst of distinct conversations: if at

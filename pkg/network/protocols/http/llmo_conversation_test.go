@@ -9,6 +9,7 @@ package http
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -51,6 +52,34 @@ func TestIsEmbeddingBody(t *testing.T) {
 	assert.True(t, isEmbeddingBody(emb), "embeddings request")
 	assert.False(t, isEmbeddingBody(chat), "chat request is not an embedding")
 	assert.Equal(t, "hello world", parseEmbeddingInput(emb))
+}
+
+// TestEmbeddingConvKeyNestsUnderSession verifies an embeddings turn nests under
+// its session's existing chat conversation agent (matching the SDK), rather than
+// spawning a separate same-session agent keyed on its empty first-user-message.
+func TestEmbeddingConvKeyNestsUnderSession(t *testing.T) {
+	chatKey := "trip-chat\x00Plan a 3-day trip to Japan."
+	embKey := "trip-chat\x00" // what threadKey() yields for an embeddings turn
+	agents := map[string]*llmConvAgent{
+		chatKey: {lastActivity: time.Unix(100, 0)},
+	}
+
+	// With an open chat conversation for the session, the embedding reuses it.
+	assert.Equal(t, chatKey, embeddingConvKey(agents, embKey, "trip-chat"),
+		"embedding should nest under the session's existing chat conversation")
+
+	// Most-recently-active chat conversation wins when a session has several.
+	agents["trip-chat\x00Book a hotel in Kyoto."] = &llmConvAgent{lastActivity: time.Unix(200, 0)}
+	assert.Equal(t, "trip-chat\x00Book a hotel in Kyoto.", embeddingConvKey(agents, embKey, "trip-chat"),
+		"embedding attaches to the most recently active conversation of the session")
+
+	// No session id -> can't thread; keep the default key.
+	assert.Equal(t, embKey, embeddingConvKey(agents, embKey, ""),
+		"no session -> fall back to the embedding's own key")
+
+	// A session with no existing conversation -> fall back to the default key.
+	assert.Equal(t, "solo\x00", embeddingConvKey(agents, "solo\x00", "solo"),
+		"unknown session -> the embedding opens its own agent")
 }
 
 // TestGenUsagePairsByToolCallID is the regression test for bug #4: two tool
