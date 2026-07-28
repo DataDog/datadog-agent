@@ -19,22 +19,6 @@ _ARCHIVE_BY_CONDITION = {
 }
 
 alias(
-    name = "archive_binary",
-    actual = select({
-        condition: "@{}//:binary".format(repo)
-        for condition, repo in _ARCHIVE_BY_CONDITION.items()
-    }),
-)
-
-alias(
-    name = "archive_license_files",
-    actual = select({
-        condition: "@{}//:license_files".format(repo)
-        for condition, repo in _ARCHIVE_BY_CONDITION.items()
-    }),
-)
-
-alias(
     name = "archive_license_3rdparty",
     actual = select({
         condition: "@{}//:license_3rdparty".format(repo)
@@ -44,7 +28,10 @@ alias(
 
 pkg_files(
     name = "binary_files",
-    srcs = [":archive_binary"],
+    srcs = select({
+        condition: ["@{}//:binary".format(repo)]
+        for condition, repo in _ARCHIVE_BY_CONDITION.items()
+    }),
     attributes = pkg_attributes(mode = "0755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
@@ -56,8 +43,10 @@ pkg_files(
     name = "license_files",
     srcs = [
         ":archive_license_3rdparty",
-        ":archive_license_files",
-    ],
+    ] + select({
+        condition: ["@{}//:license_files".format(repo)]
+        for condition, repo in _ARCHIVE_BY_CONDITION.items()
+    }),
     prefix = "LICENSES",
     renames = {
         ":archive_license_3rdparty": "LICENSE-agent-data-plane-3rdparty.csv",
