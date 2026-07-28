@@ -65,11 +65,10 @@ type domainResolver struct {
 	isMRF            bool
 	isMetricToVector bool
 
-	// hasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
-	// be waiting on one from the delegatedauth component (a DELA(...) directive in
-	// additional_endpoints). It keeps IsUsable() true for such domains so the forwarder still
-	// builds a live domainForwarder for them - one that starts sending as soon as delegated auth
-	// calls UpdateAPIKeys, instead of dropping the domain permanently until an agent restart.
+	// hasPendingDelegatedAuth is true when this domain has no real API keys yet but is waiting on
+	// one from the delegatedauth component. Keeps IsUsable() true so the forwarder builds a live
+	// domainForwarder that starts sending once delegated auth calls UpdateAPIKeys, rather than
+	// dropping the domain until an agent restart.
 	hasPendingDelegatedAuth bool
 }
 

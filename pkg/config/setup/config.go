@@ -800,11 +800,10 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 }
 
 // providerConfigForDirective builds a ProviderConfig for a DELA(...) directive, falling back to
-// the process-wide default when the directive omits provider-specific overrides. Note that only
-// the very first AddInstance call on the component actually applies its ProviderConfig
-// (comp/core/delegatedauth/impl's initializeIfNeeded ignores it on subsequent calls) - so a
-// directive's provider/params only take effect if no other instance initialized the component
-// first. Independent per-domain providers (e.g. true multi-cloud dual-shipping) are not supported.
+// the process-wide default when the directive omits provider-specific overrides. Only the first
+// AddInstance call actually applies its ProviderConfig, so a directive's provider/params only take
+// effect if no other instance initialized the component first; independent per-domain providers
+// are not supported.
 func providerConfigForDirective(directive delaDirective, defaultProviderConfig common.ProviderConfig) (common.ProviderConfig, error) {
 	switch directive.provider {
 	case cloudauthconfig.ProviderAWS:
@@ -842,10 +841,8 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 	for _, configKey := range mapShapeAdditionalEndpointsConfigKeys {
 		for domain, keys := range config.GetStringMapStringSlice(configKey) {
 			for _, key := range keys {
-				// Mirrors pkg/config/utils.IsDelaDirective's prefix check (duplicated here rather
-				// than imported to avoid a setup<->utils import cycle - pkg/config/utils already
-				// imports pkg/config/setup). Keep both checks in sync if the directive prefix ever
-				// changes.
+				// Mirrors pkg/config/utils.IsDelaDirective's prefix check (duplicated to avoid a
+				// setup<->utils import cycle). Keep both in sync if the prefix ever changes.
 				if !strings.HasPrefix(strings.TrimSpace(key), "DELA(") {
 					continue
 				}
@@ -965,13 +962,8 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 }
 
 // normalizeListShapeEntries converts a list-shape `additional_endpoints`-style config value into a
-// slice of string-keyed maps, regardless of which underlying shape config.Get() returns:
-//   - []interface{} of map[interface{}]interface{} entries - what a real YAML-sourced value
-//     decodes to (the config loader's YAML decoding produces yaml.v2-style nested maps for nested
-//     mappings, not map[string]interface{})
-//   - []map[string]interface{} - what an unset key's registered empty/typed default looks like
-//
-// Mirrors the same two-shape handling in
+// slice of string-keyed maps, regardless of whether config.Get() returns []any of
+// map[any]any (real YAML-sourced values) or []map[string]any (a registered default). Mirrors
 // comp/api/api/apiimpl/internal/config/endpoint.go's encodeInterfaceSliceToStringMap.
 func normalizeListShapeEntries(raw any) []map[string]any {
 	switch typed := raw.(type) {

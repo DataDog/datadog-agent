@@ -41,15 +41,11 @@ const (
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
 
 	// apmAdditionalEndpointsConfigKey, profilingAdditionalEndpointsConfigKey, and
-	// evpAdditionalEndpointsConfigKey are the trace-relevant map-shape additional_endpoints
-	// config keys that support DELA(...) dual-shipping directives (see
-	// mapShapeAdditionalEndpointsConfigKeys in pkg/config/setup/config.go) and that setup.go
-	// copies into the live trace AgentConfig once at startup. Delegated auth resolves a
-	// DELA(...) directive at these keys asynchronously - if the initial synchronous exchange
-	// fails, a background retry can succeed well after this component's Endpoints/
-	// AdditionalEndpoints snapshot was built. Without a listener, that later success would
-	// update core config but leave the trace-agent sending against the literal, never-resolved
-	// DELA(...) string. See WIF-48.
+	// evpAdditionalEndpointsConfigKey are the trace-relevant map-shape additional_endpoints config
+	// keys that support DELA(...) dual-shipping directives. A background delegated-auth resolution
+	// can succeed after this component's Endpoints/AdditionalEndpoints snapshot was already built
+	// at startup, so these keys need a config-update listener (see registerConfigUpdateListener)
+	// to avoid sending against a never-resolved DELA(...) string forever.
 	apmAdditionalEndpointsConfigKey       = "apm_config.additional_endpoints"
 	profilingAdditionalEndpointsConfigKey = "apm_config.profiling_additional_endpoints"
 	evpAdditionalEndpointsConfigKey       = "evp_proxy_config.additional_endpoints"
@@ -111,13 +107,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: &c}, nil
 }
 
-// registerConfigUpdateListener wires up c.coreConfig.OnUpdate so runtime config changes are
-// reflected in the live trace AgentConfig without a restart: API key rotation (already handled
-// before this refactor), and - see reloadAdditionalEndpoints - a trace-relevant
-// additional_endpoints-shaped setting resolving asynchronously after this component's initial
-// snapshot (e.g. a delegated auth DELA(...) directive whose background resolution succeeds after
-// the synchronous exchange at startup failed). Shared by both NewComponent and NewMock so tests
-// built via either constructor exercise the same reload behavior.
+// registerConfigUpdateListener wires up c.coreConfig.OnUpdate so runtime config changes (API key
+// rotation, and additional_endpoints reloads - see reloadAdditionalEndpoints) are reflected in the
+// live trace AgentConfig without a restart. Shared by NewComponent and NewMock.
 func (c *cfg) registerConfigUpdateListener() {
 	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
 		log.Debugf("OnUpdate: %s", setting)
@@ -138,30 +130,21 @@ func (c *cfg) registerConfigUpdateListener() {
 				c.updateAPIKey(oldAPIKey, newAPIKey)
 			}
 		case apmAdditionalEndpointsConfigKey, profilingAdditionalEndpointsConfigKey, evpAdditionalEndpointsConfigKey:
-			// Reload the whole section rather than trying to patch a single entry: a map-shape
-			// additional_endpoints update (e.g. a delegated auth API key rotation, or a background
-			// DELA(...) resolution completing after this component's initial snapshot) doesn't tell
-			// us which key changed, so the safest approach - mirroring
-			// comp/forwarder/defaultforwarder/resolver.updateAdditionalEndpoints and
-			// comp/logs/agent/config/endpoints.go's onConfigUpdateAdditionalEndpoints - is to
-			// re-read the entire current value from config.
+			// The update doesn't tell us which entry changed, so reload the whole section instead
+			// of trying to patch one - same approach as the forwarder and logs-config equivalents.
 			c.reloadAdditionalEndpoints(setting)
 		}
 	})
 }
 
 // reloadAdditionalEndpoints re-derives the live trace AgentConfig field(s) backed by setting from
-// the current core config, so a config change to a trace-relevant additional_endpoints-shaped
-// value (see apmAdditionalEndpointsConfigKey and friends) - most notably a delegated auth
-// background resolution completing after startup - takes effect without an agent restart.
+// the current core config, so a change to a trace-relevant additional_endpoints-shaped value
+// takes effect without an agent restart.
 func (c *cfg) reloadAdditionalEndpoints(setting string) {
 	switch setting {
 	case apmAdditionalEndpointsConfigKey:
-		// c.Endpoints[0] is always the main endpoint, optionally followed by an MRF endpoint
-		// (comp/trace/config/impl/setup.go's applyDatadogConfig) - both are populated before
-		// apm_config.additional_endpoints is ever appended, and nothing appends to Endpoints
-		// afterwards. Rebuilding just the tail (rather than the whole slice) preserves both of
-		// those, including any API key rotation already applied to Endpoints[0].
+		// c.Endpoints[0] is the main endpoint, optionally followed by an MRF endpoint; rebuild only
+		// the tail so those two (and any API key rotation already applied to them) are preserved.
 		baseCount := 1
 		if c.coreConfig.GetBool("multi_region_failover.enabled") {
 			baseCount = 2
@@ -174,10 +157,9 @@ func (c *cfg) reloadAdditionalEndpoints(setting string) {
 		copy(base, c.Endpoints[:baseCount])
 		c.Endpoints = appendEndpoints(base, apmAdditionalEndpointsConfigKey)
 
-		// appendEndpoints doesn't set NoProxy - applyDatadogConfig (setup.go) does that in a
-		// separate pass over the full Endpoints slice after building it. Without repeating that
-		// pass here, endpoints rebuilt by this reload would silently lose their NoProxy flag and
-		// start going through the proxy even if their Host is in proxy.no_proxy.
+		// appendEndpoints doesn't set NoProxy - applyDatadogConfig does that in a separate pass
+		// over the full slice - so repeat it here or these endpoints would silently ignore
+		// proxy.no_proxy.
 		if c.coreConfig.IsConfigured("proxy.no_proxy") {
 			noProxy := make(map[string]bool)
 			for _, host := range c.coreConfig.GetStringSlice("proxy.no_proxy") {

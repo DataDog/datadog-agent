@@ -112,11 +112,9 @@ type EndpointCompressionOptions struct {
 	CompressionLevel int
 }
 
-// delaAwareAPIKey returns apiKey unchanged, unless it is a pending DELA(...) delegated-auth
-// directive, in which case it returns "" instead. This keeps a directive that hasn't resolved yet
-// from ever being sent upstream as a literal (bogus) API key; the delegatedauth component resolves
-// it asynchronously and writes the real key back into the same config slot, which the endpoint
-// picks up via its existing config-update rotation callback.
+// delaAwareAPIKey returns "" for a pending DELA(...) directive (instead of sending it upstream as
+// a literal bogus API key) and apiKey unchanged otherwise. The delegatedauth component resolves
+// the directive asynchronously and writes the real key back into the same config slot.
 func delaAwareAPIKey(apiKey string) string {
 	if pkgconfigutils.IsDelaDirective(apiKey) {
 		return ""

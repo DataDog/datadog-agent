@@ -43,14 +43,9 @@ const (
 	backoffRandomizationFactor = 0.10
 
 	// maxAdditionalEndpointsWriteAttempts bounds the optimistic read-write-verify retry loop in
-	// mergeIntoAdditionalEndpoints and mergeIntoAdditionalEndpointsList. Both functions share their
-	// target config key with the secrets resolver's configAssignAtPath (pkg/config/setup/config.go),
-	// which does its own unsynchronized read-modify-write when an ENC[...] entry and a DELA(...)
-	// entry live in the same additional_endpoints value. additionalEndpointsMu only excludes other
-	// delegated-auth writers, not the secrets resolver, so a write from either side can still be
-	// silently lost if it lands between the other side's read and write. Retrying with a fresh read
-	// when our own write doesn't stick narrows that window without requiring a lock shared with the
-	// secrets resolver (out of scope here).
+	// mergeIntoAdditionalEndpoints and mergeIntoAdditionalEndpointsList, which race the secrets
+	// resolver's independent, unsynchronized read-modify-write of the same additional_endpoints
+	// config value (pkg/config/setup/config.go's configAssignAtPath).
 	maxAdditionalEndpointsWriteAttempts = 3
 )
 
@@ -87,15 +82,10 @@ type authInstance struct {
 	// requested this instance. Used to find-and-replace only this instance's own entry on each
 	// refresh, without disturbing any other entry (static or otherwise) for that target.
 	lastWrittenValue string
-	// originalDirective is the literal DELA(...) directive text this instance was created for, and
-	// never changes after construction (unlike lastWrittenValue). It is used as a fallback match in
-	// mergeIntoAdditionalEndpoints/mergeIntoAdditionalEndpointsList: if the secrets resolver's
-	// independent, unsynchronized read-modify-write of the same compound config value (see
-	// additionalEndpointsMu) races a write from this instance and wins, it can revert this
-	// instance's entry back to the raw directive text using a config snapshot taken before this
-	// instance's last write. Without this fallback, the next refresh would fail to find
-	// lastWrittenValue (now stale relative to config) and append a duplicate entry instead of
-	// healing the reverted one.
+	// originalDirective is the literal DELA(...) directive text this instance was created for and
+	// never changes. Used as a fallback match in mergeIntoAdditionalEndpoints/List: if a racing
+	// secrets-resolver write reverts this instance's entry back to the raw directive text,
+	// matching on lastWrittenValue alone would miss it and append a duplicate instead of healing it.
 	originalDirective string
 
 	// Exponential backoff for retry intervals
@@ -125,11 +115,9 @@ type delegatedAuthComponent struct {
 	providerConfig   common.ProviderConfig    // Resolved provider configuration
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
 
-	// additionalEndpointsMu serializes read-modify-write access to the `additional_endpoints`
-	// config value across concurrent instances (e.g. two DELA(...) entries refreshing at once).
-	// Deliberately separate from mu: config writes happen outside mu to avoid deadlocking with
-	// OnUpdate callbacks (see startBackgroundRefresh), but concurrent additional_endpoints merges
-	// still need to be serialized against each other.
+	// additionalEndpointsMu serializes read-modify-write access to `additional_endpoints` config
+	// values across concurrent instances. Kept separate from mu because config writes happen
+	// outside mu to avoid deadlocking with OnUpdate callbacks (see startBackgroundRefresh).
 	additionalEndpointsMu sync.Mutex
 }
 
@@ -546,11 +534,6 @@ func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 }
 
 // updateConfigWithAPIKey updates the config with a newly-fetched, real (non-fallback) API key.
-// Only called on a successful fetch - either the initial one in AddInstance, or a later one from
-// startBackgroundRefresh. The fallback API key (see writeAPIKeyToTarget's isFallback param) is
-// only ever written from AddInstance's two failure branches, both of which run before this is ever
-// reached for a given instance - so a real key, once obtained, is never reverted back to a
-// fallback by a later transient refresh failure.
 func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, apiKey string) {
 	d.writeAPIKeyToTarget(instance, apiKey, false)
 }
@@ -578,30 +561,16 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config value at
 // instance.additionalEndpointsConfigKey under instance.additionalEndpointDomain, replacing the
-// value this instance previously wrote there (starting with the original DELA(...) directive text)
-// without disturbing any other entry for that domain, static or otherwise. Serialized via
-// additionalEndpointsMu since multiple instances (one per DELA(...) entry, possibly across
-// different config keys) can refresh concurrently.
+// value this instance previously wrote there without disturbing any other entry for that domain.
+// Serialized via additionalEndpointsMu against other delegated-auth writers.
 //
 // Writes at SourceSecret, not SourceAgentRuntime: a domain's additional_endpoints list can mix
-// DELA(...) and ENC[...] entries (e.g. one static ENC[]-backed key plus one WIF-managed key for
-// dual shipping). Both this function and the secrets resolver's configAssignAtPath read the
-// current value of this same key, mutate their own entry, and write the whole list back.
-// SourceAgentRuntime outranks SourceSecret, so writing there would let this component's first
-// write permanently shadow the secrets layer for the entire key - any later secret rotation would
-// update the SourceSecret layer but Get() would keep returning this stale SourceAgentRuntime
-// snapshot. Sharing SourceSecret means whichever side wrote last read the other's latest value
-// first, so both keep composing correctly.
-//
-// additionalEndpointsMu only serializes this against other delegated-auth writers, not against
-// configAssignAtPath - the secrets resolver has its own, independent locking (or none) and reads
-// the same config value with no coordination with this component. So even under this lock, a
-// secrets-driven rotation of a sibling ENC[...] entry for the same domain can read the old value,
-// then write its own snapshot after we've written ours, silently discarding our update (or the
-// reverse). To narrow that window, each attempt re-reads the config immediately before writing
-// (rather than reusing a snapshot from earlier), and verifies afterwards that the write actually
-// stuck before returning; if not, it retries with the now-current state. This is a best-effort
-// mitigation, not true mutual exclusion - see maxAdditionalEndpointsWriteAttempts.
+// DELA(...) and ENC[...] entries, and both this function and the secrets resolver's
+// configAssignAtPath read-modify-write the same key. SourceAgentRuntime outranks SourceSecret, so
+// writing there would let this component permanently shadow later secret rotations. The
+// read-write-verify retry loop below is a best-effort mitigation (not true mutual exclusion,
+// since configAssignAtPath has no coordinated lock) to narrow that race - see
+// maxAdditionalEndpointsWriteAttempts.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
@@ -620,9 +589,8 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		keys := merged[domain]
 		replaced := false
 		for i, key := range keys {
-			// Also match originalDirective (the literal DELA(...) text, which never changes) in
-			// case a racing write from configAssignAtPath reverted this entry back to it using a
-			// config snapshot taken before our last write - see originalDirective's doc comment.
+			// Also match originalDirective in case a racing write reverted this entry back to
+			// the raw directive text - see originalDirective's doc comment.
 			if key == instance.lastWrittenValue || key == instance.originalDirective {
 				keys[i] = apiKey
 				replaced = true
@@ -641,11 +609,9 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		}
 		merged[domain] = keys
 
-		// Verify nothing changed *anywhere in the whole compound value* between our read above and
-		// right now, immediately before we write: merged was built as a full copy of endpoints, so
-		// if any other domain's entry changed in the interim (not just this one), writing merged
-		// would silently discard that change too - not only a change to this domain. Retrying with
-		// a fresh read narrows the race window down to just the Set call below.
+		// Re-check the whole value (not just this domain) right before writing, since merged
+		// carries every other domain through unchanged and a concurrent change to any of them
+		// would otherwise be silently discarded by our write below.
 		if beforeWrite := d.config.GetStringMapStringSlice(configKey); !reflect.DeepEqual(beforeWrite, endpoints) {
 			if !lastAttempt {
 				continue
@@ -655,10 +621,8 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 
 		d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
 
-		// Verify the write actually stuck, comparing the whole value for the same reason as above:
-		// if a concurrent writer raced us again between the check above and this Set call, our
-		// change here (to this domain, or to any other domain merged carried through unchanged)
-		// would be silently overwritten.
+		// Verify the write stuck; a concurrent writer could still have raced us between the
+		// check above and this Set call.
 		if current := d.config.GetStringMapStringSlice(configKey); reflect.DeepEqual(current, merged) {
 			written = true
 			break
@@ -668,10 +632,8 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		}
 	}
 
-	// Only advance lastWrittenValue once we've confirmed apiKey is actually the value live in
-	// config: if every attempt above lost its race, config still holds whatever the other writer
-	// left behind (not apiKey), and advancing this to apiKey would make the next refresh search
-	// for a value that was never actually written, causing it to append a duplicate instead of
+	// Only advance lastWrittenValue once the write is confirmed live; otherwise the next refresh
+	// would search for a value that was never actually written and append a duplicate instead of
 	// healing the entry.
 	if written {
 		instance.lastWrittenValue = apiKey
@@ -684,15 +646,11 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 }
 
 // normalizeListShapeEntries converts a list-shape `additional_endpoints`-style config value into a
-// slice of string-keyed maps, regardless of which underlying shape config.Get() returns:
-//   - []any of map[any]any entries - what a real YAML-sourced value decodes to (the config
-//     loader's YAML decoding produces yaml.v2-style nested maps for nested mappings, not
-//     map[string]any)
-//   - []map[string]any - what an unset key's registered empty/typed default looks like
+// slice of string-keyed maps, regardless of whether config.Get() returns []any of map[any]any
+// (real YAML-sourced values) or []map[string]any (a registered default).
 //
-// Duplicated from the identical helper in pkg/config/setup/config.go rather than shared: this
-// package can't depend on pkg/config/setup or pkg/config/utils without risking a cycle back
-// through comp/core/delegatedauth/def, which pkg/config/setup already imports.
+// Duplicated from the identical helper in pkg/config/setup/config.go rather than shared, since
+// this package can't depend on pkg/config/setup without risking an import cycle.
 func normalizeListShapeEntries(raw any) ([]map[string]any, bool) {
 	switch typed := raw.(type) {
 	case []any:
@@ -735,10 +693,7 @@ func caseInsensitiveStringField(entry map[string]any, field string) (string, boo
 // instance.additionalEndpointsListConfigKey (a list of {api_key, Host, Port, ...} entries),
 // replacing the entry whose api_key still holds this instance's lastWrittenValue - matching by
 // value rather than list index/position, so a reordered or resized list doesn't silently drop the
-// resolved key. Serialized via additionalEndpointsMu for the same reason, and writes at
-// SourceSecret for the same reason, as mergeIntoAdditionalEndpoints - including the same
-// read-write-verify retry loop to narrow (not close) the race against the secrets resolver's
-// independent, unsynchronized read-modify-write of the same config key (configAssignAtPath).
+// resolved key. Locking, write source, and retry behavior mirror mergeIntoAdditionalEndpoints.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *authInstance, apiKey string, isFallback bool) {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
@@ -756,8 +711,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		replaced := false
 		for i, entry := range entries {
 			if !replaced {
-				// Also match originalDirective as a fallback - see its doc comment on authInstance
-				// for why a racing write can revert this entry back to the raw directive text.
+				// Also match originalDirective - see its doc comment on authInstance.
 				if valStr, ok := caseInsensitiveStringField(entry, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
 					newEntry := make(map[string]any, len(entry))
 					maps.Copy(newEntry, entry)
@@ -781,8 +735,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 			return
 		}
 
-		// Verify nothing changed the list between our read above and right now, immediately before
-		// we write - see mergeIntoAdditionalEndpoints for why this matters.
+		// Re-check the list right before writing - see mergeIntoAdditionalEndpoints.
 		entriesNormalized, _ := normalizeListShapeEntries(entries)
 		if beforeWrite, ok := normalizeListShapeEntries(d.config.Get(configKey)); ok && !reflect.DeepEqual(beforeWrite, entriesNormalized) {
 			if !lastAttempt {
@@ -793,21 +746,15 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 
 		d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
 
-		// Verify the write actually stuck (see mergeIntoAdditionalEndpoints for why this can lose
-		// a race against the secrets resolver's configAssignAtPath). Both sides are normalized to
-		// []map[string]any first since merged's element types (map[string]any for the entry we
-		// just replaced, whatever normalizeListShapeEntries returned for the rest) aren't
-		// necessarily identical in representation to what a fresh read of the same data produces.
+		// Verify the write stuck; normalize both sides since merged's element representation
+		// isn't necessarily identical to what a fresh read of the same data produces.
 		mergedNormalized, _ := normalizeListShapeEntries(merged)
 		if current, ok := normalizeListShapeEntries(d.config.Get(configKey)); ok && reflect.DeepEqual(current, mergedNormalized) {
 			instance.lastWrittenValue = apiKey
 			break
 		}
 		if lastAttempt {
-			// Do NOT advance lastWrittenValue here: config still holds whatever the racing writer
-			// left behind, not apiKey. Advancing it anyway would make the next refresh search for a
-			// value that was never actually written, causing it to append a duplicate entry instead
-			// of healing this one.
+			// Do NOT advance lastWrittenValue here - see the same guard in mergeIntoAdditionalEndpoints.
 			log.Warnf("Possible concurrent update to '%s' while writing delegated auth key for additional endpoint entry; giving up after %d attempts, a later refresh will retry", configKey, maxAdditionalEndpointsWriteAttempts)
 		}
 	}

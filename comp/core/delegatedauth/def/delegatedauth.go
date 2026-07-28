@@ -75,13 +75,10 @@ type InstanceParams struct {
 	TargetSite string
 
 	// FallbackAPIKey, if set, is written in place of a real delegated-auth key when one cannot be
-	// obtained: either because no supported cloud provider was detected, or because the initial
-	// synchronous fetch fails. This lets dual-shipping keep working (with a static key) while WIF
-	// is unavailable or still coming up, instead of shipping nothing at all. Once a real key is
-	// successfully fetched it replaces the fallback; a later transient refresh failure does not
-	// revert back to the fallback. Parsed from the `fallback=<api_key>` param on a DELA(...)
-	// directive - not used for the primary (non-additional-endpoints) delegated auth path, where
-	// an existing static APIKeyConfigKey value already survives a failed fetch untouched.
+	// obtained (no supported cloud provider, or the initial synchronous fetch fails), so
+	// dual-shipping ships with a static key instead of nothing. A later successful fetch replaces
+	// it and a later transient failure does not revert back to it. Parsed from a DELA(...)
+	// directive's `fallback=<api_key>` param.
 	FallbackAPIKey string
 
 	// ProviderConfig contains provider-specific configuration.
