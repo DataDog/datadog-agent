@@ -557,6 +557,7 @@ go_test(
         "testdata/decoded/simple/usesMapsOfMapsThatDoNotAppearAsArguments.json",
         "testdata/e2e/rc_tester.json",
         "testdata/e2e/rc_tester_v1.json",
+        "testdata/decoded/sample/testCaptureContextImpl.json",
     ],
     gotags = [
         "test",

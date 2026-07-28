@@ -18,7 +18,7 @@
   - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.write)
 
 .setup_github_ci_platform_machine_images_token:
-  - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/ci-platform-machine-images --policy self.datadog-agent.trigger-agent-bump)
+  - export GITHUB_TOKEN=$(dd-octo-sts token --scope ddoghq/ci-platform-machine-images --policy self.datadog-agent.trigger-agent-bump)
 
 # Sets up a cache for gems used by Omnibus
 # Usage:
