@@ -42,6 +42,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",

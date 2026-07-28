@@ -30,21 +30,11 @@ build do
   end
 
   # Install integrations and their configs
-  command "bazel run " \
-          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-          "--//:install_dir=#{install_dir} " \
-          "-- //deps/agent_integrations:install --destdir=#{install_dir}",
+  command "bazel run #{omnibazel_flags} -- //deps/agent_integrations:install --destdir=#{install_dir}",
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -B -m pip check"
-
-  unless windows_target?
-    block "Remove .exe files" do
-      # setuptools come from supervisor and ddtrace
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/setuptools/*.exe"))
-    end
-  end
 
   # Remove openssl copies from libraries that depend on it, and patch as necessary.
   # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder

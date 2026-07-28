@@ -88,7 +88,7 @@ func makeLegacyTaskWithPaths(command string, allowedCommands []string, allowedPa
 func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
 	return RunCommandHandlerConfig{
 		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
-		OperatorAllowedCommands: []string{setup.RShellCommandAllowAllWildcard},
+		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 	}
 }
 
@@ -128,7 +128,7 @@ func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
 		},
 		{
 			name:    "wildcard token itself is ignored",
-			backend: []string{setup.RShellCommandAllowAllWildcard, "rshell:echo"},
+			backend: []string{rShellCommandAllowAllWildcard, "rshell:echo"},
 			want:    []string{"rshell:echo"},
 		},
 		{
@@ -153,7 +153,7 @@ func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
 }
 
 func TestFilterAllowedCommandsDefaultOperatorPolicyEqualsBackendPolicy(t *testing.T) {
-	backend := []string{"rshell:echo", "rshell:cat", "evil:curl", "rshell:", setup.RShellCommandAllowAllWildcard}
+	backend := []string{"rshell:echo", "rshell:cat", "evil:curl", "rshell:", rShellCommandAllowAllWildcard}
 	handler := newDefaultRunCommandHandler()
 
 	got := handler.filterAllowedCommands(backend)
@@ -188,7 +188,7 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 		},
 		{
 			name:     "agent wildcard leaves backend rshell commands intact",
-			agent:    []string{setup.RShellCommandAllowAllWildcard},
+			agent:    []string{rShellCommandAllowAllWildcard},
 			backend:  []string{"rshell:echo", "evil:cat", "rshell:cat"},
 			expected: []string{"rshell:echo", "rshell:cat"},
 		},

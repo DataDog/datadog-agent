@@ -36,85 +36,13 @@ import (
 )
 
 const (
-	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
-
-	// DefaultNumWorkers default number of workers for our check runner
-	DefaultNumWorkers = 4
-	// MaxNumWorkers maximum number of workers for our check runner
-	MaxNumWorkers = 25
-	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
-	DefaultAPIKeyValidationInterval = 60
-
-	// DefaultForwarderRecoveryInterval is the default recovery interval,
-	// also used if the user-provided value is invalid.
-	DefaultForwarderRecoveryInterval = 2
-
 	megaByte = 1024 * 1024
-
-	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5.0
-
-	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
-
-	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
-
-	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
-
-	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
-	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
-
-	// DefaultAuditorTTL is the default logs auditor TTL in hours
-	DefaultAuditorTTL = 23
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zstd"
-
-	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
-
-	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
-	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
-	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
-
-	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
-
-	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
-
-	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
-
-	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
-
-	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
-	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 900 * 1000
-
-	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 1000
-
-	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
-	DefaultNetworkPathMaxTTL = 30
-
-	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
-	DefaultNetworkPathStaticPathTracerouteQueries = 3
-
-	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
-	DefaultNetworkPathStaticPathE2eQueries = 50
 )
 
 var (
