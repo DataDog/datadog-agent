@@ -11,7 +11,7 @@ OUTPUT=$6
 
 source "$HELPER"
 
-# PREFIX is the full rpath, or a relative path signaled as ./<suffix>.#rewrite_with_install_name_tool.sh
+# PREFIX is the full rpath, or a relative path signaled as ./<suffix>.
 # In the relative case, ./../lib becomes @loader_path/../lib.
 PREFIX=$(origin_rpath "@loader_path" "$PREFIX")
 

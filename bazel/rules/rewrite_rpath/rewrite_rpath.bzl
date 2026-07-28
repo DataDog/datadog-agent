@@ -10,7 +10,9 @@ def _path_segments(path):
     return [segment for segment in paths.normalize(path).split("/") if segment]
 
 def _relative_dir(to_dir, from_dir):
-    """Returns the relative path from from_dir to to_dir."""
+    """Returns the relative path from from_dir to to_dir.
+
+    Returns an empty path if the directory is the same."""
     if not (paths.is_absolute(to_dir) and paths.is_absolute(from_dir)):
         fail("Cannot compute relative path between '{}' and '{}', they both must be absolute paths".format(from_dir, to_dir))
 
@@ -24,9 +26,9 @@ def _relative_dir(to_dir, from_dir):
         common_segments += 1
 
     relative = [".."] * (len(from_segments) - common_segments) + to_segments[common_segments:]
-    return "/".join(relative) if relative else "."
+    return "/".join(relative) if relative else ""
 
-def _relative_rpath(input, rpath):
+def relative_rpath(input, rpath):
     """Returns the appropriate relative rpath from the input to the given rpath."""
     from_dir = input.destination if input.target.is_directory else paths.dirname(input.destination)
     return "./" + _relative_dir(rpath, from_dir)
@@ -75,7 +77,7 @@ def rewrite_rpaths(ctx, inputs, rpath, relative = False):
         else:
             output = ctx.actions.declare_file("patched/" + target.basename)
 
-        resolved_rpath = _relative_rpath(input, rpath) if relative else rpath
+        resolved_rpath = relative_rpath(input, rpath) if relative else rpath
 
         args = ctx.actions.args()
         args.add(target.path)

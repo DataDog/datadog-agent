@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # Shared helpers for rpath rewriter toolchains. RPATH values beginning with
-# `.` are relative placeholders produced by rewrite_rpaths; the platform-specific
-# origin token is substituted here.
+# `./` are relative placeholders produced by rewrite_rpaths; the platform-specific
+# origin token is substituted here. Same-directory rpaths are represented as `./`.
 
 origin_rpath() {
     local origin="$1"
@@ -14,11 +14,6 @@ origin_rpath() {
     fi
 
     local suffix="${rpath#./}"
-    suffix="${suffix%/}"
-    if [[ "$suffix" == "." ]]; then
-        suffix=""
-    fi
-
     printf '%s\n' "$origin${suffix:+/$suffix}"
 }
 
@@ -34,10 +29,6 @@ origin_rpath_for_tree_file() {
     fi
 
     local suffix="${rpath#./}"
-    suffix="${suffix%/}"
-    if [[ "$suffix" == "." ]]; then
-        suffix=""
-    fi
 
     local rel="${file#"$output_root"/}"
     local slashes="${rel//[^\/]/}"
