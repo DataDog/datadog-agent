@@ -555,13 +555,8 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 // Cloud provider detection happens automatically within the delegatedauth component.
 // The context is used for cloud provider detection and initial API key fetch.
 //
-// LoadDatadog calls this once as part of the normal config-loading sequence. Callers that merge
-// additional config files (e.g. security-agent.yaml) or apply a config snapshot from another
-// source (e.g. remote-config streaming) after LoadDatadog returns should call this again once
-// that additional config is in place, so that any DELA(...) directive or delegated-auth prefix
-// that only appeared in the later config is still picked up. AddInstance is keyed by
-// APIKeyConfigKey and safely replaces an existing instance for the same key, so calling this
-// function multiple times over overlapping config is idempotent.
+// Safe to call more than once (e.g. after merging security-agent.yaml or applying a streamed
+// config snapshot) since AddInstance replaces any existing instance for the same config key.
 func ConfigureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, secretResolver secrets.Component) error {
 	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
 	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
