@@ -95,6 +95,9 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// Remove any empty API keys.
 		// We don't need to hold on to an endpoint with an empty API key to track if a
 		// secret has been updated since secrets can never be empty in the first place.
+		// Exception: a domain whose only entries are pending DELA(...) directives is still kept
+		// (with an empty Keys list) below, so the forwarder knows to wait for delegated auth
+		// rather than dropping the domain outright.
 		trimmed := []string{}
 		hasPendingDelegatedAuth := false
 		for _, key := range keys {
@@ -179,8 +182,8 @@ func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) 
 }
 
 // domainsPendingDelegatedAuth returns the set of domains in an `additional_endpoints`-style
-// config value that have at least one DELA(...) directive - i.e. domains with no real API key
-// yet, but that are expected to get one shortly from the delegatedauth component.
+// config value that have at least one DELA(...) directive - i.e. domains still expected to get a
+// key from the delegatedauth component, even if other real (non-DELA) keys are already present.
 func domainsPendingDelegatedAuth(endpoints map[string][]string) map[string]bool {
 	pending := map[string]bool{}
 	for domain, keys := range endpoints {
