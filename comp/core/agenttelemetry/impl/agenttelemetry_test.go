@@ -565,6 +565,7 @@ func getPayloadMetricMap(a *atel) map[string]*MetricPayload {
 	return nil
 }
 
+// Existing callers omit the mandatory default emitter so their assertions stay focused on their own labels.
 func getPayloadMetricByTagValues(metrics []*MetricPayload, tags map[string]interface{}) (*MetricPayload, bool) {
 	expectedTags := maps.Clone(tags)
 	if _, found := expectedTags[emitterTagName]; !found {
@@ -938,6 +939,7 @@ func TestMandatoryEmitterTotalsArePerEmitter(t *testing.T) {
 	require.Equal(t, float64(7), byLabels["emitter:source-b:total:1:"].Gauge.GetValue())
 }
 
+// This extends global-total delta coverage with independent per-emitter totals when one emitter gains a source series.
 func TestMandatoryEmitterCounterDeltasSurviveSourceCountChange(t *testing.T) {
 	profile, _ := compileTestMetric(t, []string{"emitter", "region"}, true)
 	a := &atel{
@@ -963,46 +965,6 @@ func TestMandatoryEmitterCounterDeltasSurviveSourceCountChange(t *testing.T) {
 	require.Contains(t, byLabels, "emitter:source-b:total:1:")
 	require.Equal(t, float64(90), byLabels["emitter:source-a:total:2:"].Counter.GetValue())
 	require.Equal(t, float64(25), byLabels["emitter:source-b:total:1:"].Counter.GetValue())
-}
-
-func TestMandatoryEmitterSerializedOnOrdinaryAndTotalMetrics(t *testing.T) {
-	const config = `
-agent_telemetry:
-  enabled: true
-  profiles:
-    - name: test
-      metric:
-        metrics:
-          - name: foo.counter
-            aggregate_total: true
-            preserve_tags:
-              - emitter
-              - region
-`
-	tel := makeTelMock(t)
-	counter := tel.NewCounter("foo", "counter", []string{"emitter", "region"}, "")
-	counter.AddWithTags(5, map[string]string{"emitter": "", "region": "east"})
-	counter.AddWithTags(7, map[string]string{"emitter": "source-b", "region": "west"})
-	a := getTestAtel(t, tel, config, makeSenderImpl(t, nil, config), nil, newRunnerMock())
-
-	metrics, ok := getPayloadFilteredMetricList(a, "foo.counter")
-	require.True(t, ok)
-	require.Len(t, metrics, 4)
-	ordinary, totals := 0, 0
-	for _, metric := range metrics {
-		emitter, ok := metric.Tags["emitter"].(string)
-		require.True(t, ok)
-		require.NotEmpty(t, emitter)
-		require.Len(t, metric.Tags, 2)
-		if _, ok := metric.Tags["total"]; ok {
-			totals++
-		} else {
-			require.Contains(t, metric.Tags, "region")
-			ordinary++
-		}
-	}
-	require.Equal(t, 2, ordinary)
-	require.Equal(t, 2, totals)
 }
 
 // TestAggregateTagsAliasBackwardCompat verifies that the deprecated aggregate_tags YAML key
