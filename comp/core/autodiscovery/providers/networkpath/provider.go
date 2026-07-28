@@ -374,6 +374,8 @@ func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
 	perHopTimeout := tracerouteconfig.PerHopTimeout(time.Duration(totalTimeoutMS)*time.Millisecond, uint8(maxTTL))
 	// Round up because the check's timeout is expressed in whole milliseconds
 	// and zero would make it fall back to the unrelated local default.
+	// This can exceed the total budget by less than 1ms per hop; strict
+	// end-to-end timeout enforcement will be implemented separately.
 	return int64(math.Ceil(float64(perHopTimeout) / float64(time.Millisecond)))
 }
 
