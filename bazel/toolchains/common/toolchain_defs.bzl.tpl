@@ -39,7 +39,7 @@ def _{TOOL_NAME}_toolchain_impl(ctx):
 # The signal is to look at the default toolchain of the {TOOL_NAME}_toolchan_type
 # and see that it is valid (that is, it has a path).
 def _is_{TOOL_NAME}_available_impl(ctx):
-    toolchain = ctx.toolchains["@{TOOL_NAME}//:{TOOL_NAME}_toolchain_type"].{TOOL_NAME}
+    toolchain = ctx.toolchains["@{REPO_NAME}//:{TOOL_NAME}_toolchain_type"].{TOOL_NAME}
     return [config_common.FeatureFlagInfo(
         value = ("1" if toolchain.valid else "0"),
     )]
@@ -47,5 +47,5 @@ def _is_{TOOL_NAME}_available_impl(ctx):
 is_{TOOL_NAME}_available = rule(
     implementation = _is_{TOOL_NAME}_available_impl,
     attrs = {},
-    toolchains = ["@{TOOL_NAME}//:{TOOL_NAME}_toolchain_type"],
+    toolchains = ["@{REPO_NAME}//:{TOOL_NAME}_toolchain_type"],
 )

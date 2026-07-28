@@ -1,18 +1,18 @@
 """Utilitites for creating toolchains to wrap system provided tools."""
 
-def write_toolchain_repo(rctx, tool_name, tool_path, tool_version = "<unknown>"):
+def _write_toolchain_repo(rctx, repo_name, tool_name, tool_path, tool_version = "<unknown>", exec_compatible_with = None):
     if not tool_path:
         tool_path = ""
     rctx.template(
         "BUILD",
         Label("@@//bazel/toolchains/common:toolchain_BUILD.tpl"),
         substitutions = {
-            "{GENERATOR}": "@@//bazel/toolchains/{tool_name}/{tool_name}_configure.bzl%find_system_{tool_name}".format(
-                tool_name = tool_name,
-            ),
+            "{GENERATOR}": "//bazel/toolchains/common:defs.bzl",
+            "{REPO_NAME}": repo_name,
             "{TOOL_NAME}": tool_name,
             "{TOOL_PATH}": str(tool_path),
             "{TOOL_VERSION}": tool_version,
+            "{EXEC_COMPATIBLE_WITH}": repr(exec_compatible_with),
         },
         executable = False,
     )
@@ -20,35 +20,40 @@ def write_toolchain_repo(rctx, tool_name, tool_path, tool_version = "<unknown>")
         "defs.bzl",
         Label("@@//bazel/toolchains/common:toolchain_defs.bzl.tpl"),
         substitutions = {
-            "{GENERATOR}": "@@//bazel/toolchains/{tool_name}/{tool_name}_configure.bzl%find_system_{tool_name}".format(
-                tool_name = tool_name,
-            ),
+            "{GENERATOR}": "//bazel/toolchains/common:defs.bzl",
+            "{REPO_NAME}": repo_name,
             "{TOOL_NAME}": tool_name,
         },
         executable = False,
     )
 
 def _default_repo_builder_impl(rctx):
-    tool_name = rctx.original_name
+    tool_name = rctx.attr.tool_name
     tool_path = rctx.which(tool_name)
     if rctx.attr.verbose:
         if tool_path:
             print("Found %s at '%s'" % (tool_name, tool_path))  # buildifier: disable=print
         else:
             print("No system %s found." % tool_name)  # buildifier: disable=print
-    write_toolchain_repo(
+    _write_toolchain_repo(
         rctx = rctx,
-        tool_name = tool_name,
+        repo_name = rctx.original_name,
+        tool_name = rctx.attr.tool_name,
         tool_path = tool_path,
+        exec_compatible_with = rctx.attr.exec_compatible_with,
     )
 
-def make_repo_builder(name, impl = _default_repo_builder_impl):
+def make_repo_builder(name, tool_name, impl = _default_repo_builder_impl):
     return repository_rule(
         implementation = impl,
         doc = """Create a repository that defines an {name} toolchain based on the system {name}.""".format(name = name),
         local = True,
         environ = ["PATH"],
         attrs = {
+            "tool_name": attr.string(doc = "The name of the tool to find.", default=tool_name),
+            "exec_compatible_with": attr.string_list(
+                doc = "exec_compatible_with list to apply to the created toolchain.",
+            ),
             "verbose": attr.bool(
                 doc = "If true, print status messages.",
             ),

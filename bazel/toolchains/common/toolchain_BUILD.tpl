@@ -16,6 +16,7 @@ toolchain(
     name = "{TOOL_NAME}_toolchain",
     toolchain = ":{TOOL_NAME}_auto",
     toolchain_type = ":{TOOL_NAME}_toolchain_type",
+    exec_compatible_with = {EXEC_COMPATIBLE_WITH},
 )
 
 # {TOOL_NAME}_missing_toolchain provides a fallback toolchain so that toolchain

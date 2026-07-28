@@ -269,19 +269,6 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
-    "//bazel/toolchains/codesign:configure.bzl%find_macos_codesign": {
-      "general": {
-        "bzlTransitiveDigest": "I2gsHYMbNKe0H0d+JJhfja0qVBuytBd/f+3SdSPGtsc=",
-        "usagesDigest": "TMS+ZD/cIqWO93XmHs0O2bdZVXm17lux6F7NxADgFJk=",
-        "recordedInputs": [],
-        "generatedRepoSpecs": {
-          "macos_codesign": {
-            "repoRuleId": "@@//bazel/toolchains/codesign:configure.bzl%build_repo_for_toolchain",
-            "attributes": {}
-          }
-        }
-      }
-    },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
         "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
@@ -304,19 +291,6 @@
               },
               "verbose": false
             }
-          }
-        }
-      }
-    },
-    "//bazel/toolchains/pkgbuild:configure.bzl%find_macos_pkgbuild": {
-      "general": {
-        "bzlTransitiveDigest": "yeeqtrNvhGroOzRQGKPgYX7npBkp0AuzmGh84lGLfVM=",
-        "usagesDigest": "2E19hAJF1DNLWzaS85mMQdXilsmlkvj8AesvsM09+sU=",
-        "recordedInputs": [],
-        "generatedRepoSpecs": {
-          "macos_pkgbuild": {
-            "repoRuleId": "@@//bazel/toolchains/pkgbuild:configure.bzl%build_repo_for_toolchain",
-            "attributes": {}
           }
         }
       }
