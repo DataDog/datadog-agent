@@ -157,7 +157,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 				continue // held by someone else, or left in dev-mode; try the next pool instance
 			}
 
-			body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: ownerPipelineID, LeasedAt: now.Unix()})
+			body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: ownerPipelineID, LeasedAt: now.Unix(), Persistent: current.Persistent})
 			if err != nil {
 				return "", "", "", fmt.Errorf("failed to marshal lease record for instance %s: %w", id, err)
 			}
@@ -222,7 +222,7 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 	}
 
 	if devMode {
-		return releaseLease(ctx, s3Client, instanceID, leaseToken, statusDevMode, current.ImageID)
+		return releaseLease(ctx, s3Client, instanceID, leaseToken, statusDevMode, current.ImageID, current.Owner, current.Persistent)
 	}
 
 	imageID := current.ImageID
@@ -241,7 +241,7 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 		}
 	}
 
-	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID)
+	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID, current.Owner, current.Persistent)
 }
 
 // RevertInPlace reverts instanceID's root volume to the lease's current baseline
@@ -360,9 +360,12 @@ func replaceRootVolume(ctx context.Context, client *awsec2.Client, instanceID, s
 }
 
 // releaseLease writes status/imageID back to instanceID's lease record, conditioned
-// on leaseToken still matching the lease object's current ETag.
-func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID string) error {
-	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID})
+// on leaseToken still matching the lease object's current ETag. owner/persistent must
+// be carried forward from the lease record being replaced (rather than defaulted to
+// zero values) so a release never silently drops a persistent local instance's
+// Owner/Persistent flags.
+func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID, owner string, persistent bool) error {
+	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID, Owner: owner, Persistent: persistent})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
 	}
