@@ -29,6 +29,9 @@ const (
 
 	maxAcquireRetries    = 10
 	acquireRetryInterval = 1 * time.Minute
+
+	replaceRootVolumePollInterval = 10 * time.Second
+	replaceRootVolumeMaxPolls     = 60
 )
 
 // PoolTagKey/PoolTagValue identify every macOS instance managed by the pool, shared by
@@ -38,11 +41,21 @@ const (
 	PoolTagValue = "true"
 )
 
+// Lease statuses stored in leaseRecord.Status. statusDevMode marks an instance
+// released from a dev-mode test run: like statusInUse it is unclaimable, but it is
+// tracked separately since its root volume was deliberately left unreverted for
+// inspection.
+const (
+	statusIdle    = "idle"
+	statusInUse   = "in-use"
+	statusDevMode = "dev-mode"
+)
+
 // leaseRecord is the JSON body stored at leasePrefix+instanceID in leaseBucket,
 // mutated via S3 conditional writes (If-Match/If-None-Match). ImageID identifies the
-// baseline AMI BuildReleaseScript reverts the instance to on release.
+// baseline AMI RevertAndRelease reverts the instance to on release.
 type leaseRecord struct {
-	Status   string `json:"status"` // "idle" or "in-use"
+	Status   string `json:"status"` // one of statusIdle, statusInUse, statusDevMode
 	ImageID  string `json:"imageId,omitempty"`
 	Owner    string `json:"owner,omitempty"`
 	LeasedAt int64  `json:"leased_at,omitempty"`
@@ -126,11 +139,11 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 			if decodeErr != nil {
 				continue
 			}
-			if current.Status == "in-use" {
-				continue // held by someone else; try the next pool instance
+			if current.Status != statusIdle {
+				continue // held by someone else, or left in dev-mode; try the next pool instance
 			}
 
-			body, err := json.Marshal(leaseRecord{Status: "in-use", ImageID: current.ImageID, Owner: ownerPipelineID, LeasedAt: now.Unix()})
+			body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: ownerPipelineID, LeasedAt: now.Unix()})
 			if err != nil {
 				return "", "", "", fmt.Errorf("failed to marshal lease record for instance %s: %w", id, err)
 			}
@@ -157,16 +170,27 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 	return "", "", "", fmt.Errorf("no idle instance available in pool of %d", len(pool))
 }
 
-// ReleaseInstance marks instanceID idle again, conditioned on leaseToken still
-// matching the lease object's current ETag, and preserves the record's ImageID.
-func ReleaseInstance(ctx context.Context, region, profile string, instanceID string, leaseToken string) error {
-	client, err := newS3Client(ctx, region, profile)
+// RevertAndRelease reverts instanceID's root volume to the lease's current baseline
+// image (read fresh from S3, not the value cached at acquire time, so a baseline
+// rotated mid-checkout is still honored) and releases the lease, conditioned on
+// leaseToken still matching the lease object's current ETag.
+//
+// If devMode is true, the revert is skipped (the point of dev mode is to leave the
+// instance's state alone for inspection) and the lease is marked statusDevMode
+// instead of statusIdle, so the instance remains unclaimable by other jobs while
+// staying visibly distinguishable from a normal in-use lease.
+//
+// If the lease's current imageId is empty, or no longer resolves to an existing
+// AMI/snapshot, the root-volume revert is skipped, imageId is cleared before it's
+// written back to the lease, and the lease is released directly.
+func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseToken string, devMode bool) error {
+	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return err
 	}
 
 	key := leasePrefix + instanceID
-	getOut, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
+	getOut, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
 	if err != nil {
 		return fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
 	}
@@ -177,13 +201,89 @@ func ReleaseInstance(ctx context.Context, region, profile string, instanceID str
 		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
 	}
 
-	body, err := json.Marshal(leaseRecord{Status: "idle", ImageID: current.ImageID})
+	if devMode {
+		return releaseLease(ctx, s3Client, instanceID, leaseToken, statusDevMode, current.ImageID)
+	}
+
+	imageID := current.ImageID
+	if imageID != "" {
+		ec2Client, err := NewEC2Client(ctx, region, profile)
+		if err != nil {
+			return err
+		}
+
+		snapshotID, resolveErr := resolveSnapshotID(ctx, ec2Client, imageID)
+		if resolveErr != nil {
+			imageID = "" // baseline no longer resolvable: skip revert, clear it, still release
+		} else if err := replaceRootVolume(ctx, ec2Client, instanceID, snapshotID); err != nil {
+			return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, err)
+		}
+	}
+
+	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID)
+}
+
+// resolveSnapshotID returns the root EBS snapshot ID backing imageID.
+func resolveSnapshotID(ctx context.Context, client *awsec2.Client, imageID string) (string, error) {
+	out, err := client.DescribeImages(ctx, &awsec2.DescribeImagesInput{ImageIds: []string{imageID}})
+	if err != nil {
+		return "", fmt.Errorf("failed to describe image %s: %w", imageID, err)
+	}
+	if len(out.Images) == 0 || len(out.Images[0].BlockDeviceMappings) == 0 || out.Images[0].BlockDeviceMappings[0].Ebs == nil || out.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId == nil {
+		return "", fmt.Errorf("image %s has no root snapshot", imageID)
+	}
+	return *out.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId, nil
+}
+
+// replaceRootVolume creates a replace-root-volume task for instanceID from
+// snapshotID and blocks until it succeeds, fails, or times out.
+func replaceRootVolume(ctx context.Context, client *awsec2.Client, instanceID, snapshotID string) error {
+	createOut, err := client.CreateReplaceRootVolumeTask(ctx, &awsec2.CreateReplaceRootVolumeTaskInput{
+		InstanceId: aws.String(instanceID),
+		SnapshotId: aws.String(snapshotID),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create replace-root-volume task: %w", err)
+	}
+	taskID := createOut.ReplaceRootVolumeTask.ReplaceRootVolumeTaskId
+
+	for i := 0; i < replaceRootVolumeMaxPolls; i++ {
+		describeOut, err := client.DescribeReplaceRootVolumeTasks(ctx, &awsec2.DescribeReplaceRootVolumeTasksInput{
+			ReplaceRootVolumeTaskIds: []string{*taskID},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to poll replace-root-volume task %s: %w", *taskID, err)
+		}
+		if len(describeOut.ReplaceRootVolumeTasks) == 0 {
+			return fmt.Errorf("replace-root-volume task %s disappeared while polling", *taskID)
+		}
+
+		switch describeOut.ReplaceRootVolumeTasks[0].TaskState {
+		case awsec2types.ReplaceRootVolumeTaskStateSucceeded:
+			return nil
+		case awsec2types.ReplaceRootVolumeTaskStateFailed, awsec2types.ReplaceRootVolumeTaskStateFailing:
+			return fmt.Errorf("replace-root-volume task %s ended in state %s", *taskID, describeOut.ReplaceRootVolumeTasks[0].TaskState)
+		}
+
+		select {
+		case <-time.After(replaceRootVolumePollInterval):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return fmt.Errorf("replace-root-volume task %s did not complete within timeout", *taskID)
+}
+
+// releaseLease writes status/imageID back to instanceID's lease record, conditioned
+// on leaseToken still matching the lease object's current ETag.
+func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID string) error {
+	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
 	}
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:  aws.String(leaseBucket),
-		Key:     aws.String(key),
+		Key:     aws.String(leasePrefix + instanceID),
 		Body:    bytes.NewReader(body),
 		IfMatch: aws.String(leaseToken),
 	})
@@ -244,63 +344,6 @@ func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, 
 		return nil, fmt.Errorf("failed to load AWS config for EC2 pool client: %w", err)
 	}
 	return awsec2.NewFromConfig(cfg), nil
-}
-
-// BuildReleaseScript returns a shell script that reverts instanceID's root volume to
-// the lease's current baseline imageId (read fresh from S3 at release time, not the
-// value baked in at acquire time, so a baseline rotated mid-checkout is still
-// honored), then releases the lease at leasePrefix+instanceID conditioned on
-// leaseToken. If the current imageId is empty, or no longer resolves to an existing
-// AMI/snapshot, the root-volume replacement is skipped, IMAGE_ID is cleared to ""
-// before it's written back to the lease, and the lease is released directly.
-//
-// This runs as a Pulumi local.Command's Delete handler, since `pulumi destroy` never
-// re-invokes the Go provisioner program.
-func BuildReleaseScript(instanceID, leaseToken string) string {
-	return fmt.Sprintf(`set -e
-INSTANCE_ID=%q
-LEASE_TOKEN=%q
-LEASE_BUCKET=%q
-LEASE_KEY=%q
-
-LEASE_FILE=$(mktemp)
-BODY_FILE=$(mktemp)
-trap 'rm -f "$LEASE_FILE" "$BODY_FILE"' EXIT
-aws s3api get-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" "$LEASE_FILE" >/dev/null
-IMAGE_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("imageId") or "")' "$LEASE_FILE")
-
-if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
-  echo "no baseline image published for instance ${INSTANCE_ID}, skipping root volume replacement" >&2
-else
-  if ! SNAPSHOT_ID=$(aws ec2 describe-images --image-ids "$IMAGE_ID" \
-    --query 'Images[0].BlockDeviceMappings[0].Ebs.SnapshotId' --output text 2>&1); then
-    echo "error: baseline image ${IMAGE_ID} for instance ${INSTANCE_ID} could not be described (${SNAPSHOT_ID}), skipping root volume replacement" >&2
-    IMAGE_ID=""
-  elif [ -z "$SNAPSHOT_ID" ] || [ "$SNAPSHOT_ID" = "None" ]; then
-    echo "error: baseline image ${IMAGE_ID} for instance ${INSTANCE_ID} has no snapshot, skipping root volume replacement" >&2
-    IMAGE_ID=""
-  else
-    TASK_ID=$(aws ec2 create-replace-root-volume-task \
-      --instance-id "$INSTANCE_ID" --snapshot-id "$SNAPSHOT_ID" \
-      --query 'ReplaceRootVolumeTask.ReplaceRootVolumeTaskId' --output text)
-
-    for i in $(seq 1 60); do
-      STATE=$(aws ec2 describe-replace-root-volume-tasks --replace-root-volume-task-ids "$TASK_ID" \
-        --query 'ReplaceRootVolumeTasks[0].TaskState' --output text)
-      case "$STATE" in
-        succeeded) break ;;
-        failed|failing) echo "replace-root-volume-task ${TASK_ID} ended in state ${STATE}" >&2; exit 1 ;;
-        *) sleep 10 ;;
-      esac
-    done
-  fi
-fi
-
-BODY=$(printf '{"status":"idle","imageId":"%%s"}' "$IMAGE_ID")
-printf '%%s' "$BODY" > "$BODY_FILE"
-aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
-  --body "$BODY_FILE" --if-match "$LEASE_TOKEN"
-`, instanceID, leaseToken, leaseBucket, leasePrefix+instanceID)
 }
 
 func newS3Client(ctx context.Context, region, profile string) (*s3.Client, error) {

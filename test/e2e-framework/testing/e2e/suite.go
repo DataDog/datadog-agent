@@ -161,6 +161,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
+	testingcomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -682,6 +684,11 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	bs.cleanupCalled = true
 	bs.endTime = time.Now()
 
+	// Runs via defer, not inline, so it still executes across the devMode/initOnly
+	// early returns below and across the FailNow()/runtime.Goexit() branch further
+	// down — the same Goexit-safety reasoning as the t.Cleanup hook in SetupSuite.
+	defer bs.releasePoolInstanceIfAny()
+
 	if bs.params.devMode {
 		return
 	}
@@ -766,6 +773,49 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 				utils.Errorf(bs.T(), "unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
+		}
+	}
+}
+
+// releasePoolInstanceIfAny reverts and releases any macOS EC2 pool instance backing
+// bs.env, so pool leases are freed regardless of dev mode, destroy success, or a
+// mid-teardown failure (see the defer call in TearDownSuite). It is a no-op when the
+// environment never went through the macOS pool path (see NewVM in
+// scenarios/aws/ec2/vm.go).
+//
+// Errors are logged, never propagated: this can run during an already-failing
+// teardown, and a bounded blocking retry here would extend every test's teardown
+// time on transient AWS errors. A stranded lease on failure is a latent risk, same
+// as the pre-existing staleness/TTL gap noted in pool.AcquireIdleInstance.
+func (bs *BaseSuite[Env]) releasePoolInstanceIfAny() {
+	if bs.env == nil {
+		return
+	}
+
+	v := reflect.ValueOf(bs.env)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		remoteHost, ok := field.Interface().(*testingcomponents.RemoteHost)
+		if !ok || remoteHost == nil || remoteHost.PoolInstanceID == "" {
+			continue
+		}
+
+		ctx, cancel := bs.providerContext(deleteTimeout)
+		err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
+		cancel()
+		if err != nil {
+			utils.Errorf(bs.T(), "unable to revert/release macOS pool instance %s: %v", remoteHost.PoolInstanceID, err)
 		}
 	}
 }

@@ -79,8 +79,8 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 
 			// Deleting a Dedicated Host requires it to have lived for at least 24
 			// hours, so a pooled instance/host is never actually destroyed by
-			// Pulumi; the pool manager releases it back to idle instead (see the
-			// ScheduleReleaseOnDestroy call below).
+			// Pulumi; BaseSuite.releasePoolInstanceIfAny releases it back to idle
+			// instead, once the test suite completes.
 			opts = append(opts, pulumi.RetainOnDelete(true))
 
 			// Import the existing pool member instead of creating a new instance,
@@ -101,21 +101,34 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			// this, importing the pool member would make Pulumi reconcile the
 			// instance's real tags down to just that, stripping the pool tag and
 			// making the instance invisible to future Acquire calls.
-			opts = append(opts, pulumi.IgnoreChanges([]string{"tags"}))
+			//
+			// AMI and key pair are also owned externally: the pool member's AMI is
+			// whatever it was actually launched from (fixed at launch, unrelated to
+			// whatever the environment resolves as "latest" on a given run) and the
+			// pool provisioning job may not attach a key pair at all. Since imported
+			// instances can't be replaced, leaving either out of IgnoreChanges makes
+			// every run against a pool member fail as soon as either drifts from the
+			// program's freshly-resolved defaults.
+			opts = append(opts, pulumi.IgnoreChanges([]string{"tags", "ami", "keyName"}))
+
+			// Exported so BaseSuite.releasePoolInstanceIfAny can revert and release
+			// the instance once the test suite completes, independent of region/
+			// profile resolution happening again on the test-harness side.
+			c.PoolInstanceID = pulumi.String(poolAcquired.InstanceID).ToStringOutput()
+			c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
+			c.PoolRegion = pulumi.String(e.Region()).ToStringOutput()
+			c.PoolProfile = pulumi.String(e.Profile()).ToStringOutput()
+		} else {
+			c.PoolInstanceID = pulumi.String("").ToStringOutput()
+			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
+			c.PoolRegion = pulumi.String("").ToStringOutput()
+			c.PoolProfile = pulumi.String("").ToStringOutput()
 		}
 
 		// Create the EC2 instance
 		instance, err := ec2.NewInstance(e, name, instanceArgs, opts...)
 		if err != nil {
 			return err
-		}
-
-		if isMacOSPoolMember {
-			releaseOpts := []pulumi.ResourceOption{pulumi.Parent(c), pulumi.DependsOn([]pulumi.Resource{instance}), e.WithProviders(config.ProviderCommand)}
-
-			if _, err := ec2.ScheduleReleaseOnDestroy(e, name, poolAcquired.InstanceID, poolAcquired.LeaseToken, releaseOpts...); err != nil {
-				return err
-			}
 		}
 
 		// Create connection
