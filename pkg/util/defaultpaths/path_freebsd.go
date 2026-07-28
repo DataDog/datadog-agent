@@ -256,3 +256,10 @@ func GetDefaultDDAgentBin() string {
 func GetDefaultDataPlaneLogFile() string {
 	return defaultDataPlaneLogFile
 }
+
+// GetDefaultDataPlaneBin returns the default path to the data-plane agent binary.
+// The data-plane agent is not shipped on FreeBSD; this exists to keep the package
+// building and always points at a path that does not exist.
+func GetDefaultDataPlaneBin() string {
+	return filepath.Join(GetEmbeddedBinPath(), "agent-data-plane")
+}

@@ -305,3 +305,8 @@ func GetDefaultDDAgentBin() string {
 func GetDefaultDataPlaneLogFile() string {
 	return dataPlaneLogFile
 }
+
+// GetDefaultDataPlaneBin returns the default path to the data-plane agent binary.
+func GetDefaultDataPlaneBin() string {
+	return filepath.Join(GetEmbeddedBinPath(), "agent", "agent-data-plane.exe")
+}
