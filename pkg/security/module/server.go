@@ -24,6 +24,7 @@ import (
 	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -908,7 +909,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component, delegatedAuthComp delegatedauth.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	var containerFilter workloadfilter.FilterBundle
@@ -952,7 +953,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 	if as.msgSender == nil {
 		if cfg.SendPayloadsFromSystemProbe {
-			msgSender, err := NewDirectEventMsgSender(stopper, compression, hostname, secretsComp)
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, hostname, secretsComp, delegatedAuthComp)
 			if err != nil {
 				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {

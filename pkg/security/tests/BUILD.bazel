@@ -59,6 +59,7 @@ go_library(
         "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//comp/core/delegatedauth/noop-impl",
             "//comp/core/ipc/mock",
             "//comp/core/secrets/noop-impl",
             "//comp/core/tagger/types",
@@ -93,6 +94,7 @@ go_library(
             "@org_golang_x_time//rate",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/delegatedauth/noop-impl",
             "//comp/core/ipc/mock",
             "//comp/core/secrets/noop-impl",
             "//comp/core/tagger/types",
@@ -127,6 +129,7 @@ go_library(
             "@org_golang_x_time//rate",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/delegatedauth/noop-impl",
             "//comp/core/ipc/mock",
             "//comp/core/secrets/noop-impl",
             "//comp/core/tagger/types",

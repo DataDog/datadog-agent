@@ -75,7 +75,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 
 		if cwsEnabled {
-			cws, err := secmodule.NewCWSConsumer(cmdServer, evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
+			cws, err := secmodule.NewCWSConsumer(cmdServer, evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets, deps.DelegatedAuth)
 			if err != nil {
 				return nil, err
 			}

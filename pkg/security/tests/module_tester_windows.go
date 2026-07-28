@@ -18,6 +18,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
@@ -183,7 +184,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return nil, err
 		}
 
-		cws, err := module.NewCWSConsumer(cmdServer, testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod}, compression, ipcComp, functionalTestsHostname, secretsnoopimpl.NewComponent().Comp)
+		cws, err := module.NewCWSConsumer(cmdServer, testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod}, compression, ipcComp, functionalTestsHostname, secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
