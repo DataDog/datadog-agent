@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
@@ -189,6 +190,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 				0,
 				"test-hostname",
 				secretsnoopimpl.NewComponent().Comp,
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 			suite.Require().NoError(err)
 			suite.Require().NotNil(pipeline)
@@ -201,6 +203,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 				"", // intakeTrackType not needed
 				"", // protocol not needed
 				"", // origin not needed
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 			suite.Require().NoError(err)
 

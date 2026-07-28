@@ -22,6 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
@@ -223,6 +225,106 @@ func (m *mockSecrets) Refresh() bool {
 
 func (m *mockSecrets) IsValueFromSecret(_ string) bool {
 	return m.valueFromSecret
+}
+
+// mockDelegatedAuth wraps the noop delegated-auth implementation to track Refresh calls.
+type mockDelegatedAuth struct {
+	delegatedauthnooptypes.DelegatedAuthNoop
+	refreshCount atomic.Int32
+}
+
+func (m *mockDelegatedAuth) Refresh() bool {
+	m.refreshCount.Add(1)
+	return true
+}
+
+func TestForbiddenTriggersDelegatedAuthRefreshAndRetry(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+	server.Destination.endpoint = server.Destination.endpoint.WithPendingDelegatedAuthForTest(true)
+
+	mockSecretsComp := &mockSecrets{valueFromSecret: false}
+	server.Destination.secrets = mockSecretsComp
+	mockAuth := &mockDelegatedAuth{}
+	server.Destination.delegatedAuth = mockAuth
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	<-respondChan
+	assert.True(t, <-isRetrying)
+	assert.GreaterOrEqual(t, mockAuth.refreshCount.Load(), int32(1), "delegatedAuth.Refresh should have been called on 403 for a WIF-managed endpoint")
+
+	server.ChangeStatus(200)
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
+	<-output
+
+	server.Stop()
+}
+
+// noRefreshDelegatedAuth reports a WIF-managed endpoint but with no instance to nudge (mirrors
+// how the noop implementation behaves when delegated auth isn't configured at all).
+type noRefreshDelegatedAuth struct {
+	delegatedauthnooptypes.DelegatedAuthNoop
+}
+
+func (m *noRefreshDelegatedAuth) Refresh() bool {
+	return false
+}
+
+func TestForbiddenDropsWhenDelegatedAuthRefreshReturnsFalse(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+	server.Destination.endpoint = server.Destination.endpoint.WithPendingDelegatedAuthForTest(true)
+
+	server.Destination.secrets = &mockSecrets{valueFromSecret: false}
+	server.Destination.delegatedAuth = &noRefreshDelegatedAuth{}
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	// No second respond: a false Refresh() means the payload is dropped, not retried.
+
+	server.Stop()
+}
+
+func TestForbiddenDropsWhenNotPendingDelegatedAuth(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+
+	mockSecretsComp := &mockSecrets{valueFromSecret: false}
+	server.Destination.secrets = mockSecretsComp
+	mockAuth := &mockDelegatedAuth{}
+	server.Destination.delegatedAuth = mockAuth
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	assert.Equal(t, int32(0), mockAuth.refreshCount.Load(), "delegatedAuth.Refresh should NOT have been called for an endpoint that isn't delegated-auth-managed")
+
+	server.Stop()
 }
 
 func TestForbiddenTriggersSecretsRefreshAndRetry(t *testing.T) {
@@ -567,7 +669,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp)
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)

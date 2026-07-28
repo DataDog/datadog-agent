@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -112,17 +113,17 @@ func HasMultiLineRule(rules []*ProcessingRule) bool {
 }
 
 // BuildEndpoints returns the endpoints to send logs.
-func BuildEndpoints(coreConfig pkgconfigmodel.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
-	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+func BuildEndpoints(coreConfig pkgconfigmodel.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin, delegatedAuthComp)
 }
 
 // BuildEndpointsWithVectorOverride returns the endpoints to send logs and enforce Vector override config keys
-func BuildEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
-	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+func BuildEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin, delegatedAuthComp)
 }
 
 // BuildEndpointsWithConfig returns the endpoints to send logs.
-func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
 	if logsConfig.devModeNoSSL() {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
@@ -134,18 +135,18 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
 	}
 	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !logsConfig.shouldUseTCP()) {
-		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, delegatedAuthComp)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
 		"To benefit from increased reliability and better network performances, "+
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
 		logsConfig.getConfigKey("force_use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
-	return buildTCPEndpoints(coreConfig, logsConfig, true)
+	return buildTCPEndpoints(coreConfig, logsConfig, true, delegatedAuthComp)
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
-func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
+func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin, delegatedAuthComp)
 }
 
 // ShouldUseTCP returns true if the configuration should use TCP.
@@ -231,9 +232,9 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	return nil
 }
 
-func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, registerCallback bool) (*Endpoints, error) {
+func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, registerCallback bool, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
-	main := newTCPEndpoint(logsConfig, registerCallback)
+	main := newTCPEndpoint(logsConfig, registerCallback, delegatedAuthComp)
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -262,7 +263,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		main.useSSL = !logsConfig.devModeNoSSL()
 	}
 
-	additionals := loadTCPAdditionalEndpoints(main, logsConfig, registerCallback)
+	additionals := loadTCPAdditionalEndpoints(main, logsConfig, registerCallback, delegatedAuthComp)
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {
@@ -299,23 +300,23 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 }
 
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
-func BuildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+func BuildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, delegatedAuthComp)
 }
 
 // BuildHTTPEndpointsWithVectorOverride returns the HTTP endpoints to send logs to.
-func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, delegatedAuthComp)
 }
 
 // BuildHTTPEndpointsWithCompressionOverride returns the HTTP endpoints to send logs to with compression options.
-func BuildHTTPEndpointsWithCompressionOverride(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
-	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions, true)
+func BuildHTTPEndpointsWithCompressionOverride(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions, true, delegatedAuthComp)
 }
 
 // BuildHTTPEndpointsWithConfig returns the HTTP endpoints to send logs to.
-func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
-	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{}, true)
+func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{}, true, delegatedAuthComp)
 }
 
 // BuildEndpointsForDiagnostic builds endpoints for diagnostic/transient use without
@@ -332,23 +333,24 @@ func BuildEndpointsForDiagnostic(
 	intakeTrackType IntakeTrackType,
 	intakeProtocol IntakeProtocol,
 	intakeOrigin IntakeOrigin,
+	delegatedAuthComp delegatedauth.Component,
 ) (*Endpoints, error) {
 	if protocol == DiagnosticHTTP {
-		return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{}, false)
+		return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{}, false, delegatedAuthComp)
 	}
 
 	// Note: Any change to TCP endpoint construction that allows for a custom endpoint prefix requires alteration of the DefaultDiagnosticPrefix to maintain safety.
-	return buildTCPEndpoints(coreConfig, logsConfig, false)
+	return buildTCPEndpoints(coreConfig, logsConfig, false, delegatedAuthComp)
 }
 
 // buildHTTPEndpoints uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
 // If registerCallback is true, the endpoints will register for config updates to receive API key rotations.
 // Use registerCallback=false for transient/diagnostic endpoints that will be discarded after use.
-func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions, registerCallback bool) (*Endpoints, error) {
+func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions, registerCallback bool, delegatedAuthComp delegatedauth.Component) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := newHTTPEndpoint(logsConfig, registerCallback)
+	main := newHTTPEndpoint(logsConfig, registerCallback, delegatedAuthComp)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -397,7 +399,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			// the main endpoint so OPW receives the same URL path (/api/v2/logs) and
 			// DD-PROTOCOL/DD-EVP-ORIGIN headers as the primary Datadog destination —
 			// matching how user-supplied additional_endpoints inherit these fields.
-			opwEndpoint := newHTTPEndpoint(logsConfig, registerCallback)
+			opwEndpoint := newHTTPEndpoint(logsConfig, registerCallback, delegatedAuthComp)
 			opwEndpoint.Host = host
 			opwEndpoint.Port = port
 			opwEndpoint.useSSL = useSSL
@@ -454,7 +456,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		}
 	}
 
-	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin, registerCallback)
+	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin, registerCallback, delegatedAuthComp)
 
 	// Prepend OPW dual-ship endpoints so they appear before user-configured additional_endpoints.
 	additionals = append(opwAdditionals, additionals...)

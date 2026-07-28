@@ -17,6 +17,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -301,7 +303,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, constants.DefaultBatchMaxConcurrentSend, constants.DefaultBatchMaxSize, constants.DefaultBatchMaxContentSize, constants.DefaultInputChanSize)
-	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -344,7 +346,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true, delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -428,7 +430,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, constants.DefaultBatchMaxConcurrentSend, constants.DefaultBatchMaxSize, constants.DefaultBatchMaxContentSize, constants.DefaultInputChanSize)
-	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -518,7 +520,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, constants.DefaultBatchMaxConcurrentSend, constants.DefaultBatchMaxSize, constants.DefaultBatchMaxContentSize, constants.DefaultInputChanSize)
-	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -567,7 +569,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true, delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -582,7 +584,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 		suite.config.SetInTest("compliance_config.endpoints.logs_dd_url", url)
 		logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 
-		return BuildEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", connectivity, "test-track", "test-proto", "test-source")
+		return BuildEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", connectivity, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	}
 
 	testCases := []struct {
@@ -656,7 +658,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.config.SetInTest("compliance_config.endpoints.batch_wait", "10")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 
@@ -733,7 +735,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		InputChanSize:          constants.DefaultInputChanSize,
 	}
 
-	endpoints, err := BuildServerlessEndpoints(suite.config, "test-track", "test-proto")
+	endpoints, err := BuildServerlessEndpoints(suite.config, "test-track", "test-proto", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -770,7 +772,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	suite.config.SetInTest("api_key", "123")
 	suite.config.SetInTest("observability_pipelines_worker.logs.enabled", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
 	suite.Nil(err)
@@ -781,7 +783,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 	suite.config.SetInTest("api_key", "123")
 	suite.config.SetInTest("observability_pipelines_worker.logs.enabled", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "https://vector.host:8443/")
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
 	suite.Nil(err)
@@ -792,7 +794,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 	suite.config.SetInTest("api_key", "123")
 	suite.config.SetInTest("observability_pipelines_worker.logs.enabled", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, true))
 	suite.Nil(err)
@@ -804,7 +806,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 	suite.config.SetInTest("logs_config.logs_no_ssl", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.enabled", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, false))
 	suite.Nil(err)
@@ -816,7 +818,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.SetInTest("logs_config.logs_no_ssl", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.enabled", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
-	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com.", 0, true))
 	suite.Nil(err)
@@ -831,7 +833,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShip() {
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
 	suite.config.SetInTest("observability_pipelines_worker.logs.dual_ship", true)
 
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	// Primary endpoint must be the Datadog intake, not OPW.
@@ -867,7 +869,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipReliable() {
 	suite.config.SetInTest("observability_pipelines_worker.logs.dual_ship", true)
 	suite.config.SetInTest("observability_pipelines_worker.logs.dual_ship_reliable", true)
 
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	suite.Require().Len(endpoints.Endpoints, 2)
@@ -888,7 +890,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipAndAdditionalEndp
 		{"api_key": "456", "host": "extra.logs.example.com", "port": 443, "use_ssl": true},
 	})
 
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	// Primary endpoint must be Datadog.
@@ -912,7 +914,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipReplacesPrimary
 	suite.config.SetInTest("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
 	// dual_ship is intentionally NOT set — should default to false.
 
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	// Primary endpoint must be OPW (the default OPW-replaces-primary behaviour).
@@ -939,7 +941,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipInheritsCompressi
 		CompressionLevel: 9,
 	}
 
-	endpoints, err := BuildHTTPEndpointsWithCompressionOverride(suite.config, logsConfig, httpEndpointPrefix, "test-track", "test-proto", "test-source", compressionOverride)
+	endpoints, err := BuildHTTPEndpointsWithCompressionOverride(suite.config, logsConfig, httpEndpointPrefix, "test-track", "test-proto", "test-source", compressionOverride, delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	suite.Require().Len(endpoints.Endpoints, 2)
@@ -969,7 +971,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShip() {
 	suite.config.SetInTest("vector.logs.url", "https://opw.example.com:8443/")
 	suite.config.SetInTest("vector.logs.dual_ship", true)
 
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	// Primary endpoint must be the Datadog intake, not OPW.
@@ -995,7 +997,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShipReliable
 	suite.config.SetInTest("vector.logs.dual_ship", true)
 	suite.config.SetInTest("vector.logs.dual_ship_reliable", true)
 
-	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Require().Nil(err)
 
 	suite.Require().Len(endpoints.Endpoints, 2)
@@ -1018,7 +1020,7 @@ func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
 	assert.NoError(t, err)
 	pkglog.SetupLogger(logger, "warn")
 
-	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source")
+	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	assert.NoError(t, buildErr)
 
 	assert.True(t, strings.Contains(buf.String(), "dual_ship=true has no effect"), "expected startup warning when dual_ship=true and OPW is not enabled; got: %s", buf.String())
@@ -1040,7 +1042,7 @@ func TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns(t *testing.T)
 	assert.NoError(t, err)
 	pkglog.SetupLogger(logger, "warn")
 
-	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source")
+	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	assert.NoError(t, buildErr)
 
 	assert.True(t, strings.Contains(buf.String(), "dual_ship_reliable=true has no effect"), "expected startup warning when dual_ship_reliable=true and dual_ship=false; got: %s", buf.String())
@@ -1066,7 +1068,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetInTest("network_devices.netflow.forwarder.use_v2_api", true)
 
 	logsConfig := NewLogsConfigKeys("network_devices.netflow.forwarder.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin")
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 
@@ -1113,7 +1115,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 	suite.config.SetInTest("compliance_config.endpoints.logs_dd_url", "https://my-proxy.com:443")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 
@@ -1158,7 +1160,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 	suite.config.SetInTest("compliance_config.endpoints.dd_url", "https://my-proxy.com:443")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 
@@ -1466,42 +1468,42 @@ func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
 	suite.config.SetInTest("logs_config.batch_wait", 0.1)
 
 	logsConfig := NewLogsConfigKeys("logs_config.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.Equal(100*time.Millisecond, endpoints.BatchWait, "BatchWait should be 100ms")
 
 	// Test with 0.5 seconds (500ms)
 	suite.config.SetInTest("logs_config.batch_wait", 0.5)
-	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.Equal(500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 500ms")
 
 	// Test with 1.5 seconds
 	suite.config.SetInTest("logs_config.batch_wait", 1.5)
-	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.Equal(1500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 1.5 seconds")
 
 	// Test with integer value for backwards compatibility
 	suite.config.SetInTest("logs_config.batch_wait", 5)
-	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.Equal(5*time.Second, endpoints.BatchWait, "BatchWait should be 5 seconds (integer value)")
 
 	// Test with value below minimum (should fallback to default)
 	suite.config.SetInTest("logs_config.batch_wait", 0.05) // 50ms, below 100ms minimum
-	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.Equal(time.Duration(constants.DefaultBatchWait)*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
 
 	// Test with value above maximum (should fallback to default)
 	suite.config.SetInTest("logs_config.batch_wait", 15) // Above 10 second maximum
-	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Nil(err)
 	suite.Equal(time.Duration(constants.DefaultBatchWait)*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
@@ -1556,7 +1558,7 @@ func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 			suite.config.SetInTest("site", tt.site)
 			suite.config.SetInTest("convert_dd_site_fqdn.enabled", true) // FQDN is enabled by default
 
-			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true, delegatedauthnoopimpl.NewComponent().Comp)
 
 			suite.Nil(err)
 			suite.Equal(tt.expectedHost, endpoints.Main.Host, "Host should match expected FQDN with trailing dot")
@@ -1566,7 +1568,7 @@ func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 			suite.config.SetInTest("site", tt.site)
 			suite.config.SetInTest("convert_dd_site_fqdn.enabled", false)
 
-			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true, delegatedauthnoopimpl.NewComponent().Comp)
 
 			suite.Nil(err)
 			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")

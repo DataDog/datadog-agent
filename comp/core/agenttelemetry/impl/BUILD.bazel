@@ -19,6 +19,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/agenttelemetry/def",
         "//comp/core/config",
+        "//comp/core/delegatedauth/noop-impl",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/def",

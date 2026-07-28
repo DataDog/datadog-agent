@@ -82,3 +82,10 @@ func NewMockEndpointWithOptions(opts map[string]interface{}) Endpoint {
 
 	return e
 }
+
+// WithPendingDelegatedAuthForTest returns a copy of the endpoint marked (or unmarked) as
+// delegated-auth-managed, for exercising the WIF-aware 403 retry path in tests.
+func (e Endpoint) WithPendingDelegatedAuthForTest(pending bool) Endpoint {
+	e.hasPendingDelegatedAuth = pending
+	return e
+}
