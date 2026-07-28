@@ -208,8 +208,11 @@ additional_endpoints:
 	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", newAPIKeyset("additional_endpoints", "DELA(some-org-uuid, aws)"))
 	secondOrg.HasPendingDelegatedAuth = true
 
-	// A coexisting static key is preserved alongside the DELA(...) placeholder.
-	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key", "DELA(some-other-org-uuid, aws, region=us-east-1)"))
+	// A coexisting static key is preserved alongside the DELA(...) placeholder. The placeholder
+	// itself only ever keeps the org_uuid and provider - the region param (like any other
+	// non-fallback param) is dropped too, since the placeholder never needs it (see
+	// sanitizeDelaPlaceholder).
+	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key", "DELA(some-other-org-uuid, aws)"))
 	thirdOrg.HasPendingDelegatedAuth = true
 
 	expectedMultipleEndpoints := EndpointDescriptorSet{
@@ -220,6 +223,103 @@ additional_endpoints:
 
 	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+// TestMakeEndpointsStripsDelaFallbackSecret proves that a DELA(...) directive's `fallback=<...>`
+// parameter (and any other parameter) never survives into the placeholder key MakeEndpoints keeps
+// for a pending (or rejected) directive. That parameter can carry a real API key/secret (see
+// pkg/config/setup/config.go's parseDelaDirective and its FallbackAPIKey usage) - if it were kept
+// verbatim, a malformed/rejected directive would still have its fallback secret sent as a literal
+// DD-Api-Key header value and probed against the health-checker's key-validation endpoint, even
+// though the directive itself was never accepted or registered with delegated auth.
+//
+// This also covers the specific shapes that broke a previous regex-based strip
+// (delaFallbackParamRe / stripDelaFallbackParam): the real directive grammar in
+// parseDelaDirective allows a fallback value to contain a ')' (its outer regex is greedy and only
+// backtracks enough to satisfy the trailing `\)$` anchor), which let a `)` embedded in the
+// fallback value smuggle the rest of the secret past a strip that only removed
+// "fallback=<non-comma-non-paren-chars>". sanitizeDelaPlaceholder sidesteps this entirely by never
+// looking at the fallback value at all - it only ever keeps the org_uuid and provider fields.
+func TestMakeEndpointsStripsDelaFallbackSecret(t *testing.T) {
+	const secret = "someSecretValue"
+
+	endpoints := MakeEndpoints(map[string][]string{
+		"https://pending-org.datadoghq.com": {fmt.Sprintf("DELA(some-org-uuid, aws, fallback=%s)", secret)},
+		"https://mixed-org.datadoghq.com": {
+			"some-static-key",
+			fmt.Sprintf("DELA(some-other-org-uuid, aws, region=us-east-1, fallback=%s)", secret),
+		},
+		// A fallback value containing a literal ')' - the real parser (parseDelaDirective) would
+		// accept this with FallbackAPIKey = ")abc)"; the old regex-based strip only removed
+		// "fallback=" and left ")abc)" dangling in the placeholder, leaking the whole secret.
+		"https://paren-secret-org.datadoghq.com": {"DELA(org-uuid-1, aws, fallback=)abc)"},
+		// A fallback value containing a ')' partway through - only the tail after the ')' would
+		// have leaked under the old strip.
+		"https://partial-paren-org.datadoghq.com": {"DELA(org-uuid-2, aws, fallback=ab)cd)"},
+		// A directive the real parser rejects as malformed (the stray comma splits the "value"
+		// into a bogus second param), which still leaked a fragment ("ret") under the old strip.
+		"https://malformed-org.datadoghq.com": {"DELA(org-uuid-3, aws, fallback=sec,ret)"},
+	}, "additional_endpoints")
+
+	for domain, apiKeys := range endpoints {
+		for _, keySet := range apiKeys {
+			for _, key := range keySet.Keys {
+				assert.NotContains(t, key, secret, "fallback secret must never appear verbatim in the key list for domain %q", domain)
+				assert.NotContains(t, key, "abc", "no fragment of a fallback value may survive into the placeholder for domain %q", domain)
+				assert.NotContains(t, key, "cd", "no fragment of a fallback value may survive into the placeholder for domain %q", domain)
+				assert.NotContains(t, key, "sec", "no fragment of a fallback value may survive into the placeholder for domain %q", domain)
+				assert.NotContains(t, key, "ret", "no fragment of a fallback value may survive into the placeholder for domain %q", domain)
+			}
+		}
+	}
+
+	// Only the org_uuid and provider survive; every other param (fallback=... or otherwise) is
+	// dropped unconditionally, and the placeholder stays non-empty and per-directive
+	// distinguishable so delegated-auth-pending tracking (see
+	// resolver.domainResolver.HasPendingDelegatedAuth) keeps working.
+	assert.Equal(t, []string{"DELA(some-org-uuid, aws)"}, endpoints["https://pending-org.datadoghq.com"][0].Keys)
+	assert.Equal(t, []string{"some-static-key", "DELA(some-other-org-uuid, aws)"}, endpoints["https://mixed-org.datadoghq.com"][0].Keys)
+	assert.Equal(t, []string{"DELA(org-uuid-1, aws)"}, endpoints["https://paren-secret-org.datadoghq.com"][0].Keys)
+	assert.Equal(t, []string{"DELA(org-uuid-2, aws)"}, endpoints["https://partial-paren-org.datadoghq.com"][0].Keys)
+	assert.Equal(t, []string{"DELA(org-uuid-3, aws)"}, endpoints["https://malformed-org.datadoghq.com"][0].Keys)
+}
+
+// TestMakeEndpointsDelaPlaceholdersStayDistinguishablePerOrg proves that two different DELA(...)
+// directives on the same domain (e.g. dual-org dual-shipping) produce two distinguishable
+// placeholder keys rather than being deduped into one - collapsing them would silently drop a
+// transaction/authorizer for one of the two orgs (see domainResolver.GetAuthorizers).
+func TestMakeEndpointsDelaPlaceholdersStayDistinguishablePerOrg(t *testing.T) {
+	endpoints := MakeEndpoints(map[string][]string{
+		"https://dual-org.datadoghq.com": {
+			"DELA(org-uuid-a, aws, fallback=secret-a)",
+			"DELA(org-uuid-b, aws, fallback=secret-b)",
+		},
+	}, "additional_endpoints")
+
+	keys := endpoints["https://dual-org.datadoghq.com"][0].Keys
+	assert.Equal(t, []string{"DELA(org-uuid-a, aws)", "DELA(org-uuid-b, aws)"}, keys)
+	assert.NotEqual(t, keys[0], keys[1], "placeholders for two different orgs on the same domain must not collide")
+}
+
+// TestSanitizeDelaPlaceholderMalformedDirective proves that a directive with no parseable
+// org_uuid/provider pair falls back to a fixed sentinel rather than trying to preserve any part of
+// the original text.
+func TestSanitizeDelaPlaceholderMalformedDirective(t *testing.T) {
+	testCases := []struct {
+		name      string
+		directive string
+	}{
+		{"no parens at all", "DELAsomething"},
+		{"only one field", "DELA(org-uuid-only)"},
+		{"empty", "DELA()"},
+		{"empty provider", "DELA(org-uuid,)"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, delaPlaceholderSentinel, sanitizeDelaPlaceholder(tc.directive))
+		})
+	}
 }
 
 func TestGetMultipleEndpointsApiKeyDeduping(t *testing.T) {

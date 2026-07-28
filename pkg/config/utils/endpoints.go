@@ -88,6 +88,58 @@ func IsDelaDirective(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
 }
 
+// delaPlaceholderSentinel is the placeholder kept for a DELA(...) directive that doesn't even
+// have a parseable org_uuid/provider pair. It carries no information from the original directive
+// text, so it can never leak a parameter value regardless of what characters that value contains.
+const delaPlaceholderSentinel = "DELA(unresolved)"
+
+// sanitizeDelaPlaceholder rebuilds a minimal, safe placeholder for a DELA(...) directive string,
+// keeping only the org_uuid and provider fields and unconditionally dropping every other
+// parameter (fallback=... or otherwise).
+//
+// This intentionally does NOT try to parse the directive's real grammar. pkg/config/setup's
+// parseDelaDirective is the only place that does that correctly (and it lives on the setup
+// package, which pkg/config/utils cannot depend on without an import cycle, plus its parsing
+// internals are unexported). A previous version of this function instead used a regex to strip
+// just the `fallback=...` parameter - but the real grammar allows a fallback value to contain a
+// `)` (parseDelaDirective's outer regex is greedy and only backtracks enough to satisfy the
+// trailing `\)$` anchor), so a `)` embedded in the fallback value could end up outside the
+// stripped region and leak into the placeholder verbatim. Re-deriving the exact parsing rules
+// here would just move that bug to the next character combination nobody thought of.
+//
+// Instead: the placeholder's only job is to (a) be recognized by IsDelaDirective so
+// hasPendingDelegatedAuth/domainsPendingDelegatedAuth still flag the domain, and (b) stay
+// distinguishable per directive (so two different DELA(...) directives on the same domain don't
+// collapse into one deduped key). Neither purpose requires preserving any parameter, so we drop
+// all of them unconditionally - no parameter value, of any shape, can ever survive into the
+// placeholder.
+func sanitizeDelaPlaceholder(directive string) string {
+	rest, ok := strings.CutPrefix(directive, delaDirectivePrefix)
+	if !ok {
+		return delaPlaceholderSentinel
+	}
+	// Directive params never span a literal ')': even in the real grammar, a fallback value
+	// containing ')' can only appear before the directive's own closing paren. Truncating at the
+	// first ')' means anything after it (or the fallback value's ')' itself) is discarded here,
+	// never inspected for its contents.
+	if idx := strings.IndexByte(rest, ')'); idx >= 0 {
+		rest = rest[:idx]
+	}
+
+	fields := strings.SplitN(rest, ",", 3)
+	if len(fields) < 2 {
+		return delaPlaceholderSentinel
+	}
+
+	orgUUID := strings.TrimSpace(fields[0])
+	provider := strings.TrimSpace(fields[1])
+	if orgUUID == "" || provider == "" {
+		return delaPlaceholderSentinel
+	}
+
+	return fmt.Sprintf("%s%s, %s)", delaDirectivePrefix, orgUUID, provider)
+}
+
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
 // a map of domain to Endpoint structs.
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIKeys {
@@ -114,7 +166,20 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 				// domain with zero keys never gets a transaction, never receives a 403, and never
 				// triggers the retry-not-drop path - the placeholder gets a real 403 immediately,
 				// which routes into that path until UpdateAPIKeys replaces it with the real key.
+				//
+				// This placeholder is kept even for a directive that will ultimately be rejected
+				// as malformed/unsupported by configureAdditionalEndpointsDelegatedAuth (in
+				// pkg/config/setup/config.go) - this package has no visibility into that decision,
+				// and a rejected directive still needs a transaction to eventually 403-and-drop.
+				// A directive can carry a `fallback=<api_key>` param with a real secret in it (and
+				// other params besides), so the value kept here is rebuilt from only the org_uuid
+				// and provider fields (see sanitizeDelaPlaceholder) rather than the original text:
+				// the placeholder's only job is to be a non-matching key that reliably 403s, and
+				// forwarding a real secret as a bogus DD-Api-Key header value (and into the
+				// health-checker's key-validation calls) serves no purpose and is a
+				// plaintext-credential exposure.
 				hasPendingDelegatedAuth = true
+				trimmedAPIKey = sanitizeDelaPlaceholder(trimmedAPIKey)
 			}
 			trimmed = append(trimmed, trimmedAPIKey)
 		}
