@@ -8,6 +8,8 @@
 package ecs
 
 import (
+	"context"
+	"errors"
 	"os"
 	"reflect"
 	"runtime"
@@ -16,7 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
@@ -164,5 +168,163 @@ func TestSetTaskCollectionParserForDaemon(t *testing.T) {
 			require.NotEmpty(t, name, "parser function name should be resolvable")
 			assert.Contains(t, name, tt.expectParserSuffix, "unexpected parser selected")
 		})
+	}
+}
+
+// TestInitializeDaemonModeV1Unavailable covers daemon-mode startup when the metadata v1
+// introspection endpoint cannot be used. ECS Managed Instances must still start by routing
+// to the v4 /tasks endpoint, while EC2 must keep failing because every EC2 daemon parser
+// reads the task list from v1.
+func TestInitializeDaemonModeV1Unavailable(t *testing.T) {
+	getInstanceErr := errors.New("connection refused")
+
+	tests := []struct {
+		name                  string
+		launchType            workloadmeta.ECSLaunchType
+		taskCollectionEnabled bool
+		hasMetaV4             bool
+		// v1Client is returned by the ecsMetaV1 seam; nil means v1 client init fails.
+		v1Client           *fakev1EcsClient
+		expectErr          bool
+		expectParserSuffix string
+	}{
+		{
+			name:                  "managed instances without v1 client uses v4 /tasks",
+			launchType:            workloadmeta.ECSLaunchTypeManagedInstances,
+			taskCollectionEnabled: true,
+			hasMetaV4:             true,
+			v1Client:              nil,
+			expectParserSuffix:    "parseTasksFromV4TasksEndpoint",
+		},
+		{
+			name:                  "managed instances with failing GetInstance uses v4 /tasks",
+			launchType:            workloadmeta.ECSLaunchTypeManagedInstances,
+			taskCollectionEnabled: true,
+			hasMetaV4:             true,
+			v1Client: &fakev1EcsClient{
+				mockGetInstance: func(context.Context) (*v1.Instance, error) { return nil, getInstanceErr },
+			},
+			expectParserSuffix: "parseTasksFromV4TasksEndpoint",
+		},
+		{
+			name:                  "managed instances without v1 and without metaV4 fails",
+			launchType:            workloadmeta.ECSLaunchTypeManagedInstances,
+			taskCollectionEnabled: true,
+			hasMetaV4:             false,
+			v1Client:              nil,
+			expectErr:             true,
+		},
+		{
+			name:                  "managed instances without v1 and task collection disabled fails",
+			launchType:            workloadmeta.ECSLaunchTypeManagedInstances,
+			taskCollectionEnabled: false,
+			hasMetaV4:             true,
+			v1Client:              nil,
+			expectErr:             true,
+		},
+		{
+			name:                  "ec2 without v1 client fails",
+			launchType:            workloadmeta.ECSLaunchTypeEC2,
+			taskCollectionEnabled: true,
+			hasMetaV4:             true,
+			v1Client:              nil,
+			expectErr:             true,
+		},
+		{
+			name:                  "ec2 with failing GetInstance fails instead of leaving a nil parser",
+			launchType:            workloadmeta.ECSLaunchTypeEC2,
+			taskCollectionEnabled: true,
+			hasMetaV4:             true,
+			v1Client: &fakev1EcsClient{
+				mockGetInstance: func(context.Context) (*v1.Instance, error) { return nil, getInstanceErr },
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The v4 /tasks route additionally requires the v4 env var to be present.
+			t.Setenv(v3or4.DefaultMetadataURIv4EnvVariable, "http://169.254.170.2/v4")
+
+			restore := stubDaemonMetadataSeams(t, tt.v1Client, tt.hasMetaV4)
+			defer restore()
+
+			c := &collector{
+				config:                config.NewMockWithOverrides(t, map[string]interface{}{}),
+				taskCollectionEnabled: tt.taskCollectionEnabled,
+				actualLaunchType:      tt.launchType,
+			}
+
+			err := c.initializeDaemonMode(context.Background())
+
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, c.taskCollectionParser, "a nil parser would panic on the first Pull")
+			assert.Contains(t, taskParserName(c.taskCollectionParser), tt.expectParserSuffix)
+		})
+	}
+
+}
+
+// TestInitializeDaemonModeV1Available verifies that a reachable v1 endpoint still drives
+// parser selection and populates the instance-derived fields, unchanged for EC2.
+func TestInitializeDaemonModeV1Available(t *testing.T) {
+	t.Setenv(v3or4.DefaultMetadataURIv4EnvVariable, "http://169.254.170.2/v4")
+
+	v1Client := &fakev1EcsClient{
+		mockGetInstance: func(context.Context) (*v1.Instance, error) {
+			return &v1.Instance{
+				Cluster:              "my-cluster",
+				ContainerInstanceARN: "arn:aws:ecs:us-east-1:123456789012:container-instance/my-cluster/abc123",
+				Version:              "Amazon ECS Agent - v1.54.0 (abc1234)",
+			}, nil
+		},
+	}
+
+	restore := stubDaemonMetadataSeams(t, v1Client, false)
+	defer restore()
+
+	c := &collector{
+		config:                config.NewMockWithOverrides(t, map[string]interface{}{}),
+		taskCollectionEnabled: true,
+		actualLaunchType:      workloadmeta.ECSLaunchTypeEC2,
+	}
+
+	require.NoError(t, c.initializeDaemonMode(context.Background()))
+	assert.Equal(t, "my-cluster", c.clusterName)
+	assert.Equal(t, "arn:aws:ecs:us-east-1:123456789012:container-instance/my-cluster/abc123", c.containerInstanceARN)
+	require.NotNil(t, c.taskCollectionParser)
+	assert.Contains(t, taskParserName(c.taskCollectionParser), "parseTasksFromV4Endpoint")
+}
+
+// stubDaemonMetadataSeams replaces the metadata helpers that initializeDaemonMode calls so
+// tests do not depend on memoized global clients or network I/O. A nil v1Client makes the
+// v1 client initialization fail.
+func stubDaemonMetadataSeams(t *testing.T, v1Client *fakev1EcsClient, hasMetaV4 bool) func() {
+	t.Helper()
+
+	origV1, origV4, origTags := ecsMetaV1, ecsMetaV4FromCurrentTask, ecsHasEC2ResourceTags
+
+	ecsMetaV1 = func() (v1.Client, error) {
+		if v1Client == nil {
+			return nil, errors.New("temporary failure in ecsutil-meta-v1")
+		}
+		return v1Client, nil
+	}
+	ecsMetaV4FromCurrentTask = func() (v3or4.Client, error) {
+		if !hasMetaV4 {
+			return nil, errors.New("v4 metadata endpoint not available")
+		}
+		return &fakev3or4EcsClient{}, nil
+	}
+	ecsHasEC2ResourceTags = func() bool { return false }
+
+	return func() {
+		ecsMetaV1, ecsMetaV4FromCurrentTask, ecsHasEC2ResourceTags = origV1, origV4, origTags
 	}
 }

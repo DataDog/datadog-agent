@@ -10,6 +10,7 @@ package ecs
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -22,10 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 )
 
+// declare these as vars not const to ease testing: the underlying helpers memoize
+// global state and perform network I/O, which unit tests cannot rely on.
+var (
+	ecsMetaV1                = ecsmeta.V1
+	ecsMetaV4FromCurrentTask = ecsmeta.V4FromCurrentTask
+	ecsHasEC2ResourceTags    = ecsutil.HasEC2ResourceTags
+)
+
 // initializeDaemonMode sets up the collector for daemon deployment mode.
 //
 // In daemon mode, the agent runs as a daemon on an ECS instance and monitors all tasks on that instance.
-// This mode requires V1 metadata API access and uses different parsing strategies based on configuration:
+// The parsing strategy depends on configuration and on which metadata endpoints are reachable:
 //
 //   - V1 parsing: Lists all tasks on the instance (basic info)
 //     See: v1parser.go - parseTasksFromV1Endpoint()
@@ -36,15 +45,13 @@ import (
 //   - V4 /tasks parsing: Fetches all host tasks in a single call from the daemon container's v4 endpoint.
 //     Used on ECS Managed Instances where the /tasks endpoint is available.
 //     See: daemon_parser.go - parseTasksFromV4TasksEndpoint()
+//
+// V1 is required by the first two strategies, which read the task list from it. It is not
+// required by the third: on ECS Managed Instances the v4 /tasks payload carries everything
+// the parser needs, and the v1 introspection endpoint is not guaranteed to be reachable
+// from the daemon container. Daemon mode therefore treats v1 as best-effort and only fails
+// when no v1-independent strategy is available.
 func (c *collector) initializeDaemonMode(ctx context.Context) error {
-	var err error
-
-	// Daemon mode requires v1 API access
-	c.metaV1, err = ecsmeta.V1()
-	if err != nil {
-		return err
-	}
-
 	// This only exists to allow overriding for testing
 	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
 		return v3or4.NewClient(metaURI, metaVersion, v3or4.WithTryOption(
@@ -56,25 +63,48 @@ func (c *collector) initializeDaemonMode(ctx context.Context) error {
 
 	// Attempt to initialize a v4 client for the daemon agent's own container.
 	// This enables the /tasks endpoint on ECS Managed Instances.
-	if v4Client, err := ecsmeta.V4FromCurrentTask(); err == nil {
+	if v4Client, err := ecsMetaV4FromCurrentTask(); err == nil {
 		c.metaV4 = v4Client
 	} else {
 		log.Debugf("ECS daemon: failed to initialize v4 client for current task (may not be available): %v", err)
 	}
 
-	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
+	c.hasResourceTags = ecsHasEC2ResourceTags()
 	c.collectResourceTags = c.config.GetBool("ecs_collect_resource_tags_ec2")
 
-	instance, err := c.metaV1.GetInstance(ctx)
-	if err == nil {
-		c.clusterName = instance.Cluster
-		c.containerInstanceARN = instance.ContainerInstanceARN
-		c.setTaskCollectionParserForDaemon(instance.Version)
+	var v1Err error
+	c.metaV1, v1Err = ecsMetaV1()
+	if v1Err != nil {
+		log.Warnf("ECS daemon: metadata v1 client unavailable: %v", v1Err)
+		// Guard against a non-nil interface wrapping a nil client.
+		c.metaV1 = nil
 	} else {
-		log.Warnf("cannot determine ECS cluster name: %s", err)
+		instance, err := c.metaV1.GetInstance(ctx)
+		if err != nil {
+			v1Err = err
+			log.Warnf("cannot determine ECS cluster name: %s", err)
+		} else {
+			c.clusterName = instance.Cluster
+			c.containerInstanceARN = instance.ContainerInstanceARN
+			c.setTaskCollectionParserForDaemon(instance.Version)
+			return nil
+		}
 	}
 
-	return nil
+	// No usable v1 instance metadata. The v4 /tasks endpoint on Managed Instances derives
+	// cluster identity from each task, so it can run without v1. Select it explicitly
+	// rather than going through setTaskCollectionParserForDaemon, which would otherwise
+	// pick a v1-backed parser and dereference the nil client on the first Pull.
+	if c.taskCollectionEnabled && c.metaV4 != nil &&
+		c.actualLaunchType == workloadmeta.ECSLaunchTypeManagedInstances {
+		log.Infof("ECS daemon: metadata v1 unavailable, using metadata v4 /tasks endpoint for managed instances")
+		c.taskCollectionParser = c.parseTasksFromV4TasksEndpoint
+		return nil
+	}
+
+	// Returning an error leaves the collector as a candidate, so workloadmeta retries
+	// Start and picks up the cluster name once the endpoint recovers.
+	return fmt.Errorf("ECS daemon mode requires metadata v1: %w", v1Err)
 }
 
 // setTaskCollectionParserForDaemon sets up the appropriate task parser for daemon deployment mode.

@@ -1,0 +1,23 @@
+---
+fixes:
+  - |
+    On ECS Managed Instances in daemon mode, the ECS workloadmeta collector no longer
+    fails to start when the ECS Metadata v1 introspection endpoint is unreachable. The
+    collector now falls back to the metadata v4 ``/tasks`` endpoint, which provides all
+    the task data this deployment needs. Previously a v1 failure produced no ``ECSTask``
+    entities for the whole host, so ``container.*`` metrics were missing the
+    ``task_arn``, ``task_family``, ``task_version``, ``ecs_cluster_name`` and
+    ``ecs_container_name`` tags. ECS EC2 daemon mode still requires metadata v1, which
+    provides its task list.
+  - |
+    ECS cluster metadata (cluster name, cluster ID, region and AWS account ID) now falls
+    back to the Agent's own task metadata when the ECS Metadata v1 introspection
+    endpoint is unavailable. This fixes the orchestrator ECS check being skipped, the
+    container lifecycle check reporting an empty cluster ID, and the flare missing its
+    ECS section on ECS Managed Instances.
+other:
+  - |
+    In ECS daemon mode, the ECS workloadmeta collector now returns a startup error when
+    the ECS Metadata v1 instance data cannot be retrieved and no v1-independent task
+    parser is available, instead of starting without a task parser. Startup is retried,
+    so the collector recovers once the endpoint becomes reachable.

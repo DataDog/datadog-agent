@@ -21,6 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// declare these as vars not const to ease testing
+var (
+	fetchECSInstanceMetadata = getECSInstanceMetadata
+	fetchECSTaskMetadata     = getECSTaskMetadata
 )
 
 // MetaECS stores ECS cluster metadata
@@ -80,9 +87,25 @@ func newECSMeta(ctx context.Context) (*MetaECS, error) {
 
 	if env.IsFeaturePresent(env.ECSFargate) {
 		// There is no instance metadata endpoint on ECS Fargate
-		awsAccountID, region, cluster, version, err = getECSTaskMetadata(ctx)
+		awsAccountID, region, cluster, version, err = fetchECSTaskMetadata(ctx)
 	} else {
-		awsAccountID, region, cluster, version, err = getECSInstanceMetadata(ctx)
+		awsAccountID, region, cluster, version, err = fetchECSInstanceMetadata(ctx)
+		if err != nil {
+			// The v1 introspection endpoint is not guaranteed to be reachable outside of
+			// ECS EC2 (notably on ECS Managed Instances). The agent's own task metadata
+			// carries the same cluster identity, so fall back to it.
+			log.Debugf("could not get ECS instance metadata, falling back to task metadata: %s", err)
+
+			var fallbackErr error
+			awsAccountID, region, cluster, version, fallbackErr = fetchECSTaskMetadata(ctx)
+			if fallbackErr != nil {
+				log.Debugf("could not get ECS task metadata either: %s", fallbackErr)
+				// Surface the original instance metadata error, which is the more
+				// meaningful one outside of Managed Instances.
+				return nil, err
+			}
+			err = nil
+		}
 	}
 
 	if err != nil {
