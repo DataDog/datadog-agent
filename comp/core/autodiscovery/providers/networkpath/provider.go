@@ -12,8 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"go.yaml.in/yaml/v2"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -303,7 +306,6 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 		TracerouteQueries:     endpoint.TracerouteQueries,
 		E2eQueries:            endpoint.E2eQueries,
 		Tags:                  endpoint.Tags,
-		Timeout:               endpoint.TimeoutMS,
 		MinCollectionInterval: endpoint.IntervalSec,
 	}
 
@@ -336,6 +338,14 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	if endpoint.TimeoutMS != nil && *endpoint.TimeoutMS <= 0 {
 		return networkPathInstanceConfig{}, errors.New("timeout_ms must be > 0")
 	}
+	if endpoint.TimeoutMS != nil {
+		maxTTL := tracerouteconfig.DefaultMaxTTL
+		if endpoint.MaxTTL != nil {
+			maxTTL = *endpoint.MaxTTL
+		}
+		perHopTimeoutMS := calculatePerHopTimeoutMS(*endpoint.TimeoutMS, maxTTL)
+		instance.Timeout = &perHopTimeoutMS
+	}
 	if endpoint.IntervalSec != nil && *endpoint.IntervalSec <= 0 {
 		return networkPathInstanceConfig{}, errors.New("interval_sec must be > 0")
 	}
@@ -358,6 +368,15 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	}
 
 	return instance, nil
+}
+
+func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
+	perHopTimeout := tracerouteconfig.PerHopTimeout(time.Duration(totalTimeoutMS)*time.Millisecond, uint8(maxTTL))
+	// Round up because the check's timeout is expressed in whole milliseconds
+	// and zero would make it fall back to the unrelated local default.
+	// This can exceed the total budget by less than 1ms per hop; strict
+	// end-to-end timeout enforcement will be implemented separately.
+	return int64(math.Ceil(float64(perHopTimeout) / float64(time.Millisecond)))
 }
 
 func sameConfigs(a, b []integration.Config) bool {
