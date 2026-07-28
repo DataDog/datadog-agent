@@ -1320,6 +1320,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
+	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_interval", time.Hour)
+	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_jitter", 10*time.Minute)
+	config.BindEnvAndSetDefault("config_files_discovery.startup_jitter", time.Minute)
 
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)

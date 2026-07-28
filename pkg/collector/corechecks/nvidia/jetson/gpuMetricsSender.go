@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,39 +16,47 @@ import (
 )
 
 type gpuMetricSender struct {
-	regex *regexp.Regexp
+	emcRegex *regexp.Regexp
+	gpuRegex *regexp.Regexp
 }
 
 func (gpuMetricSender *gpuMetricSender) Init() error {
-	regex, err := regexp.Compile(`(?:EMC_FREQ\s*(?P<emcPct>\d+)%(?:@(?P<emcFreq>\d+))?\s*)?GR3D_FREQ\s*(?:(?P<gpuPct>\d+)%)?(?:@(?P<gpuFreq>\d+)|@(?:\[(?P<gpcFreqs>(?:\d+,?)+)]))?`)
+	regex, err := regexp.Compile(`EMC_FREQ\s*(?P<emcPct>\d+)%(?:@(?P<emcFreq>\d+))?`)
 	if err != nil {
 		return err
 	}
-	gpuMetricSender.regex = regex
+	gpuMetricSender.emcRegex = regex
+
+	regex, err = regexp.Compile(`GR3D_FREQ\s*(?:(?P<gpuPct>\d+)%)?(?:@(?P<gpuFreq>\d+)|@(?:\[(?P<gpcFreqs>(?:\d+,?)+)]))?`)
+	if err != nil {
+		return err
+	}
+	gpuMetricSender.gpuRegex = regex
 
 	return nil
 }
 
 func (gpuMetricSender *gpuMetricSender) SendMetrics(sender sender.Sender, field string) error {
-	gpuFields := regexFindStringSubmatchMap(gpuMetricSender.regex, field)
-	if gpuFields == nil {
-		return errors.New("could not parse GPU usage fields")
-	}
-
-	if len(gpuFields["emcPct"]) > 0 {
-		emcPct, err := strconv.ParseFloat(gpuFields["emcPct"], 64)
+	emcFields := regexFindStringSubmatchMap(gpuMetricSender.emcRegex, field)
+	if emcFields != nil {
+		emcPct, err := strconv.ParseFloat(emcFields["emcPct"], 64)
 		if err != nil {
 			return err
 		}
 		sender.Gauge("nvidia.jetson.emc.usage", emcPct, "", nil)
+
+		if len(emcFields["emcFreq"]) > 0 {
+			emcFreq, err := strconv.ParseFloat(emcFields["emcFreq"], 64)
+			if err != nil {
+				return err
+			}
+			sender.Gauge("nvidia.jetson.emc.freq", emcFreq, "", nil)
+		}
 	}
 
-	if len(gpuFields["emcFreq"]) > 0 {
-		emcFreq, err := strconv.ParseFloat(gpuFields["emcFreq"], 64)
-		if err != nil {
-			return err
-		}
-		sender.Gauge("nvidia.jetson.emc.freq", emcFreq, "", nil)
+	gpuFields := regexFindStringSubmatchMap(gpuMetricSender.gpuRegex, field)
+	if gpuFields == nil {
+		return nil
 	}
 
 	if len(gpuFields["gpuPct"]) > 0 {

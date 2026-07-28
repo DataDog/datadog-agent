@@ -48,6 +48,7 @@ NPM_TAG = "npm"
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
+    "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",

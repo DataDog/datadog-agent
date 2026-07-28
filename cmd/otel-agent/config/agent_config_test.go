@@ -33,6 +33,20 @@ func (suite *ConfigTestSuite) SetupTest() {
 	configmock.New(suite.T())
 	suite.T().Setenv("DD_API_KEY", "")
 	suite.T().Setenv("DD_SITE", "")
+	// LoadProxyFromEnv treats a present-but-empty var as set, so these must be
+	// unset rather than set to "" - otherwise DD_PROXY_* short-circuits the
+	// HTTP_PROXY/HTTPS_PROXY/NO_PROXY fallback even when a test sets those.
+	// The lowercase variants are cleared too since LoadProxyFromEnv falls
+	// back to them when the uppercase ones aren't set.
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
 func TestNoURIsProvided(t *testing.T) {
