@@ -236,6 +236,7 @@ SERVERLESS_TAGS = set(["serverless", "otlp"])
 SYSTEM_PROBE_TAGS = set([
     "datadog.no_waf",
     "ec2",
+    "kubelet",
     "linux_bpf",
     "netcgo",
     "npm",
@@ -278,7 +279,7 @@ LOADER_TAGS = set()
 # imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10
 HOST_PROFILER_TAGS = set(["remove_all_sd", "docker", "kubelet"])
 
-PRIVATEACTIONRUNNER_TAGS = set(["zlib", "zstd"])
+PRIVATEACTIONRUNNER_TAGS = set(["kubelet", "zlib", "zstd"])
 
 SECRET_GENERIC_CONNECTOR_TAGS = set()
 

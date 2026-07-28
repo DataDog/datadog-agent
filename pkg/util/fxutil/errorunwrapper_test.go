@@ -19,4 +19,5 @@ func TestUnwrapIfErrArgumentsFailed(t *testing.T) {
 		fx.Provide(func() (*struct{}, error) { return nil, expectedError }),
 	)
 	require.Equal(t, expectedError.Error(), err.Error())
+	require.ErrorIs(t, err, expectedError)
 }

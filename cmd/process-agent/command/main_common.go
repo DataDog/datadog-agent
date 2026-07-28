@@ -18,6 +18,8 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -108,7 +110,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		RCClient     rcclient.Component
 		WorkloadMeta workloadmeta.Component
 	}
+	var startupGate fxutil.StartupGate
 	app := fx.New(
+		fxutil.StartupGateOption[agentlifecycle.Component](ctx, &startupGate),
 		fx.Supply(
 			core.BundleParams{
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
@@ -119,6 +123,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				LogParams:    DaemonLogParams,
 			},
 		),
+		fx.Supply(agentlifecycle.Params{ComponentName: "process-agent"}),
+		agentlifecyclefx.Module(),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,
@@ -233,6 +239,15 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return nil
 		}),
 	)
+	if err := app.Err(); err != nil && !errors.Is(err, errAgentDisabled) {
+		if startupGate != nil {
+			return errors.Join(fxutil.UnwrapIfErrArgumentsFailed(err), startupGate.Close())
+		}
+		return fxutil.UnwrapIfErrArgumentsFailed(err)
+	}
+	if startupGate != nil {
+		defer startupGate.Close()
+	}
 
 	err := app.Start(ctx)
 	if err != nil {
@@ -252,7 +267,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return err
 		}
 	}
-
 	// Wait for exit signal
 	select {
 	case <-exitSignal:

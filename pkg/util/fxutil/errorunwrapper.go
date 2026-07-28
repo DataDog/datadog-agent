@@ -8,17 +8,18 @@ package fxutil
 import (
 	"errors"
 	"reflect"
-	"regexp"
 )
 
 // UnwrapIfErrArgumentsFailed unwrap the error if the error was returned by an FX invoke method otherwise return the error.
 func UnwrapIfErrArgumentsFailed(err error) error {
 	// This is a workaround until https://github.com/uber-go/fx/issues/988 will be done.
 	if reflect.TypeOf(err).Name() == "errArgumentsFailed" {
-		re := regexp.MustCompile(`.*received non-nil error from function.*\(.*\): (.*)`)
-		matches := re.FindStringSubmatch(err.Error())
-		if len(matches) == 2 {
-			return errors.New(matches[1])
+		for {
+			cause := errors.Unwrap(err)
+			if cause == nil {
+				return err
+			}
+			err = cause
 		}
 	}
 	return err

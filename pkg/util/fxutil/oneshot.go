@@ -28,14 +28,13 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 
 // OneShotWithStartupGate constructs an Fx application, waits for the supplied gate before
 // starting its lifecycle, invokes oneShotFunc, and releases the gate after lifecycle shutdown.
-// The one-shot function is responsible for calling MarkActive after its non-Fx startup completes.
 func OneShotWithStartupGate[T StartupGate](oneShotFunc interface{}, opts ...fx.Option) error {
 	if fxAppTestOverride != nil {
 		return fxAppTestOverride(oneShotFunc, opts)
 	}
 
-	var gate T
-	opts = append(opts, fx.Populate(&gate))
+	var gate StartupGate
+	opts = append([]fx.Option{StartupGateOption[T](context.Background(), &gate)}, opts...)
 	return oneShot(oneShotFunc, func() StartupGate { return gate }, opts...)
 }
 
@@ -62,16 +61,13 @@ func oneShot(oneShotFunc interface{}, gateProvider func() StartupGate, opts ...f
 
 	var gate StartupGate
 	if gateProvider != nil {
-		if err := app.Err(); err != nil {
-			return UnwrapIfErrArgumentsFailed(err)
-		}
 		gate = gateProvider()
-		if err := WaitForStartupGate(context.Background(), app, gate); err != nil {
-			if errors.Is(err, ErrStartupGateShutdown) {
-				return gate.Close()
-			}
-			return errors.Join(err, gate.Close())
+	}
+	if err := app.Err(); err != nil {
+		if gate != nil {
+			return errors.Join(UnwrapIfErrArgumentsFailed(err), gate.Close())
 		}
+		return UnwrapIfErrArgumentsFailed(err)
 	}
 
 	// start the app
@@ -90,16 +86,12 @@ func oneShot(oneShotFunc interface{}, gateProvider func() StartupGate, opts ...f
 	return stopAppAndCloseGate(app, gate)
 }
 
-// stopAppAndCloseGate preserves the active lifecycle state when Fx cannot prove
-// that every hook stopped. Process teardown remains the final safety boundary.
 func stopAppAndCloseGate(app *fx.App, gate StartupGate) error {
-	if err := stopApp(app); err != nil {
-		return err
-	}
+	stopErr := stopApp(app)
 	if gate != nil {
-		return gate.Close()
+		return errors.Join(stopErr, gate.Close())
 	}
-	return nil
+	return stopErr
 }
 
 func stopApp(app *fx.App) error {

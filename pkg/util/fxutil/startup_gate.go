@@ -7,41 +7,21 @@ package fxutil
 
 import (
 	"context"
-	"errors"
 
 	"go.uber.org/fx"
 )
 
-// StartupGate delays lifecycle startup until an external ownership condition is satisfied.
+// StartupGate delays lifecycle startup until an external condition is satisfied.
 type StartupGate interface {
 	Wait(context.Context) error
-	MarkActive() error
 	Close() error
 }
 
-// ErrStartupGateShutdown means an Fx shutdown signal arrived while the gate was waiting.
-var ErrStartupGateShutdown = errors.New("shutdown while waiting on startup gate")
-
-// WaitForStartupGate waits for a gate and cancels it when the caller or Fx requests shutdown.
-func WaitForStartupGate(ctx context.Context, app *fx.App, gate StartupGate) error {
-	waitCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	waitResult := make(chan error, 1)
-	go func() {
-		waitResult <- gate.Wait(waitCtx)
-	}()
-
-	select {
-	case err := <-waitResult:
-		return err
-	case <-app.Done():
-		cancel()
-		<-waitResult
-		return ErrStartupGateShutdown
-	case <-ctx.Done():
-		cancel()
-		<-waitResult
-		return ctx.Err()
-	}
+// StartupGateOption installs the gate as the first Fx invoke. Fx providers are
+// lazy, so later constructors and invokes are not evaluated until Wait returns.
+func StartupGateOption[T StartupGate](ctx context.Context, captured *StartupGate) fx.Option {
+	return fx.Invoke(func(gate T) error {
+		*captured = gate
+		return gate.Wait(ctx)
+	})
 }

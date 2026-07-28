@@ -42,12 +42,27 @@ func (kubeletLocalPodSource) ListLocalPods(ctx context.Context) ([]localPod, err
 				controller: owner.Controller != nil && *owner.Controller,
 			})
 		}
+		containers := make([]localContainer, 0, len(pod.Status.Containers))
+		for _, container := range pod.Status.Containers {
+			containers = append(containers, localContainer{
+				name:       container.Name,
+				terminated: container.State.Terminated != nil,
+				ready:      container.Ready,
+			})
+		}
+		declaredContainers := make([]string, 0, len(pod.Spec.Containers))
+		for _, container := range pod.Spec.Containers {
+			declaredContainers = append(declaredContainers, container.Name)
+		}
 		pods = append(pods, localPod{
-			uid:       pod.Metadata.UID,
-			name:      pod.Metadata.Name,
-			namespace: pod.Metadata.Namespace,
-			createdAt: pod.Metadata.CreationTimestamp,
-			owners:    owners,
+			uid:                pod.Metadata.UID,
+			name:               pod.Metadata.Name,
+			namespace:          pod.Metadata.Namespace,
+			createdAt:          pod.Metadata.CreationTimestamp,
+			deletionTimestamp:  pod.Metadata.DeletionTimestamp,
+			owners:             owners,
+			declaredContainers: declaredContainers,
+			containers:         containers,
 		})
 	}
 	return pods, nil

@@ -21,6 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -103,6 +105,8 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
 			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
 		core.Bundle(core.WithSecrets()),
+		fx.Supply(agentlifecycle.Params{ComponentName: "private-action-runner"}),
+		agentlifecyclefx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
@@ -127,7 +131,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		privateactionrunnerfx.Module(),
 	}
 
-	err := fxutil.Run(fxOptions...)
+	err := fxutil.RunWithStartupGate[agentlifecycle.Component](fxOptions...)
 	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
 		return nil
 	}

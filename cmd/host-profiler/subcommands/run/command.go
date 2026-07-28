@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
@@ -90,6 +92,8 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	}
 
 	var opts = []fx.Option{
+		fx.Supply(agentlifecycle.Params{ComponentName: "host-profiler"}),
+		agentlifecyclefx.Module(),
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfigURI(), cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
@@ -120,7 +124,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		)
 	}
 
-	return fxutil.OneShot(run, opts...)
+	return fxutil.OneShotWithStartupGate[agentlifecycle.Component](run, opts...)
 }
 
 func run(collector collector.Component) error {

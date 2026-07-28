@@ -35,7 +35,6 @@ func (r *gateRecorder) snapshot() []string {
 type recordingGate struct{ recorder *gateRecorder }
 
 func (g *recordingGate) Wait(context.Context) error { g.recorder.add("wait"); return nil }
-func (g *recordingGate) MarkActive() error          { g.recorder.add("active"); return nil }
 func (g *recordingGate) Close() error               { g.recorder.add("close"); return nil }
 
 type recordingComponent struct{}
@@ -57,7 +56,7 @@ func TestOneShotWithStartupGateOrdering(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	require.Equal(t, []string{"construct", "wait", "start", "run", "stop", "close"}, recorder.snapshot())
+	require.Equal(t, []string{"wait", "construct", "start", "run", "stop", "close"}, recorder.snapshot())
 }
 
 func TestRunWithStartupGateOrdering(t *testing.T) {
@@ -77,10 +76,10 @@ func TestRunWithStartupGateOrdering(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	require.Equal(t, []string{"wait", "start", "active", "stop", "close"}, recorder.snapshot())
+	require.Equal(t, []string{"wait", "start", "stop", "close"}, recorder.snapshot())
 }
 
-func TestOneShotWithStartupGateKeepsOwnershipWhenStopFails(t *testing.T) {
+func TestOneShotWithStartupGateClosesAfterStopFailure(t *testing.T) {
 	recorder := &gateRecorder{}
 	gate := &recordingGate{recorder: recorder}
 	stopErr := errors.New("stop failed")
@@ -97,10 +96,10 @@ func TestOneShotWithStartupGateKeepsOwnershipWhenStopFails(t *testing.T) {
 		}),
 	)
 	require.ErrorIs(t, err, stopErr)
-	require.Equal(t, []string{"wait", "start", "run", "stop"}, recorder.snapshot())
+	require.Equal(t, []string{"wait", "start", "run", "stop", "close"}, recorder.snapshot())
 }
 
-func TestRunWithStartupGateKeepsOwnershipWhenStopFails(t *testing.T) {
+func TestRunWithStartupGateClosesAfterStopFailure(t *testing.T) {
 	recorder := &gateRecorder{}
 	gate := &recordingGate{recorder: recorder}
 	stopErr := errors.New("stop failed")
@@ -115,5 +114,5 @@ func TestRunWithStartupGateKeepsOwnershipWhenStopFails(t *testing.T) {
 		}),
 	)
 	require.ErrorIs(t, err, stopErr)
-	require.Equal(t, []string{"wait", "active", "stop"}, recorder.snapshot())
+	require.Equal(t, []string{"wait", "stop", "close"}, recorder.snapshot())
 }

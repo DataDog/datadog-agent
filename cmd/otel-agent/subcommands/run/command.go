@@ -20,6 +20,8 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
@@ -132,11 +134,16 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
 		return nil
 	}
+	gateOptions := []fx.Option{
+		fx.Supply(agentlifecycle.Params{ComponentName: "otel-agent"}),
+		agentlifecyclefx.Module(),
+	}
 
 	uris := buildConfigURIs(params)
 
 	if err == agentConfig.ErrNoDDExporter {
-		return fxutil.Run(
+		return fxutil.RunWithStartupGate[agentlifecycle.Component](
+			fx.Options(gateOptions...),
 			fx.Supply(uris),
 			fx.Provide(func() coreconfig.Component {
 				return acfg
@@ -170,12 +177,14 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 	}
 
 	if acfg.GetBool("otel_standalone") {
-		return fxutil.Run(
+		return fxutil.RunWithStartupGate[agentlifecycle.Component](
+			fx.Options(gateOptions...),
 			commonAgentFxOptions(ctx, params, acfg, uris, opts...),
 			standaloneAgentFxOptions(params),
 		)
 	}
-	return fxutil.Run(
+	return fxutil.RunWithStartupGate[agentlifecycle.Component](
+		fx.Options(gateOptions...),
 		commonAgentFxOptions(ctx, params, acfg, uris, opts...),
 		connectedAgentFxOptions(params),
 	)

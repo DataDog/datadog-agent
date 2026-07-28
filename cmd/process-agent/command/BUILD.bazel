@@ -17,6 +17,8 @@ go_library(
         "//comp/agent/autoexit/def",
         "//comp/agent/autoexit/fx",
         "//comp/core",
+        "//comp/core/agentlifecycle/def",
+        "//comp/core/agentlifecycle/fx",
         "//comp/core/config",
         "//comp/core/configstreamconsumer/def",
         "//comp/core/configstreamconsumer/fx",

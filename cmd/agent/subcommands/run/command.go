@@ -277,7 +277,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 func run(log log.Component,
 	cfg config.Component,
-	agentLifecycle agentlifecycle.Component,
 	flare flare.Component,
 	tlm telemetry.Component,
 	sysprobeConf sysprobeconfig.Component,
@@ -397,10 +396,6 @@ func run(log log.Component,
 	); err != nil {
 		return err
 	}
-	if err := agentLifecycle.MarkActive(); err != nil {
-		return err
-	}
-
 	agentStarted := tlm.NewCounter(
 		"runtime",
 		"started",

@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
+	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
+	agentlifecyclefx "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -122,6 +124,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			opts := []fx.Option{
+				fx.Supply(agentlifecycle.Params{ComponentName: "system-probe"}),
+				agentlifecyclefx.Module(),
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
@@ -135,7 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				configstreamconsumerfx.Module(),
 				getSharedFxOption(),
 			}
-			return fxutil.OneShot(run, opts...)
+			return fxutil.OneShotWithStartupGate[agentlifecycle.Component](run, opts...)
 		},
 	}
 	runCmd.Flags().StringVarP(&cliParams.pidfilePath, "pid", "p", "", "path to the pidfile")

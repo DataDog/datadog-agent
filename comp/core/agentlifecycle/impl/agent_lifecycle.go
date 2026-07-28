@@ -3,19 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package agentlifecycleimpl implements the experimental prepared/active Agent lifecycle.
+// Package agentlifecycleimpl implements the experimental Agent startup gate.
 package agentlifecycleimpl
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	agentlifecycle "github.com/DataDog/datadog-agent/comp/core/agentlifecycle/def"
@@ -28,7 +24,9 @@ const (
 	siblingPollInterval = time.Second
 	rolloutEnabledKey   = "experimental.node_agent_rollout.enabled"
 	rolloutPodUIDKey    = "experimental.node_agent_rollout.pod_uid"
-	rolloutStatePathKey = "experimental.node_agent_rollout.state_path"
+
+	freshInstallObservations = 2
+	missingOlderObservations = 2
 )
 
 type podOwner struct {
@@ -37,12 +35,21 @@ type podOwner struct {
 	controller bool
 }
 
+type localContainer struct {
+	name       string
+	terminated bool
+	ready      bool
+}
+
 type localPod struct {
-	uid       string
-	name      string
-	namespace string
-	createdAt time.Time
-	owners    []podOwner
+	uid                string
+	name               string
+	namespace          string
+	createdAt          time.Time
+	deletionTimestamp  *time.Time
+	owners             []podOwner
+	declaredContainers []string
+	containers         []localContainer
 }
 
 type localPodSource interface {
@@ -61,168 +68,101 @@ type component struct {
 	enabled       bool
 	componentName string
 	podUID        string
-	statePath     string
-	processPID    int
-	processStart  string
 	log           log.Component
 	pods          localPodSource
 	pollInterval  time.Duration
-
-	mu         sync.Mutex
-	activating bool
-	closed     bool
 }
 
 var _ agentlifecycle.Component = (*component)(nil)
 
-// NewComponent creates the experimental Agent lifecycle component.
+// NewComponent creates the experimental Agent startup gate.
 func NewComponent(deps dependencies) (agentlifecycle.Component, error) {
-	return newComponent(deps, newLocalPodSource(), runtime.GOOS, currentProcessIdentity)
+	return newComponent(deps, newLocalPodSource(), runtime.GOOS)
 }
 
-func newComponent(deps dependencies, pods localPodSource, goos string, processIdentity func() (int, string, error)) (agentlifecycle.Component, error) {
+func newComponent(deps dependencies, pods localPodSource, goos string) (agentlifecycle.Component, error) {
 	if !deps.Config.GetBool(rolloutEnabledKey) {
 		return &component{}, nil
 	}
-	if err := validatePlatform(goos); err != nil {
-		return nil, err
+	if goos != "linux" {
+		return nil, fmt.Errorf("experimental node Agent rollout is Linux-only (running on %s)", goos)
 	}
-
-	if deps.Params.ComponentName == "" {
-		return nil, errors.New("experimental node Agent rollout requires a component name")
+	if deps.Params.ComponentName == "" || strings.ContainsAny(deps.Params.ComponentName, `/\\`) {
+		return nil, errors.New("experimental node Agent rollout requires a path-safe component name")
 	}
 	podUID := strings.TrimSpace(deps.Config.GetString(rolloutPodUIDKey))
 	if podUID == "" {
 		return nil, fmt.Errorf("%s must identify this Pod", rolloutPodUIDKey)
 	}
-	statePath, err := resolveComponentPath(deps.Config.GetString(rolloutStatePathKey), deps.Params.ComponentName, ".state", rolloutStatePathKey)
-	if err != nil {
-		return nil, err
-	}
-	if !filepath.IsAbs(statePath) {
-		return nil, fmt.Errorf("%s must be an absolute path", rolloutStatePathKey)
-	}
-	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
-		return nil, fmt.Errorf("create Agent rollout state directory: %w", err)
-	}
-	if err := os.Remove(statePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("clear stale Agent rollout state: %w", err)
-	}
-	processPID, processStart, err := processIdentity()
-	if err != nil {
-		return nil, err
-	}
-
-	return &component{
+	c := &component{
 		enabled:       true,
 		componentName: deps.Params.ComponentName,
 		podUID:        podUID,
-		statePath:     statePath,
-		processPID:    processPID,
-		processStart:  processStart,
 		log:           deps.Log,
 		pods:          pods,
 		pollInterval:  siblingPollInterval,
-	}, nil
+	}
+	return c, nil
 }
 
-// currentProcessIdentity returns values that an exec probe can independently
-// verify through /proc. Container filesystems such as an EmptyDir survive a
-// container restart, so state alone is insufficient: it must be tied to the
-// exact process generation that published it.
-func currentProcessIdentity() (int, string, error) {
-	pid := os.Getpid()
-	contents, err := os.ReadFile("/proc/self/stat")
-	if err != nil {
-		return 0, "", fmt.Errorf("read Agent process identity: %w", err)
-	}
-	// The parenthesized comm field may contain spaces or right parentheses.
-	// Fields after its final ") " begin at field 3; starttime is field 22.
-	end := strings.LastIndex(string(contents), ") ")
-	if end < 0 {
-		return 0, "", errors.New("read Agent process identity: malformed /proc/self/stat")
-	}
-	fields := strings.Fields(string(contents)[end+2:])
-	const startTimeIndex = 22 - 3
-	if len(fields) <= startTimeIndex {
-		return 0, "", errors.New("read Agent process identity: incomplete /proc/self/stat")
-	}
-	if _, err := strconv.ParseUint(fields[startTimeIndex], 10, 64); err != nil {
-		return 0, "", fmt.Errorf("read Agent process identity: invalid start time: %w", err)
-	}
-	return pid, fields[startTimeIndex], nil
-}
-
-func validatePlatform(goos string) error {
-	if goos != "linux" {
-		return fmt.Errorf("experimental node Agent rollout is Linux-only (running on %s)", goos)
-	}
-	return nil
-}
-
-// resolveComponentPath makes the process identity part of every state path. A
-// shared datadog.yaml can use the {component} token, while the Operator can
-// continue supplying an already-expanded process path.
-func resolveComponentPath(configuredPath, componentName, suffix, configKey string) (string, error) {
-	if filepath.Base(componentName) != componentName || componentName == "." || componentName == ".." {
-		return "", errors.New("experimental node Agent rollout component name must be a path-safe base name")
-	}
-
-	if strings.Contains(configuredPath, "{component}") {
-		return strings.ReplaceAll(configuredPath, "{component}", componentName), nil
-	}
-
-	expectedBase := componentName + suffix
-	if filepath.Base(configuredPath) != expectedBase {
-		return "", fmt.Errorf("%s must contain {component} or end in %q", configKey, expectedBase)
-	}
-	return configuredPath, nil
-}
-
-func (c *component) Wait(ctx context.Context) error {
+// Wait leaves the executable asleep before later Fx construction until the
+// older instance of this same container has stopped. Kubelet errors fail closed.
+func (c *component) Wait(ctx context.Context) (err error) {
 	if !c.enabled {
 		return nil
 	}
-
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return errors.New("experimental Agent lifecycle is already closed")
-	}
-	if c.activating {
-		c.mu.Unlock()
-		return errors.New("experimental Agent lifecycle is already activating")
-	}
-	c.mu.Unlock()
-
 	ticker := time.NewTicker(c.pollInterval)
 	defer ticker.Stop()
-	prepared := false
+	// The value records that kubelet has shown deletion beginning for the Pod.
+	// A later omission is only a safe handoff signal after that observation.
+	knownOlder := map[string]bool{}
+	missingOlder := map[string]int{}
+	olderObservedLogged := false
+	emptyObservations := 0
+	pollErrorLogged := false
 
 	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
 		pods, err := c.pods.ListLocalPods(ctx)
 		if err == nil {
-			var siblings []localPod
-			siblings, err = siblingPods(pods, c.podUID)
-			if err == nil && len(siblings) == 0 {
-				if ctxErr := ctx.Err(); ctxErr != nil {
-					return ctxErr
+			var older []localPod
+			older, err = olderSiblingPods(pods, c.podUID)
+			if err == nil {
+				for i := range older {
+					knownOlder[older[i].uid] = knownOlder[older[i].uid] || older[i].deletionTimestamp != nil
 				}
-				return c.beginActivation()
-			}
-			if err == nil && !prepared {
-				if err = c.markPrepared(); err == nil {
-					prepared = true
+
+				if len(knownOlder) == 0 {
+					emptyObservations++
+					if emptyObservations >= freshInstallObservations && (c.componentName == "agent" || replacementCoreReady(pods, c.podUID)) {
+						c.log.Infof("%s found no older container on the node and is starting", c.componentName)
+						return nil
+					}
+				} else {
+					emptyObservations = 0
+					if !olderObservedLogged {
+						olderObservedLogged = true
+						c.log.Infof("%s is waiting for its older container to stop", c.componentName)
+					}
+					if err == nil && olderContainersStopped(older, knownOlder, missingOlder, c.componentName) {
+						if c.componentName == "agent" {
+							c.log.Info("the older core Agent container stopped; starting")
+							return nil
+						}
+						if replacementCoreReady(pods, c.podUID) {
+							c.log.Infof("the older %s container stopped and the replacement core Agent is ready; starting", c.componentName)
+							return nil
+						}
+					}
 				}
 			}
 		}
 		if err != nil {
-			// A failed or incomplete kubelet response must never be interpreted as
-			// proof that the old Pod is gone. Remain prepared and retry.
-			c.log.Warnf("%s cannot verify node-local sibling Pods; remaining inactive: %v", c.componentName, err)
+			if !pollErrorLogged {
+				c.log.Warnf("%s cannot verify node-local containers; remaining asleep: %v", c.componentName, err)
+				pollErrorLogged = true
+			}
+		} else {
+			pollErrorLogged = false
 		}
 
 		select {
@@ -233,20 +173,23 @@ func (c *component) Wait(ctx context.Context) error {
 	}
 }
 
-func (c *component) markPrepared() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return errors.New("cannot prepare a closed experimental Agent lifecycle")
+func replacementCoreReady(pods []localPod, selfUID string) bool {
+	for i := range pods {
+		if pods[i].uid != selfUID {
+			continue
+		}
+		for j := range pods[i].containers {
+			container := pods[i].containers[j]
+			if container.name == "agent" {
+				return container.ready && !container.terminated
+			}
+		}
+		return false
 	}
-	if err := c.writeState(agentlifecycle.StatePrepared); err != nil {
-		return err
-	}
-	c.log.Infof("%s verified an older DaemonSet sibling and is prepared while it waits", c.componentName)
-	return nil
+	return false
 }
 
-func siblingPods(pods []localPod, selfUID string) ([]localPod, error) {
+func olderSiblingPods(pods []localPod, selfUID string) ([]localPod, error) {
 	var self *localPod
 	for i := range pods {
 		if pods[i].uid == selfUID {
@@ -259,7 +202,6 @@ func siblingPods(pods []localPod, selfUID string) ([]localPod, error) {
 	if self == nil {
 		return nil, fmt.Errorf("self Pod UID %q is absent from the kubelet Pod list", selfUID)
 	}
-
 	ownerUID, err := daemonSetOwnerUID(*self)
 	if err != nil {
 		return nil, err
@@ -268,41 +210,71 @@ func siblingPods(pods []localPod, selfUID string) ([]localPod, error) {
 		return nil, fmt.Errorf("self Pod %s/%s has no creation timestamp", self.namespace, self.name)
 	}
 
-	var siblings []localPod
+	var older []localPod
 	for i := range pods {
-		pod := pods[i]
-		if pod.uid == selfUID || pod.namespace != self.namespace {
+		candidate := pods[i]
+		if candidate.uid == selfUID || candidate.namespace != self.namespace {
 			continue
 		}
-		candidateOwnerUID, ownerErr := daemonSetOwnerUID(pod)
-		if ownerErr == nil && candidateOwnerUID == ownerUID {
-			precedes, precedesErr := podPrecedes(pod, *self)
-			if precedesErr != nil {
-				return nil, precedesErr
-			}
-			if precedes {
-				siblings = append(siblings, pod)
-			}
+		candidateOwnerUID, ownerErr := daemonSetOwnerUID(candidate)
+		if ownerErr != nil || candidateOwnerUID != ownerUID {
+			continue
+		}
+		if candidate.createdAt.IsZero() || candidate.createdAt.Before(self.createdAt) {
+			older = append(older, candidate)
+			continue
+		}
+		if candidate.createdAt.Equal(self.createdAt) {
+			return nil, fmt.Errorf("cannot order same-timestamp Pods %s/%s and %s/%s", candidate.namespace, candidate.name, self.namespace, self.name)
 		}
 	}
-	return siblings, nil
+	return older, nil
 }
 
-// podPrecedes fails closed when Kubernetes' second-precision creation
-// timestamps cannot establish an order. Pod UIDs and resourceVersions are not
-// creation-order values and must not be used to guess which process is active.
-func podPrecedes(candidate, self localPod) (bool, error) {
-	if candidate.createdAt.IsZero() {
-		// An incomplete kubelet record must not be interpreted as a newer Pod.
-		return true, nil
+func olderContainersStopped(current []localPod, known map[string]bool, missing map[string]int, componentName string) bool {
+	byUID := make(map[string]localPod, len(current))
+	for i := range current {
+		byUID[current[i].uid] = current[i]
 	}
-	if candidate.createdAt.Before(self.createdAt) {
-		return true, nil
+	for uid, deletionObserved := range known {
+		pod, present := byUID[uid]
+		if !present {
+			missing[uid]++
+			if !deletionObserved && missing[uid] < missingOlderObservations {
+				return false
+			}
+			continue
+		}
+		missing[uid] = 0
+		if olderContainerStillExists(pod, componentName) {
+			return false
+		}
 	}
-	if candidate.createdAt.After(self.createdAt) {
-		return false, nil
+	return len(known) > 0
+}
+
+func olderContainerStillExists(pod localPod, componentName string) bool {
+	for i := range pod.containers {
+		container := pod.containers[i]
+		if container.name != componentName {
+			continue
+		}
+		// A crashed container may be Terminated briefly before kubelet restarts
+		// it. Only use Terminated as a handoff signal once Pod deletion proves
+		// that Kubernetes intends to stop the old generation.
+		return pod.deletionTimestamp == nil || !container.terminated
 	}
-	return false, fmt.Errorf("cannot order same-timestamp Pods %s/%s and %s/%s", candidate.namespace, candidate.name, self.namespace, self.name)
+	declared := false
+	for _, name := range pod.declaredContainers {
+		declared = declared || name == componentName
+	}
+	if !declared {
+		return false
+	}
+	// A missing status is not positive evidence that the old runtime process
+	// exited. Wait for either a Terminated state or Pod removal after deletion
+	// was observed.
+	return true
 }
 
 func daemonSetOwnerUID(pod localPod) (string, error) {
@@ -311,11 +283,8 @@ func daemonSetOwnerUID(pod localPod) (string, error) {
 		if owner.kind != "DaemonSet" || !owner.controller {
 			continue
 		}
-		if owner.uid == "" {
-			return "", fmt.Errorf("Pod %s/%s has a DaemonSet controller with an empty UID", pod.namespace, pod.name)
-		}
-		if ownerUID != "" {
-			return "", fmt.Errorf("Pod %s/%s has multiple DaemonSet controllers", pod.namespace, pod.name)
+		if owner.uid == "" || ownerUID != "" {
+			return "", fmt.Errorf("Pod %s/%s has an invalid DaemonSet controller", pod.namespace, pod.name)
 		}
 		ownerUID = owner.uid
 	}
@@ -325,78 +294,6 @@ func daemonSetOwnerUID(pod localPod) (string, error) {
 	return ownerUID, nil
 }
 
-func (c *component) beginActivation() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return errors.New("cannot activate a closed experimental Agent lifecycle")
-	}
-	if c.activating {
-		return errors.New("experimental Agent lifecycle is already activating")
-	}
-	if err := c.writeState(agentlifecycle.StateActivating); err != nil {
-		return err
-	}
-	c.activating = true
-	c.log.Infof("%s has no older DaemonSet sibling on the node and is activating", c.componentName)
-	return nil
-}
-
-func (c *component) MarkActive() error {
-	if !c.enabled {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return errors.New("cannot mark a closed experimental Agent lifecycle active")
-	}
-	if !c.activating {
-		return errors.New("cannot mark the experimental Agent lifecycle active before the sibling check")
-	}
-	if err := c.writeState(agentlifecycle.StateActive); err != nil {
-		return err
-	}
-	c.log.Infof("%s is active", c.componentName)
-	return nil
-}
-
 func (c *component) Close() error {
-	if !c.enabled {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	return c.writeState(agentlifecycle.StateStopped)
-}
-
-func (c *component) writeState(state string) error {
-	tmp, err := os.CreateTemp(filepath.Dir(c.statePath), ".agent-rollout-state-")
-	if err != nil {
-		return fmt.Errorf("create temporary Agent rollout state: %w", err)
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-
-	if _, err := fmt.Fprintln(tmp, state, c.processPID, c.processStart); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write Agent rollout state: %w", err)
-	}
-	if err := tmp.Chmod(0o644); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("set Agent rollout state permissions: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close Agent rollout state: %w", err)
-	}
-	if err := os.Rename(tmpPath, c.statePath); err != nil {
-		return fmt.Errorf("publish Agent rollout state: %w", err)
-	}
 	return nil
 }
