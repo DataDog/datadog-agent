@@ -14,7 +14,9 @@ fixes:
     back to the Agent's own task metadata when the ECS Metadata v1 introspection
     endpoint is unavailable. This fixes the orchestrator ECS check being skipped, the
     container lifecycle check reporting an empty cluster ID, and the flare missing its
-    ECS section on ECS Managed Instances.
+    ECS section on ECS Managed Instances. The fallback applies to every non-Fargate
+    launch type, so ECS EC2 deployments whose v1 introspection endpoint is unreachable
+    now resolve cluster metadata instead of failing.
 other:
   - |
     In ECS daemon mode, the ECS workloadmeta collector now returns a startup error when

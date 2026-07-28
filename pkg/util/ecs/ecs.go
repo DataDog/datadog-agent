@@ -93,7 +93,17 @@ func newECSMeta(ctx context.Context) (*MetaECS, error) {
 		if err != nil {
 			// The v1 introspection endpoint is not guaranteed to be reachable outside of
 			// ECS EC2 (notably on ECS Managed Instances). The agent's own task metadata
-			// carries the same cluster identity, so fall back to it.
+			// carries the same cluster identity — the agent task belongs to the cluster it
+			// runs on, and region/account come from its own task ARN — so fall back to it.
+			// This applies to every non-Fargate launch type, not just Managed Instances: on
+			// EC2 it only takes effect when v1 already failed, where the previous behaviour
+			// was to give up entirely. A non-containerised agent has no task metadata
+			// endpoint, so the fallback fails and the original v1 error is returned.
+			//
+			// Note the returned version is the task revision here rather than the ECS agent
+			// version. MetaECS.ECSAgentVersion is only round-tripped through the cache key
+			// (toCacheValue/fromCacheValue) and never used for behaviour, and the Fargate
+			// branch above already populates it the same way.
 			log.Debugf("could not get ECS instance metadata, falling back to task metadata: %s", err)
 
 			var fallbackErr error

@@ -26,6 +26,9 @@ import (
 
 // declare these as vars not const to ease testing: the underlying helpers memoize
 // global state and perform network I/O, which unit tests cannot rely on.
+//
+// These are process-wide mutable globals, so tests that swap them must restore the
+// originals and must not call t.Parallel().
 var (
 	ecsMetaV1                = ecsmeta.V1
 	ecsMetaV4FromCurrentTask = ecsmeta.V4FromCurrentTask
