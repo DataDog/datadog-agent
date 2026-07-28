@@ -210,13 +210,15 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 	if err != nil {
 		return results, types.WrapErrorf(types.ErrSetRunningFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
 	}
-	// Set the startup configuration from the running config
-	result, err = ExecuteCommand(ctx, c.client, pc.SetStartup)
-	if result != nil {
-		results.SetStartup = append(results.SetStartup, result)
-	}
-	if err != nil {
-		return results, types.WrapErrorf(types.ErrSetStartupFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
+	if pc.SetStartup != nil {
+		// Set the startup configuration from the running config
+		result, err = ExecuteCommand(ctx, c.client, pc.SetStartup)
+		if result != nil {
+			results.SetStartup = append(results.SetStartup, result)
+		}
+		if err != nil {
+			return results, types.WrapErrorf(types.ErrSetStartupFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
+		}
 	}
 	return results, nil
 }
