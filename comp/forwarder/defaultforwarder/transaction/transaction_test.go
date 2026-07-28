@@ -31,7 +31,7 @@ type stubPendingDelegatedAuthResolver struct {
 }
 
 func (s *stubPendingDelegatedAuthResolver) Authorize(uint, http.Header, log.Component) {}
-func (s *stubPendingDelegatedAuthResolver) HasPendingDelegatedAuth() bool              { return s.pending }
+func (s *stubPendingDelegatedAuthResolver) HasPendingDelegatedAuth(uint) bool          { return s.pending }
 
 func TestNewHTTPTransaction(t *testing.T) {
 	before := time.Now()
