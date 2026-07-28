@@ -12,7 +12,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 type logger struct {
@@ -80,12 +83,9 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		switch seg := segment.(type) {
 		case ir.StringSegment:
 			// Literal string - append directly, but check limits.
-			segStr := string(seg)
-			remainingBytes := maxLogLineBytes - result.Len()
-			if len(segStr) > remainingBytes {
-				segStr = segStr[:remainingBytes]
-			}
-			result.WriteString(segStr)
+			result.WriteString(utilstrings.TruncateUTF8(
+				string(seg), maxLogLineBytes-result.Len(),
+			))
 		case *ir.JSONSegment:
 			savedLen := result.Len()
 			// Update limits to reflect remaining bytes.
@@ -106,7 +106,7 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			)
 		}
 	}
-	return writeTokens(enc, jsontext.String(result.String()))
+	return writeTokens(enc, safeString(result.String()))
 }
 
 func (m *messageData) processJSONSegment(
@@ -537,7 +537,7 @@ func (ce *captureEvent) processExpression(
 		return errEvaluation
 	}
 	data := ce.rootData[expr.Offset:ub]
-	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
+	if err := writeTokens(enc, safeString(expr.Name)); err != nil {
 		return err
 	}
 	if expr.Redacted {
@@ -557,7 +557,7 @@ func (ce *captureEvent) processExpression(
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
-			jsontext.String(typeName),
+			safeString(typeName),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonUnavailable,
 			jsontext.EndObject,
@@ -736,9 +736,9 @@ func (sd *stackData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			if err := writeTokens(enc,
 				jsontext.BeginObject,
 				jsontext.String("function"),
-				jsontext.String(sl.Function),
+				safeString(sl.Function),
 				jsontext.String("fileName"),
-				jsontext.String(sl.File),
+				safeString(sl.File),
 				jsontext.String("lineNumber"),
 				jsontext.Int(int64(sl.Line)),
 				jsontext.EndObject,
@@ -771,7 +771,7 @@ func encodeValue(
 		return err
 	}
 	if err := writeTokens(
-		enc, jsontext.String("type"), jsontext.String(valueType),
+		enc, jsontext.String("type"), safeString(valueType),
 	); err != nil {
 		return err
 	}
@@ -791,11 +791,35 @@ func writeRedacted(enc *jsontext.Encoder, typeName string, reason jsontext.Token
 	return writeTokens(enc,
 		jsontext.BeginObject,
 		jsontext.String("type"),
-		jsontext.String(typeName),
+		safeString(typeName),
 		tokenNotCapturedReason,
 		reason,
 		jsontext.EndObject,
 	)
+}
+
+// safeString returns a JSON string token for text that came from the target
+// process. Go strings hold arbitrary bytes, and names read out of the target's
+// DWARF, symbol table and runtime type metadata are not validated either, so
+// invalid UTF-8 is replaced instead of letting the encoder reject the value
+// and take the whole event down with it.
+func safeString(s string) jsontext.Token {
+	if utf8.ValidString(s) {
+		return jsontext.String(s)
+	}
+	return jsontext.String(strings.ToValidUTF8(s, "�"))
+}
+
+// trimPartialRune drops the leading bytes of a rune that a byte-boundary
+// capture limit split in half.
+func trimPartialRune(s string) string {
+	for range utf8.UTFMax - 1 {
+		if r, size := utf8.DecodeLastRuneInString(s); r != utf8.RuneError || size != 1 {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
