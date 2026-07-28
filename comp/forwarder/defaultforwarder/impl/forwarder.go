@@ -90,21 +90,23 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 	return options, nil
 }
 
-// markPendingDelegatedAuthDomains OR's in delegatedAuth.IsManaged for each domain, since
-// utils.GetMultipleEndpoints only ever sets HasPendingDelegatedAuth by checking whether the
-// current api_key config value is still a literal DELA(...) directive - which is normally no
-// longer true by the time this runs, since delegated auth's initial fetch resolves it
-// synchronously during config loading. This also covers the primary domain, which
-// GetMultipleEndpoints never marks at all (it only inspects `additional_endpoints`).
+// markPendingDelegatedAuthDomains recomputes HasPendingDelegatedAuth for each domain from
+// delegatedAuth.IsManaged, which is the sole source of truth for whether a domain is currently
+// WIF-managed. utils.GetMultipleEndpoints only sets an initial guess for HasPendingDelegatedAuth
+// by checking whether the current api_key config value has a literal DELA(...) prefix - that
+// guess doesn't account for configureAdditionalEndpointsDelegatedAuth rejecting a malformed
+// directive or unsupported provider without ever registering it with delegated auth. Trusting
+// the initial guess for a rejected directive would leave the domain permanently "pending" and
+// its payloads would be retried forever instead of eventually dropping on repeated 403s. So this
+// function always overwrites the flag with the freshly computed IsManaged result. This also
+// covers the primary domain, which GetMultipleEndpoints never marks at all (it only inspects
+// `additional_endpoints`).
 func markPendingDelegatedAuthDomains(endpoints utils.EndpointDescriptorSet, config config.Component, delegatedAuth delegatedauth.Component) {
 	if delegatedAuth == nil {
 		return
 	}
 	primaryDomain := utils.GetInfraEndpoint(config)
 	for domain, ed := range endpoints {
-		if ed.HasPendingDelegatedAuth {
-			continue
-		}
 		managed := delegatedAuth.IsManaged(delegatedauth.Target{
 			AdditionalEndpointsConfigKey: "additional_endpoints",
 			AdditionalEndpointDomain:     domain,
@@ -112,10 +114,8 @@ func markPendingDelegatedAuthDomains(endpoints utils.EndpointDescriptorSet, conf
 		if !managed && domain == primaryDomain {
 			managed = delegatedAuth.IsManaged(delegatedauth.Target{APIKeyConfigKey: "api_key"})
 		}
-		if managed {
-			ed.HasPendingDelegatedAuth = true
-			endpoints[domain] = ed
-		}
+		ed.HasPendingDelegatedAuth = managed
+		endpoints[domain] = ed
 	}
 }
 
