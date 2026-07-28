@@ -4,7 +4,14 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package pool discovers idle, tagged macOS EC2 instances and attaches to one via
-// an S3-backed lease. It never provisions or creates instances itself.
+// an S3-backed lease. For CI runs it never provisions or creates instances itself: an
+// empty or fully-claimed pool is a fail-closed error. For local runs (Acquire's local
+// parameter) a cache miss instead returns AcquireResult.Found=false so the caller
+// (scenarios/aws/ec2/vm.go's NewVM) can provision a brand-new, owner-tagged instance
+// itself via Pulumi-managed resources (ec2.NewDedicatedHost, ec2.NewInstance) — this
+// package only builds the registration script (BuildRegisterScript) that seeds that
+// new instance's lease, since it has no *pulumi.Context of its own to create resources
+// with.
 package pool
 
 import (
@@ -41,6 +48,19 @@ const (
 	PoolTagValue = "true"
 )
 
+// OwnerUsernameTagKey tags a pool instance with the OS username of the developer whose
+// local run provisioned it, matching the "username" key
+// CommonEnvironment.DefaultResourceTags() already uses for every other Pulumi-managed
+// resource. Only instances provisioned for local runs carry this tag; CI-provisioned
+// instances are shared across the whole pool and are matched on PoolTagKey alone.
+const OwnerUsernameTagKey = "username"
+
+// localAcquireAttempts bounds how many times Acquire re-scans a local developer's own
+// instances before giving up and reporting Found=false so the caller provisions a new
+// one. Unlike CI's maxAcquireRetries/acquireRetryInterval, local runs shouldn't block
+// for minutes on an instance the same developer is already using elsewhere.
+const localAcquireAttempts = 1
+
 // Lease statuses stored in leaseRecord.Status. statusDevMode marks an instance
 // released from a dev-mode test run: like statusInUse it is unclaimable, but it is
 // tracked separately since its root volume was deliberately left unreverted for
@@ -71,23 +91,25 @@ type PoolInstance struct {
 	SubnetID   string
 }
 
-// ListPoolInstances returns every running or stopped EC2 instance carrying
-// tagKey=tagValue.
-func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagValue string) ([]PoolInstance, error) {
-	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
-		Filters: []awsec2types.Filter{
-			{
-				Name:   pointer.Ptr("tag:" + tagKey),
-				Values: []string{tagValue},
-			},
-			{
-				Name:   pointer.Ptr("instance-state-name"),
-				Values: []string{"running", "stopped"},
-			},
-		},
+// ListPoolInstances returns every running or stopped EC2 instance carrying every tag
+// in tags (e.g. PoolTagKey=PoolTagValue, plus OwnerUsernameTagKey=<username> when
+// scoping to a single developer's own instances for local runs).
+func ListPoolInstances(ctx context.Context, client *awsec2.Client, tags map[string]string) ([]PoolInstance, error) {
+	filters := make([]awsec2types.Filter, 0, len(tags)+1)
+	for tagKey, tagValue := range tags {
+		filters = append(filters, awsec2types.Filter{
+			Name:   pointer.Ptr("tag:" + tagKey),
+			Values: []string{tagValue},
+		})
+	}
+	filters = append(filters, awsec2types.Filter{
+		Name:   pointer.Ptr("instance-state-name"),
+		Values: []string{"running", "stopped"},
 	})
+
+	out, err := client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{Filters: filters})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list instances tagged %s=%s: %w", tagKey, tagValue, err)
+		return nil, fmt.Errorf("failed to list instances tagged %v: %w", tags, err)
 	}
 
 	var instances []PoolInstance
@@ -109,20 +131,20 @@ func ListPoolInstances(ctx context.Context, client *awsec2.Client, tagKey, tagVa
 // AcquireIdleInstance claims one idle instance from pool via a conditional S3 write
 // (If-Match on the lease object's current ETag), returning its instance ID, lease
 // token (new ETag), and image ID on success. It retries the whole-pool scan up to
-// maxAcquireRetries times, acquireRetryInterval apart. It does not reclaim leases
+// maxRetries times, acquireRetryInterval apart. It does not reclaim leases
 // stranded by a non-graceful failure.
 //
 // TODO: leaseRecord.LeasedAt is written on acquire but never read back here, so a
 // lease stranded by a crashed job (before Destroy/the delete handler runs) stays
 // "in-use" forever, permanently shrinking the pool. Add a staleness/TTL check (or an
 // owner+age-based override) so such leases can be automatically reclaimed.
-func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, imageID string, err error) {
+func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string, maxRetries int) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", "", "", err
 	}
 
-	for attempt := 0; attempt < maxAcquireRetries; attempt++ {
+	for attempt := 0; attempt < maxRetries; attempt++ {
 		now := time.Now()
 
 		for _, id := range pool {
@@ -159,7 +181,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 			return id, aws.ToString(putOut.ETag), current.ImageID, nil
 		}
 
-		if attempt < maxAcquireRetries-1 {
+		if attempt < maxRetries-1 {
 			select {
 			case <-time.After(acquireRetryInterval):
 			case <-ctx.Done():
@@ -294,8 +316,12 @@ func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken
 }
 
 // AcquireResult is a successfully claimed pool member: InstanceID/HostID/SubnetID to
-// import it, LeaseToken to release it, and ImageID to revert it to baseline on release.
+// import it, LeaseToken to release it, and ImageID to revert it to baseline on
+// release. Found is false only when local != nil and no idle instance owned by
+// local.Username exists: the caller (NewVM) must then provision a new instance itself
+// via Pulumi-managed resources and register it with BuildRegisterScript.
 type AcquireResult struct {
+	Found      bool
 	InstanceID string
 	HostID     string
 	SubnetID   string
@@ -303,14 +329,43 @@ type AcquireResult struct {
 	ImageID    string
 }
 
-// Acquire lists every instance tagged PoolTagKey=PoolTagValue and claims one idle
-// member via AcquireIdleInstance. An empty or fully-unavailable pool is an error.
-func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string) (AcquireResult, error) {
-	instances, err := ListPoolInstances(ctx, client, PoolTagKey, PoolTagValue)
+// LocalProvisionOptions scopes Acquire's discovery to a single local developer's own
+// instances (via OwnerUsernameTagKey) instead of the whole shared pool CI draws from.
+// Passing a nil *LocalProvisionOptions to Acquire keeps the CI behavior: discovery-only,
+// fail-closed on an empty/unavailable pool, matching on PoolTagKey alone.
+type LocalProvisionOptions struct {
+	// Username should be the same value as
+	// CommonEnvironment.DefaultResourceTags()["username"], used both to scope instance
+	// selection and to tag a freshly provisioned instance as this developer's own.
+	Username string
+}
+
+// Acquire lists idle members of the macOS pool and claims one via AcquireIdleInstance.
+// For CI runs (local == nil) it matches on PoolTagKey=PoolTagValue alone, and an empty
+// or fully-unavailable pool is a fail-closed error, per this package's discovery-only
+// CI contract.
+//
+// For local runs (local != nil) it additionally scopes discovery to instances tagged
+// OwnerUsernameTagKey=local.Username, so a developer only ever claims their own
+// previously-provisioned instance, never another developer's. If that scoped scan
+// finds nothing idle, it returns AcquireResult{Found: false}, nil instead of an
+// error: the caller must provision a new instance itself (this package has no
+// *pulumi.Context to create Pulumi-managed resources with) and register it via
+// BuildRegisterScript.
+func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string, local *LocalProvisionOptions) (AcquireResult, error) {
+	tagFilters := map[string]string{PoolTagKey: PoolTagValue}
+	if local != nil {
+		tagFilters[OwnerUsernameTagKey] = local.Username
+	}
+
+	instances, err := ListPoolInstances(ctx, client, tagFilters)
 	if err != nil {
 		return AcquireResult{}, err
 	}
 	if len(instances) == 0 {
+		if local != nil {
+			return AcquireResult{Found: false}, nil
+		}
 		return AcquireResult{}, fmt.Errorf("no macOS pool instances found (tag %s=%s)", PoolTagKey, PoolTagValue)
 	}
 
@@ -321,17 +376,56 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 		ids = append(ids, pi.InstanceID)
 	}
 
-	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID)
+	retries := maxAcquireRetries
+	if local != nil {
+		retries = localAcquireAttempts
+	}
+	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID, retries)
 	if err != nil {
+		if local != nil {
+			return AcquireResult{Found: false}, nil
+		}
 		return AcquireResult{}, err
 	}
 	return AcquireResult{
+		Found:      true,
 		InstanceID: instanceID,
 		HostID:     byID[instanceID].HostID,
 		SubnetID:   byID[instanceID].SubnetID,
 		LeaseToken: leaseToken,
 		ImageID:    imageID,
 	}, nil
+}
+
+// BuildRegisterScript returns a shell script that tags a brand-new instance as a pool
+// member (PoolTagKey=PoolTagValue, OwnerUsernameTagKey=username) and publishes its
+// lease record as already claimed by ownerPipelineID, printing the lease token (the
+// new lease object's ETag) to stdout.
+//
+// This is a shell script, not a Go function, because it must run as a Pulumi
+// local.Command's Create handler so it can be sequenced after (and take as input) the
+// freshly created EC2 instance's ID, which is only known as a pulumi.StringOutput
+// inside the Pulumi program — see resources/aws/ec2/vm.go's use of it alongside
+// ec2.NewInstance for a local run's cache-miss path.
+func BuildRegisterScript(instanceID, ownerPipelineID, username, imageID string) string {
+	body, _ := json.Marshal(leaseRecord{Status: statusInUse, ImageID: imageID, Owner: ownerPipelineID, LeasedAt: 0})
+	return fmt.Sprintf(`set -e
+INSTANCE_ID=%q
+POOL_TAG_KEY=%q
+POOL_TAG_VALUE=%q
+OWNER_TAG_KEY=%q
+OWNER_TAG_VALUE=%q
+LEASE_BUCKET=%q
+LEASE_KEY=%q
+BODY=%q
+
+aws ec2 create-tags --resources "$INSTANCE_ID" \
+  --tags Key="$POOL_TAG_KEY",Value="$POOL_TAG_VALUE" Key="$OWNER_TAG_KEY",Value="$OWNER_TAG_VALUE" Key=Name,Value="macos-e2e-pool-$OWNER_TAG_VALUE"
+
+aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
+  --body <(printf '%%s' "$BODY") --if-none-match "*" \
+  --query 'ETag' --output text
+`, instanceID, PoolTagKey, PoolTagValue, OwnerUsernameTagKey, username, leaseBucket, leasePrefix+instanceID, string(body))
 }
 
 // NewEC2Client builds an EC2 API client scoped to region/profile.
