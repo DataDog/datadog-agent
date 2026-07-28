@@ -1,0 +1,12 @@
+# //bazel/toolchains.
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "common",
+    srcs = [
+        "toolchain_BUILD.tpl",
+        "toolchain_defs.bzl.tpl",
+    ],
+    visibility = ["//bazel/toolchains:__subpackages__"],
+)

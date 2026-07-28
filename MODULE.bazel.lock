@@ -269,6 +269,19 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//bazel/toolchains/codesign:configure.bzl%find_system_codesign": {
+      "general": {
+        "bzlTransitiveDigest": "dDrA5hQ2RdIJ5IRBvuxudyNW6Pr8MUzBcjidyrOwz0E=",
+        "usagesDigest": "z9aoOeDDXImH9KPAFUvSdO8yqRMYkVK1Qdiu8iDCs38=",
+        "recordedInputs": [],
+        "generatedRepoSpecs": {
+          "codesign": {
+            "repoRuleId": "@@//bazel/toolchains/codesign:configure.bzl%build_repo_for_toolchain",
+            "attributes": {}
+          }
+        }
+      }
+    },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
         "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
@@ -291,6 +304,19 @@
               },
               "verbose": false
             }
+          }
+        }
+      }
+    },
+    "//bazel/toolchains/pkgbuild:configure.bzl%find_system_pkgbuild": {
+      "general": {
+        "bzlTransitiveDigest": "z/iSoXy3swkJPPK2ps0Km3ski/mG7Pkz5hMAkC8J0hw=",
+        "usagesDigest": "9XiNYp6RkHz6ZzaV3a3IuY9/yIEo3WPTD5rbo1nghow=",
+        "recordedInputs": [],
+        "generatedRepoSpecs": {
+          "pkgbuild": {
+            "repoRuleId": "@@//bazel/toolchains/pkgbuild:configure.bzl%build_repo_for_toolchain",
+            "attributes": {}
           }
         }
       }

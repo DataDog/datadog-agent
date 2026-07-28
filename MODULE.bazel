@@ -127,6 +127,22 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
 )
 
+#################################
+## Tools that ship with the OS ##
+#################################
+
+find_system_codesign = use_extension("//bazel/toolchains/codesign:configure.bzl", "find_system_codesign", dev_dependency = True)
+use_repo(find_system_codesign, "codesign")
+
+find_system_pkgbuild = use_extension("//bazel/toolchains/pkgbuild:configure.bzl", "find_system_pkgbuild", dev_dependency = True)
+use_repo(find_system_pkgbuild, "pkgbuild")
+
+register_toolchains(
+    "@codesign//:all",
+    "@pkgbuild//:all",
+    dev_dependency = True,
+)
+
 #########################
 ## Prebuilt binaries   ##
 #########################
