@@ -9,6 +9,7 @@ package reporter
 import (
 	"time"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -68,6 +69,10 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsComp,
+		// Not wired to a real delegatedauth.Component here: threading it through this package's
+		// own callers is the responsibility of the PR that adds delegated-auth support for CWS
+		// reporting. A noop keeps behavior unchanged in the meantime.
+		delegatedauthnoopimpl.NewComponent().Comp,
 	)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
