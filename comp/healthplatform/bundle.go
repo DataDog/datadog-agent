@@ -11,7 +11,8 @@
 //
 // This bundle does not depend on any other bundles, except that the store
 // component requires workloadmeta's fx module to also be wired (used to
-// resolve this agent's DaemonSet/cluster identity; see comp/healthplatform/selfident).
+// resolve this agent's DaemonSet/cluster identity; see
+// comp/healthplatform/issueregistry/utils/selfident).
 package healthplatform
 
 import (

@@ -65,7 +65,7 @@ node agents in a Kubernetes cluster produces `N` separate issues.
 When a problem is actually caused by a template the cluster *distributed* to every node agent (a bad
 cluster check, a cluster-distributed config file, a broken operator-rendered `datadog.yaml`), scoping
 by hostname is wrong: it hides that the issue is shared and points remediation at one node instead of
-the shared source. `comp/healthplatform/selfident.SelfIdent` exists for this case:
+the shared source. `comp/healthplatform/issueregistry/utils/selfident.SelfIdent` exists for this case:
 
 - `SelfIdent.DeploymentID()` resolves the UID of the Kubernetes DaemonSet that owns the agent's own
   pod (via workloadmeta), cached for the process lifetime. Empty when not running under a DaemonSet
@@ -80,7 +80,11 @@ the shared source. `comp/healthplatform/selfident.SelfIdent` exists for this cas
   `issues.ModuleDeps.SelfIdent` instead — a second, independently-cached instance is harmless since
   both resolve the same deterministic value.
 - `cluster_id` (`SelfIdent.ClusterID()`) rides along in issue `Extra`/`Tags` for UI identification
-  only — it is never part of the `id` itself.
+  only — it is never part of the `id` itself. Unlike `DeploymentID()`, it resolves in a background
+  goroutine and returns `""` until resolved: `clustername.GetClusterID()` usually requires a
+  synchronous HTTP call to the Cluster Agent (`DD_ORCHESTRATOR_CLUSTER_ID` is not set by current
+  Helm chart/Operator deployments), and `cluster_id` is best-effort metadata that must never block
+  issue reporting on Cluster Agent availability.
 
 **When adding or scoping a new module's `id`:** use `IssueDiscriminator(hostID)` instead of a bare
 hostname/host ID whenever the module's failure mode can plausibly originate from a cluster-distributed

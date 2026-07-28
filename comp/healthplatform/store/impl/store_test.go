@@ -31,11 +31,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const testSelfPodName = "dd-agent-abc12"
@@ -125,7 +124,7 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		selfIdent:        selfident.New(option.None[workloadmeta.Component]()),
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -520,7 +519,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		selfIdent:        selfident.New(option.None[workloadmeta.Component]()),
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -568,7 +567,7 @@ func TestIssuesObserverResolvedNotification(t *testing.T) {
 
 // TestReportIssueEnrichesWithClusterIdentity verifies that enrichWithClusterIdentity
 // actually stamps a resolved deployment_id into Extra/Tags on ReportIssue, since every
-// other test in this file resolves selfIdent against option.None (always empty), which
+// other test in this file resolves selfIdent against a nil workloadmeta (always empty), which
 // left this enrichment path itself untested.
 func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
 	// selfident reads the pod name from DD_POD_NAME directly; there's no exported
@@ -593,7 +592,7 @@ func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
 	})
 
 	h := newTestStore(t)
-	h.selfIdent = selfident.New(option.New[workloadmeta.Component](mockStore))
+	h.selfIdent = selfident.New(mockStore)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 

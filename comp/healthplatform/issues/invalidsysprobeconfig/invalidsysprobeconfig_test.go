@@ -15,10 +15,8 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func testHostname(name string) hostnameinterface.Component {
@@ -27,7 +25,7 @@ func testHostname(name string) hostnameinterface.Component {
 }
 
 func testSelfIdent() *selfident.SelfIdent {
-	return selfident.New(option.None[workloadmeta.Component]())
+	return selfident.New(nil)
 }
 
 // A valid system-probe setting passes the schema → no report.

@@ -17,10 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func testHostname(t *testing.T) hostnameinterface.Component {
@@ -31,7 +29,7 @@ func testHostname(t *testing.T) hostnameinterface.Component {
 
 func testSelfIdent(t *testing.T) *selfident.SelfIdent {
 	t.Helper()
-	return selfident.New(option.None[workloadmeta.Component]())
+	return selfident.New(nil)
 }
 
 // requireSchema skips the test when the compressed schema files haven't been

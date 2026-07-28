@@ -12,10 +12,9 @@ go_library(
         "//comp/core/sysprobeconfig/def",
         "//comp/core/workloadmeta/def",
         "//comp/healthplatform/issueregistry/def",
+        "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
-        "//comp/healthplatform/selfident",
-        "//pkg/util/option",
     ],
 )
 

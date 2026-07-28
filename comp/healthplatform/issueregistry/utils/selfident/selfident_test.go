@@ -18,7 +18,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const testPodName = "dd-agent-abc12"
@@ -59,7 +58,7 @@ func TestDeploymentID_ResolvesFromDaemonSetOwner(t *testing.T) {
 		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
 	})
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 
 	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
 }
@@ -71,7 +70,7 @@ func TestDeploymentID_NoDaemonSetOwner(t *testing.T) {
 		{Kind: "ReplicaSet", Name: "some-rs", ID: "rs-uid"},
 	})
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 
 	assert.Empty(t, s.DeploymentID())
 }
@@ -80,7 +79,7 @@ func TestDeploymentID_PodNotFound(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
 	mockStore := newMockStore(t)
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 	// Pod is never added in this test, so it's genuinely absent; keep the
 	// retry loop from actually waiting out the default backoff.
 	s.resolveRetries = 1
@@ -93,7 +92,7 @@ func TestDeploymentID_RetriesUntilPodAppearsInWorkloadmeta(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
 	mockStore := newMockStore(t)
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 	// A wide retry budget relative to the goroutine's delay below, so the
 	// assertion isn't sensitive to scheduling jitter under CI load or -race.
 	s.resolveRetries = 500
@@ -117,7 +116,7 @@ func TestDeploymentID_NoPodNameEnvVar(t *testing.T) {
 		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
 	})
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 
 	assert.Empty(t, s.DeploymentID())
 }
@@ -125,7 +124,7 @@ func TestDeploymentID_NoPodNameEnvVar(t *testing.T) {
 func TestDeploymentID_NoWorkloadmeta(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
 
-	s := New(option.None[workloadmeta.Component]())
+	s := New(nil)
 
 	assert.Empty(t, s.DeploymentID())
 }
@@ -137,7 +136,7 @@ func TestDeploymentID_ResolvedOnce(t *testing.T) {
 		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
 	})
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
 
 	mockStore.Unset(&workloadmeta.KubernetesPod{
@@ -155,13 +154,33 @@ func TestIssueDiscriminator_PrefersDeploymentID(t *testing.T) {
 		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
 	})
 
-	s := New(option.New[workloadmeta.Component](mockStore))
+	s := New(mockStore)
 
 	assert.Equal(t, "daemonset-uid-123", s.IssueDiscriminator("some-host-id"))
 }
 
 func TestIssueDiscriminator_FallsBackToHostID(t *testing.T) {
-	s := New(option.None[workloadmeta.Component]())
+	s := New(nil)
 
 	assert.Equal(t, "some-host-id", s.IssueDiscriminator("some-host-id"))
+}
+
+// ClusterID must never block a caller on Cluster Agent availability: in test
+// environments (no Cluster Agent configured), clustername.GetClusterID fails
+// fast, but the point of the background resolution is that ClusterID doesn't
+// wait for that call at all, however long it takes.
+func TestClusterID_DoesNotBlockCaller(t *testing.T) {
+	s := New(nil)
+	s.resolveRetries = 1
+	s.resolveRetryDelay = time.Millisecond
+
+	start := time.Now()
+	first := s.ClusterID()
+	assert.Empty(t, first, "not resolved yet on the first call")
+	assert.Less(t, time.Since(start), 50*time.Millisecond, "ClusterID must return immediately, not wait for background resolution")
+
+	assert.Eventually(t, func() bool {
+		return s.clusterID.Load() != nil
+	}, time.Second, time.Millisecond, "background resolution should complete and cache a result")
+	assert.Empty(t, s.ClusterID(), "no Cluster Agent is configured in this test, so resolution settles on empty")
 }

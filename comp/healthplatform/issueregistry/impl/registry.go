@@ -12,10 +12,9 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the registry component.
@@ -25,8 +24,10 @@ type Requires struct {
 	Hostname       hostnameinterface.Component
 	// Workloadmeta resolves this agent's DaemonSet UID, so that
 	// invalidconfig/invalidsysprobeconfig issue ids can be scoped by
-	// selfident's discriminator instead of the bare hostname.
-	Workloadmeta option.Option[workloadmeta.Component]
+	// selfident's discriminator instead of the bare hostname. Every binary
+	// that wires this bundle also wires workloadmeta's fx module, so this is
+	// a mandatory dependency, not optional.
+	Workloadmeta workloadmeta.Component
 }
 
 type registryImpl struct {

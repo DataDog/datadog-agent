@@ -28,12 +28,11 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -45,10 +44,9 @@ type Requires struct {
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
-	// selfident). Every binary that wires this bundle must also wire
-	// workloadmeta's fx module, since option.Option[workloadmeta.Component]
-	// is provided by that module, not this one.
-	Workloadmeta option.Option[workloadmeta.Component]
+	// selfident). Every binary that wires this bundle also wires
+	// workloadmeta's fx module, so this is a mandatory dependency, not optional.
+	Workloadmeta workloadmeta.Component
 }
 
 // Provides defines the output of the health-platform component

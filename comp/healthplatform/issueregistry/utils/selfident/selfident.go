@@ -14,13 +14,13 @@ package selfident
 import (
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const podNameEnvVar = "DD_POD_NAME"
@@ -39,6 +39,11 @@ const daemonSetOwnerKind = "DaemonSet"
 // race against workloadmeta's initial sync would permanently cache an empty
 // deployment_id for the life of the process; the bound is kept short (~1s)
 // specifically so it stays acceptable on those latency-sensitive paths too.
+//
+// ClusterID reuses the same bound for its background resolution retries —
+// it isn't latency-sensitive since it never blocks a caller, but there is
+// no reason to keep retrying indefinitely once the Cluster Agent has failed
+// to answer a few times in a row.
 const (
 	defaultResolveRetries    = 5
 	defaultResolveRetryDelay = 200 * time.Millisecond
@@ -47,7 +52,7 @@ const (
 // SelfIdent resolves and caches the agent's own DaemonSet UID (deployment_id)
 // and cluster id, for use as health-issue identity discriminators.
 type SelfIdent struct {
-	wmeta option.Option[workloadmeta.Component]
+	wmeta workloadmeta.Component
 
 	once         sync.Once
 	deploymentID string
@@ -55,14 +60,16 @@ type SelfIdent struct {
 	resolveRetries    int
 	resolveRetryDelay time.Duration
 
-	clusterIDOnce sync.Once
-	clusterID     string
+	clusterIDResolveOnce sync.Once
+	clusterID            atomic.Pointer[string]
 }
 
-// New creates a SelfIdent. wmeta may be unset (e.g. builds without
-// workloadmeta), in which case DeploymentID always resolves to empty and
-// IssueDiscriminator falls back to the given host id.
-func New(wmeta option.Option[workloadmeta.Component]) *SelfIdent {
+// New creates a SelfIdent. Every binary that wires the health-platform bundle
+// also wires workloadmeta's fx module, so wmeta is always a real component in
+// production; nil is only ever passed directly by tests that don't care about
+// deployment_id resolution, in which case DeploymentID always resolves to
+// empty and IssueDiscriminator falls back to the given host id.
+func New(wmeta workloadmeta.Component) *SelfIdent {
 	return &SelfIdent{
 		wmeta:             wmeta,
 		resolveRetries:    defaultResolveRetries,
@@ -111,17 +118,46 @@ func (s *SelfIdent) IssueDiscriminator(hostID string) string {
 }
 
 // ClusterID returns the best-effort Kubernetes cluster id, for payload
-// enrichment only — never part of the issue id itself. Empty if unavailable.
+// enrichment only — never part of the issue id itself. Empty if unavailable
+// or not resolved yet.
+//
+// clustername.GetClusterID() reads DD_ORCHESTRATOR_CLUSTER_ID when the
+// Helm chart/Operator wires it, but in practice that env var is not set by
+// current deployments, so every call falls through to a synchronous HTTP
+// request to the Cluster Agent. Blocking on that request from ReportIssue
+// would tie issue reporting to Cluster Agent availability for metadata that
+// is best-effort by design, so resolution runs in a background goroutine
+// instead: the first call kicks it off and returns "" immediately, later
+// calls return whatever has been resolved so far.
 func (s *SelfIdent) ClusterID() string {
-	s.clusterIDOnce.Do(func() {
+	s.clusterIDResolveOnce.Do(func() {
+		go s.resolveClusterID()
+	})
+	if id := s.clusterID.Load(); id != nil {
+		return *id
+	}
+	return ""
+}
+
+// resolveClusterID retries clustername.GetClusterID() a bounded number of
+// times (clustername caches a successful result process-wide, so retries
+// here only matter while the Cluster Agent hasn't answered yet) before
+// giving up and caching empty for the process lifetime.
+func (s *SelfIdent) resolveClusterID() {
+	for attempt := 0; ; attempt++ {
 		id, err := clustername.GetClusterID()
-		if err != nil {
-			log.Debugf("selfident: cluster id unavailable: %v", err)
+		if err == nil {
+			s.clusterID.Store(&id)
 			return
 		}
-		s.clusterID = id
-	})
-	return s.clusterID
+		if attempt >= s.resolveRetries {
+			log.Debugf("selfident: cluster id unavailable after %d attempts: %v", attempt+1, err)
+			empty := ""
+			s.clusterID.Store(&empty)
+			return
+		}
+		time.Sleep(s.resolveRetryDelay)
+	}
 }
 
 // resolveDeploymentID makes one resolution attempt. The second return value
@@ -131,15 +167,14 @@ func (s *SelfIdent) ClusterID() string {
 // found in workloadmeta yet, which may just mean the initial sync hasn't
 // happened — the caller should retry rather than cache a false negative.
 func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definitive bool) {
-	wmeta, ok := s.wmeta.Get()
-	if !ok {
+	if s.wmeta == nil {
 		return "", true
 	}
 	podName, ok := selfPodName()
 	if !ok {
 		return "", true
 	}
-	pod, err := wmeta.GetKubernetesPodByName(podName, podNamespace)
+	pod, err := s.wmeta.GetKubernetesPodByName(podName, podNamespace)
 	if err != nil {
 		log.Debugf("selfident: own pod %q not yet in workloadmeta: %v", podName, err)
 		return "", false
