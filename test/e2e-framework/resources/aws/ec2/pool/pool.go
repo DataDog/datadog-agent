@@ -47,27 +47,25 @@ const (
 // discover another developer's instance or a CI pool member.
 const OwnerUsernameTagKey = "username"
 
-// Lease statuses stored in leaseRecord.Status. statusDevMode marks an instance
-// released from a dev-mode run: unclaimable like statusInUse, but tracked
-// separately since its root volume is left unreverted for inspection.
+// Lease statuses stored in leaseRecord.Status: an instance is either free to claim
+// or held by a run.
 const (
-	statusIdle    = "idle"
-	statusInUse   = "in-use"
-	statusDevMode = "dev-mode"
+	statusIdle  = "idle"
+	statusInUse = "in-use"
 )
 
 // leaseRecord is the JSON body stored at leasePrefix+instanceID in leaseBucket,
 // mutated via S3 conditional writes (If-Match/If-None-Match). ImageID identifies the
 // baseline AMI RevertAndRelease reverts the instance to on release.
 type leaseRecord struct {
-	Status   string `json:"status"` // one of statusIdle, statusInUse, statusDevMode
+	Status   string `json:"status"` // one of statusIdle, statusInUse
 	ImageID  string `json:"imageId,omitempty"`
 	Owner    string `json:"owner,omitempty"`
 	LeasedAt int64  `json:"leased_at,omitempty"`
 
-	// Persistent marks a locally-provisioned, developer-owned instance whose
-	// root volume must never be reverted by RevertAndRelease; see
-	// ScheduleRegisterOnCreate.
+	// Persistent marks a lease whose root volume must never be reverted by
+	// RevertAndRelease, whoever holds it. Local provisioning sets it; absent means
+	// false, i.e. revert.
 	Persistent bool `json:"persistent,omitempty"`
 }
 
@@ -148,7 +146,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 				continue
 			}
 			if current.Status != statusIdle {
-				continue // held by someone else, or left in dev-mode; try the next pool instance
+				continue // held by another run; try the next pool instance
 			}
 
 			body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: ownerPipelineID, LeasedAt: now.Unix(), Persistent: current.Persistent})
@@ -199,12 +197,8 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
 	}
 
-	if devMode {
-		return releaseLease(ctx, s3Client, instanceID, leaseToken, statusDevMode, current.ImageID, current.Owner, current.Persistent)
-	}
-
 	imageID := current.ImageID
-	if imageID != "" && !current.Persistent {
+	if imageID != "" && !current.Persistent && !devMode {
 		ec2Client, err := NewEC2Client(ctx, region, profile)
 		if err != nil {
 			return err
@@ -430,6 +424,7 @@ POOL_TAG_VALUE=%q
 OWNER_TAG_KEY=%q
 LEASE_BUCKET=%q
 LEASE_KEY=%q
+STATUS=%q
 
 IMAGE_ID=$(aws ec2 create-image --instance-id "$INSTANCE_ID" \
   --name "macos-e2e-pool-${USERNAME}-${INSTANCE_ID}" --no-reboot \
@@ -449,10 +444,10 @@ aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
   Key="$OWNER_TAG_KEY",Value="$USERNAME" \
   Key=Name,Value="macos-e2e-pool-$USERNAME"
 
-BODY=$(printf '{"status":"in-use","imageId":"%%s","owner":"%%s","persistent":true}' "$IMAGE_ID" "$OWNER")
+BODY=$(printf '{"status":"%%s","imageId":"%%s","owner":"%%s","persistent":true}' "$STATUS" "$IMAGE_ID" "$OWNER")
 aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
   --body <(printf '%%s' "$BODY") --if-none-match "*" --query 'ETag' --output text
-`, instanceID, ownerPipelineID, username, PoolTagKey, PoolTagValue, OwnerUsernameTagKey, leaseBucket, leasePrefix+instanceID)
+`, instanceID, ownerPipelineID, username, PoolTagKey, PoolTagValue, OwnerUsernameTagKey, leaseBucket, leasePrefix+instanceID, statusInUse)
 }
 
 // NewEC2Client builds an EC2 API client scoped to region/profile.
