@@ -576,15 +576,14 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				}
-				sdkTraceMetricsEnabled := t.cfg.withSDKTraceMetrics
-				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && sdkTraceMetricsEnabled) {
+				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && t.cfg.withSDKTraceMetrics) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					// The SDK trace metric is APM-only, so it does not mark the host as billable.
 					seenNonAPMMetrics = true
 				}
 
-				if md.Name() == sdkTraceMetricName && sdkTraceMetricsEnabled {
+				if md.Name() == sdkTraceMetricName && t.cfg.withSDKTraceMetrics {
 					baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
 					remapSDKTraceMetrics(ctx, t.logger, consumer, baseDims, newMetrics, md)
 					continue // skip mapToDDFormat: the histogram is fully handled above; passing it through would also produce a raw DDSketch
