@@ -105,7 +105,8 @@ func (f *ConnFilter) Evaluate(domain string, ip netip.Addr) (bool, string) {
 	return included, testConfigID
 }
 
-// EvaluateWithTags also returns the config tags of the winning rule.
+// EvaluateWithTags also returns the config tags of the winning rule. The
+// returned tags are owned by the filter and must not be modified.
 func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, string, []string) {
 	isIncluded := true
 	testConfigID := ""
@@ -138,5 +139,5 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 	if !isIncluded {
 		return false, "", nil
 	}
-	return true, testConfigID, slices.Clone(tags)
+	return true, testConfigID, tags
 }
