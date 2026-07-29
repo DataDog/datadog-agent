@@ -19,8 +19,14 @@ oracle:
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
     KUBERNETES_CPU_LIMIT: "3"
     KUBERNETES_MEMORY_LIMIT: "6Gi"
-    KUBERNETES_SERVICE_CPU_REQUEST: "1"
-    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
+    # TEMPORARY, EXPERIMENT ONLY -- do not merge.
+    # incident-51958's failure mode is bimodal: the database either answers the first
+    # connection or never registers its service at all, even after 5 minutes of
+    # retries. Starving Oracle's startup of CPU would look exactly like that, and it
+    # currently gets one request while the test container pins a 3-CPU limit. Raising
+    # the service's share tests whether contention is the cause.
+    KUBERNETES_SERVICE_CPU_REQUEST: "2"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "8Gi"
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
