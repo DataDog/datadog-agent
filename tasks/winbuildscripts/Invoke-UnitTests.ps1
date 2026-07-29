@@ -7,7 +7,7 @@ Invoke the unit tests, with options to configure the build environment.
 
 Runs unit tests for rtloader, Go, and MSI .NET.
 
-Can upload coverage reports to Codecov and test results to Datadog CI.
+Can upload coverage reports to Datadog and test results to Datadog CI.
 
 .PARAMETER BuildOutOfSource
 Specifies whether to build out of source. Default is $false.
@@ -22,9 +22,9 @@ Specifies whether to install dependencies (python requirements, go deps, etc.). 
 Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
 
 .PARAMETER UploadCoverage
-Specifies whether to upload coverage reports to Codecov. Default is $false.
+Specifies whether to upload coverage reports to Datadog. Default is $false.
 
-Requires the CODECOV environment variable to be set.
+Requires the AGENT_API_KEY_ORG2 environment variable to be set.
 
 .PARAMETER UploadTestResults
 Specifies whether to upload test results to Datadog CI. Default is $false.
@@ -64,8 +64,8 @@ Invoke-BuildScript `
             exit 1
         }
         if ($UploadCoverage) {
-            if ([string]::IsNullOrEmpty($Env:CODECOV)) {
-                Write-Host -ForegroundColor Red "CODECOV environment variable is required for uploading coverage reports to Codecov"
+            if ([string]::IsNullOrEmpty($Env:AGENT_API_KEY_ORG2)) {
+                Write-Host -ForegroundColor Red "AGENT_API_KEY_ORG2 environment variable is required for uploading coverage reports to Datadog"
                 exit 1
             }
         }
@@ -164,17 +164,16 @@ Invoke-BuildScript `
 
     if ($UploadCoverage) {
         try {
-            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV" -parameterField token -ErrorAction Stop
-            & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+            & dda inv -- -e coverage.upload-coverage-cache $Env:COVERAGE_CACHE_FLAG
             if ($LASTEXITCODE -ne 0) {
-                throw "coverage upload failed with exit code $LASTEXITCODE"
+                throw "coverage cache operation failed with exit code $LASTEXITCODE"
             }
         }
         catch {
             # Non-fatal: print but do not fail the script
-            Write-Host -ForegroundColor Red "coverage upload failed (non-fatal): $($_.Exception.Message)"
+            Write-Host -ForegroundColor Red "coverage cache operation failed (non-fatal): $($_.Exception.Message)"
         }
-        # Upload coverage to Datadog Code Coverage (side-by-side with Codecov)
+        # Upload coverage to Datadog Code Coverage
         try {
             $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
             & datadog-ci.exe coverage upload --format=go-coverprofile coverage.out
