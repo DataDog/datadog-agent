@@ -142,6 +142,8 @@ typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
 typedef void (*cb_emit_agent_telemetry_t)(char *, char *, double, char *);
 // (raw_text, content_type, error_message) -> json_result
 typedef char *(*cb_parse_prometheus_metrics_t)(char *, char *, char **);
+// (raw_text, content_type, config_json, error_message) -> json_result
+typedef char *(*cb_process_prometheus_metrics_t)(char *, char *, char *, char **);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

@@ -97,6 +97,7 @@ double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
 void EmitAgentTelemetry(char *, char *, double, char *);
 char* ParsePrometheusMetrics(char *, char *, char **);
+char* ProcessPrometheusMetrics(char *, char *, char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -117,6 +118,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
 	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
 	set_parse_prometheus_metrics_cb(rtloader, ParsePrometheusMetrics);
+	set_process_prometheus_metrics_cb(rtloader, ProcessPrometheusMetrics);
 }
 
 //

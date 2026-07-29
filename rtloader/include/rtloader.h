@@ -526,6 +526,15 @@ public:
     */
     virtual void setParsePrometheusMetricsCb(cb_parse_prometheus_metrics_t) = 0;
 
+    //! setProcessPrometheusMetricsCb member.
+    /*!
+      \param A cb_process_prometheus_metrics_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow parsing and
+      processing Prometheus/OpenMetrics text format with label/tag processing using the Go parser.
+    */
+    virtual void setProcessPrometheusMetricsCb(cb_process_prometheus_metrics_t) = 0;
+
 protected:
     //! _allocateInternalErrorDiagnoses member.
     /*!

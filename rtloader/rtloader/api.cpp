@@ -602,6 +602,11 @@ void set_parse_prometheus_metrics_cb(rtloader_t *rtloader, cb_parse_prometheus_m
     AS_TYPE(RtLoader, rtloader)->setParsePrometheusMetricsCb(cb);
 }
 
+void set_process_prometheus_metrics_cb(rtloader_t *rtloader, cb_process_prometheus_metrics_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setProcessPrometheusMetricsCb(cb);
+}
+
 /*
  * _util API
  */
