@@ -29,8 +29,13 @@ type Component interface {
 	// DumpMetrics writes all stored metrics to the specified file (for debugging).
 	DumpMetrics(path string) error
 
-	// SubscribeSeverityEvents registers a scorer listener described by cfg and
-	// returns the created dispatcher plus the first listener's unsubscribe
-	// function.
-	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error)
+	// SubscribeSeverityEvents registers listener, filtered/cooled down per
+	// cfg, and returns the created dispatcher plus an unsubscribe function.
+	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error)
+
+	// SubscribeSeverityEventsReader is a convenience for pull-only consumers:
+	// it registers its own internal listener per cfg and returns a Reader
+	// whose GetSeverity() reflects the latest delivered level, plus the
+	// unsubscribe function that stops the underlying subscription.
+	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
 }

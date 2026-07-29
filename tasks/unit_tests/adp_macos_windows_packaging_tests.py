@@ -2,36 +2,50 @@ import plistlib
 import unittest
 from pathlib import Path
 
-from tasks.libs.common.omnibus import ENV_PASSHTROUGH, OS_SPECIFIC_ENV_PASSTHROUGH
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestADPMacOSWindowsPackaging(unittest.TestCase):
-    def test_omnibus_recipe_selects_darwin_artifacts_and_supports_url_base_override(self):
-        recipe = (REPO_ROOT / "omnibus/config/software/datadog-agent-data-plane.rb").read_text()
+    def test_agent_data_plane_hashes_are_defined_for_all_platforms(self):
+        module_bazel = (REPO_ROOT / "deps/agent_data_plane/agent_data_plane.MODULE.bazel").read_text()
 
-        self.assertIn("AGENT_DATA_PLANE_HASH_DARWIN_AMD64", recipe)
-        self.assertIn("AGENT_DATA_PLANE_HASH_DARWIN_ARM64", recipe)
-        self.assertIn("AGENT_DATA_PLANE_SOURCE_URL_BASE", recipe)
-        self.assertIn('package_target = "darwin-#{target_arch}"', recipe)
-        self.assertIn("Agent Data Plane FIPS artifacts are not available for macOS", recipe)
-        self.assertIn('package_target = "fips-#{package_target}" if fips_mode?', recipe)
-        self.assertIn("AGENT_DATA_PLANE_HASH_WINDOWS_AMD64", recipe)
-        self.assertIn("AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64", recipe)
-        self.assertIn('package_extension = "zip"', recipe)
+        for hash_key in [
+            "linux-amd64",
+            "linux-arm64",
+            "fips-linux-amd64",
+            "fips-linux-arm64",
+            "darwin-amd64",
+            "darwin-arm64",
+            "windows-amd64",
+            "windows-amd64-fips",
+        ]:
+            self.assertIn(f'"{hash_key}"', module_bazel)
 
-    def test_adp_dependency_is_included_on_linux_macos_and_windows(self):
-        dependencies = (REPO_ROOT / "omnibus/config/software/datadog-agent-dependencies.rb").read_text()
+    def test_macos_archive_selection_has_no_fips_variant(self):
+        archives = (REPO_ROOT / "deps/agent_data_plane/BUILD.bazel").read_text()
+        packages_agent = (REPO_ROOT / "packages/agent/BUILD.bazel").read_text()
 
-        self.assertIn("(linux_target? || osx_target? || windows_target?) && !heroku_target?", dependencies)
+        # Agent Data Plane has no FIPS build for macOS: base_flavor (not fips_flavor)
+        # gates the macOS archive selection, so a FIPS+macOS build resolves no
+        # select() branch at all and fails loudly instead of silently falling
+        # back to the non-FIPS darwin archive.
+        self.assertIn('"//packages/agent:macos_x86_64_base": "agent_data_plane_darwin_amd64"', archives)
+        self.assertIn('"//packages/agent:macos_arm64_base": "agent_data_plane_darwin_arm64"', archives)
+        self.assertNotIn("macos_x86_64_fips", archives)
+        self.assertNotIn("macos_arm64_fips", archives)
 
-    def test_darwin_adp_hashes_and_url_base_are_forwarded_to_omnibus(self):
-        darwin_env = OS_SPECIFIC_ENV_PASSTHROUGH["darwin"]
+        self.assertIn('name = "macos_x86_64_base"', packages_agent)
+        self.assertIn('name = "macos_arm64_base"', packages_agent)
+        self.assertNotIn("macos_x86_64_fips", packages_agent)
+        self.assertNotIn("macos_arm64_fips", packages_agent)
 
-        self.assertIn("AGENT_DATA_PLANE_HASH_DARWIN_AMD64", darwin_env)
-        self.assertIn("AGENT_DATA_PLANE_HASH_DARWIN_ARM64", darwin_env)
-        self.assertIn("AGENT_DATA_PLANE_SOURCE_URL_BASE", ENV_PASSHTROUGH)
+    def test_adp_all_files_is_wired_into_dependencies_for_linux_macos_and_windows(self):
+        dependencies = (REPO_ROOT / "packages/agent/dependencies/BUILD.bazel").read_text()
+
+        self.assertIn('"//packages/agent:linux_default": [', dependencies)
+        self.assertIn('"//packages/agent:linux_fips": [', dependencies)
+        self.assertIn('"@platforms//os:macos": [\n            "//deps/agent_data_plane:all_files"', dependencies)
+        self.assertEqual(dependencies.count("//deps/agent_data_plane:all_files"), 4)
 
     def test_macos_app_installs_adp_launchdaemon_template(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
@@ -85,6 +99,15 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                 self.assertIn(f"launchctl bootstrap system {plist}", postinst)
                 self.assertIn(f"launchctl bootout system/{label}", uninstall)
                 self.assertIn(plist, uninstall)
+
+    def test_windows_fips_packaging_does_not_expect_adp_sidecar_dlls(self):
+        agent_installer = (
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
+        ).read_text()
+        omnibus_project = (REPO_ROOT / "omnibus/config/projects/agent.rb").read_text()
+
+        self.assertNotIn("aws_lc_fips", agent_installer)
+        self.assertNotIn("aws_lc_fips", omnibus_project)
 
     def test_windows_adp_procmgr_config_is_embedded_for_fleet_installer(self):
         generated_path = (

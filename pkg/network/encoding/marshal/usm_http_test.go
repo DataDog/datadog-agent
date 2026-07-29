@@ -15,9 +15,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/protobuf/proto" //nolint:staticcheck // SA1019: agent-payload/v5/process types are gogo-generated and do not implement protoreflect.ProtoMessage
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -398,7 +398,7 @@ func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.Connectio
 	streamer.Unwrap(t, &conn)
 
 	var aggregations model.HTTPAggregations
-	err := proto.Unmarshal(conn.HttpAggregations, &aggregations)
+	err := aggregations.Unmarshal(conn.HttpAggregations)
 	require.NoError(t, err)
 
 	return &aggregations, staticTags, dynamicTags

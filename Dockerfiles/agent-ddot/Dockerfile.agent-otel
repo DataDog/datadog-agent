@@ -60,7 +60,7 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     fi
 
 # Install Go based on architecture
-ARG GO_VERSION=1.26.4
+ARG GO_VERSION=1.26.5
 RUN ARCH=$(dpkg --print-architecture) && \
 if [ "$ARCH" = "amd64" ]; then \
 GO_ARCH="linux-amd64"; \
@@ -101,8 +101,12 @@ FROM builder_base AS builder
 # We also have to use the repo clone because some invoke tasks rely on git commands unavailable
 # in repo tarball archives. For the same reason a shallow clone will also not work.
 ARG AGENT_GIT_REF
+ARG DD_GIT_COMMIT_SHA
 ARG PACKAGE_TYPE
-RUN git clone --branch ${AGENT_GIT_REF} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent
+RUN git clone --branch "${AGENT_GIT_REF}" --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent && \
+    if [ -n "${DD_GIT_COMMIT_SHA}" ]; then \
+        git -C datadog-agent checkout --detach "${DD_GIT_COMMIT_SHA}"; \
+    fi
 
 # Set the working directory to the source code
 WORKDIR /workspace/datadog-agent

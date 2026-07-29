@@ -48,6 +48,7 @@ go_library(
         "@io_k8s_api//discovery/v1:discovery",
         "@io_k8s_apiextensions_apiserver//pkg/client/clientset/clientset",
         "@io_k8s_apiextensions_apiserver//pkg/client/informers/externalversions",
+        "@io_k8s_apimachinery//pkg/api/errors",
         "@io_k8s_apimachinery//pkg/api/meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",

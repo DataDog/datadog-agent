@@ -24,6 +24,7 @@ type mockModuleWithCheck struct {
 }
 
 func (m *mockModuleWithCheck) IssueName() string { return m.id }
+func (m *mockModuleWithCheck) IssueType() string { return m.id }
 func (m *mockModuleWithCheck) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
 		Title:       "Test Issue: " + m.id,
@@ -50,6 +51,7 @@ type mockModuleWithOnce struct {
 }
 
 func (m *mockModuleWithOnce) IssueName() string { return m.id }
+func (m *mockModuleWithOnce) IssueType() string { return m.id }
 func (m *mockModuleWithOnce) BuildIssue(_ map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
 		Title:    "Test Issue: " + m.id,
@@ -72,6 +74,7 @@ type mockModuleWithoutCheck struct {
 }
 
 func (m *mockModuleWithoutCheck) IssueName() string { return m.id }
+func (m *mockModuleWithoutCheck) IssueType() string { return m.id }
 func (m *mockModuleWithoutCheck) BuildIssue(_ map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
 		Title:    "Test Issue: " + m.id,

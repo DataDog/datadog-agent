@@ -39,6 +39,7 @@ _COMMON_FLAGS = [
 _PREBUILT_FLAGS = [
     "-DCONFIG_64BIT",
     "-DCOMPILE_PREBUILT",
+    "-fdebug-compilation-dir=.",
 ]
 
 _CORE_FLAGS = [
@@ -130,12 +131,10 @@ def _ebpf_prog_impl(ctx):
     if not ctx.attr.core and kernel_header_dirs:
         kernel_header_inputs = kernel_header_files
 
-        # Resolve the external repo root from a file path.
-        # Files are at external/<repo>/kernel_N/include/..., we need
-        # the prefix up to (not including) "kernel_".
+        # Resolve the external repository root from the installed package layout.
         if kernel_header_files:
             sample = kernel_header_files[0].path
-            idx = sample.find("/kernel_")
+            idx = sample.find("/usr/src/")
             repo_root = sample[:idx] if idx >= 0 else sample.rsplit("/", 1)[0]
             for d in kernel_header_dirs:
                 clang_args.add("-isystem", repo_root + "/" + d)

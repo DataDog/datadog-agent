@@ -187,6 +187,8 @@ type EBPFProbe struct {
 
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
+	dropActionRuleIDs      map[uint32]string
+	dropActionRuleIDsLock  sync.RWMutex
 
 	// remediation tracking
 	activeRemediations     map[string]*Remediation
@@ -783,9 +785,24 @@ func (p *EBPFProbe) setupRawPacketFiltersOnNewRuleset(rs *rules.RuleSet) error {
 func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 	// TODO check cgroupv2
 
+	// if we add a new filter, we must reset the stats since the filter order can change
+	// if the apply is from a ruleset, we already have reset the stats
+	if !applyFromRuleset {
+		if err := p.resetRawPacketDropStats(); err != nil {
+			seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+		}
+	}
+	// then we can rebuild the map between rule IDs and filter indexes
+	// the monitor will use this map to map rule IDs to filter indexes
+	p.rebuildDropActionRuleIDs()
+
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
 	opts.WithGetCurrentCgroupID(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
+
+	if droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets"); err == nil {
+		opts.WithDropStatsMapFd(droppedPacketsMap.FD())
+	}
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
@@ -829,6 +846,55 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
 	// Here we add a new filter so we can apply it on the active buffer
 	return p.applyRawPacketActionFilters(false)
+}
+
+func (p *EBPFProbe) rebuildDropActionRuleIDs() {
+	ruleIDs := make(map[uint32]string, len(p.rawPacketActionFilters))
+	for i, filter := range p.rawPacketActionFilters {
+		if i >= rawpacket.MaxDropActionFilters {
+			seclog.Errorf("too many drop action filters, stop adding them is ruleID mapping, max is %d", rawpacket.MaxDropActionFilters)
+			break
+		}
+		ruleIDs[uint32(i)] = string(filter.RuleID)
+	}
+
+	p.dropActionRuleIDsLock.Lock()
+	p.dropActionRuleIDs = ruleIDs
+	p.dropActionRuleIDsLock.Unlock()
+}
+
+// function to get the drop action rule IDs up to date for the monitor
+func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
+	p.dropActionRuleIDsLock.RLock()
+	defer p.dropActionRuleIDsLock.RUnlock()
+
+	out := make(map[uint32]string, len(p.dropActionRuleIDs))
+	for index, ruleID := range p.dropActionRuleIDs {
+		out[index] = ruleID
+	}
+	return out
+}
+
+func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
+	zero := make([]uint32, p.numCPU)
+	for i := uint32(0); i < rawpacket.MaxDropActionFilters; i++ {
+		_ = droppedPacketsMap.Put(i, zero)
+	}
+}
+
+func (p *EBPFProbe) resetRawPacketDropStats() error {
+	if err := p.monitors.FlushRawPacketDropStats(); err != nil {
+		return err
+	}
+
+	droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets")
+	if err != nil {
+		return err
+	}
+
+	p.clearDroppedPacketsMap(droppedPacketsMap)
+	p.monitors.ResetRawPacketDropCounters()
+	return nil
 }
 
 // Start the probe
@@ -2286,7 +2352,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HaveIOURing()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2717,6 +2783,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 
 		// reset action filter
 		if p.config.RuntimeSecurity.EnforcementEnabled {
+			// we reset before the new packets filters are loaded in the kernel
+			if err := p.resetRawPacketDropStats(); err != nil {
+				seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+			}
 			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
 			if err := p.applyRawPacketActionFilters(true); err != nil {
 				seclog.Errorf("unable to load raw packet action programs: %v", err)
@@ -3202,6 +3272,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+		dropActionRuleIDs:    make(map[uint32]string),
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {
@@ -3529,6 +3600,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructSignal, "struct task_struct", "signal")
+	// since kernel 6.13, override_creds/revert_creds are inlined; we detect credential overrides by
+	// comparing task_struct->cred and task_struct->real_cred in the capabilities hooks
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructCred, "struct task_struct", "cred")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
@@ -3636,6 +3711,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
 		constantfetch.OffsetNameFlowI4StructProto,
 		constantfetch.TypeFieldPair{
@@ -3715,11 +3791,19 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		},
 	)
 
+	// module
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+
+	// cgroup
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
+
 	// fs
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
@@ -3728,7 +3812,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions

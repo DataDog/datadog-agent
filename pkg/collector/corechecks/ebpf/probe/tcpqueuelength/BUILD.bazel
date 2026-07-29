@@ -1,6 +1,8 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 exports_files([
     "tcp_queue_length_kern_types_linux.go",
@@ -12,4 +14,47 @@ cgo_godefs(
     src = "tcp_queue_length_kern_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "tcpqueuelength",
+    srcs = [
+        "tcp_queue_length.go",
+        "tcp_queue_length_kern_types_linux.go",
+        "tcp_queue_length_stub.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/bytecode/runtime",
+        "//pkg/ebpf/features",
+        "//pkg/ebpf/maps",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@org_golang_x_sys//unix",
+    ],
+)
+
+dd_agent_go_test(
+    name = "tcpqueuelength_test",
+    srcs = [
+        "tcp_queue_length_kern_types_linux_test.go",
+        "tcp_queue_length_test.go",
+    ],
+    embed = [":tcpqueuelength"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode/runtime",
+        "//pkg/ebpf/ebpftest:cgo_align",
+        "//pkg/util/kernel",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sync//errgroup",
+    ],
 )

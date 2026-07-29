@@ -162,6 +162,7 @@ linters:
             - "!**/comp/forwarder/eventplatform/impl/epforwarder.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_container.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_dataobservability.go"
+            - "!**/comp/forwarder/eventplatform/impl/pipelines_datasecurity.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_datastreams.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_dbm.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go"
@@ -364,9 +365,6 @@ linters:
         - pattern: ^setup.SetSystemProbe.*$
           pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
           msg: use pkg/config/mock instead for tests or the config component
-        - pattern: ^.*\.SetKnown$
-          pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
-          msg: usage of SetKnown is discouraged
         - pattern: RevertFinishedBackToBuilder
           msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
       analyze-types: true

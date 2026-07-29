@@ -25,10 +25,12 @@ common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_default_to_explicit_init_py # https://github.com/bazel-contrib/rules_python/issues/2945
 common --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
+common --nobuild_event_json_file_path_conversion # don't fail the build on a transient BEP-upload error (no such host)
 common --remote_instance_name=ci/datadog-agent # entries missing from datadog-agent will be searched in remote-caching
 common --remote_local_fallback # best-effort on transient connection errors (no such host)
 common --remote_retries=1
 common --remote_timeout=60
+common --rewind_lost_inputs # https://github.com/bazelbuild/bazel/pull/25477
 common --repo_env=DEPLOY_AGENT # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=FORCED_PACKAGE_COMPRESSION_LEVEL # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
@@ -60,11 +62,10 @@ common:linux --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io
 common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
-common:macos --copt=-mmacosx-version-min=12.0 # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:macos --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
-common:macos --linkopt=-mmacosx-version-min=12.0 # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
@@ -81,6 +82,7 @@ common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed b
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
 common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --run_env=__COMPAT_LAYER=RunAsInvoker # install*.exe may otherwise fail claiming unneeded admin elevation
+common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
 # Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
@@ -115,9 +117,6 @@ import %workspace%/bazel/configs/rust.bazelrc
 common:release --config=rust-release
 common:release --//:release
 common --config=release
-
-test --@rules_go//go/config:race
-test --test_env=GORACE=atexit_sleep_ms=50
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

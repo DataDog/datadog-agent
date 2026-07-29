@@ -77,10 +77,14 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSuperblockSType:                 40,
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
+		OffsetNameQstrName:                        8,
+		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameModuleName:                      24,
+		OffsetNameKernfsOpenFileFile:              8,
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
@@ -145,6 +149,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
 		OffsetNameMountMountpoint:             getMountMountpointOffset,
+		OffsetNameTaskStructCred:              getTaskStructCredOffset,
+		OffsetNameTaskStructSignal:            getTaskStructSignalOffset,
+		OffsetNameTaskStructRealCred:          getTaskStructRealCredOffset,
 	}
 }
 
@@ -1127,5 +1134,56 @@ func getMountMountpointOffset(kv *kernel.Version) uint64 {
 		return 240
 	default:
 		return 232
+	}
+}
+
+func getTaskStructCredOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1648
+	case kv.IsAmazonLinuxKernel():
+		return 2640
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2632
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1648
+	case kv.IsSuse12Kernel():
+		return 2664
+	default:
+		return ErrorSentinel
+	}
+}
+
+func getTaskStructSignalOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1896
+	case kv.IsAmazonLinuxKernel():
+		return 2728
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2720
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1744
+	case kv.IsSuse12Kernel():
+		return 2752
+	default:
+		return ErrorSentinel
+	}
+}
+
+func getTaskStructRealCredOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1640
+	case kv.IsAmazonLinuxKernel():
+		return 2632
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2624
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1640
+	case kv.IsSuse12Kernel():
+		return 2656
+	default:
+		return ErrorSentinel
 	}
 }

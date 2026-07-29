@@ -8,7 +8,6 @@ package setup
 import (
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
@@ -43,7 +42,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.keep_command", false, "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.enabled", true, "DD_APM_OBFUSCATION_CACHE_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.max_size", 5000000, "DD_APM_OBFUSCATION_CACHE_MAX_SIZE")
-	config.BindEnvAndSetDefault("apm_config.extra_sample_rate", 0.0)
+	config.BindEnvAndSetDefault("apm_config.extra_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("apm_config.dd_agent_bin", "")
 	config.BindEnvAndSetDefault("apm_config.trace_writer.connection_limit", 0)
 	config.BindEnvAndSetDefault("apm_config.trace_writer.queue_size", 0)
@@ -54,6 +53,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.watchdog_check_delay", 0)
 	config.BindEnvAndSetDefault("apm_config.sync_flushing", false, "DD_APM_SYNC_FLUSHING")
 	config.BindEnvAndSetDefault("apm_config.features", []string{}, "DD_APM_FEATURES")
+	pkgconfighelper.ParseEnvSplitCommaThenSpace("apm_config.features", config)
 	config.BindEnvAndSetDefault("apm_config.max_catalog_entries", 0)
 
 	// Vector options for traces
@@ -65,11 +65,11 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.enabled", true, "DD_APM_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.receiver_enabled", true, "DD_APM_RECEIVER_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
-	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", true, "DD_APM_PEER_SERVICE_AGGREGATION")                               //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")                                     //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1000000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR")
+	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", true, "DD_APM_PEER_SERVICE_AGGREGATION")
+	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")
+	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.workload_selection", true, "DD_APM_WORKLOAD_SELECTION")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injection_mode", "auto", "DD_APM_INSTRUMENTATION_INJECTION_MODE")
@@ -101,20 +101,19 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.max_connections", 1000, "DD_APM_MAX_CONNECTIONS")
 	config.BindEnvAndSetDefault("apm_config.decoder_timeout", 1000, "DD_APM_DECODER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.log_file", "", "DD_APM_LOG_FILE")
-	config.BindEnvAndSetDefault("apm_config.max_events_per_second", 200.0, "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", 10.0, "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
-	config.BindEnvAndSetDefault("apm_config.target_traces_per_second", 10.0, "DD_APM_TARGET_TPS")
-	config.BindEnvAndSetDefault("apm_config.errors_per_second", 10.0, "DD_APM_ERROR_TPS")
+	config.BindEnvAndSetDefault("apm_config.max_events_per_second", float64(200), "DD_APM_MAX_EPS", "DD_MAX_EPS")
+	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", float64(10), "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
+	config.BindEnvAndSetDefault("apm_config.target_traces_per_second", float64(10), "DD_APM_TARGET_TPS")
+	config.BindEnvAndSetDefault("apm_config.errors_per_second", float64(10), "DD_APM_ERROR_TPS")
 	config.BindEnvAndSetDefault("apm_config.enable_rare_sampler", false, "DD_APM_ENABLE_RARE_SAMPLER")
 	config.BindEnvAndSetDefault("apm_config.disable_rare_sampler", false, "DD_APM_DISABLE_RARE_SAMPLER") // Deprecated
-	config.BindEnvAndSetDefault("apm_config.max_remote_traces_per_second", 100.0, "DD_APM_MAX_REMOTE_TPS")
+	config.BindEnvAndSetDefault("apm_config.max_remote_traces_per_second", float64(100), "DD_APM_MAX_REMOTE_TPS")
 	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.enabled", false, "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")
-	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.sampling_percentage", 0.0, "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
+	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.sampling_percentage", float64(0), "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.hash_seed", 0, "DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED")
 	config.BindEnvAndSetDefault("apm_config.error_tracking_standalone.enabled", false, "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED")
-
-	config.BindEnvAndSetDefault("apm_config.max_memory", 5e8, "DD_APM_MAX_MEMORY")
-	config.BindEnvAndSetDefault("apm_config.max_cpu_percent", 50.0, "DD_APM_MAX_CPU_PERCENT")
+	config.BindEnvAndSetDefault("apm_config.max_memory", float64(5e+08), "DD_APM_MAX_MEMORY")
+	config.BindEnvAndSetDefault("apm_config.max_cpu_percent", float64(50), "DD_APM_MAX_CPU_PERCENT")
 	config.BindEnvAndSetDefault("apm_config.env", "", "DD_APM_ENV")
 	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", false, "DD_APM_NON_LOCAL_TRAFFIC")
 	config.BindEnvAndSetDefault("apm_config.apm_dd_url", "", "DD_APM_DD_URL")
@@ -130,19 +129,27 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.additional_profile_tags", map[string]string{}, "DD_APM_ADDITIONAL_PROFILE_TAGS")
 	config.BindEnvAndSetDefault("apm_config.additional_endpoints", map[string][]string{}, "DD_APM_ADDITIONAL_ENDPOINTS")
 	config.BindEnvAndSetDefault("apm_config.replace_tags", []map[string]string{}, "DD_APM_REPLACE_TAGS")
+	config.ParseEnvJSON("apm_config.replace_tags", []map[string]string{})
 	config.BindEnvAndSetDefault("apm_config.analyzed_spans", map[string]interface{}{}, "DD_APM_ANALYZED_SPANS")
+	pkgconfighelper.ParseEnvTraceSpan("apm_config.analyzed_spans", config)
 	config.BindEnvAndSetDefault("apm_config.ignore_resources", []string{}, "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	pkgconfighelper.ParseEnvCSVSplit("apm_config.ignore_resources", config)
 	config.BindEnvAndSetDefault("apm_config.instrumentation.targets", []interface{}{}, "DD_APM_INSTRUMENTATION_TARGETS")
 	config.ParseEnvJSON("apm_config.instrumentation.targets", []interface{}{})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", GetPlatformDefault(map[string]interface{}{
-		"linux": defaultpaths.GetDefaultReceiverSocket(),
+		"linux": "/var/run/datadog/apm.socket",
+		"aix":   "/var/run/datadog/apm.socket",
 		"other": "",
 	}), "DD_APM_RECEIVER_SOCKET")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags.require", config)
 	config.BindEnvAndSetDefault("apm_config.filter_tags.reject", []string{}, "DD_APM_FILTER_TAGS_REJECT")
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags.reject", config)
 	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.reject", []string{}, "DD_APM_FILTER_TAGS_REGEX_REJECT")
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags_regex.reject", config)
 	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.require", []string{}, "DD_APM_FILTER_TAGS_REGEX_REQUIRE")
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags_regex.require", config)
 	config.BindEnvAndSetDefault("apm_config.internal_profiling.enabled", false, "DD_APM_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.debugger_dd_url", "", "DD_APM_DEBUGGER_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.debugger_api_key", "", "DD_APM_DEBUGGER_API_KEY")
@@ -163,25 +170,15 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.enabled", true, "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.luhn", false, "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.obfuscation.credit_cards.keep_values", config)
 	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
 	config.BindEnvAndSetDefault("apm_config.send_all_internal_stats", false, "DD_APM_SEND_ALL_INTERNAL_STATS")
 	config.BindEnvAndSetDefault("apm_config.enable_container_tags_buffer", true, "DD_APM_ENABLE_CONTAINER_TAGS_BUFFER")
-	pkgconfighelper.ParseEnvSplitCommaThenSpace("apm_config.features", config)
-	pkgconfighelper.ParseEnvCSVSplit("apm_config.ignore_resources", config)
-
-	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags.require", config)
-	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags.reject", config)
-	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags_regex.require", config)
-	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags_regex.reject", config)
-	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.obfuscation.credit_cards.keep_values", config)
-	config.ParseEnvJSON("apm_config.replace_tags", []map[string]string{})
-
-	pkgconfighelper.ParseEnvTraceSpan("apm_config.analyzed_spans", config)
-
 	config.BindEnvAndSetDefault("apm_config.peer_tags", []string{}, "DD_APM_PEER_TAGS")
 	config.ParseEnvJSON("apm_config.peer_tags", []string{})
+	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
 
 	// Deprecated/Experimental: DD_APM_SPAN_DERIVED_PRIMARY_TAGS is only honored when
 	// the agent runs in a serverless context (the Datadog Azure App Services
@@ -190,8 +187,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	// use in new deployments.
 	config.BindEnvAndSetDefault("apm_config.span_derived_primary_tags", []string{}, "DD_APM_SPAN_DERIVED_PRIMARY_TAGS")
 	config.ParseEnvJSON("apm_config.span_derived_primary_tags", []string{})
-
-	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
 
 	// trace-agent's evp_proxy. Registered here (in setupAPM, which is part of
 	// initCommonConfigComponents) so the defaults are reachable under both the

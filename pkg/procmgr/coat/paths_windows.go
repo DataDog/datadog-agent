@@ -19,8 +19,8 @@ func agentInstallRoot() string {
 	return defaultpaths.GetInstallPath()
 }
 
-func procmgrConfigPath(_ string, configFile string) string {
-	return filepath.Join(windowsProcmgrConfigDir(), configFile)
+func procmgrConfigPath(installRoot, configFile string) string {
+	return filepath.Join(installRoot, processesDirRel, configFile)
 }
 
 // installMarkerPaths returns paths to check for an installed DDOT payload on Windows.
@@ -50,7 +50,7 @@ func installMarkerPaths(installRoot string, service MigratableService) []string 
 
 // windowsDatadogDataDir returns the agent data directory (MSI ConfigRoot when set,
 // otherwise default ProgramData\Datadog), matching fleet installer layout for
-// Installer\packages and dd-procmgr\processes.d.
+// Installer\packages.
 func windowsDatadogDataDir() string {
 	if pd, err := winutil.GetProgramDataDir(); err == nil && pd != "" {
 		return pd
@@ -63,8 +63,4 @@ func windowsDatadogDataDir() string {
 
 func windowsPackagesPath() string {
 	return filepath.Join(windowsDatadogDataDir(), "Installer", "packages")
-}
-
-func windowsProcmgrConfigDir() string {
-	return filepath.Join(windowsDatadogDataDir(), "dd-procmgr", processesDirRel)
 }

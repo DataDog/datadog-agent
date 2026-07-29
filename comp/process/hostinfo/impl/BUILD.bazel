@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["hostinfo.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/hostinfo/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/process/hostinfo/def",
+        "//pkg/process/checks",
+    ],
+)

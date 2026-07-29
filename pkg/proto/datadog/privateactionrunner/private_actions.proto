@@ -50,6 +50,23 @@ message PrivateActionTask {
   ConnectionInfo connection_info = 10;
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
+  SystemInputs system_inputs = 13;
+}
+
+message SystemInputs {
+  oneof input {
+    RemoteAction remote_action = 1;
+  }
+}
+
+message RemoteAction {
+  // allowed_commands and allowed_paths carry the rshell allowlists resolved
+  // from execution policies for remote-action tasks. They are empty for
+  // non-remote-action tasks. allowed_commands is the flat, namespaced
+  // ("rshell:<command>") command allowlist; allowed_paths is the flat path
+  // allowlist rshell may operate on.
+  repeated string allowed_commands = 1;
+  repeated string allowed_paths = 2;
 }
 
 message ConnectionInfo {

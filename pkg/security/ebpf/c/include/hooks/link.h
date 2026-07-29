@@ -39,6 +39,15 @@ int hook_do_linkat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_linkat")
+int hook_filename_linkat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return trace__sys_link(ctx, ASYNC_SYSCALL, NULL, NULL);
+    }
+    return 0;
+}
+
 HOOK_ENTRY("complete_walk")
 int hook_complete_walk(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -181,6 +190,12 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
 
 HOOK_EXIT("do_linkat")
 int rethook_do_linkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_linkat")
+int rethook_filename_linkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }

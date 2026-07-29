@@ -57,15 +57,15 @@ func TestGetLogsMeta(t *testing.T) {
 
 	status.SetCurrentTransport("")
 	meta := getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: true}, meta)
 
 	status.SetCurrentTransport(status.TransportTCP)
 	meta = getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
-
-	conf.SetInTest("logs_config.auto_multi_line_detection", true)
-	meta = getLogsMeta(conf)
 	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: true}, meta)
+
+	conf.SetInTest("logs_config.auto_multi_line_detection", false)
+	meta = getLogsMeta(conf)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 }
 
 func TestGetInstallMethod(t *testing.T) {
@@ -93,6 +93,16 @@ func TestGetInstallMethod(t *testing.T) {
 	assert.Equal(t, "chef-15", installMethod.ToolVersion)
 	assert.Equal(t, "chef", *installMethod.Tool)
 	assert.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
+}
+
+func TestIsFipsProxyEnabled(t *testing.T) {
+	conf := configmock.New(t)
+
+	conf.SetInTest("fips.enabled", false)
+	assert.False(t, isFipsProxyEnabled(conf))
+
+	conf.SetInTest("fips.enabled", true)
+	assert.Equal(t, !getFipsMode(), isFipsProxyEnabled(conf))
 }
 
 func TestGetProxyMeta(t *testing.T) {

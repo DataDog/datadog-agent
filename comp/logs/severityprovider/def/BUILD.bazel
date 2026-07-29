@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = [
+        "bridge.go",
+        "component.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/anomalydetection/severityevents/def"],
+)
