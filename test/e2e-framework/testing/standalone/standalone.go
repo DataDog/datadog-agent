@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -79,6 +80,13 @@ func newLogWriter(ctx common.Context) io.Writer { return ctxLogWriter{ctx: ctx} 
 // The returned environment is ready to use (e.g. env.RemoteHost.Execute). Callers are
 // responsible for calling [Destroy] when done.
 func Provision[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, error) {
+	env, _, err := ProvisionWithResources[Env](ctx, stackName, p)
+	return env, err
+}
+
+// ProvisionWithResources is like [Provision] but also returns the raw stack outputs so
+// that callers can persist them without a second Pulumi read.
+func ProvisionWithResources[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, provisioners.RawResources, error) {
 	pCtx, cancel := context.WithTimeout(context.Background(), createTimeout)
 	defer cancel()
 
@@ -86,7 +94,7 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 
 	env, fields, values, err := environments.CreateEnv[Env]()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
+		return nil, nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
 	}
 
 	var resources provisioners.RawResources
@@ -96,10 +104,10 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 	case provisioners.UntypedProvisioner:
 		resources, err = pType.Provision(pCtx, stackName, logger)
 	default:
-		return nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
+		return nil, nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("provisioning stack %s with provisioner %s failed: %w", stackName, p.ID(), err)
+		return nil, nil, fmt.Errorf("provisioning stack %s with provisioner %s failed: %w", stackName, p.ID(), err)
 	}
 
 	// Refresh field values from env to capture any changes made by the provisioner
@@ -110,12 +118,59 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 	}
 
 	if err := environments.BuildEnvFromResources(ctx, resources, fields, values); err != nil {
-		return nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
+		return nil, nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
 	}
 
 	if initializable, ok := any(env).(common.Initializable); ok {
 		if err := initializable.Init(ctx); err != nil {
-			return nil, fmt.Errorf("failed to init environment: %w", err)
+			return nil, nil, fmt.Errorf("failed to init environment: %w", err)
+		}
+	}
+
+	return env, resources, nil
+}
+
+// HydrateFromResources builds an environment of type Env from already-captured
+// RawResources (e.g. persisted at create time) and the import-key mapping
+// captured by [environments.ImportKeys] at provision time, with NO Pulumi
+// interaction.
+//
+// For each importable field in Env:
+//   - If keys[FieldName] is present, the key is replayed via SetKey before
+//     calling [environments.BuildEnvFromResources], so the resource is found by
+//     the correct key in the resources map.
+//   - If keys[FieldName] is absent, the field is set to nil so
+//     [environments.BuildEnvFromResources] treats it as an optional component
+//     that was not deployed.
+func HydrateFromResources[Env any](ctx common.Context, resources provisioners.RawResources, keys map[string]string) (*Env, error) {
+	env, fields, values, err := environments.CreateEnv[Env]()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create env %T from cached resources: %w", env, err)
+	}
+
+	// Refresh field values from env (mirrors Provision's pattern) and apply
+	// the captured import keys so BuildEnvFromResources can match resources.
+	envValue := reflect.ValueOf(env)
+	for idx, field := range fields {
+		values[idx] = envValue.Elem().FieldByIndex(field.Index)
+		if k, ok := keys[field.Name]; ok {
+			// Key present — replay it on the importable so the resource lookup
+			// uses the correct export name.
+			values[idx].Interface().(components.Importable).SetKey(k)
+		} else {
+			// Key absent — mark this field as nil so BuildEnvFromResources
+			// treats it as a component that was not deployed.
+			values[idx].Set(reflect.Zero(values[idx].Type()))
+		}
+	}
+
+	if err := environments.BuildEnvFromResources(ctx, resources, fields, values); err != nil {
+		return nil, fmt.Errorf("unable to build env %T from cached resources: %w", env, err)
+	}
+
+	if initializable, ok := any(env).(common.Initializable); ok {
+		if err := initializable.Init(ctx); err != nil {
+			return nil, fmt.Errorf("failed to init environment from cached resources: %w", err)
 		}
 	}
 

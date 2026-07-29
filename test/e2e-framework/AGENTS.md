@@ -218,6 +218,165 @@ strictly-increasing CI check, publish jobs).
 - `common/config/environment.go` — Pulumi config management
 - `README.md` — setup guide, troubleshooting, examples
 
+## Unified scenario model
+
+A scenario is defined **once** in Go and driven from tests, the `scenariorun`
+CLI, and the `scenario-service` stub without any duplication. See
+`scenario/` (reflection: `BuildSchema`/`Decode`/`RegisterFlags`/`CollectFlags`,
+the generic `Scenario[Env]`, the type-erased `Runnable` registry, and `Describe()`
+with `ProtocolVersion`), `scenario/params/` (reusable `AgentParams`/`FakeintakeParams`
+components with `ToOptions()`), and `scenario/scenarios/ec2host/` (reference scenario).
+
+### Two convergent provisioning paths — zero migration
+
+Tests keep using the existing typed provisioner and typed `With…` options
+unchanged. The CLI/service path decodes flags into the canonical struct and maps
+them onto **those same typed options via the same provisioner**:
+
+```go
+// Test path — unchanged:
+awshost.Provisioner(awshost.WithRunOptions(
+    ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
+    ec2.WithAgentOptions(agentparams.WithAgentConfig(cfg)),
+))
+
+// CLI/service path — Provisioner(p) adapter calls the same awshost.Provisioner:
+ec2host.Provisioner(p)  // p is decoded from CLI flags into *EC2HostParams
+```
+
+### Canonical params struct and defaulted constructors
+
+Params are a Go struct with `scenario:` tags; `BuildSchema` reflects them:
+
+```
+scenario:"name=os,default=ubuntu-22.04,help=Operating system,enum=ubuntu-22.04|debian-12"
+scenario:"-"   // Go-only escape hatch, not exposed to CLI (e.g. InstanceOptions []ec2.VMOption)
+```
+
+Reusable components (`AgentParams`, `FakeintakeParams`) embed directly into
+the canonical struct; `BuildSchema` recurses into them automatically.
+
+The blessed constructor is `scenario.NewParams[T]()` (generic) or each scenario's
+own `NewParams()` wrapper (e.g. `ec2host.NewParams()`, `agenthealth.NewParams()`).
+Both return a fully-defaulted struct by applying every `default=` tag value. The CLI
+applies those same defaults through `Decode` (ApplyDefaults then overlay from flags), so
+Go and CLI paths start from identical baselines.
+
+### Single action path
+
+All action execution flows through one function:
+
+```go
+scenario.DispatchAction[Env](ctx, s, stack, action, cfg, resolver)
+```
+
+The `scenario.EnvResolver[Env]` interface is the only variation:
+
+- **CLI / `scenariorun action`**: uses `scenario.StateResolver[Env]`, which hydrates the
+  env from the local state store (no Pulumi call).
+- **Tests**: uses a fixed resolver backed by the live suite env, invoked via
+  `scenariotest.RunAction(env, s, action, cfg)`.
+
+The registry entry points `scenario.Create` / `scenario.RunAction` / `scenario.Destroy`
+are what the `scenariorun` CLI delegates to (keyed by scenario name and stack).
+
+### Actions are curated CLI affordances, not test-step mirrors
+
+Actions expose a small set of operations that are meaningful **from the CLI** (e.g.
+`connection-info`, `restart-agent`). They are not reflections of every test mutation.
+Test-step mutations stay as ordinary Go against `s.Env()`. For example, in the
+`dockerPermissionSuite` the socket `chmod`s (`sudo chmod 660 /var/run/docker.sock`)
+remain inline test code — only `connection-info` and `restart-agent` are registered
+as actions because those are useful from the command line.
+
+### E2E bridge — reuse a scenario in tests
+
+Tests adopt a scenario with a single `SuiteOption`:
+
+```go
+func TestDockerPermissionSuite(t *testing.T) {
+    sc := agenthealth.Scenario()
+    e2e.Run(t, &dockerPermissionSuite{},
+        scenariotest.WithScenario(sc, sc.NewParams()),
+    )
+}
+```
+
+Subtests call `s.Env()` exactly as they would with any other provisioner. To invoke
+an action from a test, use `scenariotest.RunAction(s.Env(), sc, "restart-agent", nil)`.
+
+### agent-health: worked custom-env example
+
+`scenario/scenarios/agenthealth/` is the reference for a **custom environment**
+(VM + host Agent + Docker app + FakeIntake). The `agenthealth.Env` struct carries
+all four components; the scenario's provisioner wires them with `provisioners.NewTypedPulumiProvisioner` (exposed to tests via `scenariotest.WithScenario`).
+The `dockerPermissionSuite` in `test/new-e2e/tests/agent-health/` drives this scenario
+end-to-end, demonstrating both the E2E bridge and the curated-actions principle.
+
+### CLI
+
+The CLI is the `scenariorun` binary (`test/e2e-framework/cmd/scenariorun`).
+Run it directly from the module so flags pass through as normal argv — there is
+deliberately no `dda inv` wrapper (invoke cannot cleanly forward cobra-style
+flags):
+
+```bash
+cd test/e2e-framework
+go build -o bin/scenariorun ./cmd/scenariorun   # or: go run ./cmd/scenariorun <args>
+
+./bin/scenariorun list
+./bin/scenariorun describe --json                # carries protocolVersion
+./bin/scenariorun create ec2-host --os debian-12 --arch arm64 --use-fakeintake --stack my-stack
+./bin/scenariorun action ec2-host run-command --command "uname -a" --stack my-stack
+./bin/scenariorun action ec2-host restart-agent --stack my-stack
+./bin/scenariorun destroy ec2-host --stack my-stack
+```
+
+The command tree and flags are generated from the registry by reflection —
+never hand-declared. Create-time config is persisted (keyed by stack name, under
+`$SCENARIORUN_STATE_DIR` or `~/.scenariorun/stacks`) and replayed on
+`action`/`destroy` so they operate on the topology `create` built.
+
+### Local state store
+
+The CLI keeps a local state store of every provisioned stack. Each JSON file
+records the scenario name, stack name, create-time config, and the full Pulumi
+stack outputs (`resources` field). State files are written to
+`$SCENARIORUN_STATE_DIR` when set, otherwise `~/.scenariorun/stacks/`. The
+directory is created with 0700; files are written with 0600.
+
+`scenariorun ps` lists all currently-provisioned stacks with their scenario
+name and creation time:
+
+```bash
+./bin/scenariorun ps
+# STACK            SCENARIO   CREATED
+# my-stack         ec2-host   2025-07-01T12:00:00Z
+```
+
+**Action hydration** uses the cached outputs and import keys captured at create
+time — no Pulumi call is ever made. The local state file records both the raw
+Pulumi stack outputs (`resources` field) and the field→import-key mapping
+(`keys` field, populated by `environments.ImportKeys`). `HydrateFromResources`
+replays those keys via `Importable.SetKey` before calling
+`BuildEnvFromResources`, so resource lookup uses the correct export name. If
+the local state file is absent the action fails with a clear error; there is no
+Pulumi fallback. A successful `destroy` deletes the state file (best-effort;
+destroy never fails because of a state-cleanup error).
+
+Key implementation files:
+- `scenario/state.go` — `ProvisionedStack` (including `Keys` field), `SaveProvisionedStack`, `LoadProvisionedStack`, `ListProvisionedStacks`, `DeleteProvisionedStack`
+- `testing/environments/environments.go` — `ImportKeys` (snapshots field→key from a provisioned env)
+- `testing/standalone/standalone.go` — `ProvisionWithResources` (returns raw outputs alongside the env), `HydrateFromResources` (replays keys then hydrates from cached resources, no Pulumi)
+- `scenario/runnable.go` — wires the state store into `Create`/`RunAction`/`Destroy`
+
+### Service
+
+`cmd/scenario-service` (stub) builds and drives the `scenariorun` binary from
+a caller-specified commit via the stable `describe`/`create`/`action`/`destroy`
+protocol. This lets a long-running service drive scenarios at any pinned commit
+without version coupling.
+
 ## Keeping this file accurate
 
 This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §

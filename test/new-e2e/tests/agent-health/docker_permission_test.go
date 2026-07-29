@@ -15,34 +15,24 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario/scenarios/agenthealth"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/scenariotest"
 )
-
-// ============================================================================
-// Environment definition
-// ============================================================================
-
-type dockerPermissionEnv struct {
-	RemoteHost *components.RemoteHost
-	Agent      *components.RemoteHostAgent
-	Fakeintake *components.FakeIntake
-	Docker     *components.RemoteHostDocker
-}
 
 // ============================================================================
 // Test suite
 // ============================================================================
 
 type dockerPermissionSuite struct {
-	e2e.BaseSuite[dockerPermissionEnv]
+	e2e.BaseSuite[agenthealth.Env]
 }
 
 // TestDockerPermissionSuite runs the docker permission health check test.
 func TestDockerPermissionSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dockerPermissionSuite{},
-		e2e.WithPulumiProvisioner(dockerPermissionEnvProvisioner(), nil),
+		scenariotest.WithScenario(agenthealth.Scenario(), agenthealth.NewParams()),
 	)
 }
 
