@@ -59,8 +59,9 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{"rshell:*"})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
 
-	// IsConfigured distinguishes this typed default (backend-only) from an
-	// explicitly configured empty map (deny all).
+	// Optional local restriction on backend system-service grants. When
+	// unset, backend grants pass through; an explicit empty map denies all.
+	// The environment variable accepts a JSON object only.
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 	config.ParseEnvJSON("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 
