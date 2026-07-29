@@ -41,10 +41,10 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 // newTestClient builds a client wired to the given httptest server.
-// It sets DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION so endpointURL uses plain HTTP.
+// It sets DD_INTERNAL_PAR_OPMS_INSECURE_HOST so endpointURL uses plain HTTP.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
+	t.Setenv(app.InternalOpmsInsecureHostEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{

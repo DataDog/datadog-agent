@@ -1106,8 +1106,11 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 
 	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
 	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
-	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION bypasses signed-envelope validation so PAR can talk
-	// to fakeintake over plain HTTP instead of the real OPMS backend.
+	// PAR also gets its own Remote Config env vars here (the "allEnvVars" wiring above only
+	// touches the datadog/clusterAgent/clusterChecksRunner sections) so it can fetch its
+	// signed-envelope verification key from fakeintake's AP_RUNNER_KEYS RC product.
+	// DD_INTERNAL_PAR_OPMS_INSECURE_HOST tells PAR's OPMS client to call fakeintake's
+	// plain-HTTP endpoint.
 	if agents, ok := values["agents"].(pulumi.Map); ok {
 		containers, ok := agents["containers"].(pulumi.Map)
 		if !ok {
@@ -1125,7 +1128,13 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			par["envDict"] = parEnvDict
 		}
 		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
-		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
+		parEnvDict["DD_INTERNAL_PAR_OPMS_INSECURE_HOST"] = pulumi.String("true")
+		parEnvDict["DD_REMOTE_CONFIGURATION_RC_DD_URL"] = fi.URL
+		parEnvDict["DD_REMOTE_CONFIGURATION_NO_TLS"] = pulumi.String("true")
+		parEnvDict["DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION"] = pulumi.String("true")
+		parEnvDict["DD_REMOTE_CONFIGURATION_CONFIG_ROOT"] = pulumi.String(rootJSON)
+		parEnvDict["DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT"] = pulumi.String(rootJSON)
+		parEnvDict["DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL"] = pulumi.String("5s")
 	}
 
 	return nil

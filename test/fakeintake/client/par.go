@@ -7,6 +7,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -86,6 +87,31 @@ func (c *Client) GetPARDequeueCount() (int, error) {
 		return 0, fmt.Errorf("decode PAR stats: %w", err)
 	}
 	return stats.DequeueCalls, nil
+}
+
+// ConfigurePARSigning sets the identity fakeintake signs dequeued PAR tasks with.
+// Call it before enqueuing tasks, then push the matching public key via RCAddConfig
+// (product "AP_RUNNER_KEYS", configID keyID) so PAR's verifier accepts them.
+func (c *Client) ConfigurePARSigning(keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID string) error {
+	body, err := json.Marshal(map[string]interface{}{
+		"key_id":      keyID,
+		"private_key": []byte(privateKey),
+		"org_id":      orgID,
+		"runner_id":   runnerID,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal signing config: %w", err)
+	}
+	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/signing-config", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("configure PAR signing: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("configure PAR signing: status %d: %s", resp.StatusCode, b)
+	}
+	return nil
 }
 
 func (c *Client) getPARResult(taskID string) (*api.PARTaskResult, error) {
