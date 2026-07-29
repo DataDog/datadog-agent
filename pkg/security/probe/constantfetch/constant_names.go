@@ -129,6 +129,8 @@ const (
 	OffsetNameFlowI4StructProto = "flowi4_proto_offset"
 	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
 	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
+	OffsetNameSkBuffHead          = "sk_buff_head_offset"
+	OffsetNameSkBuffTransportHeader = "sk_buff_transport_header_offset"
 
 	// nsproxy offsets
 	OffsetNameNsproxyMntNs = "nsproxy_mnt_ns_offset"
