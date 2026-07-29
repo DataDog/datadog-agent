@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"iter"
 	"net/netip"
-	"slices"
 	"sync"
 	"time"
 
@@ -446,7 +445,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.TestConfigID = ptest.Pathtest.TestConfigID
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
-	path.Tags = slices.Clone(ptest.Pathtest.Tags)
+	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
 		path.SourceProduct = payload.SourceProductNetflow
