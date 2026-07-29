@@ -387,6 +387,7 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 }
 
 func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	w.Write([]byte("{}"))
 }
