@@ -238,11 +238,6 @@ func timeoutMiddleware(timeout time.Duration, h http.Handler) http.Handler {
 func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// buildMux can run more than once (BuildHandlers is called on every GetHTTPHandler request);
-	// reset so evpProxyHandler's appends below don't accumulate orphaned transports from earlier
-	// calls that are no longer wired into the live mux.
-	r.evpTransports = nil
-
 	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
 	_, infoHandler := r.makeInfoHandler()

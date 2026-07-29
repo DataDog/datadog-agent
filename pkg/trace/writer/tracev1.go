@@ -134,9 +134,22 @@ func (w *TraceWriterV1) UpdateAPIKey(oldKey, newKey string) {
 	}
 }
 
-// UpdateEndpoints re-derives sender API keys from endpoints. See updateSenderEndpoints.
+// UpdateEndpoints re-derives sender API keys from endpoints, matching senders to endpoints
+// positionally since both are built from the same additional_endpoints-derived list in the same
+// order. A change in the number of endpoints requires a restart, since senders aren't added or
+// removed at runtime.
 func (w *TraceWriterV1) UpdateEndpoints(endpoints []*config.Endpoint) {
-	updateSenderEndpoints(w.senders, endpoints, "traces")
+	if len(endpoints) != len(w.senders) {
+		log.Warnf("Cannot update trace writer endpoints: endpoint count changed from %d to %d; restart the trace-agent to pick up the change", len(w.senders), len(endpoints))
+		return
+	}
+	for i, e := range endpoints {
+		s := w.senders[i]
+		if oldKey := s.apiKeyManager.Get(); oldKey != e.APIKey {
+			s.apiKeyManager.Update(e.APIKey)
+			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)
+		}
+	}
 }
 
 func (w *TraceWriterV1) reporter() {
