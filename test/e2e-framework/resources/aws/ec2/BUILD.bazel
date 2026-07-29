@@ -20,7 +20,6 @@ go_library(
         "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/autoscaling",
         "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/ec2",
         "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/ssm",
-        "@com_github_pulumi_pulumi_command_sdk//go/command/local",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

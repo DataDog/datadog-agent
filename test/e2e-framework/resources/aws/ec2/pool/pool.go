@@ -483,46 +483,6 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 	}, nil
 }
 
-// BuildRegisterScript returns a shell script that bakes instanceID's current disk
-// state into a golden AMI, tags the instance as a pool member owned by username,
-// and publishes its first lease record to S3 with Persistent: true.
-func BuildRegisterScript(instanceID, ownerPipelineID, username string) string {
-	return fmt.Sprintf(`set -e
-INSTANCE_ID=%q
-OWNER=%q
-USERNAME=%q
-POOL_TAG_KEY=%q
-POOL_TAG_VALUE=%q
-OWNER_TAG_KEY=%q
-LEASE_BUCKET=%q
-LEASE_KEY=%q
-STATUS=%q
-
-IMAGE_ID=$(aws ec2 create-image --instance-id "$INSTANCE_ID" \
-  --name "macos-e2e-pool-${USERNAME}-${INSTANCE_ID}" --no-reboot \
-  --query 'ImageId' --output text)
-
-for i in $(seq 1 60); do
-  STATE=$(aws ec2 describe-images --image-ids "$IMAGE_ID" --query 'Images[0].State' --output text)
-  case "$STATE" in
-    available) break ;;
-    failed) echo "image ${IMAGE_ID} failed to bake" >&2; exit 1 ;;
-    *) sleep 10 ;;
-  esac
-done
-
-aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
-  Key="$POOL_TAG_KEY",Value="$POOL_TAG_VALUE" \
-  Key="$OWNER_TAG_KEY",Value="$USERNAME" \
-  Key=Name,Value="macos-e2e-pool-$USERNAME"
-
-LEASED_AT=$(date +%%s)
-BODY=$(printf '{"status":"%%s","imageId":"%%s","owner":"%%s","leased_at":%%s,"persistent":true}' "$STATUS" "$IMAGE_ID" "$OWNER" "$LEASED_AT")
-aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
-  --body <(printf '%%s' "$BODY") --if-none-match "*" --query 'ETag' --output text
-`, instanceID, ownerPipelineID, username, PoolTagKey, PoolTagValue, OwnerUsernameTagKey, leaseBucket, leasePrefix+instanceID, statusInUse)
-}
-
 // NewEC2Client builds an EC2 API client scoped to region/profile.
 func NewEC2Client(ctx context.Context, region, profile string) (*awsec2.Client, error) {
 	cfg, err := awsConfig.LoadDefaultConfig(ctx,
