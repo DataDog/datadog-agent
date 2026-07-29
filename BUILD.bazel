@@ -109,6 +109,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/new-e2e/tests/npm
 # gazelle:exclude test/new-e2e/tests/orchestrator
 # gazelle:exclude test/new-e2e/tests/otel
+# gazelle:exclude test/new-e2e/tests/pcap
 # gazelle:exclude test/new-e2e/tests/privateactionrunner
 # gazelle:exclude test/new-e2e/tests/process
 # gazelle:exclude test/new-e2e/tests/remote-config
