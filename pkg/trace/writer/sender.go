@@ -51,6 +51,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			maxQueued:      qsize,
 			maxRetries:     cfg.MaxSenderRetries,
 			url:            url,
+			endpointHost:   endpoint.Host,
 			recorder:       r,
 			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 			isMRF:          endpoint.IsMRF,
@@ -65,6 +66,43 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
 	}
 	return senders
+}
+
+// updateSenderEndpoints re-derives sender API keys from endpoints, a freshly reloaded
+// additional_endpoints-derived list, grouping both by host and matching within each host group
+// positionally. Host-level grouping matters because additional_endpoints is stored as a
+// map[string][]string keyed by host, and Go's map iteration order isn't stable across reloads
+// (appendEndpoints ranges over it fresh every time) - matching the overall endpoints slice to
+// senders by plain index would silently misapply a key to the wrong host whenever there's more
+// than one additional endpoint. A single host's own key list, by contrast, is an ordered slice
+// from the config store, so its relative order is stable across reloads. logPrefix identifies the
+// writer in log output (e.g. "traces", "stats").
+func updateSenderEndpoints(senders []*sender, endpoints []*config.Endpoint, logPrefix string) {
+	if len(endpoints) != len(senders) {
+		log.Warnf("Cannot update %s endpoints: endpoint count changed from %d to %d; restart the trace-agent to pick up the change", logPrefix, len(senders), len(endpoints))
+		return
+	}
+	newByHost := make(map[string][]*config.Endpoint, len(endpoints))
+	for _, e := range endpoints {
+		newByHost[e.Host] = append(newByHost[e.Host], e)
+	}
+	sendersByHost := make(map[string][]*sender, len(senders))
+	for _, s := range senders {
+		sendersByHost[s.cfg.endpointHost] = append(sendersByHost[s.cfg.endpointHost], s)
+	}
+	for host, hostSenders := range sendersByHost {
+		hostEndpoints, ok := newByHost[host]
+		if !ok || len(hostEndpoints) != len(hostSenders) {
+			log.Warnf("Cannot update %s endpoints for host %q: entry count changed; restart the trace-agent to pick up the change", logPrefix, host)
+			continue
+		}
+		for i, s := range hostSenders {
+			if oldKey := s.apiKeyManager.Get(); oldKey != hostEndpoints[i].APIKey {
+				s.apiKeyManager.Update(hostEndpoints[i].APIKey)
+				log.Debugf("API Key updated for %s endpoint=%s", logPrefix, s.cfg.url)
+			}
+		}
+	}
 }
 
 func maxConns(climit int, endpoints []*config.Endpoint) int {
@@ -148,6 +186,10 @@ type senderConfig struct {
 	client *config.ResetClient
 	// url specifies the URL to send requests too.
 	url *url.URL
+	// endpointHost is the raw config.Endpoint.Host this sender was built from, before path/URL
+	// parsing. Used by updateSenderEndpoints to match a sender back to its endpoint on reload,
+	// since matching by url alone can't distinguish "same host" from "same host + same path".
+	endpointHost string
 	// maxConns specifies the maximum number of allowed concurrent ougoing
 	// connections.
 	maxConns int

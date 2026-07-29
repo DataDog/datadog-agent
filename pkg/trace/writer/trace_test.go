@@ -555,6 +555,48 @@ func TestTraceWriterUpdateEndpoints(t *testing.T) {
 	assert.Equal("resolved-key", tw.senders[0].apiKeyManager.Get())
 }
 
+// TestTraceWriterUpdateEndpointsHostReordering is a regression test: additional_endpoints is
+// stored as a map[string][]string keyed by host, and Go's map iteration order isn't stable across
+// reloads, so the overall endpoints slice handed to UpdateEndpoints can list the same hosts in a
+// different order than the senders were originally built in. Matching must be host-aware, not a
+// plain index match, or a reload can silently apply a resolved key to the wrong host.
+func TestTraceWriterUpdateEndpointsHostReordering(t *testing.T) {
+	assert := assert.New(t)
+	srvA := newTestServer()
+	defer srvA.Close()
+	srvB := newTestServer()
+	defer srvB.Close()
+
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{
+			{APIKey: "main-key", Host: srvA.URL},
+			{APIKey: "DELA(org-a, aws)", Host: srvA.URL},
+			{APIKey: "DELA(org-b, aws)", Host: srvB.URL},
+		},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+	}
+
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+	defer tw.Stop()
+
+	require.Len(t, tw.senders, 3)
+
+	// Reload delivers the hosts in a different relative order than they were originally built in
+	// (simulating map iteration reshuffling which host comes first), but srvA's own two entries
+	// keep their relative order to each other.
+	tw.UpdateEndpoints([]*config.Endpoint{
+		{APIKey: "resolved-org-b", Host: srvB.URL},
+		{APIKey: "main-key", Host: srvA.URL},
+		{APIKey: "resolved-org-a", Host: srvA.URL},
+	})
+
+	assert.Equal("main-key", tw.senders[0].apiKeyManager.Get())
+	assert.Equal("resolved-org-a", tw.senders[1].apiKeyManager.Get())
+	assert.Equal("resolved-org-b", tw.senders[2].apiKeyManager.Get())
+}
+
 func TestTraceWriterInfo(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
