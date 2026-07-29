@@ -7,9 +7,11 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -89,7 +91,7 @@ func TestDoRequest(t *testing.T) {
 	req, err := http.NewRequest("GET", "http://"+serverURL(server)+"/test", nil)
 	require.NoError(t, err)
 
-	body, statusCode, err := client.do(req)
+	body, statusCode, _, err := client.do(req)
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, statusCode)
@@ -121,7 +123,7 @@ func TestDoRequestBadRequest(t *testing.T) {
 	req, err := http.NewRequest("GET", "http://"+serverURL(server)+"/test", nil)
 	require.NoError(t, err)
 
-	body, statusCode, err := client.do(req)
+	body, statusCode, _, err := client.do(req)
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, statusCode)
@@ -154,7 +156,7 @@ func TestDoRequestError(t *testing.T) {
 	req, err := http.NewRequest("GET", "", nil)
 	require.NoError(t, err)
 
-	body, statusCode, err := client.do(req)
+	body, statusCode, _, err := client.do(req)
 
 	require.ErrorContains(t, err, "unsupported protocol scheme")
 	require.Equal(t, 0, statusCode)
@@ -218,6 +220,44 @@ func TestGetRequestRetries(t *testing.T) {
 	require.ErrorContains(t, err, "http responded with 400 code")
 	require.Equal(t, []byte(nil), resp)
 	require.Equal(t, 10, handler.numberOfCalls())
+}
+
+func TestGetRequestRetriesOn429(t *testing.T) {
+	var waits []time.Duration
+	originalSleep := sleep
+	sleep = func(d time.Duration) { waits = append(waits, d) }
+	defer func() { sleep = originalSleep }()
+
+	mux := setupCommonServerMux()
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, calls int32) {
+		w.Header().Set("Content-Type", "application/json")
+		// Rate-limit the first two attempts, then succeed
+		if calls < 3 {
+			w.Header().Set("Retry-After", "2")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte("rate limited"))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	mux.HandleFunc("/test", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	client.maxAttempts = 5
+
+	resp, err := client.get("/test", nil)
+	require.NoError(t, err)
+	require.Equal(t, []byte("ok"), resp)
+	require.Equal(t, 3, handler.numberOfCalls())
+	// Honored Retry-After (2s) before each of the two retries
+	require.Equal(t, []time.Duration{2 * time.Second, 2 * time.Second}, waits)
 }
 
 func TestGetRequestUnmarshalling(t *testing.T) {
@@ -469,6 +509,28 @@ func TestGetNextPaginationParams(t *testing.T) {
 				require.ErrorContains(t, err, tt.expectedError)
 			}
 			require.Equal(t, tt.expectedParams, nextParams)
+		})
+	}
+}
+
+func TestIsRetryable(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		err        error
+		retryable  bool
+	}{
+		{name: "network error", statusCode: 0, err: errors.New("connection reset"), retryable: true},
+		{name: "rate limited", statusCode: http.StatusTooManyRequests, retryable: true},
+		{name: "server error", statusCode: http.StatusServiceUnavailable, retryable: true},
+		{name: "auth failure", statusCode: http.StatusUnauthorized, retryable: false},
+		{name: "bad request", statusCode: http.StatusBadRequest, retryable: false},
+		{name: "success", statusCode: http.StatusOK, retryable: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.retryable, isRetryable(tt.statusCode, tt.err))
 		})
 	}
 }
