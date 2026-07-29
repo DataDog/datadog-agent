@@ -1773,7 +1773,7 @@ func (r fakeConfigReader) ReadFile(context.Context, string) (ConfigFile, error) 
 	return ConfigFile{}, errors.New("not implemented")
 }
 
-func (r fakeConfigReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
+func (r fakeConfigReader) ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error) {
 	return nil, errors.New("not implemented")
 }
 
