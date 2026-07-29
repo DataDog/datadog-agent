@@ -778,15 +778,8 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 }
 
 // releasePoolInstanceIfAny reverts and releases any macOS EC2 pool instance backing
-// bs.env, so pool leases are freed regardless of dev mode, destroy success, or a
-// mid-teardown failure (see the defer call in TearDownSuite). It is a no-op when the
-// environment never went through the macOS pool path (see NewVM in
-// scenarios/aws/ec2/vm.go).
-//
-// Errors are logged, never propagated: this can run during an already-failing
-// teardown, and a bounded blocking retry here would extend every test's teardown
-// time on transient AWS errors. A stranded lease on failure is a latent risk, same
-// as the pre-existing staleness/TTL gap noted in pool.AcquireIdleInstance.
+// bs.env, so pool leases are freed regardless of dev mode or destroy success. It is
+// a no-op when the environment never went through the macOS pool path.
 func (bs *BaseSuite[Env]) releasePoolInstanceIfAny() {
 	if bs.env == nil {
 		return

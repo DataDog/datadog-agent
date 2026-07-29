@@ -48,9 +48,8 @@ const (
 const OwnerUsernameTagKey = "username"
 
 // Lease statuses stored in leaseRecord.Status. statusDevMode marks an instance
-// released from a dev-mode test run: like statusInUse it is unclaimable, but it is
-// tracked separately since its root volume was deliberately left unreverted for
-// inspection.
+// released from a dev-mode run: unclaimable like statusInUse, but tracked
+// separately since its root volume is left unreverted for inspection.
 const (
 	statusIdle    = "idle"
 	statusInUse   = "in-use"
@@ -67,17 +66,14 @@ type leaseRecord struct {
 	LeasedAt int64  `json:"leased_at,omitempty"`
 
 	// Persistent marks a locally-provisioned, developer-owned instance whose
-	// root volume must never be reverted by RevertAndRelease: its ImageID is a
-	// golden baseline captured once at creation time (see ScheduleRegisterOnCreate),
-	// and reverting to it on every teardown would defeat the point of reusing the
-	// same instance across local runs.
+	// root volume must never be reverted by RevertAndRelease; see
+	// ScheduleRegisterOnCreate.
 	Persistent bool `json:"persistent,omitempty"`
 }
 
 // PoolInstance is one EC2 instance discovered by ListPoolInstances, with the
 // Dedicated Host and subnet it currently sits on. SubnetId must be preserved on
-// import: the instance's AZ is fixed by its Dedicated Host, so a subnet picked in a
-// different AZ makes the EC2 instance resource non-importable/replace-triggering.
+// import since the instance's AZ is fixed by its Dedicated Host.
 type PoolInstance struct {
 	InstanceID string
 	HostID     string
@@ -121,15 +117,8 @@ func ListPoolInstances(ctx context.Context, client *awsec2.Client, tags map[stri
 }
 
 // AcquireIdleInstance claims one idle instance from pool via a conditional S3 write
-// (If-Match on the lease object's current ETag), returning its instance ID, lease
-// token (new ETag), and image ID on success. It retries the whole-pool scan up to
-// maxAcquireRetries times, acquireRetryInterval apart. It does not reclaim leases
-// stranded by a non-graceful failure.
-//
-// TODO: leaseRecord.LeasedAt is written on acquire but never read back here, so a
-// lease stranded by a crashed job (before Destroy/the delete handler runs) stays
-// "in-use" forever, permanently shrinking the pool. Add a staleness/TTL check (or an
-// owner+age-based override) so such leases can be automatically reclaimed.
+// (If-Match on the lease object's current ETag). It retries the whole-pool scan up
+// to maxAcquireRetries times, acquireRetryInterval apart.
 func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -185,24 +174,8 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 }
 
 // RevertAndRelease reverts instanceID's root volume to the lease's current baseline
-// image (read fresh from S3, not the value cached at acquire time, so a baseline
-// rotated mid-checkout is still honored) and releases the lease, conditioned on
-// leaseToken still matching the lease object's current ETag.
-//
-// If devMode is true, the revert is skipped (the point of dev mode is to leave the
-// instance's state alone for inspection) and the lease is marked statusDevMode
-// instead of statusIdle, so the instance remains unclaimable by other jobs while
-// staying visibly distinguishable from a normal in-use lease.
-//
-// If the lease's Persistent field is true (a locally-provisioned, developer-owned
-// instance; see leaseRecord.Persistent), the revert is likewise skipped, since its
-// ImageID is a golden baseline captured once at creation time, not a snapshot that
-// should be reapplied on every teardown. The lease is still released to statusIdle
-// so a later local run can reacquire the same instance.
-//
-// If the lease's current imageId is empty, or no longer resolves to an existing
-// AMI/snapshot, the root-volume revert is skipped, imageId is cleared before it's
-// written back to the lease, and the lease is released directly.
+// image and releases the lease, conditioned on leaseToken matching the lease
+// object's current ETag. The revert is skipped in dev mode or for a persistent lease.
 func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseToken string, devMode bool) error {
 	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -245,10 +218,8 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 }
 
 // RevertInPlace reverts instanceID's root volume to the lease's current baseline
-// image, like RevertAndRelease, but re-publishes the lease as statusInUse under its
-// current owner instead of releasing it. It's used to reset a developer's own
-// drifted local instance back to its golden baseline immediately before a test run
-// (see parameters.RevertBeforeRun), rather than on teardown.
+// image, like RevertAndRelease, but re-publishes the lease as statusInUse instead
+// of releasing it.
 func RevertInPlace(ctx context.Context, region, profile, instanceID, leaseToken string) error {
 	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -360,10 +331,8 @@ func replaceRootVolume(ctx context.Context, client *awsec2.Client, instanceID, s
 }
 
 // releaseLease writes status/imageID back to instanceID's lease record, conditioned
-// on leaseToken still matching the lease object's current ETag. owner/persistent must
-// be carried forward from the lease record being replaced (rather than defaulted to
-// zero values) so a release never silently drops a persistent local instance's
-// Owner/Persistent flags.
+// on leaseToken matching the lease object's current ETag. owner/persistent are
+// carried forward from the current record rather than defaulted to zero values.
 func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID, owner string, persistent bool) error {
 	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID, Owner: owner, Persistent: persistent})
 	if err != nil {
@@ -381,10 +350,9 @@ func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken
 	return nil
 }
 
-// AcquireResult is a successfully claimed pool member: InstanceID/HostID/SubnetID to
-// import it, LeaseToken to release it, and ImageID to revert it to baseline on
-// release. Found is false only when local is non-nil and the developer's own
-// instance doesn't exist yet, signaling the caller to provision one.
+// AcquireResult is a successfully claimed pool member. Found is false only when
+// local is non-nil and the developer's own instance doesn't exist yet, signaling
+// the caller to provision one.
 type AcquireResult struct {
 	Found      bool
 	InstanceID string
@@ -406,16 +374,6 @@ type LocalProvisionOptions struct {
 // Acquire lists every instance tagged PoolTagKey=PoolTagValue (additionally scoped
 // to OwnerUsernameTagKey=local.Username when local is non-nil) and claims one idle
 // member via AcquireIdleInstance.
-//
-// When local is nil (CI), an empty or fully-unavailable pool is an error, and the
-// retry budget/error behavior are unchanged from before LocalProvisionOptions was
-// introduced.
-//
-// When local is non-nil, the same maxAcquireRetries/acquireRetryInterval budget is
-// reused (a developer can run tests in parallel and contend with their own sibling
-// runs for the same instance, so shortening the local retry budget would be
-// incorrect) but exhausting it returns AcquireResult{Found: false} instead of an
-// error, signaling the caller to provision a new instance for this developer.
 func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string, local *LocalProvisionOptions) (AcquireResult, error) {
 	tags := map[string]string{PoolTagKey: PoolTagValue}
 	if local != nil {
@@ -459,21 +417,7 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 
 // BuildRegisterScript returns a shell script that bakes instanceID's current disk
 // state into a golden AMI, tags the instance as a pool member owned by username,
-// and publishes its first lease record to S3 (Persistent: true, so RevertAndRelease
-// never reverts it and it's revertable only via RevertInPlace).
-//
-// This is a shell script, not a Go function, because it must run as a Pulumi
-// local.Command's Create handler (see ScheduleRegisterOnCreate): pool.go has no
-// *pulumi.Context, and the instance's ID is only known as a pulumi.StringOutput at
-// this point in NewVM, so the registration logic has to be driven from within
-// Pulumi's own resource graph rather than called directly as a Go function.
-//
-// CreateImage is called with --no-reboot: this runs against the very instance the
-// current test run is about to use, so rebooting it here to guarantee a
-// crash-consistent image (the default CreateImage behavior) would disrupt the
-// live SSH connection InitHost just established. The current-run risk of a
-// slightly inconsistent baseline is accepted in exchange for not breaking the run
-// that's capturing it.
+// and publishes its first lease record to S3 with Persistent: true.
 func BuildRegisterScript(instanceID, ownerPipelineID, username string) string {
 	return fmt.Sprintf(`set -e
 INSTANCE_ID=%q

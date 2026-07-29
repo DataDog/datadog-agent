@@ -15,15 +15,8 @@ import (
 
 // ScheduleRegisterOnCreate attaches instanceID's golden-snapshot-and-register logic
 // (pool.BuildRegisterScript) to opts' owning stack via a local.Command's Create
-// handler. It must run inside Pulumi's resource graph, not as a plain Go function
-// call, because instanceID is only known as a pulumi.StringOutput at this point
-// (the EC2 instance was just created by this same NewVM call) and pool.go has no
-// *pulumi.Context to build a Pulumi resource itself.
-//
-// Call this only once, right after remote.InitHost succeeds for a freshly created
-// (non-imported) local pool member: the resulting AMI becomes that instance's
-// permanent, immutable golden baseline (see leaseRecord.Persistent), so this must
-// never run again against an already-registered instance.
+// handler. Call this only once, right after remote.InitHost succeeds for a freshly
+// created (non-imported) local pool member.
 func ScheduleRegisterOnCreate(e aws.Environment, name string, instanceID pulumi.StringOutput, ownerPipelineID, username string, opts ...pulumi.ResourceOption) (*local.Command, error) {
 	script := instanceID.ApplyT(func(id string) string {
 		return pool.BuildRegisterScript(id, ownerPipelineID, username)
@@ -38,10 +31,7 @@ func ScheduleRegisterOnCreate(e aws.Environment, name string, instanceID pulumi.
 
 // awsCommandEnvironment builds the env vars a local.Command needs to run AWS CLI
 // calls against e's account/region. AWS_PROFILE is omitted when e.Profile() is
-// empty (e.g. aws-vault-style credential env vars rather than a named profile) —
-// passing AWS_PROFILE="" explicitly makes the AWS CLI look for a profile literally
-// named "", which fails with "config profile () could not be found" even though
-// credentials are already present in the environment.
+// empty, since passing it as an empty string breaks AWS CLI profile resolution.
 func awsCommandEnvironment(e aws.Environment) pulumi.StringMap {
 	env := pulumi.StringMap{
 		"AWS_REGION": pulumi.String(e.Region()),

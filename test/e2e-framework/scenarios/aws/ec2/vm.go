@@ -79,10 +79,9 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				return err
 			}
 
-			// A local run (no CI pipeline driving it) is scoped to the developer's
-			// own previously-provisioned instance via the username tag, and a cache
-			// miss (poolAcquired.Found == false) means "provision one" rather than a
-			// hard error. See notes/MACOS_POOL_LOCAL_AUTOPROVISION_PROPOSAL.md.
+			// A local run is scoped to the developer's own previously-provisioned
+			// instance via the username tag; a cache miss (poolAcquired.Found ==
+			// false) means "provision one" rather than a hard error.
 			var localOpts *pool.LocalProvisionOptions
 			if isLocalRun {
 				localOpts = &pool.LocalProvisionOptions{Username: username}
@@ -105,37 +104,22 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				}
 			}
 
-			// Deleting a Dedicated Host requires it to have lived for at least 24
-			// hours, so a pooled instance/host is never actually destroyed by
-			// Pulumi; BaseSuite.releasePoolInstanceIfAny releases it back to idle
-			// instead, once the test suite completes.
+			// Pooled instances/hosts are never destroyed by Pulumi;
+			// BaseSuite.releasePoolInstanceIfAny releases them back to idle instead.
 			opts = append(opts, pulumi.RetainOnDelete(true))
 			instanceArgs.Tenancy = "host"
 
 			if poolAcquired.Found {
 				// Import the existing pool member instead of creating a new instance,
-				// and pin HostID/SubnetID to what it's actually running on. SubnetID
-				// must be pinned: the instance's AZ is fixed by its Dedicated Host,
-				// and AWS doesn't support moving an existing instance to a subnet in
-				// a different AZ, so leaving it on the environment's random subnet
-				// pick would make this resource non-importable or replace-triggering.
+				// and pin HostID/SubnetID to what it's actually running on, since the
+				// instance's AZ is fixed by its Dedicated Host.
 				opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
 				instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
 				instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
 
-				// Tags (e.g. the pool-membership tag pool.PoolTagKey) are also owned
-				// externally: NewInstance's Tags only ever declares "Name", so without
-				// this, importing the pool member would make Pulumi reconcile the
-				// instance's real tags down to just that, stripping the pool tag and
-				// making the instance invisible to future Acquire calls.
-				//
-				// AMI and key pair are also owned externally: the pool member's AMI is
-				// whatever it was actually launched from (fixed at launch, unrelated to
-				// whatever the environment resolves as "latest" on a given run) and the
-				// pool provisioning job may not attach a key pair at all. Since imported
-				// instances can't be replaced, leaving either out of IgnoreChanges makes
-				// every run against a pool member fail as soon as either drifts from the
-				// program's freshly-resolved defaults.
+				// Tags, AMI, and key pair are owned externally on an imported pool
+				// member; without IgnoreChanges, Pulumi would reconcile them down to
+				// NewInstance's defaults, stripping the pool tag and drifting the AMI.
 				opts = append(opts, pulumi.IgnoreChanges([]string{"tags", "ami", "keyName"}))
 
 				// Exported so BaseSuite.releasePoolInstanceIfAny can revert and release
@@ -144,10 +128,9 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				c.PoolInstanceID = pulumi.String(poolAcquired.InstanceID).ToStringOutput()
 				c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
 			} else {
-				// Local cache miss: no pool member owned by this developer exists
-				// yet. Provision a new Dedicated Host + instance through ordinary
-				// Pulumi resources instead of an out-of-band AWS SDK call, so the
-				// created resources are tracked in the stack like any other resource.
+				// Local cache miss: no pool member owned by this developer exists yet.
+				// Provision a new Dedicated Host + instance through ordinary Pulumi
+				// resources so they're tracked in the stack.
 				host, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{InstanceType: vmArgs.instanceType}, opts...)
 				if err != nil {
 					return err
@@ -195,11 +178,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		if isMacOSPoolMember && !poolAcquired.Found {
 			// Freshly created local instance: bake its current disk state into a
 			// golden AMI and register it as a pool member now that InitHost's setup
-			// has completed, not immediately after creation, since reverting to a
-			// bare-OS AMI later would otherwise discard InitHost's work. The
-			// resulting AMI becomes this instance's permanent, immutable golden
-			// baseline (see leaseRecord.Persistent) — this must only ever run once,
-			// right after creation. See notes/MACOS_POOL_LOCAL_AUTOPROVISION_PROPOSAL.md.
+			// has completed. Must only ever run once, right after creation.
 			registerCmd, err := ec2.ScheduleRegisterOnCreate(e, name, instance.ID().ToStringOutput(), e.PipelineID(), username, pulumi.Parent(c))
 			if err != nil {
 				return err

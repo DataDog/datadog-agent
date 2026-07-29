@@ -66,10 +66,8 @@ func NewDedicatedHost(e aws.Environment, name string, args DedicatedHostArgs, op
 	return ec2.NewDedicatedHost(e.Ctx(),
 		e.Namer.ResourceName(name),
 		dedicatedHostArgs,
-		// Retain on delete: deleting a Dedicated Host requires it to have lived for
-		// at least 24 hours, so it's never actually destroyed by Pulumi; cleanup is
-		// out of scope for this resource (see the local auto-provisioning proposal's
-		// "Storage/cost cleanup" note).
+		// Retain on delete: a Dedicated Host must live 24h before it can be
+		// deleted, so it's never actually destroyed by Pulumi.
 		utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS), pulumi.RetainOnDelete(true))...,
 	)
 }
