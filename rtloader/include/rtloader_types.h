@@ -146,6 +146,8 @@ typedef void (*cb_report_issue_t)(char *, char *, char **);
 typedef void (*cb_resolve_issue_t)(char *, char **);
 // (raw_text, content_type, error_message) -> json_result
 typedef char *(*cb_parse_prometheus_metrics_t)(char *, char *, char **);
+// (raw_text, content_type, config_json, error_message) -> json_result
+typedef char *(*cb_process_prometheus_metrics_t)(char *, char *, char *, char **);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

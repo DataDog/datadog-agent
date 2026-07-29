@@ -30,6 +30,7 @@ static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
 static cb_report_issue_t cb_report_issue = NULL;
 static cb_resolve_issue_t cb_resolve_issue = NULL;
 static cb_parse_prometheus_metrics_t cb_parse_prometheus_metrics = NULL;
+static cb_process_prometheus_metrics_t cb_process_prometheus_metrics = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -50,12 +51,10 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
-<<<<<<< HEAD
 static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs);
-=======
 static PyObject *parse_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs);
->>>>>>> 6b474ee1c1d (Add prometheus go parser bridge)
+static PyObject *process_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -79,6 +78,7 @@ static PyMethodDef methods[] = {
     { "report_issue", (PyCFunction)report_issue, METH_VARARGS|METH_KEYWORDS, "Report a health platform issue." },
     { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS|METH_KEYWORDS, "Resolve a health platform issue by issue id." },
     { "parse_prometheus_metrics", (PyCFunction)parse_prometheus_metrics, METH_VARARGS|METH_KEYWORDS, "Parse Prometheus/OpenMetrics text using the Go parser." },
+    { "process_prometheus_metrics", (PyCFunction)process_prometheus_metrics, METH_VARARGS|METH_KEYWORDS, "Parse and process Prometheus/OpenMetrics text with label/tag processing using the Go parser." },
     { NULL, NULL } // guards
 };
 
@@ -184,6 +184,10 @@ void _set_resolve_issue_cb(cb_resolve_issue_t cb)
 
 void _set_parse_prometheus_metrics_cb(cb_parse_prometheus_metrics_t cb) {
     cb_parse_prometheus_metrics = cb;
+}
+
+void _set_process_prometheus_metrics_cb(cb_process_prometheus_metrics_t cb) {
+    cb_process_prometheus_metrics = cb;
 }
 
 
@@ -1089,6 +1093,55 @@ static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
         PyErr_SetString(PyExc_RuntimeError, error_message);
     } else if (json_result == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_parse_prometheus_metrics response");
+    } else {
+        retval = PyUnicode_FromString(json_result);
+    }
+
+    cgo_free(error_message);
+    cgo_free(json_result);
+    PyGILState_Release(gstate);
+    return retval;
+}
+
+/*! \fn PyObject *process_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.process_prometheus_metrics` method, parsing
+    and processing Prometheus/OpenMetrics text format metrics using the Go parser with label/tag
+    processing applied.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the raw metrics text.
+    \param kwargs A PyObject* pointer to a map of key value pairs (content_type, config).
+    \return A PyObject* pointer to a string containing the processed metrics as JSON.
+
+    This function is callable as the `datadog_agent.process_prometheus_metrics` Python method and
+    uses the `cb_process_prometheus_metrics()` callback to parse and process the metrics using the
+    Go parser with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *process_prometheus_metrics(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_process_prometheus_metrics == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *raw_text = NULL;
+    char *content_type = NULL;
+    char *config = NULL;
+    static char *kwlist[] = {"raw_text", "config", "content_type", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|s", kwlist, &raw_text, &config, &content_type)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *error_message = NULL;
+    char *json_result = cb_process_prometheus_metrics(raw_text, content_type, config, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (json_result == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_process_prometheus_metrics response");
     } else {
         retval = PyUnicode_FromString(json_result);
     }

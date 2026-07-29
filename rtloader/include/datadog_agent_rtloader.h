@@ -718,6 +718,17 @@ DATADOG_AGENT_RTLOADER_API void set_resolve_issue_cb(rtloader_t *, cb_resolve_is
 */
 DATADOG_AGENT_RTLOADER_API void set_parse_prometheus_metrics_cb(rtloader_t *, cb_parse_prometheus_metrics_t);
 
+/*! \fn void set_process_prometheus_metrics_cb(rtloader_t *, cb_process_prometheus_metrics_t)
+    \brief Sets a callback to be used by rtloader to parse and process Prometheus/OpenMetrics text
+    format metrics with label/tag processing using the Go parser.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_process_prometheus_metrics_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_process_prometheus_metrics_cb(rtloader_t *, cb_process_prometheus_metrics_t);
+
 #ifdef __cplusplus
 }
 #endif

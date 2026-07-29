@@ -167,6 +167,39 @@ func testParsePrometheusMetricsError(t *testing.T) {
 	assert.NotNil(t, errResult)
 }
 
+func testProcessPrometheusMetrics(t *testing.T) {
+	rawText := C.CString(`# TYPE http_requests_total counter
+http_requests_total{method="GET",status="200"} 1234
+http_requests_total{method="POST",status="500"} 5`)
+
+	configJSON := C.CString(`{"static_tags":["env:test"],"exclude_labels":["__name__"],"rename_labels":{"method":"http_method"}}`)
+
+	var errResult *C.char
+	result := ProcessPrometheusMetrics(rawText, nil, configJSON, &errResult)
+	require.Nil(t, errResult)
+	require.NotNil(t, result)
+
+	var families []struct {
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Samples []struct {
+			SampleName string   `json:"sample_name"`
+			Value      float64  `json:"value"`
+			Tags       []string `json:"tags"`
+			Hostname   string   `json:"hostname"`
+		} `json:"samples"`
+	}
+	err := json.Unmarshal([]byte(C.GoString(result)), &families)
+	require.NoError(t, err)
+	require.Len(t, families, 1)
+	assert.Equal(t, "http_requests_total", families[0].Name)
+	assert.Equal(t, "COUNTER", families[0].Type)
+	require.Len(t, families[0].Samples, 2)
+	assert.Equal(t, 1234.0, families[0].Samples[0].Value)
+	assert.Contains(t, families[0].Samples[0].Tags, "env:test")
+	assert.Contains(t, families[0].Samples[0].Tags, "http_method:GET")
+}
+
 func testObfuscaterConfig(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
 	_ = pkgconfigmock.New(t)

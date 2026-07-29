@@ -114,6 +114,7 @@ public:
     void setReportIssueCb(cb_report_issue_t);
     void setResolveIssueCb(cb_resolve_issue_t);
     void setParsePrometheusMetricsCb(cb_parse_prometheus_metrics_t);
+    void setProcessPrometheusMetricsCb(cb_process_prometheus_metrics_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);
