@@ -3,7 +3,7 @@
 
 issuer: https://gitlab.ddbuild.io
 
-subject_pattern: "project_path:(ddoghq|DataDog)/ami-builder"
+subject_pattern: "project_path:(ddoghq|DataDog)/ami-builder:.*"
 
 permissions:
   contents: write
