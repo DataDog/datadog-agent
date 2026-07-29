@@ -26,7 +26,6 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	dummymode "github.com/DataDog/datadog-agent/comp/dataplane/dummymode/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -139,8 +138,8 @@ func NewComponent(reqs Requires) Provides {
 
 	if !isEligible(reqs.Config) {
 		reqs.Log.Debugf("Agent Data Plane dummy mode is not eligible to run: %s is %t and %s was set by %q",
-			pkgconfigsetup.DataPlaneDummyMode, reqs.Config.GetBool(pkgconfigsetup.DataPlaneDummyMode),
-			pkgconfigsetup.DataPlaneEnabled, reqs.Config.GetSource(pkgconfigsetup.DataPlaneEnabled))
+			DataPlaneDummyMode, reqs.Config.GetBool(DataPlaneDummyMode),
+			DataPlaneEnabled, reqs.Config.GetSource(DataPlaneEnabled))
 		return inert
 	}
 
@@ -233,7 +232,7 @@ func (d *dummyModeComponent) shutdownGrace() time.Duration {
 
 // stopTimeout is how long ADP is given to exit after being asked to stop.
 func (d *dummyModeComponent) stopTimeout() time.Duration {
-	timeout := time.Duration(d.config.GetInt(pkgconfigsetup.DataPlaneSection+".stop_timeout")) * time.Second
+	timeout := time.Duration(d.config.GetInt(DataPlaneStopTimeout)) * time.Second
 	if timeout <= 0 {
 		timeout = defaultStopTimeout
 	}

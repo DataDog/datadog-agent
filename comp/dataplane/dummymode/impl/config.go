@@ -18,8 +18,13 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// dummyConfigFileName is the generated ADP config, written inside the working directory.
-const dummyConfigFileName = "datadog.yaml"
+const (
+	dummyConfigFileName = "datadog.yaml"
+
+	DataPlaneEnabled     = "data_plane.enabled"
+	DataPlaneDummyMode   = "data_plane.dummy_mode"
+	DataPlaneStopTimeout = "data_plane.stop_timeout"
+)
 
 // dummyModeDataPlaneOnlyOverrides holds settings ADP understands but the Core Agent does
 // not, so they cannot be checked against the Agent's config schema.
@@ -52,7 +57,7 @@ var dummyModeGlobalOverrides = map[string]any{
 	// host with the proxy enabled but data_plane.enabled unset — which is dummy-eligible —
 	// leaving this inherited could put the dummy process on :4317 in front of real customer
 	// OTLP traffic for the length of the window.
-	"data_plane.enabled":            true,
+	DataPlaneEnabled:                true,
 	"data_plane.dogstatsd.enabled":  true,
 	"data_plane.otlp.enabled":       false,
 	"data_plane.otlp.proxy.enabled": false,

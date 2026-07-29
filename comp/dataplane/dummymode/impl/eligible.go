@@ -11,11 +11,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-const (
-	DataPlaneEnabled = "data_plane.enabled"
-	DataPlaneDummyMode = "data_plane.dummy_mode"
-)
-
 // isEligible reports whether the Agent Data Plane should be run in dummy mode.
 //
 // Dummy mode is a pre-flight check: it starts ADP for a short window, in an isolated fashion,
