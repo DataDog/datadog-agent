@@ -150,12 +150,21 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 		// Check that this is a new config for the DB - does the hash match the last stored config for this device?
 		// TODO: optimization for consideration: utilizing a composite key that is made up of
 		// config_type | device_id | timestamp | uuid (or using this with another bucket to emulate an index)
-		existingConfigID, err = cs.checkDuplicateInTx(tx, deviceID, configType, rawHash)
+		existing, err := cs.checkDuplicateInTx(tx, deviceID, configType, rawHash)
 		if err != nil {
 			return fmt.Errorf("duplicate check error: %w", err)
 		}
-		if existingConfigID != "" {
-			return nil // This config matched the latest, let's not make a new entry
+		if existing != nil {
+			existingConfigID = existing.ConfigUUID
+			// This config matched the latest, refresh its LastAccessedAt instead of making a new entry.
+			// Clamp rather than overwrite: `now` was captured before hashing/marshaling/compression and
+			// acquiring the lock, so a concurrent GetConfig could have set a newer value in the meantime.
+			existing.LastAccessedAt = max(now, existing.LastAccessedAt)
+			updatedMetadataJSON, err := json.Marshal(existing)
+			if err != nil {
+				return fmt.Errorf("marshal config metadata error: %w", err)
+			}
+			return tx.Bucket([]byte(metadataBucket)).Put([]byte(existing.ConfigUUID), updatedMetadataJSON)
 		}
 
 		key := []byte(configUUID) // TODO: include more for prefix searches?
@@ -178,9 +187,10 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 
 // checkDuplicateInTx contains the inner logic for iterating through the metadata bucket (currently keyed by UUID)
 // and checks for configs that match the device ID and config type (e.g. default:10.0.0.1, "running")
-// and compares the hashes with the incoming config retrieved to help check if we need to store it
+// and compares the hashes with the incoming config retrieved to help check if we need to store it.
+// Returns the matching metadata (so callers can update it, e.g. LastAccessedAt) or nil if there's no match.
 // TODO: nice to have optimization since we check duplicates more than we'd check by exact UUID is having a composite key / prefix scan
-func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType types.ConfigType, rawHash string) (string, error) {
+func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType types.ConfigType, rawHash string) (*types.ConfigMetadata, error) {
 	var latest *types.ConfigMetadata
 	err := tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
 		var current types.ConfigMetadata
@@ -195,32 +205,36 @@ func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configT
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	// compare the hashes if a latest was found
 	if latest != nil && latest.RawHash == rawHash {
-		return latest.ConfigUUID, nil
+		return latest, nil
 	}
-	return "", nil
+	return nil, nil
 }
 
 // CheckDuplicate is the wrapper around the checkDuplicateInTx function that contains the logic including locking the DB
 func (cs *configStore) CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error) {
-	var configID string
+	var existing *types.ConfigMetadata
 	err := cs.view(func(tx *bbolt.Tx) error {
 		var txErr error
-		configID, txErr = cs.checkDuplicateInTx(tx, deviceID, configType, rawHash)
+		existing, txErr = cs.checkDuplicateInTx(tx, deviceID, configType, rawHash)
 		return txErr
 	})
-	return configID, err
+	if err != nil || existing == nil {
+		return "", err
+	}
+	return existing.ConfigUUID, nil
 }
 
-// GetConfig retrieves all the data associated with a config given its UUID
+// GetConfig retrieves all the data associated with a config given its UUID, and refreshes
+// its LastAccessedAt so actively-retrieved configs aren't treated as stale by LRU eviction.
 func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
 	var rawConfig string
 	var metadata types.ConfigMetadata
 
-	err := cs.view(func(tx *bbolt.Tx) error {
+	err := cs.update(func(tx *bbolt.Tx) error {
 		key := []byte(configUUID) // TODO: keep UUID as key vs. composite key / index?
 
 		// Unmarshal raw config
@@ -245,7 +259,13 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 			return fmt.Errorf("unmarshal metadata error: %w", err)
 		}
 
-		return nil
+		// Refresh LastAccessedAt and persist it
+		metadata.LastAccessedAt = time.Now().Unix()
+		updatedMetadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			return fmt.Errorf("marshal config metadata error: %w", err)
+		}
+		return tx.Bucket([]byte(metadataBucket)).Put(key, updatedMetadataJSON)
 	})
 	if err != nil {
 		return "", nil, err
