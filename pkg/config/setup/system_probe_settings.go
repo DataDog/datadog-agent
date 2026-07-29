@@ -314,7 +314,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logon_duration.enabled", false)
 	config.BindEnvAndSetDefault("fleet_policies_dir", "")
 	config.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
-	config.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
+	config.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", false)
 	config.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	config.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
