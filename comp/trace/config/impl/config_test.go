@@ -2300,26 +2300,6 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
-func TestOnUpdateAdditionalEndpointsCallback(t *testing.T) {
-	var settings []string
-	callback := func(setting string) {
-		settings = append(settings, setting)
-	}
-
-	coreConfig := configcomp.NewMock(t)
-	coreConfig.SetInTest("apm_config.additional_endpoints", map[string][]string{
-		"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
-	})
-	config := buildComponent(t, true, coreConfig)
-	config.OnUpdateAdditionalEndpoints(callback)
-
-	coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
-		"https://second-org.datadoghq.com": {"resolved-real-key"},
-	}, pkgconfigmodel.SourceSecret)
-
-	assert.Equal(t, []string{"apm_config.additional_endpoints"}, settings)
-}
-
 // TestReloadAdditionalEndpointsAfterDelayedResolution is a regression test for WIF-48: a
 // delegated auth DELA(...) directive at one of the trace-relevant additional_endpoints-shaped
 // config keys can resolve asynchronously, well after this component built its initial

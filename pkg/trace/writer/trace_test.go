@@ -529,32 +529,6 @@ func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert.Equal(url, tw.senders[0].cfg.url)
 }
 
-func TestTraceWriterUpdateEndpoints(t *testing.T) {
-	assert := assert.New(t)
-	srv := newTestServer()
-	defer srv.Close()
-	cfg := &config.AgentConfig{
-		Hostname:   testHostname,
-		DefaultEnv: testEnv,
-		Endpoints: []*config.Endpoint{{
-			APIKey: "123",
-			Host:   srv.URL,
-		}},
-		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
-	}
-
-	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
-	defer tw.Stop()
-
-	// A resolved delegated-auth key replaces the placeholder value at the same position.
-	tw.UpdateEndpoints([]*config.Endpoint{{APIKey: "resolved-key", Host: srv.URL}})
-	assert.Equal("resolved-key", tw.senders[0].apiKeyManager.Get())
-
-	// A change in endpoint count is not supported without a restart; the existing sender is untouched.
-	tw.UpdateEndpoints([]*config.Endpoint{{APIKey: "unused", Host: srv.URL}, {APIKey: "unused2", Host: srv.URL}})
-	assert.Equal("resolved-key", tw.senders[0].apiKeyManager.Get())
-}
-
 func TestTraceWriterInfo(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()

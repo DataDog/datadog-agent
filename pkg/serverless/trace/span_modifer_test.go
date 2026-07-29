@@ -51,8 +51,6 @@ func (m *mockTraceWriter) FlushSync() error {
 
 func (m *mockTraceWriter) UpdateAPIKey(_, _ string) {}
 
-func (m *mockTraceWriter) UpdateEndpoints(_ []*config.Endpoint) {}
-
 func TestSpanModifierDetectsCloudService(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"

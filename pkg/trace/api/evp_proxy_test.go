@@ -53,7 +53,7 @@ func sendRequestThroughForwarderWithMockRoundTripper(conf *config.AgentConfig, i
 			Body:       io.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
 		}, nil
 	})
-	handler, _ := evpProxyForwarder(conf, statsd)
+	handler := evpProxyForwarder(conf, statsd)
 	var loggerBuffer bytes.Buffer
 	handler.(*httputil.ReverseProxy).ErrorLog = log.New(io.Writer(&loggerBuffer), "", 0)
 	handler.(*httputil.ReverseProxy).Transport.(*evpProxyTransport).transport = mockRoundTripper
@@ -73,7 +73,7 @@ func sendRequestThroughForwarderAgainstDummyServer(conf *config.AgentConfig, inR
 		req.URL.Host = serverHost
 		return conf.NewHTTPTransport().RoundTrip(req)
 	})
-	handler, _ := evpProxyForwarder(conf, statsd)
+	handler := evpProxyForwarder(conf, statsd)
 	var loggerBuffer bytes.Buffer
 	handler.(*httputil.ReverseProxy).ErrorLog = log.New(io.Writer(&loggerBuffer), "", 0)
 	handler.(*httputil.ReverseProxy).Transport.(*evpProxyTransport).transport = reqModifierRoundTripper

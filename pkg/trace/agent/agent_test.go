@@ -99,8 +99,6 @@ func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
 	m.apiKey = newKey
 }
 
-func (m *mockTraceWriter) UpdateEndpoints(_ []*config.Endpoint) {}
-
 type mockConcentrator struct {
 	stats   []stats.Input
 	statsV1 []stats.InputV1
@@ -3066,8 +3064,6 @@ func (n *noopTraceWriter) FlushSync() error { return nil }
 
 func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
 
-func (n *noopTraceWriter) UpdateEndpoints(_ []*config.Endpoint) {}
-
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {
 		data, count, err := tracesFromFile(file)
@@ -4323,23 +4319,6 @@ func TestUpdateAPIKey(t *testing.T) {
 	agnt.UpdateAPIKey("test", "foo")
 	tw := agnt.TraceWriter.(*mockTraceWriter)
 	assert.Equal(t, "foo", tw.apiKey)
-}
-
-func TestUpdateAdditionalEndpoints(t *testing.T) {
-	cfg := config.New()
-	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-	defer cancel()
-
-	// A change to a recognized setting recomputes the writer/proxy state from the (unmodified)
-	// endpoint config without panicking; the writers used here are mocks so there's nothing
-	// further to assert beyond "it doesn't blow up and the endpoints it read are unchanged".
-	agnt.UpdateAdditionalEndpoints("apm_config.additional_endpoints")
-	assert.Equal(t, "test", cfg.Endpoints[0].APIKey)
-
-	// An unrecognized setting is a no-op, not a panic.
-	agnt.UpdateAdditionalEndpoints("some_other_setting")
 }
 
 func TestAgentWriteTagsBufferedChunks(t *testing.T) {

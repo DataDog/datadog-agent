@@ -41,9 +41,10 @@ func TestSingleTargetClosesBodyOnError(t *testing.T) {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 	mt := &multiTransport{
-		rt: errorRoundTripper{},
+		rt:      errorRoundTripper{},
+		targets: []*url.URL{u},
+		keys:    []string{"dummy"},
 	}
-	mt.updateTargets([]*url.URL{u}, []string{"dummy"})
 
 	// Request with a tracking body.
 	body := &trackingBody{}

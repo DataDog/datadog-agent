@@ -34,11 +34,6 @@ type Component interface {
 
 	// OnUpdateAPIKey registers a callback for API Key changes
 	OnUpdateAPIKey(func(oldKey, newKey string))
-
-	// OnUpdateAdditionalEndpoints registers a callback fired after a trace-relevant
-	// additional_endpoints config key (APM, profiling, or EVP) is reloaded, letting live
-	// consumers (senders, proxy handlers) pick up the change without a restart.
-	OnUpdateAdditionalEndpoints(func(setting string))
 }
 
 // Params defines the parameters for the config component.

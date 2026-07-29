@@ -116,26 +116,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(fmt.Sprintf(",%s:%s", k, v))
 	}
 
-	proxy, transport := newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
-	r.profileTransport = transport
-	return proxy
-}
-
-// UpdateProfilingEndpoints re-derives profiling proxy targets/keys from the current config and
-// swaps them into the live transport, so a delegated-auth key that resolves after startup takes
-// effect without a trace-agent restart.
-func (r *HTTPReceiver) UpdateProfilingEndpoints() {
-	if r.profileTransport == nil {
-		// Proxy failed to initialize at startup (see profileProxyHandler's error path); nothing to update.
-		return
-	}
-	targets, keys, err := profilingEndpoints(r.conf)
-	if err != nil {
-		log.Errorf("Failed to reload profiling proxy endpoints: %v", err)
-		return
-	}
-	r.profileTransport.updateTargets(targets, keys)
-	log.Infof("Reloaded profiling proxy endpoints (%d target(s))", len(targets))
+	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
 }
 
 func errorHandler(err error) http.Handler {
@@ -181,7 +162,7 @@ func isRetryableBodyReadError(err error) bool {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) (*httputil.ReverseProxy, *multiTransport) {
+func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
@@ -212,14 +193,12 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	transport.IdleConnTimeout = 47 * time.Second
 	ptransport := newProfilingTransport(transport)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
-	mt := &multiTransport{rt: ptransport, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes}
-	mt.updateTargets(targets, keys)
 	return &httputil.ReverseProxy{
 		Director:     director,
 		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport:    mt,
+		Transport:    &multiTransport{rt: ptransport, targets: targets, keys: keys, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes},
 		ErrorHandler: handleProxyError,
-	}, mt
+	}
 }
 
 // handleProxyError handles errors from the profiling reverse proxy with appropriate
@@ -285,27 +264,14 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 // is proxied back to the client, while for all aditional endpoints the
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
-// profilingTargets holds a profiling proxy's destination URLs and their corresponding API keys,
-// swapped atomically by multiTransport.updateTargets so a delegated-auth key resolved after
-// startup takes effect without rebuilding the reverse proxy.
-type profilingTargets struct {
-	urls []*url.URL
-	keys []string
-}
-
 type multiTransport struct {
 	rt              http.RoundTripper
-	targets         atomic.Pointer[profilingTargets]
+	targets         []*url.URL
+	keys            []string
 	maxRequestBytes int64
 }
 
-// updateTargets atomically replaces the destination URLs and API keys used by RoundTrip.
-func (m *multiTransport) updateTargets(urls []*url.URL, keys []string) {
-	m.targets.Store(&profilingTargets{urls: urls, keys: keys})
-}
-
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	targets := m.targets.Load()
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
@@ -321,8 +287,8 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			rresp.StatusCode = http.StatusOK
 		}
 	}()
-	if len(targets.urls) == 1 {
-		setTarget(req, targets.urls[0], targets.keys[0])
+	if len(m.targets) == 1 {
+		setTarget(req, m.targets[0], m.keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		// Avoid sub-sequent requests from getting a use of closed network connection error
 		if rerr != nil && req.Body != nil {
@@ -335,10 +301,10 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 	if err != nil {
 		return nil, err
 	}
-	for i, u := range targets.urls {
+	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-		setTarget(newreq, u, targets.keys[i])
+		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error

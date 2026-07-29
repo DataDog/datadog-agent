@@ -80,9 +80,6 @@ type cfg struct {
 	// UpdateAPIKeyFn is the callback func for API Key updates
 	updateAPIKeyFn func(oldKey, newKey string)
 
-	// updateAdditionalEndpointsFn is the callback func for additional_endpoints reloads
-	updateAdditionalEndpointsFn func(setting string)
-
 	// ipc is used to retrieve the auth_token to issue authenticated requests
 	ipc ipc.Component
 }
@@ -180,9 +177,6 @@ func (c *cfg) reloadAdditionalEndpoints(setting string) {
 		c.EVPProxy.AdditionalEndpoints = c.coreConfig.GetStringMapStringSlice(setting)
 		log.Infof("Reloaded '%s' for trace-agent", setting)
 	}
-	if c.updateAdditionalEndpointsFn != nil {
-		c.updateAdditionalEndpointsFn(setting)
-	}
 }
 
 func (c *cfg) updateAPIKey(oldKey, newKey string) {
@@ -199,15 +193,6 @@ func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
 		log.Error("OnUpdateAPIKey has already been configured. Only 1 callback can be used at a time.")
 	}
 	c.updateAPIKeyFn = callback
-}
-
-// OnUpdateAdditionalEndpoints registers a callback for additional_endpoints reloads, only 1
-// callback can be used at a time.
-func (c *cfg) OnUpdateAdditionalEndpoints(callback func(setting string)) {
-	if c.updateAdditionalEndpointsFn != nil {
-		log.Error("OnUpdateAdditionalEndpoints has already been configured. Only 1 callback can be used at a time.")
-	}
-	c.updateAdditionalEndpointsFn = callback
 }
 
 func (c *cfg) Warnings() *model.Warnings {
