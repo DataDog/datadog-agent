@@ -80,8 +80,8 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			}
 
 			// A local run is scoped to the developer's own previously-provisioned
-			// instance via the username tag; a cache miss (poolAcquired.Found ==
-			// false) means "provision one" rather than a hard error.
+			// instance via the username tag. Found == false means they own none yet,
+			// so provision one; an existing but busy instance is an error instead.
 			var localOpts *pool.LocalProvisionOptions
 			if isLocalRun {
 				localOpts = &pool.LocalProvisionOptions{Username: username}

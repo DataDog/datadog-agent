@@ -356,8 +356,8 @@ func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken
 }
 
 // AcquireResult is a successfully claimed pool member. Found is false only when
-// local is non-nil and no instance was claimable, signaling the caller to provision
-// one; every other failure is reported as an error instead.
+// local is non-nil and the developer owns no pool instance yet, signaling the caller
+// to provision one; every other failure is reported as an error instead.
 type AcquireResult struct {
 	Found      bool
 	InstanceID string
@@ -368,8 +368,8 @@ type AcquireResult struct {
 }
 
 // LocalProvisionOptions scopes Acquire to a single developer's own
-// locally-provisioned instance, and turns an empty/fully-claimed pool from an
-// error into AcquireResult{Found: false} so the caller can provision one instead.
+// locally-provisioned instance, and turns an empty pool from an error into
+// AcquireResult{Found: false} so the caller can provision one instead.
 type LocalProvisionOptions struct {
 	// Username identifies the developer's own instance via OwnerUsernameTagKey,
 	// e.g. aws.Environment.DefaultResourceTags()["username"].
@@ -378,7 +378,7 @@ type LocalProvisionOptions struct {
 
 // Acquire lists every instance tagged PoolTagKey=PoolTagValue (additionally scoped
 // to OwnerUsernameTagKey=local.Username when local is non-nil) and claims one idle
-// member via AcquireIdleInstance.
+// member. An empty pool yields Found: false for a local run; all else is an error.
 func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string, local *LocalProvisionOptions) (AcquireResult, error) {
 	tags := map[string]string{PoolTagKey: PoolTagValue}
 	if local != nil {
@@ -405,12 +405,6 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 
 	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID)
 	if err != nil {
-		// Only a genuinely exhausted pool means "provision one". Any other error
-		// (AWS credentials, context cancellation) must propagate: reporting
-		// Found: false would create a second billable Dedicated Host instead.
-		if local != nil && errors.Is(err, errPoolExhausted) {
-			return AcquireResult{Found: false}, nil
-		}
 		return AcquireResult{}, err
 	}
 	return AcquireResult{
