@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testThreeStringsInStruct",
+      "method": "main.testInvalidUtf8Strings",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testThreeStringsInStruct",
+            "function": "main.testInvalidUtf8Strings",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 30
+            "lineNumber": 58
           },
           {
             "function": "main.executeStringFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 69
+            "lineNumber": 84
           },
           {
             "function": "main.runAll",
@@ -47,30 +47,21 @@
           }
         ],
         "probe": {
-          "id": "testThreeStringsInStruct",
+          "id": "testInvalidUtf8Strings",
           "location": {
-            "method": "main.testThreeStringsInStruct"
+            "method": "main.testInvalidUtf8Strings"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "a": {
-                "type": "main.threeStringStruct",
-                "fields": {
-                  "a": {
-                    "type": "string",
-                    "value": "abc"
-                  },
-                  "b": {
-                    "type": "string",
-                    "value": "def"
-                  },
-                  "c": {
-                    "type": "string",
-                    "value": "ghi"
-                  }
-                }
+                "type": "string",
+                "value": "��"
+              },
+              "b": {
+                "type": "string",
+                "value": "ok�bad"
               }
             }
           }
@@ -79,7 +70,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{a: abc, b: def, c: ghi}",
+    "message": "��, ok�bad",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

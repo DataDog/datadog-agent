@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testThreeStringsInStruct",
+      "method": "main.testMultibyteUtf8String",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testThreeStringsInStruct",
+            "function": "main.testMultibyteUtf8String",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 30
+            "lineNumber": 62
           },
           {
             "function": "main.executeStringFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 69
+            "lineNumber": 85
           },
           {
             "function": "main.runAll",
@@ -47,30 +47,19 @@
           }
         ],
         "probe": {
-          "id": "testThreeStringsInStruct",
+          "id": "testMultibyteUtf8StringWithSizeLimit",
           "location": {
-            "method": "main.testThreeStringsInStruct"
+            "method": "main.testMultibyteUtf8String"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "a": {
-                "type": "main.threeStringStruct",
-                "fields": {
-                  "a": {
-                    "type": "string",
-                    "value": "abc"
-                  },
-                  "b": {
-                    "type": "string",
-                    "value": "def"
-                  },
-                  "c": {
-                    "type": "string",
-                    "value": "ghi"
-                  }
-                }
+              "x": {
+                "type": "string",
+                "size": "48",
+                "truncated": true,
+                "value": "世界世"
               }
             }
           }
@@ -79,7 +68,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{a: abc, b: def, c: ghi}",
+    "message": "世界世...",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
