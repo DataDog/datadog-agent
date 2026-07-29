@@ -8,9 +8,11 @@
 package gohai
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/filesystem"
@@ -38,6 +40,51 @@ func detectDocker0() bool {
 	return docker0Detected
 }
 
+// fallbackHostLookupTimeout bounds the DNS resolution performed by
+// resolveFallbackHostIPv4. A broken or unreachable resolver for the configured
+// fallback host must only ever delay metadata collection briefly, never hang it
+// indefinitely.
+const fallbackHostLookupTimeout = 2 * time.Second
+
+// resolveFallbackHostIPv4 validates or resolves a fallback host value (e.g. the
+// kubernetes_kubelet_host config, which may be an IP literal or a hostname - see
+// pkg/util/kubernetes/kubelet/kubelet_hosts.go) into a usable IPv4 address string.
+// network.ipaddress is documented as an IPv4 address, so a raw, possibly-non-IP
+// config value must never be written there directly. Returns "" if no usable IPv4
+// address could be determined (including loopback, which is never a meaningful
+// node address here), logging why at debug level.
+func resolveFallbackHostIPv4(host string) string {
+	if host == "" {
+		return ""
+	}
+
+	// PreferGo forces Go's own resolver rather than the cgo resolver used by default
+	// on most platforms, which does not honor context cancellation/timeouts at all.
+	// If host is already an IP literal, LookupIPAddr returns it directly without
+	// performing any actual DNS query.
+	resolver := &net.Resolver{PreferGo: true}
+	ctx, cancel := context.WithTimeout(context.Background(), fallbackHostLookupTimeout)
+	defer cancel()
+
+	addrs, err := resolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		log.Debugf("gohai: failed to resolve fallback host %q for network metadata: %s", host, err)
+		return ""
+	}
+
+	for _, addr := range addrs {
+		if addr.IP.IsLoopback() {
+			continue
+		}
+		if ip4 := addr.IP.To4(); ip4 != nil {
+			return ip4.String()
+		}
+	}
+
+	log.Debugf("gohai: fallback host %q did not resolve to a usable IPv4 address", host)
+	return ""
+}
+
 type gohai struct {
 	CPU        interface{} `json:"cpu"`
 	FileSystem interface{} `json:"filesystem"`
@@ -53,32 +100,35 @@ type Payload struct {
 }
 
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
-// fallbackHostIP, when non-empty, is reported as the host's network IP if the agent is
-// containerized and running without host networking (see getGohaiInfo).
-func GetPayload(hostname string, useHostnameResolver, isContainerized bool, fallbackHostIP string) *Payload {
+// fallbackHost, when non-empty, is resolved and reported as the host's network IP if the
+// agent is containerized and running without host networking (see getGohaiInfo). It may be
+// an IP literal or a hostname (e.g. the kubernetes_kubelet_host config value).
+func GetPayload(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHostIP),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHost),
 	}
 }
 
-// GetPayloadWithProcesses builds a pyaload of all metdata including processes
-func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool, fallbackHostIP string) *Payload {
+// GetPayloadWithProcesses builds a pyaload of all metdata including processes. See GetPayload
+// for the meaning of fallbackHost.
+func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true, fallbackHostIP),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true, fallbackHost),
 	}
 }
 
 // GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
-// string in a JSON. This is required to mimic the metadata format inherited from Agent v5.
-func GetPayloadAsString(hostname string, useHostnameResolver, IsContainerized bool, fallbackHostIP string) (string, error) {
-	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, IsContainerized, false, fallbackHostIP))
+// string in a JSON. This is required to mimic the metadata format inherited from Agent v5. See GetPayload for the
+// meaning of fallbackHost.
+func GetPayloadAsString(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHost))
 	if err != nil {
 		return "", err
 	}
 	return string(marshalledPayload), nil
 }
 
-func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool, fallbackHostIP string) *gohai {
+func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool, fallbackHost string) *gohai {
 	res := new(gohai)
 
 	cpuPayload, warns, err := cpu.CollectInfo().AsJSON()
@@ -145,16 +195,24 @@ func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withPro
 			}
 			log.Warnf("Failed to retrieve network metadata: %s", err)
 		}
-	} else if fallbackHostIP != "" {
+	} else if resolvedIP := resolveFallbackHostIPv4(fallbackHost); resolvedIP != "" {
 		// Containerized without a detectable docker0 bridge means we can't assume host
 		// networking, so net.Interfaces() would only see the container's own ephemeral
 		// network namespace (e.g. a pod IP that changes on reschedule), not a usable
 		// host-level target. Report the node's real IP instead, when the caller has one
 		// available (e.g. from the Kubernetes Downward API via kubernetes_kubelet_host).
-		res.Network = map[string]interface{}{
-			"ipaddress":  fallbackHostIP,
-			"macaddress": "",
-			"interfaces": []interface{}{},
+		fallbackInfo := &network.Info{
+			IPAddress:   resolvedIP,
+			IPAddressV6: utils.NewErrorValue[string](network.ErrAddressNotFound),
+		}
+		fallbackPayload, fallbackWarns, fallbackErr := fallbackInfo.AsJSON()
+		if fallbackErr == nil {
+			res.Network = fallbackPayload
+		} else {
+			for _, warn := range fallbackWarns {
+				log.Debug(warn)
+			}
+			log.Warnf("Failed to build fallback network metadata: %s", fallbackErr)
 		}
 	}
 

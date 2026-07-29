@@ -50,7 +50,7 @@ func TestGetPayloadContainerized(t *testing.T) {
 	assert.NotNil(t, gohai.Gohai.Platform)
 }
 
-func TestGetPayloadContainerizedWithFallbackHostIP(t *testing.T) {
+func TestGetPayloadContainerizedWithFallbackHost(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
 
 	detectDocker0()
@@ -67,6 +67,41 @@ func TestGetPayloadContainerizedWithFallbackHostIP(t *testing.T) {
 	network, ok := gohai.Gohai.Network.(map[string]interface{})
 	assert.True(t, ok, "expected fallback network payload to be a map")
 	assert.Equal(t, "10.0.1.23", network["ipaddress"])
+}
+
+func TestGetPayloadContainerizedWithUnresolvableFallbackHost(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	detectDocker0()
+	oldDocker0Detected := docker0Detected
+	docker0Detected = false
+	defer func() { docker0Detected = oldDocker0Detected }()
+
+	// Neither a valid literal nor a resolvable hostname: must not be written into a
+	// field documented as an IPv4 address, and must not fall back to reporting nothing
+	// silently wrong either - Network should simply stay absent.
+	gohai := GetPayload("hostname", false, true, "this-hostname-does-not-resolve.invalid")
+	assert.Nil(t, gohai.Gohai.Network)
+}
+
+func TestResolveFallbackHostIPv4(t *testing.T) {
+	// valid IPv4 literal passes through unchanged
+	assert.Equal(t, "10.0.1.23", resolveFallbackHostIPv4("10.0.1.23"))
+
+	// loopback literal is rejected, even though it's a valid IPv4
+	assert.Equal(t, "", resolveFallbackHostIPv4("127.0.0.1"))
+
+	// IPv6 literal is rejected (network.ipaddress is documented as IPv4)
+	assert.Equal(t, "", resolveFallbackHostIPv4("2001:db8::1"))
+
+	// hostname that resolves to loopback (e.g. "localhost") is rejected
+	assert.Equal(t, "", resolveFallbackHostIPv4("localhost"))
+
+	// empty input is a no-op
+	assert.Equal(t, "", resolveFallbackHostIPv4(""))
+
+	// hostname that doesn't resolve at all is rejected, not passed through raw
+	assert.Equal(t, "", resolveFallbackHostIPv4("this-hostname-does-not-resolve.invalid"))
 }
 
 func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
