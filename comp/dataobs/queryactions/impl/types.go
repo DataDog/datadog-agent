@@ -15,13 +15,12 @@ type DOQueryPayload struct {
 
 // DBIdentifier identifies a database cluster to target.
 // Type describes the hosting kind, such as "self-hosted", "rds" or "azure". Instance matching
-// is by host for most types; Azure SQL Database additionally requires Database equality
+// normally uses the host; Azure SQL Database additionally uses the queries' DBName fields
 // because multiple databases share the same server hostname.
 type DBIdentifier struct {
 	Type          string `json:"type"`
 	Host          string `json:"host"`
 	AgentHostname string `json:"agent_hostname"`
-	Database      string `json:"database,omitempty"`
 }
 
 // QuerySpec defines a single monitor query to schedule.

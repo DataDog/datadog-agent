@@ -138,7 +138,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findSupportedIntegrationConfig(&payload.DBIdentifier)
+		baseCfg, instance, err := c.findSupportedIntegrationConfig(&payload.DBIdentifier, payload.Queries)
 		if err != nil {
 			c.log.Warnf("No matching integration config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -332,9 +332,12 @@ func sameConfig(a, b *integration.Config) bool {
 }
 
 // findSupportedIntegrationConfig finds a supported DB integration config that matches the
-// given identifier and has data_observability.enabled: true. Returns the matching config
-// and the already-parsed instance map to avoid re-parsing YAML in callers.
-func (c *component) findSupportedIntegrationConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+// given identifier and queries and has data_observability.enabled: true. Returns the matching
+// config and the already-parsed instance map to avoid re-parsing YAML in callers.
+func (c *component) findSupportedIntegrationConfig(
+	dbID *DBIdentifier,
+	queries []QuerySpec,
+) (*integration.Config, map[string]any, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
@@ -352,7 +355,7 @@ func (c *component) findSupportedIntegrationConfig(dbID *DBIdentifier) (*integra
 				continue
 			}
 
-			if matchesIdentifier(instance, dbID) && instanceHasDOEnabled(instance) {
+			if matchesIdentifier(instance, dbID, queries) && instanceHasDOEnabled(instance) {
 				return &cfg, instance, nil
 			}
 		}
@@ -367,24 +370,35 @@ func (c *component) findSupportedIntegrationConfig(dbID *DBIdentifier) (*integra
 		dbID.Type, dbID.Host)
 }
 
-// matchesIdentifier checks if an instance matches the given DB identifier.
+// matchesIdentifier checks if an instance matches the given DB identifier and queries.
 // Most deployments match by host. SAP HANA also supports a server and port identifier.
-// Azure SQL Database must match both host and database because databases share a server host.
-func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
+// Azure SQL Database must match both host and every query database because databases share a
+// server host.
+func matchesIdentifier(instance map[string]any, dbID *DBIdentifier, queries []QuerySpec) bool {
 	if !instanceMatchesHost(instance, dbID.Host) {
 		return false
 	}
 	database, isAzureSQLDatabase := azureSQLDatabase(instance)
-	return !isAzureSQLDatabase || database == dbID.Database
+	if !isAzureSQLDatabase {
+		return true
+	}
+	if len(queries) == 0 {
+		return false
+	}
+	for _, query := range queries {
+		if query.DBName != database {
+			return false
+		}
+	}
+	return true
 }
 
 // instanceMatchesHost reports whether an integration instance targets the given host.
 // sap_hana uses "server" as the host key; postgres uses "host". The target host may be
 // "host:port" (as sent by sap_hana backends) or bare "host", so we match against both the
-// bare host and the "host:port" form built from the instance. This is the single source of
-// truth for host matching, shared by matchesIdentifier (which decides what to schedule) and
-// buildRemainder (which decides what to keep), so the two can never disagree about whether an
-// instance is targeted by a DO query action.
+// bare host and the "host:port" form built from the instance. Remainder matching uses the exact
+// resolved instanceIdentity instead, so a bare target cannot remove a same-host sibling on a
+// different port.
 func instanceMatchesHost(instance map[string]any, targetHost string) bool {
 	host := instanceHost(instance)
 	// Try the more specific "host:port" form first — sap_hana backends include the port in the
