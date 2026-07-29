@@ -12,14 +12,14 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	gohai := GetPayload("hostname", false, false)
+	gohai := GetPayload("hostname", false, false, "")
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.NotNil(t, gohai.Gohai.Network)
 	assert.NotNil(t, gohai.Gohai.Platform)
 
-	gohai = GetPayload("hostname", true, false)
+	gohai = GetPayload("hostname", true, false, "")
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
@@ -35,19 +35,38 @@ func TestGetPayloadContainerized(t *testing.T) {
 	docker0Detected = false
 	defer func() { docker0Detected = oldDocker0Detected }()
 
-	gohai := GetPayload("hostname", false, true)
+	gohai := GetPayload("hostname", false, true, "")
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.Nil(t, gohai.Gohai.Network)
 	assert.NotNil(t, gohai.Gohai.Platform)
 
-	gohai = GetPayload("hostname", true, true)
+	gohai = GetPayload("hostname", true, true, "")
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.Nil(t, gohai.Gohai.Network)
 	assert.NotNil(t, gohai.Gohai.Platform)
+}
+
+func TestGetPayloadContainerizedWithFallbackHostIP(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	detectDocker0()
+	oldDocker0Detected := docker0Detected
+	docker0Detected = false
+	defer func() { docker0Detected = oldDocker0Detected }()
+
+	gohai := GetPayload("hostname", false, true, "10.0.1.23")
+	assert.NotNil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.FileSystem)
+	assert.NotNil(t, gohai.Gohai.Memory)
+	assert.NotNil(t, gohai.Gohai.Platform)
+
+	network, ok := gohai.Gohai.Network.(map[string]interface{})
+	assert.True(t, ok, "expected fallback network payload to be a map")
+	assert.Equal(t, "10.0.1.23", network["ipaddress"])
 }
 
 func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
@@ -58,14 +77,14 @@ func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
 	docker0Detected = true
 	defer func() { docker0Detected = oldDocker0Detected }()
 
-	gohai := GetPayload("hostname", false, false)
+	gohai := GetPayload("hostname", false, false, "")
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.NotNil(t, gohai.Gohai.Network)
 	assert.NotNil(t, gohai.Gohai.Platform)
 
-	gohai = GetPayload("hostname", true, false)
+	gohai = GetPayload("hostname", true, false, "")
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)

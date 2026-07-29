@@ -53,30 +53,32 @@ type Payload struct {
 }
 
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
-func GetPayload(hostname string, useHostnameResolver, isContainerized bool) *Payload {
+// fallbackHostIP, when non-empty, is reported as the host's network IP if the agent is
+// containerized and running without host networking (see getGohaiInfo).
+func GetPayload(hostname string, useHostnameResolver, isContainerized bool, fallbackHostIP string) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHostIP),
 	}
 }
 
 // GetPayloadWithProcesses builds a pyaload of all metdata including processes
-func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool) *Payload {
+func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool, fallbackHostIP string) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true, fallbackHostIP),
 	}
 }
 
 // GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
 // string in a JSON. This is required to mimic the metadata format inherited from Agent v5.
-func GetPayloadAsString(hostname string, useHostnameResolver, IsContainerized bool) (string, error) {
-	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, IsContainerized, false))
+func GetPayloadAsString(hostname string, useHostnameResolver, IsContainerized bool, fallbackHostIP string) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, IsContainerized, false, fallbackHostIP))
 	if err != nil {
 		return "", err
 	}
 	return string(marshalledPayload), nil
 }
 
-func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool) *gohai {
+func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool, fallbackHostIP string) *gohai {
 	res := new(gohai)
 
 	cpuPayload, warns, err := cpu.CollectInfo().AsJSON()
@@ -142,6 +144,17 @@ func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withPro
 				log.Debug(warn)
 			}
 			log.Warnf("Failed to retrieve network metadata: %s", err)
+		}
+	} else if fallbackHostIP != "" {
+		// Containerized without a detectable docker0 bridge means we can't assume host
+		// networking, so net.Interfaces() would only see the container's own ephemeral
+		// network namespace (e.g. a pod IP that changes on reschedule), not a usable
+		// host-level target. Report the node's real IP instead, when the caller has one
+		// available (e.g. from the Kubernetes Downward API via kubernetes_kubelet_host).
+		res.Network = map[string]interface{}{
+			"ipaddress":  fallbackHostIP,
+			"macaddress": "",
+			"interfaces": []interface{}{},
 		}
 	}
 
