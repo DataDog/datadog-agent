@@ -184,6 +184,20 @@ func (e *ErrScopeField) Unwrap() error {
 	return e.Err
 }
 
+// ErrCapture is returned on capture definition error
+type ErrCapture struct {
+	Pattern string
+	Err     error
+}
+
+func (e *ErrCapture) Error() string {
+	return fmt.Sprintf("capture `%s` error: %s", e.Pattern, e.Err)
+}
+
+func (e *ErrCapture) Unwrap() error {
+	return e.Err
+}
+
 // ErrFieldNotAvailable is returned when a field is not available
 type ErrFieldNotAvailable struct {
 	Field        eval.Field
