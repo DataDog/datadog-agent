@@ -56,7 +56,6 @@ ENV_PASSHTROUGH = {
     'CI_JOB_ID': 'CI Job ID',
     'CI_PROJECT_NAME': 'CI Project Name',
     'CI_JOB_NAME_SLUG': 'CI Job Name Slug',
-    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
