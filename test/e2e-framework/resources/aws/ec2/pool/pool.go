@@ -116,9 +116,14 @@ func ListPoolInstances(ctx context.Context, client *awsec2.Client, tags map[stri
 	return instances, nil
 }
 
+// errPoolExhausted signals that every pool member stayed claimed for the whole
+// retry budget. It is deliberately distinct from a failure to reach AWS, which must
+// never be read as "the pool has no free member".
+var errPoolExhausted = errors.New("no idle instance available")
+
 // AcquireIdleInstance claims one idle instance from pool via a conditional S3 write
-// (If-Match on the lease object's current ETag). It retries the whole-pool scan up
-// to maxAcquireRetries times, acquireRetryInterval apart.
+// (If-Match on the lease object's current ETag), retrying the whole-pool scan up to
+// maxAcquireRetries times, acquireRetryInterval apart, then failing errPoolExhausted.
 func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
@@ -170,7 +175,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 			}
 		}
 	}
-	return "", "", "", fmt.Errorf("no idle instance available in pool of %d", len(pool))
+	return "", "", "", fmt.Errorf("%w in pool of %d", errPoolExhausted, len(pool))
 }
 
 // RevertAndRelease reverts instanceID's root volume to the lease's current baseline
@@ -351,8 +356,8 @@ func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken
 }
 
 // AcquireResult is a successfully claimed pool member. Found is false only when
-// local is non-nil and the developer's own instance doesn't exist yet, signaling
-// the caller to provision one.
+// local is non-nil and no instance was claimable, signaling the caller to provision
+// one; every other failure is reported as an error instead.
 type AcquireResult struct {
 	Found      bool
 	InstanceID string
@@ -400,7 +405,10 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 
 	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID)
 	if err != nil {
-		if local != nil {
+		// Only a genuinely exhausted pool means "provision one". Any other error
+		// (AWS credentials, context cancellation) must propagate: reporting
+		// Found: false would create a second billable Dedicated Host instead.
+		if local != nil && errors.Is(err, errPoolExhausted) {
 			return AcquireResult{Found: false}, nil
 		}
 		return AcquireResult{}, err
