@@ -71,22 +71,22 @@ func TestMatchesIdentifier_HostOnly(t *testing.T) {
 
 	t.Run("matching host", func(t *testing.T) {
 		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
-		assert.True(t, matchesIdentifier(instance, dbID))
+		assert.True(t, matchesIdentifier(instance, dbID, nil))
 	})
 
 	t.Run("mismatching host", func(t *testing.T) {
 		dbID := &DBIdentifier{Type: "self-hosted", Host: "otherhost"}
-		assert.False(t, matchesIdentifier(instance, dbID))
+		assert.False(t, matchesIdentifier(instance, dbID, nil))
 	})
 }
 
 func TestMatchesIdentifier_RDS(t *testing.T) {
 	instance := map[string]any{"host": "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
 	dbID := &DBIdentifier{Type: "rds", Host: "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
-	assert.True(t, matchesIdentifier(instance, dbID))
+	assert.True(t, matchesIdentifier(instance, dbID, nil))
 
 	dbID = &DBIdentifier{Type: "rds", Host: "otherdb.cluster-xxx.us-east-1.rds.amazonaws.com"}
-	assert.False(t, matchesIdentifier(instance, dbID))
+	assert.False(t, matchesIdentifier(instance, dbID, nil))
 }
 
 func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
@@ -1061,19 +1061,20 @@ func TestMatchesIdentifier_SQLServer_HostOnly(t *testing.T) {
 		"port": 1433,
 	}
 
-	t.Run("matching host", func(t *testing.T) {
+	t.Run("matching host with different query databases", func(t *testing.T) {
 		dbID := &DBIdentifier{Type: "self-hosted", Host: "sqlserver.internal"}
-		assert.True(t, matchesIdentifier(instance, dbID))
+		queries := []QuerySpec{{DBName: "master"}, {DBName: "msdb"}}
+		assert.True(t, matchesIdentifier(instance, dbID, queries))
 	})
 
 	t.Run("mismatching host", func(t *testing.T) {
 		dbID := &DBIdentifier{Type: "self-hosted", Host: "other.internal"}
-		assert.False(t, matchesIdentifier(instance, dbID))
+		assert.False(t, matchesIdentifier(instance, dbID, nil))
 	})
 }
 
 // TestMatchesIdentifier_AzureSQLDB_HostAndDatabase verifies that Azure SQL Database
-// instances require both host and database equality.
+// instances require host equality and exact database equality for every query.
 func TestMatchesIdentifier_AzureSQLDB_HostAndDatabase(t *testing.T) {
 	instance := map[string]any{
 		"host":     "myserver.database.windows.net",
@@ -1082,25 +1083,44 @@ func TestMatchesIdentifier_AzureSQLDB_HostAndDatabase(t *testing.T) {
 			"deployment_type": "sql_database",
 		},
 	}
+	dbID := &DBIdentifier{Type: "self-hosted", Host: "myserver.database.windows.net"}
 
-	t.Run("host and exact mixed-case database match", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "MyDB"}
-		assert.True(t, matchesIdentifier(instance, dbID))
+	t.Run("host and exact mixed-case query databases match", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "MyDB"}, {DBName: "MyDB"}}
+		assert.True(t, matchesIdentifier(instance, dbID, queries))
 	})
 
-	t.Run("host matches but database does not", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "OtherDB"}
-		assert.False(t, matchesIdentifier(instance, dbID))
+	t.Run("host matches but query database does not", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "OtherDB"}}
+		assert.False(t, matchesIdentifier(instance, dbID, queries))
 	})
 
 	t.Run("database matching is case-sensitive", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "mydb"}
-		assert.False(t, matchesIdentifier(instance, dbID), "MyDB must not match mydb")
+		queries := []QuerySpec{{DBName: "mydb"}}
+		assert.False(t, matchesIdentifier(instance, dbID, queries), "MyDB must not match mydb")
+	})
+
+	t.Run("mixed query databases do not match", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "MyDB"}, {DBName: "OtherDB"}}
+		assert.False(t, matchesIdentifier(instance, dbID, queries))
+
+		otherInstance := map[string]any{
+			"host":     "myserver.database.windows.net",
+			"database": "OtherDB",
+			"azure": map[string]any{
+				"deployment_type": "sql_database",
+			},
+		}
+		assert.False(t, matchesIdentifier(otherInstance, dbID, queries))
+	})
+
+	t.Run("empty queries do not match", func(t *testing.T) {
+		assert.False(t, matchesIdentifier(instance, dbID, nil))
 	})
 
 	t.Run("host does not match", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "azure", Host: "otherserver.database.windows.net", Database: "MyDB"}
-		assert.False(t, matchesIdentifier(instance, dbID))
+		otherDBID := &DBIdentifier{Type: "self-hosted", Host: "otherserver.database.windows.net"}
+		assert.False(t, matchesIdentifier(instance, otherDBID, []QuerySpec{{DBName: "MyDB"}}))
 	})
 }
 
@@ -1118,8 +1138,8 @@ func TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-wrongdb",
-		DBIdentifier: DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "OtherDB"},
-		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "myserver.database.windows.net"},
+		Queries:      []QuerySpec{{DBName: "OtherDB", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -1149,8 +1169,8 @@ func TestOnRCUpdate_AzureSQLDB_PreservesSiblingDatabase(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-my-db",
-		DBIdentifier: DBIdentifier{Type: "azure", Host: host, Database: "MyDB"},
-		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: host},
+		Queries:      []QuerySpec{{DBName: "MyDB", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
 	require.NoError(t, err)
