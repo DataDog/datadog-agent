@@ -19,7 +19,7 @@ DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
 
 def get_fuzz_build_tags() -> list[str]:
     """Return the Linux unit-test tags used to build native fuzz targets."""
-    return sorted(set(get_default_build_tags(build="unit-tests", platform="linux")) | {"amd64"})
+    return sorted(set(get_default_build_tags(build="unit-tests", platform="linux")) | {"amd64", "linux_bpf"})
 
 
 def get_fuzz_build_command(func: str, build_file: str = "fuzz.test") -> str:
