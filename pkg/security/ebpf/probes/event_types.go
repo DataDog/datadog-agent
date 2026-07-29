@@ -55,6 +55,7 @@ func NetworkSelectors(hasFentry, hasCgroupSocket, haveIOURing bool) []manager.Pr
 			hookFunc("hook_sk_common_release"),
 			hookFunc("hook_path_get"),
 			hookFunc("hook_proc_fd_link"),
+			hookFunc("hook_ip_finish_output"),
 		}},
 
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{

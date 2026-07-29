@@ -6,13 +6,113 @@
 #include "helpers/network/pid_resolver.h"
 #include "helpers/network/utils.h"
 #include "helpers/network/flow.h"
+#include "helpers/network/skb.h"
+__attribute__((always_inline)) int register_flow_pid_classify_entry(struct sock *sk, u64 pid, struct pid_route_t *key) {
+    struct pid_route_entry_t value = {};
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    print_route(key);
+    #endif
+
+    struct sock_meta_t *meta = get_sock_meta(sk);
+    if (meta != NULL) {
+        if (meta->existing_route.port != 0 || meta->existing_route.addr[0] != 0 || meta->existing_route.addr[1] != 0) {
+            struct pid_route_t tmp_route = meta->existing_route;
+
+            if (can_delete_route(&tmp_route, sk)) {
+
+                #if defined(DEBUG_NETWORK_FLOW)
+                bpf_printk("|    flushing previous route:");
+                print_route(&tmp_route);
+                #endif
+
+                bpf_map_delete_elem(&flow_pid, &tmp_route);
+            }
+
+            tmp_route.addr[0] = 0;
+            tmp_route.addr[1] = 0;
+
+            if (can_delete_route(&tmp_route, sk)) {
+            #if defined(DEBUG_NETWORK_FLOW)
+                bpf_printk("|    flushing previous empty route:");
+                print_route(&tmp_route);
+            #endif
+            bpf_map_delete_elem(&flow_pid, &tmp_route);
+            }
+        }
+    } else {
+       #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("|    no sock_meta entry !");
+       #endif
+    }
+
+    if (key->port == 0) {
+        return 0;
+    }
+
+    u32 tid = (u32)pid;
+    value.pid = pid >> 32;
+    value.type = FLOW_CLASSIFICATION_ENTRY;
+    value.owner_sk = sk;
+
+    if (!can_delete_route(key, sk)) {
+
+       #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("|--> skipped because of owner_sk");
+       #endif
+
+        return 0;
+    }
+
+    if (meta != NULL) {
+        meta->existing_route = *key;
+    }
+
+    if (key->netns != 0) {
+        bpf_map_update_elem(&netns_cache, &tid, &key->netns, BPF_ANY);
+    }
+    bpf_map_update_elem(&flow_pid, key, &value, BPF_ANY);
+
+   #if defined(DEBUG_NETWORK_FLOW)
+    print_route(key);
+    print_route_entry(&value);
+    bpf_printk("|--> new flow registered ! %d, %lu", value.pid, key->netns);
+   #endif
+
+    return 0;
+}
+// Registers IPv4 ICMP echo flows by parsing the packet in ip_finish_output.
+HOOK_ENTRY("ip_finish_output")
+int hook_ip_finish_output(ctx_t *ctx) {
+    u64 pid = bpf_get_current_pid_tgid();
+    if (pid == 0) {
+        return 0;
+    }
+
+    struct sock *sk = (struct sock *)CTX_PARM2(ctx);
+    struct sk_buff *skb = (struct sk_buff *)CTX_PARM3(ctx);
+    if (sk == NULL || skb == NULL) {
+        return 0;
+    }
+
+    if (get_protocol_from_sock(sk) != IPPROTO_ICMP) {
+        return 0;
+    }
+
+    struct pid_route_t key = {};
+    if (!parse_icmp_echo_flow_key_from_skb(skb, &key)) {
+        return 0;
+    }
+
+    key.netns = get_netns_from_sock(sk);
+    return register_flow_pid_classify_entry(sk, pid, &key);
+}
 
 HOOK_ENTRY("security_sk_classify_flow")
 int hook_security_sk_classify_flow(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
     struct flowi *fl = (struct flowi *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
-    struct pid_route_entry_t value = {};
     union flowi_uli uli;
 
     #if defined(DEBUG_NETWORK_FLOW)
@@ -32,9 +132,14 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         return 0;
     }
 
-    u64 id = bpf_get_current_pid_tgid();
-    if (id == 0) {
+    u64 pid = bpf_get_current_pid_tgid();
+    if (pid == 0) {
         // we only care about packet sent from an actual task
+        return 0;
+    }
+
+    if (get_protocol_from_sock(sk) == IPPROTO_ICMP) {
+        // IPv4 ICMP is registered from the packet in ip_finish_output.
         return 0;
     }
 
@@ -84,77 +189,7 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
     print_route(&key);
     #endif
 
-    // check if the socket already has an active flow
-    struct sock_meta_t *meta = get_sock_meta(sk);
-    if (meta != NULL) {
-        if (meta->existing_route.port != 0 || meta->existing_route.addr[0] != 0 || meta->existing_route.addr[1] != 0) {
-            struct pid_route_t tmp_route = meta->existing_route;
-
-            if (can_delete_route(&tmp_route, sk)) {
-
-                #if defined(DEBUG_NETWORK_FLOW)
-                bpf_printk("|    flushing previous route:");
-                print_route(&tmp_route);
-                #endif
-
-                bpf_map_delete_elem(&flow_pid, &tmp_route);
-            }
-
-            // check with an empty IP address
-            tmp_route.addr[0] = 0;
-            tmp_route.addr[1] = 0;
-
-            if (can_delete_route(&tmp_route, sk)) {
-                #if defined(DEBUG_NETWORK_FLOW)
-                bpf_printk("|    flushing previous empty route:");
-                print_route(&tmp_route);
-                #endif
-
-                bpf_map_delete_elem(&flow_pid, &tmp_route);
-            }
-        }
-    } else {
-        #if defined(DEBUG_NETWORK_FLOW)
-        bpf_printk("|    no sock_meta entry !");
-        #endif
-    }
-
-    // Register service PID
-    if (key.port != 0) {
-        u32 tid = (u32)id;
-        value.pid = id >> 32;
-        value.type = FLOW_CLASSIFICATION_ENTRY;
-        value.owner_sk = sk;
-
-        // check if there is already an entry for key, and if so, make sure we can override it
-        if (!can_delete_route(&key, sk)) {
-
-            #if defined(DEBUG_NETWORK_FLOW)
-            bpf_printk("|--> skipped because of owner_sk");
-            #endif
-
-            // we don't want to override the existing entry
-            return 0;
-        }
-
-        if (meta != NULL) {
-            // register the new route in the sock_active_pid_route map
-            meta->existing_route = key;
-        }
-
-        if (key.netns != 0) {
-            bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
-        }
-
-        bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
-
-        #if defined(DEBUG_NETWORK_FLOW)
-        print_route(&key);
-        print_route_entry(&value);
-        bpf_printk("|--> new flow registered ! %d, %lu", value.pid, key.netns);
-        #endif
-    }
-    return 0;
+    return register_flow_pid_classify_entry(sk, pid, &key);
 }
 
 __attribute__((always_inline)) int trace_nat_manip_pkt(struct nf_conn *ct) {
