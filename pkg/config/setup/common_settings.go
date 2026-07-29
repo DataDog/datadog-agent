@@ -1124,6 +1124,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Integrations excluded from these restrictions.
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 
+	config.BindEnvAndSetDefault("hostprofiler.log_file", "${log_path}/host-profiler.log")
 	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
