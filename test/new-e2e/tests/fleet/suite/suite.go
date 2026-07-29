@@ -54,12 +54,6 @@ var (
 // across multiple parallel CI jobs so each platform group runs independently.
 const platformGroupEnvVar = "E2E_FLEET_PLATFORM_GROUP"
 
-// ProcessManagerEnabled reports whether the agent is installed with dd-procmgrd as its service
-// manager, so assertions can expect the matching supervision path.
-func ProcessManagerEnabled() bool {
-	return agent.ProcessManagerEnabled()
-}
-
 // Platforms returns the list of platforms to test.
 //
 // The set of platforms can be narrowed down with the E2E_FLEET_PLATFORM_GROUP

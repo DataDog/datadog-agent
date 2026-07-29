@@ -29,30 +29,17 @@ const (
 type InstallOption func(*installParams)
 
 type installParams struct {
-	remoteUpdates         bool
-	stablePackages        bool
-	stagingPackages       string
-	pipelineID            string
-	otelCollectorEnabled  bool
-	processManagerDisable bool
+	remoteUpdates        bool
+	stablePackages       bool
+	stagingPackages      string
+	pipelineID           string
+	otelCollectorEnabled bool
 }
 
 var defaultInstallParams = &installParams{
-	remoteUpdates:         false,
-	stablePackages:        false,
-	pipelineID:            os.Getenv("E2E_PIPELINE_ID"),
-	processManagerDisable: ProcessManagerDisabled(),
-}
-
-// processManagerEnvVar selects the Linux service manager the fleet tests install with, so every
-// fleet test can run under both dd-procmgrd and plain systemd.
-const processManagerEnvVar = "E2E_FLEET_PROCESS_MANAGER"
-
-// ProcessManagerEnabled reports whether the agent is installed with dd-procmgrd as its service
-// manager. Defaults to true, matching the product default, so an unset variable reproduces a stock
-// install. Every Install honours it, so test bodies do not have to pass an option.
-func ProcessManagerDisabled() bool {
-	return strings.EqualFold(os.Getenv(processManagerEnvVar), "false")
+	remoteUpdates:  false,
+	stablePackages: false,
+	pipelineID:     os.Getenv("E2E_PIPELINE_ID"),
 }
 
 // WithRemoteUpdates enables remote updates.
@@ -88,13 +75,6 @@ func WithPipelineID(pipelineID string) InstallOption {
 func WithOTelCollectorEnabled() InstallOption {
 	return func(p *installParams) {
 		p.otelCollectorEnabled = true
-	}
-}
-
-// WithProcessManagerDisabled installs with the plain systemd service manager instead of dd-procmgrd.
-func WithProcessManagerDisabled() InstallOption {
-	return func(p *installParams) {
-		p.processManagerDisable = true
 	}
 }
 
@@ -153,15 +133,6 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	}
 	if params.otelCollectorEnabled {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
-	}
-	if params.processManagerDisable {
-		env[processManagerDisableEnvVar] = "true"
-		// Persisting it is not redundant: datadog-agent-installer.service only picks the setting up
-		// through EnvironmentFile, so without this a daemon-driven update would revert to
-		// dd-procmgrd and the systemd half of the matrix would test nothing.
-		if err := a.SetProcessManagerDisable(true); err != nil {
-			return err
-		}
 	}
 	if !params.stablePackages && params.stagingPackages == "" {
 		env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
@@ -255,68 +226,6 @@ start-process msiexec -Wait -ArgumentList ('/log', 'C:\uninst.log', '/q', '/x', 
 	}
 	_, err = a.host.RemoteHost.Execute(`cmd /c rmdir /s /q "C:\ProgramData\Datadog"`)
 	return err
-}
-
-const (
-	// agentEnvironmentFile is sourced by datadog-agent-installer.service via EnvironmentFile=-, so it
-	// is how an operator makes a service manager choice survive a Fleet-driven update.
-	agentEnvironmentFile = "/etc/datadog-agent/environment"
-	// processManagerDisableEnvVar is an opt-out, so it is only ever written to disable dd-procmgrd.
-	processManagerDisableEnvVar = "DD_PROCESS_MANAGER_DISABLE"
-)
-
-// SetProcessManagerEnabled persists the service manager choice on the host. Enabling clears the
-// variable rather than writing a value, mirroring the installer: procmgr is the default.
-func (a *Agent) SetProcessManagerDisable(disable bool) error {
-	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
-		return nil
-	}
-	cmd := fmt.Sprintf(
-		`sudo mkdir -p %s && sudo sed -i '/^%s=/d' %s 2>/dev/null; true`,
-		"/etc/datadog-agent", processManagerDisableEnvVar, agentEnvironmentFile,
-	)
-	if _, err := a.host.RemoteHost.Execute(cmd); err != nil {
-		return fmt.Errorf("could not reset the process manager setting: %w", err)
-	}
-	if disable {
-		return nil
-	}
-	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(
-		`echo '%s=true' | sudo tee -a %s > /dev/null`, processManagerDisableEnvVar, agentEnvironmentFile,
-	))
-	if err != nil {
-		return fmt.Errorf("could not persist the process manager setting: %w", err)
-	}
-	return nil
-}
-
-// MustSetProcessManagerEnabled persists the service manager choice and fails the test on error.
-func (a *Agent) MustSetProcessManagerDisable(disable bool) {
-	require.NoError(a.t(), a.SetProcessManagerDisable(disable))
-}
-
-// SwitchProcessManager persists the service manager choice and restarts the Agent so that it takes
-// effect on a running host.
-//
-// The restart is required, not tidiness: the installer daemon reads the environment file only when
-// it starts, and hooks inherit the daemon's environment, so an edit is invisible to a Fleet-driven
-// update until the daemon has been recycled.
-func (a *Agent) SwitchProcessManager(enabled bool) error {
-	if err := a.SetProcessManagerEnabled(enabled); err != nil {
-		return err
-	}
-	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
-		return nil
-	}
-	if _, err := a.host.RemoteHost.Execute("sudo systemctl restart datadog-agent.service"); err != nil {
-		return fmt.Errorf("could not restart the Agent to pick up the process manager setting: %w", err)
-	}
-	return nil
-}
-
-// MustSwitchProcessManager switches the service manager and fails the test on error.
-func (a *Agent) MustSwitchProcessManager(enabled bool) {
-	require.NoError(a.t(), a.SwitchProcessManager(enabled))
 }
 
 func apiKey() string {

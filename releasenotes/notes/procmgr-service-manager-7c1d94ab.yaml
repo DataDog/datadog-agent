@@ -9,13 +9,7 @@ upgrade:
     Each service manager now installs its own self-consistent set of units, so a host runs either
     the ``dd-procmgrd`` supervision path or the per-payload systemd units, never a mix of the two.
   - |
-    Set ``DD_PROCESS_MANAGER_DISABLE=true`` to keep the per-payload systemd units instead of
+    Set ``DD_PROCESS_MANAGER_ENABLED=false`` to keep the per-payload systemd units instead of
     ``dd-procmgrd``. Persist it in ``/etc/datadog-agent/environment`` so that Fleet-driven upgrades
     honour it: the Agent installer service reads that file when it starts, and a value exported
     only in an interactive shell is not carried across a remote update.
-  - |
-    The Agent installer no longer reads ``DD_PROCESS_MANAGER_ENABLED``; use
-    ``DD_PROCESS_MANAGER_DISABLE=true`` instead. This affects Windows, where the previous variable
-    controlled whether the installer wrote ``processes.d`` entries. The Agent's own
-    ``process_manager.enabled`` setting is unchanged and still controls the ``dd-procmgr-service``
-    Windows service.

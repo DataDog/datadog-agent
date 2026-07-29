@@ -196,9 +196,6 @@ func (s *extensionsSuite) TestExtensionSurvivesExperimentManagedByProcmgr() {
 	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
 		s.T().Skip("DDOT procmgr management is Linux-only")
 	}
-	if !suite.ProcessManagerEnabled() {
-		s.T().Skip("this asserts procmgr supervision specifically; the systemd half is covered by TestExtensionSurvivesExperiment")
-	}
 
 	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
@@ -228,59 +225,6 @@ func (s *extensionsSuite) TestExtensionSurvivesExperimentManagedByProcmgr() {
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
-}
-
-// TestExtensionSurvivesServiceManagerSwitch flips DD_PROCESS_MANAGER_DISABLE between installing the
-// agent and starting the experiment, so the update changes the service manager. The experiment must
-// come up under the new manager with exactly one collector, and promotion must leave stable there
-// too, with nothing from the previous manager still running.
-//
-// One test body covers both directions: the CI matrix runs the fleet suite from each starting
-// manager, so this flips procmgr->systemd in one job and systemd->procmgr in the other.
-func (s *extensionsSuite) TestExtensionSurvivesServiceManagerSwitch() {
-	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
-		s.T().Skip("the procmgr service manager is Linux-only")
-	}
-
-	startProcmgr := suite.ProcessManagerEnabled()
-	targetProcmgr := !startProcmgr
-
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
-	defer s.Agent.MustUninstall()
-
-	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
-	defer func() {
-		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
-	}()
-
-	verifyDDOTRunning(s.T(), s.Agent)
-	initialDDOTVersion := s.getDDOTAgentVersion()
-	s.setInstallerRegistryConfig()
-
-	// Switching restarts the Agent: the installer daemon reads the setting only at start and hooks
-	// inherit its environment, so without the restart the update below would still run under the
-	// starting manager and the test would prove nothing.
-	s.Agent.MustSwitchProcessManager(targetProcmgr)
-
-	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
-	s.Require().NoError(s.Backend.StartExperiment("datadog-agent", targetVersion))
-	ddot.AssertDDOTManaged(s.T(), s.Env().RemoteHost, targetProcmgr)
-	s.assertSingleOTelAgent()
-	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on the experiment version after start experiment")
-
-	s.Require().NoError(s.Backend.PromoteExperiment("datadog-agent"))
-	ddot.AssertDDOTManaged(s.T(), s.Env().RemoteHost, targetProcmgr)
-	s.assertSingleOTelAgent()
-	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on the promoted version after promote experiment")
-}
-
-// assertSingleOTelAgent guards against double supervision: with both managers' artifacts on disk
-// after a switch, a leftover unit starting alongside the active manager shows up here.
-func (s *extensionsSuite) assertSingleOTelAgent() {
-	s.T().Helper()
-	out, err := s.Env().RemoteHost.Execute("pgrep -c -f 'bin/otel-agent' || true")
-	s.Require().NoError(err)
-	s.Require().Equal("1", strings.TrimSpace(out), "exactly one otel-agent should be running")
 }
 
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are

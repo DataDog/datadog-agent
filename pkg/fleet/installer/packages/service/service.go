@@ -37,24 +37,24 @@ const (
 // on top of systemd, not an init system.
 var initSystemType = sync.OnceValue(detectInitSystem)
 
-// procmgrDisabled and procmgrInstalled are indirected so tests can drive the selection.
+// procmgrEnabled and procmgrInstalled are indirected so tests can drive the selection.
 var (
-	procmgrDisabled  = func() bool { return env.FromEnv().ProcessManagerDisabled }
+	procmgrEnabled   = func() bool { return env.FromEnv().ProcessManagerEnabled }
 	procmgrInstalled = procmgr.IsInstalled
 )
 
 // GetServiceManagerType returns the service manager of the current system.
 //
 // procmgr is selected over plain systemd when the init system is systemd, the operator has not
-// opted out via DD_PROCESS_MANAGER_DISABLE, and procmgr is actually installed. Only the init system
-// probe is memoized: the other two change during an install, so they are re-evaluated on every
-// call.
+// opted out via DD_PROCESS_MANAGER_ENABLED=false, and procmgr is actually installed. Only the init
+// system probe is memoized: the other two change during an install, so they are re-evaluated on
+// every call.
 func GetServiceManagerType() Type {
 	base := initSystemType()
 	if base != SystemdType {
 		return base
 	}
-	if procmgrDisabled() || !procmgrInstalled() {
+	if !procmgrEnabled() || !procmgrInstalled() {
 		return SystemdType
 	}
 	return ProcmgrType
