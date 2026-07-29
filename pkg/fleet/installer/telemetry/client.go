@@ -31,8 +31,9 @@ const (
 )
 
 type endpoint struct {
-	APIKey string `json:"-"`
-	Host   string
+	APIKey   string `json:"-"`
+	Host     string
+	disabled bool // set on 4xx to avoid repeated warnings for permanently unavailable endpoints
 }
 
 type client struct {
@@ -228,6 +229,9 @@ func (c *client) sendPayload(requestType requestType, payload interface{}) {
 		group.Add(1)
 		go func(e *endpoint) {
 			defer group.Done()
+			if e.disabled {
+				return
+			}
 			url := fmt.Sprintf("%s%s", e.Host, telemetryEndpoint)
 			req, err := http.NewRequest("POST", url, bytes.NewReader(serializedPayload))
 			if err != nil {
@@ -250,7 +254,12 @@ func (c *client) sendPayload(requestType requestType, payload interface{}) {
 				return
 			}
 			defer resp.Body.Close()
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+				// 4xx is a permanent client error (e.g. endpoint doesn't exist on GovCloud).
+				// Disable this endpoint to avoid repeating the warning on every flush.
+				e.disabled = true
+				log.Debugf("telemetry endpoint %s returned %s, disabling", url, resp.Status)
+			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				log.Warnf("failed to send telemetry payload to endpoint %s: %s", url, resp.Status)
 			}
 			_, _ = io.Copy(io.Discard, resp.Body)
