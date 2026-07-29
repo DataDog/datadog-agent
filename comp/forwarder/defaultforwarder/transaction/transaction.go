@@ -238,13 +238,11 @@ type Authorizer interface {
 	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
 }
 
-// PendingDelegatedAuthChecker reports whether a specific API key (identified by its authorizer
-// index, i.e. transaction.APIKeyIndex) is a delegated-auth (WIF) placeholder still awaiting
-// resolution, so a 403 on that key can be treated as transient rather than a bad static key. This
-// is checked per key rather than once for the whole resolver because a single domain can mix a
-// statically-configured key with a DELA-managed one: a 403 from the static key's index must still
-// drop normally, even though the domain as a whole has a pending delegated-auth key. Kept separate
-// from Authorizer so resolvers that don't implement it safely fall back to a failed type assertion.
+// PendingDelegatedAuthChecker reports whether the API key at apiKeyIdx (transaction.APIKeyIndex)
+// is still a DELA(...) placeholder, so a 403 on it can be treated as transient rather than a bad
+// static key. Checked per key, not once for the whole resolver, since a domain can mix a static key
+// with a DELA-managed one. Kept separate from Authorizer so resolvers that don't implement it
+// safely fall back to a failed type assertion.
 type PendingDelegatedAuthChecker interface {
 	HasPendingDelegatedAuth(apiKeyIdx uint) bool
 }
