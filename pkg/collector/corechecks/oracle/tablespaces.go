@@ -14,7 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 )
 
-const tablespaceQuery12 = `SELECT
+// All four tablespace queries below carry a NO_PARALLEL hint. Tablespace collection reads
+// small dictionary views, so it has nothing to gain from parallel execution, and the hint
+// stops Oracle choosing it anyway: an object-level DEGREE on the underlying dictionary
+// tables makes the optimizer go parallel regardless of parallel_degree_policy, and on a
+// large cluster that turns a trivial query into thousands of parallel server executions.
+
+const tablespaceQuery12 = `SELECT /*+ NO_PARALLEL */
   c.name pdb_name,
   t.tablespace_name tablespace_name,
   NVL(m.used_space * t.block_size, 0) used,
@@ -29,7 +35,7 @@ FROM
 WHERE
   m.con_id(+) = t.con_id and m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
 
-const tablespaceQuery11 = `SELECT
+const tablespaceQuery11 = `SELECT /*+ NO_PARALLEL */
   t.tablespace_name tablespace_name,
   NVL(m.used_space * t.block_size, 0) used,
   NVL(m.tablespace_size * t.block_size, 0) size_,
@@ -44,7 +50,8 @@ WHERE
   m.tablespace_name(+) = t.tablespace_name`
 
 const (
-	maxSizeQuery12 = `SELECT
+	// NO_PARALLEL for the reason given above tablespaceQuery12.
+	maxSizeQuery12 = `SELECT /*+ NO_PARALLEL */
   c.name pdb_name,
   f.tablespace_name tablespace_name,
   COALESCE(SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END), 0) maxsize
@@ -52,7 +59,7 @@ FROM cdb_data_files f, v$containers c
 WHERE c.con_id(+) = f.con_id
 GROUP BY c.name, f.tablespace_name`
 
-	maxSizeQuery11 = `SELECT
+	maxSizeQuery11 = `SELECT /*+ NO_PARALLEL */
     f.tablespace_name tablespace_name,
     COALESCE(SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END), 0) maxsize
     FROM dba_data_files f

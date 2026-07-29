@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Oracle tablespace collection queries now carry a ``NO_PARALLEL`` hint. An
+    object-level parallel degree on the underlying dictionary objects could make
+    Oracle run these queries in parallel even with ``parallel_degree_policy`` set
+    to ``MANUAL``, which on large clusters produced a very high degree of
+    parallelism and significant CPU consumption for a query that reads only small
+    dictionary views.
