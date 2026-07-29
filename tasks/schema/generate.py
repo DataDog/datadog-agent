@@ -284,7 +284,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
 
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
-    hints = extract_imperative_code_hints()
+    hints = extract_imperative_code_hints() if keep_orig_order else None
 
     tmpdir = tempfile.mkdtemp()
     run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)

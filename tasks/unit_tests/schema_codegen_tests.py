@@ -7,7 +7,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
+from tasks.schema.codegen_init_settings import as_go_value, override_stubs, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -23,6 +23,7 @@ def filter_not_sysprobe(filename):
 class TestCodegenInitSettings(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
+        override_stubs('', '')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)

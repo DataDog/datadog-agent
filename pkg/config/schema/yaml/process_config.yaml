@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/graphing/infrastructure/process/
 tags:
 - template_section:CoreAgent
+- full-agent-only:true
 properties:
   process_collection:
     node_type: section
