@@ -98,9 +98,13 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 					return err
 				}
 				if revertBeforeRun {
-					if err := pool.RevertInPlace(e.Ctx().Context(), e.Region(), e.Profile(), poolAcquired.InstanceID, poolAcquired.LeaseToken); err != nil {
+					// The re-published lease has a new ETag; keep it or the release at
+					// teardown fails its If-Match and strands the lease as in-use.
+					newToken, err := pool.RevertInPlace(e.Ctx().Context(), e.Region(), e.Profile(), poolAcquired.InstanceID, poolAcquired.LeaseToken)
+					if err != nil {
 						return fmt.Errorf("failed to revert local pool instance %s before run: %w", poolAcquired.InstanceID, err)
 					}
+					poolAcquired.LeaseToken = newToken
 				}
 			}
 

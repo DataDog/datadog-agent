@@ -217,51 +217,52 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 }
 
 // RevertInPlace reverts instanceID's root volume to the lease's current baseline
-// image, like RevertAndRelease, but re-publishes the lease as statusInUse instead
-// of releasing it.
-func RevertInPlace(ctx context.Context, region, profile, instanceID, leaseToken string) error {
+// image, like RevertAndRelease, but re-publishes the lease as statusInUse instead of
+// releasing it. Returns the new lease token, which the caller must keep to release.
+func RevertInPlace(ctx context.Context, region, profile, instanceID, leaseToken string) (string, error) {
 	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	key := leasePrefix + instanceID
 	getOut, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
 	if err != nil {
-		return fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
+		return "", fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
 	}
 	var current leaseRecord
 	decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
 	getOut.Body.Close()
 	if decodeErr != nil {
-		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
+		return "", fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
 	}
 
 	if current.ImageID == "" {
-		return fmt.Errorf("instance %s has no baseline image to revert to", instanceID)
+		return "", fmt.Errorf("instance %s has no baseline image to revert to", instanceID)
 	}
 
 	ec2Client, err := NewEC2Client(ctx, region, profile)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if revertErr := revertRootVolume(ctx, ec2Client, instanceID, current.ImageID); revertErr != nil {
-		return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
+		return "", fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
 	}
 
-	body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: current.Owner, LeasedAt: current.LeasedAt, Persistent: current.Persistent})
+	body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: current.Owner, LeasedAt: time.Now().Unix(), Persistent: current.Persistent})
 	if err != nil {
-		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
+		return "", fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
 	}
-	if _, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
+	putOut, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:  aws.String(leaseBucket),
 		Key:     aws.String(key),
 		Body:    bytes.NewReader(body),
 		IfMatch: aws.String(leaseToken),
-	}); err != nil {
-		return fmt.Errorf("failed to re-publish lease for instance %s: %w", instanceID, err)
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to re-publish lease for instance %s: %w", instanceID, err)
 	}
-	return nil
+	return aws.ToString(putOut.ETag), nil
 }
 
 // errImageUnresolvable marks a revertRootVolume failure caused by imageID no longer
@@ -444,7 +445,8 @@ aws ec2 create-tags --resources "$INSTANCE_ID" --tags \
   Key="$OWNER_TAG_KEY",Value="$USERNAME" \
   Key=Name,Value="macos-e2e-pool-$USERNAME"
 
-BODY=$(printf '{"status":"%%s","imageId":"%%s","owner":"%%s","persistent":true}' "$STATUS" "$IMAGE_ID" "$OWNER")
+LEASED_AT=$(date +%%s)
+BODY=$(printf '{"status":"%%s","imageId":"%%s","owner":"%%s","leased_at":%%s,"persistent":true}' "$STATUS" "$IMAGE_ID" "$OWNER" "$LEASED_AT")
 aws s3api put-object --bucket "$LEASE_BUCKET" --key "$LEASE_KEY" \
   --body <(printf '%%s' "$BODY") --if-none-match "*" --query 'ETag' --output text
 `, instanceID, ownerPipelineID, username, PoolTagKey, PoolTagValue, OwnerUsernameTagKey, leaseBucket, leasePrefix+instanceID, statusInUse)
