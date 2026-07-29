@@ -584,7 +584,15 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 
 				if md.Name() == sdkTraceMetricName && t.cfg.withSDKTraceMetrics {
-					baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
+					baseDims := &Dimensions{
+						name:                md.Name(),
+						tags:                additionalTags,
+						host:                host,
+						originID:            attributes.OriginIDFromAttributes(rattrs),
+						originProduct:       t.cfg.originProduct,
+						originSubProduct:    OriginSubProductOTLP,
+						originProductDetail: originProductDetailFromScopeName(scopeName),
+					}
 					remapSDKTraceMetrics(ctx, t.logger, consumer, baseDims, newMetrics, md)
 					continue // skip mapToDDFormat: the histogram is fully handled above; passing it through would also produce a raw DDSketch
 				}
@@ -627,9 +635,9 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 	return metadata, nil
 }
 
-func (t *defaultTranslator) baseDimensions(name string, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) *Dimensions {
-	return &Dimensions{
-		name:                name,
+func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
+	baseDims := &Dimensions{
+		name:                md.Name(),
 		tags:                additionalTags,
 		host:                host,
 		originID:            attributes.OriginIDFromAttributes(rattrs),
@@ -637,10 +645,6 @@ func (t *defaultTranslator) baseDimensions(name string, additionalTags []string,
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
 	}
-}
-
-func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
-	baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
 	if t.cfg.withUnits {
 		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
 			baseDims.unit = unit
