@@ -225,6 +225,30 @@ func TestIsUsableWithPendingDelegatedAuth(t *testing.T) {
 	assertKeys(t, []string{"real-key"}, resolver)
 }
 
+func TestPendingDelegatedAuthGetsAtLeastOneAuthorizer(t *testing.T) {
+	// A domain whose only key source is a pending DELA(...) directive must still produce at
+	// least one authorizer/transaction - otherwise it never receives a 403 from the backend and
+	// the retry-not-drop path in transaction.go is never reached. utils.MakeEndpoints keeps the
+	// directive text itself as a placeholder key for exactly this reason.
+	keysPerDomain := utils.MakeEndpoints(map[string][]string{
+		"https://example.com": {"DELA(some-org-uuid, aws)"},
+	}, "additional_endpoints")
+
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL:                 "https://example.com",
+		APIKeySet:               keysPerDomain["https://example.com"],
+		HasPendingDelegatedAuth: true,
+	})
+	require.NoError(t, err)
+
+	assertKeys(t, []string{"DELA(some-org-uuid, aws)"}, resolver)
+
+	// Once delegated auth resolves the real key, UpdateAPIKeys replaces the whole config-path
+	// entry, so the placeholder cannot linger alongside the real key.
+	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "real-key")})
+	assertKeys(t, []string{"real-key"}, resolver)
+}
+
 func TestScrubKeys(t *testing.T) {
 	keys := []string{
 		"abcdefghijklmnopqrstuvwxyzkey001",
