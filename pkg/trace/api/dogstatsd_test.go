@@ -7,13 +7,16 @@ package api
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -76,6 +79,112 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 		proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
 		require.Equal(t, http.StatusOK, rec.Code)
 	})
+}
+
+// TestDogStatsDReverseProxyPayloadRelay covers how the proxy turns a request
+// body into DogStatsD payloads: newlines on their own carry no payload, and a
+// body that is unreadable, over the size limit, or over the payload cap is
+// reported as an error only once the payloads read before it have been relayed.
+func TestDogStatsDReverseProxyPayloadRelay(t *testing.T) {
+	const line = "users.online:1|c"
+	testCases := []struct {
+		name string
+		// maxRequestBytes overrides the default body size limit when non-zero.
+		maxRequestBytes int64
+		body            io.Reader
+		errCode         int
+		// wantFirstPayload is the first payload expected to reach DogStatsD,
+		// or empty when nothing at all should be relayed.
+		wantFirstPayload string
+	}{
+		{
+			name:    "newlines only",
+			body:    bytes.NewReader(bytes.Repeat([]byte("\n"), 100_000)),
+			errCode: http.StatusOK,
+		},
+		{
+			name:             "unreadable body",
+			body:             io.MultiReader(strings.NewReader(line+"\n"), iotest.ErrReader(errors.New("read failed"))),
+			errCode:          http.StatusInternalServerError,
+			wantFirstPayload: line,
+		},
+		{
+			// The limit cuts the body mid way through its second line.
+			name:             "body over size limit",
+			maxRequestBytes:  int64(len(line)) + 5,
+			body:             strings.NewReader(line + "\n" + line),
+			errCode:          http.StatusInternalServerError,
+			wantFirstPayload: line,
+		},
+		{
+			name:             "more payloads than the proxy relays",
+			body:             strings.NewReader(strings.Repeat("x\n", maxDogstatsdProxyPayloads+1)),
+			errCode:          http.StatusRequestEntityTooLarge,
+			wantFirstPayload: "x",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Bind a UDP socket so we can observe what the proxy relays.
+			conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			cfg := config.New()
+			cfg.StatsdHost = "127.0.0.1"
+			cfg.StatsdPort = conn.LocalAddr().(*net.UDPAddr).Port
+			if tc.maxRequestBytes != 0 {
+				cfg.MaxRequestBytes = tc.maxRequestBytes
+			}
+			receiver := newTestReceiverFromConfig(cfg)
+			proxy := receiver.dogstatsdProxyHandler()
+			require.NotNil(t, proxy)
+
+			// Drain the socket while the proxy runs, so that a case relaying
+			// many payloads cannot fill the receive buffer and have the rest
+			// dropped; the first payload is kept for the assertion below.
+			first := make(chan []byte, 1)
+			go func() {
+				buf := make([]byte, 1024)
+				for {
+					n, _, err := conn.ReadFrom(buf)
+					if err != nil { // the socket was closed, the subtest is over
+						return
+					}
+					select {
+					case first <- append([]byte(nil), buf[:n]...):
+					default:
+					}
+				}
+			}()
+
+			rec := httptest.NewRecorder()
+			proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", tc.body))
+			require.Equal(t, tc.errCode, rec.Code)
+
+			// Payloads are relayed before ServeHTTP returns, so only the case
+			// expecting none has to wait out the timeout.
+			timeout := 5 * time.Second
+			if tc.wantFirstPayload == "" {
+				timeout = 100 * time.Millisecond
+			}
+			var got []byte
+			var relayed bool
+			select {
+			case got = <-first:
+				relayed = true
+			case <-time.After(timeout):
+			}
+			if tc.wantFirstPayload == "" {
+				// Checked through relayed rather than got, so that an empty
+				// payload is not mistaken for no payload at all.
+				require.False(t, relayed, "expected no payload to be relayed, got %q", got)
+				return
+			}
+			require.True(t, relayed, "expected a payload to be relayed")
+			require.Equal(t, tc.wantFirstPayload, string(got))
+		})
+	}
 }
 
 func testDogStatsDReverseProxyEndToEndUDP(t *testing.T, cfg *config.AgentConfig) {
