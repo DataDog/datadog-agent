@@ -30,12 +30,18 @@ const (
 	// (helm-charts PR #2517). Drop this override once the e2e framework's global HelmVersion
 	// default is bumped to at least this value.
 	minHelmChartVersion = "3.197.2"
+
+	systemServiceFixture       = "par-e2e.service"
+	hostMachineIDPath          = "/host/etc/machine-id"
+	hostSystemBusSocketPath    = "/host/run/dbus/system_bus_socket"
+	systemServiceOperatorGrant = `{"par-e2e.service":["read"]}`
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
 // Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
 // automatically by the e2e framework's configureFakeintake when fakeintake is present.
-// %s parameters: clusterName, runnerURN, privateKeyB64
+// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorGrant,
+// hostMachineIDPath (twice), hostSystemBusSocketPath (twice)
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -53,6 +59,23 @@ agents:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
+        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES: '%s'
+  volumes:
+    - name: host-machine-id
+      hostPath:
+        path: %s
+        type: File
+    - name: host-system-bus
+      hostPath:
+        path: %s
+        type: Socket
+  volumeMounts:
+    - name: host-machine-id
+      mountPath: %s
+      readOnly: true
+    - name: host-system-bus
+      mountPath: %s
+      readOnly: true
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
@@ -89,14 +112,42 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("docker.SetupECRDockerAuth: %w", err)
 			}
 
-			// 3. Create standard Kind cluster. Docker is pre-baked in the AWS e2e AMI;
-			//    NewKindCluster only wires the daemon and asserts compose presence.
-			kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, name,
-				awsEnv.KubernetesVersion(),
-				utils.PulumiDependsOn(installEcrCmd),
+			// 3. Start a harmless service on the VM so rshell can exercise a real
+			//    systemd manager without touching infrastructure-critical units.
+			service, err := host.OS.Runner().Command(
+				awsEnv.CommonNamer().ResourceName("system-service-fixture"),
+				&command.Args{
+					Create: pulumi.String("systemd-run --unit=" + systemServiceFixture + " /bin/sleep infinity"),
+					Delete: pulumi.String("systemctl stop " + systemServiceFixture),
+					Sudo:   true,
+				},
 			)
 			if err != nil {
-				return fmt.Errorf("kubeComp.NewKindCluster: %w", err)
+				return fmt.Errorf("create system service fixture: %w", err)
+			}
+
+			// 4. Create a Kind cluster and bridge the VM's systemd identity and
+			//    manager bus into its node for the PAR pod's hostPath mounts.
+			kindCluster, err := kubeComp.NewKindClusterWithConfig(&awsEnv, host, name,
+				awsEnv.KubernetesVersion(),
+				kubeComp.KindConfigFlags{
+					ExtraMounts: []kubeComp.KindExtraMount{
+						{
+							HostPath:      "/etc/machine-id",
+							ContainerPath: hostMachineIDPath,
+							ReadOnly:      true,
+						},
+						{
+							HostPath:      "/run/dbus/system_bus_socket",
+							ContainerPath: hostSystemBusSocketPath,
+							ReadOnly:      true,
+						},
+					},
+				},
+				utils.PulumiDependsOn(installEcrCmd, service),
+			)
+			if err != nil {
+				return fmt.Errorf("kubeComp.NewKindClusterWithConfig: %w", err)
 			}
 			if err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput); err != nil {
 				return fmt.Errorf("kindCluster.Export: %w", err)
@@ -110,7 +161,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kubernetes.NewProvider: %w", err)
 			}
 
-			// 4. Plant test data file on the Kind node (accessible to PAR at /host/var/log/)
+			// 5. Plant test data file on the Kind node (accessible to PAR at /host/var/log/)
 			_, err = host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
@@ -125,12 +176,22 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("plant testdata: %w", err)
 			}
 
-			// 5. Deploy Datadog agent via Helm with PAR enabled.
+			// 6. Deploy Datadog agent via Helm with PAR enabled.
 			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
 			// injected automatically by the e2e framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithFakeintake(fi),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)),
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(
+					parHelmValuesTemplate,
+					ctx.Stack(),
+					runnerURN,
+					privateKeyB64,
+					systemServiceOperatorGrant,
+					hostMachineIDPath,
+					hostSystemBusSocketPath,
+					hostMachineIDPath,
+					hostSystemBusSocketPath,
+				)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),

@@ -160,6 +160,46 @@ func (s *parK8sSuite) TestRshellRunCommandBlocksWrite() {
 	assert.NotEqual(s.T(), 0, rshellExitCode(result), "read-only runCommand must reject file-target redirections")
 }
 
+// TestRshellSystemServicePolicy verifies the signed backend grant reaches a
+// deployed PAR and is narrowed by the operator's service policy before rshell
+// talks to the VM's real systemd manager.
+func (s *parK8sSuite) TestRshellSystemServicePolicy() {
+	systemServices := map[string]interface{}{
+		systemServiceFixture: []string{"read", "restart"},
+	}
+
+	readTaskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(readTaskID, runRemediationCommandAction, map[string]interface{}{
+		"command":         "systemctl status " + systemServiceFixture,
+		"allowedCommands": []string{"rshell:systemctl"},
+		"systemServices":  systemServices,
+	})
+	s.Require().NoError(err)
+
+	readResult := s.pollResult(readTaskID, 2*time.Minute)
+	s.Require().Equal(0, rshellExitCode(readResult), "unexpected PAR rshell result: %+v", readResult)
+	assert.Contains(s.T(), readResult.Outputs["stdout"], systemServiceFixture)
+	assert.Contains(s.T(), readResult.Outputs["stdout"], "Active: active (running)")
+	assert.Empty(s.T(), readResult.Outputs["stderr"])
+
+	restartTaskID := uuid.New().String()
+	err = s.Env().FakeIntake.Client().EnqueuePARTask(restartTaskID, runRemediationCommandAction, map[string]interface{}{
+		"command":         "systemctl restart " + systemServiceFixture,
+		"allowedCommands": []string{"rshell:systemctl"},
+		"systemServices":  systemServices,
+	})
+	s.Require().NoError(err)
+
+	restartResult := s.pollResult(restartTaskID, 2*time.Minute)
+	assert.Equal(s.T(), 1, rshellExitCode(restartResult), "operator policy must deny restart")
+	assert.Empty(s.T(), restartResult.Outputs["stdout"])
+	assert.Equal(
+		s.T(),
+		"systemctl: system service \""+systemServiceFixture+"\" is not allowed for action \"restart\"\n",
+		restartResult.Outputs["stderr"],
+	)
+}
+
 // --- helpers ---
 
 func (s *parK8sSuite) pollResult(taskID string, timeout time.Duration) *api.PARTaskResult {

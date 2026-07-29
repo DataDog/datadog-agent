@@ -5,6 +5,11 @@ nodes:
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
+{{- range .ExtraMounts }}
+  - hostPath: {{ printf "%q" .HostPath }}
+    containerPath: {{ printf "%q" .ContainerPath }}
+    readOnly: {{ .ReadOnly }}
+{{- end }}
 {{- if .MountDockerSocket }}
   - hostPath: /var/run/docker.sock
     containerPath: /var/run/docker.sock
@@ -18,6 +23,11 @@ nodes:
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
+{{- range $.ExtraMounts }}
+  - hostPath: {{ printf "%q" .HostPath }}
+    containerPath: {{ printf "%q" .ContainerPath }}
+    readOnly: {{ .ReadOnly }}
+{{- end }}
 {{- if $.MountDockerSocket }}
   - hostPath: /var/run/docker.sock
     containerPath: /var/run/docker.sock
