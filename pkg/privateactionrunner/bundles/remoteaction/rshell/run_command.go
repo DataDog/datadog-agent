@@ -33,8 +33,10 @@ import (
 )
 
 const (
-	defaultProcPath         = "/proc"
-	containerizedPathPrefix = "/host"
+	defaultProcPath                 = "/proc"
+	defaultSystemdMachineIDPath     = "/etc/machine-id"
+	defaultSystemdManagerSocketPath = "/run/dbus/system_bus_socket"
+	containerizedPathPrefix         = "/host"
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -284,6 +286,7 @@ func (h *RunCommandHandler) Run(
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
+		interp.WithSystemdTarget(resolveSystemdTarget()),
 		interp.WithMode(h.mode),
 	)
 	if err != nil {
@@ -332,4 +335,27 @@ func resolveProcPath() string {
 		}
 	}
 	return defaultProcPath
+}
+
+// resolveSystemdTarget selects host-mounted systemd endpoints in containerized
+// deployments when both are available. The zero value keeps rshell's local
+// defaults for host installations and containers without these mounts.
+func resolveSystemdTarget() interp.SystemdTargetConfig {
+	if !env.IsContainerized() {
+		return interp.SystemdTargetConfig{}
+	}
+
+	machineIDPath := path.Join(containerizedPathPrefix, defaultSystemdMachineIDPath)
+	if _, err := statFn(machineIDPath); err != nil {
+		return interp.SystemdTargetConfig{}
+	}
+	managerSocketPath := path.Join(containerizedPathPrefix, defaultSystemdManagerSocketPath)
+	if _, err := statFn(managerSocketPath); err != nil {
+		return interp.SystemdTargetConfig{}
+	}
+
+	return interp.SystemdTargetConfig{
+		MachineIDPath:    machineIDPath,
+		ManagerBusSocket: managerSocketPath,
+	}
 }

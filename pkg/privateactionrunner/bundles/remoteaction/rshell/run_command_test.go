@@ -931,6 +931,64 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	assert.Equal(t, "/proc", result)
 }
 
+func TestResolveSystemdTargetBareMetal(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+	overrideStatFn(t, mockStatFn(map[string]bool{
+		"/host/etc/machine-id":             true,
+		"/host/run/dbus/system_bus_socket": true,
+	}))
+
+	result := resolveSystemdTarget()
+
+	assert.Empty(t, result)
+}
+
+func TestResolveSystemdTargetContainerizedWithHostMounts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+	overrideStatFn(t, mockStatFn(map[string]bool{
+		"/host/etc/machine-id":             true,
+		"/host/run/dbus/system_bus_socket": true,
+	}))
+
+	result := resolveSystemdTarget()
+
+	assert.Equal(t, interp.SystemdTargetConfig{
+		MachineIDPath:    "/host/etc/machine-id",
+		ManagerBusSocket: "/host/run/dbus/system_bus_socket",
+	}, result)
+}
+
+func TestResolveSystemdTargetRequiresBothHostMounts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	tests := []struct {
+		name     string
+		existing map[string]bool
+	}{
+		{
+			name: "missing machine ID",
+			existing: map[string]bool{
+				"/host/run/dbus/system_bus_socket": true,
+			},
+		},
+		{
+			name: "missing manager bus socket",
+			existing: map[string]bool{
+				"/host/etc/machine-id": true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			overrideStatFn(t, mockStatFn(test.existing))
+
+			result := resolveSystemdTarget()
+
+			assert.Empty(t, result)
+		})
+	}
+}
+
 // --- runRemediationCommand ---
 
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
