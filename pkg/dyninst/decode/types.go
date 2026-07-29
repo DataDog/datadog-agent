@@ -1561,7 +1561,7 @@ func (s *structureType) encodeValueFields(
 		return err
 	}
 	for field := range s.irType().(*ir.StructureType).Fields() {
-		if err := writeTokens(enc, safeString(field.Name)); err != nil {
+		if err := writeTokens(enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}
 		if c.redaction.RedactIdentifier(field.Name) {
@@ -2064,7 +2064,7 @@ func (s *goStringHeaderType) encodeValueFields(
 	if truncated {
 		str = trimPartialRune(str)
 	}
-	return writeTokens(enc, safeString(str))
+	return writeTokens(enc, jsontext.String(str))
 }
 
 func (s *goStringHeaderType) formatValueFields(
@@ -2450,7 +2450,7 @@ func encodeInterface(
 		}
 		if err := writeTokens(enc,
 			jsontext.String("type"),
-			safeString(name),
+			jsontext.String(name),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonMissingTypeInfo,
 			jsontext.EndObject,
@@ -2472,7 +2472,7 @@ func encodeInterface(
 	// match a redacted type.
 	if c.redaction.RedactType(tt.GetName()) {
 		if err := writeTokens(enc,
-			jsontext.String("type"), safeString(tt.GetName()),
+			jsontext.String("type"), jsontext.String(tt.GetName()),
 			tokenNotCapturedReason, tokenNotCapturedReasonRedactedType,
 		); err != nil {
 			return err
@@ -2481,7 +2481,7 @@ func encodeInterface(
 	}
 
 	if err := writeTokens(
-		enc, jsontext.String("type"), safeString(tt.GetName()),
+		enc, jsontext.String("type"), jsontext.String(tt.GetName()),
 	); err != nil {
 		return err
 	}

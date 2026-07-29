@@ -57,7 +57,7 @@
             "arguments": {
               "a": {
                 "type": "string",
-                "value": "�"
+                "value": "��"
               },
               "b": {
                 "type": "string",
@@ -70,7 +70,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "�, ok�bad",
+    "message": "��, ok�bad",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

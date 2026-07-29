@@ -101,6 +101,70 @@ func TestDecoderStringTruncatedMidRune(t *testing.T) {
 	require.Equal(t, "s: 世...", strings.ReplaceAll(e.Message, "�", ""))
 }
 
+// TestDecoderStringTruncatedInvalidByte decodes a string whose capture was cut
+// short right after a byte that was never valid UTF-8. Trimming back to a rune
+// boundary must not drop bytes that were really captured.
+func TestDecoderStringTruncatedInvalidByte(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		first string
+	}{
+		// 0xff can never appear in UTF-8 at all; 0xc0 has the shape of a
+		// two-byte lead byte but only ever encodes an overlong rune. Neither
+		// may be mistaken for a rune that the capture limit split.
+		{name: "ff", first: "\xff"},
+		{name: "c0", first: "\xc0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			full := tc.first + "abc"
+
+			irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+			require.NoError(t, err)
+			item := stringArgEvent(t, irProg, uint64(len(full)), []byte(full)[:1])
+			buf, _, err := decoder.Decode(Event{
+				EntryOrLine: output.SingleEvent(item),
+				ServiceName: "foo",
+			}, &noopSymbolicator{}, nil, []byte{})
+			require.NoError(t, err)
+			requireValidUTF8JSON(t, buf)
+
+			var e eventCaptures
+			require.NoError(t, json.Unmarshal(buf, &e))
+			require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
+
+			arg := argument(t, e, "s")
+			require.Equal(t, "4", arg["size"])
+			require.Equal(t, true, arg["truncated"])
+			require.Equal(t, "�", arg["value"])
+		})
+	}
+}
+
+// TestDecoderLogLineLimitAfterSanitizing decodes a string holding enough invalid
+// bytes that replacing each of them widens the log message past its byte limit.
+// The limit has to hold for what is emitted, not just for what was read.
+func TestDecoderLogLineLimitAfterSanitizing(t *testing.T) {
+	value := strings.Repeat("\xffa", 3000)
+
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	item := stringArgEvent(t, irProg, uint64(len(value)), []byte(value))
+	buf, _, err := decoder.Decode(Event{
+		EntryOrLine: output.SingleEvent(item),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	requireValidUTF8JSON(t, buf)
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+	require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
+	require.LessOrEqual(t, len(e.Message), maxLogLineBytes)
+	require.Contains(t, e.Message, "�")
+}
+
 // invalidUTF8Symbolicator resolves every stack to a single frame whose function
 // and file names are not valid UTF-8.
 type invalidUTF8Symbolicator struct{}
@@ -199,6 +263,71 @@ func TestDecoderInvalidUTF8TypeName(t *testing.T) {
 			"recorded invalid UTF-8 type name %q", recorded,
 		)
 	}
+}
+
+// TestDecoderInvalidUTF8DebugInfoNames decodes a struct-valued map argument
+// whose type, field and variable names are not valid UTF-8. Names are read out
+// of the target's debug info with no more validation than captured values get,
+// so a bad name must be mangled rather than take the whole event down.
+func TestDecoderInvalidUTF8DebugInfoNames(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "bigMapArg")
+	// Build the event before corrupting the names; the helper checks them.
+	item := addStackToEvent(simpleBigMapArgEvent(t, irProg), syntheticStackPCs)
+
+	mapType := irType[*ir.GoMapType](t, irProg, "map[string]main.bigStruct")
+	ptrType := irType[*ir.PointerType](t, irProg, "*main.bigStruct")
+	structType := irType[*ir.StructureType](t, irProg, "main.bigStruct")
+	mapType.Name = "map[string]main.big\xffStruct"
+	ptrType.Name = "*main.big\xffStruct"
+	structType.RawFields[0].Name = "Fie\xffld1"
+	for _, expr := range probeEventType(t, irProg, "bigMapArg").Expressions {
+		if expr.Kind == ir.RootExpressionKindArgument {
+			expr.Name = "m\xff"
+		}
+	}
+
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	buf, _, err := decoder.Decode(Event{
+		EntryOrLine: output.SingleEvent(item),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	requireValidUTF8JSON(t, buf)
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+	require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
+
+	arg := argument(t, e, "m�")
+	require.Equal(t, "map[string]main.big�Struct", arg["type"])
+	entries, ok := arg["entries"].([]any)
+	require.True(t, ok, "no entries in %+v", arg)
+	require.Len(t, entries, 1)
+	value, ok := entries[0].([]any)[1].(map[string]any)
+	require.True(t, ok, "no entry value in %+v", entries[0])
+	require.Equal(t, "*main.big�Struct", value["type"])
+	fields, ok := value["fields"].(map[string]any)
+	require.True(t, ok, "no fields in %+v", value)
+	require.Equal(
+		t, map[string]any{"type": "int", "value": "1"}, fields["Fie�ld1"],
+	)
+	require.Contains(t, e.Message, "Fie�ld1: 1")
+}
+
+// irType returns the IR type named name, which must be a T.
+func irType[T ir.Type](t testing.TB, irProg *ir.Program, name string) T {
+	for _, typ := range irProg.Types {
+		if typ.GetName() != name {
+			continue
+		}
+		typed, ok := typ.(T)
+		require.True(t, ok, "type %q is a %T", name, typ)
+		return typed
+	}
+	require.FailNowf(t, "type not found", "no IR type named %q", name)
+	var zero T
+	return zero
 }
 
 func requireValidUTF8JSON(t testing.TB, buf []byte) {

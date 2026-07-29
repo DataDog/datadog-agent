@@ -106,7 +106,10 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			)
 		}
 	}
-	return writeTokens(enc, safeString(result.String()))
+	// Sanitizing widens invalid bytes, so the limit has to be applied again.
+	return writeTokens(enc, jsontext.String(
+		utilstrings.TruncateUTF8(safeText(result.String()), maxLogLineBytes),
+	))
 }
 
 func (m *messageData) processJSONSegment(
@@ -537,7 +540,7 @@ func (ce *captureEvent) processExpression(
 		return errEvaluation
 	}
 	data := ce.rootData[expr.Offset:ub]
-	if err := writeTokens(enc, safeString(expr.Name)); err != nil {
+	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
 	if expr.Redacted {
@@ -557,7 +560,7 @@ func (ce *captureEvent) processExpression(
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
-			safeString(typeName),
+			jsontext.String(typeName),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonUnavailable,
 			jsontext.EndObject,
@@ -736,9 +739,9 @@ func (sd *stackData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			if err := writeTokens(enc,
 				jsontext.BeginObject,
 				jsontext.String("function"),
-				safeString(sl.Function),
+				jsontext.String(sl.Function),
 				jsontext.String("fileName"),
-				safeString(sl.File),
+				jsontext.String(sl.File),
 				jsontext.String("lineNumber"),
 				jsontext.Int(int64(sl.Line)),
 				jsontext.EndObject,
@@ -771,7 +774,7 @@ func encodeValue(
 		return err
 	}
 	if err := writeTokens(
-		enc, jsontext.String("type"), safeString(valueType),
+		enc, jsontext.String("type"), jsontext.String(valueType),
 	); err != nil {
 		return err
 	}
@@ -791,33 +794,45 @@ func writeRedacted(enc *jsontext.Encoder, typeName string, reason jsontext.Token
 	return writeTokens(enc,
 		jsontext.BeginObject,
 		jsontext.String("type"),
-		safeString(typeName),
+		jsontext.String(typeName),
 		tokenNotCapturedReason,
 		reason,
 		jsontext.EndObject,
 	)
 }
 
-// safeString returns a JSON string token for text that came from the target
-// process. Go strings hold arbitrary bytes, and names read out of the target's
-// DWARF, symbol table and runtime type metadata are not validated either, so
-// invalid UTF-8 is replaced instead of letting the encoder reject the value
-// and take the whole event down with it.
-func safeString(s string) jsontext.Token {
+// safeText replaces each byte of invalid UTF-8 with the replacement character,
+// matching what [allowInvalidUTF8] makes the encoder do. Only the log message
+// needs this: its byte budget is spent before it reaches the encoder, and a
+// replacement character is wider than the byte it stands in for.
+func safeText(s string) string {
 	if utf8.ValidString(s) {
-		return jsontext.String(s)
+		return s
 	}
-	return jsontext.String(strings.ToValidUTF8(s, "�"))
+	// Ranging over a string yields one replacement character per invalid byte.
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
-// trimPartialRune drops the leading bytes of a rune that a byte-boundary
-// capture limit split in half.
+// trimPartialRune drops a trailing rune that a byte-boundary capture limit cut
+// in half. Bytes that are invalid UTF-8 in their own right are left in place, so
+// that they are reported as replacement characters rather than disappearing.
 func trimPartialRune(s string) string {
-	for range utf8.UTFMax - 1 {
-		if r, size := utf8.DecodeLastRuneInString(s); r != utf8.RuneError || size != 1 {
-			break
+	// Walk back over the trailing continuation bytes to the byte that starts
+	// the last rune. FullRuneInString is false only for a rune that is cut
+	// short; bytes that can never encode a rune count as complete.
+	for i := len(s) - 1; i >= 0 && len(s)-i < utf8.UTFMax; i-- {
+		if !utf8.RuneStart(s[i]) {
+			continue
 		}
-		s = s[:len(s)-1]
+		if !utf8.FullRuneInString(s[i:]) {
+			return s[:i]
+		}
+		break
 	}
 	return s
 }
