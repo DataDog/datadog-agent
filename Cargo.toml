@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
+    "pkg/collector/sharedlibrary/rustchecks/core",
+    "pkg/collector/sharedlibrary/rustchecks/checks/datasecurity",
+    "pkg/collector/sharedlibrary/rustchecks/checks/example",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
@@ -27,6 +30,7 @@ hyper-util = { version = "0.1", default-features = false, features = ["http1", "
 libc = "0.2"
 log = "0.4"
 prost = "0.14"
+prost-build = "0.14"
 prost-types = "0.14"
 protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
@@ -77,3 +81,4 @@ tempfile = "3.0"
 [profile.release]
 lto = "fat"
 opt-level = "z"
+codegen-units = 1

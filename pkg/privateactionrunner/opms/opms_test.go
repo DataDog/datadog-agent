@@ -10,6 +10,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -314,4 +316,31 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
+}
+
+func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errors":["job info not found"]}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	err := c.Heartbeat(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrJobNotFound), "expected ErrJobNotFound, got %v", err)
+}
+
+func TestHeartbeat_OtherErrorIsNotJobNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	err := c.Heartbeat(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
+
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrJobNotFound), "500 must not be treated as job-not-found")
 }

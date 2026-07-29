@@ -52,11 +52,14 @@ cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
-secret_generic_connector-build*      @DataDog/agent-configuration
+secret_generic_connector-build*      @DataDog/fleet-automation
 build_windows_container_entrypoint   @DataDog/windows-products
-generate_config_schema-linux         @DataDog/agent-configuration
-generate_config_schema-macos         @DataDog/agent-configuration
-generate_config_schema-windows       @DataDog/agent-configuration
+generate_config_schema-linux         @DataDog/fleet-automation
+generate_config_schema-macos         @DataDog/fleet-automation
+generate_config_schema-windows       @DataDog/fleet-automation
+# Cross-compiled binary builds for validation purpose
+cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
+cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
@@ -164,7 +167,7 @@ deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
 deploy_containers-cws-instrumentation* @DataDog/agent-security
 
 # Deploy Secret Generic Connector
-deploy_containers-secret-generic-connector* @DataDog/agent-configuration
+deploy_containers-secret-generic-connector* @DataDog/fleet-automation
 
 # Trigger release
 trigger_manual_prod_release*            @DataDog/agent-delivery
@@ -208,8 +211,8 @@ new-e2e-base*                           @DataDog/agent-devx
 new-e2e-unit-tests                      @DataDog/agent-devx
 new-e2e-cleanup-on-failure              @DataDog/agent-devx
 # --- Agent core ---
-new-e2e-agent-configuration*            @DataDog/agent-configuration
-new-e2e-agent-subcommands*              @DataDog/agent-configuration
+new-e2e-agent-configuration*            @DataDog/fleet-automation
+new-e2e-agent-subcommands*              @DataDog/fleet-remediation
 new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
 new-e2e-agent-health                    @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes

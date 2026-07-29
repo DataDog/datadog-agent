@@ -24,7 +24,7 @@ require (
 	go.etcd.io/bbolt v1.5.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/time v0.15.0
-	google.golang.org/grpc v1.82.0
+	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
@@ -184,6 +184,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../comp/otelcol/otlp/components/connector/datadogconnector
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig => ../../../comp/otelcol/otlp/components/datadogconfig
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../comp/otelcol/otlp/components/exporter/serializerexporter

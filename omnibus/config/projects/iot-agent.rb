@@ -12,15 +12,11 @@ license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
+install_dir ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
+
 if ohai['platform'] == "windows"
-  # Note: this is not the final install dir, not even the default one, just a convenient
-  # spaceless dir in which the agent will be built.
-  # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
-  # to put a space here...
-  install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
   if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
