@@ -2667,6 +2667,26 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			settings: map[string]interface{}{"logs_enabled": false},
 			expected: false,
 		},
+		{
+			name:     "logs_unset_defaults_enabled",
+			settings: map[string]interface{}{},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_disables",
+			settings: map[string]interface{}{"log_enabled": false},
+			expected: false,
+		},
+		{
+			name:     "stale_deprecated_log_enabled_does_not_disable",
+			settings: map[string]interface{}{"logs_enabled": true, "log_enabled": false},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_still_enables",
+			settings: map[string]interface{}{"logs_enabled": false, "log_enabled": true},
+			expected: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
