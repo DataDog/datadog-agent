@@ -67,6 +67,8 @@ const (
 	ProgramKafkaProduceResponsePartitionParserV9 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9
 	// ProgramKafkaTermination is tail call to process Kafka termination.
 	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION
+	// ProgramGRPC is the Golang representation of the C.PROG_GRPC enum (TLS gRPC classifier).
+	ProgramGRPC ProgramType = C.PROG_GRPC
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
 	// ProgramPostgresHandleResponse is the Golang representation of the C.PROG_POSTGRES_HANDLE_RESPONSE enum

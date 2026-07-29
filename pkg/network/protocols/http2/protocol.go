@@ -68,6 +68,7 @@ const (
 	tlsDynamicTableCleaner   = "uprobe__http2_dynamic_table_cleaner"
 	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
 	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
+	tlsGRPCTailCall          = "uprobe__http2_tls_grpc"
 )
 
 // Spec is the protocol spec for HTTP/2.
@@ -172,6 +173,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFirstFrameTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramGRPC),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsGRPCTailCall,
 			},
 		},
 		{

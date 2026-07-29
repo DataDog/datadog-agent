@@ -4,6 +4,54 @@
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
+#include "protocols/classification/shared-tracer-maps.h"
+#include "protocols/grpc/decoding.h"
+
+// http2_tls_grpc classifies a decrypted HTTP/2 (TLS) connection as gRPC by looking for a
+// "content-type: application/grpc" header, then continues into the regular HTTP/2 decoding chain.
+//
+// It runs as its own tail-call program (rather than inside the HTTP/2 headers parser) so the
+// content-type scan has its own verifier instruction budget and does not bloat the already
+// near-limit uprobe__http2_tls_headers_parser. It is the TLS counterpart of the plaintext
+// socket-filter gRPC classifier (protocol_classifier_entrypoint_grpc).
+//
+// The gRPC tag is written under the connection's canonical protocol-stack key: the tuple is
+// normalized and its pid/netns are zeroed, matching how tls_process creates the entry
+// (protocols/tls/https.h) and how user space reads it back (tracer/stats.h). This is required for
+// TLS, whose dispatch tuple still carries pid/netns.
+SEC("uprobe/http2_tls_grpc")
+int uprobe__http2_tls_grpc(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+    // Detection walks the buffer and advances the read offset, so run it on a copy - leaving the
+    // map's dispatcher arguments (data_off == 0) pristine for the HTTP/2 decoder we tail-call into.
+    tls_dispatcher_arguments_t args_copy = *args;
+    pktbuf_t pkt = pktbuf_from_tls(ctx, &args_copy);
+
+    grpc_status_t status = pktbuf_is_grpc(pkt);
+    if (status != PAYLOAD_UNDETERMINED) {
+        conn_tuple_t tup = args->tup;
+        normalize_tuple(&tup);
+        tup.pid = 0;
+        tup.netns = 0;
+        protocol_stack_t *stack = __get_protocol_stack_if_exists(&tup);
+        if (stack != NULL) {
+            if (status == PAYLOAD_GRPC) {
+                set_protocol(stack, PROTOCOL_GRPC);
+            }
+            // gRPC status is now known - stop re-running this program on subsequent buffers.
+            mark_as_fully_classified(stack);
+        }
+    }
+
+    // Continue the regular HTTP/2 decoding chain on the pristine buffer.
+    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_HTTP2_HANDLE_FIRST_FRAME);
+    return 0;
+}
 
 // http2_tls_handle_first_frame is the entry point of our HTTP2+TLS processing.
 // It is responsible for getting and filtering the first frame present in the

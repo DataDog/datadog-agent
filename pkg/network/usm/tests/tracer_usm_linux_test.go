@@ -534,6 +534,51 @@ func (s *USMSuite) TestTLSClassification() {
 	}
 }
 
+// TestGRPCTLSClassification verifies that gRPC served over TLS is classified as gRPC (API layer)
+// on top of HTTP/2, exercising the dedicated TLS gRPC classifier program. Before this, encrypted
+// gRPC was reported as plain HTTP/2 and never tagged as gRPC.
+func (s *USMSuite) TestGRPCTLSClassification() {
+	t := s.T()
+	cfg := tracertestutil.Config()
+	if !classificationSupported(cfg) {
+		t.Skip("Classification is not supported")
+	}
+	if !gotlstestutil.GoTLSSupported(t, cfg) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableGoTLSSupport = true
+	// GoTLS attaches to the external gRPC server process (not this test binary).
+	cfg.GoTLSExcludeSelf = true
+	cfg.BypassEnabled = true
+
+	port, err := getFreePort()
+	require.NoError(t, err)
+	// Use an explicit IPv4 address (not "localhost") so it matches the resolved addresses on the tracked connections.
+	serverAddress := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
+
+	// A separate process serves gRPC over TLS so GoTLS has a binary with the expected crypto/tls symbols to hook.
+	srv, cancel := grpc.NewGRPCTLSServer(t, serverAddress, true)
+	t.Cleanup(cancel)
+
+	tr := setupTracer(t, cfg)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, usm.GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+
+	require.NoError(t, tr.Resume())
+	t.Cleanup(func() { _ = tr.Pause() })
+
+	c, err := grpc.NewClient(serverAddress, grpc.Options{}, true)
+	require.NoError(t, err)
+	defer c.Close()
+	timedContext, cancel2 := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel2()
+	require.NoError(t, c.HandleUnary(timedContext, "test"))
+
+	waitForConnectionsWithProtocol(t, tr, serverAddress, serverAddress, &protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC, Encryption: protocols.TLS})
+}
+
 func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	t := s.T()
 

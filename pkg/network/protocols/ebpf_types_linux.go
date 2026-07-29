@@ -54,6 +54,8 @@ const (
 
 	ProgramKafkaTermination ProgramType = 0x10
 
+	ProgramGRPC ProgramType = 0x11
+
 	ProgramPostgres ProgramType = 0x12
 
 	ProgramPostgresHandleResponse ProgramType = 0x13

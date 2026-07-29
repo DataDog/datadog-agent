@@ -146,7 +146,11 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         final_tuple = normalized_tuple;
         break;
     case PROTOCOL_HTTP2:
-        prog = PROG_HTTP2_HANDLE_FIRST_FRAME;
+        // Until the connection's gRPC status is known, route through the gRPC classifier, which
+        // detects "content-type: application/grpc", tags the connection, and then continues into
+        // PROG_HTTP2_HANDLE_FIRST_FRAME. Once classified it marks the stack fully-classified, so
+        // subsequent buffers skip straight to HTTP/2 decoding.
+        prog = is_fully_classified(stack) ? PROG_HTTP2_HANDLE_FIRST_FRAME : PROG_GRPC;
         final_tuple = *t;
         break;
     case PROTOCOL_KAFKA:

@@ -1,8 +1,6 @@
 #ifndef __HTTP2_MAPS_DEFS_H
 #define __HTTP2_MAPS_DEFS_H
 
-#include "protocols/grpc/defs.h"
-
 // http2_incomplete_frames maps a connection tuple to a frame remainder from the previous packet.
 // It is possible for frames to be split to multiple tcp packets, so we need to associate the remainder from the previous
 // packet, to the current one.
@@ -44,10 +42,6 @@ BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
 
 /* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
-
-/* Per-cpu scratch buffer used to compare a header value against the huffman-encoded "application/grpc"
-   content-type while decoding, without adding to the (near-full) BPF stack of the headers parser. */
-BPF_PERCPU_ARRAY_MAP(http2_grpc_ct_scratch, __u8[GRPC_CONTENT_TYPE_LEN], 1)
 
 // This map is used to gather telemetry data from the eBPF programs. Key 0 is used for plaintext traffic,
 // and key 1 is used for encrypted traffic.

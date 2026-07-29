@@ -6,8 +6,6 @@
 #include "protocols/http2/usm-events.h"
 #include "protocols/http2/skb-common.h"
 #include "protocols/http/types.h"
-#include "protocols/grpc/defs.h"
-#include "protocols/classification/shared-tracer-maps.h"
 
 PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
 PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
@@ -230,10 +228,7 @@ end:
 }
 
 // Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
-// If it sees an indexed "content-type" header with a long-enough literal value, it records the packet offset of that
-// value in *grpc_ct_value_off. The actual "application/grpc" comparison is done once by the caller, after the header
-// loop, to keep the expensive load+compare out of this doubly-unrolled path (it would blow the verifier budget).
-static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index, __u32 *grpc_ct_value_off) {
+static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -251,11 +246,6 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
-    } else if (index == HTTP2_CONTENT_TYPE_IDX && str_len >= GRPC_CONTENT_TYPE_LEN) {
-        // Indexed content-type name (static index 31) with a long-enough literal value. Record the offset of the
-        // value bytes; the caller compares them once against the huffman-encoded "application/grpc" prefix. The
-        // value is not consumed here - the trailing pktbuf_advance skips it as usual.
-        *grpc_ct_value_off = pktbuf_data_offset(pkt);
     }
     pktbuf_advance(pkt, str_len);
     return true;
@@ -265,7 +255,7 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel, bool *is_grpc) {
+static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -275,8 +265,6 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
     bool is_literal = false;
     __u64 max_bits = 0;
     __u64 index = 0;
-    // Offset of a candidate "content-type" value (0 = none seen). Compared once after the loop.
-    __u32 grpc_ct_value_off = 0;
 
     pktbuf_handle_dynamic_table_update(pkt);
 
@@ -366,24 +354,8 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        // Records the content-type value offset (if any) for the single gRPC check below.
-        if (!pktbuf_process_and_skip_literal_headers(pkt, index, &grpc_ct_value_off)){
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index)){
             break;
-        }
-    }
-
-    // A content-type value was seen: compare it once here, outside the unrolled header loop, against the
-    // huffman-encoded "application/grpc" prefix (this also matches "application/grpc+proto" and similar). A match
-    // classifies the connection as gRPC. Doing it once - rather than per header inside the doubly-unrolled loop -
-    // keeps the program under the verifier's instruction budget. Uses a per-cpu scratch buffer since this program is
-    // near the 512-byte BPF stack limit; the key is a plain stack u32 (read-only .rodata maps require kernel >= 5.2).
-    if (grpc_ct_value_off != 0) {
-        __u32 grpc_ct_key = 0;
-        __u8 *content_type_buf = bpf_map_lookup_elem(&http2_grpc_ct_scratch, &grpc_ct_key);
-        if (content_type_buf != NULL &&
-            pktbuf_load_bytes(pkt, grpc_ct_value_off, content_type_buf, GRPC_CONTENT_TYPE_LEN) >= 0 &&
-            bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0) {
-            *is_grpc = true;
         }
     }
 
@@ -1013,19 +985,8 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             }
         }
 
-        bool is_grpc = false;
-        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel, &is_grpc);
+        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
-        // A "content-type: application/grpc" header classifies the connection as gRPC. The connection_protocol
-        // entry already exists (the dispatcher created it when classifying HTTP2), so we update it in place using
-        // the already-normalized stream tuple - avoiding the tuple copy in get_or_create_protocol_stack, which
-        // would overflow this program's near-full BPF stack.
-        if (is_grpc) {
-            protocol_stack_t *grpc_stack = __get_protocol_stack_if_exists(&http2_ctx->http2_stream_key.tup);
-            if (grpc_stack != NULL) {
-                set_protocol(grpc_stack, PROTOCOL_GRPC);
-            }
-        }
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
