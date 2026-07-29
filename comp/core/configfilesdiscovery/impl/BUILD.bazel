@@ -50,7 +50,6 @@ go_test(
         "docker",
         "test",
     ],
-    # keep
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
@@ -100,7 +99,6 @@ go_test(
         "cri",
         "test",
     ],
-    # keep
     deps = [
         "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_opencontainers_runtime_spec//specs-go",
