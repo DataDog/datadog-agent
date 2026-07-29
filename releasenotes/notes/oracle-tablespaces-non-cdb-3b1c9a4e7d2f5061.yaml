@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Oracle: the tablespace collector no longer issues cross-container ``CDB_*``
+    queries against non-CDB databases. Query selection previously keyed on the
+    database version alone, so any database on 12c or later ran the multitenant
+    variants even when ``V$DATABASE.CDB`` reported ``NO``. Those databases now use
+    the ``DBA_*`` variants, which return the same data without the cross-container
+    overhead.
