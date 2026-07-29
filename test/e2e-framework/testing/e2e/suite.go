@@ -498,6 +498,13 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		return fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
 
+	// Publish the first lease of any macOS pool member this run just created, before
+	// Init builds clients against it. Unlike the release at teardown, a failure here
+	// aborts: a registered-but-unleased instance is undiscoverable by every later run.
+	if err := bs.registerPoolInstanceIfNeeded(newEnv); err != nil {
+		return fmt.Errorf("unable to register macOS pool instance: %w", err)
+	}
+
 	// If env implements Initializable, we call Init
 	if initializable, ok := any(newEnv).(common.Initializable); ok {
 		if err := initializable.Init(bs); err != nil {
@@ -775,6 +782,60 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 	}
+}
+
+// registerPoolInstanceIfNeeded publishes the first lease of any macOS pool member that
+// env just created, and stores the resulting token on the host so teardown can release
+// it. A member awaiting registration has a PoolInstanceID but no PoolLeaseToken.
+func (bs *BaseSuite[Env]) registerPoolInstanceIfNeeded(env *Env) error {
+	if env == nil {
+		return nil
+	}
+
+	v := reflect.ValueOf(env)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return nil
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		remoteHost, ok := field.Interface().(*testingcomponents.RemoteHost)
+		if !ok || remoteHost == nil {
+			continue
+		}
+		if remoteHost.PoolInstanceID == "" || remoteHost.PoolLeaseToken != "" {
+			continue // not a pool member, or already leased
+		}
+		if remoteHost.PoolBaselineImageID == "" {
+			return fmt.Errorf("macOS pool instance %s has no baseline image to register", remoteHost.PoolInstanceID)
+		}
+
+		ctx, cancel := bs.providerContext(deleteTimeout)
+		// Owner is the pipeline ID, and registration only happens on the local
+		// cache-miss path, where there is none -- matching what acquire writes locally.
+		token, err := pool.PublishInitialLease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile,
+			remoteHost.PoolInstanceID, remoteHost.PoolBaselineImageID, "")
+		if errors.Is(err, pool.ErrLeaseAlreadyExists) {
+			// Expected when UpdateEnv re-enters reconcileEnv: adopt the live lease
+			// rather than failing.
+			token, err = pool.CurrentLeaseToken(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolInstanceID)
+		}
+		cancel()
+		if err != nil {
+			return fmt.Errorf("instance %s: %w", remoteHost.PoolInstanceID, err)
+		}
+
+		// Teardown reads this field, so writing it here is what wires release up.
+		remoteHost.PoolLeaseToken = token
+	}
+	return nil
 }
 
 // releasePoolInstanceIfAny reverts and releases any macOS EC2 pool instance backing
