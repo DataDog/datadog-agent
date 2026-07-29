@@ -441,10 +441,10 @@ func TestConvert(t *testing.T) {
 			// in as-is, which is exactly what produces 403s from the extension's
 			// isolated forwarder when config sync's resolved value arrives too late
 			// or not at all.
-			name:           "extensions/no-extensions/datadog-unresolved-secret",
-			provided:       "extensions/no-extensions/datadog-unresolved-secret/config.yaml",
-			expectedResult: "extensions/no-extensions/datadog-unresolved-secret/config-result.yaml",
-			agentConfig:    "extensions/no-extensions/datadog-unresolved-secret/acfg.yaml",
+			name:           "extensions/no-extensions/dd-unresolved",
+			provided:       "extensions/no-extensions/dd-unresolved/config.yaml",
+			expectedResult: "extensions/no-extensions/dd-unresolved/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/dd-unresolved/acfg.yaml",
 		},
 		{
 			name:           "extensions/standalone/dogtel-injected",
@@ -621,7 +621,7 @@ func TestConvert_ExtensionAPIKeyIsStaticSnapshot(t *testing.T) {
 	converter, err := NewComponent(Requires{Conf: acfg, Hostname: &mockHostname{hostname: "test-host"}})
 	require.NoError(t, err)
 
-	resolver, err := newResolver(uriFromFile("extensions/no-extensions/datadog-unresolved-secret/config.yaml"))
+	resolver, err := newResolver(uriFromFile("extensions/no-extensions/dd-unresolved/config.yaml"))
 	require.NoError(t, err)
 	conf, err := resolver.Resolve(context.Background())
 	require.NoError(t, err)
