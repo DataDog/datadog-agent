@@ -71,7 +71,7 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
-	ddotConfig, err := embedded.GetProcmgrConfig("datadog-agent-ddot.yaml", embedded.SystemdUnitTypeDebRpm, false)
+	ddotConfig, err := embedded.GetProcmgrUnit("datadog-agent-ddot.yaml", embedded.UnitTypeDebRpm, false)
 	require.NoError(t, err)
 	s := &procmgrLinuxSuite{}
 	s.platform = linuxPlatform

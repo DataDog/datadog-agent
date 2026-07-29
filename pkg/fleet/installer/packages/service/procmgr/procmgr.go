@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	// ProcessesDirName is the per-install directory holding one YAML per supervised process. A
-	// file's stem is the process name dd-procmgrd reports.
+	// ProcessesDirName is the per-install directory holding one YAML per supervised process.
+	// It's the equivalent of systemd's .service files, but for processes managed by procmgr.
 	ProcessesDirName = "processes.d"
 
 	daemonRelPath = "embedded/bin/dd-procmgrd"

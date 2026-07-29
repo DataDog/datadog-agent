@@ -135,8 +135,8 @@ var (
 		ProcmgrMainUnitExp:     "datadog-agent-exp.service",
 		ProcmgrUnitsStable:     []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-procmgr.service"},
 		ProcmgrUnitsExp:        []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-procmgr-exp.service"},
-		ProcmgrProcessesStable: []string{ddotProcmgrConfigName},
-		ProcmgrProcessesExp:    []string{ddotProcmgrConfigName},
+		ProcmgrProcessesStable: []string{ddotProcmgrStableConfigName},
+		ProcmgrProcessesExp:    []string{ddotProcmgrExpConfigName},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -252,7 +252,7 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 			return err
 		}
 	}
-	for _, unitsPath := range systemdUnitInstallPaths {
+	for _, unitsPath := range unitInstallPaths {
 		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
 			return err
 		}
@@ -611,12 +611,10 @@ type datadogAgentService struct {
 	SystemdUnitsStable    []string
 	SystemdUnitsExp       []string
 
-	ProcmgrMainUnitStable string
-	ProcmgrMainUnitExp    string
-	ProcmgrUnitsStable    []string
-	ProcmgrUnitsExp       []string
-	// ProcmgrProcesses* are the processes.d entries dd-procmgrd supervises. Stable and experiment
-	// hold the same file names: the two are told apart by the install tree they are written to.
+	ProcmgrMainUnitStable  string
+	ProcmgrMainUnitExp     string
+	ProcmgrUnitsStable     []string
+	ProcmgrUnitsExp        []string
 	ProcmgrProcessesStable []string
 	ProcmgrProcessesExp    []string
 
@@ -630,8 +628,6 @@ type datadogAgentService struct {
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	switch service.GetServiceManagerType() {
 	case service.SystemdType, service.ProcmgrType:
-		// procmgr implies systemd: dd-procmgrd is hosted by datadog-agent-procmgr.service, so the
-		// same package types are supported.
 		return nil
 	case service.UpstartType:
 		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
@@ -738,7 +734,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
 		if err := writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...); err != nil {
 			return err
@@ -814,7 +810,7 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.ProcmgrType:
 		if err := writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...); err != nil {
 			return err
@@ -864,10 +860,10 @@ const (
 	rpmUnitsPath = "/usr/lib/systemd/system"
 )
 
-var systemdUnitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
+var unitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
 
-// systemdUnitsPath returns the directory the package's unit files are installed to.
-func systemdUnitsPath(ctx HookContext) (string, error) {
+// unitsPath returns the directory the package's unit files are installed to.
+func unitsPath(ctx HookContext) (string, error) {
 	switch ctx.PackageType {
 	case PackageTypeDEB:
 		return debUnitsPath, nil
@@ -880,16 +876,30 @@ func systemdUnitsPath(ctx HookContext) (string, error) {
 	}
 }
 
-// systemdUnitType returns the generated unit flavor for the package type.
-func systemdUnitType(ctx HookContext) (embedded.SystemdUnitType, error) {
+// unitType returns the generated unit flavor for the package type.
+func unitType(ctx HookContext) (embedded.UnitType, error) {
 	switch ctx.PackageType {
 	case PackageTypeDEB, PackageTypeRPM:
-		return embedded.SystemdUnitTypeDebRpm, nil
+		return embedded.UnitTypeDebRpm, nil
 	case PackageTypeOCI:
-		return embedded.SystemdUnitTypeOCI, nil
+		return embedded.UnitTypeOCI, nil
 	default:
 		return "", fmt.Errorf("unsupported package type: %s", ctx.PackageType)
 	}
+}
+
+func removeUnits(ctx HookContext, units ...string) error {
+	unitsPath, err := unitsPath(ctx)
+	if err != nil {
+		return err
+	}
+	for _, unit := range units {
+		err := os.Remove(filepath.Join(unitsPath, unit))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove unit: %v", err)
+		}
+	}
+	return nil
 }
 
 // procmgrInstallRoot returns the tree whose processes.d dd-procmgrd reads for the given lifecycle
@@ -913,21 +923,7 @@ func procmgrInstallRoot(ctx HookContext, experiment bool) (string, error) {
 	}
 }
 
-func removeUnits(ctx HookContext, units ...string) error {
-	unitsPath, err := systemdUnitsPath(ctx)
-	if err != nil {
-		return err
-	}
-	for _, unit := range units {
-		err := os.Remove(filepath.Join(unitsPath, unit))
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove unit: %v", err)
-		}
-	}
-	return nil
-}
-
-func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
+func writeEmbeddedSystemdUnitsAndReload(ctx HookContext, units ...string) error {
 	return writeUnitsAndReload(ctx, embedded.GetSystemdUnit, units...)
 }
 
@@ -935,7 +931,7 @@ func writeEmbeddedProcmgrUnitsAndReload(ctx HookContext, units ...string) error 
 	return writeUnitsAndReload(ctx, embedded.GetProcmgrUnit, units...)
 }
 
-type embeddedUnitGetter func(name string, unitType embedded.SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error)
+type embeddedUnitGetter func(name string, unitType embedded.UnitType, ambiantCapabilitiesSupported bool) ([]byte, error)
 
 func writeUnitsAndReload(ctx HookContext, get embeddedUnitGetter, units ...string) error {
 	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
@@ -943,11 +939,11 @@ func writeUnitsAndReload(ctx HookContext, get embeddedUnitGetter, units ...strin
 		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
 		ambiantCapabilitiesSupported = true // Assume true if we can't check
 	}
-	unitType, err := systemdUnitType(ctx)
+	unitType, err := unitType(ctx)
 	if err != nil {
 		return err
 	}
-	unitsPath, err := systemdUnitsPath(ctx)
+	unitsPath, err := unitsPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -972,7 +968,7 @@ func writeEmbeddedProcessesAndReload(ctx HookContext, experiment bool, processes
 	if len(processes) == 0 {
 		return nil
 	}
-	unitType, err := systemdUnitType(ctx)
+	unitType, err := unitType(ctx)
 	if err != nil {
 		return err
 	}
@@ -981,7 +977,7 @@ func writeEmbeddedProcessesAndReload(ctx HookContext, experiment bool, processes
 		return err
 	}
 	for _, process := range processes {
-		content, err := embedded.GetProcmgrConfig(process, unitType, experiment)
+		content, err := embedded.GetProcmgrUnit(process, unitType, false)
 		if err != nil {
 			return err
 		}
@@ -992,8 +988,6 @@ func writeEmbeddedProcessesAndReload(ctx HookContext, experiment bool, processes
 	return procmgr.Reload(ctx, installRoot)
 }
 
-// removeProcesses deletes processes.d entries for one lifecycle half. Missing entries are not an
-// error, mirroring removeUnits.
 func removeProcesses(ctx HookContext, experiment bool, processes ...string) error {
 	if len(processes) == 0 {
 		return nil

@@ -10,7 +10,6 @@ import (
 	"embed"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -30,11 +29,10 @@ func TestGenerationIsUpToDate(t *testing.T) {
 		t.Skip("TestGenerationIsUpToDate is known to fail on the macOS Gitlab runners.")
 	}
 
-	generated := filepath.Join(os.TempDir(), "gen")
-	os.MkdirAll(generated, 0755)
-
+	generated := t.TempDir()
 	err := generate(generated)
 	assert.NoError(t, err)
+
 	newGeneratedFS := os.DirFS(generated)
 	currentGeneratedFS, err := fs.Sub(genFS, "gen")
 	assert.NoError(t, err)

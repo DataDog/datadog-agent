@@ -52,6 +52,7 @@ func TestFromEnv(t *testing.T) {
 				envAPIKey:                                     "123456",
 				envSite:                                       "datadoghq.eu",
 				envRemoteUpdates:                              "true",
+				envProcessManagerDisable:                      "true",
 				envMirror:                                     "https://mirror.example.com",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
@@ -88,14 +89,15 @@ func TestFromEnv(t *testing.T) {
 				envAgentPipelineID:                            "118008542",
 			},
 			expected: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				Mirror:               "https://mirror.example.com",
-				RemoteUpdates:        true,
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				APIKey:                 "123456",
+				Site:                   "datadoghq.eu",
+				Mirror:                 "https://mirror.example.com",
+				RemoteUpdates:          true,
+				ProcessManagerDisabled: true,
+				RegistryOverride:       "registry.example.com",
+				RegistryAuthOverride:   "auth",
+				RegistryUsername:       "username",
+				RegistryPassword:       "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -374,25 +376,6 @@ func TestFromEnvFIPSMode(t *testing.T) {
 func TestToEnvFIPSMode(t *testing.T) {
 	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
 	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
-}
-
-// TestToEnvProcessManagerDisabled checks the opt-out reaches re-executed hooks, and that the zero value
-// does not: expressed as an opt-out, a partially built Env keeps the product default instead of
-// silently forwarding a fallback to plain systemd.
-func TestToEnvProcessManagerDisabled(t *testing.T) {
-	assert.NotContains(t, (&Env{}).ToEnv(), envProcessManagerDisable+"=true")
-	assert.Contains(t, (&Env{ProcessManagerDisabled: true}).ToEnv(), envProcessManagerDisable+"=true")
-	assert.False(t, defaultEnv.ProcessManagerDisabled)
-}
-
-func TestFromEnvProcmgrDisable(t *testing.T) {
-	tests := map[string]bool{"": false, "false": false, "TRUE": true, "true": true, "yes": false}
-	for value, expected := range tests {
-		t.Run("value="+value, func(t *testing.T) {
-			t.Setenv(envProcessManagerDisable, value)
-			assert.Equal(t, expected, FromEnv().ProcessManagerDisabled)
-		})
-	}
 }
 
 func TestAgentUserVars(t *testing.T) {

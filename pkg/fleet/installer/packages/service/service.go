@@ -28,8 +28,8 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
-	// ProcmgrType is returned when dd-procmgrd supervises the agent's auxiliary payloads. It
-	// implies systemd: dd-procmgrd itself is hosted by datadog-agent-procmgr.service.
+	// ProcmgrType is returned when systemd is present and procmgr is installed + enabled
+	// It will have its own logic, either delegated to systemd or managed by procmgr.
 	ProcmgrType Type = "procmgr"
 )
 
@@ -46,7 +46,7 @@ var (
 // GetServiceManagerType returns the service manager of the current system.
 //
 // procmgr is selected over plain systemd when the init system is systemd, the operator has not
-// opted out via DD_PROCESS_MANAGER_DISABLE, and dd-procmgrd is actually installed. Only the init system
+// opted out via DD_PROCESS_MANAGER_DISABLE, and procmgr is actually installed. Only the init system
 // probe is memoized: the other two change during an install, so they are re-evaluated on every
 // call.
 func GetServiceManagerType() Type {

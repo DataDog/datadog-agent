@@ -22,31 +22,31 @@ import (
 func TestDDOTProcmgrConfigVariants(t *testing.T) {
 	tests := []struct {
 		name            string
-		unitType        embedded.SystemdUnitType
+		unitType        embedded.UnitType
 		experiment      bool
 		wantCommand     string
 		wantInventories bool
 	}{
 		{
 			name:        "oci stable",
-			unitType:    embedded.SystemdUnitTypeOCI,
+			unitType:    embedded.UnitTypeOCI,
 			wantCommand: "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent",
 		},
 		{
 			name:            "oci experiment",
-			unitType:        embedded.SystemdUnitTypeOCI,
+			unitType:        embedded.UnitTypeOCI,
 			experiment:      true,
 			wantCommand:     "/opt/datadog-packages/datadog-agent/experiment/ext/ddot/embedded/bin/otel-agent",
 			wantInventories: true,
 		},
 		{
 			name:        "debrpm stable",
-			unitType:    embedded.SystemdUnitTypeDebRpm,
+			unitType:    embedded.UnitTypeDebRpm,
 			wantCommand: "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent",
 		},
 		{
 			name:            "debrpm experiment",
-			unitType:        embedded.SystemdUnitTypeDebRpm,
+			unitType:        embedded.UnitTypeDebRpm,
 			experiment:      true,
 			wantCommand:     "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent",
 			wantInventories: true,
@@ -55,7 +55,10 @@ func TestDDOTProcmgrConfigVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			raw, err := embedded.GetProcmgrConfig(ddotProcmgrConfigName, tt.unitType, tt.experiment)
+			raw, err := embedded.GetProcmgrUnit(ddotProcmgrStableConfigName, tt.unitType, false)
+			if tt.experiment {
+				raw, err = embedded.GetProcmgrUnit(ddotProcmgrExpConfigName, tt.unitType, false)
+			}
 			require.NoError(t, err)
 			content := string(raw)
 

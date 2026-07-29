@@ -34,14 +34,14 @@ type installParams struct {
 	stagingPackages       string
 	pipelineID            string
 	otelCollectorEnabled  bool
-	processManagerEnabled bool
+	processManagerDisable bool
 }
 
 var defaultInstallParams = &installParams{
 	remoteUpdates:         false,
 	stablePackages:        false,
 	pipelineID:            os.Getenv("E2E_PIPELINE_ID"),
-	processManagerEnabled: ProcessManagerEnabled(),
+	processManagerDisable: ProcessManagerDisabled(),
 }
 
 // processManagerEnvVar selects the Linux service manager the fleet tests install with, so every
@@ -51,8 +51,8 @@ const processManagerEnvVar = "E2E_FLEET_PROCESS_MANAGER"
 // ProcessManagerEnabled reports whether the agent is installed with dd-procmgrd as its service
 // manager. Defaults to true, matching the product default, so an unset variable reproduces a stock
 // install. Every Install honours it, so test bodies do not have to pass an option.
-func ProcessManagerEnabled() bool {
-	return !strings.EqualFold(os.Getenv(processManagerEnvVar), "false")
+func ProcessManagerDisabled() bool {
+	return strings.EqualFold(os.Getenv(processManagerEnvVar), "false")
 }
 
 // WithRemoteUpdates enables remote updates.
@@ -94,7 +94,7 @@ func WithOTelCollectorEnabled() InstallOption {
 // WithProcessManagerDisabled installs with the plain systemd service manager instead of dd-procmgrd.
 func WithProcessManagerDisabled() InstallOption {
 	return func(p *installParams) {
-		p.processManagerEnabled = false
+		p.processManagerDisable = true
 	}
 }
 
@@ -154,12 +154,12 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	if params.otelCollectorEnabled {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
 	}
-	if !params.processManagerEnabled {
+	if params.processManagerDisable {
 		env[processManagerDisableEnvVar] = "true"
 		// Persisting it is not redundant: datadog-agent-installer.service only picks the setting up
 		// through EnvironmentFile, so without this a daemon-driven update would revert to
 		// dd-procmgrd and the systemd half of the matrix would test nothing.
-		if err := a.SetProcessManagerEnabled(false); err != nil {
+		if err := a.SetProcessManagerDisable(true); err != nil {
 			return err
 		}
 	}
@@ -267,7 +267,7 @@ const (
 
 // SetProcessManagerEnabled persists the service manager choice on the host. Enabling clears the
 // variable rather than writing a value, mirroring the installer: procmgr is the default.
-func (a *Agent) SetProcessManagerEnabled(enabled bool) error {
+func (a *Agent) SetProcessManagerDisable(disable bool) error {
 	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
 		return nil
 	}
@@ -278,7 +278,7 @@ func (a *Agent) SetProcessManagerEnabled(enabled bool) error {
 	if _, err := a.host.RemoteHost.Execute(cmd); err != nil {
 		return fmt.Errorf("could not reset the process manager setting: %w", err)
 	}
-	if enabled {
+	if disable {
 		return nil
 	}
 	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(
@@ -291,8 +291,8 @@ func (a *Agent) SetProcessManagerEnabled(enabled bool) error {
 }
 
 // MustSetProcessManagerEnabled persists the service manager choice and fails the test on error.
-func (a *Agent) MustSetProcessManagerEnabled(enabled bool) {
-	require.NoError(a.t(), a.SetProcessManagerEnabled(enabled))
+func (a *Agent) MustSetProcessManagerDisable(disable bool) {
+	require.NoError(a.t(), a.SetProcessManagerDisable(disable))
 }
 
 // SwitchProcessManager persists the service manager choice and restarts the Agent so that it takes

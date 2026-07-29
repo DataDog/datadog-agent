@@ -187,13 +187,10 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey               string
-	Site                 string
-	RemoteUpdates        bool
-	OTelCollectorEnabled bool
-	// ProcessManagerDisabled opts out of dd-procmgrd as the service manager. It is expressed as an
-	// opt-out so the zero value carries the product default, and a partially built Env cannot
-	// accidentally propagate the opt-out to a hook subprocess.
+	APIKey                 string
+	Site                   string
+	RemoteUpdates          bool
+	OTelCollectorEnabled   bool
 	ProcessManagerDisabled bool
 	ConfigID               string
 
