@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testThreeStringsInStruct",
+      "method": "main.testByteSliceInvalidUtf8",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testThreeStringsInStruct",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 30
+            "function": "main.testByteSliceInvalidUtf8",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 89
           },
           {
-            "function": "main.executeStringFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 69
+            "function": "main.executeSliceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 165
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 56
+            "lineNumber": 58
           },
           {
             "function": "main.main",
@@ -47,30 +47,35 @@
           }
         ],
         "probe": {
-          "id": "testThreeStringsInStruct",
+          "id": "testByteSliceInvalidUtf8",
           "location": {
-            "method": "main.testThreeStringsInStruct"
+            "method": "main.testByteSliceInvalidUtf8"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "a": {
-                "type": "main.threeStringStruct",
-                "fields": {
-                  "a": {
-                    "type": "string",
-                    "value": "abc"
+              "x": {
+                "type": "[]uint8",
+                "size": "4",
+                "elements": [
+                  {
+                    "type": "uint8",
+                    "value": "255"
                   },
-                  "b": {
-                    "type": "string",
-                    "value": "def"
+                  {
+                    "type": "uint8",
+                    "value": "254"
                   },
-                  "c": {
-                    "type": "string",
-                    "value": "ghi"
+                  {
+                    "type": "uint8",
+                    "value": "192"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "128"
                   }
-                }
+                ]
               }
             }
           }
@@ -79,7 +84,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{a: abc, b: def, c: ghi}",
+    "message": "[255, 254, 192, ...]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

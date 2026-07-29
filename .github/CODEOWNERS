@@ -547,6 +547,8 @@
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
 
 /pkg/trace/transform/                   @DataDog/opentelemetry
+
+/pkg/trace/semantics/mappings.json       @DataDog/agent-apm @DataDog/semantic-core
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring-core
