@@ -350,6 +350,72 @@ func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken
 	return nil
 }
 
+// ErrLeaseAlreadyExists reports that PublishInitialLease lost its conditional create,
+// i.e. the instance is already registered. Callers recover with CurrentLeaseToken.
+var ErrLeaseAlreadyExists = errors.New("lease record already exists")
+
+// apiError structurally matches smithy.APIError, so the S3 error code can be inspected
+// without promoting smithy-go from an indirect dependency.
+type apiError interface {
+	ErrorCode() string
+}
+
+// PublishInitialLease writes instanceID's first lease record, held by owner and marked
+// Persistent, and returns the lease token. Fails ErrLeaseAlreadyExists if a lease is
+// already present.
+func PublishInitialLease(ctx context.Context, region, profile, instanceID, imageID, owner string) (string, error) {
+	client, err := newS3Client(ctx, region, profile)
+	if err != nil {
+		return "", err
+	}
+
+	body, err := json.Marshal(leaseRecord{
+		Status:     statusInUse,
+		ImageID:    imageID,
+		Owner:      owner,
+		LeasedAt:   time.Now().Unix(),
+		Persistent: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal initial lease record for instance %s: %w", instanceID, err)
+	}
+
+	putOut, err := client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(leaseBucket),
+		Key:         aws.String(leasePrefix + instanceID),
+		Body:        bytes.NewReader(body),
+		IfNoneMatch: aws.String("*"),
+	})
+	if err != nil {
+		// S3 answers a lost If-None-Match with 412 PreconditionFailed. A 409
+		// ConditionalRequestConflict means a concurrent write and is not the same
+		// thing, so it propagates as a plain error.
+		var apiErr apiError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "PreconditionFailed" {
+			return "", fmt.Errorf("%w for instance %s", ErrLeaseAlreadyExists, instanceID)
+		}
+		return "", fmt.Errorf("failed to publish initial lease record for instance %s: %w", instanceID, err)
+	}
+	return aws.ToString(putOut.ETag), nil
+}
+
+// CurrentLeaseToken returns instanceID's current lease ETag, letting a caller that hit
+// ErrLeaseAlreadyExists adopt the existing lease instead of failing.
+func CurrentLeaseToken(ctx context.Context, region, profile, instanceID string) (string, error) {
+	client, err := newS3Client(ctx, region, profile)
+	if err != nil {
+		return "", err
+	}
+	headOut, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(leaseBucket),
+		Key:    aws.String(leasePrefix + instanceID),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to read lease token for instance %s: %w", instanceID, err)
+	}
+	return aws.ToString(headOut.ETag), nil
+}
+
 // AcquireResult is a successfully claimed pool member. Found is false only when
 // local is non-nil and the developer owns no pool instance yet, signaling the caller
 // to provision one; every other failure is reported as an error instead.
