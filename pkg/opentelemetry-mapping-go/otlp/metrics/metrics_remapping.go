@@ -319,14 +319,18 @@ func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer C
 		return
 	}
 	// CreateDDSketchFromHistogramOfDuration reconstructs values from bucket midpoints, so
-	// Basic.Sum/Avg only approximate the distribution; overwrite with the exact OTLP count/sum.
-	agentSketch.Basic.Cnt = int64(dp.Count())
-	if dp.HasSum() {
-		agentSketch.Basic.Sum = dp.Sum() * getTimeUnitScaleToNanos(unit)
-		if agentSketch.Basic.Cnt > 0 {
-			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
-		}
-	}
+	// Basic.Sum/Avg/Min/Max only approximate the distribution; overwrite with the exact OTLP values.
+	scaleToNanos := getTimeUnitScaleToNanos(unit)
+	OverwriteSketchSummary(agentSketch, SketchExactSummary{
+		Count:    dp.Count(),
+		HasCount: true,
+		Sum:      dp.Sum() * scaleToNanos,
+		HasSum:   dp.HasSum(),
+		Min:      dp.Min() * scaleToNanos,
+		HasMin:   dp.HasMin(),
+		Max:      dp.Max() * scaleToNanos,
+		HasMax:   dp.HasMax(),
+	})
 	tagStrings := make([]string, 0, len(tags))
 	for _, t := range tags {
 		tagStrings = append(tagStrings, t.K+":"+t.V)

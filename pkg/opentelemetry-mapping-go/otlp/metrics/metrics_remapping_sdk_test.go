@@ -300,3 +300,31 @@ func TestSDKTraceMetric_NotBillableHost(t *testing.T) {
 
 	assert.Empty(t, consumer.data.Hosts, "SDK-trace-only payload must not consume a billable host")
 }
+
+// TestRemapSDKTraceMetric_OptOutHonoredWithRemapping verifies that
+// WithoutSDKTraceMetricsRemapping() disables the SDK trace remap even when
+// combined with WithRemapping(), which standalone Collector configs use to
+// enable the unrelated container/system metric renaming.
+func TestRemapSDKTraceMetric_OptOutHonoredWithRemapping(t *testing.T) {
+	translator := NewTestTranslator(t, WithRemapping(), WithoutSDKTraceMetricsRemapping())
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	sm := rm.ScopeMetrics().AppendEmpty()
+	sdkTraceMetric("s", 3, 1.5, map[string]string{
+		"datadog.operation.name": "http.request",
+		"span.name":              "checkout",
+	}).CopyTo(sm.Metrics().AppendEmpty())
+
+	consumer := newTestConsumer()
+	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+
+	// With the remap opted out, the histogram falls through to the default mapper and is
+	// emitted as a raw DDSketch under its original name, not split into trace.<op>.* series.
+	require.Len(t, consumer.data.Metrics.Sketches, 1)
+	assert.Equal(t, sdkTraceMetricName, consumer.data.Metrics.Sketches[0].Name)
+	for _, ts := range consumer.data.Metrics.TimeSeries {
+		assert.NotContains(t, ts.Name, "trace.http.request", "no trace.* series should be produced when the remap is opted out")
+	}
+}

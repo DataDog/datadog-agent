@@ -306,25 +306,24 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 			continue
 		}
 
+		exact := SketchExactSummary{}
 		if histInfo.ok {
-			// override approximate sum, count and average in sketch with exact values if available.
-			agentSketch.Basic.Cnt = int64(histInfo.count)
-			agentSketch.Basic.Sum = histInfo.sum
-			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
-
+			exact.Count, exact.HasCount = histInfo.count, true
+			exact.Sum, exact.HasSum = histInfo.sum, true
 			if histInfo.count == 1 {
 				// We know the exact value of this one point: it is the sum.
 				// Override approximate min and max in that special case.
-				agentSketch.Basic.Min = histInfo.sum
-				agentSketch.Basic.Max = histInfo.sum
+				exact.Min, exact.HasMin = histInfo.sum, true
+				exact.Max, exact.HasMax = histInfo.sum, true
 			}
 		}
 		if delta && p.HasMin() {
-			agentSketch.Basic.Min = p.Min()
+			exact.Min, exact.HasMin = p.Min(), true
 		}
 		if delta && p.HasMax() {
-			agentSketch.Basic.Max = p.Max()
+			exact.Max, exact.HasMax = p.Max(), true
 		}
+		OverwriteSketchSummary(agentSketch, exact)
 
 		consumer.ConsumeSketch(ctx, pointDims, ts, 0, agentSketch)
 	}

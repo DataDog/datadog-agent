@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
+
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 // These methods will be imported in dd-go to convert OTLP to DD trace metrics - see https://github.com/DataDog/dd-go/pull/198508
@@ -206,4 +208,41 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHist
 	}
 
 	return sketch, nil
+}
+
+// SketchExactSummary carries the exact aggregate values an OTLP histogram data point
+// reports (when it reports them). DDSketch construction from a histogram's bucket
+// counts approximates the underlying distribution using bucket midpoints, which skews
+// Cnt/Sum/Avg/Min/Max even when OTLP provides some of these exactly; OverwriteSketchSummary
+// corrects a converted Sketch's summary with whichever exact fields are set here.
+type SketchExactSummary struct {
+	Count    uint64
+	HasCount bool
+	Sum      float64
+	HasSum   bool
+	Min      float64
+	HasMin   bool
+	Max      float64
+	HasMax   bool
+}
+
+// OverwriteSketchSummary overwrites agentSketch.Basic fields with the exact values in
+// exact, for whichever fields it reports as present. Avg is recomputed from the
+// overwritten Sum/Cnt whenever Sum is overwritten.
+func OverwriteSketchSummary(agentSketch *quantile.Sketch, exact SketchExactSummary) {
+	if exact.HasCount {
+		agentSketch.Basic.Cnt = int64(exact.Count)
+	}
+	if exact.HasSum {
+		agentSketch.Basic.Sum = exact.Sum
+		if agentSketch.Basic.Cnt > 0 {
+			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
+		}
+	}
+	if exact.HasMin {
+		agentSketch.Basic.Min = exact.Min
+	}
+	if exact.HasMax {
+		agentSketch.Basic.Max = exact.Max
+	}
 }

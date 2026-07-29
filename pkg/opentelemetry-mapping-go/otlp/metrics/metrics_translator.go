@@ -576,7 +576,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				}
-				sdkTraceMetricsEnabled := t.cfg.withRemapping || t.cfg.withSDKTraceMetrics
+				sdkTraceMetricsEnabled := t.cfg.withSDKTraceMetrics
 				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && sdkTraceMetricsEnabled) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
