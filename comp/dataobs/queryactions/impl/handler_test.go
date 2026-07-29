@@ -699,6 +699,73 @@ func TestOnRCUpdate_SapHana_ExcludesTargetedInstanceFromRemainder(t *testing.T) 
 	assert.Equal(t, []string{siblingServer}, serversOf(*remainder), "remainder must exclude the targeted server and keep only the sibling")
 }
 
+// TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder is a regression test for a
+// bare-host DBIdentifier (as postgres backends send) matching more than one instance on the same
+// base config. Two postgres instances share host "dbhost" but differ by port; the DO payload
+// targets the bare host, which findMatchingConfig resolves to the first instance (port 5432).
+// buildRemainder must exclude only that resolved instance from the remainder — matching against
+// the bare payload host directly would also match the sibling on port 5433 and wrongly drop it,
+// silently stopping its normal DBM collection.
+func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testing.T) {
+	const sharedHost = "dbhost"
+	const targetedPort = 5432
+	const siblingPort = 5433
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, targetedPort)),
+			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, siblingPort)),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-samehost",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: sharedHost},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-samehost": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-samehost"].State)
+
+	// Exactly two configs scheduled: the DO check for the targeted port and the remainder holding
+	// only the untargeted sibling port. A remainder with zero instances (or none scheduled) would
+	// mean the sibling on port 5433 was wrongly dropped.
+	require.Len(t, changes.Schedule, 2)
+
+	portsOf := func(cfg integration.Config) []int {
+		ports := make([]int, 0, len(cfg.Instances))
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+			ports = append(ports, instance["port"].(int))
+		}
+		return ports
+	}
+
+	var doCfg, remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; hasQueries {
+			doCfg = &changes.Schedule[i]
+		} else {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, doCfg, "a DO check config should be scheduled")
+	require.NotNil(t, remainder, "a remainder config should be scheduled")
+
+	assert.Equal(t, []int{targetedPort}, portsOf(*doCfg), "DO check should carry only the targeted port")
+	assert.Equal(t, []int{siblingPort}, portsOf(*remainder), "remainder must keep the untargeted sibling port")
+}
+
 // TestOnRCUpdate_MultipleDOConfigsSameBase verifies that two DO configs targeting two different
 // instances of the same base config never leave an instance both in the remainder and as a DO
 // check (which would double-run it). With both instances targeted, no remainder is scheduled.

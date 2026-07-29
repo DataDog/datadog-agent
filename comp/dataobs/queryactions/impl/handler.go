@@ -29,7 +29,7 @@ import (
 type activeConfigEntry struct {
 	checkConfig integration.Config
 	baseCfg     *integration.Config // the original matched postgres config (full, all instances)
-	matchHost   string              // host this DO config targets (DBIdentifier.Host)
+	matchHost   string              // resolved instanceIdentity (host:port) of the instance this DO config targets
 }
 
 // managedBaseEntry tracks a base postgres config that has at least one instance targeted by a
@@ -141,7 +141,12 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		c.activeConfigs[configID] = activeConfigEntry{
 			checkConfig: checkConfig,
 			baseCfg:     baseCfg,
-			matchHost:   payload.DBIdentifier.Host,
+			// Use the resolved identity of the instance findMatchingConfig actually selected
+			// rather than payload.DBIdentifier.Host verbatim: the payload host can be a bare
+			// host shared by several instances on different ports, and matching buildRemainder
+			// against that bare string would exclude every sibling instance on that host, not
+			// just the one selected here.
+			matchHost: instanceIdentity(instance),
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -269,12 +274,12 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 // matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
 // whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
 //
-// Matching uses instanceMatchesHost — the same logic that selected the instance for scheduling —
-// so an instance is excluded from the remainder exactly when a DO query action runs it as its own
-// check. matchedHosts holds DBIdentifier.Host values verbatim, which for sap_hana are the
-// "host:port" form (e.g. "172.17.128.2:39041") while the instance keys host under "server" with a
-// separate "port"; comparing the raw "host" key alone would never match and would duplicate the
-// instance.
+// Matching uses instanceMatchesHost against each entry's resolved instanceIdentity (host:port,
+// falling back to bare host only when the instance has no port), not the raw DBIdentifier.Host
+// from the RC payload — a payload host can be bare and shared by several instances on different
+// ports (e.g. two postgres instances both on "dbhost"), and matching against that bare string
+// would exclude every instance on the host from the remainder instead of only the one actually
+// selected as the DO check.
 func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
 	for _, instanceData := range base.Instances {
@@ -386,6 +391,17 @@ func instancePort(instance map[string]any) (int, bool) {
 		return int(v), true
 	}
 	return 0, false
+}
+
+// instanceIdentity returns a canonical "host:port" identity for an instance, falling back to the
+// bare host when no port is present. Unlike matching against a possibly-bare payload host, this
+// always disambiguates instances that share a host but differ by port.
+func instanceIdentity(instance map[string]any) string {
+	host := instanceHost(instance)
+	if port, ok := instancePort(instance); ok {
+		return fmt.Sprintf("%s:%d", host, port)
+	}
+	return host
 }
 
 // buildCheckConfig creates a check config with data_observability queries injected.
