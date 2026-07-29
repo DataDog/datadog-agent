@@ -7,8 +7,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration, override_stubs
-
+from tasks.schema.codegen_init_settings import as_go_value, override_stubs, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
