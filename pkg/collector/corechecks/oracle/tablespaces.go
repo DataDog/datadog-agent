@@ -75,11 +75,9 @@ type rowMaxSizeDB struct {
 	MaxSize        float64        `db:"MAXSIZE"`
 }
 
-// tablespaceQueries returns the tablespace usage and max size queries appropriate for
-// the connected database. The CDB_* variants read across every container via the
-// multitenant container infrastructure, so they are used only when the database is
-// actually a CDB. On a non-CDB they impose cross-container overhead with no extra data
-// to gather, since a non-CDB has exactly one container.
+// tablespaceQueries returns the usage and max size queries for the connected database.
+// A non-CDB has a single container, so there the CDB_* variants return exactly what the
+// DBA_* views do while still paying the cross-container overhead.
 func (c *Check) tablespaceQueries() (usage string, maxSize string) {
 	if c.legacyIntegrationCompatibilityMode ||
 		!c.multitenant ||

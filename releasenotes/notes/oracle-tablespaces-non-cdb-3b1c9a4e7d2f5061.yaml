@@ -1,9 +1,12 @@
 ---
 fixes:
   - |
-    Oracle: the tablespace collector no longer issues cross-container ``CDB_*``
-    queries against non-CDB databases. Query selection previously keyed on the
-    database version alone, so any database on 12c or later ran the multitenant
-    variants even when ``V$DATABASE.CDB`` reported ``NO``. Those databases now use
-    the ``DBA_*`` variants, which return the same data without the cross-container
+    Oracle: non-CDB databases on 12c and later no longer run cross-container
+    ``CDB_*`` tablespace queries. Query selection keyed on the database version
+    alone, ignoring whether ``V$DATABASE.CDB`` was ``NO``. These databases now use
+    the ``DBA_*`` variants, which return the same rows without the cross-container
     overhead.
+
+    As a result, ``oracle.tablespace.*`` metrics from a non-CDB no longer carry a
+    ``pdb`` tag, matching ``oracle.resource_manager.*`` on the same databases. A
+    non-CDB has one container, so that tag only ever held a single value.
