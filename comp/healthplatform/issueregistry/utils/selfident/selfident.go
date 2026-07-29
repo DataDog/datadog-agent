@@ -3,12 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package selfident resolves the identity of the agent's own Kubernetes
-// DaemonSet, so that health issues caused by a cluster-distributed template
-// (a bad cluster check, a cluster-distributed config file) can be reported
-// with a shared discriminator across every node agent it was applied to,
-// letting the backend collapse them into a single issue instead of one per
-// host.
+// Package selfident resolves the agent's own Kubernetes DaemonSet identity,
+// so issues caused by a cluster-distributed template (a bad cluster check,
+// a cluster-distributed config file) share one discriminator across every
+// node agent, letting the backend collapse them into a single issue.
 package selfident
 
 import (
@@ -18,33 +16,20 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const podNameEnvVar = "DD_POD_NAME"
-
-const daemonSetOwnerKind = "DaemonSet"
-
-// defaultResolveRetries/defaultResolveRetryDelay bound how long DeploymentID
-// waits for workloadmeta's kubelet collector to observe the agent's own pod
-// at startup, before giving up. Resolution happens once (sync.Once) for the
-// whole process, so whichever caller is first to reach DeploymentID after
-// startup pays this bounded wait — typically a built-in startup health check
-// (invalidconfig, invalidsysprobeconfig) firing from its own goroutine as soon
-// as the health-platform bundle starts, but it can also be a synchronous
-// ReportIssue caller (a Python check's report_issue(), the GPU check's Run())
-// if one reports before the startup checks do. Without this retry, losing the
-// race against workloadmeta's initial sync would permanently cache an empty
-// deployment_id for the life of the process; the bound is kept short (~1s)
-// specifically so it stays acceptable on those latency-sensitive paths too.
-//
-// ClusterID reuses the same bound for its background resolution retries —
-// it isn't latency-sensitive since it never blocks a caller, but there is
-// no reason to keep retrying indefinitely once the Cluster Agent has failed
-// to answer a few times in a row.
 const (
+	podNameEnvVar      = "DD_POD_NAME"
+	daemonSetOwnerKind = "DaemonSet"
+
+	// defaultResolveRetries/defaultResolveRetryDelay bound how long DeploymentID
+	// waits for workloadmeta to observe the agent's own pod before giving up,
+	// and how long ClusterID retries the Cluster Agent in the background. Kept
+	// short (~1s) since DeploymentID can block a synchronous ReportIssue caller.
 	defaultResolveRetries    = 5
 	defaultResolveRetryDelay = 200 * time.Millisecond
 )
@@ -64,25 +49,29 @@ type SelfIdent struct {
 	clusterID            atomic.Pointer[string]
 }
 
-// New creates a SelfIdent. Every binary that wires the health-platform bundle
-// also wires workloadmeta's fx module, so wmeta is always a real component in
-// production; nil is only ever passed directly by tests that don't care about
-// deployment_id resolution, in which case DeploymentID always resolves to
-// empty and IssueDiscriminator falls back to the given host id.
+// New creates a SelfIdent. Outside Kubernetes it returns a no-op instance that
+// never touches workloadmeta or the Cluster Agent, since deployment_id/cluster
+// id only make sense there. wmeta is nil only in tests that don't care about
+// deployment_id resolution, in which case DeploymentID resolves to empty.
 func New(wmeta workloadmeta.Component) *SelfIdent {
-	return &SelfIdent{
+	s := &SelfIdent{
 		wmeta:             wmeta,
 		resolveRetries:    defaultResolveRetries,
 		resolveRetryDelay: defaultResolveRetryDelay,
 	}
+	if !env.IsFeaturePresent(env.Kubernetes) {
+		s.once.Do(func() {})
+		empty := ""
+		s.clusterIDResolveOnce.Do(func() {})
+		s.clusterID.Store(&empty)
+	}
+	return s
 }
 
 // DeploymentID returns the UID of the DaemonSet that owns this agent's pod,
-// or "" if the agent is definitively not running under a DaemonSet (not on
-// Kubernetes, or no DaemonSet owner reference). Resolved once and cached for
-// the process lifetime, since pod ownership cannot change without a pod
-// restart. If the agent's own pod simply hasn't appeared in workloadmeta yet,
-// resolution is retried a bounded number of times before caching empty.
+// or "" if not running under one. Resolved once and cached for the process
+// lifetime; if the pod hasn't appeared in workloadmeta yet, resolution is
+// retried a bounded number of times before caching empty.
 func (s *SelfIdent) DeploymentID() string {
 	s.once.Do(func() {
 		podNamespace := namespace.GetMyNamespace()
@@ -100,10 +89,8 @@ func (s *SelfIdent) DeploymentID() string {
 
 // IssueDiscriminator returns DeploymentID() when non-empty, so all agents in
 // the same DaemonSet emit identical issue ids for the same template-induced
-// problem. Otherwise it falls back to hostID, preserving today's per-host
-// behavior for non-Kubernetes agents. If hostID is empty (caller has no
-// hostname component handy), it falls back further to the OS hostname so
-// per-host uniqueness is still preserved.
+// problem. Otherwise it falls back to hostID, or the OS hostname if hostID
+// is empty, preserving today's per-host behavior for non-Kubernetes agents.
 func (s *SelfIdent) IssueDiscriminator(hostID string) string {
 	if deploymentID := s.DeploymentID(); deploymentID != "" {
 		return deploymentID
@@ -117,18 +104,10 @@ func (s *SelfIdent) IssueDiscriminator(hostID string) string {
 	return ""
 }
 
-// ClusterID returns the best-effort Kubernetes cluster id, for payload
-// enrichment only — never part of the issue id itself. Empty if unavailable
-// or not resolved yet.
-//
-// clustername.GetClusterID() reads DD_ORCHESTRATOR_CLUSTER_ID when the
-// Helm chart/Operator wires it, but in practice that env var is not set by
-// current deployments, so every call falls through to a synchronous HTTP
-// request to the Cluster Agent. Blocking on that request from ReportIssue
-// would tie issue reporting to Cluster Agent availability for metadata that
-// is best-effort by design, so resolution runs in a background goroutine
-// instead: the first call kicks it off and returns "" immediately, later
-// calls return whatever has been resolved so far.
+// ClusterID returns the best-effort Kubernetes cluster id for payload
+// enrichment only — never part of the issue id. Resolves in the background
+// since clustername.GetClusterID() usually makes a synchronous Cluster Agent
+// HTTP call; returns "" immediately until resolved.
 func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
 		go s.resolveClusterID()
@@ -160,12 +139,10 @@ func (s *SelfIdent) resolveClusterID() {
 	}
 }
 
-// resolveDeploymentID makes one resolution attempt. The second return value
-// reports whether the result is definitive: true means the caller can cache
-// it permanently (no workloadmeta, no resolvable pod name, or the pod was
-// found and its owners inspected); false means the agent's own pod wasn't
-// found in workloadmeta yet, which may just mean the initial sync hasn't
-// happened — the caller should retry rather than cache a false negative.
+// resolveDeploymentID makes one resolution attempt. definitive is true when
+// the caller can cache the result permanently (no workloadmeta, no resolvable
+// pod name, or the pod was found); false means the pod isn't in workloadmeta
+// yet, so the caller should retry rather than cache a false negative.
 func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definitive bool) {
 	if s.wmeta == nil {
 		return "", true
@@ -188,11 +165,9 @@ func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definit
 }
 
 // selfPodName returns this container's own pod name: DD_POD_NAME when set
-// (the Helm chart injects it via the downward API), else the container
-// hostname, which kubelet defaults to the pod's name unless the pod uses
-// hostNetwork or a custom hostname/subdomain. The hostname fallback is
-// needed because, unlike the Helm chart, the Datadog Operator does not
-// inject DD_POD_NAME into the node agent (only into the cluster agent).
+// (Helm chart via the downward API), else the container hostname, which
+// kubelet defaults to the pod's name. The hostname fallback matters because
+// the Datadog Operator only injects DD_POD_NAME into the cluster agent.
 func selfPodName() (string, bool) {
 	if podName, ok := os.LookupEnv(podNameEnvVar); ok {
 		return podName, true

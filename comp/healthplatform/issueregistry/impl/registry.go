@@ -24,9 +24,7 @@ type Requires struct {
 	Hostname       hostnameinterface.Component
 	// Workloadmeta resolves this agent's DaemonSet UID, so that
 	// invalidconfig/invalidsysprobeconfig issue ids can be scoped by
-	// selfident's discriminator instead of the bare hostname. Every binary
-	// that wires this bundle also wires workloadmeta's fx module, so this is
-	// a mandatory dependency, not optional.
+	// selfident's discriminator instead of the bare hostname.
 	Workloadmeta workloadmeta.Component
 }
 

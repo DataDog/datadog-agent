@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
@@ -31,10 +32,15 @@ const testPodName = "dd-agent-abc12"
 var testNamespace = namespace.GetMyNamespace()
 
 func newMockStore(t *testing.T) workloadmetamock.Mock {
-	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+	t.Helper()
+	env.SetFeatures(t, env.Kubernetes)
+
+	return workloadmetaimpl.NewWorkloadMetaMock(workloadmetaimpl.Dependencies{
+		Lc:     compdef.NewTestLifecycle(t),
+		Log:    logmock.New(t),
+		Config: config.NewMock(t),
+		Params: workloadmeta.NewParams(),
+	})
 }
 
 func setSelfPod(mockStore workloadmetamock.Mock, owners []workloadmeta.KubernetesPodOwner) {
@@ -123,6 +129,7 @@ func TestDeploymentID_NoPodNameEnvVar(t *testing.T) {
 
 func TestDeploymentID_NoWorkloadmeta(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
+	env.SetFeatures(t, env.Kubernetes)
 
 	s := New(nil)
 
@@ -165,11 +172,22 @@ func TestIssueDiscriminator_FallsBackToHostID(t *testing.T) {
 	assert.Equal(t, "some-host-id", s.IssueDiscriminator("some-host-id"))
 }
 
+func TestNew_NoopOutsideKubernetes(t *testing.T) {
+	t.Setenv(podNameEnvVar, testPodName)
+
+	s := New(nil)
+
+	assert.Empty(t, s.DeploymentID())
+	assert.Empty(t, s.ClusterID())
+}
+
 // ClusterID must never block a caller on Cluster Agent availability: in test
 // environments (no Cluster Agent configured), clustername.GetClusterID fails
 // fast, but the point of the background resolution is that ClusterID doesn't
 // wait for that call at all, however long it takes.
 func TestClusterID_DoesNotBlockCaller(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
 	s := New(nil)
 	s.resolveRetries = 1
 	s.resolveRetryDelay = time.Millisecond

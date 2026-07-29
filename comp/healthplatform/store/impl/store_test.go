@@ -20,20 +20,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
@@ -573,10 +572,13 @@ func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
 	// selfident reads the pod name from DD_POD_NAME directly; there's no exported
 	// constant to reference from this package.
 	t.Setenv("DD_POD_NAME", testSelfPodName)
-	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+	env.SetFeatures(t, env.Kubernetes)
+	mockStore := workloadmetaimpl.NewWorkloadMetaMock(workloadmetaimpl.Dependencies{
+		Lc:     compdef.NewTestLifecycle(t),
+		Log:    logmock.New(t),
+		Config: config.NewMock(t),
+		Params: workloadmeta.NewParams(),
+	})
 	mockStore.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,

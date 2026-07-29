@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
@@ -19,13 +20,14 @@ dd_agent_go_test(
     srcs = ["selfident_test.go"],
     embed = [":selfident"],
     deps = [
-        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",
-        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/impl",
         "//comp/core/workloadmeta/mock",
-        "//pkg/util/fxutil",
+        "//comp/def",
+        "//pkg/config/env",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "@com_github_stretchr_testify//assert",
-        "@org_uber_go_fx//:fx",
     ],
 )
