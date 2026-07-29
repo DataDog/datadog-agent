@@ -75,25 +75,42 @@ selects.config_setting_group(
 )
 
 selects.config_setting_group(
-    name = "macos_default",
-    match_all = [
-        ":base_flavor",
-        "@platforms//os:macos",
+    # name = "macos_default",
+    name = "macos_x86_64_base",
     ],
 )
 
 selects.config_setting_group(
-    name = "windows_default",
+    name = "macos_arm64_base",
     match_all = [
         ":base_flavor",
-        "@platforms//os:windows",
+        "//:macos_arm64",
     ],
 )
 
-selects.config_setting_group(
-    name = "windows_fips",
-    match_all = [
-        ":fips_flavor",
-        "@platforms//os:windows",
+config_setting(
+    name = "linux_x86_64_fips",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
     ],
+    flag_values = {"@@//packages/agent:flavor": "fips"},
+)
+
+config_setting(
+    name = "linux_arm64_fips",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    flag_values = {"@@//packages/agent:flavor": "fips"},
+)
+
+config_setting(
+    name = "windows_x86_64_fips",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    flag_values = {"@@//packages/agent:flavor": "fips"},
 )
