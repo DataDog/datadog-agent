@@ -136,6 +136,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 	for path, rawConfig := range updates {
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
+			// TODO(dsec-214): send sds-results to report task failure
 			log.Errorf("failed to decode Data Security scan task from remote-config: %v", err)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
@@ -144,6 +145,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		// TODO(dsec-197): validate data security scan task payload if needed before building the check instance
 		instance, err := c.buildCheckInstance(payload)
 		if err != nil {
+			// TODO(dsec-214): send sds-results to report task failure
 			log.Warnf("failed to build datasecurity instance for scan task %s: %v", path, err)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
@@ -183,11 +185,13 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 	for i := range payload.ScanData {
 		st := payload.ScanData[i]
 		if st.Entity.Platform != postgresPlatform {
+			// TODO(dsec-214): send sds-results to report sub task failure
 			return nil, fmt.Errorf("failed to build sub task %q: unsupported platform %q", st.SubTaskID, st.Entity.Platform)
 		}
 
 		conn, err := c.resolvePostgresConnection(st.Entity)
 		if err != nil {
+			// TODO(dsec-214): send sds-results to report sub task failure
 			return nil, fmt.Errorf("failed to build sub task %q: %w", st.SubTaskID, err)
 		}
 
