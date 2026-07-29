@@ -131,6 +131,8 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				// profile resolution happening again on the test-harness side.
 				c.PoolInstanceID = pulumi.String(poolAcquired.InstanceID).ToStringOutput()
 				c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
+				// Already registered, so no baseline to hand to the harness.
+				c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
 			} else {
 				// Local cache miss: no pool member owned by this developer exists yet.
 				// Provision a new Dedicated Host + instance through ordinary Pulumi
@@ -144,6 +146,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		} else {
 			c.PoolInstanceID = pulumi.String("").ToStringOutput()
 			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
+			c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
 		}
 
 		if isMacOSPoolMember {
@@ -180,15 +183,20 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		}
 
 		if isMacOSPoolMember && !poolAcquired.Found {
-			// Freshly created local instance: bake its current disk state into a
-			// golden AMI and register it as a pool member now that InitHost's setup
-			// has completed. Must only ever run once, right after creation.
-			registerCmd, err := ec2.ScheduleRegisterOnCreate(e, name, instance.ID().ToStringOutput(), e.PipelineID(), username, pulumi.Parent(c))
+			// Freshly created local instance: bake its current disk state into a golden
+			// AMI now that InitHost's setup has completed. The runner's options carry a
+			// DependsOn its readiness command, which is what orders the AMI after setup.
+			// PulumiOptions already carries Parent(c) and DeletedWith(c) as well.
+			imageID, err := ec2.RegisterPoolMember(e, name, instance.ID().ToStringOutput(), username,
+				c.OS.Runner().PulumiOptions()...)
 			if err != nil {
 				return err
 			}
 			c.PoolInstanceID = instance.ID().ToStringOutput()
-			c.PoolLeaseToken = registerCmd.Stdout
+			c.PoolBaselineImageID = imageID
+			// Left empty on purpose: an empty token with a set instance ID is how
+			// BaseSuite recognises a member whose first lease still needs publishing.
+			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
 		}
 
 		// reset the windows password on Windows
