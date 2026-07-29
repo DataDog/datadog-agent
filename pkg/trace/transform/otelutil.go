@@ -210,7 +210,7 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 		typ = "web"
 	case ptrace.SpanKindClient:
 		typ = "http"
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, string(semconv.DBSystemKey))
+		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, "db.system.name", string(semconv.DBSystemKey))
 		if db == "" {
 			break
 		}
