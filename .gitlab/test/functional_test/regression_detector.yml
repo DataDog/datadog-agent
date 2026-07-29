@@ -43,7 +43,6 @@ single_machine_performance-regression_detector-merge_base_check:
           echo "Merge base is ${SMP_MERGE_BASE}"
           BASELINE_SHA="${SMP_MERGE_BASE}"
       fi
-    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
     # Setup AWS credentials for single-machine-performance AWS account to check ECR images
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
