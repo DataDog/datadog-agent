@@ -11,6 +11,7 @@ package main
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands"
@@ -18,6 +19,8 @@ import (
 )
 
 func main() {
+	rssshrinker.ScheduleDefault()
+
 	flavor.SetFlavor(flavor.PrivateActionRunner)
 	rootCmd := command.MakeCommand(subcommands.PrivateActionRunnerSubcommands())
 	os.Exit(runcmd.Run(rootCmd))

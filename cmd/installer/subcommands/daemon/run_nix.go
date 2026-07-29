@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
@@ -35,5 +36,5 @@ func startDaemon(shutdowner fx.Shutdowner, cfg config.Component) {
 		_ = shutdowner.Shutdown()
 		return
 	}
-	releaseMemory()
+	rssshrinker.Shrink()
 }
