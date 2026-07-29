@@ -47,6 +47,8 @@ const (
 	EventTypeKubeActions = "kube-actions"
 	// EventTypeAgentDiscovery represents an Agent Discovery configuration files event
 	EventTypeAgentDiscovery = "agentdiscovery"
+	// EventTypeSDSResult represents a sensitive-data-scanner result event
+	EventTypeSDSResult = "sds-result"
 )
 
 // Component is the interface of the event platform forwarder component.

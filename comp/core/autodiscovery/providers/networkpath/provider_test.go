@@ -76,7 +76,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 	assert.Equal(t, 443, instance["port"])
 	assert.Equal(t, "TCP", instance["protocol"])
 	assert.Equal(t, 60, instance["min_collection_interval"])
-	assert.Equal(t, 1000, instance["timeout"])
+	assert.Equal(t, 30, instance["timeout"])
 	assert.Equal(t, 30, instance["max_ttl"])
 	assert.Equal(t, "syn", instance["tcp_method"])
 	assert.Equal(t, 3, instance["traceroute_queries"])
@@ -102,6 +102,130 @@ func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
 
 	provider.Update(map[string]state.RawConfig{"path/a": {Config: config}}, applyStatuses().callback)
 	assertNoChanges(t, changesCh)
+}
+
+func TestProviderConvertsTotalTimeoutToPerHop(t *testing.T) {
+	tests := []struct {
+		name            string
+		endpoint        string
+		expectedTimeout int
+	}{
+		{
+			name:            "exact milliseconds",
+			endpoint:        `{"hostname":"api.example.com","timeout_ms":1000,"max_ttl":30}`,
+			expectedTimeout: 30,
+		},
+		{
+			name:            "fractional milliseconds round up",
+			endpoint:        `{"hostname":"api.example.com","timeout_ms":1000,"max_ttl":32}`,
+			expectedTimeout: 29,
+		},
+		{
+			name:            "positive sub-millisecond timeout does not trigger the check default",
+			endpoint:        `{"hostname":"api.example.com","timeout_ms":1,"max_ttl":30}`,
+			expectedTimeout: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs, err := parseConfig(rawScheduledConfig("test-config-a", tt.endpoint))
+			require.NoError(t, err)
+			require.Len(t, configs, 1)
+
+			instance := unmarshalInstance(t, configs[0].Instances[0])
+			assert.Equal(t, tt.expectedTimeout, instance["timeout"])
+		})
+	}
+}
+
+func TestCalculatePerHopTimeoutMS(t *testing.T) {
+	tests := []struct {
+		name            string
+		totalTimeoutMS  int64
+		maxTTL          int
+		expectedTimeout int64
+	}{
+		{
+			name:            "reserves ten percent",
+			totalTimeoutMS:  1000,
+			maxTTL:          1,
+			expectedTimeout: 900,
+		},
+		{
+			name:            "divides budget evenly across hops",
+			totalTimeoutMS:  1000,
+			maxTTL:          30,
+			expectedTimeout: 30,
+		},
+		{
+			name:            "rounds fractional milliseconds up",
+			totalTimeoutMS:  1000,
+			maxTTL:          32,
+			expectedTimeout: 29,
+		},
+		{
+			name:            "minimum contract values remain positive",
+			totalTimeoutMS:  1,
+			maxTTL:          1,
+			expectedTimeout: 1,
+		},
+		{
+			name:            "minimum timeout at maximum TTL remains positive",
+			totalTimeoutMS:  1,
+			maxTTL:          255,
+			expectedTimeout: 1,
+		},
+		{
+			name:            "maximum timeout and TTL",
+			totalTimeoutMS:  120000,
+			maxTTL:          255,
+			expectedTimeout: 424,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedTimeout, calculatePerHopTimeoutMS(tt.totalTimeoutMS, tt.maxTTL))
+		})
+	}
+}
+
+func TestProviderTimeoutUsesEffectiveDefaultMaxTTL(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com","timeout_ms":1000}`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	instance := unmarshalInstance(t, configs[0].Instances[0])
+	assert.Equal(t, 30, instance["timeout"])
+	assert.NotContains(t, instance, "max_ttl")
+
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
+	require.NoError(t, err)
+	assert.Equal(t, uint8(30), checkConfig.MaxTTL)
+	assert.Equal(t, 30*time.Millisecond, checkConfig.Timeout)
+}
+
+func TestProviderOmittedTimeoutKeepsExistingCheckDefault(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com","max_ttl":30}`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	instance := unmarshalInstance(t, configs[0].Instances[0])
+	assert.NotContains(t, instance, "timeout")
+
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
+	require.NoError(t, err)
+	assert.Equal(t, time.Second, checkConfig.Timeout)
+}
+
+func TestLocalYAMLTimeoutRemainsPerHop(t *testing.T) {
+	config, err := networkpathcheck.NewCheckConfig(
+		integration.Data("hostname: api.example.com\ntimeout: 1000\nmax_ttl: 30\n"),
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, time.Second, config.Timeout)
 }
 
 func TestProviderSendChangesReturnsOnShutdownWhenChannelFull(t *testing.T) {
@@ -420,7 +544,7 @@ func TestParseConfigOutputIsAcceptedByNetworkPathCheck(t *testing.T) {
 	assert.Equal(t, uint16(443), checkConfig.DestPort)
 	assert.Equal(t, payload.ProtocolTCP, checkConfig.Protocol)
 	assert.Equal(t, uint8(30), checkConfig.MaxTTL)
-	assert.Equal(t, time.Second, checkConfig.Timeout)
+	assert.Equal(t, 30*time.Millisecond, checkConfig.Timeout)
 	assert.Equal(t, time.Minute, checkConfig.MinCollectionInterval)
 	assert.Equal(t, "frontend", checkConfig.SourceService)
 	assert.Equal(t, "api", checkConfig.DestinationService)

@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import os
 import shlex
+import sys
 import tempfile
 from collections.abc import Iterable
 from urllib.parse import quote
 
 from invoke.collection import Collection
 from invoke.context import Context
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 from invoke.tasks import Task, task
 
 from tasks.e2e_framework import tool
@@ -130,6 +131,20 @@ def _show_create_success_message(ctx: Context, scenario_name: str, role: str, st
     )
 
 
+def _confirm_before_create(name: str, notice: str | None) -> None:
+    """Surface a lab-specific notice up front and, when interactive, pause for
+    acknowledgment. create is long-running and its output scrolls past, so
+    important warnings (e.g. a multi-minute convergence window) belong before it
+    starts, not buried in the tail. In non-interactive runs (CI / no TTY) it
+    prints and proceeds so automation never blocks."""
+    if not notice:
+        return
+    bar = "=" * 72
+    print(f"\n{bar}\n{name}: read before create\n\n{notice}\n{bar}\n")
+    if sys.stdin.isatty() and not tool.ask_yesno("Proceed with create?", default="Y"):
+        raise Exit(f"{name}: create aborted before provisioning.")
+
+
 def build_collection(
     *,
     name: str,
@@ -140,6 +155,8 @@ def build_collection(
     source: tuple[str, str, str] | None = None,
     reload_check: bool = False,
     extra_tasks: Iterable[Task] | None = None,
+    role_aliases: dict[str, str] | None = None,
+    create_notice: str | None = None,
 ) -> Collection:
     """Build the standard invoke task surface for one VM/host integration lab.
 
@@ -149,7 +166,22 @@ def build_collection(
     remote_hostname: the framework export role get_host resolves (dd-Host-<role>).
     source: (url, ref, path) used by reload-check; required when reload_check=True.
     extra_tasks: optional already-decorated @task callables for a bespoke lab.
+    role_aliases: optional user-facing role -> actual exported role map. vm.Export()
+        emits dd-Host-aws-<vmname>, so a multi-host lab can accept simple role names
+        (e.g. "server") that resolve to the aws-prefixed export ("aws-lustre-server").
+        The default role (remote_hostname) is always accepted as-is.
+    create_notice: optional text shown before create starts; interactive runs pause
+        for acknowledgment, CI proceeds. Use for lab-specific warnings (e.g. a long
+        post-create convergence window).
     """
+
+    aliases = dict(role_aliases or {})
+
+    def _resolve_role(role: str) -> str:
+        # Map a user-facing role to the framework export role get_host resolves
+        # (dd-Host-<role>). Unknown roles pass through unchanged so the raw
+        # aws-<vmname> export role also works.
+        return aliases.get(role, role)
 
     @task
     def create(
@@ -164,6 +196,7 @@ def build_collection(
         local_package: str | None = None,
     ):
         """Create the integration lab by deploying the E2E scenario and print host inspection links."""
+        _confirm_before_create(name, create_notice)
         full_stack_name = deploy(
             ctx,
             scenario_name,
@@ -189,24 +222,24 @@ def build_collection(
     @task
     def status(ctx: Context, role: str = remote_hostname, stack_name: str | None = None):
         """Run the Agent status command on the Agent host and return the full output."""
-        return _run_remote(ctx, scenario_name, role, status_command, stack_name=stack_name)
+        return _run_remote(ctx, scenario_name, _resolve_role(role), status_command, stack_name=stack_name)
 
     @task
     def check(ctx: Context, role: str = remote_hostname, stack_name: str | None = None):
         """Run the configured Agent check on the Agent host."""
-        return _run_remote(ctx, scenario_name, role, check_command, stack_name=stack_name)
+        return _run_remote(ctx, scenario_name, _resolve_role(role), check_command, stack_name=stack_name)
 
     @task(name="exec")
     def exec_(ctx: Context, role: str = remote_hostname, command: str | None = None, stack_name: str | None = None):
         """Run an explicit command on a lab host role."""
         if command is None:
             raise ValueError("--command is required")
-        return _run_remote(ctx, scenario_name, role, command, stack_name=stack_name)
+        return _run_remote(ctx, scenario_name, _resolve_role(role), command, stack_name=stack_name)
 
     @task
     def ssh(ctx: Context, role: str = remote_hostname, stack_name: str | None = None, connect: bool = False):
         """Print or open SSH access for a lab host role."""
-        command = _ssh_base(ctx, scenario_name, role, stack_name)
+        command = _ssh_base(ctx, scenario_name, _resolve_role(role), stack_name)
         print(command)
         if connect:
             return ctx.run(command, pty=True)
@@ -238,7 +271,7 @@ def build_collection(
                 "sudo datadog-agent configcheck",
                 check_command,
             ]
-            return _run_remote(ctx, scenario_name, role, " && ".join(commands), stack_name=stack_name)
+            return _run_remote(ctx, scenario_name, _resolve_role(role), " && ".join(commands), stack_name=stack_name)
 
         collection.add_task(reload_check_task, name="reload-check")
 

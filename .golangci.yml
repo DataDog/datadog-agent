@@ -162,6 +162,7 @@ linters:
             - "!**/comp/forwarder/eventplatform/impl/epforwarder.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_container.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_dataobservability.go"
+            - "!**/comp/forwarder/eventplatform/impl/pipelines_datasecurity.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_datastreams.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_dbm.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go"

@@ -110,6 +110,7 @@ run_binary(
         ]
     ],
     tool = "build_python.bat",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
 
@@ -462,6 +463,7 @@ select_file(
     name = "python_stable_lib_linux",
     srcs = ":python_unix",
     subpath = "lib/libpython3.so",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(

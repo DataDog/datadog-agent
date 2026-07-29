@@ -27,6 +27,13 @@ import (
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
+func TestDefaultNetworkPathMaxTTLMatchesTracerouteDefault(t *testing.T) {
+	// The setup default is generated from the configuration schema, while the
+	// shared traceroute default is maintained separately for comp consumers that
+	// cannot import pkg/config/setup. Keep the two values from drifting.
+	assert.Equal(t, tracerouteconfig.DefaultMaxTTL, setup.DefaultNetworkPathMaxTTL)
+}
+
 func TestNewCheckConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("network_devices.namespace", "my-namespace")
