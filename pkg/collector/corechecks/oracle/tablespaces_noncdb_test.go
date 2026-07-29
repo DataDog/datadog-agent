@@ -75,6 +75,12 @@ func TestTablespacesNonCdbQueryPath(t *testing.T) {
 	require.Equal(t, maxSizeQuery11, maxSize)
 
 	// The queries must parse and execute against a live Oracle, not just be selected.
+	//
+	// NOTE: this only passes because 03-grants.sql now grants DBA_TABLESPACES and
+	// DBA_TABLESPACE_USAGE_METRICS as a temporary probe grant. The non-CDB setup docs
+	// do NOT grant that pair -- they grant the CDB_* variants -- so on a documented
+	// non-CDB install this query fails with ORA-00942, which CI demonstrated in job
+	// 1903129585. Do not read a pass here as evidence the swap is safe to ship.
 	var rows []RowDB
 	require.NoError(t, selectWrapper(&c, &rows, usage), "DBA_* tablespace query failed to execute")
 	require.NotEmpty(t, rows, "DBA_* tablespace query returned no rows")

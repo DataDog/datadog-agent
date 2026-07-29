@@ -36,3 +36,15 @@ grant select on cdb_data_files to c##datadog;
 grant select on dba_data_files to c##datadog;
 
 GRANT SELECT ON dd_session TO c##datadog;
+
+-- TEMPORARY, PROBE ONLY -- do not merge.
+-- These exceed the grants the non-CDB setup docs prescribe. The docs grant
+-- CDB_TABLESPACES / CDB_TABLESPACE_USAGE_METRICS but not the DBA_* pair, which is
+-- why the DBA_* tablespace query fails with ORA-00942 under a documented install.
+-- Granted here only so the probe can measure the two query variants side by side.
+grant select on dba_tablespaces to c##datadog;
+grant select on dba_tablespace_usage_metrics to c##datadog;
+grant select on dba_views to c##datadog;
+grant select on v_$sysstat to c##datadog;
+grant select on v_$sql_plan to c##datadog;
+grant select on v_$pq_sysstat to c##datadog;
