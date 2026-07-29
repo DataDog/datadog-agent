@@ -97,14 +97,15 @@ func (pm *PolicyMonitor) Start(ctx context.Context) {
 			case <-timerMetric.C:
 				pm.RLock()
 				for _, p := range pm.policies {
-					tags := []string{
-						"policy_name:" + p.Name,
-						"policy_source:" + p.Source,
-						"policy_version:" + p.Version,
-						"agent_version:" + version.AgentVersion,
-					}
+				tags := []string{
+					"policy_name:" + p.Name,
+					"policy_source:" + p.Source,
+					"policy_version:" + p.Version,
+					"policy_hash:" + p.Hash,
+					"agent_version:" + version.AgentVersion,
+				}
 
-					if err := pm.statsdClient.Gauge(metrics.MetricPolicy, 1, tags, 1.0); err != nil {
+				if err := pm.statsdClient.Gauge(metrics.MetricPolicy, 1, tags, 1.0); err != nil {
 						log.Error(fmt.Errorf("failed to send policy metric: %w", err))
 					}
 				}
@@ -201,6 +202,7 @@ type PolicyState struct {
 	PolicyMetadata
 	Status  PolicyStatus `json:"status"`
 	Message string       `json:"message,omitempty"`
+	Hash    string       `json:"hash,omitempty"`
 	Rules   []*RuleState `json:"rules,omitempty"`
 }
 
@@ -276,6 +278,7 @@ type NetworkFilterAction struct {
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
+	Hash           string                 `json:"hash"`
 	Policies       []*PolicyState         `json:"policies"`
 	Filters        *kfilters.FilterReport `json:"filters,omitempty"`
 	MonitoredFiles []string               `json:"monitored_files,omitempty"`
@@ -510,6 +513,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 
 	var policies []*PolicyState
 	for _, policy := range mp {
+		policy.Hash = rs.PolicyHash(policy.Name)
 		policies = append(policies, policy)
 	}
 
@@ -530,6 +534,7 @@ type RulesetLoadedEventBundle struct {
 // NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
 func NewRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) RulesetLoadedEventBundle {
 	evt := RulesetLoadedEvent{
+		Hash:           rs.Hash(),
 		Policies:       policies,
 		Filters:        filterReport,
 		MonitoredFiles: extractMonitoredFilesAndFolders(rs),
