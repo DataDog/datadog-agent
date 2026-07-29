@@ -173,14 +173,24 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 // endpoints.
 const sysprobeSocket = "/opt/datadog-agent/run/sysprobe.sock"
 
-func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
-	host := s.Env().RemoteHost
+// logDiagnostic runs a diagnostic command and logs its output.
+//
+// Failures are deliberately tolerated. These only run once a test has already
+// failed, and several of them legitimately exit non-zero in exactly the
+// situations worth debugging: systemctl status for an inactive unit, ps for a
+// process which has since exited (which is what a crash-looping service looks
+// like), curl if the agent is not running. Using MustExecute directly would
+// replace the original failure with an error about the diagnostic itself.
+func (s *linuxTestSuite) logDiagnostic(t *testing.T, label, cmd string) {
+	t.Logf("%s:\n%s", label, s.Env().RemoteHost.MustExecute(cmd+" 2>&1 || true"))
+}
 
+func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	// This is very useful for debugging, but we probably don't want to decode
 	// and assert based on this in this E2E test since this is an internal
 	// interface between the agent and system-probe.
-	t.Log("system-probe discovery state", host.MustExecute(
-		"sudo curl -s --unix-socket "+sysprobeSocket+" http://unix/discovery/state"))
+	s.logDiagnostic(t, "system-probe discovery state",
+		"sudo curl -s --unix-socket "+sysprobeSocket+" http://unix/discovery/state")
 
 	pids := s.fixtureServicePIDs(services)
 	if len(pids) > 0 {
@@ -189,22 +199,22 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 		// minute by default), so a value below that explains a service which
 		// was never reported, and one which keeps resetting across dumps means
 		// the service is crash-looping rather than starting slowly.
-		t.Log("fixture service processes", host.MustExecute(
-			"sudo ps -o pid,ppid,etimes,comm,args -p "+strings.Join(pids, ",")))
+		s.logDiagnostic(t, "fixture service processes",
+			"sudo ps -o pid,ppid,etimes,comm,args -p "+strings.Join(pids, ","))
 
 		// /discovery/services is the only endpoint which reports what
 		// discovery actually sees. It is caller-driven, so it has to be told
 		// which PIDs to look at, and it only accepts POST with a JSON body.
 		params := fmt.Sprintf(`{"new_pids":[%s]}`, strings.Join(pids, ","))
-		t.Log("system-probe discovery services", host.MustExecute(
+		s.logDiagnostic(t, "system-probe discovery services",
 			"sudo curl -s -X POST -H 'Content-Type: application/json' -d '"+params+"'"+
-				" --unix-socket "+sysprobeSocket+" http://unix/discovery/services"))
+				" --unix-socket "+sysprobeSocket+" http://unix/discovery/services")
 	}
 
 	s.dumpServiceDiagnostics(t, services)
 
-	t.Log("workloadmeta store", host.MustExecute("sudo datadog-agent workload-list --verbose"))
-	t.Log("agent status", host.MustExecute("sudo datadog-agent status"))
+	s.logDiagnostic(t, "workloadmeta store", "sudo datadog-agent workload-list --verbose")
+	s.logDiagnostic(t, "agent status", "sudo datadog-agent status")
 }
 
 // fixtureServicePIDs returns the PIDs in the cgroup of each of the given
@@ -227,18 +237,13 @@ func (s *linuxTestSuite) fixtureServicePIDs(servicesList []string) []string {
 // Restart=always with RestartSec=1), leaves no trace in the test output and is
 // indistinguishable from discovery being slow to report it.
 func (s *linuxTestSuite) dumpServiceDiagnostics(t *testing.T, servicesList []string) {
-	host := s.Env().RemoteHost
-
-	t.Log("listening sockets", host.MustExecute("sudo ss -ltnp || true"))
+	s.logDiagnostic(t, "listening sockets", "sudo ss -ltnp")
 
 	for _, service := range servicesList {
-		// systemctl status exits non-zero for an inactive or failed unit,
-		// which is exactly the case being debugged, so keep the output and
-		// ignore the exit code.
-		t.Logf("%s systemctl status:\n%s", service,
-			host.MustExecute("sudo systemctl status --no-pager --full "+service+" || true"))
-		t.Logf("%s journal:\n%s", service,
-			host.MustExecute("sudo journalctl --no-pager -n 100 -u "+service+" 2>&1 || true"))
+		s.logDiagnostic(t, service+" systemctl status",
+			"sudo systemctl status --no-pager --full "+service)
+		s.logDiagnostic(t, service+" journal",
+			"sudo journalctl --no-pager -n 100 -u "+service)
 	}
 }
 
