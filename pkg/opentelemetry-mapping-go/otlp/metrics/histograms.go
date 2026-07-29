@@ -210,11 +210,8 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHist
 	return sketch, nil
 }
 
-// SketchExactSummary carries the exact aggregate values an OTLP histogram data point
-// reports (when it reports them). DDSketch construction from a histogram's bucket
-// counts approximates the underlying distribution using bucket midpoints, which skews
-// Cnt/Sum/Avg/Min/Max even when OTLP provides some of these exactly; OverwriteSketchSummary
-// corrects a converted Sketch's summary with whichever exact fields are set here.
+// SketchExactSummary carries exact aggregate values reported by an OTLP histogram, used
+// to correct a converted Sketch whose bucket-midpoint reconstruction only approximates them.
 type SketchExactSummary struct {
 	Count    uint64
 	HasCount bool
@@ -226,9 +223,8 @@ type SketchExactSummary struct {
 	HasMax   bool
 }
 
-// OverwriteSketchSummary overwrites agentSketch.Basic fields with the exact values in
-// exact, for whichever fields it reports as present. Avg is recomputed from the
-// overwritten Sum/Cnt whenever Sum is overwritten.
+// OverwriteSketchSummary overwrites agentSketch.Basic with whichever fields exact reports
+// as present. Avg is recomputed from Sum/Cnt whenever Sum is overwritten.
 func OverwriteSketchSummary(agentSketch *quantile.Sketch, exact SketchExactSummary) {
 	if exact.HasCount {
 		agentSketch.Basic.Cnt = int64(exact.Count)

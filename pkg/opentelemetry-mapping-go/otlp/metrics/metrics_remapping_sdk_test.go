@@ -24,9 +24,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// sdkTraceMetric builds a delta histogram named like the DD-SDK trace metric with a
-// single datapoint carrying the given attributes. It populates explicit buckets so
-// the duration DDSketch can be constructed from the distribution.
+// sdkTraceMetric builds a delta histogram named like the DD-SDK trace metric, with a
+// single bucket covering the whole population so the duration DDSketch has data.
 func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]string) pmetric.Metric {
 	m := pmetric.NewMetric()
 	m.SetName(sdkTraceMetricName)
@@ -128,8 +127,6 @@ func TestRemapSDKTraceMetric_DefaultMode(t *testing.T) {
 
 	tags := got.sums["trace.http.request.hits"].tags
 	assert.Equal(t, "users.lookup", tags["resource"])
-	// span.kind is lowercased for Datadog APM.
-	assert.Equal(t, "server", tags["span.kind"])
 	assert.Equal(t, "web", tags["span.type"])
 	assert.Equal(t, "synthetics", tags["origin"])
 	// Non-HTTP span: http.status_code left unset.
@@ -205,9 +202,8 @@ func TestRemapSDKTraceMetric_OTelSemanticsFallback(t *testing.T) {
 	assert.Equal(t, "GET /users/:id", got.sums["trace.http.server.request.hits"].tags["resource"])
 }
 
-// TestRemapSDKTraceMetric_CumulativeSkipped verifies a cumulative-temporality
-// datapoint is dropped rather than mishandled as delta, since we have no state
-// here to diff it against the prior cumulative value.
+// Cumulative datapoints are dropped rather than mishandled as delta: we keep no
+// state here to diff against the prior cumulative value.
 func TestRemapSDKTraceMetric_CumulativeSkipped(t *testing.T) {
 	m := sdkTraceMetric("s", 5, 2.0, map[string]string{
 		"datadog.operation.name": "op",
@@ -218,7 +214,6 @@ func TestRemapSDKTraceMetric_CumulativeSkipped(t *testing.T) {
 	assert.Empty(t, got.durations)
 }
 
-// TestRemapSDKTraceMetric_SpanKindCasing verifies every span kind is lowercased.
 func TestRemapSDKTraceMetric_SpanKindCasing(t *testing.T) {
 	for in, want := range map[string]string{
 		"SERVER":   "server",
@@ -244,27 +239,33 @@ func TestRenameMetrics_SDKTraceMetricUnchanged(t *testing.T) {
 	assert.Equal(t, sdkTraceMetricName, m.Name())
 }
 
-// TestSDKTraceMetric_DurationIsSketch verifies the end-to-end translator path:
-// duration is emitted as a DDSketch (not a Sum timeseries) and the counts remain
-// delta Sum series.
-func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
-	translator := NewTestTranslator(t, WithRemapping())
-
+// runSDKTraceThroughTranslator sends a single SDK trace metric through the full
+// MapMetrics path, optionally stamping resourceAttrs onto the resource.
+func runSDKTraceThroughTranslator(t testing.TB, m pmetric.Metric, resourceAttrs map[string]string, opts ...TranslatorOption) testConsumer {
+	t.Helper()
+	translator := NewTestTranslator(t, opts...)
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
+	for k, v := range resourceAttrs {
+		rm.Resource().Attributes().PutStr(k, v)
+	}
 	sm := rm.ScopeMetrics().AppendEmpty()
-	sdkTraceMetric("s", 3, 1.5, map[string]string{
-		"datadog.operation.name": "http.request",
-		"span.name":              "checkout",
-	}).CopyTo(sm.Metrics().AppendEmpty())
+	m.CopyTo(sm.Metrics().AppendEmpty())
 
 	consumer := newTestConsumer()
 	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
 	require.NoError(t, err)
+	return consumer
+}
+
+func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
+	consumer := runSDKTraceThroughTranslator(t, sdkTraceMetric("s", 3, 1.5, map[string]string{
+		"datadog.operation.name": "http.request",
+		"span.name":              "checkout",
+	}), nil, WithRemapping())
 
 	require.Len(t, consumer.data.Metrics.Sketches, 1, "duration must be a single DDSketch series")
-	sketch := consumer.data.Metrics.Sketches[0]
-	assert.Equal(t, "trace.http.request.duration", sketch.Name)
+	assert.Equal(t, "trace.http.request.duration", consumer.data.Metrics.Sketches[0].Name)
 
 	var names []string
 	for _, ts := range consumer.data.Metrics.TimeSeries {
@@ -274,48 +275,25 @@ func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
 	assert.Contains(t, names, "trace.http.request.hits")
 }
 
-// TestSDKTraceMetric_NotBillableHost verifies that a payload containing only the
-// SDK trace metric does not mark the host as billable (no ConsumeHost call).
+// A payload containing only the SDK trace metric must not mark the host as billable.
 func TestSDKTraceMetric_NotBillableHost(t *testing.T) {
-	translator := NewTestTranslator(t, WithRemapping())
-
-	md := pmetric.NewMetrics()
-	rm := md.ResourceMetrics().AppendEmpty()
-	rm.Resource().Attributes().PutStr("host.name", "my-host")
-	sm := rm.ScopeMetrics().AppendEmpty()
-	sdkTraceMetric("s", 1, 1.0, map[string]string{
+	consumer := runSDKTraceThroughTranslator(t, sdkTraceMetric("s", 1, 1.0, map[string]string{
 		"datadog.operation.name": "op",
 		"span.name":              "res",
-	}).CopyTo(sm.Metrics().AppendEmpty())
-
-	consumer := newTestConsumer()
-	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
-	require.NoError(t, err)
+	}), map[string]string{"host.name": "my-host"}, WithRemapping())
 
 	assert.Empty(t, consumer.data.Hosts, "SDK-trace-only payload must not consume a billable host")
 }
 
-// TestRemapSDKTraceMetric_OptOutHonoredWithRemapping verifies that
-// WithoutSDKTraceMetricsRemapping() disables the SDK trace remap even when
-// combined with WithRemapping(), which standalone Collector configs use to
-// enable the unrelated container/system metric renaming.
+// WithoutSDKTraceMetricsRemapping() must disable the remap even combined with
+// WithRemapping(), which standalone Collector configs use for unrelated renames.
 func TestRemapSDKTraceMetric_OptOutHonoredWithRemapping(t *testing.T) {
-	translator := NewTestTranslator(t, WithRemapping(), WithoutSDKTraceMetricsRemapping())
-
-	md := pmetric.NewMetrics()
-	rm := md.ResourceMetrics().AppendEmpty()
-	sm := rm.ScopeMetrics().AppendEmpty()
-	sdkTraceMetric("s", 3, 1.5, map[string]string{
+	consumer := runSDKTraceThroughTranslator(t, sdkTraceMetric("s", 3, 1.5, map[string]string{
 		"datadog.operation.name": "http.request",
 		"span.name":              "checkout",
-	}).CopyTo(sm.Metrics().AppendEmpty())
+	}), nil, WithRemapping(), WithoutSDKTraceMetricsRemapping())
 
-	consumer := newTestConsumer()
-	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
-	require.NoError(t, err)
-
-	// With the remap opted out, the histogram falls through to the default mapper and is
-	// emitted as a raw DDSketch under its original name, not split into trace.<op>.* series.
+	// Falls through to the default mapper: a raw DDSketch under the original name.
 	require.Len(t, consumer.data.Metrics.Sketches, 1)
 	assert.Equal(t, sdkTraceMetricName, consumer.data.Metrics.Sketches[0].Name)
 	for _, ts := range consumer.data.Metrics.TimeSeries {
