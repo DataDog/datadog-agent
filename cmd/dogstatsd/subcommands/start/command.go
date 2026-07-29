@@ -18,15 +18,24 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	apiimpl "github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
+	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	adnoopfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -48,6 +57,7 @@ import (
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformstorefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
@@ -59,6 +69,8 @@ import (
 	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -67,6 +79,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -178,6 +191,22 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		healthprobefx.Module(),
 		haagentfx.Module(),
+		// API/gRPC server stack so the Agent Data Plane can fetch its
+		// configuration from the standalone dogstatsd process over IPC
+		// (the AgentSecure StreamConfigEvents endpoint). This mirrors the
+		// wiring used by the full Agent's `run` command.
+		apiimpl.Module(),
+		grpcAgentfx.Module(),
+		commonendpoints.Module(),
+		configstreamfx.Module(),
+		remoteagentregistryfx.Module(),
+		adnoopfx.Module(),
+		healthplatformstorefx.Module(),
+		// Optional dependencies of the gRPC server that the standalone
+		// dogstatsd process does not run; provide explicit "none" values.
+		fx.Provide(func() option.Option[rcservice.Component] { return option.None[rcservice.Component]() }),
+		fx.Provide(func() option.Option[rcservicemrf.Component] { return option.None[rcservicemrf.Component]() }),
+		fx.Provide(func() option.Option[collector.Component] { return option.None[collector.Component]() }),
 	)
 }
 
@@ -197,6 +226,7 @@ func start(
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ healthprobe.Component,
+	_ api.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
@@ -260,17 +290,31 @@ func handleSignals(stopCh chan struct{}) {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 
-	// Block here until we receive the interrupt signal
-	for signo := range signalCh {
-		switch signo {
-		case syscall.SIGPIPE:
-			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-		default:
-			pkglog.Infof("Received signal '%s', shutting down...", signo)
+	// Block here until we receive a stop signal, either from the OS or from the
+	// API server. The API server's POST /agent/stop endpoint (registered by
+	// commonendpoints) sends on signals.Stopper, so we must drain it here or
+	// the request would block forever without stopping the process.
+	for {
+		select {
+		case <-signals.Stopper:
+			pkglog.Info("Received stop command, shutting down...")
 			stopCh <- struct{}{}
 			return
+		case <-signals.ErrorStopper:
+			_ = pkglog.Critical("Dogstatsd has encountered an error, shutting down...")
+			stopCh <- struct{}{}
+			return
+		case signo := <-signalCh:
+			switch signo {
+			case syscall.SIGPIPE:
+				// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+				// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+				// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+			default:
+				pkglog.Infof("Received signal '%s', shutting down...", signo)
+				stopCh <- struct{}{}
+				return
+			}
 		}
 	}
 }
