@@ -101,7 +101,7 @@ func TestBuildDummyConfigOverrides(t *testing.T) {
 
 	got := buildDummyConfig(cfg, newListener(workDir))
 
-	requireEq(t, got, "data_plane.enabled", true)
+	requireEq(t, got, DataPlaneEnabled, true)
 	requireEq(t, got, "data_plane.dogstatsd.enabled", true)
 	requireEq(t, got, "data_plane.otlp.enabled", false)
 
@@ -255,12 +255,12 @@ func TestBuildDummyConfigOverridesOperatorListeners(t *testing.T) {
 // is the place to reintroduce stripping.
 func TestBuildDummyConfigPassesThroughCoreAgentOnlySettings(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.Set("data_plane.dummy_mode", true, pkgconfigmodel.SourceFile)
+	cfg.Set(DataPlaneDummyMode, true, pkgconfigmodel.SourceFile)
 	cfg.Set("otlp_config.receiver.protocols.grpc.endpoint", "0.0.0.0:4317", pkgconfigmodel.SourceFile)
 
 	got := buildDummyConfig(cfg, newListener(t.TempDir()))
 
-	_, present := get(t, got, "data_plane.dummy_mode")
+	_, present := get(t, got, DataPlaneDummyMode)
 	assert.True(t, present, "ADP ignores keys it does not recognise, so stripping is unnecessary")
 	_, present = get(t, got, "otlp_config")
 	assert.True(t, present, "ADP does not act on the Core Agent's otlp_config section")
@@ -287,7 +287,7 @@ func TestWriteDummyConfig(t *testing.T) {
 	var round map[string]any
 	require.NoError(t, yaml.Unmarshal(data, &round))
 	requireEq(t, round, "api_key", "0123456789abcdef0123456789abcdef")
-	requireEq(t, round, "data_plane.enabled", true)
+	requireEq(t, round, DataPlaneEnabled, true)
 }
 
 func TestSetNested(t *testing.T) {

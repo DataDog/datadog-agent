@@ -32,7 +32,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -296,7 +295,7 @@ func newHarness(t *testing.T, mode string, tweak func(pkgconfigmodel.Config)) *h
 	cfg := configmock.New(t)
 	cfg.Set("run_path", shortTempDir(t), pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("api_key", "0123456789abcdef0123456789abcdef", pkgconfigmodel.SourceFile)
-	cfg.Set(pkgconfigsetup.DataPlaneSection+".stop_timeout", 2, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set(DataPlaneStopTimeout, 2, pkgconfigmodel.SourceAgentRuntime)
 	if tweak != nil {
 		tweak(cfg)
 	}
@@ -579,7 +578,7 @@ func TestDummyModeInertWhenDataPlaneExplicitlyConfigured(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		t.Run(fmt.Sprintf("data_plane.enabled=%t", enabled), func(t *testing.T) {
 			h := newHarness(t, modeNormal, func(cfg pkgconfigmodel.Config) {
-				cfg.Set(pkgconfigsetup.DataPlaneEnabled, enabled, pkgconfigmodel.SourceFile)
+				cfg.Set(DataPlaneEnabled, enabled, pkgconfigmodel.SourceFile)
 			})
 			assert.Nil(t, h.comp.done, "the component should be inert")
 			assert.Empty(t, h.lc.hooks, "an inert component must not register lifecycle hooks")
@@ -660,7 +659,7 @@ func TestDummyModeInertOnIotHost(t *testing.T) {
 
 func TestDummyModeInertWhenDummyModeDisabled(t *testing.T) {
 	h := newHarness(t, modeNormal, func(cfg pkgconfigmodel.Config) {
-		cfg.Set(pkgconfigsetup.DataPlaneDummyMode, false, pkgconfigmodel.SourceFile)
+		cfg.Set(DataPlaneDummyMode, false, pkgconfigmodel.SourceFile)
 	})
 	assert.Nil(t, h.comp.done)
 	assert.Empty(t, h.lc.hooks)
