@@ -18,10 +18,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/sketches-go/ddsketch"
+	sketchpb "github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 // sdkTraceMetric builds a delta histogram named like the DD-SDK trace metric with a
@@ -46,66 +52,63 @@ func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]str
 	return m
 }
 
-// series indexes a remapped Sum output metric by name, capturing the single
-// datapoint value and attributes.
-type series struct {
-	value float64
-	tags  map[string]string
-}
-
-// remapSDKResult holds the remapped delta Sum series plus the durations captured
-// as sketches through the Consumer.
-type remapSDKResult struct {
-	sums      map[string]series
-	durations map[string]*Dimensions
-}
-
-func remapSDK(t testing.TB, m pmetric.Metric) remapSDKResult {
+// remapSDK runs the SDK-trace remap and returns the single emitted client stats
+// payload, or nil if none was produced. The remap publishes a proto-marshaled
+// StatsPayload on the stats channel, so we drain and decode it.
+func remapSDK(t testing.TB, m pmetric.Metric) *pb.ClientStatsPayload {
 	t.Helper()
-	out := pmetric.NewMetricSlice()
-	consumer := newTestConsumer()
+	statsOut := make(chan []byte, 8)
 	baseDims := &Dimensions{name: m.Name()}
-	remapSDKTraceMetrics(context.Background(), zap.NewNop(), &consumer, baseDims, out, m)
-
-	res := remapSDKResult{sums: map[string]series{}, durations: map[string]*Dimensions{}}
-	for i := 0; i < out.Len(); i++ {
-		metric := out.At(i)
-		dp := metric.Sum().DataPoints().At(0)
-		attrs := dp.Attributes()
-		s := series{value: dp.DoubleValue(), tags: map[string]string{}}
-		for _, key := range []string{"resource", "span.kind", "http.status_code", "span.type", "origin"} {
-			if val, ok := attrs.Get(key); ok {
-				s.tags[key] = val.AsString()
-			}
-		}
-		res.sums[metric.Name()] = s
-	}
-	for i := range consumer.data.Metrics.Sketches {
-		sk := consumer.data.Metrics.Sketches[i]
-		res.durations[sk.Name] = &Dimensions{name: sk.Name, tags: sk.Tags}
-	}
-	return res
+	remapSDKTraceMetrics(zap.NewNop(), statsOut, baseDims, pcommon.NewMap(), m)
+	close(statsOut)
+	return drainSingleClientStats(t, statsOut)
 }
 
-func (r remapSDKResult) durationTags(name string) map[string]string {
-	dims, ok := r.durations[name]
-	if !ok {
+// drainSingleClientStats decodes every StatsPayload on the channel and returns the
+// single client stats payload across them, or nil if there were none.
+func drainSingleClientStats(t testing.TB, statsOut <-chan []byte) *pb.ClientStatsPayload {
+	t.Helper()
+	var payloads []*pb.ClientStatsPayload
+	for raw := range statsOut {
+		var sp pb.StatsPayload
+		require.NoError(t, proto.Unmarshal(raw, &sp))
+		payloads = append(payloads, sp.Stats...)
+	}
+	if len(payloads) == 0 {
 		return nil
 	}
-	tags := map[string]string{}
-	for _, tag := range dims.tags {
-		for i := 0; i < len(tag); i++ {
-			if tag[i] == ':' {
-				tags[tag[:i]] = tag[i+1:]
-				break
+	require.Len(t, payloads, 1)
+	return payloads[0]
+}
+
+// groupedByName returns the grouped-stats row whose operation Name matches, or nil.
+func groupedByName(p *pb.ClientStatsPayload, name string) *pb.ClientGroupedStats {
+	if p == nil {
+		return nil
+	}
+	for _, b := range p.Stats {
+		for _, g := range b.Stats {
+			if g.Name == name {
+				return g
 			}
 		}
 	}
-	return tags
+	return nil
+}
+
+// sketchCount decodes a ddsketch-proto summary and returns its total count.
+func sketchCount(t testing.TB, data []byte) float64 {
+	t.Helper()
+	require.NotEmpty(t, data, "summary must be a valid (possibly empty) sketch")
+	var sk sketchpb.DDSketch
+	require.NoError(t, proto.Unmarshal(data, &sk))
+	decoded, err := ddsketch.FromProto(&sk)
+	require.NoError(t, err)
+	return decoded.GetCount()
 }
 
 func TestRemapSDKTraceMetric_DefaultMode(t *testing.T) {
-	m := sdkTraceMetric("s", 5, 2.0, map[string]string{
+	p := remapSDK(t, sdkTraceMetric("s", 5, 2.0, map[string]string{
 		"datadog.operation.name": "http.request",
 		"datadog.span.type":      "web",
 		"datadog.span.top_level": "true",
@@ -113,42 +116,40 @@ func TestRemapSDKTraceMetric_DefaultMode(t *testing.T) {
 		"span.name":              "users.lookup",
 		"span.kind":              "SERVER",
 		"status.code":            "STATUS_CODE_ERROR",
-	})
-	got := remapSDK(t, m)
+	}))
+	require.NotNil(t, p)
 
-	require.Contains(t, got.sums, "trace.http.request.hits")
-	require.Contains(t, got.sums, "trace.http.request.errors")
-	// Duration is emitted as a sketch, not a Sum series.
-	require.NotContains(t, got.sums, "trace.http.request.duration")
-	require.Contains(t, got.durations, "trace.http.request.duration")
+	gs := groupedByName(p, "http.request")
+	require.NotNil(t, gs)
+	assert.Equal(t, "users.lookup", gs.Resource)
+	assert.Equal(t, "server", gs.SpanKind) // lowercased for Datadog APM
+	assert.Equal(t, "web", gs.Type)
+	assert.True(t, gs.Synthetics) // datadog.origin = synthetics
+	assert.Equal(t, uint64(5), gs.Hits)
+	assert.Equal(t, uint64(5), gs.Errors)       // status.code = STATUS_CODE_ERROR
+	assert.Equal(t, uint64(5), gs.TopLevelHits) // datadog.span.top_level = true
+	assert.Equal(t, uint64(2e9), gs.Duration)   // 2s scaled to nanoseconds
+	assert.Zero(t, gs.HTTPStatusCode)           // non-HTTP span: left unset
 
-	assert.Equal(t, float64(5), got.sums["trace.http.request.hits"].value)
-	assert.Equal(t, float64(5), got.sums["trace.http.request.errors"].value)
-	assert.Equal(t, float64(5), got.sums["trace.http.request.hits.by_type"].value)
-
-	tags := got.sums["trace.http.request.hits"].tags
-	assert.Equal(t, "users.lookup", tags["resource"])
-	// span.kind is lowercased for Datadog APM.
-	assert.Equal(t, "server", tags["span.kind"])
-	assert.Equal(t, "web", tags["span.type"])
-	assert.Equal(t, "synthetics", tags["origin"])
-	// Non-HTTP span: http.status_code left unset.
-	assert.NotContains(t, tags, "http.status_code")
-
-	// The duration sketch carries the same identifying tags.
-	assert.Equal(t, "server", got.durationTags("trace.http.request.duration")["span.kind"])
+	// Error datapoint: the population lands in ErrorSummary; OkSummary is the blank sketch.
+	assert.Equal(t, float64(5), sketchCount(t, gs.ErrorSummary))
+	assert.Zero(t, sketchCount(t, gs.OkSummary))
 }
 
 func TestRemapSDKTraceMetric_NotTopLevel(t *testing.T) {
-	m := sdkTraceMetric("s", 3, 1.0, map[string]string{
+	p := remapSDK(t, sdkTraceMetric("s", 3, 1.0, map[string]string{
 		"datadog.operation.name": "op",
 		"span.name":              "res",
-	})
-	got := remapSDK(t, m)
-	assert.Contains(t, got.sums, "trace.op.hits")
-	assert.NotContains(t, got.sums, "trace.op.hits.by_type")
-	assert.NotContains(t, got.sums, "trace.op.errors")
-	assert.Contains(t, got.durations, "trace.op.duration")
+	}))
+	gs := groupedByName(p, "op")
+	require.NotNil(t, gs)
+	assert.Equal(t, uint64(3), gs.Hits)
+	assert.Zero(t, gs.TopLevelHits)
+	assert.Zero(t, gs.Errors)
+	assert.False(t, gs.Synthetics)
+	// Non-error datapoint: the population lands in OkSummary.
+	assert.Equal(t, float64(3), sketchCount(t, gs.OkSummary))
+	assert.Zero(t, sketchCount(t, gs.ErrorSummary))
 }
 
 func TestRemapSDKTraceMetric_ErrorGating(t *testing.T) {
@@ -169,12 +170,12 @@ func TestRemapSDKTraceMetric_ErrorGating(t *testing.T) {
 			for k, v := range tc.attrs {
 				attrs[k] = v
 			}
-			got := remapSDK(t, sdkTraceMetric("s", 4, 1.0, attrs))
+			gs := groupedByName(remapSDK(t, sdkTraceMetric("s", 4, 1.0, attrs)), "op")
+			require.NotNil(t, gs)
 			if tc.wantErr {
-				require.Contains(t, got.sums, "trace.op.errors")
-				assert.Equal(t, float64(4), got.sums["trace.op.errors"].value)
+				assert.Equal(t, uint64(4), gs.Errors)
 			} else {
-				assert.NotContains(t, got.sums, "trace.op.errors")
+				assert.Zero(t, gs.Errors)
 			}
 		})
 	}
@@ -186,36 +187,29 @@ func TestRemapSDKTraceMetric_HTTPStatusSet(t *testing.T) {
 		"span.kind":              "SERVER",
 	})
 	m.Histogram().DataPoints().At(0).Attributes().PutInt("http.response.status_code", 200)
-	got := remapSDK(t, m)
-	assert.Equal(t, "200", got.sums["trace.http.server.request.hits"].tags["http.status_code"])
-	// Duration is a sketch carrying the http.status_code tag.
-	require.Contains(t, got.durations, "trace.http.server.request.duration")
-	assert.Equal(t, "200", got.durationTags("trace.http.server.request.duration")["http.status_code"])
+	gs := groupedByName(remapSDK(t, m), "http.server.request")
+	require.NotNil(t, gs)
+	assert.Equal(t, uint32(200), gs.HTTPStatusCode)
 }
 
 func TestRemapSDKTraceMetric_OTelSemanticsFallback(t *testing.T) {
 	// No datadog.operation.name: operation resolved from semconv.
-	m := sdkTraceMetric("s", 2, 1.0, map[string]string{
+	gs := groupedByName(remapSDK(t, sdkTraceMetric("s", 2, 1.0, map[string]string{
 		"span.name":           "GET /users/:id",
 		"span.kind":           "SERVER",
 		"http.request.method": "GET",
-	})
-	got := remapSDK(t, m)
-	require.Contains(t, got.sums, "trace.http.server.request.hits")
-	assert.Equal(t, "GET /users/:id", got.sums["trace.http.server.request.hits"].tags["resource"])
+	})), "http.server.request")
+	require.NotNil(t, gs)
+	assert.Equal(t, "GET /users/:id", gs.Resource)
 }
 
 // TestRemapSDKTraceMetric_CumulativeSkipped verifies a cumulative-temporality
 // datapoint is dropped rather than mishandled as delta, since we have no state
 // here to diff it against the prior cumulative value.
 func TestRemapSDKTraceMetric_CumulativeSkipped(t *testing.T) {
-	m := sdkTraceMetric("s", 5, 2.0, map[string]string{
-		"datadog.operation.name": "op",
-	})
+	m := sdkTraceMetric("s", 5, 2.0, map[string]string{"datadog.operation.name": "op"})
 	m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	got := remapSDK(t, m)
-	assert.Empty(t, got.sums)
-	assert.Empty(t, got.durations)
+	assert.Nil(t, remapSDK(t, m))
 }
 
 // TestRemapSDKTraceMetric_SpanKindCasing verifies every span kind is lowercased.
@@ -228,11 +222,12 @@ func TestRemapSDKTraceMetric_SpanKindCasing(t *testing.T) {
 		"INTERNAL": "internal",
 		"":         "unspecified",
 	} {
-		got := remapSDK(t, sdkTraceMetric("s", 1, 1.0, map[string]string{
+		gs := groupedByName(remapSDK(t, sdkTraceMetric("s", 1, 1.0, map[string]string{
 			"datadog.operation.name": "op",
 			"span.kind":              in,
-		}))
-		assert.Equal(t, want, got.sums["trace.op.hits"].tags["span.kind"], "input %q", in)
+		})), "op")
+		require.NotNil(t, gs, "input %q", in)
+		assert.Equal(t, want, gs.SpanKind, "input %q", in)
 	}
 }
 
@@ -244,14 +239,19 @@ func TestRenameMetrics_SDKTraceMetricUnchanged(t *testing.T) {
 	assert.Equal(t, sdkTraceMetricName, m.Name())
 }
 
-// TestSDKTraceMetric_DurationIsSketch verifies the end-to-end translator path:
-// duration is emitted as a DDSketch (not a Sum timeseries) and the counts remain
-// delta Sum series.
-func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
-	translator := NewTestTranslator(t, WithRemapping())
+// TestSDKTraceMetric_EmitsAPMStats verifies the end-to-end translator path: the SDK
+// duration histogram becomes an APM stats payload (not trace.* series or sketches),
+// with payload-level identity pulled from the resource attributes.
+func TestSDKTraceMetric_EmitsAPMStats(t *testing.T) {
+	statsOut := make(chan []byte, 8)
+	translator := NewTestTranslator(t, WithRemapping(), WithStatsOut(statsOut))
 
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
+	rattrs := rm.Resource().Attributes()
+	rattrs.PutStr("service.name", "checkout-svc")
+	rattrs.PutStr("deployment.environment.name", "staging")
+	rattrs.PutStr("service.version", "1.2.3")
 	sm := rm.ScopeMetrics().AppendEmpty()
 	sdkTraceMetric("s", 3, 1.5, map[string]string{
 		"datadog.operation.name": "http.request",
@@ -261,29 +261,34 @@ func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
 	consumer := newTestConsumer()
 	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
 	require.NoError(t, err)
+	close(statsOut)
 
-	require.Len(t, consumer.data.Metrics.Sketches, 1, "duration must be a single DDSketch series")
-	sketch := consumer.data.Metrics.Sketches[0]
-	assert.Equal(t, "trace.http.request.duration", sketch.Name)
-
-	// dp.Sum() (1.5s) and dp.Count() (3) are exact; the sketch's bucket-midpoint
-	// approximation must not be allowed to override them.
-	assert.Equal(t, int64(3), sketch.Summary.Cnt)
-	assert.InDelta(t, 1.5e9, sketch.Summary.Sum, 1, "duration sum must match the exact histogram sum scaled to nanoseconds")
-	assert.InDelta(t, 5e8, sketch.Summary.Avg, 1)
-
-	var names []string
+	// trace.* must not leak onto the metric-series/sketch intake.
+	assert.Empty(t, consumer.data.Metrics.Sketches)
 	for _, ts := range consumer.data.Metrics.TimeSeries {
-		names = append(names, ts.Name)
-		assert.NotEqual(t, "trace.http.request.duration", ts.Name, "duration must not be a timeseries")
+		assert.NotContains(t, ts.Name, "trace.", "trace.* must not be emitted as a metric series")
 	}
-	assert.Contains(t, names, "trace.http.request.hits")
+
+	p := drainSingleClientStats(t, statsOut)
+	require.NotNil(t, p)
+	assert.Equal(t, "checkout-svc", p.Service)
+	assert.Equal(t, "staging", p.Env)
+	assert.Equal(t, "1.2.3", p.Version)
+
+	gs := groupedByName(p, "http.request")
+	require.NotNil(t, gs)
+	assert.Equal(t, "checkout-svc", gs.Service)
+	assert.Equal(t, "checkout", gs.Resource)
+	assert.Equal(t, uint64(3), gs.Hits)
+	assert.Equal(t, uint64(1.5e9), gs.Duration) // 1.5s scaled to nanoseconds
+	assert.Equal(t, float64(3), sketchCount(t, gs.OkSummary))
 }
 
 // TestSDKTraceMetric_NotBillableHost verifies that a payload containing only the
 // SDK trace metric does not mark the host as billable (no ConsumeHost call).
 func TestSDKTraceMetric_NotBillableHost(t *testing.T) {
-	translator := NewTestTranslator(t, WithRemapping())
+	statsOut := make(chan []byte, 8)
+	translator := NewTestTranslator(t, WithRemapping(), WithStatsOut(statsOut))
 
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()

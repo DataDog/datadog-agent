@@ -585,8 +585,8 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if t.cfg.withRemapping {
 					if md.Name() == sdkTraceMetricName {
 						baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
-						remapSDKTraceMetrics(ctx, t.logger, consumer, baseDims, newMetrics, md)
-						continue // skip mapToDDFormat: the histogram is fully handled above; passing it through would also produce a raw DDSketch
+						remapSDKTraceMetrics(t.logger, t.cfg.statsOut, baseDims, rattrs, md)
+						continue // skip mapToDDFormat: the histogram is emitted as an APM stats payload above; passing it through would also emit it as a generic metric
 					}
 					remapMetrics(newMetrics, md)
 				}

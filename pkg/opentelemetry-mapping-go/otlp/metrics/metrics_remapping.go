@@ -15,17 +15,17 @@
 package metrics
 
 import (
-	"context"
-	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 const (
@@ -263,9 +263,13 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 	}
 }
 
-// remapSDKTraceMetrics maps sdkTraceMetricName into trace.<op>.{hits,errors,hits.by_type}
-// delta Sums and a trace.<op>.duration DDSketch (preserving latency distribution).
-func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, all pmetric.MetricSlice, m pmetric.Metric) {
+// remapSDKTraceMetrics converts the DD-SDK OTLP duration histogram into an APM
+// trace-stats payload and submits it through the APM stats intake. trace.* is a
+// reserved trace-stats namespace, so emitting these as metric series/sketches gets the
+// points dropped; ClientStatsPayload is the supported producer path. The field mapping
+// mirrors dd-source's OTLP trace-metrics exporter so the Agent and agentless
+// (/v1/metrics) paths converge on the same trace.* stats.
+func remapSDKTraceMetrics(logger *zap.Logger, statsOut chan<- []byte, baseDims *Dimensions, rattrs pcommon.Map, m pmetric.Metric) {
 	if m.Type() != pmetric.MetricTypeHistogram {
 		return
 	}
@@ -275,80 +279,142 @@ func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Cons
 		logger.Debug("Skipping non-delta SDK trace metric", zap.String(metricName, m.Name()))
 		return
 	}
+	if statsOut == nil {
+		// This remap only runs in collector deployments that wire an APM stats channel
+		// (drained to the trace-stats intake). Without one there's nowhere to send.
+		logger.Debug("No APM stats channel configured; dropping SDK trace metric",
+			zap.String(metricName, m.Name()))
+		return
+	}
+
 	unit := m.Unit()
+	service := attributes.GetService(rattrs, true)
+	// A blank (but valid) sketch fills the non-matching ok/error slot on every row.
+	blankSketch, err := sdkDurationSketch(nil, unit)
+	if err != nil {
+		logger.Debug("Failed to build empty SDK trace duration sketch", zap.Error(err))
+	}
+
 	dps := m.Histogram().DataPoints()
+	buckets := make([]*pb.ClientStatsBucket, 0, dps.Len())
 	for i := 0; i < dps.Len(); i++ {
 		dp := dps.At(i)
 		if dp.Flags().NoRecordedValue() {
 			continue
 		}
-		attrs := dp.Attributes()
-		operation := sdkOperationName(attrs)
-
-		hits := dp.Count()
-		isError := sdkIsError(attrs)
-		topLevelHits := sdkTopLevelHits(hits, attrs)
-
-		ts := dp.Timestamp()
-		start := dp.StartTimestamp()
-		tags := sdkTraceTags(attrs)
-
-		appendSDKTraceSum(all, "trace."+operation+".hits", ts, start, float64(hits), tags)
-		if isError {
-			appendSDKTraceSum(all, "trace."+operation+".errors", ts, start, float64(hits), tags)
-		}
-		if topLevelHits > 0 {
-			appendSDKTraceSum(all, "trace."+operation+".hits.by_type", ts, start, float64(topLevelHits), tags)
-		}
-
-		consumeSDKTraceDuration(ctx, logger, consumer, baseDims, "trace."+operation+".duration", dp, unit, tags)
+		start, duration := sdkBucketWindow(dp.StartTimestamp(), dp.Timestamp())
+		buckets = append(buckets, &pb.ClientStatsBucket{
+			Start:    start,
+			Duration: duration,
+			Stats:    []*pb.ClientGroupedStats{sdkGroupedStats(logger, service, blankSketch, &dp, unit)},
+		})
 	}
-}
-
-func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, name string, dp pmetric.HistogramDataPoint, unit string, tags []kv) {
-	ddSketch, err := CreateDDSketchFromHistogramOfDuration(&dp, unit)
-	if err != nil {
-		logger.Debug("Failed to convert SDK trace histogram into DDSketch",
-			zap.String(metricName, name), zap.Error(err))
+	if len(buckets) == 0 {
 		return
 	}
-	agentSketch, err := quantile.ConvertDDSketchIntoSketch(ddSketch)
+
+	// The channel carries a proto-marshaled StatsPayload, the same contract the OTLP
+	// stats connector uses; the datadog exporter drains it and forwards to the backend.
+	raw, err := proto.Marshal(&pb.StatsPayload{
+		Stats: []*pb.ClientStatsPayload{{
+			Hostname:    baseDims.Host(),
+			Env:         attributes.GetEnv(rattrs),
+			Version:     attributes.GetVersion(rattrs),
+			Service:     service,
+			ContainerID: attributes.GetContainerID(rattrs),
+			Stats:       buckets,
+		}},
+	})
 	if err != nil {
-		logger.Debug("Failed to convert DDSketch into Sketch",
-			zap.String(metricName, name), zap.Error(err))
+		logger.Debug("Failed to marshal SDK trace stats payload", zap.Error(err))
 		return
 	}
-	// CreateDDSketchFromHistogramOfDuration reconstructs values from bucket midpoints, so
-	// Basic.Sum/Avg only approximate the distribution; overwrite with the exact OTLP count/sum.
-	agentSketch.Basic.Cnt = int64(dp.Count())
-	if dp.HasSum() {
-		agentSketch.Basic.Sum = dp.Sum() * getTimeUnitScaleToNanos(unit)
-		if agentSketch.Basic.Cnt > 0 {
-			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
-		}
-	}
-	tagStrings := make([]string, 0, len(tags))
-	for _, t := range tags {
-		tagStrings = append(tagStrings, t.K+":"+t.V)
-	}
-	dims := baseDims.AddTags(tagStrings...)
-	dims.name = name
-	consumer.ConsumeSketch(ctx, dims, uint64(dp.Timestamp()), 0, agentSketch)
+	statsOut <- raw
 }
 
-func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.Timestamp, value float64, tags []kv) {
-	metric := all.AppendEmpty()
-	metric.SetName(name)
-	sum := metric.SetEmptySum()
-	sum.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	sum.SetIsMonotonic(true)
-	ndp := sum.DataPoints().AppendEmpty()
-	ndp.SetTimestamp(ts)
-	ndp.SetStartTimestamp(start)
-	ndp.SetDoubleValue(value)
-	for _, t := range tags {
-		ndp.Attributes().PutStr(t.K, t.V)
+// sdkGroupedStats maps one histogram datapoint to a ClientGroupedStats row. Name is the
+// operation (the backend derives trace.<op>.* from it); the latency DDSketch goes to
+// OkSummary or ErrorSummary depending on the datapoint's error status.
+func sdkGroupedStats(logger *zap.Logger, service string, blankSketch []byte, dp *pmetric.HistogramDataPoint, unit string) *pb.ClientGroupedStats {
+	attrs := dp.Attributes()
+	hits := dp.Count()
+	isError := sdkIsError(attrs)
+
+	gs := &pb.ClientGroupedStats{
+		Service:        service,
+		Name:           sdkOperationName(attrs),
+		Resource:       sdkResourceName(attrs),
+		SpanKind:       strings.ToLower(spanKindFromAttr(attrs).String()),
+		HTTPStatusCode: attributes.GetStatusCode(attrs),
+		Hits:           hits,
+		TopLevelHits:   sdkTopLevelHits(hits, attrs),
+		Duration:       sdkDurationNanos(dp, unit),
+		Synthetics:     sdkIsSynthetics(attrs),
 	}
+	if isError {
+		gs.Errors = hits
+	}
+	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); v != "" {
+		gs.Type = v
+	}
+
+	sketch, err := sdkDurationSketch(dp, unit)
+	if err != nil {
+		logger.Debug("Failed to build SDK trace duration sketch",
+			zap.String(metricName, gs.Name), zap.Error(err))
+		sketch = blankSketch
+	}
+	if isError {
+		gs.OkSummary, gs.ErrorSummary = blankSketch, sketch
+	} else {
+		gs.OkSummary, gs.ErrorSummary = sketch, blankSketch
+	}
+	return gs
+}
+
+// sdkDurationSketch builds the nanosecond-scaled latency DDSketch for a datapoint and
+// marshals it to the ddsketch proto bytes ClientGroupedStats expects. A nil dp yields an
+// empty (but valid) sketch.
+func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, error) {
+	sketch, err := CreateDDSketchFromHistogramOfDuration(dp, unit)
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(sketch.ToProto())
+}
+
+// sdkDurationNanos is the total duration in nanoseconds, guarding against a negative or
+// out-of-uint64-range sum.
+func sdkDurationNanos(dp *pmetric.HistogramDataPoint, unit string) uint64 {
+	if !dp.HasSum() {
+		return 0
+	}
+	ns := dp.Sum() * getTimeUnitScaleToNanos(unit)
+	if ns < 0 || ns >= 0x1p64 {
+		return 0
+	}
+	return uint64(ns)
+}
+
+// sdkBucketWindow derives the stats bucket [start, start+duration) in nanoseconds from a
+// datapoint's time window. The APM stats aggregator realigns buckets to its own interval,
+// so exact boundaries aren't required; we only need a sane, in-range start.
+func sdkBucketWindow(startTS, endTS pcommon.Timestamp) (start, duration uint64) {
+	if startTS == 0 || endTS <= startTS {
+		return uint64(endTS), uint64(defaultSDKBucketDuration)
+	}
+	return uint64(startTS), uint64(endTS - startTS)
+}
+
+// defaultSDKBucketDuration matches the 10s trace-stats bucket window.
+const defaultSDKBucketDuration = 10 * time.Second
+
+func sdkIsSynthetics(attrs pcommon.Map) bool {
+	switch attributes.GetOTelAttrVal(attrs, false, "datadog.origin") {
+	case "synthetics", "synthetics-browser":
+		return true
+	}
+	return false
 }
 
 func sdkOperationName(attrs pcommon.Map) string {
@@ -378,25 +444,6 @@ func sdkTopLevelHits(hits uint64, attrs pcommon.Map) uint64 {
 		return hits
 	}
 	return 0
-}
-
-// sdkTraceTags omits http.status_code for non-HTTP spans (unlike the SMC path which defaults to 200).
-func sdkTraceTags(attrs pcommon.Map) []kv {
-	spanKind := spanKindFromAttr(attrs)
-	tags := []kv{
-		{"resource", sdkResourceName(attrs)},
-		{"span.kind", strings.ToLower(spanKind.String())},
-	}
-	if status := attributes.GetStatusCode(attrs); status != 0 {
-		tags = append(tags, kv{"http.status_code", strconv.FormatUint(uint64(status), 10)})
-	}
-	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); v != "" {
-		tags = append(tags, kv{"span.type", v})
-	}
-	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.origin"); v != "" {
-		tags = append(tags, kv{"origin", v})
-	}
-	return tags
 }
 
 func sdkResourceName(attrs pcommon.Map) string {
