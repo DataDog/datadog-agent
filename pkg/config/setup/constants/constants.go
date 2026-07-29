@@ -15,4 +15,8 @@ const (
 	NodeKubeDistributionKey = "nodeKubeDistribution"
 	// ECSClusterMetaCacheKey is the key name for the ecs cluster meta in the agent in-mem cache
 	ECSClusterMetaCacheKey = "ecsOrchestratorClusterMeta"
+	// DefaultNumWorkers default number of workers for our check runner
+	DefaultNumWorkers = 4
+	// MaxNumWorkers maximum number of workers for our check runner
+	MaxNumWorkers = 25
 )
