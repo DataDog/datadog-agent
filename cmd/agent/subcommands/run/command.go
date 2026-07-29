@@ -668,6 +668,9 @@ func startAgent(
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
+	if err := os.WriteFile("/etc/datadog-agent/hostname", []byte(hostnameDetected), 0644); err != nil {
+		log.Warnf("Failed to write hostname file: %v", err)
+	}
 
 	// start remote configuration management
 	if configUtils.IsRemoteConfigEnabled(cfg) {
