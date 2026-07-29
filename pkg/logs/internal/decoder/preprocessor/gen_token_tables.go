@@ -100,13 +100,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("format generated source: %v\n----\n%s", err, b.String())
 	}
-	// Output path defaults to the in-package file; the up-to-date test passes a
-	// temp path to diff against it.
-	out := "token_tables_gen.go"
-	if len(os.Args) > 1 {
-		out = os.Args[1]
-	}
-	if err := os.WriteFile(out, src, 0644); err != nil {
+	if err := os.WriteFile("token_tables_gen.go", src, 0644); err != nil {
 		log.Fatal(err)
 	}
 }
