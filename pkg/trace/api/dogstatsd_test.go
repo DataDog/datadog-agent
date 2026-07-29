@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -143,7 +144,9 @@ func TestDogStatsDReverseProxyPayloadRelay(t *testing.T) {
 			// Drain the socket while the proxy runs, so that a case relaying
 			// many payloads cannot fill the receive buffer and have the rest
 			// dropped; the first payload is kept for the assertion below.
-			first := make(chan []byte, 1)
+			var mu sync.Mutex
+			var first []byte
+			var count int
 			go func() {
 				buf := make([]byte, 1024)
 				for {
@@ -151,38 +154,34 @@ func TestDogStatsDReverseProxyPayloadRelay(t *testing.T) {
 					if err != nil { // the socket was closed, the subtest is over
 						return
 					}
-					select {
-					case first <- append([]byte(nil), buf[:n]...):
-					default:
+					mu.Lock()
+					if count == 0 {
+						first = append([]byte(nil), buf[:n]...)
 					}
+					count++
+					mu.Unlock()
 				}
 			}()
+			// Counting rather than inspecting first, so that an empty payload
+			// is not mistaken for no payload at all.
+			relayed := func() bool {
+				mu.Lock()
+				defer mu.Unlock()
+				return count > 0
+			}
 
 			rec := httptest.NewRecorder()
 			proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", tc.body))
 			require.Equal(t, tc.errCode, rec.Code)
 
-			// Payloads are relayed before ServeHTTP returns, so only the case
-			// expecting none has to wait out the timeout.
-			timeout := 5 * time.Second
 			if tc.wantFirstPayload == "" {
-				timeout = 100 * time.Millisecond
-			}
-			var got []byte
-			var relayed bool
-			select {
-			case got = <-first:
-				relayed = true
-			case <-time.After(timeout):
-			}
-			if tc.wantFirstPayload == "" {
-				// Checked through relayed rather than got, so that an empty
-				// payload is not mistaken for no payload at all.
-				require.False(t, relayed, "expected no payload to be relayed, got %q", got)
+				require.Never(t, relayed, 100*time.Millisecond, 10*time.Millisecond, "expected no payload to be relayed")
 				return
 			}
-			require.True(t, relayed, "expected a payload to be relayed")
-			require.Equal(t, tc.wantFirstPayload, string(got))
+			require.Eventually(t, relayed, 5*time.Second, 10*time.Millisecond, "expected a payload to be relayed")
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, tc.wantFirstPayload, string(first))
 		})
 	}
 }
