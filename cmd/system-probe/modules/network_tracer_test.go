@@ -24,7 +24,7 @@ import (
 
 func TestNetworkModuleOrder(t *testing.T) {
 	allModules := All()
-	assert.Less(t, slices.Index(allModules, EventMonitor), slices.Index(allModules, NetworkTracer))
+	assert.Less(t, slices.Index(allModules, NetworkTracer), slices.Index(allModules, EventMonitor))
 }
 
 func TestDecode(t *testing.T) {

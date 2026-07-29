@@ -12,6 +12,7 @@ go_library(
         "//comp/core/autodiscovery/providers/types",
         "//pkg/collector/corechecks/networkpath",
         "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
         "@in_yaml_go_yaml_v2//:yaml",

@@ -1320,6 +1320,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
+	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_interval", time.Hour)
+	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_jitter", 10*time.Minute)
+	config.BindEnvAndSetDefault("config_files_discovery.startup_jitter", time.Minute)
 
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)
@@ -1333,6 +1336,12 @@ func agent(config pkgconfigmodel.Setup) {
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
+	// Data Security: single enablement flag gating both the autodiscovery provider
+	// and the sds-result event platform pipeline.
+	config.BindEnvAndSetDefault("data_security.enabled", false)
+	// Data Security (sensitive-data-scanner results) event platform forwarder
+	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
 
 	// The cardinality of tags to send for checks.
 	// Choices are: low, orchestrator, high.
