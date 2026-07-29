@@ -535,6 +535,13 @@ func TestIsRetryable(t *testing.T) {
 	}
 }
 
+func TestBackoffDuration(t *testing.T) {
+	// baseline exponential
+	require.Equal(t, 2*time.Second, backoffDuration(1, http.Header{}))
+	// high attempt must saturate, not overflow to a non-positive wait
+	require.Equal(t, maxRetryBackoff, backoffDuration(40, http.Header{}))
+}
+
 func TestIsValidStatusCode(t *testing.T) {
 	tests := []struct {
 		code    int

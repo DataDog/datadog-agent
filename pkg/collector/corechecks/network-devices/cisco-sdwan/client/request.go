@@ -22,6 +22,10 @@ const (
 	baseRetryBackoff = 1 * time.Second
 	// maxRetryBackoff caps the wait between retries
 	maxRetryBackoff = 30 * time.Second
+	// maxBackoffShift caps the exponent so baseRetryBackoff << attempt cannot
+	// overflow time.Duration for large max_attempts; the wait is bounded by
+	// maxRetryBackoff well before this.
+	maxBackoffShift = 8
 )
 
 var sleep = time.Sleep
@@ -123,6 +127,10 @@ func backoffDuration(attempt int, header http.Header) time.Duration {
 		return retryAfter
 	}
 
+	// Clamp the exponent before shifting so it can't overflow time.Duration
+	if attempt > maxBackoffShift {
+		return maxRetryBackoff
+	}
 	backoff := baseRetryBackoff << attempt
 	if backoff > maxRetryBackoff {
 		return maxRetryBackoff
