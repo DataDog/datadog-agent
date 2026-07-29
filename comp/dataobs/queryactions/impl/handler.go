@@ -9,12 +9,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
 )
+
+var databaseIdentifierVariablePattern = regexp.MustCompile(`\$\$|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
 
 // A "base config" is a postgres integration.Config emitted by another provider (typically the
 // file provider reading conf.d/postgres.d/conf.yaml) that a DO query action matched against via
@@ -24,8 +31,8 @@ import (
 // config that this component derives from it.
 
 // activeConfigEntry stores the scheduled DO check config alongside the base postgres config it
-// was derived from and the host it targets, so reconcileBases can rebuild the set of postgres
-// instances that should keep running independently of any single DO config.
+// was derived from and the instance identity it targets, so reconcileBases can rebuild the set of
+// postgres instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
 	checkConfig integration.Config
 	baseCfg     *integration.Config // the original matched postgres config (full, all instances)
@@ -213,7 +220,7 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	defer c.activeConfigsMu.Unlock()
 
-	// Group the hosts targeted by active DO configs per base config digest.
+	// Group the instance identities targeted by active DO configs per base config digest.
 	type baseGroup struct {
 		original integration.Config
 		hosts    map[string]bool
@@ -271,8 +278,8 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 }
 
 // buildRemainder returns a copy of base containing only the instances NOT targeted by any host in
-// matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
-// whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
+// matchedHosts. It returns nil when every instance is DO-managed. Instances whose YAML
+// cannot be parsed are kept, so a config we cannot classify is never silently dropped.
 //
 // Matching compares each instance's own resolved instanceIdentity against matchedHosts by exact
 // string equality, not the raw DBIdentifier.Host from the RC payload and not the looser
@@ -394,36 +401,146 @@ func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdenti
 			continue
 		}
 
-		if matchesIdentifier(instance, dbID) && instanceHasDOEnabled(instance) {
+		if instanceMatchesIdentifier(instance, *dbID, cfg.Name) && instanceHasDOEnabled(instance) {
 			return instance, nil
 		}
 	}
 	return nil, lastErr
 }
 
-// matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host — per-query dbname fields handle database routing.
+// matchesIdentifier checks if a Postgres instance matches the given DB identifier. It uses the
+// resolved database_instance value when configured and falls back to the literal host. Per-query
+// dbname fields handle database routing.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
-	return instanceMatchesHost(instance, dbID.Host)
+	return instanceMatchesIdentifier(instance, *dbID, "postgres")
 }
 
-// instanceMatchesHost reports whether an integration instance targets the given host.
+// instanceMatchesIdentifier reports whether an integration instance targets the given identifier.
 // sap_hana uses "server" as the host key; postgres uses "host". The target host may be
 // "host:port" (as sent by sap_hana backends) or bare "host", so we match against both the
-// bare host and the "host:port" form built from the instance. This is the single source of
-// truth for host matching, shared by matchesIdentifier (which decides what to schedule) and
-// buildRemainder (which decides what to keep), so the two can never disagree about whether an
-// instance is targeted by a DO query action.
-func instanceMatchesHost(instance map[string]any, targetHost string) bool {
+// bare host and the "host:port" form built from the instance. Postgres also derives its
+// database_instance from a configurable template. Render the same connection and tag values as
+// the Python check and compare the resulting value.
+//
+// This is the single source of truth for selecting the instance to schedule.
+func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier, integrationName string) bool {
 	host := instanceHost(instance)
-	// Try the more specific "host:port" form first — sap_hana backends include the port in the
-	// identifier, and this form disambiguates instances that share a host but differ by port.
+	if host == identifier.Host {
+		return true
+	}
+	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
 	if port, ok := instancePort(instance); ok {
-		if fmt.Sprintf("%s:%d", host, port) == targetHost {
+		if fmt.Sprintf("%s:%d", host, port) == identifier.Host {
 			return true
 		}
 	}
-	return host == targetHost
+
+	defaultTemplate := ""
+	if integrationName == "postgres" {
+		defaultTemplate = "$resolved_hostname"
+	}
+	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, defaultTemplate)
+	return ok && databaseIdentifier == identifier.Host
+}
+
+// renderDatabaseIdentifier renders a database_identifier template using the same inputs as the
+// Postgres check. Unknown variables stay in the result, matching Python's safe_substitute.
+func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTemplate string) (string, bool) {
+	template := defaultTemplate
+	if configuredIdentifier, exists := instance["database_identifier"]; exists {
+		databaseIdentifier, ok := configuredIdentifier.(map[string]any)
+		if !ok {
+			return "", false
+		}
+		if configuredTemplate, exists := databaseIdentifier["template"]; exists {
+			var ok bool
+			template, ok = configuredTemplate.(string)
+			if !ok {
+				return "", false
+			}
+		}
+	}
+	if template == "" {
+		return "", false
+	}
+
+	values := templateTagValues(instance)
+	host := instanceHost(instance)
+	values["host"] = host
+	if port, ok := instancePort(instance); ok {
+		values["port"] = strconv.Itoa(port)
+	}
+
+	resolvedHostname := host
+	if reportedHostname, ok := instance["reported_hostname"].(string); ok && reportedHostname != "" {
+		resolvedHostname = reportedHostname
+	} else if isLocalDBHost(host) && agentHostname != "" {
+		resolvedHostname = agentHostname
+	}
+	values["resolved_hostname"] = resolvedHostname
+
+	return safeSubstitute(template, values), true
+}
+
+// templateTagValues exposes each key:value instance tag as a template variable. Duplicate keys
+// are sorted and joined with commas, matching the Postgres check.
+func templateTagValues(instance map[string]any) map[string]string {
+	var tags []string
+	switch configuredTags := instance["tags"].(type) {
+	case []any:
+		for _, configuredTag := range configuredTags {
+			if tag, ok := configuredTag.(string); ok {
+				tags = append(tags, tag)
+			}
+		}
+	case []string:
+		tags = append(tags, configuredTags...)
+	}
+	sort.Strings(tags)
+
+	values := make(map[string]string)
+	for _, tag := range tags {
+		key, value, found := strings.Cut(tag, ":")
+		if !found {
+			continue
+		}
+		if previous, exists := values[key]; exists {
+			values[key] = previous + "," + value
+		} else {
+			values[key] = value
+		}
+	}
+	return values
+}
+
+// isLocalDBHost matches the local-address cases handled by the Postgres check's host resolver.
+func isLocalDBHost(host string) bool {
+	if host == "" || host == "localhost" || strings.HasPrefix(host, "/") {
+		return true
+	}
+	if zoneIndex := strings.LastIndex(host, "%"); zoneIndex >= 0 {
+		host = host[:zoneIndex]
+	}
+	ip := net.ParseIP(strings.TrimSpace(host))
+	return ip != nil && ip.IsLoopback()
+}
+
+// safeSubstitute implements Python string.Template's $name, ${name}, and $$ forms. Unknown
+// variables remain unchanged, matching safe_substitute.
+func safeSubstitute(template string, values map[string]string) string {
+	return databaseIdentifierVariablePattern.ReplaceAllStringFunc(template, func(placeholder string) string {
+		if placeholder == "$$" {
+			return "$"
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(placeholder, "${"), "}")
+		if name == placeholder {
+			name = strings.TrimPrefix(placeholder, "$")
+		}
+		if value, ok := values[name]; ok {
+			return value
+		}
+		return placeholder
+	})
 }
 
 // instancePort returns the port number for an integration instance, if present.
@@ -435,6 +552,9 @@ func instancePort(instance map[string]any) (int, bool) {
 		return int(v), true
 	case float64:
 		return int(v), true
+	case string:
+		port, err := strconv.Atoi(v)
+		return port, err == nil
 	}
 	return 0, false
 }
