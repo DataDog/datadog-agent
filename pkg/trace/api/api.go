@@ -153,6 +153,16 @@ type HTTPReceiver struct {
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
 	Handlers map[string]http.Handler
+
+	// profileTransport is the live profiling proxy's transport, set by profileProxyHandler and
+	// updated by UpdateProfilingEndpoints when apm_config.profiling_additional_endpoints reloads.
+	// Nil if the proxy failed to initialize at startup.
+	profileTransport *multiTransport
+
+	// evpTransports holds one transport per supported EVP proxy API version, set by
+	// evpProxyHandler and updated by UpdateEVPEndpoints when evp_proxy_config.additional_endpoints
+	// reloads. Populated once during startup, before the HTTP server accepts requests.
+	evpTransports []*evpProxyTransport
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver

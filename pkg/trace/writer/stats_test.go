@@ -440,6 +440,20 @@ func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	srv.Close()
 }
 
+func TestStatsWriterUpdateEndpoints(t *testing.T) {
+	assert := assert.New(t)
+	sw, srv := testStatsSyncWriter()
+	go sw.Run()
+	defer sw.Stop()
+	defer srv.Close()
+
+	sw.UpdateEndpoints([]*config.Endpoint{{APIKey: "resolved-key", Host: srv.URL}})
+	assert.Equal("resolved-key", sw.senders[0].apiKeyManager.Get())
+
+	sw.UpdateEndpoints([]*config.Endpoint{{APIKey: "unused", Host: srv.URL}, {APIKey: "unused2", Host: srv.URL}})
+	assert.Equal("resolved-key", sw.senders[0].apiKeyManager.Get())
+}
+
 func TestStatsWriterInfo(t *testing.T) {
 	assert := assert.New(t)
 	// statsLastMinute updates depend on StatsWriter internal ticker, but are also triggered

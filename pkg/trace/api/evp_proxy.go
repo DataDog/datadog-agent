@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -62,8 +63,20 @@ func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
-	handler := evpProxyForwarder(r.conf, r.statsd)
+	handler, transport := evpProxyForwarder(r.conf, r.statsd)
+	r.evpTransports = append(r.evpTransports, transport)
 	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%d", apiVersion), handler)
+}
+
+// UpdateEVPEndpoints re-derives EVP proxy endpoints from the current config and swaps them into
+// every live EVP proxy transport (one per supported API version), so a delegated-auth key that
+// resolves after startup takes effect without a trace-agent restart.
+func (r *HTTPReceiver) UpdateEVPEndpoints() {
+	endpoints := evpProxyEndpointsFromConfig(r.conf)
+	for _, t := range r.evpTransports {
+		t.updateEndpoints(endpoints)
+	}
+	log.Infof("Reloaded EVP proxy endpoints (%d target(s))", len(endpoints))
 }
 
 // evpProxyErrorHandler returns an HTTP handler that will always return
@@ -79,9 +92,16 @@ func evpProxyErrorHandler(message string) http.Handler {
 // one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
-func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) http.Handler {
+func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) (http.Handler, *evpProxyTransport) {
 	endpoints := evpProxyEndpointsFromConfig(conf)
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
+	transport := &evpProxyTransport{
+		transport:           conf.NewHTTPTransport(),
+		conf:                conf,
+		containerIDProvider: NewContainerIDProviderFromConfig(conf),
+		statsd:              statsd,
+	}
+	transport.updateEndpoints(endpoints)
 	return &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			// The X-Forwarded-For header can be abused to fake the origin of requests and we don't need it,
@@ -89,8 +109,8 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd},
-	}
+		Transport: transport,
+	}, transport
 }
 
 // evpProxyTransport sends HTTPS requests to multiple targets using an
@@ -100,10 +120,15 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 // response is discarded.
 type evpProxyTransport struct {
 	transport           http.RoundTripper
-	endpoints           []config.Endpoint
+	endpoints           atomic.Pointer[[]config.Endpoint]
 	conf                *config.AgentConfig
 	containerIDProvider IDProvider
 	statsd              statsd.ClientInterface
+}
+
+// updateEndpoints atomically replaces the endpoints used by RoundTrip.
+func (t *evpProxyTransport) updateEndpoints(endpoints []config.Endpoint) {
+	t.endpoints.Store(&endpoints)
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -192,9 +217,11 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
 
+	endpoints := *t.endpoints.Load()
+
 	// Shortcut if we only have one endpoint
-	if len(t.endpoints) == 1 {
-		setTarget(req, t.endpoints[0].Host, t.endpoints[0].APIKey)
+	if len(endpoints) == 1 {
+		setTarget(req, endpoints[0].Host, endpoints[0].APIKey)
 		return t.transport.RoundTrip(req)
 	}
 
@@ -207,7 +234,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		}
 		slurp = body
 	}
-	for i, endpointDomain := range t.endpoints {
+	for i, endpointDomain := range endpoints {
 		newreq := req.Clone(req.Context())
 		if slurp != nil {
 			newreq.Body = io.NopCloser(bytes.NewReader(slurp))

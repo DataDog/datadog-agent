@@ -80,6 +80,11 @@ type Writer interface {
 
 	// UpdateAPIKey signals the Writer to update the API Keys stored in its senders config.
 	UpdateAPIKey(oldKey, newKey string)
+
+	// UpdateEndpoints signals the Writer to re-derive its senders' API keys from endpoints, a
+	// freshly reloaded additional_endpoints-derived endpoint list. Matches senders to endpoints
+	// positionally; a change in the number of endpoints requires a restart to take effect.
+	UpdateEndpoints(endpoints []*config.Endpoint)
 }
 
 // TraceWriter provides a way to write trace chunks
@@ -316,6 +321,28 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
 	a.TraceWriterV1.UpdateAPIKey(oldKey, newKey)
 	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
+}
+
+// UpdateAdditionalEndpoints propagates a live reload of a trace-relevant additional_endpoints
+// setting (APM, profiling, or EVP) to the components that snapshotted it at startup - most
+// notably a delegated-auth (WIF) key that resolves in the background after the agent's initial
+// synchronous exchange failed.
+func (a *Agent) UpdateAdditionalEndpoints(setting string) {
+	switch setting {
+	case "apm_config.additional_endpoints":
+		log.Infof("apm_config.additional_endpoints changed. Updating trace-agent senders...")
+		a.TraceWriter.UpdateEndpoints(a.conf.Endpoints)
+		a.TraceWriterV1.UpdateEndpoints(a.conf.Endpoints)
+		a.StatsWriter.UpdateEndpoints(a.conf.Endpoints)
+	case "apm_config.profiling_additional_endpoints":
+		log.Infof("apm_config.profiling_additional_endpoints changed. Updating profiling proxy...")
+		a.Receiver.UpdateProfilingEndpoints()
+	case "evp_proxy_config.additional_endpoints":
+		log.Infof("evp_proxy_config.additional_endpoints changed. Updating EVP proxy...")
+		a.Receiver.UpdateEVPEndpoints()
+	default:
+		log.Warnf("UpdateAdditionalEndpoints: unrecognized setting %q", setting)
+	}
 }
 
 func (a *Agent) work() {

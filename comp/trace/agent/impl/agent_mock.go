@@ -14,6 +14,7 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -31,6 +32,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
 func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
+func (n *noopTraceWriter) UpdateEndpoints(_ []*config.Endpoint) {}
 
 type noopConcentrator struct{}
 

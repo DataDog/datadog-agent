@@ -551,3 +551,27 @@ func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	assert.Equal("foo", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 }
+
+func TestTraceWriterV1UpdateEndpoints(t *testing.T) {
+	assert := assert.New(t)
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 1_000},
+	}
+
+	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+	defer tw.Stop()
+
+	tw.UpdateEndpoints([]*config.Endpoint{{APIKey: "resolved-key", Host: srv.URL}})
+	assert.Equal("resolved-key", tw.senders[0].apiKeyManager.Get())
+
+	tw.UpdateEndpoints([]*config.Endpoint{{APIKey: "unused", Host: srv.URL}, {APIKey: "unused2", Host: srv.URL}})
+	assert.Equal("resolved-key", tw.senders[0].apiKeyManager.Get())
+}
