@@ -48,7 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.80.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.83.0-devel.0.20260714134811-fee4bbf7ff73 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.80.2 // indirect

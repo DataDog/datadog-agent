@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.80.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.83.0-devel.0.20260714134811-fee4bbf7ff73 // indirect
