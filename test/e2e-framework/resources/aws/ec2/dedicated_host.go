@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 package ec2
 
@@ -16,9 +16,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// DedicatedHostArgs configures an EC2 Dedicated Host, required to launch a macOS
-// instance (macOS EC2 instances only run on Dedicated Hosts, never on shared
-// tenancy).
 type DedicatedHostArgs struct {
 	// Mandatory
 	InstanceType string // e.g., "mac1.metal", "mac2.metal"
@@ -29,7 +26,7 @@ type DedicatedHostArgs struct {
 	Tags             pulumi.StringMap
 }
 
-// NewDedicatedHost creates an EC2 Dedicated Host for macOS instances.
+// NewDedicatedHost creates an EC2 Dedicated Host for Mac instances
 func NewDedicatedHost(e aws.Environment, name string, args DedicatedHostArgs, opts ...pulumi.ResourceOption) (*ec2.DedicatedHost, error) {
 	if args.InstanceType == "" {
 		return nil, fmt.Errorf("InstanceType is required for dedicated host")
@@ -66,8 +63,6 @@ func NewDedicatedHost(e aws.Environment, name string, args DedicatedHostArgs, op
 	return ec2.NewDedicatedHost(e.Ctx(),
 		e.Namer.ResourceName(name),
 		dedicatedHostArgs,
-		// Retain on delete: a Dedicated Host must live 24h before it can be
-		// deleted, so it's never actually destroyed by Pulumi.
-		utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS), pulumi.RetainOnDelete(true))...,
+		utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS), pulumi.RetainOnDelete(true))..., // Retain on delete because deleting a dedicated host is not possible unless it lived for at least 24 hours, the cleanup will be done by test-infra-cleaner
 	)
 }
