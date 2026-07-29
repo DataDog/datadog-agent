@@ -170,14 +170,14 @@ properties:
         type: object
         default: {}
         env_parser: json
-        comment: |-
-          Optional local restriction on backend system-service grants. When
-          unset, backend grants pass through; an explicit empty map denies all.
-          The environment variable accepts a JSON object only.
         additionalProperties:
           items:
             type: string
           type: array
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The environment variable accepts a JSON object only.
   skip_connection_creation:
     node_type: setting
     type: boolean
