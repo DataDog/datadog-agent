@@ -1,0 +1,37 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+
+extensions:
+  pprof/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  zpages/dd-autoconfigured:
+    endpoint: "localhost:55679"
+  datadog/dd-autoconfigured:
+    api:
+      key: "ENC[vault://applications/datadog-agent/shared/agent-api-key#/data/value]"
+      site: "datadoghq.com"
+    deployment_type: daemonset
+    hostname: test-host
+    installation_method: "bare-metal"
+
+service:
+  extensions:
+    [
+      pprof/dd-autoconfigured,
+      zpages/dd-autoconfigured,
+      health_check/dd-autoconfigured,
+      datadog/dd-autoconfigured,
+    ]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]

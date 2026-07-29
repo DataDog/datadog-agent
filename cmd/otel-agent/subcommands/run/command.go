@@ -195,7 +195,15 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		collectorfx.Module(collectorimpl.NewParams(params.BYOC)),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
-		fx.Provide(func(cp converter.Component) confmap.Converter {
+		// The confmap.Converter bakes coreConfig's api_key/site into the
+		// auto-injected "datadog" extension at Convert()-time (see
+		// converter/impl/autoconfigure.go). In connected mode that value only
+		// becomes trustworthy once the on-init config sync from the core agent
+		// has completed (it may resolve a still-unresolved secret received via
+		// the local env/file layers). Depending on configsync.Component here
+		// forces FX to construct/block on it first, so Convert() always sees the
+		// synced value instead of racing it.
+		fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {

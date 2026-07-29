@@ -1,0 +1,5 @@
+api_key: "ENC[vault://applications/datadog-agent/shared/agent-api-key#/data/value]"
+otelcollector:
+  converter:
+    features: [pprof, zpages, health_check, datadog]
+  installation_method: bare-metal

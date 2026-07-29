@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -433,6 +434,19 @@ func TestConvert(t *testing.T) {
 			hostnameErr:    true,
 		},
 		{
+			// OTAGENT-1024 / incident-58405 follow-up: the auto-injected "datadog"
+			// extension bakes coreConfig's api_key verbatim at Convert()-time, with
+			// no secret resolution and no later correction mechanism (unlike the
+			// dd_url/site OnUpdate path). An unresolved ENC[] reference gets baked
+			// in as-is, which is exactly what produces 403s from the extension's
+			// isolated forwarder when config sync's resolved value arrives too late
+			// or not at all.
+			name:           "extensions/no-extensions/datadog-unresolved-secret",
+			provided:       "extensions/no-extensions/datadog-unresolved-secret/config.yaml",
+			expectedResult: "extensions/no-extensions/datadog-unresolved-secret/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/datadog-unresolved-secret/acfg.yaml",
+		},
+		{
 			name:           "extensions/standalone/dogtel-injected",
 			provided:       "extensions/standalone/dogtel-injected/config.yaml",
 			expectedResult: "extensions/standalone/dogtel-injected/config-result.yaml",
@@ -589,6 +603,44 @@ func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+}
+
+// TestConvert_ExtensionAPIKeyIsStaticSnapshot demonstrates that the "datadog"
+// extension auto-injected by Convert() bakes a one-time, static snapshot of
+// coreConfig's api_key into a plain map. A later correction to coreConfig
+// (e.g. a config-sync update replacing a stale/unresolved value with the
+// resolved one) is never reflected in configuration that was already
+// produced by an earlier Convert() call. This is what allows the injected
+// extension's forwarder to keep using an unresolved `ENC[...]` secret
+// reference (see OTAGENT-1024 / incident-58405 follow-up) even after the
+// shared config has since been corrected.
+func TestConvert_ExtensionAPIKeyIsStaticSnapshot(t *testing.T) {
+	acfg := config.NewMock(t)
+	acfg.Set("api_key", "ENC[vault://stale-unresolved-secret]", pkgconfigmodel.SourceFile)
+
+	converter, err := NewComponent(Requires{Conf: acfg, Hostname: &mockHostname{hostname: "test-host"}})
+	require.NoError(t, err)
+
+	resolver, err := newResolver(uriFromFile("extensions/no-extensions/datadog-unresolved-secret/config.yaml"))
+	require.NoError(t, err)
+	conf, err := resolver.Resolve(context.Background())
+	require.NoError(t, err)
+
+	converter.Convert(context.Background(), conf)
+
+	bakedKey := func(m *confmap.Conf) interface{} {
+		return m.ToStringMap()["extensions"].(map[string]interface{})["datadog/dd-autoconfigured"].(map[string]interface{})["api"].(map[string]interface{})["key"]
+	}
+	require.Equal(t, "ENC[vault://stale-unresolved-secret]", bakedKey(conf),
+		"the freshly-injected extension should have baked the stale/unresolved api_key verbatim")
+
+	// Simulate config sync correcting the shared config after the extension's
+	// config has already been produced.
+	acfg.Set("api_key", "corrected-resolved-key", pkgconfigmodel.SourceLocalConfigProcess)
+
+	assert.Equal(t, "ENC[vault://stale-unresolved-secret]", bakedKey(conf),
+		"the already-produced extension config must NOT change when coreConfig is corrected later; "+
+			"this is the bug: the baked api_key is a dead snapshot, not a live binding")
 }
 
 func TestHostmetricsWarning(t *testing.T) {
