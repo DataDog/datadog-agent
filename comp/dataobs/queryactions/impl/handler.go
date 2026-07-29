@@ -23,6 +23,8 @@ import (
 
 var databaseIdentifierVariablePattern = regexp.MustCompile(`\$\$|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
 
+const defaultPostgresPort = 5432
+
 // A "base config" is a postgres integration.Config emitted by another provider (typically the
 // file provider reading conf.d/postgres.d/conf.yaml) that a DO query action matched against via
 // findPostgresConfig — i.e. the config as it exists before DO touches it. A single base config
@@ -436,16 +438,18 @@ func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier,
 	}
 
 	defaultTemplate := ""
+	defaultPort := 0
 	if integrationName == "postgres" {
 		defaultTemplate = "$resolved_hostname"
+		defaultPort = defaultPostgresPort
 	}
-	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, defaultTemplate)
+	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, defaultTemplate, defaultPort)
 	return ok && databaseIdentifier == identifier.Host
 }
 
 // renderDatabaseIdentifier renders a database_identifier template using the same inputs as the
 // Postgres check. Unknown variables stay in the result, matching Python's safe_substitute.
-func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTemplate string) (string, bool) {
+func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTemplate string, defaultPort int) (string, bool) {
 	template := defaultTemplate
 	if configuredIdentifier, exists := instance["database_identifier"]; exists {
 		databaseIdentifier, ok := configuredIdentifier.(map[string]any)
@@ -469,6 +473,8 @@ func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTem
 	values["host"] = host
 	if port, ok := instancePort(instance); ok {
 		values["port"] = strconv.Itoa(port)
+	} else if _, configured := instance["port"]; !configured && defaultPort != 0 {
+		values["port"] = strconv.Itoa(defaultPort)
 	}
 
 	resolvedHostname := host

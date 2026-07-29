@@ -108,6 +108,21 @@ func TestMatchesIdentifier_DatabaseIdentifierTemplate(t *testing.T) {
 		}
 		assert.False(t, matchesIdentifier(instance, dbID))
 	})
+
+	t.Run("uses default Postgres port", func(t *testing.T) {
+		instanceWithoutPort := map[string]any{
+			"host": "localhost",
+			"database_identifier": map[string]any{
+				"template": "$resolved_hostname:$port",
+			},
+		}
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging:5432",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.True(t, matchesIdentifier(instanceWithoutPort, dbID))
+	})
 }
 
 func TestMatchesIdentifier_DatabaseIdentifierTemplateUsesTags(t *testing.T) {
