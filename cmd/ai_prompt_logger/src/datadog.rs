@@ -378,7 +378,10 @@ mod tests {
             &mut evp_subdomain,
         );
 
-        assert_eq!(agent_base, "http://127.0.0.1:8126", "unset key stays default");
+        assert_eq!(
+            agent_base, "http://127.0.0.1:8126",
+            "unset key stays default"
+        );
         assert_eq!(proxy_version, 3, "present key overrides");
         assert_eq!(
             evp_subdomain, AI_USAGE_EVP_SUBDOMAIN,
