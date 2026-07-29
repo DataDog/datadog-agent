@@ -9,7 +9,7 @@ use dd_sds::{
 };
 use serde_json::Value;
 
-use crate::payload::Match;
+use crate::proto::TableMatch as Match;
 
 mod rule;
 pub use rule::ScanningRule;
@@ -75,6 +75,7 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Matc
                 rule_id,
                 column_name: column.to_string(),
                 count_matched_rows: paths.len() as i64,
+                ..Default::default()
             })
         })
         .collect()
