@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	corev1 "k8s.io/api/core/v1"
@@ -372,8 +373,9 @@ func (c *Controller) checkValidNodeClass(ctx context.Context, knp *karpenterv1.N
 		log.Debugf("NodeClass %s not found, falling back to an existing NodeClass", nc.Name)
 	}
 
-	// Get NodeClass. If there's none or more than one, then we should not create the NodePool
-	nodeClassRef, err := c.discoverNodeClass(ctx)
+	// Get NodeClass. If there's none, or more than one that can't be unambiguously resolved by
+	// os/arch, then we should not create the NodePool
+	nodeClassRef, err := c.discoverNodeClass(ctx, knp)
 	if err != nil {
 		return nil, err
 	}
@@ -382,40 +384,75 @@ func (c *Controller) checkValidNodeClass(ctx context.Context, knp *karpenterv1.N
 }
 
 // discoverNodeClass attempts to find a single node class from supported providers.
-// It tries manual Karpenter (EC2NodeClass) first, then falls back to EKS Auto Mode (NodeClass).
-// Returns the NodeClassReference for the discovered node class, or an error if none or too many are found.
-func (c *Controller) discoverNodeClass(ctx context.Context) (*karpenterv1.NodeClassReference, error) {
-	for _, provider := range []struct {
+// It prefers EKS Auto Mode (NodeClass) when the cluster has it enabled, since a user who set up
+// Auto Mode is assumed to want it used by default, and falls back to manual Karpenter
+// (EC2NodeClass) otherwise. If more than one NodeClass is found, it attempts to disambiguate
+// using the NodePool's os/arch requirements. Returns the NodeClassReference for the discovered
+// node class, or an error if none are found or the ambiguity can't be resolved.
+func (c *Controller) discoverNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodeClassReference, error) {
+	// ambiguityErr accumulates every unresolved-ambiguity error we hit, so an ambiguous
+	// provider tier doesn't abort discovery outright: a later provider tier may still resolve
+	// unambiguously and should win. If every tier is ambiguous, the joined error reports all of
+	// them instead of just the first.
+	var ambiguityErr error
+	// listErr accumulates List errors from tiers other than "the CRD doesn't exist", so that an
+	// error on one tier (e.g. an RBAC gap on the EKS Auto Mode NodeClass resource) doesn't abort
+	// discovery for a cluster that only needs a later, otherwise-healthy tier.
+	var listErr error
+	providers := []struct {
 		gvr  schema.GroupVersionResource
 		kind string
 	}{
-		{gvr: ec2NodeClassGVR, kind: "EC2NodeClass"},
 		{gvr: eksNodeClassGVR, kind: "NodeClass"},
-	} {
+		{gvr: ec2NodeClassGVR, kind: "EC2NodeClass"},
+	}
+	for i, provider := range providers {
+		// nextTierNote makes the log lines below accurately reflect whether there's actually
+		// another provider tier left to fall back to, instead of always claiming one is coming.
+		nextTierNote := ", trying next provider"
+		if i == len(providers)-1 {
+			nextTierNote = ""
+		}
+
 		ncList, err := c.Client.Resource(provider.gvr).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				log.Debugf("NodeClass CRD %s/%s not found, trying next provider", provider.gvr.Group, provider.kind)
+				log.Debugf("NodeClass CRD %s/%s not found%s", provider.gvr.Group, provider.kind, nextTierNote)
 				continue
 			}
-			return nil, fmt.Errorf("unable to list %s/%s NodeClasses: %w", provider.gvr.Group, provider.kind, err)
+			log.Warnf("Unable to list %s/%s NodeClasses%s: %v", provider.gvr.Group, provider.kind, nextTierNote, err)
+			listErr = errors.Join(listErr, fmt.Errorf("unable to list %s/%s NodeClasses: %w", provider.gvr.Group, provider.kind, err))
+			continue
 		}
 
 		if len(ncList.Items) == 0 {
 			continue
 		}
 
+		name := ncList.Items[0].GetName()
 		if len(ncList.Items) > 1 {
-			return nil, fmt.Errorf("too many %s NodeClasses found (%d), NodePool cannot be created", provider.gvr.Group, len(ncList.Items))
+			matched, found := attemptNodeClassMatch(ncList.Items, knp)
+			if !found {
+				log.Debugf("Multiple %s NodeClasses found for NodePool %s (%d), ambiguous based on os/arch requirements%s",
+					provider.gvr.Group, knp.Name, len(ncList.Items), nextTierNote)
+				ambiguityErr = errors.Join(ambiguityErr, fmt.Errorf("too many %s NodeClasses found (%d), NodePool cannot be created", provider.gvr.Group, len(ncList.Items)))
+				continue
+			}
+			log.Infof("Multiple %s NodeClasses found for NodePool %s, matched %q based on os/arch requirements, passed over: %s",
+				provider.gvr.Group, knp.Name, matched, strings.Join(otherNames(ncList.Items, matched), ", "))
+			name = matched
 		}
 
 		return &karpenterv1.NodeClassReference{
 			Kind:  provider.kind,
-			Name:  ncList.Items[0].GetName(),
+			Name:  name,
 			Group: provider.gvr.Group,
 		}, nil
 	}
 
+	if err := errors.Join(ambiguityErr, listErr); err != nil {
+		return nil, err
+	}
 	return nil, errors.New("no NodeClasses found from any supported provider, NodePool cannot be created")
 }
 
