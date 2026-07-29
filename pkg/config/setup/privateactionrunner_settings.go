@@ -53,21 +53,14 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	//     handled as a special case in the operator-side intersection: when
 	//     it appears in the operator list, every backend command in the
 	//     "rshell:" namespace is admitted.
-	//   - allowed_system_services is unset by default, so the backend remains
-	//     the only filter. An explicit empty map denies every system service;
-	//     a non-empty map further restricts the backend grants by service and
-	//     action. Its env var accepts a JSON object only.
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_paths", []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_paths", config)
 
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{"rshell:*"})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
 
-	// The empty map below is only the typed default registered with the config
-	// system; defaults do not make IsConfigured return true. The PAR config
-	// adapter converts an unconfigured value to nil, which means no operator-side
-	// restriction and lets the backend grants pass through. An explicitly
-	// configured empty map remains non-nil and denies every system service.
+	// IsConfigured distinguishes this typed default (backend-only) from an
+	// explicitly configured empty map (deny all).
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 	config.ParseEnvJSON("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 

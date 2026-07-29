@@ -425,16 +425,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
-func TestFromDDConfigPARRestrictedShellAllowedSystemServicesUnset(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-
-	cfg, err := FromDDConfig(mockConfig, nil)
-	require.NoError(t, err)
-	assert.Nil(t, cfg.RShellAllowedSystemServices)
-}
-
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
@@ -450,18 +440,6 @@ func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
 		"mysql.service": {"read", "restart"},
 		"nginx.service": {"read"},
 	}, cfg.RShellAllowedSystemServices)
-}
-
-func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmpty(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedSystemServices, map[string][]string{})
-
-	cfg, err := FromDDConfig(mockConfig, nil)
-	require.NoError(t, err)
-	assert.NotNil(t, cfg.RShellAllowedSystemServices)
-	assert.Empty(t, cfg.RShellAllowedSystemServices)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {
@@ -623,8 +601,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *test
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: both axes fall back to their registered
-	// defaults.
 	yaml := `
 private_action_runner:
   enabled: true

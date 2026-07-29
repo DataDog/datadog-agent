@@ -156,10 +156,7 @@ func rshellAllowedCommands(config config.Component) []string {
 	return commands
 }
 
-// rshellAllowedSystemServices returns the operator-configured system service
-// restrictions. A nil map means that the setting was not configured and the
-// backend remains the only filter. A configured empty map is preserved as the
-// explicit deny-all kill switch.
+// Nil means unset; a configured empty map is the explicit deny-all policy.
 func rshellAllowedSystemServices(config config.Component) map[string][]string {
 	if !config.IsConfigured(setup.PARRestrictedShellAllowedSystemServices) {
 		return nil
