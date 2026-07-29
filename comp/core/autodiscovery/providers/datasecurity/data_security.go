@@ -24,6 +24,8 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 )
 
+// TODO(dsec-215): mutualize code principles with datastreams/kafka_actions.go.
+
 const (
 	// dataSecurityCheckName is the Rust shared-library check scheduled on a scan task.
 	dataSecurityCheckName = "datasecurity"
