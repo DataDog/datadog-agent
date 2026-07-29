@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add support for tags on Network Path Remote Configuration tests. Scheduled
+    test results combine configuration-level and endpoint tags, while dynamic
+    test results include tags from the Remote Configuration rule that admitted
+    the path.
