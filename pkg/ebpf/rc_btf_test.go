@@ -49,6 +49,10 @@ func (rc *mockRCClient) Subscribe(product data.Product, fn func(update map[strin
 
 func (rc *mockRCClient) SubscribeAgentTask() {}
 
+func (rc *mockRCClient) GetConfigs(_ data.Product) map[string]state.RawConfig { return nil }
+
+func (rc *mockRCClient) UpdateApplyStatus(_ string, _ state.ApplyStatus) {}
+
 func TestRemoteConfigBTFTimeout(t *testing.T) {
 	skipIfUnsupported(t)
 	cfg := &Config{

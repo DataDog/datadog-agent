@@ -32,6 +32,10 @@ func (m *mockRCClient) Subscribe(_ data.Product, fn func(map[string]state.RawCon
 	m.subscribedCh <- fn
 }
 
+func (m *mockRCClient) GetConfigs(_ data.Product) map[string]state.RawConfig { return nil }
+
+func (m *mockRCClient) UpdateApplyStatus(_ string, _ state.ApplyStatus) {}
+
 func newMockRCClient() *mockRCClient {
 	return &mockRCClient{
 		subscribedCh: make(chan func(map[string]state.RawConfig, func(string, state.ApplyStatus)), 1),
