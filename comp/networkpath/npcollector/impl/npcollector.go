@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"iter"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -209,6 +210,7 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 type pathEvaluation struct {
 	shouldSchedule bool
 	testConfigID   string
+	tags           []string
 }
 
 func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) pathEvaluation {
@@ -241,14 +243,14 @@ func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathCon
 	}
 
 	s.filterMutex.RLock()
-	included, testConfigID := s.filter.Evaluate(conn.Domain, conn.Dest.Addr())
+	included, testConfigID, tags := s.filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
 	s.filterMutex.RUnlock()
 	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return pathEvaluation{}
 	}
 
-	return pathEvaluation{shouldSchedule: true, testConfigID: testConfigID}
+	return pathEvaluation{shouldSchedule: true, testConfigID: testConfigID, tags: tags}
 }
 
 func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) bool {
@@ -320,6 +322,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		}
 		pathtest := s.makePathtest(conn, origin)
 		pathtest.TestConfigID = evaluation.testConfigID
+		pathtest.Tags = evaluation.tags
 		if evaluation.testConfigID != "" {
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
@@ -443,6 +446,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.TestConfigID = ptest.Pathtest.TestConfigID
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
+	path.Tags = slices.Clone(ptest.Pathtest.Tags)
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
 		path.SourceProduct = payload.SourceProductNetflow

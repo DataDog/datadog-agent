@@ -48,7 +48,8 @@ type Provider struct {
 }
 
 type remoteConfigEnvelope struct {
-	Type string `json:"type"`
+	Type string   `json:"type"`
+	Tags []string `json:"tags,omitempty"`
 	// TestConfigID identifies the scheduled test definition shared by all endpoints in Config.
 	TestConfigID string           `json:"test_config_id"`
 	Config       *scheduledConfig `json:"config"`
@@ -272,7 +273,7 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 
 	configs := make([]integration.Config, 0, len(envelope.Config.Tests))
 	for i, endpoint := range envelope.Config.Tests {
-		instance, err := translateEndpoint(testConfigID, endpoint)
+		instance, err := translateEndpoint(testConfigID, envelope.Tags, endpoint)
 		if err != nil {
 			return nil, fmt.Errorf("invalid Network Path config at tests[%d]: %w", i, err)
 		}
@@ -292,7 +293,7 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 	return configs, nil
 }
 
-func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
+func translateEndpoint(testConfigID string, configTags []string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
 	hostname := strings.TrimSpace(endpoint.Hostname)
 	if hostname == "" {
 		return networkPathInstanceConfig{}, errors.New("hostname is required")
@@ -305,7 +306,7 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 		DestinationService:    endpoint.DestinationService,
 		TracerouteQueries:     endpoint.TracerouteQueries,
 		E2eQueries:            endpoint.E2eQueries,
-		Tags:                  endpoint.Tags,
+		Tags:                  mergeTags(configTags, endpoint.Tags),
 		MinCollectionInterval: endpoint.IntervalSec,
 	}
 
@@ -368,6 +369,21 @@ func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPat
 	}
 
 	return instance, nil
+}
+
+func mergeTags(tagSets ...[]string) []string {
+	seen := make(map[string]struct{})
+	var merged []string
+	for _, tags := range tagSets {
+		for _, tag := range tags {
+			if _, found := seen[tag]; found {
+				continue
+			}
+			seen[tag] = struct{}{}
+			merged = append(merged, tag)
+		}
+	}
+	return merged
 }
 
 func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
