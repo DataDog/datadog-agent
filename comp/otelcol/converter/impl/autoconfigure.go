@@ -9,6 +9,7 @@ package converterimpl
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -69,9 +70,19 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 					resolvedHostname = hostname
 				}
 			}
+			bakedAPIKey := c.coreConfig.GetString("api_key")
+			bakedAPIKeySuffix := bakedAPIKey
+			if len(bakedAPIKeySuffix) > 4 {
+				bakedAPIKeySuffix = bakedAPIKeySuffix[len(bakedAPIKeySuffix)-4:]
+			}
+			c.logger.Warn("INCIDENT-58405-DEBUG: baking api_key into datadog/dd-autoconfigured extension: len=" +
+				strconv.Itoa(len(bakedAPIKey)) + " suffix=" + bakedAPIKeySuffix +
+				" source=" + string(c.coreConfig.GetSource("api_key")) +
+				" isConfigured=" + strconv.FormatBool(c.coreConfig.IsConfigured("api_key")) +
+				" site=" + site)
 			extension.Config = map[string]any{
 				"api": map[string]any{
-					"key":  c.coreConfig.GetString("api_key"),
+					"key":  bakedAPIKey,
 					"site": site,
 				},
 				"deployment_type":     deploymentType,
