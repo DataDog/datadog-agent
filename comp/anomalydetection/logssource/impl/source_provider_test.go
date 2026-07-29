@@ -100,6 +100,17 @@ func TestHandleSet_AddsRunningContainer(t *testing.T) {
 	assert.Len(t, ls.GetSources(), 1)
 }
 
+func TestHandleSet_DisablesAdaptiveSampling(t *testing.T) {
+	sp, ls := newTestSourceProvider()
+	sp.handleSet(runningContainer("abc", "nginx"))
+	srcs := ls.GetSources()
+	require.Len(t, srcs, 1)
+	as := srcs[0].Config.ExperimentalAdaptiveSampling
+	require.NotNil(t, as, "ExperimentalAdaptiveSampling must be set")
+	require.NotNil(t, as.Enabled, "ExperimentalAdaptiveSampling.Enabled must be set")
+	assert.False(t, *as.Enabled, "adaptive sampling must be disabled on logssource sources")
+}
+
 func TestHandleSet_SkipsNonRunning(t *testing.T) {
 	sp, ls := newTestSourceProvider()
 	c := runningContainer("abc", "nginx")

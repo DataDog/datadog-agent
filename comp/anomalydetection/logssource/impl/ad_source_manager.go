@@ -44,6 +44,7 @@ func (m *adSourceManager) AddSource(src *sources.LogSource) {
 	if isContainerSource(src) && m.sp.isAgentContainerID(src.Config.Identifier) {
 		return
 	}
+	disableAdaptiveSampling(src.Config)
 	m.logSources.AddSource(src)
 	if isContainerSource(src) {
 		m.sp.suppressIdentifier(src.Config.Identifier)
@@ -87,4 +88,17 @@ func isContainerSource(src *sources.LogSource) bool {
 		return true
 	}
 	return false
+}
+
+// disableAdaptiveSampling stamps an explicit Enabled=false override on cfg so that
+// the decoder always picks NoopSampler for logssource sources, regardless of the
+// global logs_config.experimental_adaptive_sampling.enabled flag. The observer
+// pipeline must receive an unsampled stream; dropping logs here would cause the
+// anomaly detection engine to miss anomalies hidden in suppressed patterns.
+func disableAdaptiveSampling(cfg *logsconfig.LogsConfig) {
+	disabled := false
+	if cfg.ExperimentalAdaptiveSampling == nil {
+		cfg.ExperimentalAdaptiveSampling = &logsconfig.SourceAdaptiveSamplingOptions{}
+	}
+	cfg.ExperimentalAdaptiveSampling.Enabled = &disabled
 }
