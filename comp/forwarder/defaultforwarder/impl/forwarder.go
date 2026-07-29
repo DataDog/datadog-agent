@@ -90,17 +90,12 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 	return options, nil
 }
 
-// markPendingDelegatedAuthDomains recomputes HasPendingDelegatedAuth for each domain from
-// delegatedAuth.IsManaged, which is the sole source of truth for whether a domain is currently
-// WIF-managed. utils.GetMultipleEndpoints only sets an initial guess for HasPendingDelegatedAuth
-// by checking whether the current api_key config value has a literal DELA(...) prefix - that
-// guess doesn't account for configureAdditionalEndpointsDelegatedAuth rejecting a malformed
-// directive or unsupported provider without ever registering it with delegated auth. Trusting
-// the initial guess for a rejected directive would leave the domain permanently "pending" and
-// its payloads would be retried forever instead of eventually dropping on repeated 403s. So this
-// function always overwrites the flag with the freshly computed IsManaged result. This also
-// covers the primary domain, which GetMultipleEndpoints never marks at all (it only inspects
-// `additional_endpoints`).
+// markPendingDelegatedAuthDomains overwrites HasPendingDelegatedAuth for each domain with
+// delegatedAuth.IsManaged's result. GetMultipleEndpoints only guesses from a literal DELA(...)
+// prefix, which stays true even for a directive that was rejected as malformed/unsupported and
+// never registered - IsManaged is needed as the source of truth so a rejected domain's payloads
+// eventually drop instead of retrying forever. This also covers the primary domain, which
+// GetMultipleEndpoints never marks (it only inspects `additional_endpoints`).
 func markPendingDelegatedAuthDomains(endpoints utils.EndpointDescriptorSet, config config.Component, delegatedAuth delegatedauth.Component) {
 	if delegatedAuth == nil {
 		return

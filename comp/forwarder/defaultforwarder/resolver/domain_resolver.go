@@ -409,16 +409,11 @@ func (r *domainResolver) IsUsable() bool {
 	return r.IsLocal() || len(r.dedupedAPIKeys) > 0 || r.hasPendingDelegatedAuth
 }
 
-// HasPendingDelegatedAuth reports whether the API key at apiKeyIdx (an index into GetAPIKeys(),
-// the same indexing transaction.HTTPTransaction.APIKeyIndex and Authorize use) is a delegated-auth
-// (WIF) placeholder still awaiting resolution, so callers can tell a transient auth failure apart
-// from a bad static key. This has to be checked per key rather than once for the whole domain: a
-// domain can mix a statically-configured key with a DELA-managed one (dual shipping to more than
-// one org), and a 403 against the static key's index must not be treated as transient just because
-// some other key on the same domain is still pending. A pending placeholder key is recognized by
-// its value still being the literal DELA(...) directive text (see utils.MakeEndpoints) - once
-// delegated auth resolves it, UpdateAPIKeys overwrites that config-path's keys with the real value,
-// so the placeholder text (and this check) naturally stops matching for that index.
+// HasPendingDelegatedAuth reports whether the API key at apiKeyIdx (an index into GetAPIKeys(), the
+// same indexing transaction.HTTPTransaction.APIKeyIndex and Authorize use) is still a DELA(...)
+// placeholder awaiting resolution. Checked per key rather than once for the whole domain, since a
+// domain can mix a static key with a DELA-managed one and a 403 on the static key's index must not
+// be treated as transient just because another key on the domain is still pending.
 func (r *domainResolver) HasPendingDelegatedAuth(apiKeyIdx uint) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
