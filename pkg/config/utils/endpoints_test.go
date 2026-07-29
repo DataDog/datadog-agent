@@ -200,17 +200,16 @@ additional_endpoints:
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
-	// A domain whose only entry is a pending DELA(...) directive still gets a resolver (with zero
-	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
-	// auth has a chance to deliver a real key.
-	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
-		{ConfigSettingPath: "additional_endpoints", Keys: []string{}},
-	})
+	// A domain whose only entry is a pending DELA(...) directive still gets a resolver marked
+	// HasPendingDelegatedAuth, with the directive text itself kept as a placeholder key so a
+	// transaction still gets created for it (a domain with zero keys never gets a transaction,
+	// so it would never receive a 403 to trigger the retry-not-drop path). The placeholder gets
+	// replaced with the real key once delegated auth resolves it.
+	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", newAPIKeyset("additional_endpoints", "DELA(some-org-uuid, aws)"))
 	secondOrg.HasPendingDelegatedAuth = true
 
-	// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
-	// real-key list until delegated auth resolves it, but the domain is still marked pending.
-	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key"))
+	// A coexisting static key is preserved alongside the DELA(...) placeholder.
+	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", newAPIKeyset("additional_endpoints", "some-static-key", "DELA(some-other-org-uuid, aws, region=us-east-1)"))
 	thirdOrg.HasPendingDelegatedAuth = true
 
 	expectedMultipleEndpoints := EndpointDescriptorSet{

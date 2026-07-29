@@ -108,9 +108,13 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 			}
 			if IsDelaDirective(trimmedAPIKey) {
 				// Not a real API key (yet) - the delegatedauth component resolves this
-				// asynchronously and writes the real key into this same config slot.
+				// asynchronously and writes the real key into this same config slot. Keep the
+				// directive text itself as a placeholder key rather than dropping it: transactions
+				// are created one per resolver API key (see domainResolver.GetAuthorizers), so a
+				// domain with zero keys never gets a transaction, never receives a 403, and never
+				// triggers the retry-not-drop path - the placeholder gets a real 403 immediately,
+				// which routes into that path until UpdateAPIKeys replaces it with the real key.
 				hasPendingDelegatedAuth = true
-				continue
 			}
 			trimmed = append(trimmed, trimmedAPIKey)
 		}
