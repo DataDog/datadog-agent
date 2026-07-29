@@ -77,13 +77,13 @@ func setFileReadableByEveryone(path string) error {
 
 // compileAndWriteConfig compiles the policy binary into a binary file readable by the injector
 // On Windows, sets ACLs to allow Everyone read+execute access while keeping ddagentuser as owner
-func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
-	dir := filepath.Dir(configPath)
+func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte, outputPath string) error {
+	dir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	tmpFile, err := os.CreateTemp(filepath.Dir(configPath), "workload-policy-*.tmp")
+	tmpFile, err := os.CreateTemp(filepath.Dir(outputPath), "workload-policy-*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
@@ -104,7 +104,7 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 		return fmt.Errorf("failed to set permissions on file %s: %w", tmpPath, err)
 	}
 
-	if err := os.Rename(tmpPath, configPath); err != nil {
+	if err := os.Rename(tmpPath, outputPath); err != nil {
 		return fmt.Errorf("failed to atomically replace policy file: %w", err)
 	}
 	return nil

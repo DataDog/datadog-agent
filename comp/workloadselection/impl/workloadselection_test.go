@@ -233,21 +233,22 @@ func TestMergeConfigs(t *testing.T) {
 func TestRemoveConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupFiles  func(t *testing.T, tempDir string)
+		setupFiles  func(t *testing.T, tempDir string) string
 		expectError bool
 	}{
 		{
 			name: "config file exists",
-			setupFiles: func(t *testing.T, tempDir string) {
-				configPath = filepath.Join(tempDir, "compiled.bin")
-				require.NoError(t, os.WriteFile(configPath, []byte("test"), 0644))
+			setupFiles: func(t *testing.T, tempDir string) string {
+				path := filepath.Join(tempDir, "compiled.bin")
+				require.NoError(t, os.WriteFile(path, []byte("test"), 0644))
+				return path
 			},
 			expectError: false,
 		},
 		{
 			name: "config file doesn't exist",
-			setupFiles: func(_ *testing.T, tempDir string) {
-				configPath = filepath.Join(tempDir, "compiled.bin")
+			setupFiles: func(_ *testing.T, tempDir string) string {
+				return filepath.Join(tempDir, "compiled.bin")
 			},
 			expectError: false,
 		},
@@ -256,7 +257,7 @@ func TestRemoveConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			tt.setupFiles(t, tempDir)
+			path := tt.setupFiles(t, tempDir)
 
 			mockConfig := config.NewMock(t)
 			mockLog := logmock.New(t)
@@ -266,15 +267,51 @@ func TestRemoveConfig(t *testing.T) {
 				config: mockConfig,
 			}
 
-			err := component.removeConfig()
+			err := component.removeConfig(path)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 				// Verify file is removed
-				_, err := os.Stat(configPath)
+				_, err := os.Stat(path)
 				assert.True(t, os.IsNotExist(err))
 			}
+		})
+	}
+}
+
+// TestIsTargetedPolicyID tests the targeted/org-wide policy ID classification
+func TestIsTargetedPolicyID(t *testing.T) {
+	tests := []struct {
+		name     string
+		policyID string
+		expected bool
+	}{
+		{
+			name:     "targeted policy",
+			policyID: "targeted.my-host-policy",
+			expected: true,
+		},
+		{
+			name:     "org-wide policy without order prefix",
+			policyID: "my-policy",
+			expected: false,
+		},
+		{
+			name:     "org-wide policy with numeric order prefix",
+			policyID: "5.my-policy",
+			expected: false,
+		},
+		{
+			name:     "empty policy ID",
+			policyID: "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isTargetedPolicyID(tt.policyID))
 		})
 	}
 }

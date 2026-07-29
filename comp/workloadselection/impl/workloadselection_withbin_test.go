@@ -194,7 +194,9 @@ func TestOnConfigUpdate_NoConfigs(t *testing.T) {
 
 	// Create config files to be removed
 	configPath = filepath.Join(tempDir, "test-compiled.bin")
+	configPathTargeted = filepath.Join(tempDir, "test-compiled-targeted.bin")
 	require.NoError(t, os.WriteFile(configPath, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(configPathTargeted, []byte("test"), 0644))
 
 	// Call with empty updates
 	callbackCalled := false
@@ -202,8 +204,10 @@ func TestOnConfigUpdate_NoConfigs(t *testing.T) {
 		callbackCalled = true
 	})
 
-	// Verify file is removed
+	// Verify both files are removed
 	_, err := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(err))
+	_, err = os.Stat(configPathTargeted)
 	assert.True(t, os.IsNotExist(err))
 
 	// Callback should not be called for empty updates
@@ -231,6 +235,7 @@ func TestOnConfigUpdate_SingleConfig(t *testing.T) {
 	}
 
 	configPath = filepath.Join(tempDir, "test-compiled.bin")
+	configPathTargeted = filepath.Join(tempDir, "test-compiled-targeted.bin")
 
 	updates := map[string]state.RawConfig{
 		"datadog/123/apm-policies/policy1/hash": {
@@ -249,6 +254,52 @@ func TestOnConfigUpdate_SingleConfig(t *testing.T) {
 	// But we can verify the callback was called with error
 	assert.Equal(t, "datadog/123/apm-policies/policy1/hash", callbackPath)
 	assert.Equal(t, state.ApplyStateError, callbackStatus.State)
+}
+
+// TestOnConfigUpdate_TargetedConfig tests that host-targeted policy IDs are routed to
+// configPathTargeted instead of configPath, independently of org-wide policies.
+func TestOnConfigUpdate_TargetedConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Override getInstallPath for testing
+	originalGetInstallPath := getInstallPath
+	getInstallPath = func() string { return tempDir }
+	t.Cleanup(func() {
+		getInstallPath = originalGetInstallPath
+	})
+
+	// Create mock components
+	mockConfig := config.NewMock(t)
+	mockLog := logmock.New(t)
+
+	component := &workloadselectionComponent{
+		log:    mockLog,
+		config: mockConfig,
+	}
+
+	configPath = filepath.Join(tempDir, "test-compiled.bin")
+	configPathTargeted = filepath.Join(tempDir, "test-compiled-targeted.bin")
+
+	updates := map[string]state.RawConfig{
+		"datadog/123/apm-policies/targeted.my-host-policy/hash": {
+			Config: []byte(`{"policies":[{"rule":"allow"}]}`),
+		},
+	}
+
+	callbackStatuses := make(map[string]state.ApplyStatus)
+	component.onConfigUpdate(updates, func(path string, status state.ApplyStatus) {
+		callbackStatuses[path] = status
+	})
+
+	// The targeted config should be acknowledged/errored on its own path
+	status, ok := callbackStatuses["datadog/123/apm-policies/targeted.my-host-policy/hash"]
+	require.True(t, ok)
+	// Note: Without actual binary compilation, this will fail during compile step
+	assert.Equal(t, state.ApplyStateError, status.State)
+
+	// No org-wide configs were present, so the org-wide file should be absent
+	_, err := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(err))
 }
 
 // TestOnConfigUpdate_MultipleConfigs tests config update with multiple configs and ordering
@@ -271,6 +322,7 @@ func TestOnConfigUpdate_MultipleConfigs(t *testing.T) {
 	}
 
 	configPath = filepath.Join(tempDir, "test-compiled.bin")
+	configPathTargeted = filepath.Join(tempDir, "test-compiled-targeted.bin")
 
 	tests := []struct {
 		name          string
@@ -371,6 +423,7 @@ func TestOnConfigUpdate_ErrorHandling(t *testing.T) {
 	}
 
 	configPath = filepath.Join(tempDir, "test-compiled.bin")
+	configPathTargeted = filepath.Join(tempDir, "test-compiled-targeted.bin")
 
 	tests := []struct {
 		name        string
