@@ -371,21 +371,6 @@ func translateEndpoint(testConfigID string, configTags []string, endpoint endpoi
 	return instance, nil
 }
 
-func mergeTags(tagSets ...[]string) []string {
-	seen := make(map[string]struct{})
-	var merged []string
-	for _, tags := range tagSets {
-		for _, tag := range tags {
-			if _, found := seen[tag]; found {
-				continue
-			}
-			seen[tag] = struct{}{}
-			merged = append(merged, tag)
-		}
-	}
-	return merged
-}
-
 func calculatePerHopTimeoutMS(totalTimeoutMS int64, maxTTL int) int64 {
 	perHopTimeout := tracerouteconfig.PerHopTimeout(time.Duration(totalTimeoutMS)*time.Millisecond, uint8(maxTTL))
 	// Round up because the check's timeout is expressed in whole milliseconds
