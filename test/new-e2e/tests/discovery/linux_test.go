@@ -204,7 +204,14 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 
 		// /discovery/services is the only endpoint which reports what
 		// discovery actually sees. It is caller-driven, so it has to be told
-		// which PIDs to look at, and it only accepts POST with a JSON body.
+		// which PIDs to look at, and system-probe-lite serves it for POST only
+		// and rejects a request without an explicit Content-Type.
+		//
+		// The body is built by hand because it is defined by core.Params in
+		// pkg/discovery/core, which belongs to the main module that this one
+		// does not depend on. Keep the field name in sync with it: unknown
+		// fields are ignored without an error, so a rename there would make
+		// this log an empty service list rather than fail visibly.
 		params := fmt.Sprintf(`{"new_pids":[%s]}`, strings.Join(pids, ","))
 		s.logDiagnostic(t, "system-probe discovery services",
 			"sudo curl -s -X POST -H 'Content-Type: application/json' -d '"+params+"'"+
