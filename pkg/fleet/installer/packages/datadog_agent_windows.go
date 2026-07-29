@@ -674,6 +674,10 @@ func getWatchdogTimeout() time.Duration {
 	return time.Duration(val) * time.Minute
 }
 
+// getAgentUserKeepRightsFromRegistry is a package-level var so tests can override it without
+// touching the real registry.
+var getAgentUserKeepRightsFromRegistry = windowsuser.GetAgentUserKeepRightsFromRegistry
+
 // getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
@@ -682,6 +686,7 @@ func getWatchdogTimeout() time.Duration {
 //   - Agent user name
 //   - Project location
 //   - Application data directory
+//   - Agent user keep-rights opt-out
 //
 // This accomplishes the following:
 //   - ensures setup carries over settings from previous installs (i.e. before remote updates)
@@ -693,6 +698,7 @@ func getenv() *env.Env {
 	//   - Agent user name (fallback to service user)
 	//   - Project location
 	//   - Application data directory
+	//   - Agent user keep-rights opt-out (fallback to registry)
 	//
 	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
@@ -712,6 +718,21 @@ func getenv() *env.Env {
 	}
 	if env.MsiParams.ApplicationDataDirectory == "" {
 		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
+	}
+
+	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out.
+	// Fleet upgrades uninstall the previous MSI and install the new one as two
+	// separate transactions (unlike an in-place MSI major upgrade), so the
+	// uninstall step removes the registry copy of this value before the
+	// reinstall's own registry read can run. Reading it here, before the
+	// uninstall happens, is what carries the operator's choice forward.
+	if env.MsiParams.AgentUserKeepRights == "" {
+		keepRights, err := getAgentUserKeepRightsFromRegistry()
+		if err != nil {
+			log.Warnf("Could not read DDAGENTUSER_KEEP_RIGHTS from registry: %v", err)
+		} else if keepRights != "" {
+			env.MsiParams.AgentUserKeepRights = keepRights
+		}
 	}
 
 	return env
@@ -997,6 +1018,8 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preInstallDDOTExtension(ctx)
+	case "eudm":
+		return preInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -1007,6 +1030,8 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return postInstallDDOTExtension(ctx)
+	case "eudm":
+		return postInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -1017,6 +1042,8 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preRemoveDDOTExtension(ctx)
+	case "eudm":
+		return preRemoveEUDMExtension(ctx)
 	default:
 		return nil
 	}

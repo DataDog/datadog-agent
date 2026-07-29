@@ -13,7 +13,6 @@ import (
 	payloadmodifier "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/def"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -31,13 +30,11 @@ type Provides struct {
 
 type component struct {
 	modifier pkgagent.TracerPayloadModifier
-	// modifierV1 is the V1 (idx) equivalent of modifier, used by ProcessV1.
-	modifierV1 pkgagent.TracerPayloadModifierV1
 }
 
 // NewComponent creates a new payload modifier component
 func NewComponent(deps Dependencies) Provides {
-	comp := &component{}
+	var modifier pkgagent.TracerPayloadModifier
 
 	// Only enable TracerPayloadModifier when running in Azure App Services
 	// extension. serverless-init also uses the serverless
@@ -46,9 +43,11 @@ func NewComponent(deps Dependencies) Provides {
 	if serverlessenv.IsAzureAppServicesExtension() {
 		configuredTags := configUtils.GetConfiguredTags(deps.Config, false)
 		functionTags := strings.Join(configuredTags, ",")
-		modifier := serverlessmodifier.NewTracerPayloadModifier(functionTags)
-		comp.modifier = modifier
-		comp.modifierV1 = modifier
+		modifier = serverlessmodifier.NewTracerPayloadModifier(functionTags)
+	}
+
+	comp := &component{
+		modifier: modifier,
 	}
 
 	return Provides{
@@ -60,12 +59,5 @@ func NewComponent(deps Dependencies) Provides {
 func (c *component) Modify(payload *pb.TracerPayload) {
 	if c.modifier != nil {
 		c.modifier.Modify(payload)
-	}
-}
-
-// ModifyV1 is the V1 (idx) equivalent of Modify, no-op if not enabled
-func (c *component) ModifyV1(payload *idx.InternalTracerPayload) {
-	if c.modifierV1 != nil {
-		c.modifierV1.ModifyV1(payload)
 	}
 }

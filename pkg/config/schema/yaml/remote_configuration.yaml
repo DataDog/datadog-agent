@@ -70,7 +70,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-        comment: Remote config products
   apm_semantics:
     node_type: section
     type: object
@@ -144,7 +143,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Delegated authentication for remote_configuration
   no_tls_validation:
     node_type: setting
     type: boolean
@@ -169,3 +167,4 @@ properties:
     node_type: setting
     type: string
     default: 0s
+comment: Delegated authentication for remote_configuration

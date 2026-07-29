@@ -8,7 +8,6 @@ package modifier
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,29 +64,4 @@ func (t *TracerPayloadModifier) ensureFunctionTags(tp *pb.TracerPayload) {
 
 	tp.Tags[tagFunctionTags] = t.functionTags
 	log.Debugf("set function tags to %v", tp.Tags[tagFunctionTags])
-}
-
-// ModifyV1 is the V1 (idx) equivalent of Modify. It updates the tracer payload
-// to include the `_dd.tags.function` tag in its attributes, containing the
-// function tags that need to be applied to the payload.
-func (t *TracerPayloadModifier) ModifyV1(tp *idx.InternalTracerPayload) {
-	t.ensureFunctionTagsV1(tp)
-}
-
-// ensureFunctionTagsV1 is the V1 (idx) equivalent of ensureFunctionTags. In the
-// V1 representation the pb TracerPayload.Tags are carried as payload attributes.
-func (t *TracerPayloadModifier) ensureFunctionTagsV1(tp *idx.InternalTracerPayload) {
-	if t.functionTags == "" {
-		return
-	}
-
-	if existingFunctionTags, ok := tp.GetAttributeAsString(tagFunctionTags); ok && existingFunctionTags != t.functionTags {
-		log.Debugf("The trace payload already has function tags '%v'. Replacing them with '%v'.",
-			existingFunctionTags,
-			t.functionTags,
-		)
-	}
-
-	tp.SetStringAttribute(tagFunctionTags, t.functionTags)
-	log.Debugf("set function tags to %v", t.functionTags)
 }

@@ -140,26 +140,15 @@ type Agent struct {
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
-	// DiscardSpanV1 is the V1 (idx) equivalent of DiscardSpan, called by ProcessV1.
-	// If it returns true, the span will be deleted before processing.
-	DiscardSpanV1 func(*idx.InternalSpan) bool
-
 	// SpanModifier will be called on all non-nil spans of received trace chunks.
 	// Note that any modification of the trace chunk could be overwritten by
 	// subsequent SpanModifier calls.
 	SpanModifier SpanModifier
 
-	// SpanModifierV1 is the V1 (idx) equivalent of SpanModifier, called by ProcessV1.
-	SpanModifierV1 SpanModifierV1
-
 	// TracerPayloadModifier will be called on all tracer payloads early on in
 	// their processing. In particular this happens before trace chunks are
 	// meaningfully filtered or modified.
 	TracerPayloadModifier TracerPayloadModifier
-
-	// TracerPayloadModifierV1 is the V1 (idx) equivalent of TracerPayloadModifier,
-	// called by ProcessV1.
-	TracerPayloadModifierV1 TracerPayloadModifierV1
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -188,20 +177,9 @@ type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
 }
 
-// SpanModifierV1 is the V1 (idx) equivalent of SpanModifier, allowing spans to
-// be modified while they are processed by the agent's ProcessV1 method.
-type SpanModifierV1 interface {
-	ModifySpanV1(*idx.InternalTraceChunk, *idx.InternalSpan)
-}
-
 // TracerPayloadModifier is an interface that allows tracer implementations to
 // modify a TracerPayload as it is processed in the Agent's Process method.
 type TracerPayloadModifier = payload.TracerPayloadModifier
-
-// TracerPayloadModifierV1 is the V1 (idx) equivalent of TracerPayloadModifier,
-// allowing tracer implementations to modify a TracerPayload as it is processed
-// in the Agent's ProcessV1 method.
-type TracerPayloadModifierV1 = payload.TracerPayloadModifierV1
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
@@ -478,6 +456,8 @@ func (a *Agent) setFirstTraceTagsV1(root *idx.InternalSpan) {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
+// The payload and its nested pointer slices must not contain nil entries;
+// receiver decoders establish this invariant before invoking Process.
 func (a *Agent) Process(p *api.Payload) {
 	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -509,7 +489,6 @@ func (a *Agent) Process(p *api.Payload) {
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
-	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
 	a.discardSpans(p)
 
 	for i := 0; i < len(p.Chunks()); {
@@ -662,6 +641,8 @@ func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error, d
 
 // ProcessV1 is the default work unit for a V1 payload that receives a trace, transforms it and
 // passes it downstream.
+// The payload and its nested pointer slices must not contain nil entries;
+// receiver decoders establish this invariant before invoking ProcessV1.
 func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	if len(p.TracerPayload.Chunks) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -687,18 +668,14 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 	}
 
-	if a.TracerPayloadModifierV1 != nil {
-		a.TracerPayloadModifierV1.ModifyV1(p.TracerPayload)
-	}
-
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
-	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
-	a.discardSpansV1(p)
+	// TODO: Implement this when we support v1 on serverless
+	// a.discardSpans(p)
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
 		chunk := p.TracerPayload.Chunks[i]
-		if chunk == nil || len(chunk.Spans) == 0 {
+		if len(chunk.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
 			p.TracerPayload.RemoveChunk(i)
 			continue
@@ -742,9 +719,10 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 					span.SetStringAttribute(k, v)
 				}
 			}
-			if a.SpanModifierV1 != nil {
-				a.SpanModifierV1.ModifySpanV1(chunk, span)
-			}
+			// TODO: Skip for now as we will avoid SpanModifier for now as it's just used by serverless
+			// if a.SpanModifier != nil {
+			// 	a.SpanModifier.ModifySpan(chunk, span)
+			// }
 			a.obfuscateSpanInternal(span)
 			a.TruncateV1(span)
 			if p.ClientComputedTopLevel {
@@ -811,11 +789,11 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
 	if debug.HasData() {
 		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
-			Error:                debug.Error,
-			LatencyMs:            debug.LatencyMs,
-			WasBuffered:          debug.WasBuffered,
-			BufferMs:             debug.BufferMs,
-			BufferEvictionReason: debug.BufferEvictionReason,
+			ErrorRef:                p.TracerPayload.Strings.Add(debug.Error),
+			LatencyMs:               debug.LatencyMs,
+			WasBuffered:             debug.WasBuffered,
+			BufferMs:                debug.BufferMs,
+			BufferEvictionReasonRef: p.TracerPayload.Strings.Add(debug.BufferEvictionReason),
 		}
 	}
 	if err != nil {
@@ -941,32 +919,6 @@ func (a *Agent) discardSpans(p *api.Payload) {
 		n := 0
 		for _, span := range chunk.Spans {
 			if !a.DiscardSpan(span) {
-				chunk.Spans[n] = span
-				n++
-			}
-		}
-		// set everything at the back of the array to nil to avoid memory leaking
-		// since we're going to have garbage elements at the back of the slice.
-		for i := n; i < len(chunk.Spans); i++ {
-			chunk.Spans[i] = nil
-		}
-		chunk.Spans = chunk.Spans[:n]
-	}
-}
-
-// discardSpansV1 is the V1 (idx) equivalent of discardSpans: it removes all
-// spans for which the provided DiscardSpanV1 function returns true.
-func (a *Agent) discardSpansV1(p *api.PayloadV1) {
-	if a.DiscardSpanV1 == nil {
-		return
-	}
-	for _, chunk := range p.TracerPayload.Chunks {
-		if chunk == nil {
-			continue
-		}
-		n := 0
-		for _, span := range chunk.Spans {
-			if !a.DiscardSpanV1(span) {
 				chunk.Spans[n] = span
 				n++
 			}

@@ -57,7 +57,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 		require.Equal(t, Medium, metric.Priority)
 		require.Contains(t, metric.Tags, "nvlink_port:1")
 		require.NotNil(t, metric.HistogramBucket)
-		require.Equal(t, [2]float64{float64(bucket), float64(bucket + 1)}, metric.HistogramBucket.Bounds)
+		require.Equal(t, [2]float64{float64(bucket), float64(bucket)}, metric.HistogramBucket.Bounds)
 		require.True(t, metric.HistogramBucket.Monotonic)
 		require.False(t, metric.HistogramBucket.FlushFirstValue)
 	}

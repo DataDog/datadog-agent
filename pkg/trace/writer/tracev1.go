@@ -66,8 +66,6 @@ type TraceWriterV1 struct {
 	compressor compression.Component
 	// apmMode exists here to propagate the value to the AgentPayload
 	apmMode string
-	// otelGateway exists here to propagate the value to the AgentPayload
-	otelGateway bool
 }
 
 // NewTraceWriterV1 returns a new TraceWriterV1. It is created for the given agent configuration and
@@ -102,8 +100,6 @@ func NewTraceWriterV1(
 		compressor:         compressor,
 		// apmMode exists here to propagate the value to the AgentPayload
 		apmMode: cfg.APMMode,
-		// otelGateway exists here to propagate the value to the AgentPayload
-		otelGateway: cfg.OTelGateway,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -293,14 +289,8 @@ func (w *TraceWriterV1) flushPreparedPayloadsV1(prepared []*pb.PreparedTracerPay
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		// IdxTracerPayloads is not set - we use prepared payloads directly
 	}
-	if w.apmMode != "" || w.otelGateway {
-		p.Tags = make(map[string]string)
-		if w.apmMode != "" {
-			p.Tags[tagAPMMode] = w.apmMode
-		}
-		if w.otelGateway {
-			p.Tags[tagOTelGateway] = "true"
-		}
+	if w.apmMode != "" {
+		p.Tags = map[string]string{tagAPMMode: w.apmMode}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

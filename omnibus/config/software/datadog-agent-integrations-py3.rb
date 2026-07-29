@@ -16,6 +16,16 @@ whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.lib
 whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
+if osx_target?
+  # On macos, the krb5 package's extensions link against the Heimdal "private framework",
+  # which has no stability guarantees, but that's how this library works.
+  whitelist_file "embedded/lib/python#{python_version}/site-packages/krb5"
+  # Currently we use the prebuilt wheel for pyodbc on macos, which contains a reference to
+  # /opt/homebrew/opt/unixodbc/lib/libodbc.2.dylib. This whitelisting reflects the current state;
+  # this can probably be fixed on integrations-core so that we build this dependency like we do on linux.
+  whitelist_file "embedded/lib/python#{python_version}/site-packages/pyodbc"
+end
+
 site_packages_path = "#{install_dir}/embedded/lib/python#{python_version}/site-packages"
 if windows_target?
   site_packages_path = "#{python_3_embedded}/Lib/site-packages"
@@ -30,21 +40,11 @@ build do
   end
 
   # Install integrations and their configs
-  command "bazel run " \
-          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-          "--//:install_dir=#{install_dir} " \
-          "-- //deps/agent_integrations:install --destdir=#{install_dir}",
+  command "bazel run #{omnibazel_flags} -- //deps/agent_integrations:install --destdir=#{install_dir}",
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -B -m pip check"
-
-  unless windows_target?
-    block "Remove .exe files" do
-      # setuptools come from supervisor and ddtrace
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/setuptools/*.exe"))
-    end
-  end
 
   # Remove openssl copies from libraries that depend on it, and patch as necessary.
   # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder

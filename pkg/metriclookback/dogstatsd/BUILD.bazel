@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dogstatsd",
+    srcs = [
+        "adapter.go",
+        "bucket.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback/dogstatsd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//pkg/aggregator",
+        "//pkg/aggregator/ckey",
+        "//pkg/config/setup",
+        "//pkg/metriclookback",
+        "//pkg/metriclookback/monitor",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "//pkg/util/quantile",
+    ],
+)
+
+go_test(
+    name = "dogstatsd_test",
+    srcs = [
+        "adapter_test.go",
+        "bucket_test.go",
+    ],
+    embed = [":dogstatsd"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/aggregator/ckey",
+        "//pkg/config/setup",
+        "//pkg/metriclookback",
+        "//pkg/metriclookback/monitor",
+        "//pkg/metriclookback/ringbuffer",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//require",
+    ],
+)
