@@ -539,6 +539,8 @@ func (s *USMSuite) TestTLSClassification() {
 // gRPC was reported as plain HTTP/2 and never tagged as gRPC.
 func (s *USMSuite) TestGRPCTLSClassification() {
 	t := s.T()
+	// gRPC rides on HTTP/2, which USM only supports on kernels >= 5.2.
+	skipIfKernelIsNotSupported(t, usmhttp2.MinimumKernelVersion)
 	cfg := tracertestutil.Config()
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
