@@ -27,4 +27,6 @@ oracle:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda inv -- oracle.test
+    # TEMPORARY, PROBE ONLY -- do not merge. go test buffers a package's stdout and
+    # discards it when the package passes, which hid the probe output on a green run.
+    - dda inv -- oracle.test --verbose
