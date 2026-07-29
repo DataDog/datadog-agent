@@ -245,7 +245,9 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, callInterval time.
 				continue
 			}
 			if err != nil {
-				return result, fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err)
+				return result, gosnmplib.NewConnectionError(
+					fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err),
+				)
 			}
 			return result, fmt.Errorf("GetBulk returned SNMP error %s at OID %s (max-rep=%d)", response.Error, oid, maxRep)
 		}
