@@ -76,7 +76,7 @@ func getExtensionStoragePath(_ string) string {
 
 // getAgentPackageState returns the current repository state for the agent package.
 func getAgentPackageState() (repository.State, error) {
-	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
+	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks, nil)
 	return repos.Get(agentPackage).GetState()
 }
 

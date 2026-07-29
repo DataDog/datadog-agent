@@ -20,6 +20,7 @@ import (
 )
 
 var apmLibraryDotnetPackage = hooks{
+	preActivate:         preActivateAPMLibraryDotnet,
 	postInstall:         postInstallAPMLibraryDotnet,
 	preRemove:           preRemoveAPMLibraryDotnet,
 	postStartExperiment: postStartExperimentAPMLibraryDotnet,
@@ -46,39 +47,38 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// postInstallAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
+// preActivateAPMLibraryDotnet runs after the .NET APM library files are laid out
+// in their immutable repository path, but before the package symlink is updated
+// to point to them.
+func preActivateAPMLibraryDotnet(ctx context.Context, packagePath string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "pre_activate_apm_library_dotnet")
+	defer func() { span.Finish(err) }()
+	return installDotnetLibraryVersion(ctx, packagePath)
+}
+
+// postInstallAPMLibraryDotnet runs after the package symlink points to the activated .NET APM library.
 func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
-	// Register GAC + set env variables
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
-	if err != nil {
-		return err
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
+}
+
+func installDotnetLibraryVersion(ctx context.Context, installDir string) (err error) {
+	if installDir == "" {
+		return errors.New("package path is required to install the .NET APM library")
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
 	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
 	if err != nil {
 		return err
 	}
-	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
+	return nil
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
 func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("start_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
-	// Register GAC + set env variables new version
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("experiment"))
-	if err != nil {
-		return err
-	}
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
 	return instrumentDotnetLibraryIfNeeded(ctx, "experiment")
 }
 

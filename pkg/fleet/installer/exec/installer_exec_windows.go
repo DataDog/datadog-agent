@@ -37,7 +37,7 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 	span, _ := telemetry.StartSpanFromContext(ctx, "installer.get-states")
 	defer func() { span.Finish(err) }()
 
-	repos := repository.NewRepositories(paths.PackagesPath, nil)
+	repos := repository.NewRepositories(paths.PackagesPath, nil, nil)
 	packageStates, err := repos.GetStates()
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("error getting package states from disk: %w", err)

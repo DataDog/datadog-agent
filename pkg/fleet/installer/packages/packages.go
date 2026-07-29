@@ -23,12 +23,14 @@ import (
 )
 
 type packageHook func(ctx HookContext) error
+type packagePathHook func(context.Context, string) error
 
 // hooks represents the hooks for a package.
 type hooks struct {
 	preInstall  packageHook
 	preRemove   packageHook
 	postInstall packageHook
+	preActivate packagePathHook
 
 	preStartExperiment    packageHook
 	postStartExperiment   packageHook
@@ -74,6 +76,18 @@ func NewHooks(env *env.Env, packages *repository.Repositories) Hooks {
 		env:      env,
 		packages: packages,
 	}
+}
+
+// PreActivateHooks returns package-specific hooks that must run after files are
+// placed in their immutable repository path and before stable or experiment is activated.
+func PreActivateHooks() map[string]repository.PreActivateHook {
+	preActivate := make(map[string]repository.PreActivateHook)
+	for pkg, h := range packagesHooks {
+		if h.preActivate != nil {
+			preActivate[pkg] = repository.PreActivateHook(h.preActivate)
+		}
+	}
+	return preActivate
 }
 
 type hooksCLI struct {

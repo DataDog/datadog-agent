@@ -192,7 +192,7 @@ func saveAgentExtensions(ctx HookContext, isExperiment bool) error {
 //nolint:unused // Used in platform-specific files
 func removeAgentExtensions(ctx HookContext, experiment bool) error {
 	env := env.FromEnv()
-	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks, nil))
 	err := extensionsPkg.RemoveAll(ctx, agentPackage, experiment, hooks)
 	if err != nil {
 		return fmt.Errorf("failed to remove all extensions: %w", err)
@@ -214,7 +214,7 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
-	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks, nil))
 
 	// Restore replays whatever extensions were previously installed. Once an extension is
 	// installed it stays installed across upgrades; enabling conditions (e.g. EUDM) only gate the
@@ -259,6 +259,6 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 	overrides := setRegistryConfig(env)
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
-	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks, nil))
 	return extensionsPkg.Install(ctx, downloader, url, extensions, isExperiment, hooks, overrides)
 }
