@@ -154,7 +154,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -759,6 +759,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 				}
 			} else {
 				utils.Logf(bs.T(), "Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
+				utils.Logf(bs.T(), "Stack cleaner trigger output: %s", out)
 			}
 		} else {
 			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)

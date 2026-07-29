@@ -112,7 +112,18 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	}
 
 	if auth.Password != "" {
-		methods = append(methods, ssh.Password(auth.Password))
+		methods = append(methods, ssh.Password(auth.Password), ssh.KeyboardInteractive(func(_, _ string, _ []string, echos []bool) ([]string, error) {
+			var answers []string
+			for _, echo := range echos {
+				// simple heuristic: if a prompt has echo=false, then it's probably a password.
+				if echo {
+					answers = append(answers, "")
+				} else {
+					answers = append(answers, auth.Password)
+				}
+			}
+			return answers, nil
+		}))
 	}
 
 	if len(methods) == 0 {
@@ -192,6 +203,19 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) error 
 		}
 	}
 	return nil
+}
+
+// Verify validates that the profile works as we expect it to
+func (c *SSHConnection) Verify(ctx context.Context) error {
+	if c.prof == nil {
+		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+	}
+	cmd := c.prof.Commands.Verify
+	if cmd == nil {
+		return fmt.Errorf("no verify command for profile %q", c.prof.Name)
+	}
+	_, err := c.execute(ctx, cmd)
+	return err
 }
 
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH

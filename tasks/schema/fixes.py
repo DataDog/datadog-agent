@@ -31,6 +31,44 @@ PLATFORM_DEFAULT_RE = re.compile(
 # Matches a single `"platform": value` entry inside a GetPlatformDefault map literal.
 PLATFORM_ENTRY_RE = re.compile(r'^"(?P<platform>\w+)"\s*:\s*(?P<value>.+?),?$')
 
+# A `generate_const:<name>` tag records that a setting's default value comes from the Go constant
+# `<name>` declared in pkg/config/setup, so the constant can be generated from the schema.
+GENERATE_CONST_PREFIX = "generate_const:"
+
+generate_const_settings = {
+    "dynamic_instrumentation.debug_info_disk_cache.dir": "defaultDynamicInstrumentationDebugInfoDir",
+    "forwarder_apikey_validation_interval": "DefaultAPIKeyValidationInterval",
+    "forwarder_recovery_interval": "DefaultForwarderRecoveryInterval",
+    "logs_config.auditor_ttl": "DefaultAuditorTTL",
+    "logs_config.max_message_size_bytes": "DefaultMaxMessageSizeBytes",
+    "network_path.collector.e2e_queries": "DefaultNetworkPathStaticPathE2eQueries",
+    "network_path.collector.max_ttl": "DefaultNetworkPathMaxTTL",
+    "network_path.collector.timeout": "DefaultNetworkPathTimeout",
+    "network_path.collector.traceroute_queries": "DefaultNetworkPathStaticPathTracerouteQueries",
+    "security_agent.cmd_port": "DefaultSecurityAgentCmdPort",
+    "security_agent.internal_profiling.site": "DefaultSite",
+    "serializer_compressor_kind": "DefaultCompressorKind",
+    "serializer_zstd_compressor_level": "DefaultZstdCompressionLevel",
+    "service_monitoring_config.tls.istio.envoy_path": "defaultEnvoyPath",
+    "site": "DefaultSite",
+    "system_probe_config.btf_output_dir": "defaultBTFOutputDir",
+    "system_probe_config.internal_profiling.site": "DefaultSite",
+    "system_probe_config.max_conns_per_message": "defaultConnsMessageBatchSize",
+    "system_probe_config.offset_guess_threshold": "defaultOffsetThreshold",
+    "system_probe_config.runtime_compiler_output_dir": "defaultRuntimeCompilerOutputDir",
+    "logs_config.compression_kind": "DefaultLogCompressionKind",
+    "logs_config.zstd_compression_level": "DefaultZstdCompressionLevel",
+    "logs_config.batch_wait": "DefaultBatchWait",
+    "logs_config.batch_max_concurrent_send": "DefaultBatchMaxConcurrentSend",
+    "logs_config.batch_max_content_size": "DefaultBatchMaxContentSize",
+    "logs_config.batch_max_size": "DefaultBatchMaxSize",
+    "logs_config.input_chan_size": "DefaultInputChanSize",
+    "logs_config.sender_backoff_factor": "DefaultLogsSenderBackoffFactor",
+    "logs_config.sender_backoff_base": "DefaultLogsSenderBackoffBase",
+    "logs_config.sender_backoff_max": "DefaultLogsSenderBackoffMax",
+    "logs_config.sender_recovery_interval": "DefaultForwarderRecoveryInterval",
+}
+
 # Settings used by full agent but not by serverless
 
 full_agent_only_paths = [
@@ -199,6 +237,10 @@ full_agent_only_paths = [
     "metadata_ip_resolution_from_hostname",
     "metric_filterlist",
     "metric_filterlist_match_prefix",
+    "metric_lookback",
+    "metric_lookback.collection_interval",
+    "metric_lookback.enabled",
+    "metric_lookback.enabled_checks",
     "metric_tag_filterlist",
     "metric_tag_filterlist_adp_only",
     "metrics_port",
@@ -276,6 +318,8 @@ core_env_parsers = {
     "apm_config.obfuscation.credit_cards.keep_values": "json_list_or_space_separated",
     "otelcollector.converter.features": "comma_and_space_separated",
     "process_config.custom_sensitive_words": "json_list_or_comma_separated",
+    "private_action_runner.restricted_shell.allowed_paths": "json_list_or_comma_separated",
+    "private_action_runner.restricted_shell.allowed_commands": "json_list_or_comma_separated",
 }
 
 # fix custom env vars
@@ -407,21 +451,100 @@ def fix_missing_env_doc(core_schema, sysprobe_schema):
     return core_schema, sysprobe_schema
 
 
+def fix_generate_const(core_schema, sysprobe_schema):
+    # Tag each setting whose default is sourced from a pkg/config/setup constant with
+    # `generate_const:<name>`. A setting can live in the core schema, the system-probe schema, or both,
+    # so apply the tag to whichever schemas have it.
+    for key, const in generate_const_settings.items():
+        tag = GENERATE_CONST_PREFIX + const
+        for schema in (core_schema, sysprobe_schema):
+            node = try_fetch_node(schema, key)
+            if node is None:
+                continue
+            node["tags"] = sorted(set(node.get("tags", []) + [tag]))
+    return core_schema, sysprobe_schema
+
+
 def fix_full_agent_only(core_schema, sysprobe_schema):
     for key in full_agent_only_paths:
-        node = fetch_node(core_schema, key)
+        node = try_fetch_node(core_schema, key)
+        if not node:
+            continue
         if "tags" not in node:
             node["tags"] = []
         node["tags"].append("full-agent-only:true")
     return core_schema, sysprobe_schema
 
 
+# A `template_section:<value>` tag records which config template a node belongs to.
+TEMPLATE_SECTION_PREFIX = "template_section:"
+
+
+def _template_section_values(node):
+    """Return the set of `template_section:<value>` values carried by *node*'s tags."""
+    return {
+        tag[len(TEMPLATE_SECTION_PREFIX) :]
+        for tag in node.get("tags", [])
+        if isinstance(tag, str) and tag.startswith(TEMPLATE_SECTION_PREFIX)
+    }
+
+
+def _strip_redundant_template_section_tags(setting, parent_section_values):
+    """Drop `template_section:<value>` tags from *setting* whose value is already
+    carried by its parent section, then remove the `tags` list if it becomes empty."""
+    tags = setting.get("tags")
+    if not isinstance(tags, list):
+        return
+    kept = [
+        tag
+        for tag in tags
+        if not (
+            isinstance(tag, str)
+            and tag.startswith(TEMPLATE_SECTION_PREFIX)
+            and tag[len(TEMPLATE_SECTION_PREFIX) :] in parent_section_values
+        )
+    ]
+    if kept:
+        setting["tags"] = kept
+    else:
+        del setting["tags"]
+
+
+def _clean_template_section_tags(section):
+    """Recursively clean redundant `template_section` tags under *section*.
+
+    A direct setting child's `template_section:<value>` tag is redundant when the
+    enclosing section already carries the same value, so it is removed."""
+    parent_values = _template_section_values(section)
+    props = section.get("properties")
+    if not isinstance(props, dict):
+        return
+    for child in props.values():
+        if not isinstance(child, dict):
+            continue
+        if child.get("node_type") == "setting":
+            _strip_redundant_template_section_tags(child, parent_values)
+        elif child.get("node_type") == "section":
+            _clean_template_section_tags(child)
+
+
+def fix_redundant_template_section_tags(core_schema, sysprobe_schema):
+    # A setting that repeats its parent section's `template_section:<value>` tag adds no
+    # information — it is already implied by the enclosing section. Remove those redundant
+    # tags, and drop any `tags` list left empty as a result.
+    for schema in (core_schema, sysprobe_schema):
+        _clean_template_section_tags(schema)
+    return core_schema, sysprobe_schema
+
+
 def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_generate_const(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_full_agent_only(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_env_parsers(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_redundant_template_section_tags(core_schema, sysprobe_schema)
 
     # special edge case for api_key
     core_schema["properties"]["api_key"]["type"] = "string"

@@ -211,6 +211,10 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 		if agent.hostProfilerConfig.DDProfiling.Period > 0 {
 			_ = confmaputils.Set(ddprofilingConf, "profiler_options::period", agent.hostProfilerConfig.DDProfiling.Period)
 		}
+		if agent.hostProfilerConfig.DDProfiling.Port > 0 {
+			// The ddprofiling extension expects a bare port for its "endpoint" field.
+			_ = confmaputils.Set(ddprofilingConf, "endpoint", strconv.Itoa(agent.hostProfilerConfig.DDProfiling.Port))
+		}
 		_ = confmaputils.Set(config, "extensions::"+ddprofilingName, ddprofilingConf)
 		serviceExtensions = append(serviceExtensions, ddprofilingName)
 	}

@@ -20,10 +20,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
-        public ManagedAction ConfigureAiUsageMonitorDesktopMonitor { get; }
-
-        public ManagedAction RemoveAiUsageMonitorDesktopMonitor { get; }
-
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -47,8 +43,6 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction RunPreRemovePythonScript { get; }
 
         public ManagedAction DecompressPythonDistributions { get; }
-
-        public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
 
         public ManagedAction CleanupOnRollback { get; }
 
@@ -295,26 +289,12 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
-                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
-                    Return.check,
-                    When.After,
-                    new Step(CleanupOnRollback.Id),
-                    Conditions.FirstInstall
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
-
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
                     CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
-                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
+                    new Step(CleanupOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
@@ -371,21 +351,6 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
 
-            ConfigureAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
-                    new Id(nameof(ConfigureAiUsageMonitorDesktopMonitor)),
-                    CustomActions.ConfigureAiUsageMonitorDesktopMonitor,
-                    Return.ignore,
-                    When.After,
-                    new Step(WriteConfig.Id),
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-                )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-                .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
@@ -401,19 +366,6 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-
-            RemoveAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveAiUsageMonitorDesktopMonitor)),
-                    CustomActions.RemoveAiUsageMonitorDesktopMonitor,
-                    Return.ignore,
-                    When.Before,
-                    new Step(CleanupOnUninstall.Id),
-                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
-                )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            };
 
             CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupInstallDirAfterUninstall)),
@@ -660,7 +612,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.After,
                     Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);
@@ -867,7 +819,8 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
-                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
+                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED], " +
+                               "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]")
                 .HideTarget(true);
 
             ConfigureAutoLogger = new CustomAction<CustomActions>(

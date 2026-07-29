@@ -40,7 +40,7 @@ if defined XDG_CACHE_HOME (
   set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
+  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"

@@ -195,7 +195,7 @@ func (d *Manager) install() (command.Command, error) {
 	// docker succeeds). The el9 repo is reused because RHEL 10 ($releasever=10) is
 	// not served by Docker yet.
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
 		dockerCEInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-ce-install"), &command.Args{
 			Sudo: true,
 			Create: pulumi.String(`bash <<'EOF'
@@ -227,6 +227,25 @@ EOF`),
 			return nil, err
 		}
 		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))
+	case os.AmazonLinux:
+		// Amazon Linux ships Docker in its own repos (no docker-ce repo); install it
+		// directly. Temporary runtime install like the Red Hat family above, until a
+		// pre-baked -e2e AMI exists.
+		dockerInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-install"), &command.Args{
+			Sudo: true,
+			Create: pulumi.String(`bash <<'EOF'
+set -euxo pipefail
+setenforce 0 || true
+systemctl disable --now firewalld || true
+dnf install -y docker
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
+systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
+EOF`),
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))
 	}
 
 	// Patch the daemon config: pin overlay2 + a mirror and move docker off the
@@ -235,7 +254,7 @@ EOF`),
 	// its nftables firewall backend or the daemon cannot program bridge NAT.
 	daemonOpts := `"storage-driver": "overlay2", "registry-mirrors": ["https://mirror.gcr.io"], "bip": "192.168.16.1/24", "default-address-pools":[{"base":"192.168.32.0/24", "size":24}], "max-download-attempts": 10`
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
 		daemonOpts += `, "firewall-backend": "nftables"`
 	}
 	daemonPatch, err := d.Host.OS.Runner().Command(d.namer.ResourceName("daemon-patch"), &command.Args{
@@ -294,7 +313,7 @@ func (d *Manager) assertCompose() (command.Command, error) {
 	// the SBOM/RHEL10 work in #51486); migrated OSes assume docker-compose is
 	// pre-baked and hard-fail below if it is missing.
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux:
 		return InstallCompose(d.Host, opts...)
 	}
 

@@ -67,7 +67,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -176,7 +176,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-				orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
+				orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
@@ -302,6 +302,7 @@ func start(log log.Component,
 	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
+	refreshTaggerGlobalTags option.Option[func(context.Context)],
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -434,6 +435,12 @@ func start(log log.Component,
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
 	}
+	if clusterID != "" {
+		// Tagger may have computed static global tags before the cluster ID was available.
+		if refreshTags, ok := refreshTaggerGlobalTags.Get(); ok {
+			refreshTags(mainCtx)
+		}
+	}
 	if clusterName == "" {
 		if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {
 			return errors.New("Failed to start: autoscaling is enabled but no cluster name detected, exiting")
@@ -481,7 +488,7 @@ func start(log log.Component,
 		// We explicitly don't add the `ProductActionPlatformRunnerKeys` here as it will be added automatically from the subscribe call.
 		// Adding it here will create a race condition where the notification can be fired before the subscription
 		// preventing the PAR component to finish its startup.
-		var products []string
+		products := []string{state.ProductAgentConfig}
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
 		}
@@ -503,6 +510,7 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
 			defer func() {

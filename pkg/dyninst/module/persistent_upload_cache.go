@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/statedir"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -138,9 +139,9 @@ func withProcessExistsCheck(fn func(pid int) bool) cacheOption {
 // that do exist are updated with an error to mark the fact that the agent
 // restarted while that update was in progress.
 func newPersistentUploadCache(dir string, opts ...cacheOption) (*persistentUploadCache, error) {
-	// Ensure the cache directory exists or can be created.
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
+	// Ensure the cache directory exists and is safe to write into as root.
+	if err := statedir.EnsureSecure(dir); err != nil {
+		return nil, err
 	}
 
 	cfg := cacheTestingKnobs{}
@@ -271,7 +272,7 @@ func (c *persistentUploadCache) saveEntry(pid int32, entry uploadEntry) error {
 		return fmt.Errorf("failed to marshal cache entry: %w", err)
 	}
 	entryPath := c.entryPath(pid)
-	if err := os.WriteFile(entryPath, data, 0644); err != nil {
+	if err := statedir.WriteFile(entryPath, data); err != nil {
 		return fmt.Errorf("failed to write cache entry file: %w", err)
 	}
 	return nil

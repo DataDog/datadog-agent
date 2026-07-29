@@ -18,7 +18,7 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -43,9 +43,11 @@ func TestProcessScaleUp(t *testing.T) {
 	})
 
 	// setup store
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	store.Set("default/autoscaler1", newAutoscaler(true), "")
-	store.Set("default/autoscaler2", newAutoscaler(false), "")
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+	item1, _ := store.Get("default/autoscaler1")
+	item1.Upsert(newAutoscaler(true), "")
+	item2, _ := store.Get("default/autoscaler2")
+	item2.Upsert(newAutoscaler(false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -67,7 +69,7 @@ func TestProcessScaleUp(t *testing.T) {
 	// test
 	recommender := NewRecommender(clock.RealClock{}, pw, store)
 	recommender.process(ctx)
-	pai, found := store.Get("default/autoscaler1")
+	pai, found := store.Peek("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, pai.FallbackScalingValues().HorizontalError)
 	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
@@ -75,7 +77,7 @@ func TestProcessScaleUp(t *testing.T) {
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
 
 	// check that autoscalers without fallback enabled are not processed
-	pai2, found := store.Get("default/autoscaler2")
+	pai2, found := store.Peek("default/autoscaler2")
 	assert.True(t, found)
 	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
 
@@ -121,9 +123,11 @@ func TestProcessScaleDown(t *testing.T) {
 	})
 
 	// setup store
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	store.Set("default/autoscaler1", newAutoscaler(true), "")
-	store.Set("default/autoscaler2", newAutoscaler(false), "")
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+	item1, _ := store.Get("default/autoscaler1")
+	item1.Upsert(newAutoscaler(true), "")
+	item2, _ := store.Get("default/autoscaler2")
+	item2.Upsert(newAutoscaler(false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -158,7 +162,7 @@ func TestProcessScaleDown(t *testing.T) {
 	// test
 	recommender := NewRecommender(clock.RealClock{}, pw, store)
 	recommender.process(ctx)
-	pai, found := store.Get("default/autoscaler1")
+	pai, found := store.Peek("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, pai.FallbackScalingValues().HorizontalError)
 	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
@@ -166,7 +170,7 @@ func TestProcessScaleDown(t *testing.T) {
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
 
 	// check that autoscalers without fallback enabled are not processed
-	pai2, found := store.Get("default/autoscaler2")
+	pai2, found := store.Peek("default/autoscaler2")
 	assert.True(t, found)
 	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
 

@@ -7,6 +7,7 @@ package invalidconfig
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -81,7 +82,8 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
-		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s", count, suffix),
+		IssueType:   IssueType,
+		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s in %s", count, suffix, filepath.Base(path)),
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",

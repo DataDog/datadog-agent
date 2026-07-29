@@ -4,8 +4,15 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 
-name 'installer'
-package_name 'datadog-installer'
+flavor = ENV['AGENT_FLAVOR']
+
+if flavor.nil? || flavor == 'base'
+  name 'installer'
+  package_name 'datadog-installer'
+else
+  name "installer-#{flavor}"
+  package_name "datadog-#{flavor}-installer"
+end
 license "Apache-2.0"
 license_file "../LICENSE"
 
@@ -13,12 +20,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-if windows_target?
-  INSTALL_DIR = 'C:/opt/datadog-installer/'
-else
-  INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
-end
-
+INSTALL_DIR = ENV['INSTALL_DIR'] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
 install_dir INSTALL_DIR
 
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")

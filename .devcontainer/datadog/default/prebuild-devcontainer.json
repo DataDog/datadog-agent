@@ -1,9 +1,12 @@
 {
-    // Trigger build: 2026-05-04 10:25
+    // Trigger build: 2026-06-30 23:25
     "name": "Datadog Agent Development Container",
-    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v110159745-8628883e",
+    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v124282699-89230a57",
     "features": {
-        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {},
+        "registry.ddbuild.io/workspaces/features/claude-code:0.1.122114922": {},
+        "registry.ddbuild.io/workspaces/features/trajectory:0.1.121704661": {},
+        "registry.ddbuild.io/workspaces/features/codex:0.1.116595837": {},
+        "registry.ddbuild.io/workspaces/features/base:0.4.116964598": {},
         "./features/datadog-agent": {}
     },
     "forwardPorts": [22],

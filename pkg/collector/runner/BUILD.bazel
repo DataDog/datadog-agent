@@ -12,7 +12,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/haagent/def",
-        "//comp/healthplatform/store/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
@@ -21,6 +20,7 @@ go_library(
         "//pkg/collector/scheduler",
         "//pkg/collector/worker",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/log",
         "@org_uber_go_atomic//:atomic",
     ],
@@ -32,8 +32,8 @@ dd_agent_go_test(
     embed = [":runner"],
     deps = [
         "//comp/haagent/mock",
-        "//comp/healthplatform/store/mock",
         "//pkg/aggregator",
+        "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
         "//pkg/collector/runner/expvars",
@@ -41,6 +41,7 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",

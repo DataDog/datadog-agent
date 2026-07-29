@@ -385,7 +385,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	}()
 
 	currentConfigsDistribution := d.currentDistribution()
-	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.experimental_stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_limit"))
+	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
 	// Place configs in proposed: pinned ones stay on their current runner,
 	for digest, config := range currentConfigsDistribution.Configs {
@@ -452,7 +452,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 		currentWorkersPerRunner[nodeName] = nodeInfo.workers
 	}
 
-	distribution := newConfigsDistribution(currentWorkersPerRunner, pkgconfigsetup.Datadog().GetBool("cluster_checks.experimental_stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_limit"))
+	distribution := newConfigsDistribution(currentWorkersPerRunner, pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		nodeStoreInfo.RLock()

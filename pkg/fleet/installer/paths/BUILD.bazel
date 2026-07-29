@@ -17,7 +17,7 @@ go_library(
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "//pkg/util/winutil",
-            "@com_github_cenkalti_backoff_v6//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_x_sys//windows",
         ],

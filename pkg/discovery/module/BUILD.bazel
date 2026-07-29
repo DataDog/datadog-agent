@@ -12,25 +12,15 @@ go_library(
         "impl_services_rust_log_bridge_linux.go",
         "impl_services_rust_logger_linux.go",
     ],
+    cdeps = select({
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/module/rust:dd_discovery_cc",
+        ],
+        "//conditions:default": [],
+    }),
     cgo = True,
-    clinkopts = select({
-        "@rules_go//go/platform:android": [
-            "-Lpkg/discovery/module/pkg/discovery/module/rust -Lpkg/discovery/module/pkg/discovery/module/rust/target/release -ldd_discovery",
-        ],
-        "@rules_go//go/platform:linux": [
-            "-Lpkg/discovery/module/pkg/discovery/module/rust -Lpkg/discovery/module/pkg/discovery/module/rust/target/release -ldd_discovery",
-        ],
-        "//conditions:default": [],
-    }),
-    copts = select({
-        "@rules_go//go/platform:android": [
-            "-Ipkg/discovery/module/pkg/discovery/module/rust/include",
-        ],
-        "@rules_go//go/platform:linux": [
-            "-Ipkg/discovery/module/pkg/discovery/module/rust/include",
-        ],
-        "//conditions:default": [],
-    }),
+    clinkopts = [],  # keep
+    copts = [],  # keep
     importpath = "github.com/DataDog/datadog-agent/pkg/discovery/module",
     visibility = ["//visibility:public"],
     deps = select({

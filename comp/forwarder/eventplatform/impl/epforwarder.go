@@ -79,6 +79,8 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataStreamsPipelines,
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
+		getAgentDiscoveryPipelines,
+		getDataSecurityPipelines,
 	}
 	var descs []passthroughPipelineDesc
 	for _, get := range getters {
@@ -118,6 +120,13 @@ func Diagnose() []diagnose.Diagnosis {
 	cfg := pkgconfigsetup.Datadog()
 
 	for _, desc := range getPassthroughPipelines() {
+		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
+			continue
+		}
+		// TODO(dsec-182): could we diagnose the SDS result pipeline?
+		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
+			continue
+		}
 		//nolint:misspell
 		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
@@ -454,6 +463,10 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
+		// TODO(dsec-182): This could be removed if we want to enable the SDS result pipeline by default.
+		if desc.eventType == eventplatform.EventTypeSDSResult && !config.GetBool("data_security.enabled") {
+			continue
+		}
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
