@@ -141,5 +141,6 @@ const (
 	// ProductNetworkPath configures Network Path scheduled tests
 	ProductNetworkPath = "NETWORK_PATH"
 	// ProductDataSecurityDBScanTasks remotely triggers Data Security DB scan tasks
+	// TODO(dsec-216): mutualize with pkg/config/remote/data/product.go.
 	ProductDataSecurityDBScanTasks = "DATA_SECURITY_DB_SCAN_TASKS"
 )

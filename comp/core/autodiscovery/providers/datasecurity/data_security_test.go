@@ -59,7 +59,7 @@ func getMockedAutodiscovery(t *testing.T, configs []integration.Config) autodisc
 // the scan connection from.
 const postgresInstanceConfig = `
 host: db-host
-port: 5432
+port: 5678
 username: datadog
 password: secret
 `
@@ -139,7 +139,7 @@ scan_data:
       table: users
     connection:
       host: db-host
-      port: 5432
+      port: 5678
       dbname: app
       username: datadog
       password: secret

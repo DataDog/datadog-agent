@@ -65,7 +65,14 @@ func IsAPMEnabled(cfg pkgconfigmodel.Reader) bool {
 // data_security.enabled and shared_library_check.enabled, as it relies on the datasecurity
 // shared-library check.
 func IsDataSecurityEnabled(cfg pkgconfigmodel.Reader) bool {
-	return cfg.GetBool("data_security.enabled") && cfg.GetBool("shared_library_check.enabled")
+	if !cfg.GetBool("data_security.enabled") {
+		return false
+	}
+	if !cfg.GetBool("shared_library_check.enabled") {
+		log.Warnf("data_security.enabled cannot be enabled without shared_library_check.enabled. Skipping Data Security.")
+		return false
+	}
+	return true
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled

@@ -7,7 +7,6 @@ package datasecurity
 
 import (
 	"encoding/json"
-	"errors"
 )
 
 // scanTaskPayload is the RC config received for a Data Security DB scan task.
@@ -18,18 +17,4 @@ type scanTaskPayload struct {
 	// check verbatim as raw JSON.
 	ScanningRules []json.RawMessage `json:"scanning_rules"`
 	ScanData      []subTask         `json:"scan_data"`
-}
-
-// TODO(dsec-197): validate data security scan task payload if needed
-func (p scanTaskPayload) validate() error {
-	if p.TaskID == "" {
-		return errors.New("missing task_id")
-	}
-	if len(p.ScanningRules) == 0 {
-		return errors.New("missing scanning_rules")
-	}
-	if len(p.ScanData) == 0 {
-		return errors.New("missing scan_data")
-	}
-	return nil
 }

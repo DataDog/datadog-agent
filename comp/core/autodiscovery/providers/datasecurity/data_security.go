@@ -141,12 +141,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 			continue
 		}
 
-		if err := payload.validate(); err != nil {
-			log.Errorf("invalid Data Security scan task from remote-config: %v", err)
-			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			continue
-		}
-
+		// TODO(dsec-197): validate data security scan task payload if needed before building the check instance
 		instance, err := c.buildCheckInstance(payload)
 		if err != nil {
 			log.Warnf("failed to build datasecurity instance for scan task %s: %v", path, err)
