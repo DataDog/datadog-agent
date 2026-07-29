@@ -238,6 +238,12 @@ def contains_import(sourcecode, symbol):
     return False
 
 
+def override_stubs(core_replace, sysprobe_replace):
+    global core_agent_stubs, sysprobe_stubs
+    core_agent_stubs = core_replace
+    sysprobe_stubs = sysprobe_replace
+
+
 def _is_node_leaf(node):
     if 'node_type' not in node:
         return True
