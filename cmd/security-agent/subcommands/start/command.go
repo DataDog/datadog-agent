@@ -15,6 +15,8 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -129,6 +131,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
+					if config.GetBool("runtime_security_config.enabled") && !config.GetBool("runtime_security_config.direct_send_from_system_probe") {
+						stagedStartPace(config, log, "runtime-security")
+					}
+
 					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression, secretsComp)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
@@ -157,6 +163,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					if cfg := sysprobeconfig.SysProbeObject(); cfg != nil && cfg.SocketAddress != "" {
 						sysProbeClient = compliance.NewRemoteSysProbeClient(cfg.SocketAddress)
 					}
+
+					stagedStartPace(config, log, "compliance")
 
 					// start compliance security agent
 					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, filterStore, compression, sysProbeClient, secretsComp)
@@ -200,6 +208,26 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	startCmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 
 	return []*cobra.Command{startCmd}
+}
+
+// stagedStartPace spreads security-agent subsystem startup when staged startup
+// is enabled: it reclaims the transient memory allocated by prior initialization
+// and pauses briefly before starting the next subsystem, so their startup memory
+// peaks do not stack into a single spike (both within this process and relative
+// to the other agent processes starting at the same time). When staged startup
+// is disabled this is a no-op.
+func stagedStartPace(cfg config.Component, logger log.Component, name string) {
+	if !cfg.GetBool("staged_start.enabled") {
+		return
+	}
+	if cfg.GetBool("staged_start.free_os_memory") {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}
+	if interval := cfg.GetDuration("staged_start.stage_interval"); interval > 0 {
+		logger.Infof("staged startup: pacing %s startup by %s", name, interval)
+		time.Sleep(interval)
+	}
 }
 
 // start will start the security-agent.

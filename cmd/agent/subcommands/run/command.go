@@ -101,6 +101,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
+	startupsequencer "github.com/DataDog/datadog-agent/comp/core/startupsequencer/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -322,6 +323,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	startupSeq startupsequencer.Component,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -387,6 +389,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		startupSeq,
 	); err != nil {
 		return err
 	}
@@ -422,7 +425,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
 			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithStagedStartup()),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
@@ -629,6 +632,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	startupSeq startupsequencer.Component,
 ) error {
 	var err error
 
@@ -725,8 +729,15 @@ func startAgent(
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// load and run all configs in AD
-	ac.LoadAndRun(ctx)
+	// load and run all configs in AD. This instantiates and schedules every
+	// check and is one of the largest transient allocation bursts at startup,
+	// so it is deferred to the checks stage when staged startup is enabled.
+	if err := startupSeq.Defer(startupsequencer.StageChecks, "autodiscovery-load-and-run", func(context.Context) error {
+		ac.LoadAndRun(ctx)
+		return nil
+	}); err != nil {
+		return log.Errorf("Error while loading and running checks: %v", err)
+	}
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
@@ -769,6 +780,10 @@ func startAgent(
 	// must run in background go command because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices(cfg, sysprobeConf)
+
+	// All deferred startup work has now been registered; run it (staged when
+	// enabled, otherwise this is a no-op since the work already ran inline).
+	startupSeq.Begin(ctx)
 
 	return nil
 }

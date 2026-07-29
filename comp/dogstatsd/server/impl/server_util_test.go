@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	startupsequencernoopfx "github.com/DataDog/datadog-agent/comp/core/startupsequencer/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -107,6 +108,7 @@ func fulfillDepsWithParamsAndConfigOverride(t testing.TB, params server.Params, 
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
+		startupsequencernoopfx.Module(),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(params),
@@ -128,6 +130,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlistmock.MockModule(),
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
+		startupsequencernoopfx.Module(),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(server.Params{Serverless: false}),
