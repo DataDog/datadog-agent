@@ -8,10 +8,12 @@
 package oracle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,6 +63,41 @@ func (c *minimalT) runCleanups() {
 	}
 }
 
+const (
+	dbReadyAttempts = 60
+	dbReadyInterval = 5 * time.Second
+)
+
+// waitForDatabase polls until the database accepts queries, returning the connected
+// check. Locally the compose healthcheck gates startup, but in CI the database runs as
+// a GitLab service container with no readiness gating, so the test binary can start
+// before Oracle has registered its service with the listener. Connecting immediately
+// then fails with ORA-12514 and takes the whole suite down with it.
+func waitForDatabase(t *minimalT) (Check, error) {
+	var lastErr error
+	for attempt := 1; attempt <= dbReadyAttempts; attempt++ {
+		c, _ := newSysCheck(t, "", "")
+		// Run establishes the connection; its error surfaces through the query below.
+		c.Run()
+		if c.db == nil {
+			lastErr = errors.New("no database connection established")
+		} else if _, err := c.db.Exec("SELECT 1 FROM dual"); err != nil {
+			lastErr = err
+		} else {
+			if attempt > 1 {
+				fmt.Printf("Database ready after %d attempts\n", attempt)
+			}
+			return c, nil
+		}
+		c.Teardown()
+		if attempt == 1 {
+			fmt.Printf("Waiting for the database to accept queries: %s\n", lastErr)
+		}
+		time.Sleep(dbReadyInterval)
+	}
+	return Check{}, fmt.Errorf("gave up after %d attempts: %w", dbReadyAttempts, lastErr)
+}
+
 func TestMain(m *testing.M) {
 	t := &minimalT{}
 	defer func() {
@@ -78,18 +115,17 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	print("Running initdb.d sql files...")
 	// This is a bit of a hack to get a db connection without a testing.T
 	// Ideally we should pull the connection logic out
 	// to make it more accessible for testing
-	sysCheck, _ := newSysCheck(t, "", "")
-	t.Cleanup(sysCheck.Teardown)
-	sysCheck.Run()
-	_, err := sysCheck.db.Exec("SELECT 1 FROM dual")
+	sysCheck, err := waitForDatabase(t)
 	if err != nil {
-		fmt.Printf("Error executing select check: %s\n", err)
+		fmt.Printf("Database never became ready: %s\n", err)
 		os.Exit(1)
 	}
+	t.Cleanup(sysCheck.Teardown)
+
+	print("Running initdb.d sql files...")
 
 	initDbPath := "./compose/initdb.d"
 	files, _ := os.ReadDir(initDbPath)
