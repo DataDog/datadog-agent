@@ -103,6 +103,11 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
+	// Remap the Datadog SDK trace metric into APM stats on every Agent path (DDOT and
+	// Agent OTLP ingest). Delivery needs a stats channel; where none is wired (Agent OTLP
+	// ingest) the metric is suppressed rather than emitted as a billable custom metric.
+	options = append(options, otlpmetrics.WithSDKTraceMetrics())
+
 	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}

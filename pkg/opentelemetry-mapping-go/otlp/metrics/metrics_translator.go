@@ -575,19 +575,22 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				}
-				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && t.cfg.withRemapping) {
+				if !isRuntimeMetric(md.Name()) && !(md.Name() == sdkTraceMetricName && t.cfg.withSDKTraceMetrics) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					// The SDK trace metric is APM-only, so it does not mark the host as billable.
 					seenNonAPMMetrics = true
 				}
 
+				// The SDK trace metric is remapped to APM stats independently of withRemapping
+				// so it works wherever metrics reach a Datadog Agent, not only in the Agent-less
+				// collector where container/system remapping applies.
+				if t.cfg.withSDKTraceMetrics && md.Name() == sdkTraceMetricName {
+					baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
+					remapSDKTraceMetrics(t.logger, t.cfg.statsOut, baseDims, rattrs, md)
+					continue // skip mapToDDFormat: the histogram is emitted as an APM stats payload above; passing it through would also emit it as a generic metric
+				}
 				if t.cfg.withRemapping {
-					if md.Name() == sdkTraceMetricName {
-						baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
-						remapSDKTraceMetrics(t.logger, t.cfg.statsOut, baseDims, rattrs, md)
-						continue // skip mapToDDFormat: the histogram is emitted as an APM stats payload above; passing it through would also emit it as a generic metric
-					}
 					remapMetrics(newMetrics, md)
 				}
 				if t.cfg.withOTelPrefix {

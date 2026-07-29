@@ -284,6 +284,35 @@ func TestSDKTraceMetric_EmitsAPMStats(t *testing.T) {
 	assert.Equal(t, float64(3), sketchCount(t, gs.OkSummary))
 }
 
+// TestSDKTraceMetric_DecoupledFromRemapping verifies the SDK trace metric is handled
+// under WithSDKTraceMetrics alone, without WithRemapping — the case for Agent/DDOT
+// paths that don't enable container/system remapping.
+func TestSDKTraceMetric_DecoupledFromRemapping(t *testing.T) {
+	statsOut := make(chan []byte, 8)
+	translator := NewTestTranslator(t, WithSDKTraceMetrics(), WithStatsOut(statsOut))
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("service.name", "svc")
+	sm := rm.ScopeMetrics().AppendEmpty()
+	sdkTraceMetric("s", 2, 1.0, map[string]string{
+		"datadog.operation.name": "op",
+		"span.name":              "res",
+	}).CopyTo(sm.Metrics().AppendEmpty())
+
+	consumer := newTestConsumer()
+	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+	close(statsOut)
+
+	gs := groupedByName(drainSingleClientStats(t, statsOut), "op")
+	require.NotNil(t, gs)
+	assert.Equal(t, uint64(2), gs.Hits)
+	// The raw histogram must not also be emitted as a metric.
+	assert.Empty(t, consumer.data.Metrics.Sketches)
+	assert.Empty(t, consumer.data.Metrics.TimeSeries)
+}
+
 // TestSDKTraceMetric_NotBillableHost verifies that a payload containing only the
 // SDK trace metric does not mark the host as billable (no ConsumeHost call).
 func TestSDKTraceMetric_NotBillableHost(t *testing.T) {

@@ -46,6 +46,12 @@ type translatorConfig struct {
 	// withRuntimeRemapping reports whether runtime metrics should be mapped to Datadog counterparts.
 	withRuntimeRemapping bool
 
+	// withSDKTraceMetrics reports whether the Datadog SDK OTLP trace metric
+	// (traces.span.sdk.metrics.duration) should be remapped into an APM trace-stats
+	// payload. Unlike withRemapping this is independent of container/system remapping,
+	// so it can be enabled wherever a stats channel (WithStatsOut) is available.
+	withSDKTraceMetrics bool
+
 	// cache configuration
 	sweepInterval int64
 	deltaTTL      int64
@@ -77,6 +83,19 @@ func WithRemapping() TranslatorOption {
 		// to maintain backward compatibility with the old remapping logic
 		// withRemapping must rename some otel metrics
 		t.withOTelPrefix = true
+		// full remapping includes the SDK trace metric.
+		t.withSDKTraceMetrics = true
+		return nil
+	}
+}
+
+// WithSDKTraceMetrics enables remapping the Datadog SDK OTLP trace metric
+// (traces.span.sdk.metrics.duration) into an APM trace-stats payload. It is
+// independent of WithRemapping so it can run on any path that routes metrics to a
+// Datadog Agent; delivery requires a stats channel (WithStatsOut).
+func WithSDKTraceMetrics() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withSDKTraceMetrics = true
 		return nil
 	}
 }
