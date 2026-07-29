@@ -63,8 +63,11 @@ func (c *minimalT) runCleanups() {
 	}
 }
 
+// CI evidence (job 1903156551) says readiness is bimodal: the database either accepts
+// the first connection or never registers its service at all, so a long wait buys
+// nothing. Keep enough headroom for a genuinely slow start, not for a dead instance.
 const (
-	dbReadyAttempts = 60
+	dbReadyAttempts = 24
 	dbReadyInterval = 5 * time.Second
 )
 
