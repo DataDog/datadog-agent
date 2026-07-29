@@ -3,6 +3,6 @@ fixes:
   - |
     Logs Agent: fixed a file source that could stop collecting permanently
     (``Bytes Read: 0``) after its log file was rotated or truncated below the offset
-    already read. The Agent now notices that its read offset is past the end of the file
-    and restarts from the beginning, both when a tailer starts and while one is running
-    with ``fingerprint_config`` enabled.
+    already read. When a tailer starts, the Agent now checks that the offset stored for
+    the file is still within it, and restarts from the beginning of the file when it is
+    not.
