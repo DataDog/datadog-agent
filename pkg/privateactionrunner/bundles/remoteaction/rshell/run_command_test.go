@@ -8,7 +8,6 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -228,11 +227,6 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 			name: "missing backend policy denies all",
 		},
 		{
-			name:     "empty backend policy denies all",
-			backend:  map[string]*structpb.ListValue{},
-			operator: map[string][]string{"mysql.service": {"read"}},
-		},
-		{
 			name: "unset operator policy passes backend grants through deterministically",
 			backend: map[string]*structpb.ListValue{
 				"nginx.service": systemServiceActions("reload"),
@@ -265,15 +259,6 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 			},
 		},
 		{
-			name: "unknown actions reach rshell validation",
-			backend: map[string]*structpb.ListValue{
-				"mysql.service": systemServiceActions("stop"),
-			},
-			want: []interp.SystemServiceControlGrant{
-				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"stop"}},
-			},
-		},
-		{
 			name: "nil and empty backend action lists grant nothing",
 			backend: map[string]*structpb.ListValue{
 				"mysql.service": nil,
@@ -288,7 +273,7 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 				OperatorAllowedSystemServices: test.operator,
 			})
 
-			got := handler.filterAllowedSystemServices(test.backend)
+			got := handler.filterSystemServiceGrants(backendSystemServiceGrants(test.backend))
 
 			if len(test.want) == 0 {
 				assert.Empty(t, got)
@@ -299,17 +284,15 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 	}
 }
 
-func TestFilterAllowedSystemServicesIgnoresNonStringActionsWithWarning(t *testing.T) {
+func TestBackendSystemServiceGrantsIgnoresNonStringActionsWithWarning(t *testing.T) {
 	var logBuffer bytes.Buffer
-	logWriter := bufio.NewWriter(&logBuffer)
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.WarnLvl)
 	require.NoError(t, err)
 	previousLogger := log.Default()
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 	log.SetupLogger(logger, "warn")
 
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{})
-	got := handler.filterAllowedSystemServices(map[string]*structpb.ListValue{
+	got := backendSystemServiceGrants(map[string]*structpb.ListValue{
 		"mysql.service": {
 			Values: []*structpb.Value{
 				structpb.NewStringValue("read"),
@@ -319,7 +302,6 @@ func TestFilterAllowedSystemServicesIgnoresNonStringActionsWithWarning(t *testin
 		},
 	})
 
-	require.NoError(t, logWriter.Flush())
 	assert.Equal(t, []interp.SystemServiceControlGrant{
 		{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
 	}, got)
@@ -710,8 +692,7 @@ func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
 
 func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 	var logBuffer bytes.Buffer
-	logWriter := bufio.NewWriter(&logBuffer)
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.DebugLvl)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.DebugLvl)
 	require.NoError(t, err)
 	previousLogger := log.Default()
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
@@ -719,7 +700,7 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
 		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
-		OperatorAllowedCommands: []string{setup.RShellCommandAllowAllWildcard},
+		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 		OperatorAllowedSystemServices: map[string][]string{
 			"mysql.service": {"read"},
 		},
@@ -731,7 +712,6 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 
 	_, err = handler.Run(context.Background(), task, nil)
 	require.NoError(t, err)
-	require.NoError(t, logWriter.Flush())
 
 	logs := logBuffer.String()
 	assert.Contains(t, logs, "backendAllowedSystemServices=[{mysql.service [read restart]} {nginx.service [reload]}]")

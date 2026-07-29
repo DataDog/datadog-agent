@@ -165,15 +165,15 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
-          - allowed_system_services is unset by default, so the backend remains
-          the only filter. An explicit empty map denies every system service;
-          a non-empty map further restricts the backend grants by service and
-          action. Its env var accepts a JSON object only.
       allowed_system_services:
         node_type: setting
         type: object
         default: {}
         env_parser: json
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The environment variable accepts a JSON object only.
         additionalProperties:
           items:
             type: string

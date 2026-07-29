@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"slices"
@@ -81,8 +82,8 @@ type RunCommandHandler struct {
 //  1. Paths are normalized, reduced to the broadest entries per access group,
 //     and deduplicated so same-path read-write entries replace read-only ones.
 //  2. Commands are deduplicated.
-//  3. System-service actions are deduplicated without collapsing the nil-map
-//     distinction used for an unset operator policy.
+//  3. System-service actions are sorted and deduplicated while preserving nil
+//     as an unset operator policy.
 func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCommandHandler {
 	// remove duplicates
 	commands := slices.Clone(cfg.OperatorAllowedCommands)
@@ -134,30 +135,14 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 // list of exact service/action grants. Non-string action values are ignored
 // with a warning; duplicate actions are collapsed.
 func backendSystemServiceGrants(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
-	if len(backend) == 0 {
-		return []interp.SystemServiceControlGrant{}
-	}
-
-	services := make([]string, 0, len(backend))
-	for service := range backend {
-		services = append(services, service)
-	}
-	slices.Sort(services)
+	services := slices.Sorted(maps.Keys(backend))
 
 	grants := make([]interp.SystemServiceControlGrant, 0, len(services))
 	for _, service := range services {
-		backendActions := backend[service]
-		if backendActions == nil {
-			continue
-		}
-
-		actionSet := make(map[string]struct{}, len(backendActions.Values))
-		for i, value := range backendActions.Values {
-			if value == nil {
-				log.Warnf("ignoring non-string system service action at index %d for %q", i, service)
-				continue
-			}
-			stringValue, ok := value.Kind.(*structpb.Value_StringValue)
+		values := backend[service].GetValues()
+		actionSet := make(map[string]struct{}, len(values))
+		for i, value := range values {
+			stringValue, ok := value.GetKind().(*structpb.Value_StringValue)
 			if !ok {
 				log.Warnf("ignoring non-string system service action at index %d for %q", i, service)
 				continue
@@ -197,14 +182,9 @@ func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemSer
 			continue
 		}
 
-		operatorActions := make(map[string]struct{}, len(allowed))
-		for _, action := range allowed {
-			operatorActions[action] = struct{}{}
-		}
-
 		actions := make([]interp.SystemServiceAction, 0, len(grant.Actions))
 		for _, action := range grant.Actions {
-			if _, ok := operatorActions[string(action)]; ok {
+			if _, ok := slices.BinarySearch(allowed, string(action)); ok {
 				actions = append(actions, action)
 			}
 		}
@@ -218,12 +198,6 @@ func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemSer
 		})
 	}
 	return grants
-}
-
-// filterAllowedSystemServices returns the exact service/action pairs granted by
-// the signed task and permitted by the local operator policy.
-func (h *RunCommandHandler) filterAllowedSystemServices(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
-	return h.filterSystemServiceGrants(backendSystemServiceGrants(backend))
 }
 
 func cloneSystemServiceAllowlist(services map[string][]string) map[string][]string {
