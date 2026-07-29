@@ -176,6 +176,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_metrics_empty_name_invalid() {
+        let defs = vec![ProcessDefinition {
+            name: "alpha".to_string(),
+            config: ProcessConfig {
+                command: "/usr/bin/alpha".to_string(),
+                ..Default::default()
+            },
+        }];
+
+        let (mut client, _shutdown) = start_test_server(defs).await;
+        let err = client
+            .get_metrics(proto::GetMetricsRequest {
+                name_or_uuid: String::new(),
+            })
+            .await
+            .expect_err("expected invalid_argument");
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_by_name() {
+        let defs = vec![
+            ProcessDefinition {
+                name: "alpha".to_string(),
+                config: ProcessConfig {
+                    command: "/usr/bin/alpha".to_string(),
+                    ..Default::default()
+                },
+            },
+            ProcessDefinition {
+                name: "beta".to_string(),
+                config: ProcessConfig {
+                    command: "/usr/bin/beta".to_string(),
+                    ..Default::default()
+                },
+            },
+        ];
+
+        let (mut client, _shutdown) = start_test_server(defs).await;
+        let resp = client
+            .get_metrics(proto::GetMetricsRequest {
+                name_or_uuid: "beta".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+
+        let m = resp.metrics.expect("metrics");
+        assert_eq!(m.name, "beta");
+        assert!(m.rss_bytes.is_none());
+        assert!(m.cpu_percent.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_not_found() {
+        let defs = vec![ProcessDefinition {
+            name: "alpha".to_string(),
+            config: ProcessConfig {
+                command: "/usr/bin/alpha".to_string(),
+                ..Default::default()
+            },
+        }];
+
+        let (mut client, _shutdown) = start_test_server(defs).await;
+        let status = client
+            .get_metrics(proto::GetMetricsRequest {
+                name_or_uuid: "nonexistent".to_string(),
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(status.code(), tonic::Code::NotFound);
+        assert_eq!(status.message(), "process 'nonexistent' not found");
+    }
+
+    #[tokio::test]
     async fn test_describe_found() {
         let mut env = std::collections::HashMap::new();
         env.insert("FOO".to_string(), "bar".to_string());
