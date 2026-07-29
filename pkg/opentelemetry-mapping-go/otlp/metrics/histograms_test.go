@@ -507,6 +507,20 @@ func TestCreateDDSketchFromHistogramOfDuration_Nil(t *testing.T) {
 	assert.Equal(t, 0.0, sketch.GetZeroCount())
 }
 
+// OTLP allows a histogram to omit buckets and report only sum/count; it must still
+// convert instead of erroring on the bucketCounts/explicitBounds length mismatch.
+func TestCreateDDSketchFromHistogramOfDuration_NoBuckets(t *testing.T) {
+	dp := pmetric.NewHistogramDataPoint()
+	dp.SetCount(10)
+	dp.SetSum(50)
+	dp.SetMin(1)
+	dp.SetMax(9)
+
+	sketch, err := CreateDDSketchFromHistogramOfDuration(&dp, "ms")
+	require.NoError(t, err)
+	assert.Equal(t, float64(10), sketch.GetCount())
+}
+
 func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 	tests := []struct {
 		name        string

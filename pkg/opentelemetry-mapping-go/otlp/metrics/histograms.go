@@ -72,6 +72,22 @@ func CreateDDSketchFromHistogramOfDuration(dp *pmetric.HistogramDataPoint, unit 
 	bucketCounts := dp.BucketCounts()
 	explicitBounds := dp.ExplicitBounds()
 
+	// A histogram without buckets conveys its population via only sum and count (OTLP
+	// spec) and is interpreted as a single bucket covering (-Inf, +Inf); synthesize it.
+	if bucketCounts.Len() == 0 {
+		bucketCounts = pcommon.NewUInt64Slice()
+		explicitBounds = pcommon.NewFloat64Slice()
+		if dp.HasMin() {
+			bucketCounts.Append(0)
+			explicitBounds.Append(dp.Min())
+		}
+		bucketCounts.Append(dp.Count())
+		if dp.HasMax() {
+			bucketCounts.Append(0)
+			explicitBounds.Append(dp.Max())
+		}
+	}
+
 	if bucketCounts.Len() != explicitBounds.Len()+1 {
 		return nil, errors.New("bucket counts length does not match explicit bounds length")
 	}
