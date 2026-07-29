@@ -28,7 +28,7 @@ const (
 	leaseBucket = "datadog-agent-sandbox"
 	leasePrefix = "macos-e2e-pool-leases/"
 
-	maxAcquireRetries    = 10
+	maxAcquireRetries    = 30
 	acquireRetryInterval = 1 * time.Minute
 
 	replaceRootVolumePollInterval = 10 * time.Second
