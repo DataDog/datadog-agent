@@ -43,9 +43,9 @@ const (
 )
 
 // OwnerUsernameTagKey additionally scopes discovery to a single developer's own
-// locally-provisioned instance (see LocalProvisionOptions), so local runs never
-// discover another developer's instance or a CI pool member.
-const OwnerUsernameTagKey = "username"
+// locally-provisioned instance (see LocalProvisionOptions), so developers sharing an
+// account never claim each other's. Its value is the owner's OS username.
+const OwnerUsernameTagKey = "dd:macos-e2e-pool-owner"
 
 // Lease statuses stored in leaseRecord.Status: an instance is either free to claim
 // or held by a run.
@@ -367,7 +367,7 @@ type AcquireResult struct {
 // AcquireResult{Found: false} so the caller can provision one instead.
 type LocalProvisionOptions struct {
 	// Username identifies the developer's own instance via OwnerUsernameTagKey,
-	// e.g. aws.Environment.DefaultResourceTags()["username"].
+	// e.g. aws.Environment.Username(). Must be non-empty.
 	Username string
 }
 
@@ -377,6 +377,11 @@ type LocalProvisionOptions struct {
 func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID string, local *LocalProvisionOptions) (AcquireResult, error) {
 	tags := map[string]string{PoolTagKey: PoolTagValue}
 	if local != nil {
+		// An empty owner filter matches no instance, which would look like an empty
+		// pool and silently provision a redundant Dedicated Host. Fail instead.
+		if local.Username == "" {
+			return AcquireResult{}, errors.New("local pool provisioning requires a non-empty username")
+		}
 		tags[OwnerUsernameTagKey] = local.Username
 	}
 

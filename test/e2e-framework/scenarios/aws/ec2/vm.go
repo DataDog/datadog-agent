@@ -70,7 +70,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		// imported.
 		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
 		isLocalRun := e.PipelineID() == ""
-		username := e.DefaultResourceTags()["username"]
+		username := e.Username()
 		var poolAcquired pool.AcquireResult
 
 		if isMacOSPoolMember {
