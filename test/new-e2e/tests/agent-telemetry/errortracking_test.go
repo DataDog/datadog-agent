@@ -190,9 +190,9 @@ func dumpAPMTelemetryPayloadsOnFailure(t *testing.T, env *environments.Host) {
 	}
 }
 
-// TestPayloadShape verifies the happy path for every origin this branch
-// wires into errortracking (core agent Python/Go paths, process-agent);
-// security-agent/system-probe assertions land once their own branches wire in production code.
+// TestPayloadShape verifies the happy path for errortracking logs from the
+// core agent (Python/Go paths), process-agent, and security-agent.
+// system-probe is not covered by this test.
 func (s *errorTrackingSuite) TestPayloadShape() {
 	dumpDiagnosticsOnFailure(s.T(), s.Env())
 	// BeforeTest already reset the environment to the suite's original
@@ -200,19 +200,21 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	// triggers here recur on every check run, so no re-provisioning is needed.
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	var pythonLogs, coreLogs, processLogs []*aggregator.AgentTelemetryLog
+	var pythonLogs, coreLogs, processLogs, securityLogs []*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 
-		pythonLogs, coreLogs, processLogs = nil, nil, nil
+		pythonLogs, coreLogs, processLogs, securityLogs = nil, nil, nil, nil
 		for _, l := range logs {
-			// agent.flavor disambiguates process-agent from the core agent more
-			// robustly than pinning to an internal call site. The core agent
-			// shares flavor.DefaultAgent across Python/Go-core, hence the stack-trace split.
+			// agent.flavor disambiguates process-agent/security-agent from the core
+			// agent more robustly than pinning to an internal call site. The core
+			// agent shares flavor.DefaultAgent across Python/Go-core, hence the stack-trace split.
 			switch {
 			case strings.Contains(l.Tags, "agent.flavor:"+flavor.ProcessAgent):
 				processLogs = append(processLogs, l)
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.SecurityAgent):
+				securityLogs = append(securityLogs, l)
 			case strings.Contains(l.StackTrace, "datadog_agent.go"):
 				pythonLogs = append(pythonLogs, l)
 			case strings.Contains(l.StackTrace, "check_logger.go"):
@@ -222,6 +224,7 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		assert.NotEmpty(c, pythonLogs, "no core-agent Python-path error logs received yet")
 		assert.NotEmpty(c, coreLogs, "no core-agent Go-core error logs received yet")
 		assert.NotEmpty(c, processLogs, "no process-agent error logs received yet")
+		assert.NotEmpty(c, securityLogs, "no security-agent error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for error logs from every agent binary")
 
 	for _, l := range append(pythonLogs, coreLogs...) {
@@ -229,6 +232,9 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	}
 	for _, l := range processLogs {
 		assertCommonLogShape(s.T(), l, flavor.ProcessAgent)
+	}
+	for _, l := range securityLogs {
+		assertCommonLogShape(s.T(), l, flavor.SecurityAgent)
 	}
 
 	// Python path: log.Error(string) carries no error-typed slog attribute,
