@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "client",
@@ -24,4 +24,16 @@ go_library(
         ],
         "//conditions:default": [],
     }),
+)
+
+go_test(
+    name = "client_test",
+    srcs = ["check_test.go"],
+    embed = [":client"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/system-probe/api/server/testutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

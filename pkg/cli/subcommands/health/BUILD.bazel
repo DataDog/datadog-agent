@@ -12,7 +12,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
-        "//pkg/config/setup",
+        "//pkg/config/helper",
         "//pkg/status/health",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
