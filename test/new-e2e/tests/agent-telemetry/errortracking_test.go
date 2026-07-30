@@ -64,6 +64,11 @@ const securityAgentCWSConnectionErrorMessage = "error while connecting to the ru
 // unconditionally at startup, so a malformed value fires deterministically.
 const systemProbeFilterErrorMessage = "Error unmarshalling network_path.collector.filters"
 
+// traceAgentReceiverErrorMessage is logged by HTTPReceiver.handleTraces
+// (pkg/trace/api/api.go) when a /v0.4/traces request carries a non-numeric
+// X-Datadog-Trace-Count header. Unlike the other triggers, this one only fires on demand.
+const traceAgentReceiverErrorMessage = "Failed to count traces"
+
 type errorTrackingSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -117,6 +122,7 @@ func dumpDiagnosticsOnFailure(t *testing.T, env *environments.Host) {
 			"process-agent.log":  "errortracking|" + processAgentSubmissionErrorMessage,
 			"security-agent.log": "errortracking|" + securityAgentCWSConnectionErrorMessage,
 			"system-probe.log":   "errortracking|network_path|Unknown key|npcollector|" + systemProbeFilterErrorMessage,
+			"trace-agent.log":    "errortracking|" + traceAgentReceiverErrorMessage,
 		}
 		for logFile, pattern := range logFilePatterns {
 			out, _ := env.RemoteHost.Execute(
@@ -190,29 +196,34 @@ func dumpAPMTelemetryPayloadsOnFailure(t *testing.T, env *environments.Host) {
 	}
 }
 
-// TestPayloadShape verifies the happy path for every origin this branch
-// wires into errortracking (core agent Python/Go paths, process-agent);
-// security-agent/system-probe assertions land once their own branches wire in production code.
+// TestPayloadShape verifies the happy path for errortracking logs from the
+// core agent (Python/Go paths), process-agent, security-agent, and trace-agent.
+// system-probe is not covered by this test.
 func (s *errorTrackingSuite) TestPayloadShape() {
 	dumpDiagnosticsOnFailure(s.T(), s.Env())
 	// BeforeTest already reset the environment to the suite's original
 	// (enabled) provisioner regardless of run order, and both remaining
 	// triggers here recur on every check run, so no re-provisioning is needed.
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	triggerTraceAgentReceiverError(s.T(), s.Env())
 
-	var pythonLogs, coreLogs, processLogs []*aggregator.AgentTelemetryLog
+	var pythonLogs, coreLogs, processLogs, securityLogs, traceLogs []*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 
-		pythonLogs, coreLogs, processLogs = nil, nil, nil
+		pythonLogs, coreLogs, processLogs, securityLogs, traceLogs = nil, nil, nil, nil, nil
 		for _, l := range logs {
-			// agent.flavor disambiguates process-agent from the core agent more
-			// robustly than pinning to an internal call site. The core agent
-			// shares flavor.DefaultAgent across Python/Go-core, hence the stack-trace split.
+			// agent.flavor disambiguates process-agent/security-agent/trace-agent from
+			// the core agent more robustly than pinning to an internal call site. The
+			// core agent shares flavor.DefaultAgent across Python/Go-core, hence the stack-trace split.
 			switch {
 			case strings.Contains(l.Tags, "agent.flavor:"+flavor.ProcessAgent):
 				processLogs = append(processLogs, l)
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.SecurityAgent):
+				securityLogs = append(securityLogs, l)
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.TraceAgent):
+				traceLogs = append(traceLogs, l)
 			case strings.Contains(l.StackTrace, "datadog_agent.go"):
 				pythonLogs = append(pythonLogs, l)
 			case strings.Contains(l.StackTrace, "check_logger.go"):
@@ -222,6 +233,8 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		assert.NotEmpty(c, pythonLogs, "no core-agent Python-path error logs received yet")
 		assert.NotEmpty(c, coreLogs, "no core-agent Go-core error logs received yet")
 		assert.NotEmpty(c, processLogs, "no process-agent error logs received yet")
+		assert.NotEmpty(c, securityLogs, "no security-agent error logs received yet")
+		assert.NotEmpty(c, traceLogs, "no trace-agent error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for error logs from every agent binary")
 
 	for _, l := range append(pythonLogs, coreLogs...) {
@@ -229,6 +242,12 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	}
 	for _, l := range processLogs {
 		assertCommonLogShape(s.T(), l, flavor.ProcessAgent)
+	}
+	for _, l := range securityLogs {
+		assertCommonLogShape(s.T(), l, flavor.SecurityAgent)
+	}
+	for _, l := range traceLogs {
+		assertCommonLogShape(s.T(), l, flavor.TraceAgent)
 	}
 
 	// Python path: log.Error(string) carries no error-typed slog attribute,
@@ -286,9 +305,21 @@ func waitForLocalErrorOccurrence(t *testing.T, env *environments.Host, logPath, 
 	}, 2*time.Minute, 5*time.Second, waitTimeoutMsg)
 }
 
+// triggerTraceAgentReceiverError sends a malformed request to trace-agent's
+// own HTTP receiver, producing one ERROR log, and waits for it to appear
+// locally -- unlike the other triggers, this one only fires on demand.
+func triggerTraceAgentReceiverError(t *testing.T, env *environments.Host) {
+	t.Helper()
+	_, err := env.RemoteHost.Execute(
+		`curl -s -o /dev/null -X POST http://127.0.0.1:8126/v0.4/traces -H "X-Datadog-Trace-Count: notanumber"`)
+	require.NoError(t, err)
+	waitForLocalErrorOccurrence(t, env, "/var/log/datadog/trace-agent.log", traceAgentReceiverErrorMessage,
+		"timed out waiting for receiver error to appear in trace-agent log", false)
+}
+
 // TestDisabledByDefault verifies that when the errortracking stanza omits
 // `enabled` (defaulting to false), no agent-logs records reach FakeIntake from
-// any binary even though every misconfigured trigger keeps firing locally.
+// any binary even though every trigger still fires locally.
 func (s *errorTrackingSuite) TestDisabledByDefault() {
 	dumpDiagnosticsOnFailure(s.T(), s.Env())
 
@@ -324,6 +355,7 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 	// this one-shot trigger's sole log line.
 	waitForLocalErrorOccurrence(s.T(), env, "/var/log/datadog/system-probe.log", systemProbeFilterErrorMessage,
 		"timed out waiting for filter unmarshal error to appear in system-probe log", false)
+	triggerTraceAgentReceiverError(s.T(), env)
 
 	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
 	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would
