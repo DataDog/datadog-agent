@@ -140,7 +140,7 @@ const (
 	maxConcurrentRequests = 4
 
 	// batchMaxAge is the maximum time the oldest event can sit in the buffer before triggering a flush.
-	batchMaxAge = 30 * time.Second
+	batchMaxAge = 65 * time.Second
 
 	// batchCheckInterval is how often the flusher goroutine checks for age-based flushes.
 	batchCheckInterval = 100 * time.Millisecond
