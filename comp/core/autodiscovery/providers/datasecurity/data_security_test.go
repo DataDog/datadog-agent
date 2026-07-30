@@ -145,6 +145,11 @@ scan_data:
       password: secret
 `
 
+// rawScanTask builds the RC payload for a scan task delivered at the given path/id.
+func rawScanTask(id, scanTask string) state.RawConfig {
+	return state.RawConfig{Config: []byte(scanTask), Metadata: state.Metadata{ID: id}}
+}
+
 func postgresIntegration() integration.Config {
 	return integration.Config{
 		Name:      postgresIntegrationName,
@@ -169,24 +174,50 @@ func TestControllerDoesNotSubscribeWithoutPostgres(t *testing.T) {
 }
 
 func TestControllerUpdate(t *testing.T) {
+	// wantScheduledConfig is the datasecurity check config the provider is expected to schedule
+	// for scanTaskConfig.
+	wantScheduledConfig := integration.Config{
+		Name:      dataSecurityCheckName,
+		Instances: []integration.Data{integration.Data(wantCheckInstance)},
+	}
 	tests := []struct {
-		name            string
-		scanTask        string
-		wantState       state.ApplyState
-		wantErrContains string
-		wantInstance    string // expected emitted check instance (YAML); empty means nothing scheduled
+		name          string
+		remoteConfigs []map[string]state.RawConfig // successive RC updates, each keyed by path
+		wantStatus    map[string]state.ApplyStatus // expected apply status per path
+		wantChanges   []integration.ConfigChanges  // expected ConfigChanges, one per RC update
 	}{
 		{
-			name:         "matching scan task schedules check",
-			scanTask:     scanTaskConfig,
-			wantState:    state.ApplyStateAcknowledged,
-			wantInstance: wantCheckInstance,
+			name:          "matching scan task schedules check",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskConfig)}},
+			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges:   []integration.ConfigChanges{{Schedule: []integration.Config{wantScheduledConfig}}},
 		},
 		{
-			name:            "scan task with unknown host returns error",
-			scanTask:        scanTaskUnknownHostConfig,
-			wantState:       state.ApplyStateError,
-			wantErrContains: "postgres integration",
+			name:          "scan task with unknown host returns error",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskUnknownHostConfig)}},
+			wantStatus: map[string]state.ApplyStatus{"rc-1": {
+				State: state.ApplyStateError,
+				Error: `failed to build sub task "sub-1": postgres integration with host="unknown-host" not found`,
+			}},
+			wantChanges: []integration.ConfigChanges{{}},
+		},
+		{
+			name:          "re-delivery at the same RC path unschedules the previous check",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskConfig)}, {"rc-1": rawScanTask("rc-1", scanTaskConfig)}},
+			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig}},
+				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig}},
+			},
+		},
+		{
+			name:          "distinct RC paths in one update schedule independently",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskConfig), "rc-2": rawScanTask("rc-2", scanTaskConfig)}},
+			wantStatus: map[string]state.ApplyStatus{
+				"rc-1": {State: state.ApplyStateAcknowledged},
+				"rc-2": {State: state.ApplyStateAcknowledged},
+			},
+			wantChanges: []integration.ConfigChanges{{Schedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}}},
 		},
 	}
 
@@ -209,33 +240,52 @@ func TestControllerUpdate(t *testing.T) {
 			// drain the initial empty snapshot pushed on creation
 			receiveChanges(t, changes)
 
+			require.Len(t, tt.wantChanges, len(tt.remoteConfigs), "each RC update needs an expected ConfigChanges")
+
 			updateStatus := map[string]state.ApplyStatus{}
+			for i, remoteConfig := range tt.remoteConfigs {
+				// simulate an RC update carrying the full set of active scan tasks
+				rc.callback(remoteConfig, func(path string, status state.ApplyStatus) {
+					updateStatus[path] = status
+				})
 
-			// simulate an RC update
-			rc.callback(map[string]state.RawConfig{
-				"task-1": {Config: []byte(tt.scanTask), Metadata: state.Metadata{ID: "rc-id"}},
-			}, func(path string, status state.ApplyStatus) {
-				updateStatus[path] = status
-			})
-
-			assert.Equal(t, tt.wantState, updateStatus["task-1"].State)
-			if tt.wantErrContains != "" {
-				assert.Contains(t, updateStatus["task-1"].Error, tt.wantErrContains)
+				// An update that schedules at least one config emits one ConfigChanges; an
+				// error-only update emits none.
+				want := tt.wantChanges[i]
+				if len(want.Schedule) == 0 {
+					continue
+				}
+				assertConfigChangesEqual(t, want, receiveChanges(t, changes))
 			}
 
-			if tt.wantInstance == "" {
-				return
-			}
-
-			cfg := receiveChanges(t, changes)
-			require.Len(t, cfg.Schedule, 1)
-			assert.Empty(t, cfg.Unschedule)
-
-			scheduled := cfg.Schedule[0]
-			assert.Equal(t, dataSecurityCheckName, scheduled.Name)
-			require.Len(t, scheduled.Instances, 1)
-			assert.Equal(t, asYAML(t, tt.wantInstance), asYAML(t, string(scheduled.Instances[0])))
+			// Every path should reach the expected apply status.
+			assert.Equal(t, tt.wantStatus, updateStatus)
 		})
+	}
+}
+
+// assertConfigChangesEqual asserts got matches want, comparing scheduled and unscheduled configs
+// by name and instance. Instances are compared as YAML so the emitted JSON matches regardless of
+// key order or formatting.
+func assertConfigChangesEqual(t *testing.T, want, got integration.ConfigChanges) {
+	t.Helper()
+	require.Len(t, got.Schedule, len(want.Schedule))
+	require.Len(t, got.Unschedule, len(want.Unschedule))
+	for i := range want.Schedule {
+		assertConfigEqual(t, want.Schedule[i], got.Schedule[i])
+	}
+	for i := range want.Unschedule {
+		assertConfigEqual(t, want.Unschedule[i], got.Unschedule[i])
+	}
+}
+
+// assertConfigEqual asserts two configs share the same name and YAML-equivalent instances.
+func assertConfigEqual(t *testing.T, want, got integration.Config) {
+	t.Helper()
+	assert.Equal(t, want.Name, got.Name)
+	require.Len(t, got.Instances, len(want.Instances))
+	for i := range want.Instances {
+		assert.Equal(t, asYAML(t, string(want.Instances[i])), asYAML(t, string(got.Instances[i])))
 	}
 }
 

@@ -55,6 +55,9 @@ type controller struct {
 	configChanges chan integration.ConfigChanges
 	closeMutex    sync.RWMutex
 	closed        bool
+
+	// scheduledByPath holds the config scheduled per RC path: at most one task per path.
+	scheduledByPath map[string]integration.Config
 }
 
 // NewController creates a Data Security controller. Only call it when both `data_security.enabled`
@@ -64,7 +67,8 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) type
 		ac:       ac,
 		rcclient: rcclient,
 		// TODO(dsec-198): include backpressure to avoid blocking indefinitely
-		configChanges: make(chan integration.ConfigChanges, 10),
+		configChanges:   make(chan integration.ConfigChanges, 10),
+		scheduledByPath: make(map[string]integration.Config),
 	}
 	// Send an empty initial sync so Autodiscovery's config poller unblocks startup; real configs
 	// are streamed later as scan tasks arrive over RC.
@@ -151,11 +155,17 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 			continue
 		}
 
-		changes.Schedule = append(changes.Schedule, integration.Config{
+		newCfg := integration.Config{
 			Name:      dataSecurityCheckName,
 			Source:    c.String(),
 			Instances: []integration.Data{integration.Data(instance)},
-		})
+		}
+		// Unschedule any config already scheduled for this path to avoid cumulating stale configs.
+		if prev, ok := c.scheduledByPath[path]; ok {
+			changes.Unschedule = append(changes.Unschedule, prev)
+		}
+		changes.Schedule = append(changes.Schedule, newCfg)
+		c.scheduledByPath[path] = newCfg
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
