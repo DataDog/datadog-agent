@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added a ``generateFlare`` action to the
+    ``com.datadoghq.remoteaction.agent`` Private Action Runner bundle that builds
+    a flare archive on the Agent host. (Preview)

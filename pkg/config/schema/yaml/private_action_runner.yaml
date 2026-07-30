@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/actions/private_actions/ for more information.
 tags:
 - template_section:PrivateActionRunner
+- full-agent-only:true
 properties:
   enabled:
     node_type: setting

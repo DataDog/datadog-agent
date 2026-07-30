@@ -19,6 +19,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -83,7 +84,7 @@ func (h *RollbackConfigHandler) Run(
 		return nil, fmt.Errorf("rollbackConfig: failed to marshal request: %w", err)
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("rollbackConfig: failed to get IPC address: %w", err)
 	}

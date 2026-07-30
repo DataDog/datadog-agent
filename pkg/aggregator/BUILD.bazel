@@ -99,7 +99,6 @@ go_test(
         "context_resolver_test.go",
         "demultiplexer_agent_test.go",
         "demultiplexer_test.go",
-        "main_test.go",
         "no_aggregation_stream_worker_test.go",
         "observer_handle_test.go",
         "sender_test.go",

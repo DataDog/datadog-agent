@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	strategy_none "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
@@ -36,7 +36,7 @@ func _(
 	_ logsagentpipelineimpl.Agent,
 	_ logsagentexporter.Config,
 	_ model.Config,
-	_ setup.ConfigurationProviders,
+	_ constants.ConfigurationProviders,
 	_ trace.Trace,
 	_ *api.OTLPReceiver,
 	_ *strategy_none.NoopStrategy,

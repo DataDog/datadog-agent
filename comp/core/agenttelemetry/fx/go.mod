@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.83.0-devel.0.20260729075015-99ed037f1c29
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/comp/core/config v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -37,7 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.77.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.75.4 // indirect

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // Component is the component type.
@@ -29,7 +30,7 @@ type Component interface {
 	RemoveScheduler(name string)
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet
-	AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error
+	AddConfigProviderFromCatalog(cp constants.ConfigurationProviders) error
 	GetTelemetryStore() *telemetry.Store
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse

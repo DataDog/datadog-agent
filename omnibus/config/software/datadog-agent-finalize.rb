@@ -25,7 +25,7 @@ build do
     block do
         # Push all the pieces built with Bazel.
 
-        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install",
+        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?

@@ -28,6 +28,8 @@ const (
 	// MemoryLimit is the metric name for container runtime memory limits.
 	MemoryLimit = "memory_limit"
 
+	nodeAgentComponent                  = "agent"
+	datadogComponentLabelKey            = "agent.datadoghq.com/component"
 	clusterAgentComponent               = "cluster-agent"
 	clusterChecksAgentComponentHelm     = "clusterchecks-agent"
 	clusterChecksAgentComponentOperator = "cluster-checks-runner"
@@ -60,25 +62,25 @@ func newRecorder(tm telemetry.Component) *Recorder {
 			subsystem,
 			ContainerRestarts,
 			[]string{kindTag, tags.KubePod},
-			"Sum of kubernetes.containers.restarts for Datadog Cluster Agent pods",
+			"Sum of kubernetes.containers.restarts for Datadog Agent pods",
 		),
 		containersTerminated: tm.NewGauge(
 			subsystem,
 			ContainerTerminated,
 			[]string{kindTag, tags.KubePod, "reason"},
-			"Sum of kubernetes.containers.*.terminated for Datadog Cluster Agent pods",
+			"Sum of kubernetes.containers.*.terminated for Datadog Agent pods",
 		),
 		memoryUsage: tm.NewGauge(
 			subsystem,
 			MemoryUsage,
 			[]string{kindTag, tags.KubePod},
-			"Sum of container runtime memory usage for Datadog Cluster Agent pods",
+			"Sum of container runtime memory usage for Datadog Agent pods",
 		),
 		memoryLimits: tm.NewGauge(
 			subsystem,
 			MemoryLimit,
 			[]string{kindTag, tags.KubePod},
-			"Sum of container runtime memory limits for Datadog Cluster Agent pods",
+			"Sum of container runtime memory limits for Datadog Agent pods",
 		),
 	}
 }
@@ -94,7 +96,7 @@ func (t *Recorder) ResetKubeletMetrics() {
 }
 
 // RecordMetric adds a metric to the COAT aggregate when it belongs to
-// a Datadog Cluster Agent or Cluster Check Runner pod.
+// a Datadog Agent, Cluster Agent, or Cluster Check Runner pod.
 func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
 	if value == nil || pod == nil {
 		return
@@ -112,7 +114,7 @@ func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workload
 }
 
 func (t *Recorder) resetRuntimeMetrics() {
-	for _, kind := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
+	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{kindTag: kind}
 		t.memoryUsage.DeletePartialMatch(match)
 		t.memoryLimits.DeletePartialMatch(match)
@@ -120,7 +122,7 @@ func (t *Recorder) resetRuntimeMetrics() {
 }
 
 func (t *Recorder) resetKubeletMetrics() {
-	for _, kind := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
+	for _, kind := range []string{nodeAgentComponent, clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{kindTag: kind}
 		t.containersRestarts.DeletePartialMatch(match)
 		t.containersTerminated.DeletePartialMatch(match)
@@ -148,6 +150,13 @@ func agentPodKind(pod *workloadmeta.KubernetesPod) (string, bool) {
 		return "", false
 	}
 	switch component := pod.Labels[kubernetes.KubeAppComponentLabelKey]; component {
+	case nodeAgentComponent:
+		// The generic Kubernetes component label is not a Datadog identity. Node Agent
+		// manifests set this vendor-specific label too, preventing unrelated workloads
+		// from entering COAT telemetry as Datadog Agent pods.
+		if pod.Labels[datadogComponentLabelKey] == nodeAgentComponent {
+			return component, true
+		}
 	case clusterAgentComponent:
 		return component, true
 	case clusterChecksAgentComponentHelm, clusterChecksAgentComponentOperator:

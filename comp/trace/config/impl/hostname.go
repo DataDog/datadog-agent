@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"os"
 	"os/exec"
 	"strconv"
@@ -49,7 +50,7 @@ func hostname(c *config.AgentConfig) error {
 // acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
 // gRPC endpoints. If it fails, it will return an error.
 func acquireHostname(c *config.AgentConfig) error {
-	ipcPortString := pkgconfigsetup.GetIPCPort()
+	ipcPortString := pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog())
 	ipcPort, err := strconv.Atoi(ipcPortString)
 	if err != nil || ipcPort <= 0 {
 		return fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", ipcPortString)
@@ -58,7 +59,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

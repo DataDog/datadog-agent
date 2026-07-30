@@ -13,6 +13,7 @@ go_library(
         "//comp/core/autodiscovery/telemetry",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

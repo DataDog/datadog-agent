@@ -121,3 +121,89 @@ func TestDuration(t *testing.T) {
 		assert.True(t, reflect.DeepEqual(setDef, deserialized))
 	})
 }
+
+func TestSetDefinitionCapture(t *testing.T) {
+	t.Run("yaml round trip", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:      "ssm_command_id",
+			Field:     "open.file.path",
+			Capture:   "/orchestration/([^/]+)/",
+			Scope:     ScopeProcess,
+			Inherited: true,
+		}
+		bytes, err := yaml.Marshal(setDef)
+		assert.NoError(t, err)
+		var deserialized SetDefinition
+		err = yaml.Unmarshal(bytes, &deserialized)
+		assert.NoError(t, err)
+		assert.True(t, reflect.DeepEqual(setDef, deserialized))
+	})
+
+	t.Run("json round trip", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:    "imds_iam_role",
+			Field:   "imds.url",
+			Capture: "/security-credentials/([^/?]+)",
+		}
+		bytes, err := json.Marshal(setDef)
+		assert.NoError(t, err)
+		var deserialized SetDefinition
+		err = json.Unmarshal(bytes, &deserialized)
+		assert.NoError(t, err)
+		assert.True(t, reflect.DeepEqual(setDef, deserialized))
+	})
+
+	t.Run("with field", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:    "ssm_command_id",
+			Field:   "open.file.path",
+			Capture: "/orchestration/([^/]+)/",
+		}
+		assert.NoError(t, setDef.PreCheck(PolicyLoaderOpts{}))
+	})
+
+	// the error strings are asserted rather than just the presence of an error: several of
+	// the cases below are rejected by the pre-existing 'value'/'field'/'expression'
+	// exclusivity check rather than by the 'capture' check, and a bare assert.Error cannot
+	// tell the two apart
+	t.Run("with value", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:    "ssm_command_id",
+			Value:   "some_value",
+			Capture: "/orchestration/([^/]+)/",
+		}
+		assert.EqualError(t, setDef.PreCheck(PolicyLoaderOpts{}), "'capture' can only be used along with 'field'")
+	})
+
+	t.Run("with expression", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:         "ssm_command_id",
+			Expression:   "open.file.path",
+			DefaultValue: "",
+			Capture:      "/orchestration/([^/]+)/",
+		}
+		assert.EqualError(t, setDef.PreCheck(PolicyLoaderOpts{}), "'capture' can only be used along with 'field'")
+	})
+
+	// the two cases below never reach the 'capture' check: with nothing else set, and
+	// with 'field' set alongside 'value', the pre-existing exclusivity check rejects them
+	// first. The two mechanisms together are what make 'capture' reachable only through
+	// 'field'
+	t.Run("without field, value or expression", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:    "ssm_command_id",
+			Capture: "/orchestration/([^/]+)/",
+		}
+		assert.EqualError(t, setDef.PreCheck(PolicyLoaderOpts{}), "either 'value', 'field' or 'expression' must be specified")
+	})
+
+	t.Run("with field and value", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:    "ssm_command_id",
+			Field:   "open.file.path",
+			Value:   "some_value",
+			Capture: "/orchestration/([^/]+)/",
+		}
+		assert.EqualError(t, setDef.PreCheck(PolicyLoaderOpts{}), "either 'value', 'field' or 'expression' must be specified")
+	})
+}

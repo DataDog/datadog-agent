@@ -1,0 +1,130 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testByteSliceMultibyteUtf8",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testByteSliceMultibyteUtf8",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 93
+          },
+          {
+            "function": "main.executeSliceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 166
+          },
+          {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 58
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 39
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testByteSliceMultibyteUtf8",
+          "location": {
+            "method": "main.testByteSliceMultibyteUtf8"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "[]uint8",
+                "size": "14",
+                "elements": [
+                  {
+                    "type": "uint8",
+                    "value": "104"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "195"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "169"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "108"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "108"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "111"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "44"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "32"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "228"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "184"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "150"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "231"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "149"
+                  },
+                  {
+                    "type": "uint8",
+                    "value": "140"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "[104, 195, 169, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -342,7 +343,7 @@ func buildSyslogURI(agentConfig Config) string {
 	return host
 }
 
-func buildConfigProviders(agentConfig Config) ([]pkgconfigsetup.ConfigurationProviders, error) {
+func buildConfigProviders(agentConfig Config) ([]constants.ConfigurationProviders, error) {
 	// the list of SD_CONFIG_BACKENDS supported in v5
 	SdConfigBackends := map[string]struct{}{
 		"etcd":   {},
@@ -359,7 +360,7 @@ func buildConfigProviders(agentConfig Config) ([]pkgconfigsetup.ConfigurationPro
 		url = url + ":" + agentConfig["sd_backend_port"]
 	}
 
-	cp := pkgconfigsetup.ConfigurationProviders{
+	cp := constants.ConfigurationProviders{
 		Username:    agentConfig["sd_backend_username"],
 		Password:    agentConfig["sd_backend_password"],
 		TemplateURL: url,
@@ -377,7 +378,7 @@ func buildConfigProviders(agentConfig Config) ([]pkgconfigsetup.ConfigurationPro
 		cp.Name = "zookeeper" // name is different in v6
 	}
 
-	return []pkgconfigsetup.ConfigurationProviders{cp}, nil
+	return []constants.ConfigurationProviders{cp}, nil
 }
 
 func buildHistogramAggregates(agentConfig Config) []string {

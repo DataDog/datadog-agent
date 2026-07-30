@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
@@ -96,7 +97,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.cmd_port",
-			defaultValue: DefaultProcessCmdPort,
+			defaultValue: constants.DefaultProcessCmdPort,
 		},
 		{
 			key:          "process_config.language_detection.grpc_port",

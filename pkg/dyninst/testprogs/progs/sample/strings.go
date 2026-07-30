@@ -54,6 +54,14 @@ func testEmptyString(x string) {}
 func testSubstrings(a string, b string, c string) {}
 
 //nolint:all
+//go:noinline
+func testInvalidUtf8Strings(a string, b string) {}
+
+//nolint:all
+//go:noinline
+func testMultibyteUtf8String(x string) {}
+
+//nolint:all
 func executeStringFuncs() {
 	abc := "abc"
 	testSingleString(abc)
@@ -71,6 +79,10 @@ func executeStringFuncs() {
 	// Check captures when multiple variables are aliasing the same underlying buffer.
 	s := "abcdef"
 	testSubstrings(s[:4], s[:2], s)
+
+	// Go strings are not required to hold valid UTF-8.
+	testInvalidUtf8Strings("\xff\xfe", "ok\xffbad")
+	testMultibyteUtf8String(strings.Repeat("世界", 8))
 }
 
 var x = strings.Repeat("x", 100000)

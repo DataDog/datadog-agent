@@ -10,6 +10,7 @@ import (
 
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 func setupProcesses(config pkgconfigmodel.Setup) {
@@ -27,7 +28,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("process_config.rt_queue_size", DefaultProcessRTQueueSize, "DD_PROCESS_CONFIG_RT_QUEUE_SIZE", "DD_PROCESS_AGENT_RT_QUEUE_SIZE")
 	config.BindEnvAndSetDefault("process_config.max_per_message", DefaultProcessMaxPerMessage, "DD_PROCESS_CONFIG_MAX_PER_MESSAGE", "DD_PROCESS_AGENT_MAX_PER_MESSAGE")
 	config.BindEnvAndSetDefault("process_config.max_message_bytes", DefaultProcessMaxMessageBytes, "DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES", "DD_PROCESS_AGENT_MAX_MESSAGE_BYTES")
-	config.BindEnvAndSetDefault("process_config.cmd_port", DefaultProcessCmdPort, "DD_PROCESS_CONFIG_CMD_PORT", "DD_PROCESS_AGENT_CMD_PORT")
+	config.BindEnvAndSetDefault("process_config.cmd_port", constants.DefaultProcessCmdPort, "DD_PROCESS_CONFIG_CMD_PORT", "DD_PROCESS_AGENT_CMD_PORT")
 	config.BindEnvAndSetDefault("process_config.blacklist_patterns", []string{}, "DD_PROCESS_CONFIG_BLACKLIST_PATTERNS", "DD_PROCESS_AGENT_BLACKLIST_PATTERNS")
 
 	// The interval, in seconds, at which we will run each check. If you want consistent
@@ -38,7 +39,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("process_config.intervals.container", 10, "DD_PROCESS_CONFIG_INTERVALS_CONTAINER", "DD_PROCESS_AGENT_INTERVALS_CONTAINER")
 	config.BindEnvAndSetDefault("process_config.intervals.container_realtime", 2, "DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME", "DD_PROCESS_AGENT_INTERVALS_CONTAINER_REALTIME")
 	config.BindEnvAndSetDefault("process_config.intervals.connections", 30, "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS", "DD_PROCESS_AGENT_INTERVALS_CONNECTIONS")
-	config.BindEnvAndSetDefault("process_config.dd_agent_bin", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("process_config.dd_agent_bin", getPlatformDefault(map[string]interface{}{
 		"linux":   "${install_path}/bin/agent/agent",
 		"darwin":  "${install_path}/bin/agent/agent",
 		"aix":     "${install_path}/bin/agent/agent",

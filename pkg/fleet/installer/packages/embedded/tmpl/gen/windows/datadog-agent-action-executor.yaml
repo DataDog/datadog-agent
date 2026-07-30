@@ -1,0 +1,11 @@
+description: Datadog Private Action Runner - On-Demand Executor
+command: '__PAR_INSTALL_ROOT__/bin/agent/privateactionrunner.exe'
+args:
+  - run-executor
+  - --cfgpath
+  - '__PAR_ETC_ROOT__/datadog.yaml'
+auto_start: false
+condition_path_exists: '__PAR_INSTALL_ROOT__/bin/agent/privateactionrunner.exe'
+restart: never
+stdout: inherit
+stderr: inherit

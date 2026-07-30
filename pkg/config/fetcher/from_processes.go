@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // SecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
@@ -66,7 +66,7 @@ func TraceAgentConfig(config config.Reader, client ipc.HTTPClient) (string, erro
 
 // ProcessAgentConfig fetch the configuration from the process-agent process by querying its HTTPS API
 func ProcessAgentConfig(config config.Reader, client ipc.HTTPClient, getEntireConfig bool) (string, error) {
-	ipcAddress, err := setup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}

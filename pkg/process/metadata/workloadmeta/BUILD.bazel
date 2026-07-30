@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/languagedetection",

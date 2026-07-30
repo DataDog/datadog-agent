@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 type CRDConfigProvider struct {
@@ -26,7 +26,7 @@ type CRDConfigProvider struct {
 var _ types.CollectingConfigProvider = &CRDConfigProvider{}
 
 // NewKubeCRDConfigProvider returns a new ConfigProvider connected to apiserver for CRDs.
-func NewKubeCRDConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeCRDConfigProvider(*constants.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
 	configs, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read configuration files: '%w'", err)

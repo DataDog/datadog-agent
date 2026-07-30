@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -211,7 +212,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 // getListener returns a listening connection
 func getListener(cfg pkgconfigmodel.Reader) (net.Listener, error) {
-	host, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	host, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}

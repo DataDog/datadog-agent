@@ -10,8 +10,8 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // NewKubeCRDConfigProvider returns a new ConfigProvider connected to apiserver for CRDs.
-var NewKubeCRDConfigProvider func(_ *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error)
+var NewKubeCRDConfigProvider func(_ *constants.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error)
