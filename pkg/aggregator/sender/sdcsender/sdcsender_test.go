@@ -114,17 +114,12 @@ func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)   
 
 func newTestSender() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, false, "my_check", "", ""), fake
+	return newSender(fake, false, "my_check"), fake
 }
 
 func newTestSenderDryRun() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, true, "my_check", "", ""), fake
-}
-
-func newTestSenderShadow(shadowHostSuffix, defaultHostname string) (*Sender, *fakeSender) {
-	fake := &fakeSender{}
-	return newSender(fake, false, "my_check", shadowHostSuffix, defaultHostname), fake
+	return newSender(fake, true, "my_check"), fake
 }
 
 func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
@@ -418,6 +413,40 @@ func TestMonotonicCount_FlushFirstValueShipsResetBaseline(t *testing.T) {
 	require.Equal(t, 5.0, fake.counts[0].value)
 }
 
+// TestMonotonicCount_ResetReplacesRatherThanAddsToPendingSum is a
+// regression test for a real bug flagged in PR review: on a
+// flushFirstValue-triggered counter reset, reduce() returns the reset
+// baseline as an absolute "count since reset" value, not a delta — so
+// compressAt must REPLACE pendingSum with it rather than adding it to
+// whatever accumulated earlier in the same window. Mirrors the reported
+// counter sequence 100 -> 110 -> 3 (a delta of 10 left pending when the
+// reset to baseline 3 arrives): the correct value that ends up shipped is
+// 3, not 10+3=13.
+func TestMonotonicCount_ResetReplacesRatherThanAddsToPendingSum(t *testing.T) {
+	s, fake := newTestSender()
+
+	// Establish the context with a previous raw value of 110, then force
+	// a known pending delta of 10 — simulating an earlier, not-yet-shipped
+	// sample accumulated in the same window.
+	s.compressAt(kindMonotonicCount, "my.mc", 100, "host", nil, 0, false)
+	s.compressAt(kindMonotonicCount, "my.mc", 110, "host", nil, 1, false)
+	ctx := s.contexts[contextKeyFor("my.mc", "host", nil)]
+	ctx.pendingSum = 10
+
+	// Reset to 3 with flushFirstValue: must replace pendingSum with the
+	// reset baseline (3), not add to the pre-existing pending delta. This
+	// call happens to land on the compressor's own warmup ship (Warmup
+	// defaults to 2), so it ships immediately — asserting on the shipped
+	// value is what actually exercises the fix, since pendingSum is
+	// correctly drained back to 0 right after being set.
+	s.compressAt(kindMonotonicCount, "my.mc", 3, "host", nil, 2, true)
+
+	require.Len(t, fake.counts, 2, "the 100->110 delta ships first (its own warmup breakpoint), then the reset")
+	require.Equal(t, 3.0, fake.counts[1].value,
+		"a counter reset must replace pendingSum with the reset baseline, not add to it (would otherwise ship 13 instead of 3)")
+	require.Zero(t, ctx.pendingSum, "pendingSum must be drained after shipping")
+}
+
 func TestWindowFlush_DrivenBySampleTimestampsNotWallClock(t *testing.T) {
 	s, fake := newTestSender()
 
@@ -539,7 +568,7 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 	// so reusing a name other tests already incremented would make this
 	// test's absolute-value assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_tlm_contexts_test", "", "")
+	s := newSender(fake, false, "check_tlm_contexts_test")
 
 	require.Equal(t, 0.0, s.tlmContexts.Get())
 
@@ -570,7 +599,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	// (check_name, metric_name) pair another test already observed into
 	// would make this test's exact Count/Sum assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_scale_deviation_test", "", "")
+	s := newSender(fake, false, "check_scale_deviation_test")
 
 	values := []float64{10, 20, 15, 100, 12}
 	alpha := compressorConfig().Alpha
@@ -602,7 +631,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 func TestFloorBoundTelemetry_TracksSwallowedPointsWhenFloorDominates(t *testing.T) {
 	// A dedicated check name: see TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_floor_bound_dominates_test", "", "")
+	s := newSender(fake, false, "check_floor_bound_dominates_test")
 
 	// A near-zero-scale signal: with the default config (Epsilon=0.02,
 	// Floor=1e-3), Epsilon*scale (~2e-8) is many orders of magnitude below
@@ -623,7 +652,7 @@ func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
 	t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest("checks.sdc_compression_floor", 1e-3) })
 
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_floor_bound_disabled_test", "", "")
+	s := newSender(fake, false, "check_floor_bound_disabled_test")
 
 	for i := 0; i < 20; i++ {
 		s.compressAt(kindGauge, "my.tiny_gauge", 1e-6, "host", nil, float64(i), false)
@@ -637,9 +666,9 @@ func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
 
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 	fakeA := &fakeSender{}
-	sA := newSender(fakeA, false, "check_a", "", "")
+	sA := newSender(fakeA, false, "check_a")
 	fakeB := &fakeSender{}
-	sB := newSender(fakeB, false, "check_b", "", "")
+	sB := newSender(fakeB, false, "check_b")
 
 	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0, false)
@@ -647,53 +676,4 @@ func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 
 	require.Equal(t, 2.0, sA.tlmContexts.Get())
 	require.Equal(t, 1.0, sB.tlmContexts.Get())
-}
-
-func TestShadow_ShipsBothRawAndCompressedUnderDifferentHostnames(t *testing.T) {
-	s, fake := newTestSenderShadow("-sdc", "agent-host")
-
-	for i := 0; i < 10; i++ {
-		s.compressAt(kindGauge, "my.gauge", 42, "check-host", []string{"env:prod"}, float64(i), false)
-	}
-
-	require.Len(t, fake.rawGauges, 10, "shadow mode must still ship every raw call unmodified, like dry-run")
-	for _, c := range fake.rawGauges {
-		require.Equal(t, "check-host", c.hostname, "the raw series must ship under the check's real hostname")
-	}
-
-	require.NotEmpty(t, fake.gauges, "shadow mode must also ship the compressed breakpoints, unlike dry-run")
-	for _, c := range fake.gauges {
-		require.Equal(t, "check-host-sdc", c.hostname, "the compressed series must ship under hostname+suffix")
-	}
-}
-
-func TestShadow_FallsBackToDefaultHostnameWhenCheckHostnameEmpty(t *testing.T) {
-	s, fake := newTestSenderShadow("-sdc", "agent-host")
-
-	s.compressAt(kindGauge, "my.gauge", 42, "", nil, 0, false)
-
-	require.Len(t, fake.gauges, 1)
-	require.Equal(t, "agent-host-sdc", fake.gauges[0].hostname,
-		"an empty check hostname must fall back to the agent's resolved default before appending the suffix, matching what the real sender fills in downstream for the raw series")
-}
-
-func TestShadow_ShipsViaCountWithTimestampToo(t *testing.T) {
-	s, fake := newTestSenderShadow("-sdc", "agent-host")
-
-	s.compressAt(kindMonotonicCount, "my.mc", 10, "check-host", nil, 0, true)
-
-	require.Len(t, fake.rawMonotonicCountsWithFlush, 1, "shadow mode ships the raw call through the same path dry-run uses")
-	require.Len(t, fake.counts, 1, "shadow mode ships the compressed breakpoint too")
-	require.Equal(t, "check-host-sdc", fake.counts[0].hostname)
-}
-
-func TestShadow_TakesPrecedenceOverDryRun(t *testing.T) {
-	fake := &fakeSender{}
-	s := newSender(fake, true /* dryRun */, "my_check", "-sdc", "agent-host")
-
-	s.compressAt(kindGauge, "my.gauge", 42, "check-host", nil, 0, false)
-
-	require.Len(t, fake.rawGauges, 1, "the raw call must ship exactly once, not duplicated by both dryRun and shadow forwarding it")
-	require.Len(t, fake.gauges, 1, "shadow mode must ship the compressed breakpoint even though dryRun is also true")
-	require.Equal(t, "check-host-sdc", fake.gauges[0].hostname)
 }
