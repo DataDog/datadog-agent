@@ -386,7 +386,7 @@ def as_go_value(text, split_lines=False):
             key = value_to_gostr(k)
             val = value_to_gostr(v)
             pad_space = calc_pad_space(key, indent_size)
-            res.append(f"{key}:{' '*pad_space} {val}")
+            res.append(f"{key}:{' ' * pad_space} {val}")
 
     if split_lines:
         return f"{{\n\t\t{',\n\t\t'.join(res)},\n\t}}"
@@ -429,7 +429,7 @@ def get_node(keypath, schema):
 def retrieve_output_mode(keypath, schema):
     for i in range(0, len(keypath)):
         # Iterate the keypath bottom-up, for example 'a.b.c' -> ['a.b.c', 'a.b', 'a']
-        subpath = keypath[0:len(keypath)-i]
+        subpath = keypath[0 : len(keypath) - i]
         node = get_node(subpath, schema)
         tags = node.get('tags')
         if tags and 'full-agent-only:true' in tags:
@@ -826,7 +826,7 @@ def gen_generate_const(core_schema, system_probe_schema, core_out, system_probe_
     magic_value = calc_const_indent(consts)
     for name in sorted(consts):
         pad_space = magic_value - len(name)
-        core_out.append(f"\t{name}{' '*pad_space} = {consts[name]['value']}")
+        core_out.append(f"\t{name}{' ' * pad_space} = {consts[name]['value']}")
     core_out.append(")")
     core_out.append("")
 
