@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# Maintain by hand: The dependencies are too complex w.r.t. the sources for gazelle to get right.
+# gazelle:ignore
+
 go_library(
     name = "filter",
     srcs = [
@@ -15,7 +18,6 @@ go_library(
     deps = [
         "//pkg/network/config",
         "//pkg/util/kernel/netns",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
         "@com_github_google_gopacket//:gopacket",
         "@org_golang_x_sys//unix",
     ] + select({
@@ -47,6 +49,7 @@ go_library(
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
             "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_google_gopacket//afpacket",
             "@com_github_google_gopacket//layers",
             "@org_golang_x_net//bpf",

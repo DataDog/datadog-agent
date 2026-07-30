@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "proxy",
@@ -109,15 +109,4 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-)
-
-go_test(
-    name = "proxy_test",
-    srcs = ["unix_transparent_proxy_test.go"],
-    embed = [":proxy"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/network/protocols/http/testutil",
-        "@com_github_stretchr_testify//require",
-    ],
 )

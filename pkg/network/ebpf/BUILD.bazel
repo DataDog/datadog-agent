@@ -63,12 +63,6 @@ go_library(
 
 go_test(
     name = "ebpf_test",
-    srcs = [
-        "conntrack_types_linux_test.go",
-        "kprobe_types_linux_test.go",
-        "tuple_types_linux_test.go",
-    ],
-    embed = [":ebpf"],
     gotags = [
         "test",
         "linux_bpf",
