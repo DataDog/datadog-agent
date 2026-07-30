@@ -334,18 +334,15 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 				defaultpaths.GetEmbeddedBinPath(),
 				"secret-generic-connector.exe",
 			)
+		} else if flavor.GetFlavor() == flavor.ClusterAgent {
+			// The cluster-agent image isn't built via omnibus and has no "embedded/"
+			// tree; the connector ships next to the binary under GetInstallPath()/bin.
+			r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector")
 		} else {
-			if flavor.GetFlavor() != flavor.ClusterAgent {
-				r.backendCommand = filepath.Join(
-					defaultpaths.GetEmbeddedBinPath(),
-					"secret-generic-connector",
-				)
-			} else {
-				r.backendCommand = filepath.Join(
-					defaultpaths.GetInstallPath(),
-					"secret-generic-connector",
-				)
-			}
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
 		}
 		r.embeddedBackendPermissiveRights = true
 	}

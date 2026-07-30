@@ -69,7 +69,8 @@ end
 def omnibazel_flags()
   flags = []
   flags << "--//packages/agent:flavor=#{ENV['AGENT_FLAVOR']}" if ENV['AGENT_FLAVOR']
-  flags << "--//:install_dir=#{install_dir}"
+  # In macos, omnibus install_dir is the build location, which is different from the expected install location
+  flags << (osx_target? ? "--//:install_dir=/opt/datadog-agent" : "--//:install_dir=#{install_dir}")
   flags << "--//:output_config_dir=#{ENV['OUTPUT_CONFIG_DIR']}"
   flags.join(' ')
 end

@@ -33,6 +33,7 @@ go_library(
         "//comp/otelcol/otlp/configcheck",
         "//comp/trace/config/def",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/remote/client",
         "//pkg/config/setup",

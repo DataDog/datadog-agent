@@ -231,6 +231,7 @@ type RuleSetAction struct {
 	Value        interface{} `json:"value,omitempty"`
 	DefaultValue interface{} `json:"default_value,omitempty"`
 	Field        string      `json:"field,omitempty"`
+	Capture      string      `json:"capture,omitempty"`
 	Expression   string      `json:"expression,omitempty"`
 	Append       bool        `json:"append,omitempty"`
 	Scope        string      `json:"scope,omitempty"`
@@ -347,6 +348,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 				Value:        action.Def.Set.Value,
 				DefaultValue: action.Def.Set.DefaultValue,
 				Field:        action.Def.Set.Field,
+				Capture:      action.Def.Set.Capture,
 				Expression:   action.Def.Set.Expression,
 				Append:       action.Def.Set.Append,
 				Scope:        string(action.Def.Set.Scope),
