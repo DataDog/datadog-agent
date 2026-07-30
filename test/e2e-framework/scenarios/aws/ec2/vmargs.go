@@ -44,6 +44,7 @@ type vmArgs struct {
 	withoutInternetAccess bool
 	httpTokensRequired    bool
 	volumeThroughput      int // GP3 volume throughput in MiB/s (125-1000, default 125)
+	storageSize           int // root volume size in GiB (0 = account default)
 	pulumiResourceOptions []pulumi.ResourceOption
 }
 
@@ -169,6 +170,13 @@ func WithoutInternetAccess() VMOption {
 func WithInternetAccess() VMOption {
 	return func(p *vmArgs) error {
 		p.withoutInternetAccess = false
+
+// WithStorageSize sets the root volume size in GiB. When unset (0) the account
+// default is used. Needed for hosts whose root must exceed the default (e.g. a
+// bare-metal host storing large nested-VM qcow2 images on its EBS root).
+func WithStorageSize(sizeGiB int) VMOption {
+	return func(p *vmArgs) error {
+		p.storageSize = sizeGiB
 		return nil
 	}
 }
