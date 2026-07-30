@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/approvers.h"
 #include "helpers/process.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/strings.h"
 #include <linux/prctl.h>
@@ -45,27 +46,32 @@ long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int op
     return 0;
 }
 
-int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) sys_prctl_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PRCTL);
     if (!syscall) {
         return 0;
     }
 
-    struct prctl_event_t event = {
-        .syscall.retval = retval,
-        .event.flags = syscall->async,
-        .option = syscall->prctl.option,
-        .name_truncated = syscall->prctl.name_truncated,
-    };
-    bpf_probe_read_str(&event.name, MAX_PRCTL_NAME_LEN, &syscall->prctl.name);
-    event.sent_size = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
+    struct prctl_event_t *event = SPAN_FILL_EVENT(struct prctl_event_t, EVENT_PRCTL);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->event.flags = syscall->async;
+    event->option = syscall->prctl.option;
+    event->name_truncated = syscall->prctl.name_truncated;
+    bpf_probe_read_str(&event->name, MAX_PRCTL_NAME_LEN, &syscall->prctl.name);
+    event->sent_size = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
         ? MAX_PRCTL_NAME_LEN
         : syscall->prctl.name_size_to_send;
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
-    send_event(ctx, EVENT_PRCTL, event);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
+    return sys_prctl_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_ENTRY2(prctl, int, option, void *, arg2) {
@@ -78,7 +84,7 @@ HOOK_SYSCALL_EXIT(prctl) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_prctl_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_prctl_ret(args, args->ret);
+    return sys_prctl_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

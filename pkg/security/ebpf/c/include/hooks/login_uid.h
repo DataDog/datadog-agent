@@ -1,6 +1,7 @@
 #ifndef _HOOKS_LOGIN_UID_H_
 #define _HOOKS_LOGIN_UID_H_
 
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 HOOK_ENTRY("audit_set_loginuid")
@@ -38,13 +39,15 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
     pid_entry->credentials.is_auid_set = 1;
 
     // send event to sync userspace caches
-    struct login_uid_write_event_t event = {};
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
+    struct login_uid_write_event_t *event = SPAN_FILL_EVENT(struct login_uid_write_event_t, EVENT_LOGIN_UID_WRITE);
+    if (!event) {
+        return 0;
+    }
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    event.auid = pid_entry->credentials.auid;
-    send_event(ctx, EVENT_LOGIN_UID_WRITE, event);
+    event->auid = pid_entry->credentials.auid;
+    bpf_tail_call_compat(ctx, &span_fill_progs, 0);
     return 0;
 }
 

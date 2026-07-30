@@ -91,27 +91,28 @@ static int __attribute__((always_inline)) store_go_label(
 
     // barrier_var() forces klen and vlen to be materialized so the explicit mask
     // survives and the verifier can prove the bound.
+    //
+    // The `((len - 1) & (SIZE - 1)) + 1` is required for the verifier to prove that len is non zero
+    // even after len > 0.
     u64 klen = key_hdr->len;
     if (klen > GO_LABELS_CTX_KEY_SIZE - 1) {
         klen = GO_LABELS_CTX_KEY_SIZE - 1;
     }
     barrier_var(klen);
-    klen &= GO_LABELS_CTX_KEY_SIZE - 1;
+    klen = ((klen - 1) & (GO_LABELS_CTX_KEY_SIZE - 1)) + 1;
 
-    if (klen > 0 && key_hdr->str != NULL) {
-        if (bpf_probe_read_user(entry->pairs[n].key, klen, key_hdr->str) < 0) {
-            return 0;
+    if (bpf_probe_read_user(entry->pairs[n].key, klen, key_hdr->str) < 0) {
+        return 0;
+    }
+
+    if (val_hdr->len > 0 && val_hdr->str != NULL) {
+        u64 vlen = val_hdr->len;
+        if (vlen > GO_LABELS_CTX_VAL_SIZE - 1) {
+            vlen = GO_LABELS_CTX_VAL_SIZE - 1;
         }
-    }
+        barrier_var(vlen);
+        vlen = ((vlen - 1) & (GO_LABELS_CTX_VAL_SIZE - 1)) + 1;
 
-    u64 vlen = val_hdr->len;
-    if (vlen > GO_LABELS_CTX_VAL_SIZE - 1) {
-        vlen = GO_LABELS_CTX_VAL_SIZE - 1;
-    }
-    barrier_var(vlen);
-    vlen &= GO_LABELS_CTX_VAL_SIZE - 1;
-
-    if (vlen > 0 && val_hdr->str != NULL) {
         if (bpf_probe_read_user(entry->pairs[n].val, vlen, val_hdr->str) < 0) {
             return 0;
         }
