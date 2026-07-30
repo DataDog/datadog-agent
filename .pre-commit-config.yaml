@@ -53,6 +53,14 @@ repos:
       require_serial: true
       files: \.py$
       pass_filenames: false
+    - id: docs-links
+      name: docs-links
+      description: checks that developer docs link to the repository through the `repo` macro
+      entry: 'dda inv linter.docs-links'
+      language: system
+      require_serial: true
+      files: ^docs/public/.*\.md$
+      pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
