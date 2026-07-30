@@ -262,6 +262,48 @@ probes:
     captureSnapshot: true
     capture:
       maxLength: 11
+  - id: testInvalidUtf8Strings
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testInvalidUtf8Strings
+    template: "{a}, {b}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+    captureSnapshot: true
+  - id: testMultibyteUtf8String
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMultibyteUtf8String
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testMultibyteUtf8StringWithSizeLimit
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMultibyteUtf8String
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+    capture:
+      maxLength: 11
   - id: testEmptyString
     type: LOG_PROBE
     tags:
@@ -888,6 +930,30 @@ probes:
       - json:
           ref: "cs"
         dsl: "cs"
+    captureSnapshot: true
+  - id: testByteSliceInvalidUtf8
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testByteSliceInvalidUtf8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testByteSliceMultibyteUtf8
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testByteSliceMultibyteUtf8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE

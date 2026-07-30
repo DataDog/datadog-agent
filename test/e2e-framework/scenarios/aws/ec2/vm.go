@@ -60,6 +60,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			HostID:                pulumi.String(vmArgs.hostID),
 			VolumeThroughput:      vmArgs.volumeThroughput,
 			WithoutInternetAccess: vmArgs.withoutInternetAccess,
+			StorageSize:        vmArgs.storageSize,
 		}
 
 		if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
