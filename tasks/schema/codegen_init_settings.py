@@ -18,7 +18,7 @@ constant_header = """//
 """
 
 core_agent_stubs = """func agent(config pkgconfigmodel.Setup) {
-	initEverything(config)
+	initCommonBase(config)
 }
 
 func aggregator(_ pkgconfigmodel.Setup)               {}
@@ -66,7 +66,7 @@ class CodeGeneratorTarget:
     def __init__(self):
         self.buffer = None
         self.output_full_agent = []
-        self.output_everything = []
+        self.output_common_base = []
         self.header_text = None
         self.filesystem = None
 
@@ -83,7 +83,7 @@ class CodeGeneratorTarget:
             if retrieve_output_mode(path.split('.'), schema) == 'full-agent-only':
                 self.output_full_agent += sourcecode
             else:
-                self.output_everything += sourcecode
+                self.output_common_base += sourcecode
             return
         self.buffer[path] = BufferedSetting(path, sourcecode)
 
@@ -186,10 +186,10 @@ class CodeGeneratorTarget:
 
     def output_result_for_sysprobe_settings(self):
         res = self.header_text.split('\n')
-        res += self._add_imports(False, contains_import(self.output_everything, 'time'))
+        res += self._add_imports(False, contains_import(self.output_common_base, 'time'))
         res += [sysprobe_stubs]
         res += ['func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {']
-        res += self.output_everything
+        res += self.output_common_base
         res += ['}']
         self.filesystem = {'system_probe_settings.go': res}
 
@@ -200,8 +200,8 @@ class CodeGeneratorTarget:
         res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
         res += self.output_full_agent
         res += ['}', '']
-        res += ['func initEverything(config pkgconfigmodel.Setup) {']
-        res += self.output_everything
+        res += ['func initCommonBase(config pkgconfigmodel.Setup) {']
+        res += self.output_common_base
         res += ['}']
         self.filesystem = {'all_settings.go': res}
 
@@ -427,10 +427,13 @@ def get_node(keypath, schema):
 
 
 def retrieve_output_mode(keypath, schema):
-    node = get_node(keypath, schema)
-    tags = node.get('tags')
-    if tags and 'full-agent-only:true' in tags:
-        return 'full-agent-only'
+    for i in range(0, len(keypath)):
+        # Iterate the keypath bottom-up, for example 'a.b.c' -> ['a.b.c', 'a.b', 'a']
+        subpath = keypath[0:len(keypath)-i]
+        node = get_node(subpath, schema)
+        tags = node.get('tags')
+        if tags and 'full-agent-only:true' in tags:
+            return 'full-agent-only'
     return None
 
 
