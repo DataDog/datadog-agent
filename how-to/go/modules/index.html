@@ -3925,7 +3925,7 @@
   
 
 
-<h1 id="creating-go-modules-in-the-agent-project">Creating go modules in the Agent project</h1>
+<h1 id="creating-go-modules-in-the-agent-project">Creating go modules in the Agent project<a class="headerlink" href="#creating-go-modules-in-the-agent-project" title="Permanent link">&para;</a></h1>
 <p><strong>The Datadog Agent is not meant to be imported as a Go library.</strong>
 However, certain parts of it can be exposed as a library by making use of <a href="https://github.com/go-modules-by-example/index/blob/master/009_submodules/README.md">nested Go modules</a>.</p>
 <p>This allows for exposing parts of the codebase without needing to extract the code to a different repository, and helps avoid <code>replace</code> directive clashes.</p>
@@ -3933,7 +3933,7 @@ However, certain parts of it can be exposed as a library by making use of <a hre
 <p class="admonition-title">Warning</p>
 <p>At present the Go modules offer no public stability guarantees and are intended for internal consumption by Datadog only.</p>
 </div>
-<h2 id="creating-a-new-module">Creating a new module</h2>
+<h2 id="creating-a-new-module">Creating a new module<a class="headerlink" href="#creating-a-new-module" title="Permanent link">&para;</a></h2>
 <ol>
 <li>
 <p>Determine the packages that you want to expose and their dependencies.</p>
@@ -4029,7 +4029,7 @@ This will create the <code>go.mod</code> and <code>go.sum</code> files in the mo
 </span></code></pre></div>
 </li>
 </ol>
-<h2 id="nested-go-module-tagging-and-versioning">Nested go module tagging and versioning</h2>
+<h2 id="nested-go-module-tagging-and-versioning">Nested go module tagging and versioning<a class="headerlink" href="#nested-go-module-tagging-and-versioning" title="Permanent link">&para;</a></h2>
 <p>A few invoke tasks are available that help with automatically updating module versions and tags:</p>
 <ul>
 <li>
@@ -4058,7 +4058,7 @@ This will create the <code>go.mod</code> and <code>go.sum</code> files in the mo
 </ul>
 <p>The <code>release.tag-modules</code> task is also called by the <code>release.tag-version</code> invoke task, using the same commit as the main module, with a tag of the form <code>path/to/module/v0.X.Y</code>.</p>
 </div>
-<h2 id="the-modulesyml-file">The <code>modules.yml</code> file</h2>
+<h2 id="the-modulesyml-file">The <code>modules.yml</code> file<a class="headerlink" href="#the-modulesyml-file" title="Permanent link">&para;</a></h2>
 <p>The <code>modules.yml</code> file gathers all go module configurations.
 Each module is listed even if this module has default attributes or is ignored.</p>
 <p>For each module, you can specify:</p>
