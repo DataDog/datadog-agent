@@ -47,6 +47,12 @@ func TestResolveRootOwner(t *testing.T) {
 			expected:  &core.FilterRootOwner{Kind: "ReplicaSet", Name: "invalid-name"},
 		},
 		{
+			name:      "ReplicaSet with empty Argo rollout label resolves to Deployment",
+			owners:    []workloadmeta.KubernetesPodOwner{{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)}},
+			podLabels: map[string]string{kubernetes.ArgoRolloutLabelKey: ""},
+			expected:  &core.FilterRootOwner{Kind: "Deployment", Name: "my-app"},
+		},
+		{
 			name:     "Job resolves to CronJob",
 			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Job", Name: "backup-1562319360", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "CronJob", Name: "backup"},

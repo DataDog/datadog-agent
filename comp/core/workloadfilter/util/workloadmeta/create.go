@@ -68,8 +68,9 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner, podLabels map[st
 	switch owner.Kind {
 	case kubernetes.ReplicaSetKind:
 		// Argo Rollouts manage ReplicaSets named like Deployment ones (`<owner>-<hash>`),
-		// so the rollout pod label is the only way to tell the two apart here.
-		if _, isRollout := podLabels[kubernetes.ArgoRolloutLabelKey]; isRollout {
+		// so the rollout pod label is the only way to tell the two apart here. A real
+		// Rollout always sets a non-empty hash, so an empty value is not one.
+		if podLabels[kubernetes.ArgoRolloutLabelKey] != "" {
 			if rollout := kubernetes.ParseDeploymentForReplicaSet(owner.Name); rollout != "" {
 				return &core.FilterRootOwner{Kind: kubernetes.RolloutKind, Name: rollout}
 			}
