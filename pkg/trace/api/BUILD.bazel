@@ -38,6 +38,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
+        "//comp/trace/compression/def",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
@@ -167,6 +168,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/tagger/origindetection",
+        "//comp/trace/compression/impl-zstd",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
@@ -189,6 +191,7 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
+        "@com_github_vmihailenco_msgpack_v4//:msgpack",
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
