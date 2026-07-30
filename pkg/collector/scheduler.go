@@ -85,8 +85,7 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	// (e.g. Python's) still gets the right decision, since there's no
 	// second, uncompressed manager instance to accidentally bypass it with.
 	senderManager = sdcsender.Wrap(senderManager,
-		setup.Datadog().GetBool("checks.sdc_compression_dry_run"),
-		setup.Datadog().GetString("checks.sdc_compression_shadow_host_suffix"))
+		setup.Datadog().GetBool("checks.sdc_compression_dry_run"))
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
@@ -241,6 +240,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 		if result.check != nil {
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
 			s.applyInfraTagger(s.senderManager, config.Name, result.check.ID())
+			result.check = wrapWithSDCIntervalOverride(result.check, config.Name)
 			checks = append(checks, result.check)
 			if includeShadowChecks {
 				if candidate, found := shadowCandidates[instanceIndex]; found {
