@@ -491,57 +491,43 @@ func TestCreateShardedKSMConfigs_AggregateFallbackNoPods(t *testing.T) {
 	assert.True(t, standaloneAggregate, "aggregate dispatched standalone when there is no pods shard")
 }
 
-// TestCreateShardedKSMConfigs_PodsGroup_WarnsOnNonSuppression: WITH a pods
-// group, a non-suppressing shardable is a certain .total double-count — ERROR.
-func TestCreateShardedKSMConfigs_PodsGroup_WarnsOnNonSuppression(t *testing.T) {
+// TestCreateShardedKSMConfigs_PodsGroup_SuppressesTotal: WITH a pods group,
+// cluster_unassigned shardables always suppress .total so it is not double-counted
+// with per-container resource metrics.
+func TestCreateShardedKSMConfigs_PodsGroup_SuppressesTotal(t *testing.T) {
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithAggregateAndSuppression([]string{"pods", "nodes"}, false)
 
-	message, isError, ok := diagnosticFor(t, manager, config)
-	assert.False(t, ok)
-	assert.True(t, isError, "a genuine pods group must be a certain double-count, not downgraded to a warning")
-	assert.Contains(t, message, "will not suppress its own .total")
+	_, _, ok := diagnosticFor(t, manager, config)
+	assert.True(t, ok)
 
 	_, err := manager.createShardedKSMConfigs(config)
 	require.NoError(t, err)
 }
 
-// TestCreateShardedKSMConfigs_SafeNoPodsCollectors_WarnsNotErrors: with
-// collectors that are always available (nodes, deployments — ordinary
-// built-in resources), no shard will ever build pods_extended, so the
-// standalone aggregate really is the only .total source. A non-suppressing
-// shardable here is a conditional risk, not a certainty — WARN, not ERROR.
-func TestCreateShardedKSMConfigs_SafeNoPodsCollectors_WarnsNotErrors(t *testing.T) {
+// TestCreateShardedKSMConfigs_SafeNoPodsCollectors_SuppressesTotal: collectors
+// that are always available still suppress .total on cluster_unassigned instances.
+func TestCreateShardedKSMConfigs_SafeNoPodsCollectors_SuppressesTotal(t *testing.T) {
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithAggregateAndSuppression([]string{"nodes", "deployments"}, false)
 
-	message, isError, ok := diagnosticFor(t, manager, config)
-	assert.False(t, ok)
-	assert.False(t, isError, "no pods group and always-available collectors means this isn't a certain double-count")
-	assert.Contains(t, message, "will not suppress its own .total")
+	_, _, ok := diagnosticFor(t, manager, config)
+	assert.True(t, ok)
 
 	configs, err := manager.createShardedKSMConfigs(config)
 	require.NoError(t, err)
 	require.Len(t, configs, 3, "nodes shard + others shard + standalone aggregate")
 }
 
-// TestCreateShardedKSMConfigs_UnavailableCollectorRisk_WarnsOnNonSuppression:
-// a shardable with no "pods" collector still gets the suppression diagnostic
-// (as a WARN, not silence). kubernetes_state.go's Configure() filters the
-// configured collectors against what the live API server actually exposes and
-// falls back to the full default set (including "pods") if that filtering
-// empties the list — e.g. an "others" shard whose only collector is a CRD
-// resource that isn't installed yet. That collapse happens on the runner,
-// invisible to this static analysis, so the diagnostic can't be silenced just
-// because none of the analyzed groups is named "pods".
-func TestCreateShardedKSMConfigs_UnavailableCollectorRisk_WarnsOnNonSuppression(t *testing.T) {
+// TestCreateShardedKSMConfigs_UnavailableCollectorRisk_SuppressesTotal:
+// cluster_unassigned instances suppress .total even when no static pods group
+// is configured on the shardable instance.
+func TestCreateShardedKSMConfigs_UnavailableCollectorRisk_SuppressesTotal(t *testing.T) {
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithAggregateAndSuppression([]string{"nodes", "unavailable-resource"}, false)
 
-	message, _, ok := diagnosticFor(t, manager, config)
-	assert.False(t, ok)
-	assert.Contains(t, message, "will not suppress its own .total",
-		"the 'others' shard's only collector could be filtered out by the runner and fall back to full defaults (including pods) — this risk must still surface")
+	_, _, ok := diagnosticFor(t, manager, config)
+	assert.True(t, ok)
 
 	configs, err := manager.createShardedKSMConfigs(config)
 	require.NoError(t, err)
@@ -675,8 +661,7 @@ func createKSMConfigWithMultipleInstances() integration.Config {
 
 // TestShardableSuppressesTotal covers the predicate behind the double-emit
 // diagnostic: when a cluster_aggregates_only instance is present, the shardable
-// instance must be cluster_unassigned AND have cluster_aggregates_enabled set,
-// otherwise both emit .total and the family is double-counted.
+// instance must use node_kubelet or cluster_unassigned so it suppresses .total.
 func TestShardableSuppressesTotal(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -691,9 +676,9 @@ func TestShardableSuppressesTotal(t *testing.T) {
 			wantMode: "cluster_unassigned", wantFlag: true, wantOK: true,
 		},
 		{
-			name:     "cluster_unassigned without flag does not suppress",
+			name:     "cluster_unassigned without flag suppresses",
 			instance: map[string]interface{}{"pod_collection_mode": "cluster_unassigned"},
-			wantMode: "cluster_unassigned", wantFlag: false, wantOK: false,
+			wantMode: "cluster_unassigned", wantFlag: false, wantOK: true,
 		},
 		{
 			name:     "flag set but default mode does not suppress",
@@ -701,14 +686,14 @@ func TestShardableSuppressesTotal(t *testing.T) {
 			wantMode: "", wantFlag: true, wantOK: false,
 		},
 		{
-			name:     "node_kubelet with flag is not a valid shardable and does not suppress here",
+			name:     "node_kubelet suppresses",
 			instance: map[string]interface{}{"pod_collection_mode": "node_kubelet", "cluster_aggregates_enabled": true},
-			wantMode: "node_kubelet", wantFlag: true, wantOK: false,
+			wantMode: "node_kubelet", wantFlag: true, wantOK: true,
 		},
 		{
-			name:     "flag explicitly false does not suppress",
+			name:     "flag explicitly false still suppresses on cluster_unassigned",
 			instance: map[string]interface{}{"pod_collection_mode": "cluster_unassigned", "cluster_aggregates_enabled": false},
-			wantMode: "cluster_unassigned", wantFlag: false, wantOK: false,
+			wantMode: "cluster_unassigned", wantFlag: false, wantOK: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

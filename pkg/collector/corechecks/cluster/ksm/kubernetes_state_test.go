@@ -2040,9 +2040,9 @@ func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
 			wantSuppress: true, wantHasTotal: false,
 		},
 		{
-			name: "node_kubelet + flag=false → emit (safe rollout, DCA not ready)",
+			name: "node_kubelet + flag=false → suppress (per-container is authoritative)",
 			mode: nodeKubeletPodCollection, flagEnabled: false,
-			wantSuppress: false, wantHasTotal: true,
+			wantSuppress: true, wantHasTotal: false,
 		},
 		{
 			name: "cluster_unassigned + flag=true → suppress",
@@ -2050,9 +2050,9 @@ func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
 			wantSuppress: true, wantHasTotal: false,
 		},
 		{
-			name: "cluster_unassigned + flag=false → emit",
+			name: "cluster_unassigned + flag=false → suppress",
 			mode: clusterUnassignedPodCollection, flagEnabled: false,
-			wantSuppress: false, wantHasTotal: true,
+			wantSuppress: true, wantHasTotal: false,
 		},
 		{
 			name: "default + flag=true → emit (single full-pod check is authoritative, design goal #5)",

@@ -1,0 +1,16 @@
+---
+fixes:
+  - |
+    Fix remaining kubelet and kubernetes_state metric double-counting after
+    ``use_stats_summary_as_source`` deduplication (issue #50544).
+
+    The cAdvisor provider no longer emits ``kubernetes.memory.limits``; the pod
+    provider remains the sole source from the API server spec, while cAdvisor still
+    feeds ``kubernetes.memory.usage_pct``.
+
+    KSM checks running with ``pod_collection_mode: node_kubelet`` or
+    ``cluster_unassigned`` no longer emit cluster-aggregate ``*.total`` resource
+    metrics alongside their per-container counterparts. Queries that wildcard both
+    families (for example ``kubernetes_state.container.cpu_limit*``) no longer
+    sum to roughly 2x. Deploy a ``cluster_aggregates_only`` instance on the
+    cluster-agent for authoritative ``*.total`` metrics.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
@@ -276,6 +277,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsWithStatsSummaryAsSource() {
 		common.KubeletMetricsPrefix + "cpu.usage.total",
 		common.KubeletMetricsPrefix + "memory.usage",
 		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "memory.limits",
 		common.KubeletMetricsPrefix + "filesystem.usage",
 		common.KubeletMetricsPrefix + "filesystem.usage_pct",
 		common.KubeletMetricsPrefix + "network.rx_bytes",
@@ -290,6 +292,23 @@ func (suite *ProviderTestSuite) TestExpectedMetricsWithStatsSummaryAsSource() {
 	// by the (silenced) container_memory_usage_bytes transformer. Asserting it
 	// is still emitted guards the cache-only path in processUsageMetric.
 	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage_pct", commontesting.InstanceTags)
+}
+
+func (suite *ProviderTestSuite) TestMemoryLimitsNotEmittedFromCadvisor() {
+	suite.SetupTest()
+
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil)
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error creating kubelet mock: %v", err)
+	}
+
+	_ = suite.provider.Provide(kubeletMock, suite.mockSender)
+	suite.mockSender.ResetCalls()
+	require.NoError(suite.T(), suite.provider.Provide(kubeletMock, suite.mockSender))
+
+	suite.mockSender.AssertNotCalled(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.limits", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (suite *ProviderTestSuite) TestPrometheusFiltering() {

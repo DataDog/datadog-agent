@@ -858,23 +858,16 @@ func (k *KSMCheck) Cancel() {
 
 // processMetrics attaches tags and forwards metrics to the aggregator
 func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
-	// Suppress .total accumulation on the per-node instances that would otherwise
-	// collide, but only when the instance sets cluster_aggregates_enabled: true:
-	//   - node_kubelet      (per-node agents — same reduced-tag gauge collides across nodes)
-	//   - cluster_unassigned (CLC runner — partial view, would emit an incomplete .total)
+	// Suppress .total accumulation on distributed instances that also emit
+	// per-container resource metrics. Summing both families (or a wildcard like
+	// kubernetes_state.container.cpu_limit*) roughly doubles cluster totals.
+	//   - node_kubelet       (per-node agents)
+	//   - cluster_unassigned (CLC runner shards)
 	// default mode is intentionally excluded: a single full-pod check is already the
-	// authoritative source for .total (no collision), so it must stay unaffected (design goal #5).
-	//
-	// Turning this on also starts the DCA's cluster_aggregates_only reflector
-	// warmup in the same window these instances start suppressing — there is no
-	// clean "DCA serving first, then nodes go quiet" handoff. Expect a brief
-	// (seconds-scale) window at flag-flip where .total is absent, then correct.
-	// The flag is a config signal, not a live DCA health check. While it is off
-	// (the default), nodes fall back to the pre-fix under-reported emission
-	// rather than going silent.
-	suppressClusterAggregates := (k.instance.PodCollectionMode == nodeKubeletPodCollection ||
-		k.instance.PodCollectionMode == clusterUnassignedPodCollection) &&
-		k.instance.ClusterAggregatesEnabled
+	// authoritative source for .total (no collision), so it must stay unaffected.
+	// cluster_aggregates_only on the cluster-agent remains the authoritative .total source.
+	suppressClusterAggregates := k.instance.PodCollectionMode == nodeKubeletPodCollection ||
+		k.instance.PodCollectionMode == clusterUnassignedPodCollection
 	// In cluster_aggregates_only mode, the check emits only the .total family
 	// (via aggregator flush). Skip per-pod transformer/mapper dispatch to avoid
 	// double-emission of per-pod metrics already produced by node-agents.

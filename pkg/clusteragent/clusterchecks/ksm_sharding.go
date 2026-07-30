@@ -142,6 +142,7 @@ func (m *ksmShardingManager) analyzeKSMConfig(shardable integration.Data) ([]res
 const (
 	clusterAggregatesOnlyMode = "cluster_aggregates_only"
 	clusterUnassignedMode     = "cluster_unassigned"
+	nodeKubeletMode           = "node_kubelet"
 )
 
 // classifyKSMInstances splits instances into the single shardable one and any
@@ -177,16 +178,16 @@ func classifyKSMInstances(config integration.Config) (integration.Data, []integr
 
 // shardableSuppressesTotal reports whether the shardable instance suppresses its
 // own .total family, which it must when a cluster_aggregates_only instance is
-// also configured. The observed values are returned for the diagnostic message;
-// an unparseable instance reports not-suppressing.
+// also configured. node_kubelet and cluster_unassigned instances always suppress
+// .total so they do not double-count with their per-container resource metrics.
 func shardableSuppressesTotal(shardable integration.Data) (mode string, flag bool, ok bool) {
 	var s struct {
 		PodCollectionMode        string `yaml:"pod_collection_mode"`
 		ClusterAggregatesEnabled bool   `yaml:"cluster_aggregates_enabled"`
 	}
 	_ = yaml.Unmarshal(shardable, &s)
-	return s.PodCollectionMode, s.ClusterAggregatesEnabled,
-		s.PodCollectionMode == clusterUnassignedMode && s.ClusterAggregatesEnabled
+	suppresses := s.PodCollectionMode == clusterUnassignedMode || s.PodCollectionMode == nodeKubeletMode
+	return s.PodCollectionMode, s.ClusterAggregatesEnabled, suppresses
 }
 
 // suppressionDiagnostic reports what to log, if anything, about the shardable
@@ -214,9 +215,9 @@ func suppressionDiagnostic(shardable integration.Data, groups []resourceGroup) (
 	// (including "pods"; see kubernetes_state.go Configure()), which this
 	// static analysis can't see. ERROR when certain, WARN when not.
 	if hasPodsGroup {
-		return fmt.Sprintf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q, cluster_aggregates_enabled=%v) will not suppress its own .total — this double-counts the .total family. Set pod_collection_mode: cluster_unassigned and cluster_aggregates_enabled: true on the shardable instance.", clusterAggregatesOnlyMode, mode, flag), true, false
+		return fmt.Sprintf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q) will not suppress its own .total — this double-counts the .total family. Set pod_collection_mode: cluster_unassigned on the shardable instance.", clusterAggregatesOnlyMode, mode), true, false
 	}
-	return fmt.Sprintf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q, cluster_aggregates_enabled=%v) will not suppress its own .total. None of its shards statically include a pods collector, but if any shard's collectors are unavailable on this cluster it falls back to defaults (including pods) and may already be double-counting. Set pod_collection_mode: cluster_unassigned and cluster_aggregates_enabled: true on the shardable instance.", clusterAggregatesOnlyMode, mode, flag), false, false
+	return fmt.Sprintf("KSM sharding: a %s instance is configured, but the shardable instance (pod_collection_mode=%q) will not suppress its own .total. None of its shards statically include a pods collector, but if any shard's collectors are unavailable on this cluster it falls back to defaults (including pods) and may already be double-counting. Set pod_collection_mode: cluster_unassigned on the shardable instance.", clusterAggregatesOnlyMode, mode), false, false
 }
 
 // shouldShardKSMCheck determines if a KSM check should be sharded
