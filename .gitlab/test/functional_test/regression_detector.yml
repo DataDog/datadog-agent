@@ -117,6 +117,12 @@ single_machine_performance-regression_detector-merge_base_check:
                       # the normal case here, not an edge case. Newlines outside
                       # strings are only whitespace, so stripping them all leaves
                       # the fields read below intact.
+                      # `POST /trigger/pipeline`, not `POST /pipeline`: GitLab
+                      # allowlists `CI_JOB_TOKEN` for the former only, and it
+                      # authenticates through a `token` body parameter rather
+                      # than a header. `tasks/pipeline.py` starts child
+                      # pipelines the same way, for the same reason.
+                      #
                       # The trailing `|| true` keeps this best-effort. The runner
                       # runs this script under `set -eo pipefail`, where a bare
                       # `VAR=$(failing-cmd)` aborts the block -- which would skip
@@ -124,7 +130,7 @@ single_machine_performance-regression_detector-merge_base_check:
                       # thing this branch prints. `--fail` also makes curl exit
                       # nonzero on an HTTP error while emitting nothing, so the
                       # empty-string checks below are what actually detect failure.
-                      SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipeline" | tr -d '\n\r' || true)
+                      SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" | tr -d '\n\r' || true)
                       SMP_REBUILD_PIPELINE_URL=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.web_url // empty')
                       if [[ -z "${SMP_REBUILD_PIPELINE_URL}" ]]
                       then
