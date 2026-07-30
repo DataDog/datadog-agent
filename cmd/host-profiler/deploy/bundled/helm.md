@@ -70,3 +70,71 @@ datadog:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Selective Deployment (optional)
+
+By default, the Datadog Agent DaemonSet (therefore the Host Profiler) is scheduled on every node in the cluster. Use one of the following options in your `values.yaml` to limit the Agent DaemonSet to a subset of nodes.
+
+1. `agents.nodeSelector`
+
+This option matches nodes by exact label value:
+
+```yaml
+agents:
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: ng1
+```
+
+2. `agents.affinity.nodeAffinity`
+
+Use this instead of `nodeSelector` when you need In/NotIn matching, multiple label conditions, or a soft preference rather than a hard requirement:
+
+```yaml
+agents:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/nodegroup
+                operator: In
+                values: [ng1]
+```
+
+3. `agents.tolerations`
+
+Use this when you also need to keep other workloads off the target nodes, not just steer the Host Profiler onto them. Taint the nodes first, then add a matching toleration:
+
+```yaml
+agents:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: host-profiler
+      effect: NoSchedule
+```
+
+### Deploying a second, node-scoped Agent release
+
+If you already run the Datadog Agent cluster-wide and want a second Helm release dedicated to the Host Profiler, scope the second release to a subset of nodes with `nodeSelector` or `affinity` above, and make sure your primary release's Agent DaemonSet does not also schedule on those same nodes (for example, by excluding them with `agents.affinity.nodeAffinity` on the primary release). Also, only one Datadog Agent release in the cluster can run the Cluster Agent and the Datadog Operator. In the second release's `values.yaml`:
+
+- Disable the Cluster Agent and Datadog Operator so the second release does not deploy duplicates:
+
+```yaml
+datadog:
+  operator:
+    enabled: false
+clusterAgent:
+  enabled: false
+```
+
+- Point the second release at the existing Cluster Agent from your primary release instead:
+
+```yaml
+existingClusterAgent:
+  join: true
+  serviceName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
+  tokenSecretName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
+```
+
+See the [Datadog Helm chart values](https://github.com/DataDog/helm-charts/blob/main/charts/datadog/values.yaml) for the full field list.

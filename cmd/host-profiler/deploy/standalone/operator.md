@@ -78,3 +78,46 @@ securityContext:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Selective Deployment (optional)
+
+By default, the DaemonSet deployment schedules the Host Profiler on every node in the cluster. Use one of the following options in operator/collector.yaml to limit it to a subset of nodes.
+
+1. nodeSelector
+
+This option matches nodes by exact label value: 
+
+```
+spec:
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: ng1
+```
+
+2. affinity.nodeAffinity
+
+Use this instead of nodeSelector when you need In/NotIn matching, multiple label conditions, or a soft preference rather than a hard requirement:
+```
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/nodegroup
+                operator: In
+                values:
+                  - ng1
+```
+
+3. Taints and tolerations
+Use this when you also need to keep other workloads off the target nodes, not just steer the Host Profiler onto them. Taint the nodes first, then add a matching toleration:
+```
+spec:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: host-profiler
+      effect: NoSchedule
+```
+
+See the OpenTelemetryCollector API reference (https://github.com/open-telemetry/opentelemetry-operator/blob/main/docs/api/opentelemetrycollectors.md) for the full field list.
