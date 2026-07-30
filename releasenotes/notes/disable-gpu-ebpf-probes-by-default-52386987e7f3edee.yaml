@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    The eBPF probes for GPU Monitoring are deprecated and are now disabled by
+    default. Set ``gpu_monitoring.enable_ebpf_probes`` to ``true`` in
+    ``system-probe.yaml`` to keep using them.
+upgrade:
+  - |
+    Because the eBPF probes for GPU Monitoring are now disabled by default, the
+    ``gpu.process.core.usage`` metric is no longer collected by default: it is
+    the only GPU metric produced exclusively by those probes. The closest
+    replacement is ``gpu.process.sm_active``, which is collected through NVML.
+    Set ``gpu_monitoring.enable_ebpf_probes`` to ``true`` to restore the
+    previous behavior. All other GPU metrics are unaffected.
