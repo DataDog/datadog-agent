@@ -288,7 +288,6 @@ func TestGetOTelSpanType(t *testing.T) {
 
 func TestSpanKind2Type(t *testing.T) {
 	for _, tt := range []struct {
-		name string
 		kind ptrace.SpanKind
 		meta map[string]string
 		out  string
