@@ -40,6 +40,7 @@ from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
+from tasks.schema.generate import codegen as schema_codegen
 from tasks.schema.generate import compress as schema_compress
 from tasks.schema.template import CORE_SCHEMA_FILE, SYSPROBE_SCHEMA_FILE, generate_template
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -145,6 +146,10 @@ def build(
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
     schema_compress(ctx)
+
+    # AIX build hosts do not have bazel: we need to run code generation task manually
+    if target_platform == "aix":
+        schema_codegen(ctx, keep_orig_order=True, fix=True)
 
     with gitlab_section("Build agent", collapsed=True):
         go_build(
