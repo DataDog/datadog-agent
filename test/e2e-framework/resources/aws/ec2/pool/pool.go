@@ -136,14 +136,20 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 
 			getOut, getErr := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
 			if getErr != nil {
-				// No lease object yet: not claimable.
+				// A missing lease object means "not a pool member yet", which is not an
+				// error. Anything else -- credentials, permissions, network -- must not
+				// masquerade as an unavailable member.
+				if !isNotFound(getErr) {
+					return "", "", "", fmt.Errorf("failed to read lease record for instance %s: %w", id, getErr)
+				}
 				continue
 			}
 			var current leaseRecord
 			decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
 			getOut.Body.Close()
 			if decodeErr != nil {
-				continue
+				// A lease that exists but will not parse is corruption, not contention.
+				return "", "", "", fmt.Errorf("failed to decode lease record for instance %s: %w", id, decodeErr)
 			}
 			if current.Status != statusIdle {
 				continue // held by another run; try the next pool instance
@@ -160,7 +166,12 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 				IfMatch: getOut.ETag,
 			})
 			if putErr != nil {
-				continue // precondition failed: someone else claimed it between our GetObject and PutObject
+				// Losing the conditional write means someone claimed it between our
+				// GetObject and PutObject -- try the next member. Anything else is real.
+				if !isConditionalWriteConflict(putErr) {
+					return "", "", "", fmt.Errorf("failed to claim lease for instance %s: %w", id, putErr)
+				}
+				continue
 			}
 			return id, aws.ToString(putOut.ETag), current.ImageID, nil
 		}
@@ -358,6 +369,35 @@ var ErrLeaseAlreadyExists = errors.New("lease record already exists")
 // without promoting smithy-go from an indirect dependency.
 type apiError interface {
 	ErrorCode() string
+}
+
+// isNotFound reports whether err is S3's "object does not exist". GetObject answers
+// NoSuchKey; HeadObject answers NotFound.
+func isNotFound(err error) bool {
+	var apiErr apiError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.ErrorCode() {
+	case "NoSuchKey", "NotFound":
+		return true
+	}
+	return false
+}
+
+// isConditionalWriteConflict reports whether err is a lost S3 conditional write: 412
+// PreconditionFailed for If-Match/If-None-Match, or 409 ConditionalRequestConflict for a
+// concurrent write to the same key.
+func isConditionalWriteConflict(err error) bool {
+	var apiErr apiError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.ErrorCode() {
+	case "PreconditionFailed", "ConditionalRequestConflict":
+		return true
+	}
+	return false
 }
 
 // PublishInitialLease writes instanceID's first lease record, held by owner and marked
