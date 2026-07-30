@@ -24,6 +24,7 @@ go_library(
         "//comp/dogstatsd/config",
         "//comp/dogstatsd/server/def",
         "//pkg/collector/check",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/status/health",
