@@ -1,0 +1,5 @@
+filegroup(
+    name = "integrations_test_data",
+    srcs = glob(["integrations/**"]),
+    visibility = ["//cmd/agent/subcommands/integrations:__subpackages__"],
+)
