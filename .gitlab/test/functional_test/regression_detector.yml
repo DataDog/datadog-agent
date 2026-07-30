@@ -95,8 +95,24 @@ single_machine_performance-regression_detector-merge_base_check:
               if [[ "$SMP_BASE_BRANCH" =~ ^[0-9]+\.[0-9]+\.x$ ]]
               then
                   SMP_BASE_TIP=$(git rev-parse "origin/${SMP_BASE_BRANCH}")
-                  if [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${SMP_BASE_TIP}-7-full-amd64") ]]
+                  # Trigger only on a *confirmed* miss. Throttling, expired
+                  # credentials and network errors all leave `describe-images`
+                  # stdout empty too, so the `[[ ! $(...) ]]` test the loop
+                  # above uses cannot tell "no such image" from "could not
+                  # check". Guessing wrong is cheap in that loop -- it steps
+                  # back one commit -- but here it starts an ~860-job pipeline,
+                  # and the two failures correlate: credentials expiring
+                  # mid-loop is itself a way to reach this branch spuriously.
+                  # The distinguishing information is on stderr, so capture
+                  # that and discard stdout. `if VAR=$(...)` is exempt from
+                  # `set -e`.
+                  if SMP_ECR_ERROR=$(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${SMP_BASE_TIP}-7-full-amd64" 2>&1 >/dev/null)
                   then
+                      echo "A baseline image already exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP})"
+                  elif [[ "${SMP_ECR_ERROR}" != *ImageNotFoundException* ]]
+                  then
+                      echo "WARNING: could not determine whether a baseline image exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP}), so not triggering a rebuild: ${SMP_ECR_ERROR}"
+                  else
                       echo "No baseline image exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP}) - triggering a pipeline to build one now"
                       # Report the triggered pipeline's URL rather than an
                       # expected duration, which would go stale as build times
@@ -120,15 +136,17 @@ single_machine_performance-regression_detector-merge_base_check:
                       # `CI_API_V4_URL` is https://gitlab.ddbuild.io/api/v4 and
                       # `CI_PROJECT_ID` is 4670 for this project.
                       #
-                      # The trailing `|| true` keeps this best-effort. The runner
-                      # runs this script under `set -eo pipefail`, where a bare
-                      # `VAR=$(failing-cmd)` aborts the block -- which would skip
-                      # the warning and self-service output below, the most useful
-                      # thing this branch prints. `--fail` also makes curl exit
-                      # nonzero on an HTTP error while emitting nothing, so the
-                      # empty-string checks below are what actually detect failure.
+                      # The trailing `|| true` on both lines keeps this
+                      # best-effort. The runner runs this script under
+                      # `set -eo pipefail`, where a bare `VAR=$(failing-cmd)`
+                      # aborts the block -- which would skip the warning and
+                      # self-service output below, the most useful thing this
+                      # branch prints. `--fail` also makes curl exit nonzero on
+                      # an HTTP error while emitting nothing, and `jq` exits
+                      # nonzero on a non-JSON body, so the empty-string check
+                      # below is what actually detects failure.
                       SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" || true)
-                      SMP_REBUILD_PIPELINE_URL=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.web_url // empty')
+                      SMP_REBUILD_PIPELINE_URL=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.web_url // empty' || true)
                       if [[ -z "${SMP_REBUILD_PIPELINE_URL}" ]]
                       then
                           SMP_REBUILD_TRIGGERED="false"
