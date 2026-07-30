@@ -15,17 +15,9 @@
 package metrics
 
 import (
-	"context"
-	"strconv"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.uber.org/zap"
-
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 const (
@@ -33,15 +25,11 @@ const (
 	divMebibytes = 1024 * 1024
 	// divPercentage specifies the division necessary for converting fractions to percentages.
 	divPercentage = 0.01
-
-	// sdkTraceMetricName is the DD-SDK OTLP histogram remapped here so Agent/DDOT
-	// customers get trace.* series before the otlp-intake endpoint is GA.
-	sdkTraceMetricName = "traces.span.sdk.metrics.duration"
 )
 
 var emptyAttributesMapping = attributesMapping{}
 
-// remapMetrics extracts any Datadog specific metrics from m and appends them to all.
+// remapMetrics extracts Datadog-specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
@@ -260,169 +248,5 @@ func isAgentInternalOTelMetric(name string) bool {
 func renameAgentInternalOTelMetric(m pmetric.Metric) {
 	if isAgentInternalOTelMetric(m.Name()) {
 		m.SetName("otelcol_" + m.Name())
-	}
-}
-
-// remapSDKTraceMetrics maps sdkTraceMetricName into trace.<op>.{hits,errors,hits.by_type}
-// delta Sums and a trace.<op>.duration DDSketch (preserving latency distribution).
-func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, all pmetric.MetricSlice, m pmetric.Metric) {
-	if m.Type() != pmetric.MetricTypeHistogram {
-		return
-	}
-	if m.Histogram().AggregationTemporality() != pmetric.AggregationTemporalityDelta {
-		// Diffing a cumulative datapoint against a stored prior value would need state we
-		// don't keep here; skip rather than double-count hits/errors/duration.
-		logger.Debug("Skipping non-delta SDK trace metric", zap.String(metricName, m.Name()))
-		return
-	}
-	unit := m.Unit()
-	dps := m.Histogram().DataPoints()
-	for i := 0; i < dps.Len(); i++ {
-		dp := dps.At(i)
-		if dp.Flags().NoRecordedValue() {
-			continue
-		}
-		attrs := dp.Attributes()
-		operation := sdkOperationName(attrs)
-
-		hits := dp.Count()
-		isError := sdkIsError(attrs)
-		topLevelHits := sdkTopLevelHits(hits, attrs)
-
-		ts := dp.Timestamp()
-		start := dp.StartTimestamp()
-		tags := sdkTraceTags(attrs)
-
-		appendSDKTraceSum(all, "trace."+operation+".hits", ts, start, float64(hits), tags)
-		if isError {
-			appendSDKTraceSum(all, "trace."+operation+".errors", ts, start, float64(hits), tags)
-		}
-		if topLevelHits > 0 {
-			appendSDKTraceSum(all, "trace."+operation+".hits.by_type", ts, start, float64(topLevelHits), tags)
-		}
-
-		consumeSDKTraceDuration(ctx, logger, consumer, baseDims, "trace."+operation+".duration", dp, unit, tags)
-	}
-}
-
-func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, name string, dp pmetric.HistogramDataPoint, unit string, tags []kv) {
-	ddSketch, err := CreateDDSketchFromHistogramOfDuration(&dp, unit)
-	if err != nil {
-		logger.Debug("Failed to convert SDK trace histogram into DDSketch",
-			zap.String(metricName, name), zap.Error(err))
-		return
-	}
-	agentSketch, err := quantile.ConvertDDSketchIntoSketch(ddSketch)
-	if err != nil {
-		logger.Debug("Failed to convert DDSketch into Sketch",
-			zap.String(metricName, name), zap.Error(err))
-		return
-	}
-	// CreateDDSketchFromHistogramOfDuration reconstructs values from bucket midpoints, so
-	// Basic.Sum/Avg/Min/Max only approximate the distribution; overwrite with the exact OTLP values.
-	scaleToNanos := getTimeUnitScaleToNanos(unit)
-	OverwriteSketchSummary(agentSketch, SketchExactSummary{
-		Count:    dp.Count(),
-		HasCount: true,
-		Sum:      dp.Sum() * scaleToNanos,
-		HasSum:   dp.HasSum(),
-		Min:      dp.Min() * scaleToNanos,
-		HasMin:   dp.HasMin(),
-		Max:      dp.Max() * scaleToNanos,
-		HasMax:   dp.HasMax(),
-	})
-	tagStrings := make([]string, 0, len(tags))
-	for _, t := range tags {
-		tagStrings = append(tagStrings, t.K+":"+t.V)
-	}
-	dims := baseDims.AddTags(tagStrings...)
-	dims.name = name
-	consumer.ConsumeSketch(ctx, dims, uint64(dp.Timestamp()), 0, agentSketch)
-}
-
-func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.Timestamp, value float64, tags []kv) {
-	metric := all.AppendEmpty()
-	metric.SetName(name)
-	sum := metric.SetEmptySum()
-	sum.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	sum.SetIsMonotonic(true)
-	ndp := sum.DataPoints().AppendEmpty()
-	ndp.SetTimestamp(ts)
-	ndp.SetStartTimestamp(start)
-	ndp.SetDoubleValue(value)
-	for _, t := range tags {
-		ndp.Attributes().PutStr(t.K, t.V)
-	}
-}
-
-func sdkOperationName(attrs pcommon.Map) string {
-	if op := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name"); op != "" {
-		return op
-	}
-	spanKind := spanKindFromAttr(attrs)
-	if op := attributes.GetOperationName(attrs, spanKind); op != "" {
-		return op
-	}
-	return "unknown"
-}
-
-// sdkIsError gates on status.code only; the HTTP-status/error.type heuristics used by the
-// SMC path don't apply to this metric.
-func sdkIsError(attrs pcommon.Map) bool {
-	switch attributes.GetOTelAttrVal(attrs, false, "status.code") {
-	case "ERROR", "STATUS_CODE_ERROR", "2":
-		return true
-	}
-	return false
-}
-
-func sdkTopLevelHits(hits uint64, attrs pcommon.Map) uint64 {
-	switch attributes.GetOTelAttrVal(attrs, false, "datadog.span.top_level") {
-	case "true", "1":
-		return hits
-	}
-	return 0
-}
-
-// sdkTraceTags omits http.status_code for non-HTTP spans (unlike the SMC path which defaults to 200).
-func sdkTraceTags(attrs pcommon.Map) []kv {
-	spanKind := spanKindFromAttr(attrs)
-	tags := []kv{
-		{"resource", sdkResourceName(attrs)},
-		{"span.kind", strings.ToLower(spanKind.String())},
-	}
-	if status := attributes.GetStatusCode(attrs); status != 0 {
-		tags = append(tags, kv{"http.status_code", strconv.FormatUint(uint64(status), 10)})
-	}
-	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); v != "" {
-		tags = append(tags, kv{"span.type", v})
-	}
-	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.origin"); v != "" {
-		tags = append(tags, kv{"origin", v})
-	}
-	return tags
-}
-
-func sdkResourceName(attrs pcommon.Map) string {
-	if v := attributes.GetOTelAttrVal(attrs, false, "span.name"); v != "" {
-		return v
-	}
-	return "unspecified"
-}
-
-func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
-	switch strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")) {
-	case "SERVER":
-		return ptrace.SpanKindServer
-	case "CLIENT":
-		return ptrace.SpanKindClient
-	case "PRODUCER":
-		return ptrace.SpanKindProducer
-	case "CONSUMER":
-		return ptrace.SpanKindConsumer
-	case "INTERNAL":
-		return ptrace.SpanKindInternal
-	default:
-		return ptrace.SpanKindUnspecified
 	}
 }

@@ -67,7 +67,7 @@ type TelemetryStore struct {
 type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
-// Serializer exporter should never receive APM stats in Agent OTLP ingestion.
+// SDK trace histograms may be converted and forwarded through the APM stats receiver.
 func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, store TelemetryStore) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
 	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest)
@@ -98,7 +98,7 @@ func newFactoryForAgentWithType(
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings(), otlpmetrics.WithoutSDKTraceMetricsRemapping())
+		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
 	} else {
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
@@ -150,7 +150,7 @@ func newFactoryForAgentWithType(
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings(), otlpmetrics.WithoutSDKTraceMetricsRemapping())
+		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
 	} else {
 		options = append(options, otlpmetrics.WithRemapping())
 	}

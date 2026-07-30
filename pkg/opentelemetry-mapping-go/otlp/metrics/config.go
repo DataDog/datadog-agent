@@ -46,9 +46,8 @@ type translatorConfig struct {
 	// withRuntimeRemapping reports whether runtime metrics should be mapped to Datadog counterparts.
 	withRuntimeRemapping bool
 
-	// withSDKTraceMetrics reports whether the DD-SDK OTLP histogram sdkTraceMetricName
-	// is remapped into trace.<operation>.* series. Enabled by default, and independent
-	// of withRemapping since that flag also renames unrelated host/container metrics.
+	// withSDKTraceMetrics reports whether the SDK trace metric is converted to APM stats.
+	// It is independent of unrelated host and container metric remapping.
 	withSDKTraceMetrics bool
 
 	// cache configuration
@@ -86,8 +85,7 @@ func WithRemapping() TranslatorOption {
 	}
 }
 
-// WithoutSDKTraceMetricsRemapping disables remapping sdkTraceMetricName into
-// trace.<operation>.* series; it is enabled by default, independently of WithRemapping.
+// WithoutSDKTraceMetricsRemapping disables converting the SDK trace metric to APM stats.
 func WithoutSDKTraceMetricsRemapping() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.withSDKTraceMetrics = false
