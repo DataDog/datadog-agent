@@ -193,32 +193,33 @@ func TestBoundedError_RandomWalk(t *testing.T) {
 // real value) accepts (20,5) into the same segment as (10,1), then closes
 // there when (21,10) arrives — producing a reconstruction that misses (10,1)
 // by 1.5, 50% over tolerance. The fix requires a candidate's own slope from
-// the anchor to already lie within the cone accumulated from strictly prior
-// points, which forces (10,1) to be shipped as its own breakpoint instead.
+// the first point to already lie within the cone accumulated from strictly
+// prior points, which forces (10,1) to be shipped as its own breakpoint
+// instead.
 func TestSwingDoorCandidateMustMatchItsOwnSlope(t *testing.T) {
 	cfg := Config{Epsilon: 0, Alpha: 0, Floor: 1, Warmup: 1}
 	c := New(cfg)
 
-	require.Equal(t, []Point{{Ts: 0, Value: 0}}, c.Update(0, 0)) // warmup emits the anchor
+	require.Equal(t, []Point{{Ts: 0, Value: 0}}, c.Update(0, 0)) // warmup emits the first point
 	require.Empty(t, c.Update(10, 1))                            // opens the segment, no violation yet
 
-	// (20,5) is inconsistent with (10,1)'s own trajectory from the anchor
-	// even though the naive intersected cone would still be non-empty; it
-	// must force (10,1) to close out as its own breakpoint.
+	// (20,5) is inconsistent with (10,1)'s own trajectory from the first
+	// point even though the naive intersected cone would still be
+	// non-empty; it must force (10,1) to close out as its own breakpoint.
 	closed := c.Update(20, 5)
 	require.Equal(t, []Point{{Ts: 10, Value: 1}}, closed)
 
-	// And the reconstruction from here on (new anchor (10,1), pending
-	// (20,5)) must itself respect tolerance for every fed sample.
+	// And the reconstruction from here on (new first point (10,1), last
+	// inbounds (20,5)) must itself respect tolerance for every fed sample.
 	final := c.FlushWindow(20)
 	require.Equal(t, []Point{{Ts: 20, Value: 5}}, final)
 }
 
-func TestFlushWindow_NoPendingEmitsNothing(t *testing.T) {
+func TestFlushWindow_NoLastInBoundsEmitsNothing(t *testing.T) {
 	c := New(testConfig()) // Warmup: 2
 	require.Equal(t, []Point{{Ts: 0, Value: 1}}, c.Update(0, 1))
 	require.Equal(t, []Point{{Ts: 1, Value: 1}}, c.Update(1, 1))
-	// Both calls above were still warmup; nothing pending yet, so flush
+	// Both calls above were still warmup; nothing inbounds yet, so flush
 	// must not synthesize or re-emit anything.
 	require.Empty(t, c.FlushWindow(1))
 }
@@ -228,7 +229,7 @@ func TestUpdate_SingleSampleWindow(t *testing.T) {
 	got := c.Update(0, 7)
 	require.Equal(t, []Point{{Ts: 0, Value: 7}}, got)
 	// Nothing else happened this window: flushing must not re-emit the
-	// already-shipped anchor.
+	// already-shipped first point.
 	require.Empty(t, c.FlushWindow(0))
 }
 
@@ -371,11 +372,11 @@ func genMixedSignal(r *xorshift64, n int) []float64 {
 }
 
 // toPoints assigns strictly increasing, non-uniformly-spaced timestamps to
-// values — non-uniform spacing exercises openSegment/evalCandidate's dt
+// values — non-uniform spacing exercises establishPivots/doorSlopes' dt
 // handling more thoroughly than the fixed 1-unit spacing every other test in
 // this file uses. Strictly increasing (never equal) sidesteps the dt<=0
-// re-anchor branch in openSegment/evalCandidate, a degenerate case with its
-// own, separately-tested semantics (see TestFlushWindow_NoPendingEmitsNothing
+// restart branch in establishPivots/doorSlopes, a degenerate case with its
+// own, separately-tested semantics (see TestFlushWindow_NoLastInBoundsEmitsNothing
 // and friends) that isn't part of this property.
 func toPoints(r *xorshift64, values []float64) []Point {
 	pts := make([]Point, len(values))

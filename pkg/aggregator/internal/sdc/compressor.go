@@ -7,6 +7,14 @@
 // Trending/Compression (SDC) compressor for per-context metric point
 // streams, with an EWMA-smoothed adaptive tolerance: full granularity where
 // the signal moves, a handful of points where it doesn't.
+//
+// This is the Swinging Door Method of Bristol, U.S. Patent 4,669,097
+// ("Data Compression for Display and Storage"), and follows its
+// terminology: each open segment pivots two "doors" (upperDoorSlope,
+// lowerDoorSlope — the patent's SU(MAX)/SL(MIN)) from the segment's first
+// point, admitting successive points until the doors would cross, at
+// which point the last inbounds point is issued as the segment's end and
+// a new segment begins from there.
 package sdc
 
 import "math"
@@ -49,13 +57,21 @@ type Compressor struct {
 
 	warmupRemaining int
 
-	hasAnchor bool
-	anchor    Point
+	// first is the current segment's first point (the patent's "first
+	// corridor end point" C(i)), from which the two doors pivot.
+	hasFirst bool
+	first    Point
 
-	hasPending bool
-	pending    Point
-	slopeMin   float64
-	slopeMax   float64
+	// lastInBounds is the most recent point admitted into the current
+	// segment (the patent's "last inbounds point") — the candidate for the
+	// segment's end point once a later point forces the doors to cross.
+	hasLastInBounds bool
+	lastInBounds    Point
+	// upperDoorSlope and lowerDoorSlope are the patent's SU(MAX)/SL(MIN):
+	// the most extreme slope each door has had to swing to since first,
+	// narrowing the admissible slope range as more points are folded in.
+	upperDoorSlope float64
+	lowerDoorSlope float64
 }
 
 // New returns a Compressor for one metric context, using cfg for all series.
@@ -68,81 +84,86 @@ func New(cfg Config) *Compressor {
 // non-empty exactly when the signal moved enough to require shipping a new
 // point. Samples must be fed in non-decreasing Ts order.
 func (c *Compressor) Update(ts, value float64) []Point {
-	tol := c.updateScaleAndTolerance(value)
+	errorBound := c.updateScaleAndTolerance(value)
 
 	if c.warmupRemaining > 0 {
 		c.warmupRemaining--
-		c.anchor = Point{Ts: ts, Value: value}
-		c.hasAnchor = true
-		c.hasPending = false
+		c.first = Point{Ts: ts, Value: value}
+		c.hasFirst = true
+		c.hasLastInBounds = false
 		return []Point{{Ts: ts, Value: value}}
 	}
 
-	if !c.hasAnchor {
-		// Defensive: warmup with Warmup>=1 always sets the anchor on its
-		// last iteration, so this should not happen in practice.
-		c.anchor = Point{Ts: ts, Value: value}
-		c.hasAnchor = true
+	if !c.hasFirst {
+		// Defensive: warmup with Warmup>=1 always sets the first point on
+		// its last iteration, so this should not happen in practice.
+		c.first = Point{Ts: ts, Value: value}
+		c.hasFirst = true
 		return nil
 	}
 
-	if !c.hasPending {
-		c.openSegment(ts, value, tol)
+	if !c.hasLastInBounds {
+		c.establishPivots(ts, value, errorBound)
 		return nil
 	}
 
-	cand := evalCandidate(c.anchor, ts, value, tol)
+	cand := doorSlopes(c.first, ts, value, errorBound)
 
 	// A candidate is only safe to fold into the current segment if its own
-	// real slope from the anchor is already consistent with everything
-	// swallowed so far. A merely non-empty intersected cone is not enough:
-	// this point's own slope could sit outside the pre-update cone while
-	// still leaving the (further-narrowed) cone non-empty, which would let
-	// a later close silently misrepresent an earlier point beyond
-	// tolerance. See the package tests for a concrete counterexample.
-	if cand.feasible && cand.slope >= c.slopeMin && cand.slope <= c.slopeMax {
-		c.slopeMin = math.Max(c.slopeMin, cand.lo)
-		c.slopeMax = math.Min(c.slopeMax, cand.hi)
-		c.pending = Point{Ts: ts, Value: value}
+	// real slope from the first point is already consistent with
+	// everything swallowed so far. A merely non-empty intersected cone is
+	// not enough: this point's own slope could sit outside the pre-update
+	// cone while still leaving the (further-narrowed) cone non-empty,
+	// which would let a later close silently misrepresent an earlier
+	// point beyond tolerance. See the package tests for a concrete
+	// counterexample.
+	if cand.feasible && cand.slope >= c.upperDoorSlope && cand.slope <= c.lowerDoorSlope {
+		c.upperDoorSlope = math.Max(c.upperDoorSlope, cand.upperDoorSlope)
+		c.lowerDoorSlope = math.Min(c.lowerDoorSlope, cand.lowerDoorSlope)
+		c.lastInBounds = Point{Ts: ts, Value: value}
 		return nil
 	}
 
-	// Close the segment at the pending point — the last point whose own
-	// trajectory from the anchor was consistent with the run — then open a
-	// fresh segment with this point against that new anchor.
-	closed := c.pending
-	c.anchor = closed
-	c.hasPending = false
-	c.openSegment(ts, value, tol)
+	// The doors would cross: close the segment at the last inbounds point
+	// — the last point whose own trajectory from the first point was
+	// consistent with the run — then open a fresh segment with this point
+	// against that new first point.
+	closed := c.lastInBounds
+	c.first = closed
+	c.hasLastInBounds = false
+	c.establishPivots(ts, value, errorBound)
 	return []Point{closed}
 }
 
 // FlushWindow force-closes the currently open segment, if any, and returns
-// its closing point. The scale estimate and the anchor (the returned point,
-// or the previous anchor if nothing was pending) carry forward into the
-// next window unchanged.
+// its closing point. The scale estimate and the first point (the returned
+// point, or the previous first point if nothing was in bounds) carry
+// forward into the next window unchanged.
 func (c *Compressor) FlushWindow(_ float64) []Point {
-	if !c.hasPending {
+	if !c.hasLastInBounds {
 		return nil
 	}
-	closed := c.pending
-	c.anchor = closed
-	c.hasPending = false
+	closed := c.lastInBounds
+	c.first = closed
+	c.hasLastInBounds = false
 	return []Point{closed}
 }
 
-func (c *Compressor) openSegment(ts, value, tol float64) {
-	cand := evalCandidate(c.anchor, ts, value, tol)
+// establishPivots starts a new segment from c.first: the patent's
+// "establish pivot points" (Step 2) / "establish new offset points"
+// (Step 8), computing the initial upper/lower door slopes toward (ts, value).
+func (c *Compressor) establishPivots(ts, value, errorBound float64) {
+	cand := doorSlopes(c.first, ts, value, errorBound)
 	if !cand.feasible {
-		// Same timestamp as the anchor but outside tolerance: nothing
-		// sensible to swing a door from; just re-anchor here.
-		c.anchor = Point{Ts: ts, Value: value}
-		c.hasPending = false
+		// Same timestamp as the first point but outside tolerance: nothing
+		// sensible to swing a door from; just restart from here.
+		c.first = Point{Ts: ts, Value: value}
+		c.hasLastInBounds = false
 		return
 	}
-	c.slopeMin, c.slopeMax = cand.lo, cand.hi
-	c.pending = Point{Ts: ts, Value: value}
-	c.hasPending = true
+	c.upperDoorSlope, c.lowerDoorSlope = cand.upperDoorSlope, cand.lowerDoorSlope
+	c.lastInBounds = Point{Ts: ts, Value: value}
+	c.hasLastInBounds = true
 }
 
 // Scale returns the compressor's current EWMA estimate of the signal's
@@ -154,6 +175,10 @@ func (c *Compressor) Scale() float64 {
 	return c.scale
 }
 
+// updateScaleAndTolerance returns the current errorBound (the patent's
+// "error" / "error bound E") — here computed dynamically as
+// max(Epsilon*EWMA-scale, Floor) rather than the patent's static,
+// externally-supplied E.
 func (c *Compressor) updateScaleAndTolerance(value float64) float64 {
 	abs := math.Abs(value)
 	if !c.hasScale {
@@ -162,36 +187,39 @@ func (c *Compressor) updateScaleAndTolerance(value float64) float64 {
 	} else {
 		c.scale = c.cfg.Alpha*abs + (1-c.cfg.Alpha)*c.scale
 	}
-	tol := c.cfg.Epsilon * c.scale
-	if tol < c.cfg.Floor {
+	errorBound := c.cfg.Epsilon * c.scale
+	if errorBound < c.cfg.Floor {
 		return c.cfg.Floor
 	}
-	return tol
+	return errorBound
 }
 
+// candidate holds a point's raw slope from the segment's first point, and
+// the upper/lower door slopes (the patent's SU(i)/SL(i)) that pivoting
+// each door from first to admit this point at ±errorBound would require.
 type candidate struct {
-	slope    float64
-	lo, hi   float64
-	feasible bool
+	slope                          float64
+	upperDoorSlope, lowerDoorSlope float64
+	feasible                       bool
 }
 
-// evalCandidate computes the slope from anchor to (t, v), and the interval
-// of slopes from anchor that would keep (t, v) within tol. feasible is false
-// only in the degenerate case where t == anchor.Ts but v differs from
-// anchor.Value by more than tol, which no line through the anchor can
-// satisfy.
-func evalCandidate(anchor Point, t, v, tol float64) candidate {
-	dt := t - anchor.Ts
+// doorSlopes computes the raw slope from first to (t, v), and SU(i)/SL(i):
+// the interval of slopes from first that would keep (t, v) within
+// errorBound. feasible is false only in the degenerate case where t ==
+// first.Ts but v differs from first.Value by more than errorBound, which
+// no line through first can satisfy.
+func doorSlopes(first Point, t, v, errorBound float64) candidate {
+	dt := t - first.Ts
 	if dt <= 0 {
-		if math.Abs(v-anchor.Value) <= tol {
-			return candidate{slope: 0, lo: math.Inf(-1), hi: math.Inf(1), feasible: true}
+		if math.Abs(v-first.Value) <= errorBound {
+			return candidate{slope: 0, upperDoorSlope: math.Inf(-1), lowerDoorSlope: math.Inf(1), feasible: true}
 		}
 		return candidate{feasible: false}
 	}
 	return candidate{
-		slope:    (v - anchor.Value) / dt,
-		lo:       (v - tol - anchor.Value) / dt,
-		hi:       (v + tol - anchor.Value) / dt,
-		feasible: true,
+		slope:          (v - first.Value) / dt,
+		upperDoorSlope: (v - errorBound - first.Value) / dt,
+		lowerDoorSlope: (v + errorBound - first.Value) / dt,
+		feasible:       true,
 	}
 }
