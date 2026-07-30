@@ -19,42 +19,40 @@ constant_header = """//
 //
 """
 
-core_agent_stubs = """
-func agent(config pkgconfigmodel.Setup) {
-    initEverything(config)
+core_agent_stubs = """func agent(config pkgconfigmodel.Setup) {
+	initEverything(config)
 }
 
-func aggregator(_ pkgconfigmodel.Setup) {}
-func anomalyDetection(_ pkgconfigmodel.Setup) {}
-func autoconfig(_ pkgconfigmodel.Setup) {}
-func autoscaling(_ pkgconfigmodel.Setup) {}
-func cloudfoundry(_ pkgconfigmodel.Setup) {}
-func containerd(_ pkgconfigmodel.Setup) {}
-func containerSyspath(_ pkgconfigmodel.Setup) {}
-func cri(_ pkgconfigmodel.Setup) {}
-func debugging(_ pkgconfigmodel.Setup) {}
-func dogstatsd(_ pkgconfigmodel.Setup) {}
-func fips(_ pkgconfigmodel.Setup) {}
-func fleet(_ pkgconfigmodel.Setup) {}
-func forwarder(_ pkgconfigmodel.Setup) {}
-func kubernetes(_ pkgconfigmodel.Setup) {}
-func logsagent(_ pkgconfigmodel.Setup) {}
-func OTLP(_ pkgconfigmodel.Setup) {}
-func podman(_ pkgconfigmodel.Setup) {}
-func remoteconfig(_ pkgconfigmodel.Setup) {}
-func remoteflags(_ pkgconfigmodel.Setup) {}
-func serializer(_ pkgconfigmodel.Setup) {}
-func serverless(_ pkgconfigmodel.Setup) {}
-func setupAPM(_ pkgconfigmodel.Setup) {}
+func aggregator(_ pkgconfigmodel.Setup)               {}
+func anomalyDetection(_ pkgconfigmodel.Setup)         {}
+func autoconfig(_ pkgconfigmodel.Setup)               {}
+func autoscaling(_ pkgconfigmodel.Setup)              {}
+func cloudfoundry(_ pkgconfigmodel.Setup)             {}
+func containerd(_ pkgconfigmodel.Setup)               {}
+func containerSyspath(_ pkgconfigmodel.Setup)         {}
+func cri(_ pkgconfigmodel.Setup)                      {}
+func debugging(_ pkgconfigmodel.Setup)                {}
+func dogstatsd(_ pkgconfigmodel.Setup)                {}
+func fips(_ pkgconfigmodel.Setup)                     {}
+func fleet(_ pkgconfigmodel.Setup)                    {}
+func forwarder(_ pkgconfigmodel.Setup)                {}
+func kubernetes(_ pkgconfigmodel.Setup)               {}
+func logsagent(_ pkgconfigmodel.Setup)                {}
+func OTLP(_ pkgconfigmodel.Setup)                     {}
+func podman(_ pkgconfigmodel.Setup)                   {}
+func remoteconfig(_ pkgconfigmodel.Setup)             {}
+func remoteflags(_ pkgconfigmodel.Setup)              {}
+func serializer(_ pkgconfigmodel.Setup)               {}
+func serverless(_ pkgconfigmodel.Setup)               {}
+func setupAPM(_ pkgconfigmodel.Setup)                 {}
 func setupMultiRegionFailover(_ pkgconfigmodel.Setup) {}
 func setupPrivateActionRunner(_ pkgconfigmodel.Setup) {}
-func setupProcesses(_ pkgconfigmodel.Setup) {}
-func telemetry(_ pkgconfigmodel.Setup) {}
-func vector(_ pkgconfigmodel.Setup) {}
+func setupProcesses(_ pkgconfigmodel.Setup)           {}
+func telemetry(_ pkgconfigmodel.Setup)                {}
+func vector(_ pkgconfigmodel.Setup)                   {}
 """
 
-sysprobe_stubs = """
-func initCWSSystemProbeConfig(_ pkgconfigmodel.Setup) {}
+sysprobe_stubs = """func initCWSSystemProbeConfig(_ pkgconfigmodel.Setup) {}
 func initUSMSystemProbeConfig(_ pkgconfigmodel.Setup) {}
 """
 
@@ -217,7 +215,7 @@ class CodeGeneratorTarget:
             print('Output %s' % filename)
             out_filename = os.path.join(out_dir, filename)
             with open(out_filename, "w") as f:
-                f.write('\n'.join(self.filesystem[filename]))
+                f.write('\n'.join(self.filesystem[filename]) + '\n')
 
 
 def join_key(prefix, field):
@@ -385,14 +383,29 @@ def as_go_value(text, split_lines=False):
         for elem in obj:
             res.append(value_to_gostr(elem))
     else:  # assume dict/map
+        indent_size = calc_indent_size(obj)
         for k, v in obj.items():
             key = value_to_gostr(k)
             val = value_to_gostr(v)
-            res.append(f"{key}: {val}")
+            pad_space = calc_pad_space(key, indent_size)
+            res.append(f"{key}:{' '*pad_space} {val}")
 
     if split_lines:
         return f"{{\n\t\t{',\n\t\t'.join(res)},\n\t}}"
     return f"{{{', '.join(res)}}}"
+
+
+def calc_indent_size(obj):
+    max_size = 0
+    for k in obj.keys():
+        key = value_to_gostr(k)
+        if len(key) > max_size:
+            max_size = len(key)
+    return max_size
+
+
+def calc_pad_space(lhs, indent_size):
+    return max(indent_size - len(lhs), 0)
 
 
 def get_golang_type_tag(curr):
@@ -729,16 +742,15 @@ def gen_delegated_auth_map(core_schema, system_probe_schema, core_out, system_pr
         return keys
 
     def emit(out, keys):
-        out.append("""
-            type delegatedAuthConfig struct {
-              apiKeyPath        string
-              delegatedAuthPath string
-              description       string
-            }
+        out.append("""type delegatedAuthConfig struct {
+	apiKeyPath        string
+	delegatedAuthPath string
+	description       string
+}
 
-            // delegatedAuthKeys list all the \"delegated_auth\" configuration section.
-            // This list is used to fully initialize authentication through cloud provider instead of API key
-            var delegatedAuthKeys = []delegatedAuthConfig{""")
+// delegatedAuthKeys list all the \"delegated_auth\" configuration section.
+// This list is used to fully initialize authentication through cloud provider instead of API key
+var delegatedAuthKeys = []delegatedAuthConfig{""")
 
         for key in keys:
             parent_section_name = key.rsplit(".")[0]
@@ -749,12 +761,11 @@ def gen_delegated_auth_map(core_schema, system_probe_schema, core_out, system_pr
             if parent_section_name == "":
                 parent_section_name = "global"
 
-            out.append(f"""
-                {{
-                  apiKeyPath: "{parent_section}api_key",
-                  delegatedAuthPath : "{parent_section}delegated_auth",
-                  description: "{parent_section_name}",
-                }},""")
+            out.append(f"""	{{
+		apiKeyPath:        "{parent_section}api_key",
+		delegatedAuthPath: "{parent_section}delegated_auth",
+		description:       "{parent_section_name}",
+	}},""")
         out.append("}")
         out.append("")
 
@@ -811,8 +822,10 @@ def gen_generate_const(core_schema, system_probe_schema, core_out, system_probe_
     core_out.append("// Constants generated from settings tagged with a `generate_const:<name>` label.")
     core_out.append("// Each constant's value is the default of its associated setting.")
     core_out.append("const (")
+    magic_value = calc_const_indent(consts)
     for name in sorted(consts):
-        core_out.append(f"\t{name} = {consts[name]['value']}")
+        pad_space = magic_value - len(name)
+        core_out.append(f"\t{name}{' '*pad_space} = {consts[name]['value']}")
     core_out.append(")")
     core_out.append("")
 
@@ -824,6 +837,14 @@ constant_generators = [
     gen_delegated_auth_map,
     gen_generate_const,
 ]
+
+
+def calc_const_indent(list_names):
+    max_size = 0
+    for name in list_names:
+        if len(name) > max_size:
+            max_size = len(name)
+    return max_size
 
 
 def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
