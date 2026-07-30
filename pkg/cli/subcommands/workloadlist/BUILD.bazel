@@ -13,6 +13,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",

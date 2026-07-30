@@ -15,6 +15,7 @@ go_library(
         "//comp/core/diagnose/def",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",

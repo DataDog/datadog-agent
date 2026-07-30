@@ -19,6 +19,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/cluster",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",

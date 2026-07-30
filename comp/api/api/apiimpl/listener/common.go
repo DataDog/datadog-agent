@@ -8,6 +8,7 @@ package listener
 
 import (
 	"fmt"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"net"
 	"strconv"
 	"strings"
@@ -19,11 +20,11 @@ import (
 
 // GetIPCAddressPort returns a listening connection
 func GetIPCAddressPort() (string, error) {
-	address, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	address, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
-	return net.JoinHostPort(address, pkgconfigsetup.GetIPCPort()), nil
+	return net.JoinHostPort(address, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog())), nil
 }
 
 // GetListener returns a listening connection

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"google.golang.org/grpc"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -34,14 +35,14 @@ var DynamicInstrumentation = &module.Factory{
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ipc address: %w", err)
 		}
 		client, err := ddgrpc.GetDDAgentSecureClient(
 			context.Background(),
 			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
+			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 			deps.Ipc.GetTLSClientConfig().Clone(),
 			grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(deps.Ipc.GetAuthToken())),
 		)

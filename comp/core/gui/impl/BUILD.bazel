@@ -37,6 +37,7 @@ go_library(
         "//comp/def",
         "//pkg/api/security",
         "//pkg/collector",
+        "//pkg/collector/check",
         "//pkg/collector/check/stats",
         "//pkg/collector/corechecks",
         "//pkg/collector/python",

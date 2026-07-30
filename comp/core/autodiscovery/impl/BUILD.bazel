@@ -46,6 +46,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/flare",
         "//pkg/status/health",
         "//pkg/util/http",

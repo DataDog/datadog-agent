@@ -29,6 +29,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -52,7 +53,7 @@ type RemoteFlareProvider struct {
 
 // getProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
 func getProcessAPIAddressPort() (string, error) {
-	return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	return pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 }
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
@@ -318,7 +319,7 @@ func getSystemProbeDyninstSymDB() ([]byte, error) {
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
 func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
@@ -365,7 +366,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 }
 
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, errors.New("wrong configuration to connect to process-agent")
 	}

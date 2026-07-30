@@ -136,7 +136,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	pkgconfighelper.ParseEnvCSVSplit("apm_config.ignore_resources", config)
 	config.BindEnvAndSetDefault("apm_config.instrumentation.targets", []interface{}{}, "DD_APM_INSTRUMENTATION_TARGETS")
 	config.ParseEnvJSON("apm_config.instrumentation.targets", []interface{}{})
-	config.BindEnvAndSetDefault("apm_config.receiver_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("apm_config.receiver_socket", getPlatformDefault(map[string]interface{}{
 		"linux": "/var/run/datadog/apm.socket",
 		"aix":   "/var/run/datadog/apm.socket",
 		"other": "",

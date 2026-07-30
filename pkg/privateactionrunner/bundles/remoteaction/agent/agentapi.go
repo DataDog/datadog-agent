@@ -26,6 +26,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -38,7 +39,7 @@ func agentBaseURL() (string, error) {
 			"it targets the local agent via pkgconfigsetup.GetIPCAddress, which would resolve to the " +
 			"Cluster Agent itself rather than a node's core agent")
 	}
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("failed to get agent IPC address: %w", err)
 	}

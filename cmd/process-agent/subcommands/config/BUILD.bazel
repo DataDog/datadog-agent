@@ -14,6 +14,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/process",
         "//pkg/config/fetcher",
+        "//pkg/config/helper",
         "//pkg/config/settings",
         "//pkg/config/settings/http",
         "//pkg/config/setup",

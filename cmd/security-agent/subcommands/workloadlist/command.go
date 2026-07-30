@@ -22,7 +22,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -85,7 +85,7 @@ func workloadList(_ log.Component, config config.Component, client ipc.HTTPClien
 }
 
 func workloadURL(config config.Component, verbose bool) (string, error) {
-	addressPort, err := pkgconfigsetup.GetSecurityAgentAPIAddressPort(config)
+	addressPort, err := pkgconfighelper.GetSecurityAgentAPIAddressPort(config)
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}

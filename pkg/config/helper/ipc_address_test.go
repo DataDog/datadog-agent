@@ -3,14 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package setup
+package helper
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 const (
@@ -68,9 +70,11 @@ func TestGetIPCAddress(t *testing.T) {
 	})
 }
 
-func getConfig(t *testing.T) model.Config {
-	cfg := newEmptyMockConf(t)
+func getConfig(_ *testing.T) model.Config {
+	cfg := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BindEnvAndSetDefault("ipc_address", "localhost")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
+	cfg.BuildSchema()
 	return cfg
 }
