@@ -14,6 +14,7 @@ def _pyproject_wheel_impl(ctx):
     args = ctx.actions.args()
     args.add("--src", ctx.file.pyproject.dirname)
     args.add("--output-dir", wheel_dir.path)
+    args.add_all(ctx.attr.exclude, before_each = "--exclude")
 
     ctx.actions.run(
         mnemonic = "BuildPythonWheel",
@@ -38,10 +39,13 @@ def _install_wheels_impl(ctx):
 
     args.add("--runtime-output", runtime_dir.path)
     args.add("--bin-output", bin_dir.path)
+    args.add("--entrypoints-dirname", ctx.attr.entrypoints_dirname)
     args.add("--python-version", ctx.attr.python_version)
     args.add("--interpreter", script_interpreter)
     args.add("--platform", platform)
     args.add_all(ctx.files.srcs)
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
 
     ctx.actions.run(
         mnemonic = "InstallPythonWheels",
@@ -77,6 +81,9 @@ pyproject_wheel = rule(
         "output": attr.string(
             doc = "Name of the output wheel directory. Defaults to the rule name.",
         ),
+        "exclude": attr.string_list(
+            doc = "Additional hatchling wheel-target exclusion patterns to apply while building the wheel.",
+        ),
         "_builder": attr.label(
             default = ":build_wheel_tool",
             executable = True,
@@ -84,7 +91,7 @@ pyproject_wheel = rule(
             doc = "Executable target for the wheel build frontend.",
         ),
     },
-    doc = "Builds a wheel from a pyproject.toml-based Python source package.",
+    doc = "Builds a wheel from a pyproject.toml-based, hatchling-built Python source package.",
 )
 
 install_wheels = rule(
@@ -93,6 +100,12 @@ install_wheels = rule(
         "srcs": attr.label_list(allow_files = [".whl"]),
         "output": attr.string(
             doc = "Name of the output directory. Defaults to the rule name.",
+        ),
+        "entrypoints_dirname": attr.string(
+            mandatory = True,
+            doc = """Folder name where entry points are to be installed.
+            This is used so that relative paths to them on RECORD entries are accurate.
+            """,
         ),
         "python_version": attr.string(
             default = PYTHON_MAJOR_MINOR,

@@ -6,6 +6,7 @@
 package client
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -250,7 +251,10 @@ func TestGetRequestUnmarshallingError(t *testing.T) {
 	require.NoError(t, err)
 
 	resp, err := get[Device](client, "/test", nil)
-	require.ErrorContains(t, err, "cannot unmarshal string into Go struct field Device.data.lastupdated of type float64")
+	var typeErr *json.UnmarshalTypeError
+	require.ErrorAs(t, err, &typeErr)
+	require.Equal(t, "string", typeErr.Value)
+	require.Contains(t, typeErr.Field, "lastupdated")
 
 	var empty *Response[Device]
 	require.Equal(t, empty, resp)

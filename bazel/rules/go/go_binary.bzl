@@ -70,8 +70,12 @@ def dd_agent_go_binary(name, **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/run-path definitions; caller-supplied values take precedence
-    over the defaults provided here.
+    the version/run-path/strip definitions; caller-supplied values take
+    precedence over the defaults provided here.
+
+    Defaults applied automatically (override by passing the attribute explicitly):
+      cgo: True on Windows (required to link .syso resource files), False elsewhere.
+      gc_linkopts: -s -w (strip symbol table and DWARF) on release builds.
 
     Args:
       name: target name
@@ -86,6 +90,15 @@ def dd_agent_go_binary(name, **kwargs):
 
     existing_x_defs = kwargs.pop("x_defs", {})
     existing_linkopts = kwargs.pop("gc_linkopts", [])
+
+    # cgo must be enabled on Windows to link the .syso resource file produced
+    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
+    # should pass an explicit cgo = select({...}) which replaces this default.
+    if "cgo" not in kwargs:
+        kwargs["cgo"] = select({
+            "@platforms//os:windows": True,
+            "//conditions:default": False,
+        })
 
     # Build two complete x_defs dicts — one per //:is_release branch.
     # string_dict attributes do not support per-value select(); the select()
@@ -117,9 +130,16 @@ def dd_agent_go_binary(name, **kwargs):
         "//conditions:default": [],
     })
 
+    # Strip the symbol table and DWARF debug info in release builds to reduce
+    # binary size.  Dev builds keep symbols for debugger and profiler use.
+    strip_linkopts = select({
+        "//:is_release": ["-s", "-w"],
+        "//conditions:default": [],
+    })
+
     go_binary(
         name = name,
-        gc_linkopts = existing_linkopts + run_path_linkopts,
+        gc_linkopts = existing_linkopts + run_path_linkopts + strip_linkopts,
         x_defs = select({
             "//:is_release": release_x_defs,
             "//conditions:default": dev_x_defs,

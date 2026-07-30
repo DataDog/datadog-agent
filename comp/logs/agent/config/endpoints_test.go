@@ -240,7 +240,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 		suite.config.SetInTest("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
-		suite.Equal(endpoints.BatchWait, pkgconfigsetup.DefaultBatchWait*time.Second)
+		suite.Equal(endpoints.BatchWait, time.Duration(pkgconfigsetup.DefaultBatchWait)*time.Second)
 	}
 }
 
@@ -652,8 +652,10 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 			suite.Equal("abcd_updated", additionalEndpoints[0].GetAPIKey())
 			suite.Equal("defg_updated", additionalEndpoints[1].GetAPIKey())
 
-			// We trigger an update with invalid types
-			suite.config.SetInTest("logs_config.api_key", 0.1)
+			// We trigger an update with an invalid type. 'logs_config.api_key' is a
+			// string setting, so a scalar like a float would be coerced to a string;
+			// we use a slice, which cannot be coerced, to exercise the rejection path.
+			suite.config.SetInTest("logs_config.api_key", []string{"0.1"})
 
 			suite.Equal("1234_updated", mainEndpoint.GetAPIKey())
 			suite.Equal("abcd_updated", additionalEndpoints[0].GetAPIKey())

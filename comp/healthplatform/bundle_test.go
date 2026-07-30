@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-health
+// team: fleet-remediation
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
@@ -166,7 +166,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		HP storedef.Component
 	}
 
-	const tickInterval = 50 * time.Millisecond
+	const tickInterval = 500 * time.Millisecond
 
 	deps := fxutil.Test[appDeps](t,
 		Bundle(),
@@ -188,7 +188,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 	const (
 		issueAID      = "test-lifecycle-A"
 		issueBID      = "test-lifecycle-B"
-		testIssueName = "docker_file_tailing_disabled"
+		testIssueName = "Docker File Tailing Disabled"
+		testIssueType = "docker_file_tailing_disabled"
 		testSource    = "test-lifecycle"
 	)
 
@@ -197,11 +198,11 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		waitInterval = 10 * time.Millisecond
 	)
 
-	// latestHasIssueState uses collectedTime (ns precision) rather than EmittedAt (RFC3339, s precision).
-	latestHasIssueState := func(issueID string, state healthplatformpayload.IssueState) bool {
+	// latestIssue uses collectedTime (ns precision) rather than EmittedAt (RFC3339, s precision).
+	latestIssue := func(issueID string) *healthplatformpayload.Issue {
 		payloads, err := fiClient.GetAgentHealth()
 		if err != nil || len(payloads) == 0 {
-			return false
+			return nil
 		}
 		latest := payloads[0]
 		for _, p := range payloads[1:] {
@@ -209,46 +210,68 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 				latest = p
 			}
 		}
-		iss, ok := latest.Issues[issueID]
-		return ok && iss != nil && iss.PersistedIssue != nil && iss.PersistedIssue.State == state
+		return latest.Issues[issueID]
+	}
+
+	latestHasIssueState := func(issueID string, state healthplatformpayload.IssueState) bool {
+		iss := latestIssue(issueID)
+		return iss != nil && iss.PersistedIssue != nil && iss.PersistedIssue.State == state
 	}
 
 	issueA := &healthplatformpayload.Issue{
 		Id:        issueAID,
 		IssueName: testIssueName,
+		IssueType: testIssueType,
 		Source:    testSource,
 	}
 
 	issueB := &healthplatformpayload.Issue{
 		Id:        issueBID,
 		IssueName: testIssueName,
+		IssueType: testIssueType,
 		Source:    testSource,
 	}
 
 	deps.HP.ReportIssue(issueA)
 	deps.HP.ReportIssue(issueB)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) &&
-			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
-	}, waitTimeout, waitInterval, "issueA and issueB never appeared as NEW in forwarded reports")
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE) &&
+			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+	}, waitTimeout, waitInterval, "issueA and issueB never appeared as ACTIVE in forwarded reports")
+
+	// IssueType is caller-set (never overwritten by the store) and must survive
+	// the full store -> egress -> forwarder -> fakeintake round-trip unchanged.
+	if iss := latestIssue(issueAID); assert.NotNil(t, iss) {
+		assert.Equal(t, testIssueType, iss.IssueType)
+	}
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ONGOING)
-	}, waitTimeout, waitInterval, "issueA never transitioned to ONGOING in forwarded reports")
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+	}, waitTimeout, waitInterval, "issueA not seen as ACTIVE after second report")
 
 	deps.HP.ResolveIssue(issueAID)
 	deps.HP.ResolveIssue(issueBID)
 
-	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) &&
-			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED)
-	}, waitTimeout, waitInterval, "expected a forwarded payload with issueA=RESOLVED and issueB=RESOLVED")
+	// The egress component may split issues resolved back-to-back across separate
+	// ticks/reports, so issueA and issueB reaching RESOLVED is not guaranteed to land in
+	// the same latest payload. Latch each as seen once observed, and stop once both have.
+	var seenAResolved, seenBResolved bool
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		if latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) {
+			seenAResolved = true
+		}
+		if latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) {
+			seenBResolved = true
+		}
+		assert.True(c, seenAResolved, "issueA never observed as RESOLVED")
+		assert.True(c, seenBResolved, "issueB never observed as RESOLVED")
+	}, waitTimeout, waitInterval, "expected issueA and issueB to each be forwarded as RESOLVED")
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
-	}, waitTimeout, waitInterval, "issueA never appeared as NEW in the latest forwarded payload")
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+	}, waitTimeout, waitInterval, "issueA never re-appeared as ACTIVE after resolve+re-report")
 
 	// RESOLVED must appear exactly once: tombstones are removed after a successful send.
 	allPayloads, err := fiClient.GetAgentHealth()
@@ -277,7 +300,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	cfg := config.NewMock(t)
-	mods := issues.GetAllModules(cfg)
+	hn, _ := hostnameinterface.NewMock("test-host")
+	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
 		issue, err := mod.BuildIssue(map[string]string{})
@@ -285,5 +309,8 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",
 			mod.IssueName(), issue.IssueName)
+		assert.Equal(t, mod.IssueType(), issue.IssueType,
+			"module IssueType() %q must equal BuildIssue().IssueType %q",
+			mod.IssueType(), issue.IssueType)
 	}
 }

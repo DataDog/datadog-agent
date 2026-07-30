@@ -1,0 +1,24 @@
+---
+enhancements:
+  - |
+    Add a ``retry_on_failure`` configuration block to the Datadog serializer
+    exporter (DDOT and OSS Datadog exporter). The defaults
+    (initial interval ``2s``, multiplier ``2``, maximum interval ``64s``,
+    maximum elapsed time ``15m``) and the default ``sending_queue`` settings
+    (``queue_size: 300``, ``num_consumers: 1``) and ``timeout: 20s`` mirror
+    the historical forwarder defaults so behavior remains consistent when
+    upgrading. Users can tune these to increase throughput; for example,
+    raising ``num_consumers`` lets the exporter dispatch multiple HTTP requests
+    to the Datadog intake in parallel.
+  - |
+    Add the ``datadog.serializerexporter.UseSyncForwarder`` feature gate
+    (Alpha, disabled by default) to the Datadog serializer exporter.
+    When enabled via ``--feature-gates=+datadog.serializerexporter.UseSyncForwarder``,
+    metric submission becomes synchronous: HTTP errors propagate back through
+    ``ConsumeMetrics``, are counted in the standard OpenTelemetry exporter
+    metrics, and are retried by the exporter helper — fixing the silent-drop
+    behavior where ``otelcol_exporter_send_failed_metric_points`` would not
+    increase even on intake failures. Applies to both the embedded Datadog
+    OpenTelemetry Collector (DDOT) and the OSS Datadog exporter
+    (``opentelemetry-collector-contrib``). The Agent OTLP Ingestion
+    pipeline is unaffected.

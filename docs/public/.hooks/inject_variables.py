@@ -3,13 +3,12 @@ from functools import cache
 from pathlib import Path
 
 import httpx
-from markdown.preprocessors import Preprocessor
 
 
 @cache
 def variable_replacements():
     return {
-        f"<<<{variable}>>>": replacement
+        variable: replacement
         for variable, replacement in (
             ("GO_VERSION", get_go_version()),
             ("PYTHON_VERSION", get_python_version()),
@@ -80,10 +79,5 @@ def get_vscode_extensions():
     )
 
 
-class VariableInjectionPreprocessor(Preprocessor):
-    def run(self, lines):  # noqa: PLR6301
-        markdown = "\n".join(lines)
-        for variable, replacement in variable_replacements().items():
-            markdown = markdown.replace(variable, replacement)
-
-        return markdown.splitlines()
+def define_env(env):
+    env.variables.update(variable_replacements())

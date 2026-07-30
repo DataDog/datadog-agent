@@ -2,38 +2,38 @@ static_quality_gate_agent_deb_amd64:
   max_on_disk_size: 758.2 MiB
   max_on_wire_size: 181.27 MiB
 static_quality_gate_agent_deb_amd64_fips:
-  max_on_disk_size: 709.84 MiB
-  max_on_wire_size: 175.54 MiB
+  max_on_disk_size: 710.52 MiB
+  max_on_wire_size: 175.48 MiB
 static_quality_gate_agent_heroku_amd64:
   max_on_disk_size: 315.23 MiB
   max_on_wire_size: 80.56 MiB
 static_quality_gate_agent_msi:
-  max_on_disk_size: 630.6 MiB
-  max_on_wire_size: 150.42 MiB
+  max_on_disk_size: 656.64 MiB
+  max_on_wire_size: 157.77 MiB
 static_quality_gate_agent_rpm_amd64:
   max_on_disk_size: 758.17 MiB
   max_on_wire_size: 183.9 MiB
 static_quality_gate_agent_rpm_amd64_fips:
-  max_on_disk_size: 709.84 MiB
-  max_on_wire_size: 175.61 MiB
+  max_on_disk_size: 710.52 MiB
+  max_on_wire_size: 175.6 MiB
 static_quality_gate_agent_rpm_arm64:
   max_on_disk_size: 729.66 MiB
   max_on_wire_size: 164.95 MiB
 static_quality_gate_agent_rpm_arm64_fips:
-  max_on_disk_size: 688.86 MiB
-  max_on_wire_size: 158.67 MiB
+  max_on_disk_size: 688.91 MiB
+  max_on_wire_size: 158.68 MiB
 static_quality_gate_agent_suse_amd64:
   max_on_disk_size: 758.17 MiB
   max_on_wire_size: 183.88 MiB
 static_quality_gate_agent_suse_amd64_fips:
-  max_on_disk_size: 709.84 MiB
-  max_on_wire_size: 175.7 MiB
+  max_on_disk_size: 710.52 MiB
+  max_on_wire_size: 175.74 MiB
 static_quality_gate_agent_suse_arm64:
   max_on_disk_size: 729.66 MiB
   max_on_wire_size: 164.89 MiB
 static_quality_gate_agent_suse_arm64_fips:
-  max_on_disk_size: 688.86 MiB
-  max_on_wire_size: 158.68 MiB
+  max_on_disk_size: 688.91 MiB
+  max_on_wire_size: 158.67 MiB
 static_quality_gate_docker_agent_amd64:
   max_on_disk_size: 813.79 MiB
   max_on_wire_size: 275.37 MiB

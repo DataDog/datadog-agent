@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.

@@ -140,7 +140,7 @@ func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {
 }
 
 func TestSendMergedMetrics(t *testing.T) {
-	sm := mocksender.CreateDefaultDemultiplexer()
+	sm := mocksender.CreateDefaultDemultiplexer(t)
 	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
 
@@ -173,7 +173,7 @@ func TestCheck(t *testing.T) {
 		reg.MustRegister(count)
 	}()
 
-	sm := mocksender.CreateDefaultDemultiplexer()
+	sm := mocksender.CreateDefaultDemultiplexer(t)
 
 	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")

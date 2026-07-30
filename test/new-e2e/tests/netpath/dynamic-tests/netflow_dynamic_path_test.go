@@ -132,7 +132,7 @@ func netflowDynamicPathProvisioner(datadogYaml string) provisioners.Provisioner 
 			return err
 		}
 
-		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(e2eos.AmazonLinuxECSDefault))
+		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(e2eos.UbuntuDefault))
 		if err != nil {
 			return err
 		}

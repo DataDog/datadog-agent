@@ -307,6 +307,11 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
+// writeDDOTProcmgrConfig writes the dd-procmgr config for DDOT into the package processes.d. The
+// config's --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr
+// substitutes at launch with its own config directory (/etc/datadog-agent for the stable procmgr,
+// /etc/datadog-agent-exp for the experiment procmgr), so the experiment collector reads the
+// experiment config without the process definition itself changing.
 func writeDDOTProcmgrConfig(installRoot string) error {
 	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
 	if _, err := os.Stat(otelAgentPath); err != nil {

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ecsmanagedinstances",
@@ -21,11 +22,15 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ecsmanagedinstances_test",
     srcs = ["collector_test.go"],
     embed = [":ecsmanagedinstances"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
     deps = [
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/ecs/metadata/v3or4",

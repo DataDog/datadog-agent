@@ -1,0 +1,114 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kernelbugs",
+    srcs = [
+        "kernel_bugs.go",
+        "kernel_bugs_amd64.go",
+        "kernel_bugs_arm64.go",
+        "kernel_bugs_nobpf.go",
+    ],
+    embedsrcs = select({
+        "@rules_go//go/platform:linux_amd64": [
+            "//pkg/ebpf/kernelbugs/c:uprobe-trigger",  # keep
+            "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",  # keep
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:amd64": [
+            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/util/funcs",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "@rules_go//go/platform:android_386": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:android_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:android_arm": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:android_arm64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:darwin_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:dragonfly_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:freebsd_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:illumos_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:ios_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_386": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_arm": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_arm64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_mips": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_mips64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_mips64le": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_mipsle": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_ppc64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_ppc64le": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_riscv64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux_s390x": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:netbsd_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:openbsd_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:osx_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:plan9_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:qnx_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:solaris_amd64": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:windows_amd64": [
+            "//pkg/ebpf",
+        ],
+        "//conditions:default": [],
+    }),
+)

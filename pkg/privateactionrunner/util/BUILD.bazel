@@ -17,7 +17,7 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_go_jose_go_jose_v4//:go-jose",
         "@com_github_golang_jwt_jwt_v5//:jwt",
     ],

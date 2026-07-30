@@ -14,7 +14,9 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -53,6 +55,21 @@ func newClientMock() client {
 // Sender mock
 type senderMock struct {
 	sentMetrics []*agentmetric
+
+	// Captures from the errortracking flush path. Protected by mu
+	// because the flush job may run concurrently with test setup and
+	// assertions; readers MUST take the lock or use a synchronisation
+	// barrier (e.g. wait on runner.stop().Done) that establishes
+	// happens-before with the job's completion.
+	//
+	// sendLogsCallCount counts sendLogsBatch invocations; sentLogs
+	// flattens every batch into one accumulating slice. The pair lets
+	// tests distinguish "1 call with N records" from "N calls with 1
+	// record each" — the latter would be a regression to per-batch
+	// dispatch that the flattened slice alone cannot detect.
+	sentLogsMu        sync.Mutex
+	sentLogs          []Log
+	sendLogsCallCount int
 }
 
 func (s *senderMock) startSession(_ context.Context) *senderSession {
@@ -66,6 +83,34 @@ func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentm
 }
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
+func (s *senderMock) sendLogsBatch(_ context.Context, logs []Log) error {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	s.sendLogsCallCount++
+	s.sentLogs = append(s.sentLogs, logs...)
+	return nil
+}
+
+// capturedLogs returns a thread-safe snapshot of the records captured
+// via sendLogsBatch. Tests should call this rather than reading
+// sentLogs directly.
+func (s *senderMock) capturedLogs() []Log {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	out := make([]Log, len(s.sentLogs))
+	copy(out, s.sentLogs)
+	return out
+}
+
+// sendLogsCalls returns a thread-safe snapshot of how many times
+// sendLogsBatch was invoked. Pair with capturedLogs to assert
+// "one HTTP call per flush" (N records via 1 call, not 1 record via N
+// calls).
+func (s *senderMock) sendLogsCalls() int {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	return s.sendLogsCallCount
+}
 
 // Runner mock (TODO: use use mock.Mock)
 type runnerMock struct {
@@ -75,7 +120,7 @@ type runnerMock struct {
 
 func (r *runnerMock) run() {
 	for _, j := range r.jobs {
-		j.a.run(j.profiles)
+		j.Run()
 	}
 }
 
@@ -109,8 +154,11 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 		// sort by names and values before insertion
 		origTags := m.GetLabel()
 		if len(origTags) > 0 {
-			for _, t := range cloneLabelsSorted(origTags) {
-				tagsKeyBuilder.WriteString(makeLabelPairKey(t))
+			for _, tag := range cloneLabelsSorted(origTags) {
+				tagsKeyBuilder.WriteString(tag.GetName())
+				tagsKeyBuilder.WriteByte(':')
+				tagsKeyBuilder.WriteString(tag.GetValue())
+				tagsKeyBuilder.WriteByte(':')
 			}
 		}
 
@@ -186,6 +234,98 @@ func getCommonYAMLConfig(enabled bool, site string) string {
 		return fmt.Sprintf("agent_telemetry:\n  enabled: %t", enabled)
 	}
 	return fmt.Sprintf("site: %s\nagent_telemetry:\n  enabled: %t", site, enabled)
+}
+
+func findErrortrackingJob(t *testing.T, runner *runnerMock) job {
+	t.Helper()
+
+	for _, scheduledJob := range runner.jobs {
+		if scheduledJob.profiles == nil {
+			return scheduledJob
+		}
+	}
+
+	t.Fatal("errortracking job not found")
+	return job{}
+}
+
+func TestCreateAtel_NegativeErrortrackingBufferSizeDoesNotPanic(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    buffer_size: -1
+`)
+	log := makeLogMock(t)
+
+	var atel *atel
+	assert.NotPanics(t, func() {
+		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
+	})
+	require.NotNil(t, atel)
+	require.NotNil(t, atel.errLogsCh)
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+}
+
+func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
+	runner := &runnerMock{}
+	atel := getTestAtel(t, nil, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    flush_interval_seconds: -1
+    startup_jitter_seconds: -1
+    shutdown_drain_timeout_seconds: -1
+`, &senderMock{}, nil, runner)
+
+	assert.Equal(t, 60*time.Second, atel.errLogsFlushInterval)
+	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
+	assert.Equal(t, 5*time.Second, atel.shutdownDrainTimeout)
+
+	assert.NotPanics(t, func() {
+		require.NoError(t, atel.start())
+	})
+	t.Cleanup(func() {
+		atel.cancel()
+	})
+
+	errortrackingJob := findErrortrackingJob(t, runner)
+	assert.Equal(t, uint(defaultErrortrackingFlushIntervalSeconds), errortrackingJob.schedule.Period)
+	assert.Equal(t, uint(0), errortrackingJob.schedule.StartAfter)
+}
+
+func TestCreateAtel_ErrortrackingZeroValuesPreserveCurrentSemantics(t *testing.T) {
+	runner := &runnerMock{}
+	atel := getTestAtel(t, nil, `
+site: datadoghq.com
+agent_telemetry:
+  enabled: true
+  errortracking:
+    enabled: true
+    buffer_size: 0
+    flush_interval_seconds: 0
+    startup_jitter_seconds: 0
+    shutdown_drain_timeout_seconds: 0
+`, &senderMock{}, nil, runner)
+
+	require.NotNil(t, atel.errLogsCh)
+	assert.Equal(t, 0, cap(atel.errLogsCh))
+	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
+	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
+	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
+
+	require.NoError(t, atel.start())
+	t.Cleanup(func() {
+		atel.cancel()
+	})
+
+	errortrackingJob := findErrortrackingJob(t, runner)
+	assert.Equal(t, uint(5), errortrackingJob.schedule.Period)
+	assert.Equal(t, uint(0), errortrackingJob.schedule.StartAfter)
 }
 
 func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error {
@@ -479,8 +619,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 17 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf)
-	assert.Equal(t, 17, totalProfiles)
+	// Default config has 20 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe)
+	assert.Equal(t, 20, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -744,6 +884,159 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
 	assert.Equal(t, float64(30), m2.Counter.GetValue())
 }
 
+func TestAggregationPreservedTagKeyDoesNotCollideOnDelimiters(t *testing.T) {
+	labelPair := func(name, value string) *dto.LabelPair {
+		return &dto.LabelPair{Name: &name, Value: &value}
+	}
+	gaugeMetric := func(value float64, labels ...*dto.LabelPair) *dto.Metric {
+		return &dto.Metric{Label: labels, Gauge: &dto.Gauge{Value: &value}}
+	}
+	mCfg := &MetricConfig{
+		preserveTagsExists: true,
+		preserveTagsMap: map[string]any{
+			"a": struct{}{},
+			"c": struct{}{},
+			"d": struct{}{},
+		},
+	}
+	metrics := []*dto.Metric{
+		gaugeMetric(10, labelPair("a", "b:c"), labelPair("d", "e")),
+		gaugeMetric(20, labelPair("a", "b"), labelPair("c", "d:e")),
+	}
+
+	results := (&atel{}).aggregateMetricTags(mCfg, dto.MetricType_GAUGE, metrics)
+
+	require.Len(t, results, 2)
+	labelsByValue := make(map[float64][]string, len(results))
+	for _, result := range results {
+		labels := make([]string, len(result.GetLabel()))
+		for i, label := range result.GetLabel() {
+			labels[i] = label.GetName() + "=" + label.GetValue()
+		}
+		labelsByValue[result.Gauge.GetValue()] = labels
+	}
+	require.Equal(t, []string{"a=b:c", "d=e"}, labelsByValue[10])
+	require.Equal(t, []string{"a=b", "c=d:e"}, labelsByValue[20])
+}
+
+func TestCounterDeltaCacheLabelKeyDoesNotCollideOnDelimiters(t *testing.T) {
+	const config = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.counter
+                preserve_tags:
+                  - a
+                  - c
+    `
+
+	tel := makeTelMock(t)
+	a := getTestAtel(t, tel, config, makeSenderImpl(t, nil, config), nil, newRunnerMock())
+	require.True(t, a.enabled)
+
+	counter := tel.NewCounter("foo", "counter", []string{"a", "c"}, "")
+	firstTags := map[string]string{"a": "x:c:y", "c": "z"}
+	secondTags := map[string]string{"a": "x", "c": "y:c:z"}
+	firstPayloadTags := map[string]interface{}{"a": "x:c:y", "c": "z"}
+	secondPayloadTags := map[string]interface{}{"a": "x", "c": "y:c:z"}
+
+	assertDeltas := func(firstExpected, secondExpected float64) {
+		metrics, ok := getPayloadFilteredMetricList(a, "foo.counter")
+		require.True(t, ok)
+		require.Len(t, metrics, 2)
+
+		first, ok := getPayloadMetricByTagValues(metrics, firstPayloadTags)
+		require.True(t, ok)
+		second, ok := getPayloadMetricByTagValues(metrics, secondPayloadTags)
+		require.True(t, ok)
+		assert.Equal(t, firstExpected, first.Value)
+		assert.Equal(t, secondExpected, second.Value)
+	}
+
+	counter.AddWithTags(10, firstTags)
+	counter.AddWithTags(100, secondTags)
+	assertDeltas(10, 100)
+
+	counter.AddWithTags(3, firstTags)
+	counter.AddWithTags(7, secondTags)
+	assertDeltas(3, 7)
+}
+
+func TestHistogramDeltaCacheLabelKeyDoesNotCollideOnDelimiters(t *testing.T) {
+	const config = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.histogram
+                preserve_tags:
+                  - a
+                  - c
+    `
+
+	tel := makeTelMock(t)
+	a := getTestAtel(t, tel, config, makeSenderImpl(t, nil, config), nil, newRunnerMock())
+	require.True(t, a.enabled)
+
+	histogram := tel.NewHistogram("foo", "histogram", []string{"a", "c"}, "", []float64{1})
+	firstTags := map[string]string{"a": "x:c:y", "c": "z"}
+	secondTags := map[string]string{"a": "x", "c": "y:c:z"}
+	firstPayloadTags := map[string]interface{}{"a": "x:c:y", "c": "z"}
+	secondPayloadTags := map[string]interface{}{"a": "x", "c": "y:c:z"}
+
+	observe := func(tags map[string]string, explicitBucketCount, infBucketCount int) {
+		for range explicitBucketCount {
+			histogram.WithTags(tags).Observe(0.5)
+		}
+		for range infBucketCount {
+			histogram.WithTags(tags).Observe(2)
+		}
+	}
+	assertDeltas := func(firstExpected, secondExpected map[string]uint64) {
+		payload, err := getPayload(a)
+		require.NoError(t, err)
+		payloads, ok := payload.Payload.([]Payload)
+		require.True(t, ok)
+		metrics := make([]*MetricPayload, 0, len(payloads))
+		for _, payload := range payloads {
+			agentMetrics, ok := payload.Payload.(AgentMetricsPayload)
+			require.True(t, ok)
+			metricValue, ok := agentMetrics.Metrics["foo.histogram"]
+			require.True(t, ok)
+			metric, ok := metricValue.(MetricPayload)
+			require.True(t, ok)
+			metrics = append(metrics, &metric)
+		}
+		require.Len(t, metrics, 2)
+
+		first, ok := getPayloadMetricByTagValues(metrics, firstPayloadTags)
+		require.True(t, ok)
+		second, ok := getPayloadMetricByTagValues(metrics, secondPayloadTags)
+		require.True(t, ok)
+		assert.Equal(t, firstExpected, first.Buckets)
+		assert.Equal(t, secondExpected, second.Buckets)
+	}
+
+	observe(firstTags, 1, 1)
+	observe(secondTags, 4, 2)
+	assertDeltas(
+		map[string]uint64{"1": 1, "+Inf": 1},
+		map[string]uint64{"1": 4, "+Inf": 2},
+	)
+
+	observe(firstTags, 2, 1)
+	observe(secondTags, 3, 2)
+	assertDeltas(
+		map[string]uint64{"1": 2, "+Inf": 1},
+		map[string]uint64{"1": 3, "+Inf": 2},
+	)
+}
+
 func TestTagAggregateTotalCounter(t *testing.T) {
 	var c = `
     agent_telemetry:
@@ -801,6 +1094,91 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	require.Contains(t, metrics, "total:6:")
 	m4 := metrics["total:6:"]
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
+}
+
+func TestAggregateTotalRejectsReservedTotalPreserveTag(t *testing.T) {
+	const wantErr = "profile 'foo' metric 'bar.zoo' cannot preserve reserved tag 'total' when aggregate_total is enabled"
+
+	for _, tt := range []struct {
+		name                string
+		aggregateTotal      bool
+		tags                string
+		wantErr             bool
+		wantPreservedTags   []string
+		wantUnpreservedTags []string
+	}{
+		{
+			name:           "preserve_tags with aggregate total enabled",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags:
+              - total`,
+			wantErr: true,
+		},
+		{
+			name: "preserve_tags with aggregate total disabled",
+			tags: `
+            preserve_tags:
+              - total`,
+			wantPreservedTags: []string{"total"},
+		},
+		{
+			name:           "deprecated aggregate_tags with aggregate total enabled",
+			aggregateTotal: true,
+			tags: `
+            aggregate_tags:
+              - total`,
+			wantErr: true,
+		},
+		{
+			name:           "preserve_tags takes precedence over deprecated alias",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags:
+              - tag1
+            aggregate_tags:
+              - total`,
+			wantPreservedTags:   []string{"tag1"},
+			wantUnpreservedTags: []string{"total"},
+		},
+		{
+			name:           "empty preserve_tags falls back to deprecated alias",
+			aggregateTotal: true,
+			tags: `
+            preserve_tags: []
+            aggregate_tags:
+              - total`,
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: foo
+      metric:
+        metrics:
+          - name: bar.zoo
+            aggregate_total: %t%s
+`, tt.aggregateTotal, tt.tags))
+
+			atelCfg, err := parseConfig(cfg)
+			if tt.wantErr {
+				require.EqualError(t, err, wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			mCfg := &atelCfg.Profiles[0].Metric.Metrics[0]
+			for _, tag := range tt.wantPreservedTags {
+				require.Contains(t, mCfg.preserveTagsMap, tag)
+			}
+			for _, tag := range tt.wantUnpreservedTags {
+				require.NotContains(t, mCfg.preserveTagsMap, tag)
+			}
+		})
+	}
 }
 
 // TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that the
@@ -1169,6 +1547,25 @@ func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
 	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigLogsNoSSL verifies that logs_no_ssl: true causes buildURL to
+// produce an http:// URL. Previously buildURL hardcoded "https" and ignored
+// Endpoint.UseSSL(), silently dropping all telemetry in no-SSL environments.
+func TestSenderConfigLogsNoSSL(t *testing.T) {
+	c := `
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      logs_dd_url: "localhost:19999"
+      logs_no_ssl: true
+    `
+	sndr := makeSenderImpl(t, nil, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "http://localhost:19999/api/v2/apmtelemetry", url)
 }
 
 func TestGetAsJSONScrub(t *testing.T) {

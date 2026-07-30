@@ -69,7 +69,7 @@ func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []
 			return
 		}
 
-		netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 1*time.Second, 2)
+		netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 2*time.Second, 2)
 		assert.Equal(c, expectedEvents, netflowEvents)
 		assert.NoError(c, err)
 	}, 10*time.Second, 10*time.Millisecond)

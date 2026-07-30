@@ -48,8 +48,8 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-// NewMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
-func NewMrfRemoteConfigServiceOptional(deps Dependencies) Provides {
+// NewComponent conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
+func NewComponent(deps Dependencies) Provides {
 	none := option.None[rcservicemrf.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("multi_region_failover.enabled") {
 		return Provides{Comp: none}
@@ -83,19 +83,19 @@ func newMrfRemoteConfigService(deps Dependencies) (rcservicemrf.Component, error
 		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("multi_region_failover.site"), deps.Cfg.GetString("multi_region_failover.remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("multi_region_failover.remote_configuration.key")),
 	}
-	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.refresh_interval") {
+	if deps.Cfg.IsConfigured("multi_region_failover.remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.refresh_interval"), "multi_region_failover.remote_configuration.refresh_interval"))
 	}
-	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.org_status_refresh_interval") {
+	if deps.Cfg.IsConfigured("multi_region_failover.remote_configuration.org_status_refresh_interval") {
 		options = append(options, remoteconfig.WithOrgStatusRefreshInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.org_status_refresh_interval"), "multi_region_failover.remote_configuration.org_status_refresh_interval"))
 	}
-	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.max_backoff_interval") {
+	if deps.Cfg.IsConfigured("multi_region_failover.remote_configuration.max_backoff_interval") {
 		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_time"))
 	}
-	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.clients.ttl_seconds") {
+	if deps.Cfg.IsConfigured("multi_region_failover.remote_configuration.clients.ttl_seconds") {
 		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.clients.ttl_seconds"), "multi_region_failover.remote_configuration.clients.ttl_seconds"))
 	}
-	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.clients.cache_bypass_limit") {
+	if deps.Cfg.IsConfigured("multi_region_failover.remote_configuration.clients.cache_bypass_limit") {
 		options = append(options, remoteconfig.WithClientCacheBypassLimit(deps.Cfg.GetInt("multi_region_failover.remote_configuration.clients.cache_bypass_limit"), "multi_region_failover.remote_configuration.clients.cache_bypass_limit"))
 	}
 

@@ -106,9 +106,64 @@ func TestDiscoverComponentsFromEnvForProcess(t *testing.T) {
 	})
 }
 
+func TestDiscoverComponentsFromConfigForDDI(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
+
+	t.Run("enabled on default agent in kubernetes adds instrumentation_checks provider", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+		cfg := configmock.NewFromYAML(t, `
+instrumentation_crd_controller:
+  enabled: true
+`)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		assert.True(t, containsProvider(providers, "instrumentation_checks"))
+	})
+
+	t.Run("disabled config does not add instrumentation_checks provider", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+		cfg := configmock.NewFromYAML(t, `
+instrumentation_crd_controller:
+  enabled: false
+`)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		assert.False(t, containsProvider(providers, "instrumentation_checks"))
+	})
+
+	t.Run("enabled on cluster agent does not add instrumentation_checks provider", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.ClusterAgent)
+		t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+		cfg := configmock.NewFromYAML(t, `
+instrumentation_crd_controller:
+  enabled: true
+`)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		assert.False(t, containsProvider(providers, "instrumentation_checks"))
+	})
+
+	t.Run("enabled outside kubernetes does not add instrumentation_checks provider", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "")
+
+		cfg := configmock.NewFromYAML(t, `
+instrumentation_crd_controller:
+  enabled: true
+`)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		assert.False(t, containsProvider(providers, "instrumentation_checks"))
+	})
+}
+
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
 	configmock.SetDefaultConfigType(t, "yaml")
 
+	// The static config listener is always enabled, independently of any
+	// configuration, so it is expected in every result below.
 	cfg := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
@@ -116,27 +171,28 @@ network_devices:
       - network: 127.0.0.1/30
 `)
 	_, configListeners := DiscoverComponentsFromConfig(cfg)
-	require.Len(t, configListeners, 1)
-	assert.Equal(t, "snmp", configListeners[0].Name)
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.True(t, containsListener(configListeners, "snmp"))
 
-	configmock.NewFromYAML(t, `
+	cfg = configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
 `)
 	_, configListeners = DiscoverComponentsFromConfig(cfg)
-	assert.Empty(t, len(configListeners))
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.False(t, containsListener(configListeners, "snmp"))
 
-	configmock.NewFromYAML(t, `
+	cfg = configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
     - network: 127.0.0.1/30
 `)
 	_, configListeners = DiscoverComponentsFromConfig(cfg)
-	require.Len(t, configListeners, 1)
-	assert.Equal(t, "snmp", configListeners[0].Name)
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.True(t, containsListener(configListeners, "snmp"))
 
-	configmock.NewFromYAML(t, `
+	cfg = configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
@@ -145,6 +201,6 @@ network_devices:
           - 127.0.0.3
 `)
 	_, configListeners = DiscoverComponentsFromConfig(cfg)
-	require.Len(t, configListeners, 1)
-	assert.Equal(t, "snmp", configListeners[0].Name)
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.True(t, containsListener(configListeners, "snmp"))
 }

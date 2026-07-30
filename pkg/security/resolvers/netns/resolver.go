@@ -63,7 +63,13 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
-		nr.flushNetworkNamespace(value)
+		value.Lock()
+		defer value.Unlock()
+
+		// this callback is fired while the entry is being removed from the LRU, so it
+		// must only release the resources and never mutate the LRU (doing so would
+		// re-enter this callback and deadlock on value's lock)
+		nr.flushNetworkNamespaceResources(value)
 		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
 	if err != nil {
@@ -369,11 +375,21 @@ func (nr *Resolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 // flushNetworkNamespace flushes the cached entries for the provided network namespace.
 func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	if _, ok := nr.networkNamespaces.Peek(netns.nsID); ok {
-		// remove the entry now, removing the entry will call this function again
+		// the entry is still tracked: removing it from the LRU triggers the eviction
+		// callback which locks the namespace and performs the actual flush
 		_ = nr.networkNamespaces.Remove(netns.nsID)
 		return
 	}
 
+	// the entry is no longer in the LRU, flush its resources directly
+	netns.Lock()
+	defer netns.Unlock()
+	nr.flushNetworkNamespaceResources(netns)
+}
+
+// flushNetworkNamespaceResources releases the resources associated with the provided
+// network namespace. The caller must hold netns' lock.
+func (nr *Resolver) flushNetworkNamespaceResources(netns *NetworkNamespace) {
 	// if we can, make sure the manager has a valid netlink socket to this handle before removing everything
 	handle, err := netns.getNamespaceHandleDup()
 	if err == nil {

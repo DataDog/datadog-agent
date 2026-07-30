@@ -322,7 +322,7 @@ func TestDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -342,7 +342,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -366,7 +366,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)

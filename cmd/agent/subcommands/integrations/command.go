@@ -60,7 +60,6 @@ var (
 
 	rootDir             string
 	reqAgentReleasePath string
-	constraintsPath     string
 )
 
 // cliParams are the command-line arguments for the sub-subcommands.
@@ -193,11 +192,6 @@ func loadPythonInfo() error {
 		}
 
 		rootDir = parentDir
-	}
-
-	constraintsPath = filepath.Join(rootDir, "final_constraints-py3.txt")
-	if _, err := os.Lstat(constraintsPath); err != nil {
-		return err
 	}
 
 	return nil
@@ -377,7 +371,6 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	pipArgs := []string{
 		"install",
-		"--constraint", constraintsPath,
 		// We don't use pip to download wheels, so we don't need a cache
 		"--no-cache-dir",
 		// Specify to not use any index since we won't/shouldn't download anything with pip anyway

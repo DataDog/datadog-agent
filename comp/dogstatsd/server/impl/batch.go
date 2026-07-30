@@ -40,8 +40,9 @@ type batcher struct {
 	samplesCount []int
 
 	// MetricSampleBatch used for metrics with timestamp
-	// no multi-pipelines use for metrics with timestamp since we don't process them and we directly
-	// send them to the serializer
+	// metrics with timestamp are not context-sharded since we don't aggregate them.
+	// When the no-aggregation pipeline is enabled, these batches are sent to a shared
+	// queue consumed by the no-aggregation workers.
 	samplesWithTs metrics.MetricSampleBatch
 	// offset while writing into the sample with timestampe slice (i.e. count of samples
 	// with timestamp currently stored)
@@ -138,7 +139,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 		pipelineCount:  pipelineCount,
 		shardGenerator: newShardGenerator(),
 
-		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
+		noAggPipelineEnabled: demux.Options().NoAggregationPipelineWorkersCount > 0,
 		tlmChannel:           tlmChannel,
 	}
 }

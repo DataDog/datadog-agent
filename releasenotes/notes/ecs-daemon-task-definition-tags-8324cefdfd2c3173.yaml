@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ECS daemon-scheduled tasks now emit the ``daemon_task_definition_arn`` tag instead
+    of ``task_definition_arn``, enabling correct entity resolution in the ECS Explorer.

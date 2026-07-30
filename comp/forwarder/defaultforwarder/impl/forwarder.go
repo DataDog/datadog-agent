@@ -116,10 +116,10 @@ func newMockForwarder(config config.Component, log log.Component, secrets secret
 	}
 }
 
-// NewForwarderFromDeps is an exported wrapper around newForwarder for use with fx.
+// NewComponent is an exported wrapper around newForwarder for use with fx.
 //
 //nolint:revive
-func NewForwarderFromDeps(dep dependencies) (provides, error) {
+func NewComponent(dep dependencies) (provides, error) {
 	return newForwarder(dep)
 }
 

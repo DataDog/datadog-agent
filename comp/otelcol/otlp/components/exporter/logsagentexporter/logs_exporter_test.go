@@ -10,19 +10,32 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
+
+type stubHostname struct{ name string }
+
+func (s stubHostname) Get(context.Context) (string, error) { return s.name, nil }
+func (s stubHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: s.name, Provider: "stub"}, nil
+}
+func (s stubHostname) GetSafe(context.Context) string { return s.name }
 
 func TestLogsExporter(t *testing.T) {
 	lr := testutil.GenerateLogsOneLogRecord()
@@ -407,4 +420,221 @@ func traceIDToHexOrEmptyString(id pcommon.TraceID) string {
 		return ""
 	}
 	return hex.EncodeToString(id[:])
+}
+
+func TestSplitLogsByScope(t *testing.T) {
+	t.Run("single-scope ResourceLogs", func(t *testing.T) {
+		ld := plog.NewLogs()
+		for _, scope := range []string{"filelog", string(K8sObjectsReceiver), "filelog", string(K8sObjectsReceiver)} {
+			ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(scope)
+		}
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 2, k8s.ResourceLogs().Len())
+		assert.Equal(t, 2, regular.ResourceLogs().Len())
+		assert.Equal(t, string(K8sObjectsReceiver), k8s.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+	})
+
+	t.Run("mixed-scope ResourceLogs", func(t *testing.T) {
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.SetSchemaUrl("https://example.com/schema")
+		rl.Resource().Attributes().PutStr("k8s.cluster.name", "test-cluster")
+		rl.ScopeLogs().AppendEmpty().Scope().SetName("filelog")
+		rl.ScopeLogs().AppendEmpty().Scope().SetName(string(K8sObjectsReceiver))
+		rl.ScopeLogs().AppendEmpty().Scope().SetName("filelog")
+
+		k8s, regular := splitLogsByScope(ld)
+
+		assert.Equal(t, 1, k8s.ResourceLogs().Len())
+		assert.Equal(t, 1, k8s.ResourceLogs().At(0).ScopeLogs().Len())
+		assert.Equal(t, string(K8sObjectsReceiver), k8s.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		assert.Equal(t, "https://example.com/schema", k8s.ResourceLogs().At(0).SchemaUrl())
+		clusterName, ok := k8s.ResourceLogs().At(0).Resource().Attributes().Get("k8s.cluster.name")
+		assert.True(t, ok)
+		assert.Equal(t, "test-cluster", clusterName.AsString())
+
+		assert.Equal(t, 1, regular.ResourceLogs().Len())
+		assert.Equal(t, 2, regular.ResourceLogs().At(0).ScopeLogs().Len())
+		assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(1).Scope().Name())
+		assert.Equal(t, "https://example.com/schema", regular.ResourceLogs().At(0).SchemaUrl())
+	})
+
+	t.Run("only k8sobjects scope", func(t *testing.T) {
+		ld := plog.NewLogs()
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(string(K8sObjectsReceiver))
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 1, k8s.ResourceLogs().Len())
+		assert.Equal(t, 0, regular.ResourceLogs().Len())
+	})
+
+	t.Run("all-regular fast path returns ld unchanged", func(t *testing.T) {
+		ld := plog.NewLogs()
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName("filelog")
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName("otherreceiver")
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 0, k8s.ResourceLogs().Len())
+		assert.Equal(t, 2, regular.ResourceLogs().Len())
+		// fast path returns the same backing plog.Logs (no copy)
+		assert.Equal(t, ld, regular)
+	})
+
+	t.Run("scopeless ResourceLogs routed to regular side", func(t *testing.T) {
+		ld := plog.NewLogs()
+		scopeless := ld.ResourceLogs().AppendEmpty()
+		scopeless.SetSchemaUrl("https://example.com/schema")
+		scopeless.Resource().Attributes().PutStr("host.name", "host-a")
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(string(K8sObjectsReceiver))
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 1, k8s.ResourceLogs().Len())
+		assert.Equal(t, 1, regular.ResourceLogs().Len())
+		assert.Equal(t, 0, regular.ResourceLogs().At(0).ScopeLogs().Len())
+		assert.Equal(t, "https://example.com/schema", regular.ResourceLogs().At(0).SchemaUrl())
+		hostName, ok := regular.ResourceLogs().At(0).Resource().Attributes().Get("host.name")
+		assert.True(t, ok)
+		assert.Equal(t, "host-a", hostName.AsString())
+	})
+
+	t.Run("scopeless ResourceLogs only takes fast path as regular", func(t *testing.T) {
+		ld := plog.NewLogs()
+		ld.ResourceLogs().AppendEmpty().Resource().Attributes().PutStr("host.name", "host-a")
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 0, k8s.ResourceLogs().Len())
+		assert.Equal(t, 1, regular.ResourceLogs().Len())
+		assert.Equal(t, ld, regular)
+	})
+}
+
+func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
+	regularLog := func() plog.Logs {
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		sl := rl.ScopeLogs().AppendEmpty()
+		sl.Scope().SetName("filelog")
+		sl.LogRecords().AppendEmpty().Body().SetStr("hello")
+		return ld
+	}
+	mixedLogs := func() plog.Logs {
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-1")
+		rl.Resource().Attributes().PutStr("k8s.cluster.name", "my-cluster")
+		regular := rl.ScopeLogs().AppendEmpty()
+		regular.Scope().SetName("filelog")
+		regular.LogRecords().AppendEmpty().Body().SetStr("hello")
+		k8sScope := rl.ScopeLogs().AppendEmpty()
+		k8sScope.Scope().SetName(string(K8sObjectsReceiver))
+		k8sScope.LogRecords().AppendEmpty().Body().SetStr(
+			`{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"pod-uid","resourceVersion":"v1","name":"p"}}`)
+		return ld
+	}
+
+	newExp := func(t *testing.T, ch chan *message.Message, cfg *Config) exp.Logs {
+		t.Helper()
+		params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+		f := NewFactory(ch, otel.NewDisabledGatewayUsage())
+		e, err := f.CreateLogs(context.Background(), params, cfg)
+		require.NoError(t, err)
+		return e
+	}
+
+	t.Run("orchestrator disabled routes everything to regular path", func(t *testing.T) {
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{OtelSource: otelSource, LogSourceName: LogSourceName})
+		require.NoError(t, e.ConsumeLogs(context.Background(), regularLog()))
+		select {
+		case <-ch:
+		default:
+			t.Fatal("expected regular log to reach channel")
+		}
+	})
+
+	t.Run("orchestrator enabled, only regular logs: no HTTP call", func(t *testing.T) {
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			posts.Add(1)
+		}))
+		defer server.Close()
+
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{
+			OtelSource:    otelSource,
+			LogSourceName: LogSourceName,
+			OrchestratorConfig: OrchestratorConfig{
+				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
+			},
+		})
+		require.NoError(t, e.ConsumeLogs(context.Background(), regularLog()))
+		assert.Equal(t, int32(0), posts.Load(), "k8s consumer should not be invoked")
+		select {
+		case <-ch:
+		default:
+			t.Fatal("expected regular log to reach channel")
+		}
+	})
+
+	t.Run("orchestrator enabled, only k8s logs: no channel send", func(t *testing.T) {
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			posts.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-1")
+		rl.Resource().Attributes().PutStr("k8s.cluster.name", "my-cluster")
+		sl := rl.ScopeLogs().AppendEmpty()
+		sl.Scope().SetName(string(K8sObjectsReceiver))
+		sl.LogRecords().AppendEmpty().Body().SetStr(
+			`{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"pod-uid","resourceVersion":"v1","name":"p"}}`)
+
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{
+			OtelSource:    otelSource,
+			LogSourceName: LogSourceName,
+			OrchestratorConfig: OrchestratorConfig{
+				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
+			},
+		})
+		require.NoError(t, e.ConsumeLogs(context.Background(), ld))
+		assert.Equal(t, int32(1), posts.Load(), "k8s consumer should be invoked once")
+		select {
+		case <-ch:
+			t.Fatal("regular channel should not receive anything")
+		default:
+		}
+	})
+
+	t.Run("orchestrator enabled, mixed batch: both consumers invoked", func(t *testing.T) {
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			posts.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{
+			OtelSource:    otelSource,
+			LogSourceName: LogSourceName,
+			OrchestratorConfig: OrchestratorConfig{
+				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
+			},
+		})
+		require.NoError(t, e.ConsumeLogs(context.Background(), mixedLogs()))
+		assert.Equal(t, int32(1), posts.Load(), "k8s consumer should be invoked once")
+		select {
+		case <-ch:
+		default:
+			t.Fatal("expected regular log to reach channel")
+		}
+	})
 }

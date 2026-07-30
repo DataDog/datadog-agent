@@ -21,13 +21,38 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// ClusterOption overrides fields on an OpenShiftClusterArgs before the cluster is created.
+type ClusterOption func(p *kubeComp.OpenShiftClusterArgs) error
+
+func WithCPUs(cpus string) ClusterOption {
+	return func(p *kubeComp.OpenShiftClusterArgs) error {
+		p.CPUs = cpus
+		return nil
+	}
+}
+
+func WithMemory(mem string) ClusterOption {
+	return func(p *kubeComp.OpenShiftClusterArgs) error {
+		p.Memory = mem
+		return nil
+	}
+}
+
+func WithDisk(size string) ClusterOption {
+	return func(p *kubeComp.OpenShiftClusterArgs) error {
+		p.Disk = size
+		return nil
+	}
+}
+
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name                           string
 	fakeintakeOptions              []fakeintake.Option
 	agentOptions                   []kubernetesagentparams.Option
 	preAgentHooks                  []PreAgentHook
-	openshiftOptions               []pulumi.ResourceOption
+	pulumiResourceOptions          []pulumi.ResourceOption
+	openshiftOptions               []ClusterOption
 	workloadAppFuncs               []WorkloadAppFunc
 	agentDependentWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
 	deployArgoRollout              bool
@@ -77,8 +102,15 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	}
 }
 
-// WithOpenShiftOptions adds options to the OpenShift cluster
-func WithOpenShiftOptions(opts ...pulumi.ResourceOption) ProvisionerOption {
+// WithPulumiResourceOptions adds options to the OpenShift cluster
+func WithPulumiResourceOptions(opts ...pulumi.ResourceOption) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.pulumiResourceOptions = opts
+		return nil
+	}
+}
+
+func WithOpenshiftOptions(opts ...ClusterOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.openshiftOptions = opts
 		return nil

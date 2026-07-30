@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "cli_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/cli",
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/symdb",
+        "//pkg/dyninst/symdb/symdbprinter",
+        "//pkg/dyninst/symdb/uploader",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_google_go_containerregistry//pkg/crane",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+go_binary(
+    name = "cli",
+    embed = [":cli_lib"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "cli_test",
+    srcs = ["main_test.go"],
+    embed = [":cli_lib"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/symdb",
+        "//pkg/dyninst/symdb/uploader",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

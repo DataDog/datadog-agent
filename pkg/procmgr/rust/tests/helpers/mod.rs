@@ -31,6 +31,16 @@ impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
+        Self::start_with_env(config_dir, socket_path, &[])
+    }
+
+    /// Like [`start`](Self::start), but also sets the given extra environment variables on the
+    /// daemon process.
+    pub fn start_with_env(
+        config_dir: &Path,
+        socket_path: &Path,
+        extra_env: &[(&str, &str)],
+    ) -> Self {
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
 
         let mut cmd = Command::new(bin);
@@ -38,6 +48,9 @@ impl DaemonHandle {
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for (k, v) in extra_env {
+            cmd.env(k, v);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt as _;
@@ -590,5 +603,27 @@ pub fn wait_for_pid_gone(pid: u32, timeout: Duration) -> bool {
             return false;
         }
         std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Force-kill a PID (simulates external crash, not dd-procmgr stop).
+#[cfg(unix)]
+pub fn kill_pid_force(pid: u32) {
+    signal::kill(Pid::from_raw(pid as i32), Signal::SIGKILL)
+        .unwrap_or_else(|e| panic!("failed to SIGKILL pid {pid}: {e}"));
+}
+
+/// Force-kill a PID (simulates external crash, not dd-procmgr stop).
+#[cfg(windows)]
+pub fn kill_pid_force(pid: u32) {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        assert!(!handle.is_null(), "OpenProcess failed for pid {pid}");
+        let ok = TerminateProcess(handle, 1);
+        CloseHandle(handle);
+        assert_ne!(ok, 0, "TerminateProcess failed for pid {pid}");
     }
 }

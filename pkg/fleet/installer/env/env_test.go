@@ -24,6 +24,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				Mirror:                         "",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
@@ -82,16 +83,21 @@ func TestFromEnv(t *testing.T) {
 				envAppKey:                                     "app_key_123",
 				envPAREnabled:                                 "true",
 				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				envAgentMajorVersion:                          "7",
+				envAgentMinorVersion:                          "79.0~rc.2",
+				envAgentDistChannel:                           "beta",
+				envAgentPipelineID:                            "118008542",
 			},
 			expected: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				Mirror:               "https://mirror.example.com",
-				RemoteUpdates:        true,
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				APIKey:                "123456",
+				Site:                  "datadoghq.eu",
+				Mirror:                "https://mirror.example.com",
+				RemoteUpdates:         true,
+				ProcessManagerEnabled: true,
+				RegistryOverride:      "registry.example.com",
+				RegistryAuthOverride:  "auth",
+				RegistryUsername:      "username",
+				RegistryPassword:      "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -136,6 +142,10 @@ func TestFromEnv(t *testing.T) {
 				AppKey:              "app_key_123",
 				PAREnabled:          true,
 				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				AgentMajorVersion:   "7",
+				AgentMinorVersion:   "79.0~rc.2",
+				AgentDistChannel:    "beta",
+				AgentPipelineID:     "118008542",
 			},
 		},
 		{
@@ -146,6 +156,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
@@ -175,8 +186,9 @@ func TestFromEnv(t *testing.T) {
 				envApmInstrumentationEnabled: "all",
 			},
 			expected: &Env{
-				APIKey: "123456",
-				Site:   "datadoghq.com",
+				APIKey:                "123456",
+				Site:                  "datadoghq.com",
+				ProcessManagerEnabled: true,
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",
@@ -204,6 +216,7 @@ func TestFromEnv(t *testing.T) {
 				os.Setenv(key, value)
 				defer os.Unsetenv(key)
 			}
+			tt.expected.FIPSMode = pkgfips.BuiltForFIPS()
 			result := FromEnv()
 			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
 		})
@@ -340,8 +353,7 @@ func TestToEnv(t *testing.T) {
 }
 
 func TestFromEnvFIPSMode(t *testing.T) {
-	thisBinaryIsFips, _ := pkgfips.Enabled()
-	if thisBinaryIsFips {
+	if pkgfips.BuiltForFIPS() {
 		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
 	}
 	tests := []struct {

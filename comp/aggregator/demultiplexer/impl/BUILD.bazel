@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -26,6 +27,7 @@ go_library(
         "//comp/core/status",
         "//comp/core/tagger/def",
         "//comp/core/tagger/impl-noop",
+        "//comp/def",
         "//comp/filterlist/def",
         "//comp/filterlist/fx-mock",
         "//comp/filterlist/impl",
@@ -53,31 +55,44 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "demultiplexer_mock_test.go",
+        "demultiplexer_options_test.go",
         "status_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/aggregator/demultiplexer/def",
+        "//comp/anomalydetection/observer/def",
         "//comp/core",
+        "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
         "//comp/core/status",
         "//comp/core/tagger/def",
         "//comp/core/tagger/fx-mock",
+        "//comp/def",
+        "//comp/filterlist/def",
         "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
+        "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatform/mock",
+        "//comp/forwarder/orchestrator/def",
         "//comp/forwarder/orchestrator/mock",
+        "//comp/haagent/def",
         "//comp/haagent/mock",
         "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/def",
         "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
+        "//pkg/serializer",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
