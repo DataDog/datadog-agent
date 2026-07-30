@@ -526,13 +526,10 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		msi.WithMsiFromPackagePath(target, agentPackage),
 		msi.WithLogFile(logFile),
 	}
-	// msi.Cmd() always places typed properties (WithDdAgentUserName, WithDdAgentUserKeepRights,
-	// etc.) after raw additional args on the final command line, regardless of option order
-	// here. So for any env.MsiParams field with a getenv() fallback (AgentUserName from the
-	// running service, AgentUserKeepRights from the registry), an explicit value already
-	// present in args must win, or an operator's explicit request would be silently
-	// overridden by the stale fallback. AgentUserPassword has no such fallback, so it isn't
-	// at risk of this and doesn't need the guard.
+	// msi.Cmd() places typed properties after raw args on the command line regardless of
+	// option order, so a getenv() fallback (AgentUserName, AgentUserKeepRights) would
+	// silently win over an explicit value already in args. Guard against that.
+	// AgentUserPassword has no fallback, so it's not at risk.
 	if env.MsiParams.AgentUserName != "" && !argsHaveProperty(args, "DDAGENTUSER_NAME") {
 		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
@@ -740,12 +737,9 @@ func getenv() *env.Env {
 		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
 	}
 
-	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out.
-	// Fleet upgrades uninstall the previous MSI and install the new one as two
-	// separate transactions (unlike an in-place MSI major upgrade), so the
-	// uninstall step removes the registry copy of this value before the
-	// reinstall's own registry read can run. Reading it here, before the
-	// uninstall happens, is what carries the operator's choice forward.
+	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out. Fleet upgrades uninstall
+	// then reinstall the MSI as two transactions, wiping the registry copy in between, so we
+	// read it here - before the uninstall - to carry it forward.
 	if env.MsiParams.AgentUserKeepRights == "" {
 		keepRights, err := getAgentUserKeepRightsFromRegistry()
 		if err != nil {

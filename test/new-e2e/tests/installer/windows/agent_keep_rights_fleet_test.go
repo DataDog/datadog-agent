@@ -85,9 +85,8 @@ func (s *testAgentKeepRightsFleetSuite) TestKeepRightsSurvivesFleetUpgrade() {
 
 // TestKeepRightsExplicitArgWinsOnFleetUpgrade: regression test for #54125. Install with
 // DDAGENTUSER_KEEP_RIGHTS=1, then fleet-upgrade with an explicit DDAGENTUSER_KEEP_RIGHTS=0
-// passed via StartExperimentMSIArgs (a test-only injection point for the experiment install's
-// args, read by getStartExperimentMSIArgs). The explicit value must win over the stale registry
-// value, i.e. SeDenyNetworkLogonRight must be reapplied.
+// via StartExperimentMSIArgs (test-only injection point for the experiment install's args).
+// The explicit value must win: SeDenyNetworkLogonRight must be reapplied.
 func (s *testAgentKeepRightsFleetSuite) TestKeepRightsExplicitArgWinsOnFleetUpgrade() {
 	vm := s.Env().RemoteHost
 	s.setAgentConfig()

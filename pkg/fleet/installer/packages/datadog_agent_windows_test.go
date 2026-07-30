@@ -12,10 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetenvAgentUserKeepRightsFallback verifies that getenv() falls back to the registry-stored
-// DDAGENTUSER_KEEP_RIGHTS value when it isn't provided on the command line, which is what allows
-// fleet upgrades (which uninstall then reinstall the MSI as two separate transactions and don't
-// pass the flag themselves) to carry the operator's opt-out forward.
+// TestGetenvAgentUserKeepRightsFallback verifies getenv() falls back to the registry-stored
+// DDAGENTUSER_KEEP_RIGHTS value when not provided on the command line.
 func TestGetenvAgentUserKeepRightsFallback(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -66,10 +64,8 @@ func TestGetenvAgentUserKeepRightsFallback(t *testing.T) {
 	}
 }
 
-// TestArgsHaveProperty verifies the guard used by installAgentPackage to detect that an MSI
-// property was already supplied explicitly via install args, so a getenv() fallback (e.g.
-// AgentUserName from the running service, AgentUserKeepRights from the registry) doesn't
-// silently override an operator's explicit request.
+// TestArgsHaveProperty verifies the guard installAgentPackage uses to detect an MSI property
+// already supplied via install args, so a getenv() fallback doesn't override it.
 func TestArgsHaveProperty(t *testing.T) {
 	tests := []struct {
 		name     string
