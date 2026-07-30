@@ -61,4 +61,8 @@ type ProfileManager interface {
 
 	// DumpActivity dumps the activity dump
 	DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
+
+	// HandleSampleRefresh updates the LastSeen timestamp for the activity tree node
+	// associated with the given kernel dedup cookie
+	HandleSampleRefresh(cookie uint32)
 }

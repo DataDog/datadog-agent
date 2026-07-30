@@ -14,6 +14,7 @@ go_library(
         "//comp/core/config",
         "//comp/host-profiler/collector/impl/extensions/hpflareextension",
         "//comp/host-profiler/collector/impl/params",
+        "//comp/host-profiler/symboluploader/cgroup",
         "//comp/host-profiler/version",
         "//pkg/config/utils",
         "//pkg/util/confmaputils",

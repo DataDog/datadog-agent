@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "apiimpl",
@@ -29,14 +30,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "apiimpl_test",
     srcs = [
         "api_test.go",
         "server_test.go",
     ],
     embed = [":apiimpl"],
-    gotags = ["test"],
     deps = [
         "//comp/api/api/apiimpl/observability",
         "//comp/api/api/def",

@@ -39,9 +39,11 @@ type DetectorProcessingStats struct {
 type ReplayStats struct {
 	// DetectorStats holds per-detector processing-time statistics keyed by detector name.
 	DetectorStats map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
-	// InputMetricsCount is the total number of metric data points (samples) in the scenario.
+	// InputMetricsCount is the number of accepted parquet metric samples. It
+	// excludes virtual metrics derived from logs and filtered/dropped samples.
 	InputMetricsCount int64 `json:"input_metrics_count"`
-	// InputMetricsCardinality is the number of unique metric series (name + tag combinations).
+	// InputMetricsCardinality is the number of unique accepted parquet metric
+	// series (name + tag combinations), excluding log-derived series.
 	InputMetricsCardinality int `json:"input_metrics_cardinality"`
 	// InputLogsCount is the number of raw log entries present in the scenario.
 	InputLogsCount int `json:"input_logs_count"`

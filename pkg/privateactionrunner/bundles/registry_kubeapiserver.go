@@ -45,10 +45,12 @@ import (
 	com_datadoghq_kubernetes_kubeactions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/kubeactions"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
+	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
 	com_datadoghq_remoteaction_networkconfigmanagement "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement"
 	com_datadoghq_remoteaction_networks "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -56,44 +58,50 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, ka kubeactions.Component) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, ka kubeactions.Component) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
+			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
-			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
-			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
-			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
-			"com.datadoghq.gitlab.deployments":                   com_datadoghq_gitlab_deployments.NewGitlabDeployments(),
-			"com.datadoghq.gitlab.environments":                  com_datadoghq_gitlab_environments.NewGitlabEnvironments(),
-			"com.datadoghq.gitlab.graphql":                       com_datadoghq_gitlab_graphql.NewGitlabGraphql(),
-			"com.datadoghq.gitlab.groups":                        com_datadoghq_gitlab_groups.NewGitlabGroups(),
-			"com.datadoghq.gitlab.issues":                        com_datadoghq_gitlab_issues.NewGitlabIssues(),
-			"com.datadoghq.gitlab.jobs":                          com_datadoghq_gitlab_jobs.NewGitlabJobs(),
-			"com.datadoghq.gitlab.labels":                        com_datadoghq_gitlab_labels.NewGitlabLabels(),
-			"com.datadoghq.gitlab.members":                       com_datadoghq_gitlab_members.NewGitlabMembers(),
-			"com.datadoghq.gitlab.mergerequests":                 com_datadoghq_gitlab_merge_requests.NewGitlabMergeRequests(),
-			"com.datadoghq.gitlab.notes":                         com_datadoghq_gitlab_notes.NewGitlabNotes(),
-			"com.datadoghq.gitlab.pipelines":                     com_datadoghq_gitlab_pipelines.NewGitlabPipelines(),
-			"com.datadoghq.gitlab.projects":                      com_datadoghq_gitlab_projects.NewGitlabProjects(),
-			"com.datadoghq.gitlab.protectedbranches":             com_datadoghq_gitlab_protected_branches.NewGitlabProtectedBranches(),
-			"com.datadoghq.gitlab.repositories":                  com_datadoghq_gitlab_repositories.NewGitlabRepositories(),
-			"com.datadoghq.gitlab.repositoryfiles":               com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
-			"com.datadoghq.gitlab.tags":                          com_datadoghq_gitlab_tags.NewGitlabTags(),
-			"com.datadoghq.gitlab.users":                         com_datadoghq_gitlab_users.NewGitlabUsers(),
-			"com.datadoghq.http":                                 com_datadoghq_http.NewHttpBundle(configuration),
-			"com.datadoghq.jenkins":                              com_datadoghq_jenkins.NewJenkins(configuration),
-			"com.datadoghq.kubernetes.apiextensions":             com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
-			"com.datadoghq.kubernetes.apps":                      com_datadoghq_kubernetes_apps.NewKubernetesApps(),
-			"com.datadoghq.kubernetes.batch":                     com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
-			"com.datadoghq.kubernetes.core":                      com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
-			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
-			"com.datadoghq.kubernetes.kubeactions":              com_datadoghq_kubernetes_kubeactions.NewKubernetesKubeActions(ka),
-			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
-			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
-			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
+			// com.datadoghq.remoteaction.agent is intentionally not registered here: its
+			// actions resolve the target Agent via pkgconfigsetup.GetIPCAddress, which
+			// rejects non-local addresses, so inside the Cluster Agent it would reach the
+			// Cluster Agent itself rather than a specific node's core Agent. Registering it
+			// here would silently return the wrong host's data instead of failing loudly.
+			"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
+			"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
+			"com.datadoghq.gitlab.customattributes":    com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
+			"com.datadoghq.gitlab.deployments":         com_datadoghq_gitlab_deployments.NewGitlabDeployments(),
+			"com.datadoghq.gitlab.environments":        com_datadoghq_gitlab_environments.NewGitlabEnvironments(),
+			"com.datadoghq.gitlab.graphql":             com_datadoghq_gitlab_graphql.NewGitlabGraphql(),
+			"com.datadoghq.gitlab.groups":              com_datadoghq_gitlab_groups.NewGitlabGroups(),
+			"com.datadoghq.gitlab.issues":              com_datadoghq_gitlab_issues.NewGitlabIssues(),
+			"com.datadoghq.gitlab.jobs":                com_datadoghq_gitlab_jobs.NewGitlabJobs(),
+			"com.datadoghq.gitlab.labels":              com_datadoghq_gitlab_labels.NewGitlabLabels(),
+			"com.datadoghq.gitlab.members":             com_datadoghq_gitlab_members.NewGitlabMembers(),
+			"com.datadoghq.gitlab.mergerequests":       com_datadoghq_gitlab_merge_requests.NewGitlabMergeRequests(),
+			"com.datadoghq.gitlab.notes":               com_datadoghq_gitlab_notes.NewGitlabNotes(),
+			"com.datadoghq.gitlab.pipelines":           com_datadoghq_gitlab_pipelines.NewGitlabPipelines(),
+			"com.datadoghq.gitlab.projects":            com_datadoghq_gitlab_projects.NewGitlabProjects(),
+			"com.datadoghq.gitlab.protectedbranches":   com_datadoghq_gitlab_protected_branches.NewGitlabProtectedBranches(),
+			"com.datadoghq.gitlab.repositories":        com_datadoghq_gitlab_repositories.NewGitlabRepositories(),
+			"com.datadoghq.gitlab.repositoryfiles":     com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
+			"com.datadoghq.gitlab.tags":                com_datadoghq_gitlab_tags.NewGitlabTags(),
+			"com.datadoghq.gitlab.users":               com_datadoghq_gitlab_users.NewGitlabUsers(),
+			"com.datadoghq.http":                       com_datadoghq_http.NewHttpBundle(configuration),
+			"com.datadoghq.jenkins":                    com_datadoghq_jenkins.NewJenkins(configuration),
+			"com.datadoghq.kubernetes.apiextensions":   com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
+			"com.datadoghq.kubernetes.apps":            com_datadoghq_kubernetes_apps.NewKubernetesApps(),
+			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
+			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
+			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+			"com.datadoghq.kubernetes.discovery":       com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
+			"com.datadoghq.kubernetes.kubeactions":     com_datadoghq_kubernetes_kubeactions.NewKubernetesKubeActions(ka),
+			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
+			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
+			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
 		},
 	}
 }

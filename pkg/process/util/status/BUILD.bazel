@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/metadata/host/impl/utils",
         "//pkg/config/model",
         "//pkg/version",
-        "@//comp/metadata/host/impl/utils",
     ],
 )
 
@@ -20,10 +20,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/hostname/hostnameimpl",
+        "//comp/metadata/host/impl/utils",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/version",
-        "@//comp/metadata/host/impl/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

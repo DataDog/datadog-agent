@@ -41,18 +41,14 @@ func WriteDDOTProcmgrConfig(installRootResolved string) error {
 		return fmt.Errorf("create processes.d: %w", err)
 	}
 
-	fleetPolicies := paths.FleetPoliciesDirForManagedProcess()
-
 	installRootRepl := filepath.ToSlash(filepath.Clean(installRootResolved))
 	etcRootRepl := filepath.ToSlash(filepath.Clean(paths.DatadogDataDir))
-	fleetPoliciesRepl := filepath.ToSlash(filepath.Clean(fleetPolicies))
-	log.Debugf("DDOT processes.d: template replace __DDOT_INSTALL_ROOT__=%q __DDOT_ETC_ROOT__=%q __DDOT_FLEET_POLICIES_DIR__=%q",
-		installRootRepl, etcRootRepl, fleetPoliciesRepl)
+	log.Debugf("DDOT processes.d: template replace __DDOT_INSTALL_ROOT__=%q __DDOT_ETC_ROOT__=%q",
+		installRootRepl, etcRootRepl)
 
 	config := embedded.DDOTWindowsProcmgrConfig
 	config = strings.ReplaceAll(config, "__DDOT_INSTALL_ROOT__", installRootRepl)
 	config = strings.ReplaceAll(config, "__DDOT_ETC_ROOT__", etcRootRepl)
-	config = strings.ReplaceAll(config, "__DDOT_FLEET_POLICIES_DIR__", fleetPoliciesRepl)
 
 	path := filepath.Join(processesDir, ddotProcmgrConfigFileName)
 	log.Debugf("DDOT processes.d: writing %q", path)
@@ -85,6 +81,9 @@ func RemoveDDOTProcmgrConfig(packageRootResolved string) error {
 			log.Debugf("DDOT processes.d: remove legacy %q: %v", legacy, err)
 			return err
 		}
+	}
+	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
+		removeEmptyProcessesDir(installPF)
 	}
 	return nil
 }

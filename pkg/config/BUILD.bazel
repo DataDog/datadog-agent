@@ -4,6 +4,8 @@ load("//pkg/config/schema:template.bzl", "schema_template_config")
 
 package(default_visibility = ["//visibility:public"])
 
+# gazelle:dd_agent_go_test on
+
 # Target OS for the rendered config. The legacy `render_config` Go binary
 # used `runtime.GOOS` of the build host; the schema-template equivalent
 # is a Bazel `select()` on `@platforms//os` so cross-platform builds
@@ -13,6 +15,7 @@ _OS_TARGET = select({
     "@platforms//os:linux": "linux",
     "@platforms//os:windows": "windows",
     "@platforms//os:macos": "darwin",
+    "@platforms//os:aix": "aix",
 })
 
 schema_template_config(
@@ -35,11 +38,22 @@ schema_template_config(
 
 schema_template_config(
     name = "system_probe_config",
+    srcs = ["//pkg/config/schema:system_probe_schema_subfiles"],
     out = "system-probe.yaml",
     build_type = "system-probe",
     os_target = _OS_TARGET,
     top_schema = "//pkg/config/schema:yaml/system-probe_schema.yaml",
 )
 
-# TODO: Add targets for each package, as needed: dogstatsd, dca, dcacf.
+schema_template_config(
+    name = "dogstatsd_config",
+    srcs = ["//pkg/config/schema:core_schema_subfiles"],
+    out = "dogstatsd.yaml.example",
+    build_type = "dogstatsd",
+    # dogstatsd ships on Linux containers; always render Linux defaults.
+    os_target = "linux",
+    top_schema = "//pkg/config/schema:yaml/core_schema.yaml",
+)
+
+# TODO: Add targets for each package, as needed: dca, dcacf.
 # That would get easier if we auto-pick the schema based on the build type.

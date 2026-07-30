@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-pipeline",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx-pipeline",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/otelcol/collector/def",
+        "//comp/otelcol/collector/impl-pipeline",
+        "//pkg/util/fxutil",
+    ],
+)

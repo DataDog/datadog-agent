@@ -5,3 +5,7 @@
 
 // Package cluster contains the controller for cluster autoscaling.
 package cluster
+
+// EventSourceComponent is the Kubernetes event source component name for the cluster autoscaler,
+// shared by all sub-components (cluster autoscaling, spot scheduling).
+const EventSourceComponent = "datadog-cluster-autoscaler"

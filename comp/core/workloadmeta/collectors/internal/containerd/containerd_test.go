@@ -12,8 +12,8 @@ import (
 
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/containerd/containerd"
-	containerdcontainers "github.com/containerd/containerd/containers"
+	containerd "github.com/containerd/containerd/v2/client"
+	containerdcontainers "github.com/containerd/containerd/v2/core/containers"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"

@@ -32,7 +32,7 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -63,7 +63,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -111,7 +111,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-				orchestratorForwarderImpl.Module(orchestrator.NewDisabledParams()),
+				orchestratorForwarderFx.Module(orchestrator.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
 
@@ -131,9 +131,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
-				fx.Provide(func() option.Option[agenttelemetry.Component] {
-					return option.None[agenttelemetry.Component]()
-				}),
+				// Module() installs the errortracking submitter itself (see
+				// comp/core/agenttelemetry/fx.Module) — no per-binary invoke needed.
+				agenttelemetryfx.Module(),
 				healthplatform.Bundle(),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component

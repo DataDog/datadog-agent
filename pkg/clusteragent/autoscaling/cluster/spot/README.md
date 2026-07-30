@@ -97,7 +97,6 @@ Rebalancing handles the following cases:
 
 - [ ] Implement Argo Rollout support
 - [ ] Implement CronJob support (needs patch permission)
-- [ ] Emit Kubernetes events
 - [ ] Add spot-related labels to the agent's out-of-the-box Kubernetes tag extraction so they are automatically collected as tags on all telemetry.
   See [out-of-the-box tags documentation](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags)
   and the corresponding configuration in this repository.

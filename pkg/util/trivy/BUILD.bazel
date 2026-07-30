@@ -3,6 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_agent_go_test on
 
+# This library requires the go tag "trivy" to have any impact, and
+# trivy is only used in linux builds. But we still do not want to mark
+# it as linux only because the top level binaries depend on this and
+# expect go tag inclusion to save them.
 go_library(
     name = "trivy",
     srcs = [
@@ -20,7 +24,6 @@ go_library(
         "trivy.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/trivy",
-    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
@@ -50,13 +53,13 @@ go_library(
         "@com_github_aquasecurity_trivy//pkg/types",
         "@com_github_aquasecurity_trivy//pkg/vulnerability",
         "@com_github_aquasecurity_trivy_db//pkg/db",
-        "@com_github_containerd_containerd//:containerd",
-        "@com_github_containerd_containerd//content",
-        "@com_github_containerd_containerd//images",
-        "@com_github_containerd_containerd//images/archive",
-        "@com_github_containerd_containerd//mount",
-        "@com_github_containerd_containerd//namespaces",
-        "@com_github_containerd_containerd//snapshots",
+        "@com_github_containerd_containerd_v2//client",
+        "@com_github_containerd_containerd_v2//core/content",
+        "@com_github_containerd_containerd_v2//core/images",
+        "@com_github_containerd_containerd_v2//core/images/archive",
+        "@com_github_containerd_containerd_v2//core/mount",
+        "@com_github_containerd_containerd_v2//core/snapshots",
+        "@com_github_containerd_containerd_v2//pkg/namespaces",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_datadog_ddtrivy//:ddtrivy",
         "@com_github_distribution_reference//:reference",
@@ -91,6 +94,9 @@ dd_agent_go_test(
         "base",
         "fips",
     ],
+    # These tests are meaningless except on linux.
+    # - the library is only functional with the gotag 'trivy'
+    # - test rule strips 'trivy' because it is a LINUX_ONLY_FLAG
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core",
@@ -103,8 +109,8 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_aquasecurity_trivy//pkg/fanal/types",
-        "@com_github_containerd_containerd//mount",
-        "@com_github_containerd_containerd//snapshots",
+        "@com_github_containerd_containerd_v2//core/mount",
+        "@com_github_containerd_containerd_v2//core/snapshots",
         "@com_github_containerd_errdefs//:errdefs",
         "@com_github_moby_moby_api//types/image",
         "@com_github_moby_moby_api//types/storage",

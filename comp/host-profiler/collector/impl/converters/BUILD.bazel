@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/host-profiler/symboluploader/cgroup",
         "//comp/host-profiler/version",
         "//pkg/config/utils",
         "//pkg/util/confmaputils",

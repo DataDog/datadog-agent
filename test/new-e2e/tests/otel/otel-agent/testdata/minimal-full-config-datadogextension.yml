@@ -141,9 +141,24 @@ extensions:
     transport: tcp
     write_timeout: 30000000000
 processors:
+  cumulativetodelta/dd-autoconfigured:
+    exclude:
+      match_type: ""
+      metric_types: null
+      metrics: null
+      regexp: null
+    include:
+      match_type: ""
+      metric_types: null
+      metrics: null
+      regexp: null
+    initial_value: 0
+    max_staleness: 3600000000000
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
+    logs_tags_as_ddtags: false
+    trace_container_tag_promotion: "off"
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: ignore
     log_conditions: null
@@ -205,13 +220,17 @@ receivers:
   prometheus/dd-autoconfigured:
     api_server:
       enabled: false
+      max_connections: 512
       server_config:
         cors: null
-        idle_timeout: 0
-        read_header_timeout: 0
+        endpoint: 127.0.0.1:9090
+        idle_timeout: 60000000000
+        keep_alives_enabled: true
+        read_header_timeout: 60000000000
+        read_timeout: 600000000000
         tls: null
         transport: tcp
-        write_timeout: 0
+        write_timeout: 30000000000
     config:
       global:
         evaluation_interval: 1m
@@ -279,6 +298,7 @@ service:
         - datadog
       processors:
         - infraattributes/dd-autoconfigured
+        - cumulativetodelta/dd-autoconfigured
       receivers:
         - otlp
         - datadog/connector

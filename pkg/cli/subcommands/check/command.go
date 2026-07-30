@@ -62,11 +62,10 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -200,7 +199,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
-				orchestratorForwarderImpl.Module(orchestratordef.NewNoopParams()),
+				orchestratorForwarderFx.Module(orchestratordef.NewNoopParams()),
 				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(
@@ -656,7 +655,7 @@ func run(
 }
 
 func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
-	s := stats.NewStats(c, healthplatformmock.Mock(nil))
+	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {

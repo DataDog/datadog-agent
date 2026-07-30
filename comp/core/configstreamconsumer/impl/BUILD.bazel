@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -21,14 +22,14 @@ go_library(
         "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/log",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "consumer_test.go",
@@ -36,32 +37,6 @@ go_test(
         "integration_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
-    deps = [
-        "//comp/core/configstreamconsumer/def",
-        "//comp/core/configstreamconsumer/fx",
-        "//comp/core/log/def",
-        "//comp/core/log/mock",
-        "//comp/core/telemetry/fx",
-        "//pkg/api/security/cert",
-        "//pkg/configstreambootstrap",
-        "//pkg/proto/pbgo/core",
-        "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//codes",
-        "@org_golang_google_grpc//credentials",
-        "@org_golang_google_grpc//metadata",
-        "@org_golang_google_grpc//status",
-        "@org_golang_google_protobuf//types/known/structpb",
-        "@org_uber_go_fx//:fx",
-    ],
-)
-
-go_test(
-    name = "impl_integration_test",
-    srcs = ["integration_test.go"],
-    gotags = ["test"],
     deps = [
         "//comp/core/configstreamconsumer/def",
         "//comp/core/configstreamconsumer/fx",

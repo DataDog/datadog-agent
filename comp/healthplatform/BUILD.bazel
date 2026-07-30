@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "healthplatform",
@@ -18,9 +21,9 @@ go_library(
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issueregistry/fx",
         "//comp/healthplatform/issues/admissionprobe",
-        "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/invalidconfig",
+        "//comp/healthplatform/issues/invalidsysprobeconfig",
         "//comp/healthplatform/issues/rofspermissions",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/runner/fx",
@@ -34,11 +37,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "healthplatform_test",
-    srcs = ["bundle_test.go"],
+    srcs = [
+        "bundle_test.go",
+        "invalidconfig_integration_test.go",
+    ],
     embed = [":healthplatform"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
@@ -46,9 +51,11 @@ go_test(
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
         "//comp/healthplatform/issues",
+        "//comp/healthplatform/issues/invalidconfig",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
+        "//pkg/config/schema",
         "//pkg/util/fxutil",
         "//test/fakeintake/client",
         "//test/fakeintake/server",

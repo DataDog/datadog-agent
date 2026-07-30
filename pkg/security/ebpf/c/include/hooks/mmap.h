@@ -45,6 +45,22 @@ int hook_get_unmapped_area(ctx_t *ctx) {
     return 0;
 }
 
+// Since kernel 6.13, get_unmapped_area is a static inline wrapper and can no longer be hooked.
+// It calls __get_unmapped_area, which keeps `pgoff` in the same argument position, so we hook it
+// as a fallback to still read the mmap offset.
+HOOK_ENTRY("__get_unmapped_area")
+int hook___get_unmapped_area(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 offset = CTX_PARM4(ctx);
+    syscall->mmap.offset = offset;
+
+    return 0;
+}
+
 int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
     if (!syscall) {

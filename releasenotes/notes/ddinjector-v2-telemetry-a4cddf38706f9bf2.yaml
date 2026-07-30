@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    On Windows, the ``ddinjector`` system-probe telemetry now negotiates the
+    counter contract version with the installed driver, reporting new crash and
+    boot-recovery counters when the driver supports them and degrading gracefully
+    against older drivers.

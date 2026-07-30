@@ -155,10 +155,10 @@ func TestAutoMultiLineStatus(t *testing.T) {
 		assert.False(t, isDefault)
 	})
 
-	t.Run("nothing configured is default", func(t *testing.T) {
+	t.Run("autoMultiLine is configured by default", func(t *testing.T) {
 		mockConfig := config.NewMock(t)
 		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
-		assert.False(t, enabled)
+		assert.True(t, enabled)
 		assert.True(t, isDefault)
 	})
 
@@ -635,5 +635,89 @@ func TestValidateIPFilter(t *testing.T) {
 		}
 		err := cfg.validateIPFilter()
 		assert.Nil(t, err)
+	})
+}
+
+func TestIsAttributeParsingEnabled(t *testing.T) {
+	remapRule := &ProcessingRule{
+		Type: RemapSource,
+		Name: "remap",
+		Matching: []*SourceMatchEntry{
+			{Attribute: "syslog.appname", Value: "nginx", NewSource: "nginx"},
+		},
+	}
+	otherRule := &ProcessingRule{Type: ExcludeAtMatch, Name: "ex", Pattern: ".*"}
+
+	t.Run("explicit true wins", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		enabled := true
+		c := &LogsConfig{AttributeParsing: &enabled}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("explicit false overrides remap rule", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		disabled := false
+		c := &LogsConfig{AttributeParsing: &disabled, ProcessingRules: []*ProcessingRule{remapRule}}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil auto-enables with per-source remap_source", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		c := &LogsConfig{ProcessingRules: []*ProcessingRule{remapRule}}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil with non-remap per-source rule stays off", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		c := &LogsConfig{ProcessingRules: []*ProcessingRule{otherRule}}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil auto-enables with global remap_source", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetInTest("logs_config.processing_rules", []map[string]any{
+			{
+				"type": "remap_source",
+				"name": "global-remap",
+				"matching": []map[string]any{
+					{"attribute": "syslog.appname", "value": "nginx", "new_source": "nginx"},
+				},
+			},
+		})
+		c := &LogsConfig{}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil with no rules defaults off", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		c := &LogsConfig{}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	// debug_attr_parsing has no effect unless the syslog parser runs, so it must
+	// imply attribute parsing when attribute_parsing is left unset. Otherwise the
+	// decoder installs the noop parser and the structured envelope is never
+	// rendered.
+	t.Run("nil auto-enables with debug_attr_parsing", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		debug := true
+		c := &LogsConfig{DebugAttrParsing: &debug}
+		assert.True(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("explicit false overrides debug_attr_parsing", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		disabled := false
+		debug := true
+		c := &LogsConfig{AttributeParsing: &disabled, DebugAttrParsing: &debug}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
+	})
+
+	t.Run("nil with debug_attr_parsing off stays off", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		debug := false
+		c := &LogsConfig{DebugAttrParsing: &debug}
+		assert.False(t, c.IsAttributeParsingEnabled(mockConfig))
 	})
 }

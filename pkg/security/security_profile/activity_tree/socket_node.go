@@ -100,7 +100,7 @@ func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 // for bind-heavy workloads where the previous accounting only charged the socket once
 // at creation time and ignored subsequent binds. stats must be non-nil — same contract as
 // every other Insert*Event method.
-func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) bool {
+func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
@@ -108,15 +108,14 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			}
 			if imageTagID == 0 || n.HasImageTag(imageTagID) {
-				return false
+				return false, &n.NodeBase
 			}
 			n.AppendImageTagID(imageTagID, event.ResolveEventTime())
-			return false
+			return false, &n.NodeBase
 		}
 	}
 
 	if !dryRun {
-		// insert bind event now
 		node := &BindNode{
 			MatchedRules:   rules,
 			GenerationType: generationType,
@@ -129,8 +128,9 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
 		stats.SizeBytes += bindSize(node)
+		return true, &node.NodeBase
 	}
-	return true
+	return true, nil
 }
 
 // NewSocketNode returns a new SocketNode instance

@@ -211,6 +211,8 @@ rules:
     resources:
       - localqueues
       - clusterqueues
+      - resourceflavors
+      - workloads
     verbs:
       - list
       - get

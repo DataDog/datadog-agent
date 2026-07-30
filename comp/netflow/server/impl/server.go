@@ -51,9 +51,20 @@ type Provides struct {
 	StatusProvider status.InformationProvider
 }
 
+// disabledServer is the zero-overhead stub returned when netflow is disabled.
+type disabledServer struct{}
+
 // NewComponent configures a netflow server.
 func NewComponent(deps Requires) (Provides, error) {
 	conf := deps.Config.Get()
+
+	if !conf.Enabled {
+		return Provides{
+			Comp:           &disabledServer{},
+			StatusProvider: status.NewInformationProvider(nil),
+		}, nil
+	}
+
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
 		return Provides{}, err
@@ -81,25 +92,22 @@ func NewComponent(deps Requires) (Provides, error) {
 		logger:  deps.Logger,
 	}
 
-	var statusProvider status.Provider
-
-	if conf.Enabled {
-		statusProvider = Provider{
-			server: srv,
-		}
-
-		// netflow is enabled, so start the server
-		deps.Lc.Append(compdef.Hook{
-			OnStart: func(_ context.Context) error {
-				err := srv.Start()
-				return err
-			},
-			OnStop: func(context.Context) error {
-				srv.Stop()
-				return nil
-			},
-		})
+	statusProvider := Provider{
+		server: srv,
 	}
+
+	// netflow is enabled, so start the server
+	deps.Lc.Append(compdef.Hook{
+		OnStart: func(_ context.Context) error {
+			err := srv.Start()
+			return err
+		},
+		OnStop: func(context.Context) error {
+			srv.Stop()
+			return nil
+		},
+	})
+
 	return Provides{
 		Comp:           srv,
 		StatusProvider: status.NewInformationProvider(statusProvider),

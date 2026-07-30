@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -49,6 +50,7 @@ type configStream struct {
 	subscribeChan   chan pendingSubscription
 	unsubscribeChan chan string
 	stopChan        chan struct{}
+	stopped         atomic.Bool
 
 	// Cached origin (set once at initialization to avoid lock contention)
 	origin string
@@ -118,11 +120,19 @@ func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Confi
 
 	sub := &subscription{id: subID, ch: subChan}
 	ready := make(chan struct{})
-	cs.subscribeChan <- pendingSubscription{sub: sub, ready: ready}
+	select {
+	case cs.subscribeChan <- pendingSubscription{sub: sub, ready: ready}:
+	case <-cs.stopChan:
+		close(subChan)
+		return subChan, func() {}
+	}
 	<-ready // wait until the initial snapshot has been sent
 
 	unsubscribeFunc := func() {
-		cs.unsubscribeChan <- subID
+		select {
+		case cs.unsubscribeChan <- subID:
+		case <-cs.stopChan:
+		}
 	}
 
 	return subChan, unsubscribeFunc
@@ -132,6 +142,9 @@ func (cs *configStream) run() {
 	updatesChan := make(chan *pb.ConfigEvent, 100)
 
 	cs.config.OnUpdate(func(setting string, source model.Source, _, newValue interface{}, sequenceID uint64) {
+		if cs.stopped.Load() {
+			return
+		}
 		sanitizedValue, err := sanitizeValue(newValue)
 		if err != nil {
 			cs.log.Warnf("Failed to sanitize setting '%s': %v", setting, err)
@@ -173,6 +186,7 @@ func (cs *configStream) run() {
 		case update := <-updatesChan:
 			cs.handleConfigUpdate(update)
 		case <-cs.stopChan:
+			cs.stopped.Store(true)
 			cs.m.Lock()
 			for _, sub := range cs.subscribers {
 				close(sub.ch)

@@ -51,5 +51,6 @@ If profiles do not appear, see [Troubleshooting](troubleshooting.md).
 - [Service names and tags](faq.md#how-does-the-host-profiler-name-services)
 - [Deploying without the Datadog Agent or DDOT](faq.md#can-i-deploy-the-host-profiler-without-the-datadog-agent-or-ddot)
 - [How the Host Profiler relates to OpenTelemetry](faq.md#how-does-the-host-profiler-relate-to-opentelemetry)
+- [Overhead and resource usage](faq.md#what-overhead-should-i-expect)
 - [Debug symbols](faq.md#do-i-need-debug-symbols)
 - [Security privileges](faq.md#what-security-privileges-does-the-host-profiler-require)

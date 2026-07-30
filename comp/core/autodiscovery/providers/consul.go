@@ -17,14 +17,14 @@ import (
 	"sort"
 	"strings"
 
-	consul "github.com/hashicorp/consul/api"
+	consul "github.com/hashicorp/consul/api/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,9 +56,9 @@ type ConsulConfigProvider struct {
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-func NewConsulConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewConsulConfigProvider(providerConfig *constants.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	if providerConfig == nil {
-		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
+		providerConfig = &constants.ConfigurationProviders{}
 	}
 
 	consulURL, err := url.Parse(providerConfig.TemplateURL)

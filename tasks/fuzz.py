@@ -6,6 +6,8 @@ import os
 
 from invoke import task
 
+from tasks.fuzz_infra import get_fuzz_build_tags
+
 
 @task
 def fuzz(ctx, fuzztime="10s"):
@@ -16,7 +18,8 @@ def fuzz(ctx, fuzztime="10s"):
     """
     for directory, func in search_fuzz_tests(os.getcwd()):
         with ctx.cd(directory):
-            cmd = f'go test -tags test -v . -run={func} -fuzz={func}$ -fuzztime={fuzztime}'
+            tags = ",".join(get_fuzz_build_tags())
+            cmd = f'go test -tags {tags} -v . -run={func} -fuzz={func}$ -fuzztime={fuzztime}'
             ctx.run(cmd)
 
 

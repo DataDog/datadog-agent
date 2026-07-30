@@ -7,10 +7,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e rtloader.format --raise-if-changed
-    - dda inv -- -e rtloader.test
+    - bazel test //rtloader/...
 
 .linux_tests:
   stage: source_test
@@ -22,8 +19,8 @@
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
@@ -162,7 +159,7 @@ tests_serverless-init:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./cmd/serverless-init/.
+    - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
   extends: .linux_x64
@@ -174,7 +171,7 @@ tests_serverless-init-logs:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./comp/logs/agent/impl/.
+    - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:

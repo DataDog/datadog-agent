@@ -13,13 +13,10 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/haagent/def",
-        "//comp/healthplatform/issues/checkfailure",
-        "//comp/healthplatform/store/def",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/log",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )
@@ -33,7 +30,7 @@ dd_agent_go_test(
     embed = [":stats"],
     deps = [
         "//comp/core/telemetry/impl",
-        "//comp/healthplatform/store/mock",
+        "//comp/haagent/mock",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

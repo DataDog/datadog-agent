@@ -5,12 +5,14 @@ exporters:
             dd-api-key: test-api-key-2
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
     otlp_http/with-ep:
         compression: zstd
         headers:
             dd-api-key: test-api-key-1
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
         metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 processors:

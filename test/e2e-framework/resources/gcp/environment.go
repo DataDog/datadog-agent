@@ -58,7 +58,11 @@ const (
 	DDInfraDefaultZoneNameParamName        = "gcp/defaultZone"
 	DDInfraDefautVMServiceAccountParamName = "gcp/defaultVMServiceAccount"
 	DDInfraGKEEnableAutopilot              = "gcp/gke/enableAutopilot"
+	DDInfraGKENodeCountParamName           = "gcp/gke/nodeCount"
 	DDInfraOpenShiftPullSecretPath         = "gcp/openshift/pullSecretPath"
+	DDInfraOpenShiftCPUs                   = "gcp/openshift/cpus"
+	DDInfraOpenShiftMemory                 = "gcp/openshift/memory"
+	DDInfraOpenShiftDisk                   = "gcp/openshift/disk"
 	DDInfraEnableNestedVirtualization      = "gcp/enableNestedVirtualization"
 )
 
@@ -195,8 +199,13 @@ func (e *Environment) DefaultSubnet() string {
 func (e *Environment) GetCommonEnvironment() *config.CommonEnvironment {
 	return e.CommonEnvironment
 }
+
 func (e *Environment) DefaultInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInstanceTypeParamName, e.envDefault.ddInfra.defaultInstanceType)
+}
+
+func (e *Environment) DefaultGKENodeCount() int {
+	return e.GetIntWithDefault(e.InfraConfig, DDInfraGKENodeCountParamName, e.envDefault.ddInfra.defaultGKENodeCount)
 }
 
 func (e *Environment) DefaultVMServiceAccount() string {
@@ -221,6 +230,30 @@ func (e *Environment) Zone() string {
 // OpenShiftPullSecretPath returns the path to the OpenShift pull secret file
 func (e *Environment) OpenShiftPullSecretPath() string {
 	return e.InfraConfig.Get(DDInfraOpenShiftPullSecretPath)
+}
+
+// OpenShiftCPUs returns the number of CPUs to allocate to the CRC cluster (default: 12).
+func (e *Environment) OpenShiftCPUs() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftCPUs); v != "" {
+		return v
+	}
+	return "12"
+}
+
+// OpenShiftMemory returns the memory in MB to allocate to the CRC cluster (default: 32768).
+func (e *Environment) OpenShiftMemory() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftMemory); v != "" {
+		return v
+	}
+	return "32768"
+}
+
+// OpenShiftDisk returns the disk size in GB to allocate to the CRC cluster (default: 100).
+func (e *Environment) OpenShiftDisk() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftDisk); v != "" {
+		return v
+	}
+	return "100"
 }
 
 // EnableNestedVirtualization returns whether to enable nested virtualization

@@ -12,6 +12,7 @@ go_library(
         "uncommon.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/object",
@@ -27,7 +28,12 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":gotype"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/gotype/gotypeprinter",
         "//pkg/dyninst/object",

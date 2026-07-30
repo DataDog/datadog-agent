@@ -59,6 +59,9 @@ type CLIParams struct {
 
 	// ParquetFormat selects the parquet file layout. Empty string = auto-detect.
 	ParquetFormat bench.ParquetFormat
+
+	// RetainParquet retains and sorts raw metric and log rows in headless mode.
+	RetainParquet bool
 }
 
 func main() {
@@ -76,6 +79,7 @@ func main() {
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
+	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
 	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
@@ -178,13 +182,13 @@ func main() {
 		core.Bundle(),
 		// The testbench drives the engine directly via DebugView, so it needs the
 		// full observerImpl, not the disabled stub that NewComponent returns when
-		// anomaly detection is off. Force the feature on; replay is driven by
+		// no observer gate is active. Force scorer dry-run on; replay is driven by
 		// DebugView.Reset with the testbench's own ComponentSettings, so this does
 		// not change scenario results. Keep the agent-internal log tap off so
 		// pkg/util/log messages (e.g. from parquet loading) are never ingested as
 		// scenario data — the testbench feeds the engine exclusively via DebugView.
 		fx.Decorate(func(c config.Component) config.Component {
-			c.Set("anomaly_detection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 			return c
 		}),
@@ -204,6 +208,7 @@ func main() {
 			SkipDroppedMetrics: *skipDropped,
 			LogsOnly:           *logsOnly,
 			ParquetFormat:      bench.ParquetFormat(*parquetFormat),
+			RetainParquet:      *retainParquet,
 		}),
 	)
 	if err != nil {
@@ -219,6 +224,10 @@ func run(
 	logger log.Component,
 	params CLIParams,
 ) error {
+	if err := validateCLIParams(params); err != nil {
+		return err
+	}
+
 	debug, ok := obs.(observerimpl.DebugView)
 	if !ok {
 		return fmt.Errorf("observer does not implement DebugView")
@@ -233,6 +242,7 @@ func run(
 		SkipDroppedMetrics: params.SkipDroppedMetrics,
 		LogsOnly:           params.LogsOnly,
 		ParquetFormat:      params.ParquetFormat,
+		StreamParquet:      params.Headless != "" && !params.RetainParquet,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
@@ -334,5 +344,12 @@ func run(
 		fmt.Fprintf(os.Stderr, "Error during shutdown: %v\n", err)
 	}
 
+	return nil
+}
+
+func validateCLIParams(params CLIParams) error {
+	if params.RetainParquet && params.Headless == "" {
+		return fmt.Errorf("--retain-parquet requires --headless")
+	}
 	return nil
 }

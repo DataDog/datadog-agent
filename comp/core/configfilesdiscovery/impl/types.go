@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -32,9 +33,25 @@ type target struct {
 
 // ConfigFile is the content read from a runtime-specific config file path.
 type ConfigFile struct {
-	Path      string
-	Content   []byte
-	Truncated bool
+	Path          string
+	Content       []byte
+	Truncated     bool
+	PayloadFormat agentdiscovery.AgentDiscoveryConfigFilePayloadFormat
+}
+
+// ConfigEnvVar is an environment variable relevant to a collected integration.
+type ConfigEnvVar struct {
+	Name  string
+	Value string
+}
+
+// CollectedConfig is the config data collected for one integration target.
+type CollectedConfig struct {
+	Integration string
+	Runtime     RuntimeType
+	RuntimeID   string
+	ConfigFiles []ConfigFile
+	EnvVars     []ConfigEnvVar
 }
 
 // TargetCommandline is the command line used to start the target service.
@@ -43,7 +60,7 @@ type TargetCommandline struct {
 	WorkingDir string
 }
 
-// ConfigReader is the runtime-specific config access layer used by config collectors.
+// ConfigReader is the runtime-specific config access layer managed by the scheduler.
 type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, string) (ConfigFile, error)
@@ -54,8 +71,9 @@ type ConfigReader interface {
 
 type configReaderFactory func(target) (ConfigReader, error)
 
-type configCollector interface {
-	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
+// ConfigCollector reads integration-specific config data through a collector reader.
+type ConfigCollector interface {
+	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 
 type targetResolver struct {

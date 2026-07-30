@@ -14,6 +14,7 @@ def _pyproject_wheel_impl(ctx):
     args = ctx.actions.args()
     args.add("--src", ctx.file.pyproject.dirname)
     args.add("--output-dir", wheel_dir.path)
+    args.add_all(ctx.attr.exclude, before_each = "--exclude")
 
     ctx.actions.run(
         mnemonic = "BuildPythonWheel",
@@ -43,6 +44,8 @@ def _install_wheels_impl(ctx):
     args.add("--interpreter", script_interpreter)
     args.add("--platform", platform)
     args.add_all(ctx.files.srcs)
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
 
     ctx.actions.run(
         mnemonic = "InstallPythonWheels",
@@ -77,6 +80,9 @@ pyproject_wheel = rule(
         ),
         "output": attr.string(
             doc = "Name of the output wheel directory. Defaults to the rule name.",
+        ),
+        "exclude": attr.string_list(
+            doc = "Additional hatchling wheel-target exclusion patterns to apply while building the wheel.",
         ),
         "_builder": attr.label(
             default = ":build_wheel_tool",
