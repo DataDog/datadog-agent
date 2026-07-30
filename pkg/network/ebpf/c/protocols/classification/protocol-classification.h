@@ -142,18 +142,34 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
-    if (!classification_ctx) {
-        return;
-    }
-
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&skb_tup);
 
     if (is_fully_classified(protocol_stack)) {
         return;
     }
 
-    bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
+    if (is_tls_classification_done(protocol_stack)) {
+        // All cleartext TLS metadata has been captured and the rest of the flow is encrypted, so there's nothing
+        // more we can classify here. USM's uprobes classify the inner protocol on decrypted data in a separate program.
+        //
+        // Exception: a closed connection's connection_protocol entry can leak (cleanup relies on a TTL cleaner, see
+        // shared-tracer-maps.h), so a new connection reusing the same normalized tuple would inherit a stale
+        // FLAG_TLS_CLASSIFICATION_DONE. To avoid skipping the new flow's handshake, only early-exit on non-handshake
+        // records; let a TLS handshake record (ClientHello/ServerHello) fall through to be re-parsed below.
+        tls_record_header_t early_hdr = {0};
+        if (!is_tls(skb, skb_info.data_off, skb_info.data_end, &early_hdr) || early_hdr.content_type != TLS_HANDSHAKE) {
+            return;
+        }
+    }
+
+    classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
+    if (!classification_ctx) {
+        return;
+    }
+
+    // Re-fetch after classification_context_init to work around an issue where older kernel verifiers
+    // fail marking the use of protocol_stack an invalid access.
+    protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
     // Load information that will be later on used to route tail-calls
     init_routing_cache(classification_ctx, protocol_stack);
@@ -196,7 +212,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // If we have already classified the encryption layer, we can skip the rest of the classification
-    if (encryption_layer_known) {
+    if (is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
     }
 
@@ -257,6 +273,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     __u32 data_end = classification_ctx->skb_info.data_end;
     if (!parse_server_hello(skb, offset, data_end, tls_info)) {
         return;
+    }
+
+    // ServerHello parsed: all cleartext TLS metadata is captured, so we can stop attempting to
+    // classify this flow. Set here, not on the first non-handshake record, so TLS 1.3 0-RTT
+    // early data, which can arrive before ServerHello, won't early-exit and skip ServerHello.
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+    if (protocol_stack) {
+        set_protocol_flag(protocol_stack, FLAG_TLS_CLASSIFICATION_DONE);
     }
 }
 
