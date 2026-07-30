@@ -14,8 +14,6 @@ not yet match the legacy format field-for-field.
 load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
 load("//compliance:license_csv.bzl", "PackageLicenseManifestInfo")
 
-visibility("public")
-
 def _version_manifest_impl(ctx):
     package_files = ctx.attr.package[DefaultInfo].files.to_list()
     if len(package_files) != 1:
@@ -80,7 +78,10 @@ _version_manifest = rule(
         "product_name": attr.string(
             doc = "Overrides package_variables' product_name if set.",
         ),
-        "friendly_name": attr.string(default = ""),
+        "friendly_name": attr.string(
+            doc = "Nice version of the name to use for the package. (Omnibus concept)",
+            default = "",
+        ),
         "homepage": attr.string(default = "http://www.datadoghq.com"),
         "license": attr.string(default = "Apache-2.0"),
         "build_git_revision": attr.string(),

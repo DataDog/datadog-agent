@@ -17,8 +17,6 @@ load(
 )
 load("//compliance/rules:ship_source_offer.bzl", "SHIP_SOURCE_ATTR_KIND")
 
-visibility("public")
-
 DEBUG_LEVEL = 0
 
 # Carries the JSON manifest of {name, origin, license, copyright} entries gathered by
