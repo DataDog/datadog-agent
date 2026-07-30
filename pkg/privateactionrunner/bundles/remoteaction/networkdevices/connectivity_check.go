@@ -47,8 +47,9 @@ const (
 )
 
 type PingOptions struct {
-	Count     int `json:"count"`
-	TimeoutMs int `json:"timeoutMs"`
+	Count        int   `json:"count"`
+	TimeoutMs    int   `json:"timeoutMs"`
+	UseRawSocket *bool `json:"useRawSocket,omitempty"`
 }
 
 type SNMPOptions struct {
@@ -225,8 +226,12 @@ func buildPinger(opts *PingOptions) (pinger.Pinger, error) {
 		useRawSocket = true
 	case "darwin":
 		useRawSocket = false
+	case "linux":
+		if opts.UseRawSocket != nil {
+			useRawSocket = *opts.UseRawSocket
+		}
 	default:
-		useRawSocket = true
+		return nil, fmt.Errorf("ping is not supported on %s", runtime.GOOS)
 	}
 
 	return pinger.New(pinger.Config{
