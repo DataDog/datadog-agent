@@ -97,6 +97,10 @@ rust_binary(
     name = "dd-procmgrd",
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
+    link_deps = select({
+        "@platforms//os:windows": ["//pkg/procmgr/rust/windows_resources:rsrcd"],
+        "//conditions:default": [],
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -113,6 +117,10 @@ rust_binary(
     name = "dd-procmgr",
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
+    link_deps = select({
+        "@platforms//os:windows": ["//pkg/procmgr/rust/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
