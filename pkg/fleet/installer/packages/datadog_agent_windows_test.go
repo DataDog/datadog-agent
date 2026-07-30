@@ -67,8 +67,9 @@ func TestGetenvAgentUserKeepRightsFallback(t *testing.T) {
 }
 
 // TestArgsHaveProperty verifies the guard used by installAgentPackage to detect that an MSI
-// property was already supplied explicitly via install args, so a registry-derived fallback
-// (e.g. AgentUserKeepRights) doesn't silently override an operator's explicit request.
+// property was already supplied explicitly via install args, so a getenv() fallback (e.g.
+// AgentUserName from the running service, AgentUserKeepRights from the registry) doesn't
+// silently override an operator's explicit request.
 func TestArgsHaveProperty(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -99,6 +100,12 @@ func TestArgsHaveProperty(t *testing.T) {
 			args:     []string{"DDAGENTUSER_KEEP_RIGHTS_EXTRA=1"},
 			property: "DDAGENTUSER_KEEP_RIGHTS",
 			expected: false,
+		},
+		{
+			name:     "agent user name property present",
+			args:     []string{"DDAGENTUSER_NAME=.\\customuser"},
+			property: "DDAGENTUSER_NAME",
+			expected: true,
 		},
 	}
 

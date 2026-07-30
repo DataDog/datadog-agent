@@ -526,17 +526,19 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		msi.WithMsiFromPackagePath(target, agentPackage),
 		msi.WithLogFile(logFile),
 	}
-	if env.MsiParams.AgentUserName != "" {
+	// msi.Cmd() always places typed properties (WithDdAgentUserName, WithDdAgentUserKeepRights,
+	// etc.) after raw additional args on the final command line, regardless of option order
+	// here. So for any env.MsiParams field with a getenv() fallback (AgentUserName from the
+	// running service, AgentUserKeepRights from the registry), an explicit value already
+	// present in args must win, or an operator's explicit request would be silently
+	// overridden by the stale fallback. AgentUserPassword has no such fallback, so it isn't
+	// at risk of this and doesn't need the guard.
+	if env.MsiParams.AgentUserName != "" && !argsHaveProperty(args, "DDAGENTUSER_NAME") {
 		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	// msi.Cmd() always places typed properties (WithDdAgentUserKeepRights, etc.) after raw
-	// additional args on the final command line, regardless of option order here, so an
-	// explicit DDAGENTUSER_KEEP_RIGHTS already present in args must win over the
-	// registry-derived fallback in env.MsiParams.AgentUserKeepRights, or an operator's
-	// explicit opt-in/opt-out would be silently overridden by a stale registry value.
 	if env.MsiParams.AgentUserKeepRights != "" && !argsHaveProperty(args, "DDAGENTUSER_KEEP_RIGHTS") {
 		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
