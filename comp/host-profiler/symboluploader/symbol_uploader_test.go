@@ -39,6 +39,7 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/reporter"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -441,6 +442,7 @@ func TestSymbolUpload(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	slog.SetLogLoggerLevel(slog.LevelDebug)
+	testContext := context.WithValue(t.Context(), symbolcopier.TestFlag(true), 1)
 	buildID := "some_go_build_id"
 	channels := registerResponders(t, buildID)
 
@@ -475,9 +477,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("No symbol upload if no symbols", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(testContext, uploaderOpts{})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeNoSymbols))
 		uploader.Stop()
@@ -487,9 +489,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload if symtab", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(testContext, uploaderOpts{})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeSymtab))
 		uploader.Stop()
@@ -499,9 +501,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload if debug info", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(testContext, uploaderOpts{})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfos))
 		uploader.Stop()
@@ -511,9 +513,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("No upload if dynamic symbols", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(testContext, uploaderOpts{})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsym))
 		uploader.Stop()
@@ -523,9 +525,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload if dynamic symbols when enabled", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true})
+		uploader, err := newTestUploader(testContext, uploaderOpts{uploadDynamicSymbols: true})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsym))
 		uploader.Stop()
@@ -535,9 +537,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload pclntab when enabled", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(testContext, uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeNoSymbols))
 		uploader.Stop()
@@ -547,9 +549,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload debug infos if pclntab is corrupted", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(testContext, uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfosCorruptGoPCLnTab))
 		uploader.Stop()
@@ -559,9 +561,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload dynamic symbols if pclntab is corrupted and only dyn sym when enabled", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true, uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(testContext, uploaderOpts{uploadDynamicSymbols: true, uploadGoPCLnTab: true})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsymCorruptGoPCLnTab))
 		uploader.Stop()
@@ -571,9 +573,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("No symbol upload if pclntab is corrupted and only dynsym", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(testContext, uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsymCorruptGoPCLnTab))
 		uploader.Stop()
@@ -583,9 +585,9 @@ func TestSymbolUpload(t *testing.T) {
 
 	t.Run("Upload compressed request when debug section compression is disabled", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{disableDebugSectionCompression: true})
+		uploader, err := newTestUploader(testContext, uploaderOpts{disableDebugSectionCompression: true})
 		require.NoError(t, err)
-		uploader.Start(t.Context())
+		uploader.Start(testContext)
 
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfos))
 		uploader.Stop()
