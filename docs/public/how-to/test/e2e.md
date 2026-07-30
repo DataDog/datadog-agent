@@ -1,6 +1,6 @@
 # Running E2E tests
 
-End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](https://github.com/DataDog/datadog-agent/tree/main/test/new-e2e) folder.
+End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the Pulumi-based [E2E framework](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) to provision and manage test environments. Tests are stored in the [test/new-e2e](https://github.com/DataDog/datadog-agent/tree/main/test/new-e2e) folder.
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ Replace ./examples with your subfolder.
 This also supports the golang testing flag --run and --skip to target specific tests using go test syntax. See go help testflag for details.
 
 ```bash
-inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestClusterAgentInstalled
+dda inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestClusterAgentInstalled
 ```
 
 You can also run it with go test, from test/new-e2e
@@ -69,7 +69,7 @@ cd test/new-e2e && go test ./examples -timeout 0 -run=^TestVMSuite$
 
 While developing a test you might want to keep the remote instance alive to iterate faster. You can skip the resources deletion using dev mode with the environment variable `E2E_DEV_MODE`. You can force this in the terminal
 ```bash
-E2E_DEV_MODE=true inv -e new-e2e-tests.run --targets ./examples --run=^TestVMSuite$
+E2E_DEV_MODE=true dda inv -e new-e2e-tests.run --targets ./examples --run=^TestVMSuite$
 ```
 or for instance add it in the `go.testEnvVars` if you are using a VSCode-based IDE
 ```
@@ -129,7 +129,7 @@ docker push 376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:$USER
 And finally, execute your E2E tests with the associated command:
 ```bash
 # Run Ubuntu tests
-inv -e new-e2e-tests.run --targets ./tests/containers \
+dda inv -e new-e2e-tests.run --targets ./tests/containers \
   --run TestDockerSuite/TestDSDWithUDP \
   --agent-image 376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:$USER
 ```
@@ -145,6 +145,10 @@ package examples
 
 import (
     "testing"
+    "time"
+
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
 
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -157,7 +161,11 @@ type vmSuite struct {
 
 func TestVMSuite(t *testing.T) {
     suiteParams := []e2e.SuiteOption{
-        e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake()),
+        // Provisions a VM with the Agent and a fakeintake, which the test
+        // below queries. A test asserting only on host state wants
+        // ProvisionerNoFakeIntake(); a bare VM wants
+        // ProvisionerNoAgentNoFakeIntake().
+        e2e.WithProvisioner(awshost.Provisioner()),
     }
 
     e2e.Run(t, &vmSuite{}, suiteParams...)
@@ -169,31 +177,29 @@ func TestVMSuite(t *testing.T) {
 The framework provides several provisioners for different scenarios:
 
 - **AWS Host**: `awshost.Provisioner*()` - Provision EC2 instances
-- **Kubernetes**: `eks.Provisioner*()` - Provision EKS clusters
-- **Docker**: Container-based provisioning
-- **Multi-platform**: Cross-platform test scenarios
+- **Kubernetes**: `kindvm.Provisioner()` for a kind cluster on EC2, or `eks.Provisioner()` for EKS. Prefer kind: it provisions faster, costs less, and is more reliable
+- **Docker**: `awsdocker.Provisioner()` - Agent in a container on an EC2 host
+- **Multi-platform**: Azure, GCP and local provisioners under `testing/provisioners/`
 
 ### Test Validation
 
 E2E tests should validate complete workflows:
 
 ```go
-func (v *vmSuite) TestAgentInstallation() {
-    vm := v.Env().RemoteHost
-
-    // Install agent
-    _, err := vm.Execute("sudo apt-get install datadog-agent")
-    v.Require().NoError(err)
-
-    // Verify agent is running
-    out, err := vm.Execute("sudo systemctl status datadog-agent")
+func (v *vmSuite) TestAgentRunning() {
+    // The provisioner installs the agent; running a package manager inside a
+    // test hits upstream mirrors and is not allowed.
+    out, err := v.Env().RemoteHost.Execute("sudo systemctl status datadog-agent")
     v.Require().NoError(err)
     v.Require().Contains(out, "active (running)")
 
-    // Validate metric submission
-    v.Eventually(func() bool {
-        return v.Env().FakeIntake.GetMetricCount() > 0
-    }, 30*time.Second, 1*time.Second)
+    // Payloads arrive after a real flush, so poll rather than asserting once.
+    // Use require inside the callback so a failure short-circuits the iteration.
+    v.EventuallyWithT(func(c *assert.CollectT) {
+        names, err := v.Env().FakeIntake.Client().GetMetricNames()
+        require.NoError(c, err)
+        assert.NotEmpty(c, names, "no metrics received yet")
+    }, 5*time.Minute, 10*time.Second)
 }
 ```
 
@@ -231,16 +237,18 @@ func (v *vmSuite) TestAgentInstallation() {
 
 ## Best Practices
 
+The authoritative rules live in [`test/new-e2e/codereview_guideline.md`](https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/codereview_guideline.md); read it before writing a test. The highlights:
+
 ### Test Design
 - **Single Responsibility**: Each test should validate one specific workflow
 - **Clear Assertions**: Use descriptive assertion messages
-- **Proper Timeouts**: Set appropriate timeouts for operations
-- **Resource Management**: Always clean up created resources
+- **Proper Timeouts**: Poll with `EventuallyWithT` instead of asserting once or sleeping
+- **Resource Management**: Leave the environment as you found it, so a retry can reuse the same infrastructure
 
 ### Performance Considerations
 - **Parallel Execution**: Design tests to run in parallel when possible
 - **Resource Efficiency**: Reuse infrastructure when appropriate
-- **Test Duration**: Keep individual tests under 10 minutes when possible
+- **Test Duration**: Keep a job under 15 minutes when it is gated on pull-request changes, and under 30-40 minutes on `main` or nightly
 
 ### Maintenance
 - **Regular Updates**: Keep test environments updated with latest agent versions
@@ -253,4 +261,4 @@ func (v *vmSuite) TestAgentInstallation() {
 - [Test Categories](../../guidelines/testing/test-categories.md) - Understanding different test types
 - [Unit Testing](unit.md) - Running unit tests
 - [Using Developer Environments](../../tutorials/dev/env.md) - Setting up development environments
-- [test-infra-definitions](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) - Infrastructure provisioning framework
+- [E2E framework](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework) - Infrastructure provisioning framework
