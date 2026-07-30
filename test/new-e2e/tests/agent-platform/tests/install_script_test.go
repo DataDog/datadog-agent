@@ -108,7 +108,7 @@ func DockerTest(t *testing.T) {
 			suite,
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E))),
+					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E), ec2.WithInternetAccess())),
 				),
 			),
 		)
