@@ -3865,12 +3865,12 @@
     * Lifecycle (TODO decide how we want to offer lifecycle within depending on FX)
     * ... -->
 
-<h1 id="overview-of-fx">Overview of Fx<a class="headerlink" href="#overview-of-fx" title="Permanent link">&para;</a></h1>
+<h1 id="overview-of-fx">Overview of Fx</h1>
 <p>The Agent uses <a href="https://uber-go.github.io/fx">Fx</a> as its application framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.</p>
-<h2 id="what-is-it">What Is It?<a class="headerlink" href="#what-is-it" title="Permanent link">&para;</a></h2>
+<h2 id="what-is-it">What Is It?</h2>
 <p>Fx's core functionality is to create instances of required types "automatically," also known as <a href="https://en.wikipedia.org/wiki/Dependency_injection">dependency injection</a>. Within the agent, these instances are components, so Fx connects components to one another. Fx creates a single instance of each component, on demand.</p>
 <p>This means that each component declares a few things about itself to Fx, including the other components it depends on. An "app" then declares the components it contains to Fx, and instructs Fx to start up the whole assembly.</p>
-<h2 id="providing-and-requiring">Providing and Requiring<a class="headerlink" href="#providing-and-requiring" title="Permanent link">&para;</a></h2>
+<h2 id="providing-and-requiring">Providing and Requiring</h2>
 <p>Fx connects components using types. Within the Agent, these are typically interfaces named <code>Component</code>. For example, <code>scrubber.Component</code> might be an interface defining functionality for scrubbing passwords from data structures:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="scrubbercomponentgo" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="scrubbercomponentgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> scrubber/component.go</label></div>
 <div class="tabbed-content">
@@ -3913,7 +3913,7 @@
 <p>Functions can take multple arguments of different types, requiring all of them.</p>
 </li>
 </ul>
-<h2 id="apps-and-options">Apps and Options<a class="headerlink" href="#apps-and-options" title="Permanent link">&para;</a></h2>
+<h2 id="apps-and-options">Apps and Options</h2>
 <p>You may have noticed that all of the <code>fx</code> methods defined so far return an <code>fx.Option</code>. They don't actually do anything on their own. Instead, Fx uses the <a href="https://commandcenter.blogspot.com/2014/01/self-referential-functions-and-design.html">functional options pattern</a> from Rob Pike. The idea is that a function takes a variable number of options, each of which has a different effect on the result.</p>
 <p>In Fx's case, the function taking the options is <a href="https://pkg.go.dev/go.uber.org/fx#New"><code>fx.New</code></a>, which creates a new <a href="https://pkg.go.dev/go.uber.org/fx#New"><code>fx.App</code></a>. It's within the context of an app that requirements are met, constructors are called, and so on.</p>
 <p>Tying the example above together, a very simple app might look like this:</p>
@@ -3954,7 +3954,7 @@
 </div>
 </div>
 </div>
-<h2 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h2>
+<h2 id="lifecycle">Lifecycle</h2>
 <p>Fx provides an <a href="https://pkg.go.dev/go.uber.org/fx#Lifecycle"><code>fx.Lifecycle</code></a> component that allows hooking into application start-up and shut-down. Use it in your component's constructor like this:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">newScrubber</span><span class="p">(</span><span class="nx">lc</span><span class="w"> </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Lifecycle</span><span class="p">)</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="nx">sc</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">scrubber</span><span class="p">{..}</span>
@@ -3972,7 +3972,7 @@
 <li>Runtime - steady state</li>
 <li>Shutdown - calling components' OnStop hooks (reverse of the startup order)</li>
 </ul>
-<h2 id="ins-and-outs">Ins and Outs<a class="headerlink" href="#ins-and-outs" title="Permanent link">&para;</a></h2>
+<h2 id="ins-and-outs">Ins and Outs</h2>
 <p>Fx provides some convenience types to help build constructors that require or provide lots of types: <a href="https://pkg.go.dev/go.uber.org/fx#In"><code>fx.In</code></a> and <a href="https://pkg.go.dev/go.uber.org/fx#Out"><code>fx.Out</code></a>. Both types are embedded in structs, which can then be used as argument and return types for constructors, respectively. By convention, these are named <code>dependencies</code> and <code>provides</code> in Agent code:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">dependencies</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">In</span>
@@ -3998,7 +3998,7 @@
 </span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>In and Out provide a nice way to summarize and document requirements and provided types, and also allow annotations via Go struct tags. Note that annotations are also possible with <a href="https://pkg.go.dev/go.uber.org/fx#Annotate"><code>fx.Annotate</code></a>, but it is much less readable and its use is discouraged.</p>
-<h3 id="value-groups">Value Groups<a class="headerlink" href="#value-groups" title="Permanent link">&para;</a></h3>
+<h3 id="value-groups">Value Groups</h3>
 <p><a href="https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups">Value groups</a> make it easier to produce and consume many values of the same type. A component can add any type into groups which can be consumed by other components.</p>
 <p>For example:</p>
 <p>Here, two components add a <code>server.Endpoint</code> type to the <code>server</code> group (note the <code>group</code> label in the <code>fx.Out</code> struct).</p>
@@ -4035,7 +4035,7 @@ instantiation (note once again the <code>group</code> label but in <code>fx.In</
 </div>
 </div>
 </div>
-<h1 id="day-to-day-usage">Day-to-Day Usage<a class="headerlink" href="#day-to-day-usage" title="Permanent link">&para;</a></h1>
+<h1 id="day-to-day-usage">Day-to-Day Usage</h1>
 <p>Day-to-day, the Agent's use of Fx is fairly formulaic. Following the <a href="../creating-components/">component guidelines</a>, or just copying from other components, should be enough to make things work without a deep understanding of Fx's functionality.</p>
 
 
