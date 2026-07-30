@@ -30,8 +30,8 @@ const (
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
 
-	ddotProcmgrStableConfigName = "datadog-agent-ddot.yaml"
-	ddotProcmgrExpConfigName    = "datadog-agent-ddot-exp.yaml"
+	ddotProcmgrConfigName    = "datadog-agent-ddot.yaml"
+	ddotProcmgrExpConfigName = "datadog-agent-ddot-exp.yaml"
 )
 
 var (

@@ -131,12 +131,11 @@ var (
 		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service"},
 		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service"},
 
-		ProcmgrMainUnitStable:  "datadog-agent.service",
-		ProcmgrMainUnitExp:     "datadog-agent-exp.service",
-		ProcmgrUnitsStable:     []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-procmgr.service"},
-		ProcmgrUnitsExp:        []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-procmgr-exp.service"},
-		ProcmgrProcessesStable: []string{ddotProcmgrStableConfigName},
-		ProcmgrProcessesExp:    []string{ddotProcmgrExpConfigName},
+		ProcmgrMainUnitStable: "datadog-agent.service",
+		ProcmgrMainUnitExp:    "datadog-agent-exp.service",
+		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-procmgr.service"},
+		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-procmgr-exp.service"},
+		ProcmgrProcesses:      []string{ddotProcmgrConfigName},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -611,12 +610,11 @@ type datadogAgentService struct {
 	SystemdUnitsStable    []string
 	SystemdUnitsExp       []string
 
-	ProcmgrMainUnitStable  string
-	ProcmgrMainUnitExp     string
-	ProcmgrUnitsStable     []string
-	ProcmgrUnitsExp        []string
-	ProcmgrProcessesStable []string
-	ProcmgrProcessesExp    []string
+	ProcmgrMainUnitStable string
+	ProcmgrMainUnitExp    string
+	ProcmgrUnitsStable    []string
+	ProcmgrUnitsExp       []string
+	ProcmgrProcesses      []string
 
 	UpstartMainService string
 	UpstartServices    []string
@@ -739,7 +737,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 		if err := writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...); err != nil {
 			return err
 		}
-		return writeEmbeddedProcessesAndReload(ctx, false, s.ProcmgrProcessesStable...)
+		return writeEmbeddedProcessesAndReload(ctx, false, s.ProcmgrProcesses...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -759,7 +757,7 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 		if err := removeUnits(ctx, s.ProcmgrUnitsStable...); err != nil {
 			return err
 		}
-		return removeProcesses(ctx, false, s.ProcmgrProcessesStable...)
+		return removeProcesses(ctx, false, s.ProcmgrProcesses...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -815,7 +813,7 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 		if err := writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...); err != nil {
 			return err
 		}
-		return writeEmbeddedProcessesAndReload(ctx, true, s.ProcmgrProcessesExp...)
+		return writeEmbeddedProcessesAndReload(ctx, true, s.ProcmgrProcesses...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -977,7 +975,11 @@ func writeEmbeddedProcessesAndReload(ctx HookContext, experiment bool, processes
 		return err
 	}
 	for _, process := range processes {
-		content, err := embedded.GetProcmgrUnit(process, unitType, false)
+		templateName := process
+		if experiment {
+			templateName = strings.TrimSuffix(process, ".yaml") + "-exp.yaml"
+		}
+		content, err := embedded.GetProcmgrUnit(templateName, unitType, false)
 		if err != nil {
 			return err
 		}
@@ -1016,14 +1018,14 @@ func (s *datadogAgentService) restoreStableProcesses(ctx HookContext) error {
 	}
 	var stale []string
 	for _, name := range present {
-		if !slices.Contains(s.ProcmgrProcessesStable, name) {
+		if !slices.Contains(s.ProcmgrProcesses, name) {
 			stale = append(stale, name)
 		}
 	}
 	if err := procmgr.RemoveConfigs(installRoot, stale...); err != nil {
 		return err
 	}
-	return writeEmbeddedProcessesAndReload(ctx, false, s.ProcmgrProcessesStable...)
+	return writeEmbeddedProcessesAndReload(ctx, false, s.ProcmgrProcesses...)
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {

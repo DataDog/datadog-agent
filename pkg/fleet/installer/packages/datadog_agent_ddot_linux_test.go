@@ -55,7 +55,7 @@ func TestDDOTProcmgrConfigVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			raw, err := embedded.GetProcmgrUnit(ddotProcmgrStableConfigName, tt.unitType, false)
+			raw, err := embedded.GetProcmgrUnit(ddotProcmgrConfigName, tt.unitType, false)
 			if tt.experiment {
 				raw, err = embedded.GetProcmgrUnit(ddotProcmgrExpConfigName, tt.unitType, false)
 			}
