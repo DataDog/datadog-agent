@@ -12,7 +12,6 @@
 package sdcsender
 
 import (
-	"context"
 	"errors"
 	"math"
 	"sort"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -145,12 +143,6 @@ type SenderManager struct {
 	inner  sender.SenderManager
 	dryRun bool
 
-	// shadowHostSuffix and defaultHostname together implement shadow mode;
-	// see Wrap's doc comment. shadowHostSuffix is "" when shadow mode is
-	// off (the common case) or when Wrap couldn't resolve defaultHostname.
-	shadowHostSuffix string
-	defaultHostname  string
-
 	mu      sync.Mutex
 	senders map[checkid.ID]*Sender
 }
@@ -160,32 +152,8 @@ type SenderManager struct {
 // samples_total/breakpoints_total telemetry reflects what compression would
 // do), but the check's original, uncompressed calls are what actually reach
 // the real sender — nothing forwarded by the compressor itself ships.
-//
-// With shadowHostSuffix non-empty, the check's original, uncompressed calls
-// ALSO still ship (like dry-run), but every breakpoint the compressor
-// produces ships too, as an ADDITIONAL series under hostname+shadowHostSuffix
-// (falling back to the agent's own resolved default hostname when the check
-// passed ""). This lets the two series be graphed side by side (e.g.
-// `avg:metric{*} by {host}`) to visually compare compression fidelity —
-// at the cost of doubling shipped metric volume for compressed checks, so
-// it's meant for short, deliberate comparison windows, not left on
-// indefinitely. Shadow mode takes precedence over dryRun, since its entire
-// purpose requires both series to exist (see Sender.ship). If the agent's
-// default hostname can't be resolved, shadow mode is disabled entirely
-// (falling back to dryRun's behavior) rather than risk appending the
-// suffix to "" and collapsing every host's shadow series into one.
-func Wrap(inner sender.SenderManager, dryRun bool, shadowHostSuffix string) *SenderManager {
-	m := &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
-	if shadowHostSuffix != "" {
-		h, err := hostname.Get(context.Background())
-		if err != nil {
-			log.Warnf("sdcsender: could not resolve the agent's default hostname, disabling shadow mode: %s", err)
-		} else {
-			m.shadowHostSuffix = shadowHostSuffix
-			m.defaultHostname = h
-		}
-	}
-	return m
+func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
+	return &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
 }
 
 // sdcCompressedCheckNames returns the set of check names that should get
@@ -203,12 +171,25 @@ func sdcCompressedCheckNames() map[string]bool {
 	return m
 }
 
+// CompressionEnabledFor reports whether checkName should get SDC-compressed
+// metrics, per checks.sdc_compression_all/checks.sdc_compression_checks.
+// Exported so pkg/collector's checks.sdc_compression_interval_override
+// wiring can reuse the exact same eligibility decision as GetSender,
+// rather than risk the two independently re-implementing it and drifting
+// out of sync.
+func CompressionEnabledFor(checkName string) bool {
+	if setup.Datadog().GetBool("checks.sdc_compression_all") {
+		return true
+	}
+	return sdcCompressedCheckNames()[checkName]
+}
+
 // GetSender returns a Sender for id: SDC-compressed and cached if id's check
-// name is in the sdc_compression_checks allowlist, otherwise passed straight
-// through to the inner manager (which already caches per ID on its own, so
-// no local caching is needed for that path). This is the single place that
-// decides whether a check gets compressed, regardless of which loader
-// (Go, Python, ...) requested the sender — unlike selecting between two
+// is eligible per CompressionEnabledFor, otherwise passed straight through
+// to the inner manager (which already caches per ID on its own, so no local
+// caching is needed for that path). This is the single place that decides
+// whether a check gets compressed, regardless of which loader (Go,
+// Python, ...) requested the sender — unlike selecting between two
 // different manager instances upstream, which Python's sender-resolution
 // path (a package-level global captured once at loader-construction time,
 // see pkg/collector/aggregator) would silently bypass.
@@ -220,14 +201,14 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 		return s, nil
 	}
 	checkName := checkid.IDToCheckName(id)
-	if !sdcCompressedCheckNames()[checkName] {
+	if !CompressionEnabledFor(checkName) {
 		return m.inner.GetSender(id)
 	}
 	real, err := m.inner.GetSender(id)
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun, checkName, m.shadowHostSuffix, m.defaultHostname)
+	s := newSender(real, m.dryRun, checkName)
 	m.senders[id] = s
 	return s, nil
 }
@@ -313,9 +294,11 @@ type contextState struct {
 	// pendingSum is meaningful only for kindCount/kindMonotonicCount: real
 	// Count/MonotonicCount semantics sum every value received since the
 	// last flush, not just report the latest one. pendingSum accumulates
-	// every value reduce() produces, and ship() drains it (to 0) exactly
-	// once whenever it ships a breakpoint for this context, guaranteeing
-	// every received value is shipped exactly once in aggregate — even
+	// every non-baseline value reduce() produces (a MonotonicCount reset
+	// baseline REPLACES it instead — see reduce's isBaseline doc comment),
+	// and ship() drains it (to 0) exactly once whenever it ships a
+	// breakpoint for this context, guaranteeing every received value is
+	// shipped exactly once in aggregate — even
 	// though a single shipped point's timestamp may not exactly match
 	// every value folded into it (bounded by windowDuration; the same
 	// class of approximation real Count already makes by summing since
@@ -348,11 +331,6 @@ type Sender struct {
 	// instead (see compressAt/forwardRaw).
 	dryRun bool
 
-	// shadowHostSuffix/defaultHostname: see Wrap's shadow-mode doc comment.
-	// shadowHostSuffix is "" when shadow mode is off.
-	shadowHostSuffix string
-	defaultHostname  string
-
 	tlmContexts telemetry.SimpleGauge
 
 	mu sync.Mutex
@@ -367,30 +345,14 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender, dryRun bool, checkName string, shadowHostSuffix string, defaultHostname string) *Sender {
+func newSender(real sender.Sender, dryRun bool, checkName string) *Sender {
 	return &Sender{
-		Sender:           real,
-		checkName:        checkName,
-		dryRun:           dryRun,
-		shadowHostSuffix: shadowHostSuffix,
-		defaultHostname:  defaultHostname,
-		tlmContexts:      tlmContexts.WithValues(checkName),
-		contexts:         make(map[string]*contextState),
+		Sender:      real,
+		checkName:   checkName,
+		dryRun:      dryRun,
+		tlmContexts: tlmContexts.WithValues(checkName),
+		contexts:    make(map[string]*contextState),
 	}
-}
-
-// shadowHostnameFor returns the hostname a shadow-mode compressed
-// breakpoint should ship under: hostname with shadowHostSuffix appended,
-// falling back to the agent's own resolved default hostname when hostname
-// is empty. This mirrors what the real sender fills in downstream for the
-// raw series (see checkSender.sendMetricSample's defaultHostname
-// backfill), so appending the suffix directly to "" can't accidentally
-// collapse every host's shadow series into one.
-func (s *Sender) shadowHostnameFor(hostname string) string {
-	if hostname == "" {
-		hostname = s.defaultHostname
-	}
-	return hostname + s.shadowHostSuffix
 }
 
 // Gauge compresses metric instead of forwarding every call.
@@ -431,9 +393,9 @@ func (s *Sender) compressMonotonicCount(metric string, value float64, hostname s
 // carry a meaningful collection time that can lag real time slightly (e.g.
 // GPU metrics collected via eBPF, see pkg/collector/corechecks/gpu). That
 // timestamp is fed to the compressor as the sample's own Ts (not
-// nowSeconds()) and threaded through to forwardRaw for dry-run/shadow mode,
-// so it's never silently replaced by "whenever sdcsender happened to
-// process this call".
+// nowSeconds()) and threaded through to forwardRaw for dry-run mode, so
+// it's never silently replaced by "whenever sdcsender happened to process
+// this call".
 func (s *Sender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if timestamp <= 0 {
 		return errors.New("invalid timestamp")
@@ -471,14 +433,11 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.dryRun || s.shadowHostSuffix != "" {
+	if s.dryRun {
 		// The real, unmodified call is what actually ships in dry-run mode;
-		// in shadow mode it ships too (as the series to compare against),
-		// while ship() below additionally ships the compressed breakpoint
-		// under a different hostname. Either way, the compressor below only
-		// measures (dry-run) or additionally produces (shadow) what
-		// compression would do. now is only used for the *WithTimestamp
-		// kinds, to preserve the caller's own timestamp when re-forwarding.
+		// the compressor below only measures what compression would do.
+		// now is only used for the *WithTimestamp kinds, to preserve the
+		// caller's own timestamp when re-forwarding.
 		s.forwardRaw(kind, metric, rawValue, hostname, tags, now, flushFirstValue)
 	}
 
@@ -506,14 +465,23 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		s.tlmContexts.Inc()
 	}
 
-	value, ok := reduce(ctx, rawValue, now, flushFirstValue)
+	value, ok, isBaseline := reduce(ctx, rawValue, now, flushFirstValue)
 	if ok {
 		ctx.tlmSamples.Inc()
 		if ctx.kind == kindCount || ctx.kind == kindMonotonicCount || ctx.kind == kindCountWithTimestamp {
-			// Accumulate before Update(), unconditionally: whether or not
-			// this call causes a breakpoint, the value must count toward
-			// whatever eventually ships next. See pendingSum's doc comment.
-			ctx.pendingSum += value
+			if isBaseline {
+				// A counter reset: value is an absolute count-since-reset,
+				// not a delta, so it REPLACES whatever accumulated earlier
+				// in this window rather than adding to it. See reduce's
+				// isBaseline doc comment.
+				ctx.pendingSum = value
+			} else {
+				// Accumulate before Update(), unconditionally: whether or
+				// not this call causes a breakpoint, the value must count
+				// toward whatever eventually ships next. See pendingSum's
+				// doc comment.
+				ctx.pendingSum += value
+			}
 		}
 		bps := ctx.compressor.Update(now, value)
 		// Read Scale() after Update(): the compressor folds this sample's
@@ -536,8 +504,8 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 
 // forwardRaw calls the same method the check originally called, on the
 // real underlying sender, with the raw value as given — used only in
-// dry-run/shadow mode, letting the real sender's own aggregation (e.g.
-// Rate's own derivative) run exactly as if this decorator weren't present.
+// dry-run mode, letting the real sender's own aggregation (e.g. Rate's own
+// derivative) run exactly as if this decorator weren't present.
 // ts is only used for the *WithTimestamp kinds, to preserve the caller's
 // own timestamp instead of losing it by re-forwarding via the plain
 // (no-timestamp) sender methods.
@@ -574,28 +542,38 @@ func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostn
 // or a detected counter reset) — matching how those types produce no serie
 // on their first commit either. flushFirstValue is only consulted for
 // kindMonotonicCount.
-func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (float64, bool) {
+//
+// isBaseline is true only for the two kindMonotonicCount branches that
+// return the raw counter value itself as an absolute "count since reset"
+// (flushFirstValue's first-sample and reset-baseline handling below),
+// rather than an incremental delta. compressAt uses this to REPLACE
+// ctx.pendingSum with the baseline instead of adding to it — a prior
+// delta accumulated earlier in the same window is no longer valid once
+// the underlying counter has reset, so summing the two would over-count
+// (e.g. a raw sequence 100 -> 110 -> 3 with a flushFirstValue reset on the
+// last sample must ship 3, the count since reset, not 10+3).
+func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (value float64, ok bool, isBaseline bool) {
 	switch ctx.kind {
 	case kindGauge, kindCount, kindGaugeWithTimestamp, kindCountWithTimestamp:
-		return rawValue, true
+		return rawValue, true, false
 
 	case kindRate:
 		if !ctx.hasPreviousRate {
 			ctx.previousRateValue, ctx.previousRateTs, ctx.hasPreviousRate = rawValue, ts, true
-			return 0, false
+			return 0, false, false
 		}
 		dt := ts - ctx.previousRateTs
 		delta := rawValue - ctx.previousRateValue
 		ctx.previousRateValue, ctx.previousRateTs = rawValue, ts
 		if dt <= 0 {
-			return 0, false
+			return 0, false, false
 		}
 		rate := delta / dt
 		if rate < 0 {
 			// underlying counter was reset; matches Rate.flush's own guard.
-			return 0, false
+			return 0, false, false
 		}
-		return rate, true
+		return rate, true, false
 
 	case kindMonotonicCount:
 		if !ctx.hasPreviousMonotonicCount {
@@ -605,9 +583,9 @@ func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (floa
 				// waiting for a second sample to diff against, matching
 				// MonotonicCount.addSample's flushFirstValue handling
 				// (assumption: the raw counter started at 0).
-				return rawValue, true
+				return rawValue, true, true
 			}
-			return 0, false
+			return 0, false, false
 		}
 		diff := rawValue - ctx.previousMonotonicCount
 		ctx.previousMonotonicCount = rawValue
@@ -617,15 +595,15 @@ func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (floa
 				// 0, so the current value is the count since reset,
 				// matching MonotonicCount.addSample's flushFirstValue
 				// reset-baseline handling.
-				return rawValue, true
+				return rawValue, true, true
 			}
 			// underlying raw counter was reset; drop, matching
 			// MonotonicCount.addSample's own reset handling.
-			return 0, false
+			return 0, false, false
 		}
-		return diff, true
+		return diff, true, false
 	}
-	return rawValue, true
+	return rawValue, true, false
 }
 
 // ship forwards bp as a breakpoint for ctx. floorBound is whether Floor set
@@ -648,16 +626,7 @@ func (s *Sender) ship(ctx *contextState, bp sdc.Point, floorBound bool) {
 		ctx.pendingSum = 0
 	}
 
-	shipHostname := ctx.hostname
-	switch {
-	case s.shadowHostSuffix != "":
-		// Shadow mode: forwardRaw already shipped the check's original call
-		// under the real hostname (like dry-run); ship this breakpoint too,
-		// as an ADDITIONAL series under a distinct hostname, so the two can
-		// be graphed side by side (e.g. `by {host}`) to compare compression
-		// fidelity. Takes precedence over dryRun (see Wrap's doc comment).
-		shipHostname = s.shadowHostnameFor(ctx.hostname)
-	case s.dryRun:
+	if s.dryRun {
 		// Telemetry still counts this as a would-be breakpoint; only the
 		// actual forwarding is suppressed, since forwardRaw already shipped
 		// the check's original, uncompressed call for this sample.
@@ -665,11 +634,11 @@ func (s *Sender) ship(ctx *contextState, bp sdc.Point, floorBound bool) {
 	}
 	switch ctx.kind {
 	case kindGauge, kindRate, kindGaugeWithTimestamp:
-		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
+		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, ctx.hostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("sdcsender: GaugeWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	case kindCount, kindMonotonicCount, kindCountWithTimestamp:
-		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
+		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, ctx.hostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("sdcsender: CountWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	}
