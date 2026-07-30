@@ -126,5 +126,6 @@ dd_agent_go_binary(
     name = "cluster-agent",
     embed = [":cluster-agent_lib"],
     gotags = sorted(COMMON_TAGS | CLUSTER_AGENT_TAGS),
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )
