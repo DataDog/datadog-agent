@@ -903,7 +903,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false)
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
-	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"})
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog", "cumulativetodelta"})
 	pkgconfighelper.ParseEnvSplitCommaAndSpace("otelcollector.converter.features", config)
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
@@ -1320,6 +1320,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
+	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_interval", time.Hour)
+	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_jitter", 10*time.Minute)
+	config.BindEnvAndSetDefault("config_files_discovery.startup_jitter", time.Minute)
 
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)
@@ -1333,6 +1336,12 @@ func agent(config pkgconfigmodel.Setup) {
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
+	// Data Security: single enablement flag gating both the autodiscovery provider
+	// and the sds-result event platform pipeline.
+	config.BindEnvAndSetDefault("data_security.enabled", false)
+	// Data Security (sensitive-data-scanner results) event platform forwarder
+	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
 
 	// The cardinality of tags to send for checks.
 	// Choices are: low, orchestrator, high.

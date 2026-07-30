@@ -7,7 +7,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
+from tasks.schema.codegen_init_settings import as_go_value, override_stubs, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -23,6 +23,7 @@ def filter_not_sysprobe(filename):
 class TestCodegenInitSettings(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
+        override_stubs('', '')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -127,6 +128,66 @@ class TestCodegenInitSettings(unittest.TestCase):
             with self.subTest(service=c['describe']):
                 actual = try_parse_duration(c['input'])
                 self.assertEqual(c['expect'], actual, c['describe'])
+
+
+class TestGenerateConst(unittest.TestCase):
+    @staticmethod
+    def _setting(default, const, type_='string'):
+        return {'node_type': 'setting', 'type': type_, 'default': default, 'tags': [f'generate_const:{const}']}
+
+    def test_dedup_agreeing_refs_across_schemas(self):
+        # DefaultSite is referenced by two core settings and one system-probe setting, all agreeing.
+        core = {
+            'properties': {
+                'site': self._setting('datadoghq.com', 'DefaultSite'),
+                'security_agent': {
+                    'node_type': 'section',
+                    'properties': {
+                        'internal_profiling': {
+                            'node_type': 'section',
+                            'properties': {'site': self._setting('datadoghq.com', 'DefaultSite')},
+                        },
+                        'cmd_port': self._setting(5010, 'DefaultSecurityAgentCmdPort', 'integer'),
+                    },
+                },
+            }
+        }
+        sysprobe = {
+            'properties': {
+                'system_probe_config': {
+                    'node_type': 'section',
+                    'properties': {'internal_profiling': {'node_type': 'section', 'properties': {}}},
+                }
+            }
+        }
+        core_out, sysprobe_out = [], []
+        codegen.gen_generate_const(core, sysprobe, core_out, sysprobe_out)
+
+        src = '\n'.join(core_out)
+        # DefaultSite is emitted exactly once despite three references, and the block is valid Go.
+        self.assertEqual(src.count('DefaultSite ='), 1)
+        self.assertIn('DefaultSecurityAgentCmdPort = 5010', src)
+        self.assertIn('DefaultSite = "datadoghq.com"', src)
+        self.assertEqual(sysprobe_out, [])
+        codegen.gofmt('package setup\n' + src)  # must be gofmt-able (valid Go)
+
+    def test_conflicting_defaults_raise(self):
+        # Same constant tagged on two settings with different defaults must fail codegen.
+        core = {
+            'properties': {
+                'a': self._setting(23, 'DefaultAuditorTTL', 'integer'),
+                'b': self._setting(22, 'DefaultAuditorTTL', 'integer'),
+            }
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            codegen.gen_generate_const(core, {'properties': {}}, [], [])
+        self.assertIn('DefaultAuditorTTL', str(ctx.exception))
+
+    def test_no_tags_emits_nothing(self):
+        core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
+        core_out = []
+        codegen.gen_generate_const(core, {'properties': {}}, core_out, [])
+        self.assertEqual(core_out, [])
 
 
 if __name__ == "__main__":
