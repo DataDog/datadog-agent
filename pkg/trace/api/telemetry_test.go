@@ -18,12 +18,14 @@ import (
 	"testing"
 	"time"
 
+	"testing/synctest"
+
 	zstdimpl "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	msgpack "github.com/vmihailenco/msgpack/v4"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -78,15 +80,15 @@ func getTestConfig(endpointURL string) *config.AgentConfig {
 }
 
 // decodeBatch decompresses and decodes a zstd+MessagePack-encoded agent-batch payload.
-func decodeBatch(t *testing.T, body []byte) agentBatch {
+func decodeBatch(t *testing.T, body []byte) *pb.AgentTelemetryBatch {
 	t.Helper()
 	reader, err := zstdimpl.NewComponent().NewReader(bytes.NewReader(body))
 	require.NoError(t, err)
 	defer reader.Close()
 	decompressed, err := io.ReadAll(reader)
 	require.NoError(t, err)
-	var batch agentBatch
-	err = msgpack.Unmarshal(decompressed, &batch)
+	batch := &pb.AgentTelemetryBatch{}
+	_, err = batch.UnmarshalMsg(decompressed)
 	require.NoError(t, err)
 	return batch
 }
@@ -585,13 +587,11 @@ func assertSendRequest(t *testing.T, recv *HTTPReceiver, endpointCalled *atomic.
 	assert.Equal(t, uint64(1), endpointCalled.Load())
 }
 
-// --- New batching-specific tests ---
-
 func TestAgentBatchSerialization(t *testing.T) {
-	batch := agentBatch{
+	batch := pb.AgentTelemetryBatch{
 		RequestType: "agent-batch",
-		Payload: rawTelemetryEvents{
-			Events: []rawTelemetryEvent{
+		Payload: &pb.AgentTelemetryPayload{
+			Events: []*pb.AgentTelemetryEvent{
 				{
 					Headers: map[string]string{"Content-Type": "application/json", "X-Original-URL": "/api/v2/apmtelemetry"},
 					Content: []byte(`{"test": "data"}`),
@@ -604,12 +604,12 @@ func TestAgentBatchSerialization(t *testing.T) {
 		},
 	}
 
-	data, err := msgpack.Marshal(&batch)
+	data, err := batch.MarshalMsg(nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	var decoded agentBatch
-	err = msgpack.Unmarshal(data, &decoded)
+	var decoded pb.AgentTelemetryBatch
+	_, err = decoded.UnmarshalMsg(data)
 	require.NoError(t, err)
 
 	assert.Equal(t, "agent-batch", decoded.RequestType)
@@ -658,6 +658,7 @@ func TestBatchSizeTriggeredFlush(t *testing.T) {
 func TestBatchAgeTriggeredFlush(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 
+	// Created outside the synctest bubble: its Accept loop never durably blocks.
 	srv := assertingServer(t, func(_ *http.Request, body []byte) error {
 		batch := decodeBatch(t, body)
 		assert.Equal(t, "agent-batch", batch.RequestType)
@@ -666,39 +667,34 @@ func TestBatchAgeTriggeredFlush(t *testing.T) {
 		endpointCalled.Inc()
 		return nil
 	})
+	// Force the connection closed after each response so the client's
+	// keep-alive read loop doesn't linger as a non-durably-blocked
+	// goroutine in the bubble, which would otherwise stall the fake clock.
+	srv.Config.SetKeepAlivesEnabled(false)
 
-	cfg := getTestConfig(srv.URL)
-	recv := newTestReceiverFromConfig(cfg)
+	synctest.Test(t, func(t *testing.T) {
+		cfg := getTestConfig(srv.URL)
+		recv := newTestReceiverFromConfig(cfg)
+		recv.telemetryForwarder.start()
 
-	// Use injectable clock to control time
-	fakeNow := time.Now()
-	recv.telemetryForwarder.batch.mu.Lock()
-	recv.telemetryForwarder.batch.nowFn = func() time.Time { return fakeNow }
-	recv.telemetryForwarder.batch.mu.Unlock()
+		mux := recv.buildMux()
 
-	recv.telemetryForwarder.start()
+		// Send a single small request — won't trigger size-based flush
+		req, err := http.NewRequest("POST", "/telemetry/proxy/path", strings.NewReader("small"))
+		require.NoError(t, err)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		assert.Equal(t, 200, recordedStatusCode(rec))
 
-	mux := recv.buildMux()
+		// Advance the bubble's fake clock past batchMaxAge so the next
+		// ticker tick triggers an age-based flush.
+		time.Sleep(batchMaxAge + batchCheckInterval)
+		synctest.Wait()
 
-	// Send a single small request — won't trigger size-based flush
-	req, err := http.NewRequest("POST", "/telemetry/proxy/path", strings.NewReader("small"))
-	require.NoError(t, err)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	assert.Equal(t, 200, recordedStatusCode(rec))
+		assert.Equal(t, uint64(1), endpointCalled.Load())
 
-	// Advance the clock past batchMaxAge
-	recv.telemetryForwarder.batch.mu.Lock()
-	fakeNow = fakeNow.Add(31 * time.Second)
-	recv.telemetryForwarder.batch.mu.Unlock()
-
-	// Wait for the ticker to fire and flush
-	require.Eventually(t, func() bool {
-		return endpointCalled.Load() >= 1
-	}, 3*time.Second, 100*time.Millisecond, "age-triggered flush did not happen")
-
-	recv.telemetryForwarder.Stop()
-	assert.Equal(t, uint64(1), endpointCalled.Load())
+		recv.telemetryForwarder.Stop()
+	})
 }
 
 func TestBatchGracefulShutdown(t *testing.T) {
