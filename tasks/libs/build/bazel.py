@@ -146,7 +146,11 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     if agent_flavor := os.environ.get("AGENT_FLAVOR"):
         flags.append(f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):
-        flags.append(f"--//:install_dir={install_dir}")
+        # In macos, omnibus install_dir is the build location, which is different from the expected install location
+        if sys.platform == "darwin":
+            flags.append("--//:install_dir=/opt/datadog-agent")
+        else:
+            flags.append(f"--//:install_dir={install_dir}")
         flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
     if not flags:
         return args
