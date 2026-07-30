@@ -702,6 +702,16 @@ func buildLinuxHelmValuesAutopilot(baseName, agentImagePath, agentImageTag, clus
 		"datadog": pulumi.Map{
 			"apiKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"appKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
+			"logs": pulumi.Map{
+				"enabled":             pulumi.Bool(true),
+				"containerCollectAll": pulumi.Bool(true),
+			},
+			"processAgent": pulumi.Map{
+				"processCollection": pulumi.Bool(true),
+			},
+			"kubelet": pulumi.Map{
+				"useApiServer": pulumi.Bool(true),
+			},
 		},
 		"clusterAgent": pulumi.Map{
 			"enabled": pulumi.Bool(true),
