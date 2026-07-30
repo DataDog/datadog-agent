@@ -74,6 +74,7 @@ func TestInstallScript(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithInternetAccess())
 
 			suite := &installScriptSuite{cwsSupported: cwsSupported, osDesc: osDesc}
 			// will be set as TESTING_KEYS_URL in the install script
