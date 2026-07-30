@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    ``DatadogInstrumentation`` checks and logs configurations can now target Argo
+    ``Rollout`` workloads.
+upgrade:
+  - |
+    Pods managed by an Argo ``Rollout`` now resolve to a root owner of kind
+    ``Rollout`` instead of ``Deployment`` in workload filtering. Container filter
+    rules matching such pods on ``rootowner.kind == "Deployment"`` must be updated
+    to use ``Rollout``.

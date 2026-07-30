@@ -12,15 +12,17 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func boolPtr(b bool) *bool { return &b }
 
 func TestResolveRootOwner(t *testing.T) {
 	tests := []struct {
-		name     string
-		owners   []workloadmeta.KubernetesPodOwner
-		expected *core.FilterRootOwner
+		name      string
+		owners    []workloadmeta.KubernetesPodOwner
+		podLabels map[string]string
+		expected  *core.FilterRootOwner
 	}{
 		{
 			name:     "no owners",
@@ -31,6 +33,18 @@ func TestResolveRootOwner(t *testing.T) {
 			name:     "ReplicaSet resolves to Deployment",
 			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "Deployment", Name: "my-app"},
+		},
+		{
+			name:      "ReplicaSet with Argo rollout label resolves to Rollout",
+			owners:    []workloadmeta.KubernetesPodOwner{{Kind: "ReplicaSet", Name: "my-rollout-9b8dc4bd6", Controller: boolPtr(true)}},
+			podLabels: map[string]string{kubernetes.ArgoRolloutLabelKey: "9b8dc4bd6"},
+			expected:  &core.FilterRootOwner{Kind: "Rollout", Name: "my-rollout"},
+		},
+		{
+			name:      "ReplicaSet with Argo rollout label but no hash suffix stays as ReplicaSet",
+			owners:    []workloadmeta.KubernetesPodOwner{{Kind: "ReplicaSet", Name: "invalid-name", Controller: boolPtr(true)}},
+			podLabels: map[string]string{kubernetes.ArgoRolloutLabelKey: "invalid"},
+			expected:  &core.FilterRootOwner{Kind: "ReplicaSet", Name: "invalid-name"},
 		},
 		{
 			name:     "Job resolves to CronJob",
@@ -76,7 +90,7 @@ func TestResolveRootOwner(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := resolveRootOwner(tt.owners)
+			result := resolveRootOwner(tt.owners, tt.podLabels)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -96,4 +110,21 @@ func TestCreatePodWithRootOwner(t *testing.T) {
 	assert.NotNil(t, result.FilterPod.Rootowner)
 	assert.Equal(t, "Deployment", result.FilterPod.Rootowner.Kind)
 	assert.Equal(t, "my-app", result.FilterPod.Rootowner.Name)
+}
+
+func TestCreatePodWithRolloutRootOwner(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "my-rollout-9b8dc4bd6-abc12",
+			Namespace: "default",
+			Labels:    map[string]string{kubernetes.ArgoRolloutLabelKey: "9b8dc4bd6"},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{Kind: "ReplicaSet", Name: "my-rollout-9b8dc4bd6", Controller: boolPtr(true)},
+		},
+	}
+	result := CreatePod(pod)
+	assert.NotNil(t, result.FilterPod.Rootowner)
+	assert.Equal(t, "Rollout", result.FilterPod.Rootowner.Kind)
+	assert.Equal(t, "my-rollout", result.FilterPod.Rootowner.Name)
 }
