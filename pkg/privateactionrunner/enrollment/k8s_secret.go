@@ -188,7 +188,6 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	log.Infof("[PAR-DEBUG] writeIdentitySecret: calling kube-apiserver Create for secret %s/%s", ns, secretName)
 	_, err = client.CoreV1().Secrets(ns).Create(opCtx, newSecret, metav1.CreateOptions{})
 	if err == nil {
 		log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
@@ -198,7 +197,6 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		return fmt.Errorf("failed to create secret %s/%s: %w", ns, secretName, err)
 	}
 
-	log.Infof("[PAR-DEBUG] writeIdentitySecret: secret %s/%s already exists, calling Get+Update", ns, secretName)
 	// Fetch the live object so Update carries its ResourceVersion.
 	existing, err := client.CoreV1().Secrets(ns).Get(opCtx, secretName, metav1.GetOptions{})
 	if err != nil {

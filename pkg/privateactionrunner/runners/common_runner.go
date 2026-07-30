@@ -73,7 +73,6 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 				logger.Error("health check failed", log.ErrorField(err))
 			} else {
 				if firstHealthCheckSuccess {
-					logger.Info("[PAR-DEBUG] PAR backend connection ESTABLISHED — first OPMS health check succeeded")
 					firstHealthCheckSuccess = false
 				}
 				if healthCheckLogLimit.ShouldLog() {
