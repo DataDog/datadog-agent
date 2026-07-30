@@ -217,7 +217,7 @@ class CodeGeneratorTarget:
             print('Output %s' % filename)
             out_filename = os.path.join(out_dir, filename)
             with open(out_filename, "w") as f:
-                f.write(gofmt('\n'.join(self.filesystem[filename])))
+                f.write('\n'.join(self.filesystem[filename]))
 
 
 def join_key(prefix, field):
@@ -391,7 +391,7 @@ def as_go_value(text, split_lines=False):
             res.append(f"{key}: {val}")
 
     if split_lines:
-        return f"{{\n{',\n '.join(res)},\n}}"
+        return f"{{\n\t\t{',\n\t\t'.join(res)},\n\t}}"
     return f"{{{', '.join(res)}}}"
 
 
@@ -851,24 +851,7 @@ def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
         print('Output %s' % filename)
         out_filename = os.path.join(outsource_dir, filename)
         with open(out_filename, "w") as f:
-            f.write(gofmt('\n'.join(sourcecode)))
-
-
-def gofmt(source):
-    """
-    Format Go source code with gofmt and return the result.
-    """
-    try:
-        return subprocess.run(
-            ["gofmt"],
-            input=source,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    except subprocess.CalledProcessError as e:
-        print(e.stderr)
-        sys.exit(1)
+            f.write('\n'.join(sourcecode))
 
 
 def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
