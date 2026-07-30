@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -129,10 +130,16 @@ func compressorConfig() sdc.Config {
 }
 
 // windowDuration is how often a compressed context force-closes and ships a
-// point even if nothing has changed, matching the aggregator's default
-// flush interval. There's no access to the real flush tick from the sender
-// side, so this is tracked independently by wall-clock time.
-const windowDuration = 15 * time.Second
+// point even if nothing has changed. Reuses the real aggregator's own flush
+// cadence (pkg/aggregator.DefaultFlushInterval) rather than an independently
+// hardcoded duplicate, since accumulated Gauge/Count/Rate/MonotonicCount
+// samples never actually leave the process before that tick fires anyway
+// (see BufferedAggregator.flushSeriesAndSketches) — shipping a compressed
+// breakpoint any more often than that would be pointless. There's still no
+// access to the real flush tick itself from the sender side (no config key
+// exposes it either — it's a plain Go constant), so this is tracked
+// independently by wall-clock time; only the duration value is shared.
+const windowDuration = aggregator.DefaultFlushInterval
 
 // timeNow is a seam for testing; production code always uses time.Now.
 var timeNow = time.Now

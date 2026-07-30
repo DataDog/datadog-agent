@@ -31,9 +31,17 @@ func (c *sdcIntervalOverrideCheck) Interval() time.Duration {
 // checks.sdc_compression_interval_override is set to a positive number of
 // seconds, taking precedence over the check's own min_collection_interval.
 // Otherwise ch is returned unchanged.
+//
+// A check whose own Interval() is already 0 is left untouched even when
+// otherwise eligible: 0 is not "unset" here, it's a distinct scheduling mode
+// (pkg/collector/scheduler/scheduler.go's Scheduler.Enter routes it to
+// enqueueOnce instead of the normal ticker) used by long-running checks
+// (e.g. container_image, sbom) that manage their own lifecycle. Forcing a
+// positive interval onto one of those would incorrectly convert it into a
+// normal ticked check.
 func wrapWithSDCIntervalOverride(ch check.Check, checkName string) check.Check {
 	iv := setup.Datadog().GetInt("checks.sdc_compression_interval_override")
-	if iv <= 0 || !sdcsender.CompressionEnabledFor(checkName) {
+	if iv <= 0 || ch.Interval() == 0 || !sdcsender.CompressionEnabledFor(checkName) {
 		return ch
 	}
 	return &sdcIntervalOverrideCheck{Check: ch, interval: time.Duration(iv) * time.Second}
