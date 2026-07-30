@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductDebug:                        {},
 	ProductInstallerConfig:              {},
 	ProductUpdaterCatalogDD:             {},
 	ProductUpdaterAgent:                 {},
@@ -51,6 +52,8 @@ var validProducts = map[string]struct{}{
 }
 
 const (
+	// ProductDebug is the staging-only debug product used for internal POCs
+	ProductDebug = "DEBUG"
 	// ProductInstallerConfig is the product used to receive the installer configuration
 	ProductInstallerConfig = "INSTALLER_CONFIG"
 	// ProductUpdaterCatalogDD is the product used to receive the package catalog from datadog

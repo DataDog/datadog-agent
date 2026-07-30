@@ -9,6 +9,8 @@ package data
 type Product string
 
 const (
+	// ProductDebug is the staging-only debug product used for internal POCs.
+	ProductDebug Product = "DEBUG"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling Product = "APM_SAMPLING"
 	// ProductCWSDD is the cloud workload security product
