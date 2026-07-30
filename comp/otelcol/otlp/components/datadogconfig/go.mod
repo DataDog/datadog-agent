@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconf
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.83.0-devel.0.20260730091851-36c2cf972657
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.83.0-devel.0.20260730091851-36c2cf972657
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.63.0
 	go.opentelemetry.io/collector/component/componenttest v0.157.0
