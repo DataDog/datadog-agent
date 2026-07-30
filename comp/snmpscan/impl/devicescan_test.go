@@ -81,7 +81,7 @@ func TestGatherPDUsWithBulk_ContextCancellation(t *testing.T) {
 		Version:   gosnmp.Version2c,
 	}
 
-	_, err := gatherPDUsWithBulk(ctx, snmp, 0, 0, defaultBulkMaxRepetitions)
+	_, err := gatherPDUsWithBulk(ctx, snmp, "test-device", 0, 0, defaultBulkMaxRepetitions)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
@@ -130,7 +130,7 @@ func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
 		},
 	}
 
-	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 10)
+	_, err := gatherPDUsWithBulk(context.Background(), fake, "test-device", 0, 0, 10)
 	require.NoError(t, err)
 
 	require.Len(t, fake.calls, 2)
@@ -155,7 +155,7 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 		},
 	}
 
-	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 4)
+	_, err := gatherPDUsWithBulk(context.Background(), fake, "test-device", 0, 0, 4)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "request timeout")
 	// 4 → 2 → 1 → still 1 (OnFailure returns false): 3 calls.
@@ -226,7 +226,7 @@ func TestGatherPDUsWithBulk_StopsOnNonAdvancingOID(t *testing.T) {
 		},
 	}
 
-	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, defaultBulkMaxRepetitions)
+	_, err := gatherPDUsWithBulk(context.Background(), fake, "test-device", 0, 0, defaultBulkMaxRepetitions)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "did not advance")
 }
@@ -241,7 +241,7 @@ func TestGatherPDUsWithBulk_TreatsSNMPErrorAsFailure(t *testing.T) {
 		},
 	}
 
-	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 10)
+	_, err := gatherPDUsWithBulk(context.Background(), fake, "test-device", 0, 0, 10)
 	require.NoError(t, err)
 	require.Len(t, fake.calls, 2)
 	assert.Equal(t, uint32(10), fake.calls[0].maxRep)
