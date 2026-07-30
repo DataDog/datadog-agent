@@ -4025,7 +4025,7 @@
   
 
 
-<h1 id="aws-eks">AWS EKS</h1>
+<h1 id="aws-eks">AWS EKS<a class="headerlink" href="#aws-eks" title="Permanent link">&para;</a></h1>
 <p>Provisions a managed EKS cluster with the Datadog Agent deployed as a
 DaemonSet via Helm. Use this to test Kubernetes-specific agent behavior,
 the Cluster Agent, or Kubernetes integrations.</p>
@@ -4033,13 +4033,13 @@ the Cluster Agent, or Kubernetes integrations.</p>
 <p class="admonition-title">Provisioning time</p>
 <p>EKS clusters take approximately 20 minutes to create.</p>
 </div>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <p>EKS requires both an API key and an <strong>app key</strong> in <code>~/.test_infra_config.yaml</code>
 (or via <code>E2E_APP_KEY</code>).</p>
-<h2 id="create">Create</h2>
+<h2 id="create">Create<a class="headerlink" href="#create" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-eks
 </span></code></pre></div>
-<h3 id="key-options">Key options</h3>
+<h3 id="key-options">Key options<a class="headerlink" href="#key-options" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4126,7 +4126,7 @@ the Cluster Agent, or Kubernetes integrations.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="examples">Examples</h3>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># EKS cluster with Windows nodes</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-eks<span class="w"> </span>--windows-node-group<span class="o">=</span><span class="nb">true</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -4136,16 +4136,16 @@ the Cluster Agent, or Kubernetes integrations.</p>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># GPU-only cluster</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-eks<span class="w"> </span>--gpu-node-group<span class="o">=</span><span class="nb">true</span>
 </span></code></pre></div>
-<h2 id="connect">Connect</h2>
+<h2 id="connect">Connect<a class="headerlink" href="#connect" title="Permanent link">&para;</a></h2>
 <p>After the cluster is ready, <code>kubectl</code> is configured automatically.
 The task prints the cluster context name to use:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>kubectl<span class="w"> </span>config<span class="w"> </span>use-context<span class="w"> </span>&lt;context-name&gt;
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>nodes
 </span></code></pre></div>
-<h2 id="destroy">Destroy</h2>
+<h2 id="destroy">Destroy<a class="headerlink" href="#destroy" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.destroy-eks
 </span></code></pre></div>
-<h2 id="limitations">Limitations</h2>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
 <ul>
 <li>GPU node groups are x86_64 only; enabling <code>--gpu-node-group</code> disables all
   other node groups automatically.</li>
