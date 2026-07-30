@@ -7,6 +7,7 @@ go_library(
         "config.go",
         "diagnose.go",
         "entrypoint.go",
+        "flare.go",
         "status.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/agent",
