@@ -4,14 +4,14 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 # gazelle:dd_agent_go_test on
 
 go_library(
-    name = "vbrsender",
-    srcs = ["vbrsender.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sender/vbrsender",
+    name = "sdcsender",
+    srcs = ["sdcsender.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sender/sdcsender",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
-        "//pkg/aggregator/internal/vbr",
+        "//pkg/aggregator/internal/sdc",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
@@ -21,9 +21,9 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "vbrsender_test",
-    srcs = ["vbrsender_test.go"],
-    embed = [":vbrsender"],
+    name = "sdcsender_test",
+    srcs = ["sdcsender_test.go"],
+    embed = [":sdcsender"],
     deps = [
         "//pkg/collector/check/stats",
         "//pkg/config/setup",

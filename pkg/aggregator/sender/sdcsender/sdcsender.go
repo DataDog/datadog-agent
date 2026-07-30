@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package vbrsender decorates a sender.SenderManager/sender.Sender to apply
-// streaming, bounded-error compression (variable bit rate storage) to a
+// Package sdcsender decorates a sender.SenderManager/sender.Sender to apply
+// streaming, bounded-error Swinging Door Trending/Compression (SDC) to a
 // check's Gauge/Count/Rate/MonotonicCount/GaugeWithTimestamp/
 // CountWithTimestamp metrics, entirely on the sender side. This works for
 // any check loader (Go, Python, ...), since every loader reaches the
 // aggregator exclusively through this same interface.
-package vbrsender
+package sdcsender
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/vbr"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -54,7 +54,7 @@ import (
 // tlmScaleDeviationSum/tlmScaleDeviationCount together track, per sample,
 // |value - compressor.Scale()| — how far the raw (already check-kind-reduced)
 // value strays from the compressor's current EWMA estimate of the signal's
-// magnitude, the basis for its tolerance (see vbr.Compressor.Scale). Their
+// magnitude, the basis for its tolerance (see sdc.Compressor.Scale). Their
 // ratio (sum/count) is the average deviation; a chronically large one
 // signals the EWMA is mistracking the signal (e.g. during a sustained level
 // shift), which is otherwise invisible from samples_total/breakpoints_total
@@ -65,7 +65,7 @@ import (
 // silently dropped (logged at debug level only), so a Histogram here would
 // never actually reach Datadog.
 //
-// exportedMetric opts every vbrsender telemetry metric into the built-in
+// exportedMetric opts every sdcsender telemetry metric into the built-in
 // "telemetry" core check (pkg/collector/corechecks/telemetry), the only
 // path that turns an internal Prometheus counter into a real
 // datadog.agent.<subsystem>.<name> metric in the backend. Without this,
@@ -76,57 +76,57 @@ var exportedMetric = telemetry.Options{DefaultMetric: true}
 
 var (
 	tlmSamples = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"vbrsender", "samples_total",
+		"sdcsender", "samples_total",
 		[]string{"check_name", "metric_name"},
-		"Number of raw samples fed into the VBR compressor, by check and metric name",
+		"Number of raw samples fed into the SDC compressor, by check and metric name",
 		exportedMetric)
 	tlmBreakpoints = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"vbrsender", "breakpoints_total",
+		"sdcsender", "breakpoints_total",
 		[]string{"check_name", "metric_name"},
-		"Number of breakpoints shipped by the VBR compressor, by check and metric name",
+		"Number of breakpoints shipped by the SDC compressor, by check and metric name",
 		exportedMetric)
 	tlmFloorBoundSamples = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"vbrsender", "floor_bound_samples_total",
+		"sdcsender", "floor_bound_samples_total",
 		[]string{"check_name", "metric_name"},
 		"Number of samples processed while Floor (not Epsilon*scale) set the tolerance, by check and metric name",
 		exportedMetric)
 	tlmFloorBoundBreakpoints = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"vbrsender", "floor_bound_breakpoints_total",
+		"sdcsender", "floor_bound_breakpoints_total",
 		[]string{"check_name", "metric_name"},
 		"Number of breakpoints shipped while Floor set the tolerance, by check and metric name — floor_bound_samples_total minus this is how many points were swallowed specifically because of Floor",
 		exportedMetric)
 	tlmContexts = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-		"vbrsender", "contexts",
+		"sdcsender", "contexts",
 		[]string{"check_name"},
-		"Number of distinct metric contexts being VBR-compressed, by check name",
+		"Number of distinct metric contexts being SDC-compressed, by check name",
 		exportedMetric)
 	tlmScaleDeviationSum = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"vbrsender", "scale_deviation_sum",
+		"sdcsender", "scale_deviation_sum",
 		[]string{"check_name", "metric_name"},
-		"Running sum of |value - EWMA scale| across all samples, by check and metric name — divide by vbrsender_scale_deviation_count for the average",
+		"Running sum of |value - EWMA scale| across all samples, by check and metric name — divide by sdcsender_scale_deviation_count for the average",
 		exportedMetric)
 	tlmScaleDeviationCount = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"vbrsender", "scale_deviation_count",
+		"sdcsender", "scale_deviation_count",
 		[]string{"check_name", "metric_name"},
-		"Number of samples observed for vbrsender_scale_deviation_sum, by check and metric name",
+		"Number of samples observed for sdcsender_scale_deviation_sum, by check and metric name",
 		exportedMetric)
 )
 
-// compressorConfig returns the VBR compressor tuning parameters from the
-// checks.vbr_compression_* config settings (not per-metric — shared by
+// compressorConfig returns the SDC compressor tuning parameters from the
+// checks.sdc_compression_* config settings (not per-metric — shared by
 // every compressed context). Read fresh whenever a new context is created;
 // a context's own compressor keeps whatever config was live at that time
-// for its lifetime, matching vbrCompressedCheckNames()'s same no-hot-reload
-// behavior. Setting checks.vbr_compression_floor to 0 disables the floor
+// for its lifetime, matching sdcCompressedCheckNames()'s same no-hot-reload
+// behavior. Setting checks.sdc_compression_floor to 0 disables the floor
 // entirely: Epsilon*scale (however small) always wins over a 0 Floor, since
 // both factors are non-negative.
-func compressorConfig() vbr.Config {
+func compressorConfig() sdc.Config {
 	cfg := setup.Datadog()
-	return vbr.Config{
-		Epsilon: cfg.GetFloat64("checks.vbr_compression_epsilon"),
-		Alpha:   cfg.GetFloat64("checks.vbr_compression_alpha"),
-		Floor:   cfg.GetFloat64("checks.vbr_compression_floor"),
-		Warmup:  cfg.GetInt("checks.vbr_compression_warmup"),
+	return sdc.Config{
+		Epsilon: cfg.GetFloat64("checks.sdc_compression_epsilon"),
+		Alpha:   cfg.GetFloat64("checks.sdc_compression_alpha"),
+		Floor:   cfg.GetFloat64("checks.sdc_compression_floor"),
+		Warmup:  cfg.GetInt("checks.sdc_compression_warmup"),
 	}
 }
 
@@ -140,7 +140,7 @@ const windowDuration = 15 * time.Second
 var timeNow = time.Now
 
 // SenderManager wraps a sender.SenderManager so every Sender it returns
-// applies VBR compression.
+// applies SDC compression.
 type SenderManager struct {
 	inner  sender.SenderManager
 	dryRun bool
@@ -155,7 +155,7 @@ type SenderManager struct {
 	senders map[checkid.ID]*Sender
 }
 
-// Wrap returns a SenderManager that VBR-compresses every check it serves.
+// Wrap returns a SenderManager that SDC-compresses every check it serves.
 // With dryRun true, every sample still runs through the compressor (so the
 // samples_total/breakpoints_total telemetry reflects what compression would
 // do), but the check's original, uncompressed calls are what actually reach
@@ -179,7 +179,7 @@ func Wrap(inner sender.SenderManager, dryRun bool, shadowHostSuffix string) *Sen
 	if shadowHostSuffix != "" {
 		h, err := hostname.Get(context.Background())
 		if err != nil {
-			log.Warnf("vbrsender: could not resolve the agent's default hostname, disabling shadow mode: %s", err)
+			log.Warnf("sdcsender: could not resolve the agent's default hostname, disabling shadow mode: %s", err)
 		} else {
 			m.shadowHostSuffix = shadowHostSuffix
 			m.defaultHostname = h
@@ -188,14 +188,14 @@ func Wrap(inner sender.SenderManager, dryRun bool, shadowHostSuffix string) *Sen
 	return m
 }
 
-// vbrCompressedCheckNames returns the set of check names that should get
-// VBR-compressed metrics, from the checks.vbr_compression_checks config
+// sdcCompressedCheckNames returns the set of check names that should get
+// SDC-compressed metrics, from the checks.sdc_compression_checks config
 // setting. Read fresh on every cache-miss GetSender call; a check whose
 // sender is already cached keeps whatever decision was made at that time
 // until it's rescheduled (see GetSender), since neither config key has
 // hot-reload wiring today.
-func vbrCompressedCheckNames() map[string]bool {
-	names := setup.Datadog().GetStringSlice("checks.vbr_compression_checks")
+func sdcCompressedCheckNames() map[string]bool {
+	names := setup.Datadog().GetStringSlice("checks.sdc_compression_checks")
 	m := make(map[string]bool, len(names))
 	for _, name := range names {
 		m[name] = true
@@ -203,8 +203,8 @@ func vbrCompressedCheckNames() map[string]bool {
 	return m
 }
 
-// GetSender returns a Sender for id: VBR-compressed and cached if id's check
-// name is in the vbr_compression_checks allowlist, otherwise passed straight
+// GetSender returns a Sender for id: SDC-compressed and cached if id's check
+// name is in the sdc_compression_checks allowlist, otherwise passed straight
 // through to the inner manager (which already caches per ID on its own, so
 // no local caching is needed for that path). This is the single place that
 // decides whether a check gets compressed, regardless of which loader
@@ -220,7 +220,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 		return s, nil
 	}
 	checkName := checkid.IDToCheckName(id)
-	if !vbrCompressedCheckNames()[checkName] {
+	if !sdcCompressedCheckNames()[checkName] {
 		return m.inner.GetSender(id)
 	}
 	real, err := m.inner.GetSender(id)
@@ -274,7 +274,7 @@ const (
 	kindCountWithTimestamp
 )
 
-// contextState holds one context's VBR compressor plus whatever extra
+// contextState holds one context's SDC compressor plus whatever extra
 // state its kind needs to locally reduce raw sender calls into the single
 // scalar-per-call value the compressor expects (Rate/MonotonicCount).
 type contextState struct {
@@ -283,11 +283,11 @@ type contextState struct {
 	tags     []string
 	kind     metricKind
 
-	compressor *vbr.Compressor
+	compressor *sdc.Compressor
 	// cfg is the compressor's own config, kept alongside it so floorBound
 	// can recompute whether Floor is currently the binding tolerance term
 	// without re-reading (possibly-changed-since) live config.
-	cfg vbr.Config
+	cfg sdc.Config
 
 	tlmSamples               telemetry.SimpleCounter
 	tlmBreakpoints           telemetry.SimpleCounter
@@ -327,7 +327,7 @@ type contextState struct {
 }
 
 // floorBound reports whether Floor, rather than Epsilon*scale, currently
-// sets this context's tolerance — mirroring vbr.Compressor's own internal
+// sets this context's tolerance — mirroring sdc.Compressor's own internal
 // updateScaleAndTolerance formula exactly, using the compressor's current
 // Scale() (its EWMA estimate after the most recently processed sample).
 func (ctx *contextState) floorBound() bool {
@@ -432,7 +432,7 @@ func (s *Sender) compressMonotonicCount(metric string, value float64, hostname s
 // GPU metrics collected via eBPF, see pkg/collector/corechecks/gpu). That
 // timestamp is fed to the compressor as the sample's own Ts (not
 // nowSeconds()) and threaded through to forwardRaw for dry-run/shadow mode,
-// so it's never silently replaced by "whenever vbrsender happened to
+// so it's never silently replaced by "whenever sdcsender happened to
 // process this call".
 func (s *Sender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if timestamp <= 0 {
@@ -493,7 +493,7 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 			hostname:                 hostname,
 			tags:                     tagsCopy,
 			kind:                     kind,
-			compressor:               vbr.New(cfg),
+			compressor:               sdc.New(cfg),
 			cfg:                      cfg,
 			tlmSamples:               tlmSamples.WithValues(s.checkName, metric),
 			tlmBreakpoints:           tlmBreakpoints.WithValues(s.checkName, metric),
@@ -557,11 +557,11 @@ func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostn
 		s.Sender.MonotonicCountWithFlushFirstValue(metric, value, hostname, tags, flushFirstValue)
 	case kindGaugeWithTimestamp:
 		if err := s.Sender.GaugeWithTimestamp(metric, value, hostname, tags, ts); err != nil {
-			log.Debugf("vbrsender: GaugeWithTimestamp(%s) failed: %s", metric, err)
+			log.Debugf("sdcsender: GaugeWithTimestamp(%s) failed: %s", metric, err)
 		}
 	case kindCountWithTimestamp:
 		if err := s.Sender.CountWithTimestamp(metric, value, hostname, tags, ts); err != nil {
-			log.Debugf("vbrsender: CountWithTimestamp(%s) failed: %s", metric, err)
+			log.Debugf("sdcsender: CountWithTimestamp(%s) failed: %s", metric, err)
 		}
 	}
 }
@@ -631,7 +631,7 @@ func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (floa
 // ship forwards bp as a breakpoint for ctx. floorBound is whether Floor set
 // the tolerance at the time bp was produced (see contextState.floorBound),
 // so tlmFloorBoundBreakpoints can track its share of tlmBreakpoints.
-func (s *Sender) ship(ctx *contextState, bp vbr.Point, floorBound bool) {
+func (s *Sender) ship(ctx *contextState, bp sdc.Point, floorBound bool) {
 	ctx.tlmBreakpoints.Inc()
 	if floorBound {
 		ctx.tlmFloorBoundBreakpoints.Inc()
@@ -666,11 +666,11 @@ func (s *Sender) ship(ctx *contextState, bp vbr.Point, floorBound bool) {
 	switch ctx.kind {
 	case kindGauge, kindRate, kindGaugeWithTimestamp:
 		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
-			log.Debugf("vbrsender: GaugeWithTimestamp(%s) failed: %s", ctx.metric, err)
+			log.Debugf("sdcsender: GaugeWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	case kindCount, kindMonotonicCount, kindCountWithTimestamp:
 		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
-			log.Debugf("vbrsender: CountWithTimestamp(%s) failed: %s", ctx.metric, err)
+			log.Debugf("sdcsender: CountWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	}
 }

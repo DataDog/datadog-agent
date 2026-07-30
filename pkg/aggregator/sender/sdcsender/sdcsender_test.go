@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package vbrsender
+package sdcsender
 
 import (
 	"math"
@@ -48,7 +48,7 @@ type monotonicCountWithFlushCall struct {
 }
 
 // fakeSender is a minimal sender.Sender: it records GaugeWithTimestamp/
-// CountWithTimestamp calls (what vbrsender ships breakpoints through), and
+// CountWithTimestamp calls (what sdcsender ships breakpoints through), and
 // plain Gauge/Count/Rate/MonotonicCountWithFlushFirstValue calls (what
 // dry-run mode forwards unmodified instead), and no-ops everything else.
 type fakeSender struct {
@@ -493,14 +493,14 @@ func TestDryRun_ForwardsRawCountRateMonotonicCountToTheirOwnMethods(t *testing.T
 	require.Len(t, fake.rawCounts, 1)
 	require.Equal(t, 5.0, fake.rawCounts[0].value)
 	require.Len(t, fake.rawRates, 1)
-	require.Equal(t, 100.0, fake.rawRates[0].value, "Rate forwards the RAW value, not vbrsender's locally-reduced derivative — the real sender does its own diffing")
+	require.Equal(t, 100.0, fake.rawRates[0].value, "Rate forwards the RAW value, not sdcsender's locally-reduced derivative — the real sender does its own diffing")
 
 	// MonotonicCount always forwards via MonotonicCountWithFlushFirstValue
 	// (never the plain MonotonicCount method), since that form is
 	// behaviorally identical when flushFirstValue is false.
 	require.Empty(t, fake.rawMonotonicCounts)
 	require.Len(t, fake.rawMonotonicCountsWithFlush, 1)
-	require.Equal(t, 10.0, fake.rawMonotonicCountsWithFlush[0].value, "MonotonicCount forwards the RAW cumulative value, not vbrsender's locally-reduced diff")
+	require.Equal(t, 10.0, fake.rawMonotonicCountsWithFlush[0].value, "MonotonicCount forwards the RAW cumulative value, not sdcsender's locally-reduced diff")
 	require.False(t, fake.rawMonotonicCountsWithFlush[0].flushFirstValue)
 
 	require.Empty(t, fake.gauges)
@@ -580,8 +580,8 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	for i, v := range values {
 		s.compressAt(kindGauge, "my.gauge", v, "host", nil, float64(i), false)
 
-		// Independently mirrors vbr.Compressor's own EWMA update (see
-		// pkg/aggregator/internal/vbr's updateScaleAndTolerance), rather
+		// Independently mirrors sdc.Compressor's own EWMA update (see
+		// pkg/aggregator/internal/sdc's updateScaleAndTolerance), rather
 		// than reading it back via Scale(), so this test actually exercises
 		// the wiring instead of only restating whatever the compressor
 		// already computed.
@@ -619,8 +619,8 @@ func TestFloorBoundTelemetry_TracksSwallowedPointsWhenFloorDominates(t *testing.
 }
 
 func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
-	pkgconfigsetup.Datadog().SetInTest("checks.vbr_compression_floor", 0.0)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest("checks.vbr_compression_floor", 1e-3) })
+	pkgconfigsetup.Datadog().SetInTest("checks.sdc_compression_floor", 0.0)
+	t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest("checks.sdc_compression_floor", 1e-3) })
 
 	fake := &fakeSender{}
 	s := newSender(fake, false, "check_floor_bound_disabled_test", "", "")
@@ -650,7 +650,7 @@ func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 }
 
 func TestShadow_ShipsBothRawAndCompressedUnderDifferentHostnames(t *testing.T) {
-	s, fake := newTestSenderShadow("-vbr", "agent-host")
+	s, fake := newTestSenderShadow("-sdc", "agent-host")
 
 	for i := 0; i < 10; i++ {
 		s.compressAt(kindGauge, "my.gauge", 42, "check-host", []string{"env:prod"}, float64(i), false)
@@ -663,37 +663,37 @@ func TestShadow_ShipsBothRawAndCompressedUnderDifferentHostnames(t *testing.T) {
 
 	require.NotEmpty(t, fake.gauges, "shadow mode must also ship the compressed breakpoints, unlike dry-run")
 	for _, c := range fake.gauges {
-		require.Equal(t, "check-host-vbr", c.hostname, "the compressed series must ship under hostname+suffix")
+		require.Equal(t, "check-host-sdc", c.hostname, "the compressed series must ship under hostname+suffix")
 	}
 }
 
 func TestShadow_FallsBackToDefaultHostnameWhenCheckHostnameEmpty(t *testing.T) {
-	s, fake := newTestSenderShadow("-vbr", "agent-host")
+	s, fake := newTestSenderShadow("-sdc", "agent-host")
 
 	s.compressAt(kindGauge, "my.gauge", 42, "", nil, 0, false)
 
 	require.Len(t, fake.gauges, 1)
-	require.Equal(t, "agent-host-vbr", fake.gauges[0].hostname,
+	require.Equal(t, "agent-host-sdc", fake.gauges[0].hostname,
 		"an empty check hostname must fall back to the agent's resolved default before appending the suffix, matching what the real sender fills in downstream for the raw series")
 }
 
 func TestShadow_ShipsViaCountWithTimestampToo(t *testing.T) {
-	s, fake := newTestSenderShadow("-vbr", "agent-host")
+	s, fake := newTestSenderShadow("-sdc", "agent-host")
 
 	s.compressAt(kindMonotonicCount, "my.mc", 10, "check-host", nil, 0, true)
 
 	require.Len(t, fake.rawMonotonicCountsWithFlush, 1, "shadow mode ships the raw call through the same path dry-run uses")
 	require.Len(t, fake.counts, 1, "shadow mode ships the compressed breakpoint too")
-	require.Equal(t, "check-host-vbr", fake.counts[0].hostname)
+	require.Equal(t, "check-host-sdc", fake.counts[0].hostname)
 }
 
 func TestShadow_TakesPrecedenceOverDryRun(t *testing.T) {
 	fake := &fakeSender{}
-	s := newSender(fake, true /* dryRun */, "my_check", "-vbr", "agent-host")
+	s := newSender(fake, true /* dryRun */, "my_check", "-sdc", "agent-host")
 
 	s.compressAt(kindGauge, "my.gauge", 42, "check-host", nil, 0, false)
 
 	require.Len(t, fake.rawGauges, 1, "the raw call must ship exactly once, not duplicated by both dryRun and shadow forwarding it")
 	require.Len(t, fake.gauges, 1, "shadow mode must ship the compressed breakpoint even though dryRun is also true")
-	require.Equal(t, "check-host-vbr", fake.gauges[0].hostname)
+	require.Equal(t, "check-host-sdc", fake.gauges[0].hostname)
 }
