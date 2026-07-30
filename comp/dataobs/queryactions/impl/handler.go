@@ -370,14 +370,14 @@ func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 // instance is targeted by a DO query action.
 func instanceMatchesHost(instance map[string]any, targetHost string) bool {
 	host := instanceHost(instance)
-	if host == targetHost {
-		return true
-	}
-	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
+	// Try the more specific "host:port" form first — sap_hana backends include the port in the
+	// identifier, and this form disambiguates instances that share a host but differ by port.
 	if port, ok := instancePort(instance); ok {
-		return fmt.Sprintf("%s:%d", host, port) == targetHost
+		if fmt.Sprintf("%s:%d", host, port) == targetHost {
+			return true
+		}
 	}
-	return false
+	return host == targetHost
 }
 
 // instancePort returns the port number for an integration instance, if present.
