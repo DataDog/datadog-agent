@@ -80,6 +80,7 @@ func TestLogsSupportsTarget(t *testing.T) {
 		{"StatefulSet", true},
 		{"CronJob", true},
 		{"Job", true},
+		{"Rollout", true},
 		{"Service", false},
 		{"ReplicaSet", false},
 		{"Pod", false},
