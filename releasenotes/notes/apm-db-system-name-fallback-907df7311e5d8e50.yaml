@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    APM : Deprecated ``db.system`` attribute in favor of ``db.system.name``
+    APM : Supported new ``db.system.name`` attribute replacing ``db.system``
     according to changes in OpenTelemetry Semantic Conventions (v1.30.0+).
