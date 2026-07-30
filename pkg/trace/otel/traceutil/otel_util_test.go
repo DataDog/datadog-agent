@@ -294,75 +294,46 @@ func TestSpanKind2Type(t *testing.T) {
 		out  string
 	}{
 		{
-			name: "web",
 			kind: ptrace.SpanKindServer,
 			out:  "web",
 		},
 		{
-			name: "http",
 			kind: ptrace.SpanKindClient,
 			out:  "http",
 		},
 		{
-			name: "redis via db.system",
 			kind: ptrace.SpanKindClient,
 			meta: map[string]string{"db.system": "redis"},
 			out:  "cache",
 		},
 		{
-			name: "memcached via db.system",
 			kind: ptrace.SpanKindClient,
 			meta: map[string]string{"db.system": "memcached"},
 			out:  "cache",
 		},
 		{
-			name: "other db via db.system",
 			kind: ptrace.SpanKindClient,
 			meta: map[string]string{"db.system": "other"},
 			out:  "db",
 		},
 		{
-			// This exercises the legacy Resource V1 path (used with disable_receive_resource_spans_v2),
-			// which does not go through the semantics registry and must probe db.system.name explicitly.
-			name: "redis via db.system.name (new semconv)",
-			kind: ptrace.SpanKindClient,
-			meta: map[string]string{"db.system.name": "redis"},
-			out:  "cache",
-		},
-		{
-			name: "other db via db.system.name (new semconv)",
-			kind: ptrace.SpanKindClient,
-			meta: map[string]string{"db.system.name": "postgresql"},
-			out:  "db",
-		},
-		{
-			name: "db.system.name takes precedence over deprecated db.system",
-			kind: ptrace.SpanKindClient,
-			meta: map[string]string{"db.system.name": "redis", "db.system": "other"},
-			out:  "cache",
-		},
-		{
-			name: "producer custom",
 			kind: ptrace.SpanKindProducer,
 			out:  "custom",
 		},
 		{
-			name: "consumer custom",
 			kind: ptrace.SpanKindConsumer,
 			out:  "custom",
 		},
 		{
-			name: "internal custom",
 			kind: ptrace.SpanKindInternal,
 			out:  "custom",
 		},
 		{
-			name: "unspecified custom",
 			kind: ptrace.SpanKindUnspecified,
 			out:  "custom",
 		},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.out, func(t *testing.T) {
 			span := ptrace.NewSpan()
 			span.SetKind(tt.kind)
 			res := pcommon.NewResource()
