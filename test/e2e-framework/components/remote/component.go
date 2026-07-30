@@ -36,6 +36,7 @@ type HostOutput struct {
 	PoolRegion          string `json:"poolRegion,omitempty"`
 	PoolProfile         string `json:"poolProfile,omitempty"`
 	PoolBaselineImageID string `json:"poolBaselineImageId,omitempty"`
+	PoolStackID         string `json:"poolStackId,omitempty"`
 }
 
 // Host represents a remote host (for instance, a VM)
@@ -60,6 +61,7 @@ type Host struct {
 	PoolRegion          pulumi.StringOutput `pulumi:"poolRegion"`
 	PoolProfile         pulumi.StringOutput `pulumi:"poolProfile"`
 	PoolBaselineImageID pulumi.StringOutput `pulumi:"poolBaselineImageId"`
+	PoolStackID         pulumi.StringOutput `pulumi:"poolStackId"`
 }
 
 func (h *Host) Export(ctx *pulumi.Context, out *HostOutput) error {
