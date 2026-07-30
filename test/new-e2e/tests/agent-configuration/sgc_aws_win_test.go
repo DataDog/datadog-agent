@@ -28,7 +28,7 @@ secret_backend_config:
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithSkipAPIKeyInConfig(),
 					agentparams.WithAgentConfig(config),

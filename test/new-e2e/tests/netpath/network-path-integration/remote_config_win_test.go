@@ -37,7 +37,7 @@ func TestWindowsRemoteConfigSuite(t *testing.T) {
 	}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(
 			scenec2.WithAgentOptions(remoteConfigAgentOptions()...),
-			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.WindowsServerDefault)),
+			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.WindowsServerDefault), scenec2.WithInternetAccess()),
 		),
 	)))
 }
