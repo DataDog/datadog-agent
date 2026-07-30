@@ -578,7 +578,6 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
 			sbom.usrMerged = isUsrMerged(containerProcRootPath)
-			sbom.setReport(report)
 			scanned = true
 			break
 		}
