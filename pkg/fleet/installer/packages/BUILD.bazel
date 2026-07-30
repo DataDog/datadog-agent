@@ -91,6 +91,7 @@ go_test(
         "datadog_agent_ddot_linux_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_linux_test.go",
         "datadog_agent_par_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
@@ -104,6 +105,7 @@ go_test(
         "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",
             "@in_yaml_go_yaml_v3//:yaml",
         ],

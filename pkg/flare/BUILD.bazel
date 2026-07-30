@@ -32,6 +32,7 @@ go_library(
         "//pkg/api/security",
         "//pkg/collector/check/id",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/remote/flare",
         "//pkg/config/setup",

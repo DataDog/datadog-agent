@@ -3,6 +3,7 @@ set -euo pipefail
 
 MACOS_SH="$(find "$TEST_SRCDIR" -path "*/rpath_rewriter/rewrite_with_install_name_tool.sh" | head -1)"
 MACOS_DIR_SH="$(find "$TEST_SRCDIR" -path "*/rpath_rewriter/rewrite_tree_with_install_name_tool.sh" | head -1)"
+HELPER="$(find "$TEST_SRCDIR" -path "*/rpath_rewriter/rpath_helpers.sh" | head -1)"
 INSTALL_NAME_TOOL="${1:?usage: $0 <install-name-tool>}"
 
 LIBS=()
@@ -19,7 +20,7 @@ for lib in "${LIBS[@]}"; do
 done
 
 PREFIX="@loader_path/../../embedded/lib"
-"$MACOS_DIR_SH" "$MACOS_SH" "$INSTALL_NAME_TOOL" /usr/bin/otool "$PREFIX" "$INPUT_DIR" "$OUTPUT_DIR"
+"$MACOS_DIR_SH" "$HELPER" "$MACOS_SH" "$INSTALL_NAME_TOOL" /usr/bin/otool "$PREFIX" "$INPUT_DIR" "$OUTPUT_DIR"
 
 FAILED=0
 while IFS= read -r outfile; do

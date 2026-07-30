@@ -104,7 +104,9 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
 fi
 
-if [ ! -f "$CONF_DIR/ai_usage_native_host.yaml" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
+# Always regenerate from the packaged template (even on upgrade) so default changes
+# (e.g. EVP track, desktop monitoring defaults) reach already-installed machines.
+if [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
     cp "$CONF_DIR/ai_usage_native_host.yaml.example" "$CONF_DIR/ai_usage_native_host.yaml"
     apm_receiver_port=$(awk '
         /^[[:space:]]*#/ { next }
@@ -120,7 +122,10 @@ if [ ! -f "$CONF_DIR/ai_usage_native_host.yaml" ] && [ -f "$CONF_DIR/ai_usage_na
             }
         }
     ' "$CONF_DIR/datadog.yaml" 2>/dev/null || true)
-    if [ -n "$apm_receiver_port" ]; then
+    # Only activate the line when the port differs from the compiled-in default (8126); when it
+    # matches, leave the line as shipped (commented) so a future default change applies without
+    # needing another overwrite of this file.
+    if [ -n "$apm_receiver_port" ] && [ "$apm_receiver_port" != "8126" ]; then
         sed -i '' "s#^[ #]*trace_agent_url:.*#trace_agent_url: \"http://127.0.0.1:$apm_receiver_port\"#" "$CONF_DIR/ai_usage_native_host.yaml"
     fi
 fi

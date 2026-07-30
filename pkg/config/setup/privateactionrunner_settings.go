@@ -30,7 +30,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.actions_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.actions_allowlist")
 	config.BindEnvAndSetDefault("private_action_runner.default_actions_enabled", true)
-	config.BindEnvAndSetDefault("private_action_runner.executor.socket_path", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("private_action_runner.executor.socket_path", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\dd-par-executor`,
 		"other":   "${run_path}/par-executor.sock",
 	}))
@@ -56,7 +56,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_paths", []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_paths", config)
 
-	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{RShellCommandAllowAllWildcard})
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{"rshell:*"})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
 
 	config.BindEnvAndSetDefault("private_action_runner.opms_extra_headers", map[string]string{})

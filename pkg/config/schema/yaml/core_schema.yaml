@@ -41,6 +41,7 @@ properties:
       Set to 'ap1.datadoghq.com' to send data to the AP1 site.
       Set to 'ddog-gov.com' to send data to the US1-FED site.
     tags:
+    - generate_const:DefaultSite
     - template_section:Common
   infrastructure_mode:
     node_type: setting
@@ -1745,12 +1746,16 @@ properties:
             default: 1000
             visibility: public
             description: The timeout in milliseconds for a network path test.
+            tags:
+            - generate_const:DefaultNetworkPathTimeout
           max_ttl:
             node_type: setting
             type: integer
             default: 30
             visibility: public
             description: The maximum TTL (Time To Live) for traceroute tests.
+            tags:
+            - generate_const:DefaultNetworkPathMaxTTL
           pathtest_ttl:
             node_type: setting
             type: string
@@ -1818,12 +1823,16 @@ properties:
             default: 3
             visibility: public
             description: The number of traceroute queries for static path tests.
+            tags:
+            - generate_const:DefaultNetworkPathStaticPathTracerouteQueries
           e2e_queries:
             node_type: setting
             type: integer
             default: 50
             visibility: public
             description: The number of end-to-end queries for static path tests.
+            tags:
+            - generate_const:DefaultNetworkPathStaticPathE2eQueries
           input_chan_size:
             node_type: setting
             type: integer
@@ -4503,7 +4512,7 @@ properties:
                       # @param authProtocol - string - optional
                       # The authentication protocol to use when connecting to your SNMP devices.
                       # Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-                      # Defaults to MD5 when `authentication_key` is specified.
+                      # Defaults to MD5 when `authentication_key` is specified, or SHA256 in FIPS mode.
                       # SNMPv3 only.
 
                       authProtocol: <AUTHENTICATION_PROTOCOL>
@@ -4517,7 +4526,7 @@ properties:
                       # @param privProtocol - string - optional
                       # The privacy protocol to use when connecting to your SNMP devices.
                       # Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-                      # Defaults to DES when `privacy_key` is specified.
+                      # Defaults to DES when `privacy_key` is specified, or AES in FIPS mode.
                       # SNMPv3 only.
 
                       privProtocol: <PRIVACY_PROTOCOL>
@@ -6463,6 +6472,8 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+    tags:
+    - full-agent-only:true
   appsec:
     node_type: section
     type: object
@@ -6996,6 +7007,27 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      heartbeat_interval:
+        node_type: setting
+        type: string
+        default: 1h0m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      heartbeat_jitter:
+        node_type: setting
+        type: string
+        default: 10m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      startup_jitter:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        tags:
+        - golang_type:duration
   container_exclude:
     node_type: setting
     type: array
@@ -7308,6 +7340,17 @@ properties:
         default: true
     tags:
     - full-agent-only:true
+  data_security:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: single enablement flag gating both the autodiscovery provider
+          and the sds-result event platform pipeline.
   data_streams:
     node_type: section
     type: object
@@ -8438,6 +8481,8 @@ properties:
     node_type: setting
     type: integer
     default: 60
+    tags:
+    - generate_const:DefaultAPIKeyValidationInterval
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
@@ -8458,6 +8503,8 @@ properties:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - generate_const:DefaultForwarderRecoveryInterval
   forwarder_recovery_reset:
     node_type: setting
     type: boolean
@@ -9666,6 +9713,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+    tags:
+    - full-agent-only:true
   remote_policies:
     node_type: setting
     type: boolean
@@ -9689,6 +9738,110 @@ properties:
     default: ${run_path}
   runtime_security_config:
     $ref: runtime_security_config.yaml
+  sds_result:
+    node_type: section
+    type: object
+    properties:
+      forwarder:
+        node_type: section
+        type: object
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+            tags:
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+            tags:
+            - golang_type:float64
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+            tags:
+            - golang_type:float64
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
+            tags:
+            - golang_type:float64
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
   secret_audit_file_max_size:
     node_type: setting
     type: integer
@@ -9707,6 +9860,8 @@ properties:
         node_type: setting
         type: integer
         default: 5010
+        tags:
+        - generate_const:DefaultSecurityAgentCmdPort
       disable_thp:
         node_type: setting
         type: boolean
@@ -9801,6 +9956,8 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE
             - DD_SITE
+            tags:
+            - generate_const:DefaultSite
           unix_socket:
             node_type: setting
             type: string
@@ -9815,6 +9972,8 @@ properties:
     node_type: setting
     type: string
     default: zstd
+    tags:
+    - generate_const:DefaultCompressorKind
   serializer_experimental_use_v3_api:
     node_type: section
     type: object
@@ -9898,6 +10057,8 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    tags:
+    - generate_const:DefaultZstdCompressionLevel
   serverless:
     node_type: section
     type: object
@@ -10207,6 +10368,7 @@ properties:
     - runtime
     items:
       type: string
+    comment: this is a list of the statsd prefixes used by the agent and its components
   telemetry:
     node_type: section
     type: object
