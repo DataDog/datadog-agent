@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agentapi.go",
+        "config.go",
+        "diagnose.go",
+        "entrypoint.go",
+        "status.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/flavor",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
