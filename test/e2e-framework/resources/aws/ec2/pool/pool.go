@@ -220,6 +220,15 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
 	}
 
+	// Check ownership before touching the disk. The conditional write at the end would
+	// reject a stale token, but only after the root volume was already replaced -- which
+	// would destroy the disk of whichever run now holds the lease. This narrows that race
+	// without closing it: the check and CreateReplaceRootVolumeTask are not atomic.
+	if currentToken := aws.ToString(getOut.ETag); currentToken != leaseToken {
+		return fmt.Errorf("lease for instance %s changed hands (token %s, current %s): refusing to revert or release",
+			instanceID, leaseToken, currentToken)
+	}
+
 	imageID := current.ImageID
 	if imageID != "" && !current.Persistent && !devMode {
 		ec2Client, err := NewEC2Client(ctx, region, profile)
