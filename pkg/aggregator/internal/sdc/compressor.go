@@ -8,25 +8,30 @@
 // streams, with an EWMA-smoothed adaptive tolerance: full granularity where
 // the signal moves, a handful of points where it doesn't.
 //
-// This is the Swinging Door Method of Bristol, U.S. Patent 4,669,097
-// ("Data Compression for Display and Storage"), and follows its
-// terminology: each open segment pivots two "doors" (upperDoorSlope,
-// lowerDoorSlope — the patent's SU(MAX)/SL(MIN)) from the segment's first
-// point, admitting successive points until the doors would cross, at
-// which point the last inbounds point is issued as the segment's end and
-// a new segment begins from there.
+// This is the Swinging Door Trending algorithm, originally described by
+// Bristol in U.S. Patent 4,669,097 ("Data Compression for Display and
+// Storage", filed 1985, issued May 26, 1987; expired since 2004 under the
+// 17-year post-grant term that applied to patents of that era). The rest
+// of this file refers to it as "the algorithm" rather than "the patent" —
+// it's long since become a standard, widely-implemented technique, not a
+// live IP concern. It follows the algorithm's own terminology: each open
+// segment pivots two "doors" (upperDoorSlope, lowerDoorSlope — the
+// algorithm's SU(MAX)/SL(MIN)) from the segment's first point, admitting
+// successive points until the doors would cross, at which point the last
+// inbounds point is issued as the segment's end and a new segment begins
+// from there.
 //
-// One deliberate deviation from the patent: a closed segment's end point is
-// the real, observed lastInBounds point (the patent's own "choose the last
-// inbounds point" alternative, Col. 9), not a computed point along the
-// crossing-out-point-plus-E/2 construction the patent uses by default
-// (Col. 9-10). That choice has a correctness consequence, which is why
+// One deliberate deviation from the algorithm: a closed segment's end
+// point is the real, observed lastInBounds point (one of the algorithm's
+// own alternatives, "choose the last inbounds point"), not a computed
+// point along the crossing-out-point-plus-E/2 construction it uses by
+// default. That choice has a correctness consequence, which is why
 // Update's accept test compares a candidate's raw (un-widened) slope
-// against the accumulated door cone, rather than the patent's literal test
-// of comparing the candidate's own ±errorBound-widened SU(i)/SL(i) against
-// the running SU(MAX)/SL(MIN) — see the comment above that comparison in
-// Update for why the literal test is provably insufficient once the
-// segment end point is a real, un-adjusted point.
+// against the accumulated door cone, rather than the algorithm's literal
+// test of comparing the candidate's own ±errorBound-widened SU(i)/SL(i)
+// against the running SU(MAX)/SL(MIN) — see the comment above that
+// comparison in Update for why the literal test is provably insufficient
+// once the segment end point is a real, un-adjusted point.
 package sdc
 
 import "math"
@@ -69,17 +74,17 @@ type Compressor struct {
 
 	warmupRemaining int
 
-	// first is the current segment's first point (the patent's "first
+	// first is the current segment's first point (the algorithm's "first
 	// corridor end point" C(i)), from which the two doors pivot.
 	hasFirst bool
 	first    Point
 
 	// lastInBounds is the most recent point admitted into the current
-	// segment (the patent's "last inbounds point") — the candidate for the
-	// segment's end point once a later point forces the doors to cross.
+	// segment (the algorithm's "last inbounds point") — the candidate for
+	// the segment's end point once a later point forces the doors to cross.
 	hasLastInBounds bool
 	lastInBounds    Point
-	// upperDoorSlope and lowerDoorSlope are the patent's SU(MAX)/SL(MIN):
+	// upperDoorSlope and lowerDoorSlope are the algorithm's SU(MAX)/SL(MIN):
 	// the most extreme slope each door has had to swing to since first,
 	// narrowing the admissible slope range as more points are folded in.
 	upperDoorSlope float64
@@ -122,23 +127,24 @@ func (c *Compressor) Update(ts, value float64) []Point {
 	cand := doorSlopes(c.first, ts, value, errorBound)
 
 	// Why this compares cand.slope (raw, un-widened) rather than the
-	// patent's literal test of cand.upperDoorSlope/cand.lowerDoorSlope
+	// algorithm's literal test of cand.upperDoorSlope/cand.lowerDoorSlope
 	// (SU(i)/SL(i)) against the running door bounds:
 	//
-	// The patent's literal test only proves that SOME slope within the
+	// The algorithm's literal test only proves that SOME slope within the
 	// surviving [upperDoorSlope, lowerDoorSlope] cone would keep every
 	// admitted point within errorBound — it doesn't constrain WHICH slope
-	// gets used for reconstruction. The patent's own default reconstruction
-	// (a computed crossing-out point, nudged by errorBound/2 toward the
-	// center line) is free to land anywhere in that cone, so the literal
-	// test is sufficient for it. This implementation instead ships the
-	// real, observed lastInBounds point as the segment end (the patent's
-	// own "choose the last inbounds point" alternative — faster, and it
-	// preserves an actual data point) — which means the reconstruction
-	// line's slope is fixed to be exactly lastInBounds's own raw slope
-	// from first, not a free choice from the cone.
+	// gets used for reconstruction. The algorithm's own default
+	// reconstruction (a computed crossing-out point, nudged by
+	// errorBound/2 toward the center line) is free to land anywhere in
+	// that cone, so the literal test is sufficient for it. This
+	// implementation instead ships the real, observed lastInBounds point
+	// as the segment end (one of the algorithm's own alternatives,
+	// "choose the last inbounds point" — faster, and it preserves an
+	// actual data point) — which means the reconstruction line's slope is
+	// fixed to be exactly lastInBounds's own raw slope from first, not a
+	// free choice from the cone.
 	//
-	// That makes the patent's literal test provably insufficient here: a
+	// That makes the algorithm's literal test provably insufficient here: a
 	// candidate can have its ±errorBound-widened range merely graze the
 	// existing cone (technically keeping SU(MAX) <= SL(MIN)) while its own
 	// raw, un-widened slope already sits outside it. If that candidate is
@@ -183,7 +189,7 @@ func (c *Compressor) FlushWindow(_ float64) []Point {
 	return []Point{closed}
 }
 
-// establishPivots starts a new segment from c.first: the patent's
+// establishPivots starts a new segment from c.first: the algorithm's
 // "establish pivot points" (Step 2) / "establish new offset points"
 // (Step 8), computing the initial upper/lower door slopes toward (ts, value).
 func (c *Compressor) establishPivots(ts, value, errorBound float64) {
@@ -209,9 +215,9 @@ func (c *Compressor) Scale() float64 {
 	return c.scale
 }
 
-// updateScaleAndTolerance returns the current errorBound (the patent's
+// updateScaleAndTolerance returns the current errorBound (the algorithm's
 // "error" / "error bound E") — here computed dynamically as
-// max(Epsilon*EWMA-scale, Floor) rather than the patent's static,
+// max(Epsilon*EWMA-scale, Floor) rather than the algorithm's static,
 // externally-supplied E.
 func (c *Compressor) updateScaleAndTolerance(value float64) float64 {
 	abs := math.Abs(value)
@@ -229,7 +235,7 @@ func (c *Compressor) updateScaleAndTolerance(value float64) float64 {
 }
 
 // candidate holds a point's raw slope from the segment's first point, and
-// the upper/lower door slopes (the patent's SU(i)/SL(i)) that pivoting
+// the upper/lower door slopes (the algorithm's SU(i)/SL(i)) that pivoting
 // each door from first to admit this point at ±errorBound would require.
 type candidate struct {
 	slope                          float64
