@@ -21,8 +21,10 @@ from tasks.schema.merge_schema import resolve_schema
 
 def _filter(expect, filename):
     """Return a predicate that accepts (expect=True) or rejects (expect=False) filename."""
+
     def comparator(othername):
         return (filename == othername) == expect
+
     return comparator
 
 
