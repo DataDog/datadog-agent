@@ -108,7 +108,7 @@ affinity:
 
 3. Taints and tolerations
 
-Use this when you also need to keep other workloads off the target nodes, not just steer the Host Profiler onto them. Taint the nodes first, then add a matching toleration:
+The OpenTelemetry Collector Helm chart supports taints and tolerations. Taint the nodes first, then add a matching toleration:
 ```yaml
 tolerations:
   - key: dedicated
