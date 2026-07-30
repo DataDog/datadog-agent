@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "logs",
@@ -30,7 +31,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "logs_test",
     srcs = [
         "orchestrator_test.go",
@@ -38,7 +39,6 @@ go_test(
         "translate_test.go",
     ],
     embed = [":logs"],
-    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "@com_github_datadog_agent_payload_v5//process",
