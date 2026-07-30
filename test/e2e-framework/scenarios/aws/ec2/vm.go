@@ -71,6 +71,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
 		isLocalRun := e.PipelineID() == ""
 		username := e.Username()
+		stackID := e.Ctx().Stack()
 		var poolAcquired pool.AcquireResult
 
 		if isMacOSPoolMember {
@@ -87,7 +88,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				localOpts = &pool.LocalProvisionOptions{Username: username}
 			}
 
-			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID(), localOpts)
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID(), stackID, localOpts)
 			if err != nil {
 				return err
 			}
@@ -133,6 +134,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
 				// Already registered, so no baseline to hand to the harness.
 				c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
+				c.PoolStackID = pulumi.String(stackID).ToStringOutput()
 			} else {
 				// Local cache miss: no pool member owned by this developer exists yet.
 				// Provision a new Dedicated Host + instance through ordinary Pulumi
@@ -147,6 +149,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			c.PoolInstanceID = pulumi.String("").ToStringOutput()
 			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
 			c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
+			c.PoolStackID = pulumi.String("").ToStringOutput()
 		}
 
 		if isMacOSPoolMember {
@@ -194,6 +197,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			}
 			c.PoolInstanceID = instance.ID().ToStringOutput()
 			c.PoolBaselineImageID = imageID
+			c.PoolStackID = pulumi.String(stackID).ToStringOutput()
 			// Left empty on purpose: an empty token with a set instance ID is how
 			// BaseSuite recognises a member whose first lease still needs publishing.
 			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
