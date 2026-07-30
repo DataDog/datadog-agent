@@ -48,13 +48,15 @@ type Endpoint struct {
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
 // TelemetryDefaultMaxInflightBytes is the maximum number of bytes the telemetry forwarder
-// buffers before dropping payloads. Set to 20 MB to accommodate several max-size EVP requests
-// (5 MB each), well above the observed p99 payload size (~1 MB).
-const TelemetryDefaultMaxInflightBytes = 20_000_000
+// buffers before dropping payloads. Set to 5 MB so the currently-accumulating batch always
+// has room to reach TelemetryDefaultBatchSizeThreshold even when all 4 forwarder goroutines
+// (see maxConcurrentRequests in pkg/trace/api/telemetry.go) are each holding a full-size
+// batch in flight: (4 in-flight batches + 1 accumulating batch) * 1 MB = 5 MB.
+const TelemetryDefaultMaxInflightBytes = 5_000_000
 
 // TelemetryDefaultBatchSizeThreshold is the cumulative body size in bytes that triggers
-// an immediate batch flush in the telemetry forwarder.
-const TelemetryDefaultBatchSizeThreshold = 4_000_000
+// an immediate batch flush in the telemetry forwarder. Set to 1 MB.
+const TelemetryDefaultBatchSizeThreshold = 1_000_000
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {

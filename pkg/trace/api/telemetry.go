@@ -19,12 +19,12 @@ import (
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
-	msgpack "github.com/vmihailenco/msgpack/v4"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -140,7 +140,7 @@ const (
 	maxConcurrentRequests = 4
 
 	// batchMaxAge is the maximum time the oldest event can sit in the buffer before triggering a flush.
-	batchMaxAge = 30 * time.Second
+	batchMaxAge = 65 * time.Second
 
 	// batchCheckInterval is how often the flusher goroutine checks for age-based flushes.
 	batchCheckInterval = 100 * time.Millisecond
@@ -149,40 +149,24 @@ const (
 	batchURLPath = "/api/v2/apmtelemetry"
 )
 
-// agentBatch is the top-level envelope for batched telemetry payloads, serialized as MessagePack.
-type agentBatch struct {
-	RequestType string             `msgpack:"request_type"`
-	Payload     rawTelemetryEvents `msgpack:"payload"`
-}
-
-type rawTelemetryEvents struct {
-	Events []rawTelemetryEvent `msgpack:"events"`
-}
-
-type rawTelemetryEvent struct {
-	Headers map[string]string `msgpack:"headers"`
-	Content []byte            `msgpack:"content"`
-}
-
 type flushedBatch struct {
-	events        []rawTelemetryEvent
+	events        []*pb.AgentTelemetryEvent
 	totalBodySize int
 }
 
 type currentBatch struct {
 	mu                 sync.Mutex
-	bufferedEvents     []rawTelemetryEvent
+	bufferedEvents     []*pb.AgentTelemetryEvent
 	bufferedSize       int
 	oldestEventTime    time.Time
 	batchSizeThreshold int
-	nowFn              func() time.Time // injectable for testing, defaults to time.Now
 }
 
-func (b *currentBatch) addEvent(ev rawTelemetryEvent) (batch flushedBatch, shouldFlush bool) {
+func (b *currentBatch) addEvent(ev *pb.AgentTelemetryEvent) (batch flushedBatch, shouldFlush bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.bufferedEvents) == 0 {
-		b.oldestEventTime = b.nowFn()
+		b.oldestEventTime = time.Now()
 	}
 	b.bufferedSize += len(ev.Content)
 	b.bufferedEvents = append(b.bufferedEvents, ev)
@@ -198,7 +182,7 @@ func (b *currentBatch) checkFlushAge() (batch flushedBatch, shouldFlush bool) {
 	defer b.mu.Unlock()
 	shouldFlush = len(b.bufferedEvents) > 0 &&
 		!b.oldestEventTime.IsZero() &&
-		b.nowFn().Sub(b.oldestEventTime) >= batchMaxAge
+		time.Since(b.oldestEventTime) >= batchMaxAge
 
 	if shouldFlush {
 		batch = b.takeBatchLocked()
@@ -213,7 +197,7 @@ func (b *currentBatch) takeBatchLocked() flushedBatch {
 		events:        b.bufferedEvents,
 		totalBodySize: b.bufferedSize,
 	}
-	b.bufferedEvents = make([]rawTelemetryEvent, 0, len(batch.events))
+	b.bufferedEvents = make([]*pb.AgentTelemetryEvent, 0, len(batch.events))
 	b.bufferedSize = 0
 	b.oldestEventTime = time.Time{}
 	return batch
@@ -282,9 +266,8 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		endpoints: endpoints,
 		conf:      conf,
 		batch: currentBatch{
-			bufferedEvents:     make([]rawTelemetryEvent, 0, 64),
+			bufferedEvents:     make([]*pb.AgentTelemetryEvent, 0, 64),
 			batchSizeThreshold: batchSizeThreshold,
-			nowFn:              time.Now,
 		},
 		flushChan:        make(chan flushedBatch, 1),
 		inflightWaiter:   sync.WaitGroup{},
@@ -374,7 +357,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 		}
 
 		eventHeaders := forwarder.buildEventHeaders(r)
-		batch, shouldFlush := forwarder.batch.addEvent(rawTelemetryEvent{
+		batch, shouldFlush := forwarder.batch.addEvent(&pb.AgentTelemetryEvent{
 			Headers: eventHeaders,
 			Content: body,
 		})
@@ -567,16 +550,14 @@ func (f *TelemetryForwarder) forwarder() {
 				case batch := <-f.flushChan:
 					f.serializeAndForward(batch)
 				default:
-					goto drainDone
+					// Flush remaining events in the buffer
+					batch := f.batch.takeBatch()
+					if batch.totalBodySize > 0 {
+						f.serializeAndForward(batch)
+					}
+					return
 				}
 			}
-		drainDone:
-			// Flush remaining events in the buffer
-			batch := f.batch.takeBatch()
-			if batch.totalBodySize > 0 {
-				f.serializeAndForward(batch)
-			}
-			return
 
 		case batch := <-f.flushChan:
 			f.serializeAndForward(batch)
@@ -592,10 +573,10 @@ func (f *TelemetryForwarder) forwarder() {
 
 // serializeAndForward serializes a flushed batch to MessagePack and forwards it to all endpoints.
 func (f *TelemetryForwarder) serializeAndForward(batch flushedBatch) {
-	body, err := msgpack.Marshal(&agentBatch{
+	body, err := (&pb.AgentTelemetryBatch{
 		RequestType: "agent-batch",
-		Payload:     rawTelemetryEvents{Events: batch.events},
-	})
+		Payload:     &pb.AgentTelemetryPayload{Events: batch.events},
+	}).MarshalMsg(nil)
 	if err != nil {
 		f.logger.Error("Failed to serialize telemetry batch: %v", err)
 		f.inflightCount.Add(-int64(batch.totalBodySize))

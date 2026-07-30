@@ -39,6 +39,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
+        "//comp/trace/compression/def",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
@@ -63,7 +64,6 @@ go_library(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_google_uuid//:uuid",
         "@com_github_tinylib_msgp//msgp",
-        "@com_github_vmihailenco_msgpack_v4//:msgpack",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
@@ -165,6 +165,7 @@ dd_agent_go_test(
     embed = [":api"],
     deps = [
         "//comp/core/tagger/origindetection",
+        "//comp/trace/compression/impl-zstd",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
