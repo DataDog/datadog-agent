@@ -117,17 +117,9 @@ go_test(
     srcs = ["collector_test.go"],
     embed = [":coat"],
     gotags = ["test"],
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "//pkg/proto/pbgo/procmgr",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/proto/pbgo/procmgr",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = [
+        "//pkg/proto/pbgo/procmgr",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
