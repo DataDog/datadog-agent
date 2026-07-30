@@ -4,15 +4,15 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 # gazelle:dd_agent_go_test on
 
 go_library(
-    name = "vbr",
+    name = "sdc",
     srcs = ["compressor.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/internal/vbr",
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc",
     visibility = ["//pkg/aggregator:__subpackages__"],
 )
 
 dd_agent_go_test(
-    name = "vbr_test",
+    name = "sdc_test",
     srcs = ["compressor_test.go"],
-    embed = [":vbr"],
+    embed = [":sdc"],
     deps = ["@com_github_stretchr_testify//require"],
 )

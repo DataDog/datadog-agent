@@ -23,7 +23,7 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender/vbrsender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender/sdcsender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -80,13 +80,13 @@ type CheckScheduler struct {
 func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
 	// Every loader (Go, Python, ...) reaches the aggregator exclusively
 	// through this one manager, so it's the single place that decides
-	// per-check whether to VBR-compress (see vbrsender.SenderManager.
+	// per-check whether to SDC-compress (see sdcsender.SenderManager.
 	// GetSender) — a check loaded via a captured sender-resolution path
 	// (e.g. Python's) still gets the right decision, since there's no
 	// second, uncompressed manager instance to accidentally bypass it with.
-	senderManager = vbrsender.Wrap(senderManager,
-		setup.Datadog().GetBool("checks.vbr_compression_dry_run"),
-		setup.Datadog().GetString("checks.vbr_compression_shadow_host_suffix"))
+	senderManager = sdcsender.Wrap(senderManager,
+		setup.Datadog().GetBool("checks.sdc_compression_dry_run"),
+		setup.Datadog().GetString("checks.sdc_compression_shadow_host_suffix"))
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,

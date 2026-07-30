@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package vbr implements a streaming, bounded-error piecewise-linear
-// compressor for per-context metric point streams ("variable bit rate"
-// storage: full granularity where the signal moves, a handful of points
-// where it doesn't).
-package vbr
+// Package sdc implements a streaming, bounded-error Swinging Door
+// Trending/Compression (SDC) compressor for per-context metric point
+// streams, with an EWMA-smoothed adaptive tolerance: full granularity where
+// the signal moves, a handful of points where it doesn't.
+package sdc
 
 import "math"
 
@@ -148,7 +148,7 @@ func (c *Compressor) openSegment(ts, value, tol float64) {
 // Scale returns the compressor's current EWMA estimate of the signal's
 // magnitude (a smoothed |value|) — the basis for its tolerance (tolerance =
 // max(Epsilon*Scale(), Floor)). Exposed for observability only (see
-// vbrsender's scale-deviation telemetry); the compressor's own correctness
+// sdcsender's scale-deviation telemetry); the compressor's own correctness
 // never depends on a caller reading this.
 func (c *Compressor) Scale() float64 {
 	return c.scale
