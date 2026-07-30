@@ -36,9 +36,8 @@ func TestRcTracerSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &tracerSuite{},
 		e2e.WithProvisioner(
-			awshost.ProvisionerNoFakeIntake(
+			awshost.Provisioner(
 				awshost.WithRunOptions(
-					scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 					scenec2.WithAgentOptions(
 						agentparams.WithAgentConfig(rcEnabledConfig),
 					),
