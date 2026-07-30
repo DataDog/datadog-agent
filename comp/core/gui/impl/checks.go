@@ -19,6 +19,7 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -255,7 +256,7 @@ func getWheelsChecks() ([]string, error) {
 	}
 
 	for _, integration := range integrations {
-		if _, ok := pkgconfigsetup.StandardJMXIntegrations[integration]; !ok {
+		if _, ok := check.StandardJMXIntegrations[integration]; !ok {
 			pyChecks = append(pyChecks, integration)
 		}
 	}
@@ -294,7 +295,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	for integration := range pkgconfigsetup.StandardJMXIntegrations {
+	for integration := range check.StandardJMXIntegrations {
 		integrations = append(integrations, integration)
 	}
 

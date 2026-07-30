@@ -12,7 +12,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/tagger/api",
-        "//pkg/config/setup",
+        "//pkg/config/helper",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "@com_github_fatih_color//:color",
