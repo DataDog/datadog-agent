@@ -109,14 +109,6 @@ single_machine_performance-regression_detector-merge_base_check:
                       # https://gitlab.ddbuild.io/api/v4 and `CI_PROJECT_ID` is
                       # 4670 for this project.
                       #
-                      # The API embeds each commit's message verbatim, including
-                      # raw newlines, which makes the response invalid JSON that
-                      # jq refuses to parse (RFC 8259 requires control characters
-                      # in strings to be escaped). Release-branch tips are written
-                      # by release automation with multi-line messages, so this is
-                      # the normal case here, not an edge case. Newlines outside
-                      # strings are only whitespace, so stripping them all leaves
-                      # the fields read below intact.
                       # `POST /trigger/pipeline`, not `POST /pipeline`: GitLab
                       # allowlists `CI_JOB_TOKEN` for the former only, and it
                       # authenticates through a `token` body parameter rather
@@ -130,7 +122,7 @@ single_machine_performance-regression_detector-merge_base_check:
                       # thing this branch prints. `--fail` also makes curl exit
                       # nonzero on an HTTP error while emitting nothing, so the
                       # empty-string checks below are what actually detect failure.
-                      SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" | tr -d '\n\r' || true)
+                      SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" || true)
                       SMP_REBUILD_PIPELINE_URL=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.web_url // empty')
                       if [[ -z "${SMP_REBUILD_PIPELINE_URL}" ]]
                       then
@@ -139,36 +131,12 @@ single_machine_performance-regression_detector-merge_base_check:
                       else
                           SMP_REBUILD_TRIGGERED="true"
                           echo "Triggered ${SMP_REBUILD_PIPELINE_URL} on ${SMP_BASE_BRANCH}"
-                          # Within that pipeline, single_machine_performance-full-amd64-a7
-                          # is the job that publishes the baseline image to SMP's ECR
-                          # registry, so link it directly rather than making the reader
-                          # find it. The jobs endpoint has no name filter and a full
-                          # pipeline runs more jobs than one page holds (~800, so ~9
-                          # pages), hence the paging. Stopping on an empty page also
-                          # covers the error cases, including a job token that is not
-                          # permitted to read this endpoint; the job name is reported
-                          # instead when the lookup comes up empty. That fallback
-                          # needs the same `|| true` as above -- a 403 body is empty,
-                          # but only if `set -e` does not kill the block first.
-                          SMP_REBUILD_PIPELINE_ID=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.id')
-                          SMP_REBUILD_JOB_URL=""
-                          SMP_JOBS_PAGE=1
-                          while [[ -z "${SMP_REBUILD_JOB_URL}" ]] && [[ ${SMP_JOBS_PAGE} -le 50 ]]
-                          do
-                              SMP_JOBS_PAGE_BODY=$(curl --silent --show-error --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${SMP_REBUILD_PIPELINE_ID}/jobs?per_page=100&page=${SMP_JOBS_PAGE}" | tr -d '\n\r' || true)
-                              if [[ -z $(echo "${SMP_JOBS_PAGE_BODY}" | jq -r '.[]?.id' | head -1) ]]
-                              then
-                                  break
-                              fi
-                              SMP_REBUILD_JOB_URL=$(echo "${SMP_JOBS_PAGE_BODY}" | jq -r '.[] | select(.name == "single_machine_performance-full-amd64-a7") | .web_url' | head -1)
-                              SMP_JOBS_PAGE=$((SMP_JOBS_PAGE + 1))
-                          done
-                          if [[ -n "${SMP_REBUILD_JOB_URL}" ]]
-                          then
-                              echo "The baseline image for ${SMP_BASE_TIP} is published by ${SMP_REBUILD_JOB_URL}"
-                          else
-                              echo "The baseline image for ${SMP_BASE_TIP} is published by the single_machine_performance-full-amd64-a7 job in that pipeline"
-                          fi
+                          # Name the job that publishes the image rather than
+                          # linking it. Resolving its URL means listing the
+                          # pipeline's jobs, and GitLab allowlists `CI_JOB_TOKEN`
+                          # for only `GET /job` out of the whole Jobs API, so that
+                          # lookup cannot succeed from here whatever it is given.
+                          echo "The baseline image for ${SMP_BASE_TIP} is published by the single_machine_performance-full-amd64-a7 job, listed at ${SMP_REBUILD_PIPELINE_URL}/builds"
                       fi
                       echo "NOTE: this job will keep failing until that image is published to SMP's ECR registry, so wait for it before re-running this job."
                       # Give a self-service path to starting the build. Needed
