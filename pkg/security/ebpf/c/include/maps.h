@@ -145,12 +145,6 @@ BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
 // syscall encoding table plus process/cgroup/span context, too large to leave
 // room for the fill_span_context call if kept on the stack.
 BPF_PERCPU_ARRAY_MAP(sc_monitor_event, struct syscall_monitor_event_t, 1)
-// Per-CPU scratch slot for the proc_cache_t aggregator built by send_exec_event
-// before it is committed to the proc_cache map. Keeping it off the stack lets
-// the tail-called flush_network_stats_exec wrapper (which inlines
-// send_exec_event) fit within the 512-byte combined budget alongside
-// fill_span_context_go.
-BPF_PERCPU_ARRAY_MAP(exec_proc_cache_gen, struct proc_cache_t, 1)
 // Shared per-CPU staging slot for the deferred span-context fill + send: a
 // group A/B hook builds its event into span_fill_event->data, then tail-calls
 // span_fill_progs (fill_span_and_send) to attach the span context and emit it.

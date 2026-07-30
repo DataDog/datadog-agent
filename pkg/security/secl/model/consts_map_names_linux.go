@@ -49,7 +49,6 @@ var bpfMapNames = []string{
 	"events_ringbuf_",
 	"events_stats",
 	"exec_pid_transf",
-	"exec_proc_cache",
 	"fb_approver_sta",
 	"fb_discarder_st",
 	"fb_dns_stats",
