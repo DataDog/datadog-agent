@@ -19,11 +19,13 @@
 #       parameters:               # optional; the parameters an instance may pass
 #         <ParameterName>:
 #           required: <bool>      # optional (default false)
-#           allowed_values: [...] # optional; exact-match whitelist of values
-#           pattern: '<regex>'    # optional; value must match (anchor with ^...$)
+#           allowed_values: [...] # exact-match whitelist of values
+#           pattern: '<regex>'    # value must match; the regex is matched against
+#                                 # the WHOLE value (auto-anchored, no need for ^...$)
 #
-# `allowed_values` takes precedence over `pattern`; if neither is set, any value
-# is accepted for that (declared) parameter.
+# Every declared parameter MUST set either allowed_values or pattern: a value
+# constraint is mandatory, and a parameter with neither is rejected at load time
+# (fail closed). `allowed_values` takes precedence over `pattern` when both are set.
 
 version: 1
 allowed_cmdlets:
