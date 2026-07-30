@@ -219,7 +219,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, c
 	requests := 0
 	// Name the optimizer after the device so its Debug logs are attributable
 	// when multiple devices are scanned concurrently.
-	maxRepOpt := batchsize.NewOptimizer(bulkMaxRep, fmt.Sprintf("SNMP scan GetBulk for device %s", deviceID))
+	maxRepOpt := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 
 	for {
 		select {
