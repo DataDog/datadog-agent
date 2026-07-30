@@ -16,12 +16,11 @@ import hashlib
 import json
 
 
+# TODO: If we are going to do multiple hashes, we should compute them all at
+# once.
 def _hash_file(path, algo):
-    digest = hashlib.new(algo)
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+        return hashlib.file_digest(f, algo).hexdigest()
 
 
 def main():
