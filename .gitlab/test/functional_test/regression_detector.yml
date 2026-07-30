@@ -102,18 +102,23 @@ single_machine_performance-regression_detector-merge_base_check:
                       # expected duration, which would go stale as build times
                       # and runner queue depths change.
                       #
-                      # To reproduce these calls outside GitLab CI, mint a token
-                      # with `dda inv auth.gitlab` and send it as `PRIVATE-TOKEN`
-                      # instead of `JOB-TOKEN` -- job tokens only exist inside a
-                      # running job. `CI_API_V4_URL` is
-                      # https://gitlab.ddbuild.io/api/v4 and `CI_PROJECT_ID` is
-                      # 4670 for this project.
-                      #
                       # `POST /trigger/pipeline`, not `POST /pipeline`: GitLab
                       # allowlists `CI_JOB_TOKEN` for the former only, and it
                       # authenticates through a `token` body parameter rather
                       # than a header. `tasks/pipeline.py` starts child
                       # pipelines the same way, for the same reason.
+                      #
+                      # This call therefore cannot be reproduced verbatim outside
+                      # a running job, since job tokens exist only inside one. A
+                      # personal token minted with `dda inv auth.gitlab` works
+                      # the other way around: it may use `POST /pipeline`, but is
+                      # not a valid `token` value for the trigger endpoint, which
+                      # accepts only trigger and job tokens. So the equivalent
+                      # local command is the `PRIVATE-TOKEN` one printed below,
+                      # aimed at a different endpoint on purpose.
+                      #
+                      # `CI_API_V4_URL` is https://gitlab.ddbuild.io/api/v4 and
+                      # `CI_PROJECT_ID` is 4670 for this project.
                       #
                       # The trailing `|| true` keeps this best-effort. The runner
                       # runs this script under `set -eo pipefail`, where a bare
