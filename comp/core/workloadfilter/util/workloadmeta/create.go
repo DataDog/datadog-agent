@@ -50,8 +50,6 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 
 // resolveRootOwner determines the root owner of a pod by walking the owner chain.
 // For example, a pod owned by a ReplicaSet resolves to the parent Deployment.
-// Pod labels are used to disambiguate owners that share a naming scheme, such as
-// Argo Rollouts, whose ReplicaSets are named like Deployment ones.
 func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner, podLabels map[string]string) *core.FilterRootOwner {
 	if len(owners) == 0 {
 		return nil
