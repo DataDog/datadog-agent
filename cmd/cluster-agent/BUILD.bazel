@@ -125,6 +125,6 @@ go_library(
 dd_agent_go_binary(
     name = "cluster-agent",
     embed = [":cluster-agent_lib"],
-    visibility = ["//visibility:public"],
     gotags = sorted(COMMON_TAGS | CLUSTER_AGENT_TAGS),
+    visibility = ["//visibility:public"],
 )
