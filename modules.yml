@@ -214,6 +214,8 @@ modules:
   pkg/config/schema: default
   pkg/config/setup:
     used_by_otel: true
+  pkg/config/setup/constants:
+    used_by_otel: true
   pkg/config/structure:
     used_by_otel: true
   pkg/config/utils:
