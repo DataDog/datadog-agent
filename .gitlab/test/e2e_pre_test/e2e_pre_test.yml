@@ -10,6 +10,7 @@ e2e_pre_test:
     - job: go_e2e_test_binaries
       artifacts: false
     - go_tools_deps
+    - agent_deb-x64-a7
     # PR pipelines run against v<sha> (publish_fakeintake); main uses the pinned
     # tag (publish_fakeintake_pinned). Both optional: absent otherwise.
     - job: publish_fakeintake
