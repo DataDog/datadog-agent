@@ -42,14 +42,10 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
+INSTALL_DIR = ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
+
 if windows_target?
-  # Note: this is the path used by Omnibus to build the agent, the final install
-  # dir will be determined by the Windows installer. This path must not contain
-  # spaces because Omnibus doesn't quote the Git commands it launches.
-  INSTALL_DIR = 'C:/opt/datadog-agent/'
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
-else
-  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 end
 
 install_dir INSTALL_DIR
@@ -239,6 +235,7 @@ elsif do_package
   dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
+    dependency "systemd" if linux_target?
     dependency "datadog-agent"
   else
     dependency "package-artifact"
@@ -334,14 +331,14 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  # We need to strip the debug symbols from the rtloader files, from the installer, and from the compile policy binary
+  # We need to strip the debug symbols from the rtloader files and from the compile policy binary
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
-  windows_symbol_stripping_file "#{install_dir}\\datadog-installer.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-compile-policy.exe"
 
   # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -368,6 +365,7 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
+      "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

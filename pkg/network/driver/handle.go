@@ -9,6 +9,7 @@ package driver
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -17,6 +18,7 @@ import (
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -155,7 +157,11 @@ var handleTypeToPathName = map[HandleType]string{
 //nolint:revive // TODO(WKIT) Fix revive linter
 type Handle interface {
 	ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error
-	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error)
+	SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error)
+	// Deprecated: use SynchronousDeviceIoControl. This shim is kept temporarily
+	// for external consumers (github.com/DataDog/datadog-traceroute) that have
+	// not yet migrated. Will be removed once those consumers update.
+	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error
 	CancelIoEx(ol *windows.Overlapped) error
 	Close() error
 	GetWindowsHandle() windows.Handle
@@ -168,6 +174,12 @@ type Handle interface {
 type RealDriverHandle struct {
 	Handle     windows.Handle
 	handleType HandleType
+	// overlapped is true when Handle was opened with FILE_FLAG_OVERLAPPED.
+	// SynchronousDeviceIoControl branches on this to use the correct Win32
+	// invocation: synchronous handles take the simple sync path; overlapped
+	// handles need a synthesized OVERLAPPED + private event + GetOverlappedResult
+	// to avoid the IOCP-routing hang documented on SynchronousDeviceIoControl.
+	overlapped bool
 
 	// record the last value of number of flows missed due to max exceeded
 	lastNumFlowsMissed       uint64
@@ -184,9 +196,55 @@ func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Ov
 	return windows.ReadFile(dh.Handle, p, bytesRead, ol)
 }
 
+// SynchronousDeviceIoControl issues a synchronous IOCTL on the underlying
+// handle, branching internally based on whether the handle was opened with
+// FILE_FLAG_OVERLAPPED.
+//
+// For synchronous handles, Win32's DeviceIoControl is naturally blocking;
+// per MSDN, lpBytesReturned must be non-NULL when lpOverlapped is NULL. For
+// IOCTLs that report partial output with ERROR_MORE_DATA, bytesReturned
+// carries the partial byte count.
+//
+// For overlapped handles, this delegates to
+// winutil.SynchronousOverlappedDeviceIoControl, which synthesizes a private
+// event with the HEvent low bit set so the IOCTL's completion bypasses any
+// IOCP the handle is associated with. See that function for the full
+// rationale and the WINA-2669 hang it exists to prevent.
+//
+// Some IOCTLs return ERROR_MORE_DATA after filling part of the output
+// buffer; in that case bytesReturned is meaningful alongside the error.
+//
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
-	return windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
+	if !dh.overlapped {
+		err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &bytesReturned, nil)
+		return bytesReturned, err
+	}
+	return winutil.SynchronousOverlappedDeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
+}
+
+// DeviceIoControl is a deprecated shim around SynchronousDeviceIoControl, kept
+// for external consumers (github.com/DataDog/datadog-traceroute) that have not
+// yet migrated to the new name. All current agent code should call
+// SynchronousDeviceIoControl directly.
+//
+// The shim only supports the safe usage that callers actually used: a nil
+// overlapped (synchronous semantics). A non-nil overlapped is rejected because
+// no existing caller threaded their own OVERLAPPED through this method, and
+// the new wrapper synthesizes one internally.
+//
+// Deprecated: use SynchronousDeviceIoControl.
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error {
+	if overlapped != nil {
+		return errors.New("driver: deprecated DeviceIoControl does not support a caller-supplied OVERLAPPED; use SynchronousDeviceIoControl")
+	}
+	n, err := dh.SynchronousDeviceIoControl(ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
+	if bytesReturned != nil {
+		*bytesReturned = n
+	}
+	return err
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -217,7 +275,11 @@ func NewHandle(flags uint32, handleType HandleType, _ telemetryComp.Component) (
 		log.Errorf("Error creating file handle %v", err)
 		return nil, err
 	}
-	return &RealDriverHandle{Handle: h, handleType: handleType}, nil
+	return &RealDriverHandle{
+		Handle:     h,
+		handleType: handleType,
+		overlapped: flags&windows.FILE_FLAG_OVERLAPPED != 0,
+	}, nil
 }
 
 // Close closes the underlying windows handle
@@ -227,12 +289,9 @@ func (dh *RealDriverHandle) Close() error {
 
 // RefreshStats refreshes the relevant stats depending on the handle type
 func (dh *RealDriverHandle) RefreshStats() {
-	var (
-		bytesReturned uint32
-		statbuf       = make([]byte, StatsSize)
-	)
+	statbuf := make([]byte, StatsSize)
 
-	err := dh.DeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	_, err := dh.SynchronousDeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)))
 	if err != nil {
 		log.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}

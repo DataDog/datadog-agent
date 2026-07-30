@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    When ``infrastructure_mode`` is set to ``end_user_device``, the Agent now
+    attaches additional host tags to identify the device:
+    ``infrastructure_mode:end_user_device``, ``os_name``, ``os_version``,
+    ``cpu_model``, ``total_memory_gb``, and ``device_model``. Hardware and OS
+    tags are collected on macOS and Windows only.

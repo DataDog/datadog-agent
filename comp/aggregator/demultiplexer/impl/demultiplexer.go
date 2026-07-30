@@ -1,0 +1,135 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
+// Package demultiplexerimpl defines the aggregator demultiplexer
+package demultiplexerimpl
+
+import (
+	"context"
+
+	"go.uber.org/fx"
+
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+func Module(params Params) fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(NewComponent),
+		fx.Supply(params))
+}
+
+// Dependencies defines the dependencies required by the demultiplexer component.
+type Dependencies struct {
+	compdef.In
+	Lc                       compdef.Lifecycle
+	Config                   config.Component
+	Log                      log.Component
+	SharedForwarder          defaultforwarder.Component
+	OrchestratorForwarder    orchestratorforwarder.Component
+	EventPlatformForwarder   eventplatform.Component
+	HaAgent                  haagent.Component
+	Compressor               compression.Component
+	Tagger                   tagger.Component
+	Hostname                 hostnameinterface.Component
+	FilterList               filterlist.Component
+	Observer                 observer.Component                  `optional:"true"`
+	DogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory `optional:"true"`
+
+	Params Params
+}
+
+type demultiplexer struct {
+	*aggregator.AgentDemultiplexer
+}
+
+// Provides defines the values provided by the demultiplexer component.
+type Provides struct {
+	compdef.Out
+	Comp demultiplexerComp.Component
+
+	SenderManager           sender.SenderManager
+	StatusProvider          status.InformationProvider
+	AggregatorDemultiplexer aggregator.Demultiplexer
+}
+
+// NewComponent creates a new demultiplexer component.
+func NewComponent(deps Dependencies) (Provides, error) {
+	hostnameDetected, err := deps.Hostname.Get(context.TODO())
+	if err != nil {
+		if deps.Params.continueOnMissingHostname {
+			deps.Log.Warnf("Error getting hostname: %s", err)
+			hostnameDetected = ""
+		} else {
+			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+		}
+	}
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory)
+	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
+		deps.Log,
+		deps.SharedForwarder,
+		deps.OrchestratorForwarder,
+		options,
+		deps.EventPlatformForwarder,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		hostnameDetected,
+	)
+	agentDemultiplexer.SetObserver(deps.Observer)
+	demultiplexer := demultiplexer{
+		AgentDemultiplexer: agentDemultiplexer,
+	}
+	deps.Lc.Append(compdef.Hook{OnStop: func(_ context.Context) error {
+		agentDemultiplexer.Stop()
+		return nil
+	}})
+
+	return Provides{
+		Comp:          demultiplexer,
+		SenderManager: demultiplexer,
+		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
+			Log: deps.Log,
+		}),
+		AggregatorDemultiplexer: demultiplexer,
+	}, nil
+}
+
+func createAgentDemultiplexerOptions(config config.Component, params Params, dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory) aggregator.AgentDemultiplexerOptions {
+	options := aggregator.DefaultAgentDemultiplexerOptions()
+	if params.useDogstatsdNoAggregationPipelineConfig {
+		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
+			options.NoAggregationPipelineWorkersCount = config.GetInt("dogstatsd_no_aggregation_pipeline_workers_count")
+			if options.NoAggregationPipelineWorkersCount <= 0 {
+				options.NoAggregationPipelineWorkersCount = 1
+			}
+		}
+	}
+
+	options.DogStatsDLookbackFactory = dogStatsDLookbackFactory
+
+	// Override FlushInterval only if flushInterval is set by the user
+	if v, ok := params.flushInterval.Get(); ok {
+		options.FlushInterval = v
+	}
+	return options
+}

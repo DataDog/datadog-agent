@@ -15,10 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/oci"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/stretchr/testify/assert"
 )
 

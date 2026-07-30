@@ -33,7 +33,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -696,7 +696,7 @@ func TestProcessEvents(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			sender := mocksender.NewMockSender("")
+			sender := mocksender.NewMockSender(t, "")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				SBOMsSent.Inc()
 			})
@@ -840,7 +840,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))
 		counter := atomic.NewInt32(0)
-		sender := mocksender.NewMockSender("")
+		sender := mocksender.NewMockSender(t, "")
 		sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 			counter.Inc()
 		})

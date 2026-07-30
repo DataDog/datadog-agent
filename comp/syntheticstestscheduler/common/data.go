@@ -64,6 +64,10 @@ func (i ICMPConfigRequest) GetSubType() payload.Protocol {
 	return payload.ProtocolICMP
 }
 
+// RunTypeScheduled is the value of SyntheticsTestConfig.RunType for scheduled
+// tests. Used to identify tests that should be cached for fallback execution.
+const RunTypeScheduled = "scheduled"
+
 // SyntheticsTestConfig represents the whole config of a network test.
 type SyntheticsTestConfig struct {
 	Version int    `json:"version"`
@@ -80,6 +84,10 @@ type SyntheticsTestConfig struct {
 	PublicID string `json:"public_id"`
 	ResultID string `json:"result_id"`
 	RunType  string `json:"run_type"`
+
+	TestName            string `json:"test_name"`
+	LocationName        string `json:"location_name"`
+	LocationDisplayName string `json:"location_display_name"`
 }
 
 // Operator represents a comparison operator for assertions.
@@ -152,6 +160,10 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 		ResultID string `json:"result_id"`
 		RunType  string `json:"run_type"`
 		Interval int    `json:"tick_every"`
+
+		TestName            string `json:"test_name"`
+		LocationName        string `json:"location_name"`
+		LocationDisplayName string `json:"location_display_name"`
 	}
 
 	var tmp rawConfig
@@ -167,6 +179,9 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.ResultID = tmp.ResultID
 	c.RunType = tmp.RunType
 	c.Interval = tmp.Interval
+	c.TestName = tmp.TestName
+	c.LocationName = tmp.LocationName
+	c.LocationDisplayName = tmp.LocationDisplayName
 	c.Config.Assertions = tmp.Config.Assertions
 
 	switch payload.Protocol(tmp.Subtype) {

@@ -9,16 +9,16 @@ package workload
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/hashicorp/go-multierror"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,12 +72,13 @@ func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, 
 	}
 
 	// Creating/Updating received PodAutoscalers
+	var errs []error
 	for _, settings := range settingsList.Settings {
 		// Resolve/Convert .spec to expected version
 		spec := extractConvertAutoscalerSpec(settings)
 
 		if settings.Namespace == "" || settings.Name == "" || spec == nil {
-			err = multierror.Append(err, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
+			errs = append(errs, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
 		}
 
 		podAutoscalerID := autoscaling.BuildObjectID(settings.Namespace, settings.Name)
@@ -90,10 +91,10 @@ func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, 
 		}
 	}
 
-	if err != nil {
+	if len(errs) > 0 {
 		p.lastProcessingError = true
 	}
-	return err
+	return errors.Join(errs...)
 }
 
 // postProcess is used after all configs have been processed to clear internal store from missing configs
@@ -121,9 +122,9 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 	inStore := make(map[string]struct{}, len(p.state))
 
 	// Handle the existing and deleted PodAutoscalers
-	p.store.Update(func(pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
+	p.store.ProcessAll(configRetrieverStoreID, func(_ string, pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, autoscalingstore.ItemAction) {
 		if pai.Spec() == nil || pai.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
-			return pai, false
+			return pai, autoscalingstore.KeepItem
 		}
 
 		paID := pai.ID()
@@ -132,30 +133,32 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 		settingsItem, found := p.state[paID]
 		if found {
 			pai.UpdateFromSettings(settingsItem.spec, settingsItem.receivedTimestamp)
-			return pai, true
+			return pai, autoscalingstore.SetItem
 		}
 
 		// Not found in the new state, marking for deletion if no error occurred while processing new data
 		if !p.lastProcessingError {
 			pai.SetDeleted()
 			log.Infof("PodAutoscaler %s was not part of the last update, flagging it as deleted", paID)
-			return pai, true
+			return pai, autoscalingstore.SetItem
 		}
 
 		log.Debugf("PodAutoscaler %s was not part of the last update, but we skipped the deletion due to errors while processing new data", paID)
-		return pai, false
-	}, configRetrieverStoreID)
+		return pai, autoscalingstore.KeepItem
+	})
 
-	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `Update` call above
+	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `ProcessAll` call above
 	for paID, item := range p.state {
 		if _, found := inStore[paID]; !found {
-			podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, true)
+			lockedItem, podAutoscalerFound := p.store.Get(paID)
+			var podAutoscaler model.PodAutoscalerInternal
 			if podAutoscalerFound {
+				podAutoscaler = lockedItem.Value()
 				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
 			} else {
 				podAutoscaler = model.NewPodAutoscalerFromSettings(item.namespace, item.name, item.spec, item.receivedTimestamp)
 			}
-			p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
+			lockedItem.Upsert(podAutoscaler, configRetrieverStoreID)
 		}
 	}
 }

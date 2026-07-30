@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "platforms",
+    srcs = ["platforms.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/components/os"],
+)

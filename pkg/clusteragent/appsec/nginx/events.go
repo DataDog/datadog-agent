@@ -14,11 +14,12 @@ import (
 
 // Event reasons for ingress-nginx ConfigMap operations
 const (
-	EventReasonConfigMapCreated      = "DatadogConfigMapCreated"
-	EventReasonConfigMapCreateFailed = "DatadogConfigMapCreateFailed"
-	EventReasonConfigMapDeleted      = "DatadogConfigMapDeleted"
-	EventReasonConfigMapDeleteFailed = "DatadogConfigMapDeleteFailed"
-	EventReasonVersionParseFailed    = "VersionParseFailed"
+	EventReasonConfigMapCreated               = "DatadogConfigMapCreated"
+	EventReasonConfigMapCreateFailed          = "DatadogConfigMapCreateFailed"
+	EventReasonConfigMapDeleted               = "DatadogConfigMapDeleted"
+	EventReasonConfigMapDeleteFailed          = "DatadogConfigMapDeleteFailed"
+	EventReasonVersionParseFailed             = "VersionParseFailed"
+	EventReasonCrossNamespaceConfigMapRefused = "CrossNamespaceConfigMapRefused"
 )
 
 // eventRecorder provides methods to record Kubernetes events for appsec nginx resources
@@ -84,5 +85,27 @@ func (e *eventRecorder) recordVersionParseFailed(podName, image string) {
 		EventReasonVersionParseFailed,
 		"Failed to parse ingress-nginx version from image %q. Follow the manual extraModules process to enable AppSec.",
 		image,
+	)
+}
+
+// recordCrossNamespaceConfigMapRefused emits a Warning event on the pod itself
+// (not the target ConfigMap or IngressClass) so the diagnostic appears in the
+// namespace owned by the pod creator who triggered the rejection. Pod UID may
+// be empty at admission time since the API server assigns it after the
+// mutating webhook chain; the recorder accepts an empty UID and the event will
+// still post, just without UID-based correlation.
+func (e *eventRecorder) recordCrossNamespaceConfigMapRefused(pod *corev1.Pod, err error) {
+	e.recorder.Eventf(
+		&corev1.ObjectReference{
+			Kind:       "Pod",
+			APIVersion: "v1",
+			Name:       pod.Name,
+			Namespace:  pod.Namespace,
+			UID:        pod.UID,
+		},
+		corev1.EventTypeWarning,
+		EventReasonCrossNamespaceConfigMapRefused,
+		"AppSec nginx mutation skipped: %v",
+		err,
 	)
 }

@@ -1,0 +1,9 @@
+type: logsagent
+display_name: Datadog Logs Agent Exporter
+
+status:
+  class: exporter
+  stability:
+    stable: [logs]
+  codeowners:
+    active: [DataDog/opentelemetry]

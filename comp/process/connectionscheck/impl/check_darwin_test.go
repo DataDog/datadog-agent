@@ -10,8 +10,11 @@ package connectionscheckimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -24,17 +27,16 @@ import (
 )
 
 func TestConnectionsCheckDisabledOnDarwin(t *testing.T) {
-	sysprobeConfigs := map[string]interface{}{
-		"network_config.enabled": true,
-	}
+	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{"network_config.enabled": true})
 
 	c := fxutil.Test[connectionscheck.Component](t, fx.Options(
-		core.MockBundle(),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfigs}),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		npcollectormock.MockModule(),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-		fxutil.ProvideComponentConstructor(NewCheck),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	))
 
 	assert.False(t, c.Object().IsEnabled())

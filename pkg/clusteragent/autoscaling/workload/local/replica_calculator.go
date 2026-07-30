@@ -14,13 +14,13 @@ import (
 	"math"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,6 +28,9 @@ import (
 
 const (
 	minRequiredMetricDataPoints = 2 // minimum number of data points to consider for a metric
+
+	// Ignore samples from newly-ready pods to avoid scaling on startup bursts.
+	readinessWarmupWindow = 30 * time.Second
 )
 
 type replicaCalculator struct {
@@ -36,9 +39,12 @@ type replicaCalculator struct {
 }
 
 type utilizationResult struct {
-	averageUtilization      float64
-	podToUtilization        map[string]float64
-	missingPods             []string
+	// averageUtilization is computed over measured pods only.
+	averageUtilization float64
+	// measuredPods is the number of pods with usable metrics; it is the average's denominator.
+	measuredPods int
+	// missingPods is the count of measurable pods without usable metrics; recommend reserves one slot each.
+	missingPods             int
 	recommendationTimestamp time.Time
 }
 
@@ -53,7 +59,6 @@ func newReplicaCalculator(clock clock.Clock, podWatcher workload.PodWatcher) rep
 func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAutoscalerInternal, lStore loadstore.Store) (*model.HorizontalScalingValues, error) {
 	currentTime := r.clock.Now()
 
-	// Get current pods for the target
 	targetRef := dpai.Spec().TargetRef
 	objectives := dpai.Spec().Objectives
 	if dpai.Spec().Fallback != nil && len(dpai.Spec().Fallback.Horizontal.Objectives) > 0 {
@@ -74,7 +79,6 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	}
 	pods := r.podWatcher.GetPodsForOwner(podOwner)
 	if len(pods) == 0 {
-		// If we found nothing, we'll wait just until the next sync
 		return nil, fmt.Errorf("No pods found for autoscaler: %s, gvk: %s, name: %s", dpai.ID(), targetGVK.String(), targetRef.Name)
 	}
 
@@ -100,7 +104,6 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 		ts := utilizationRes.recommendationTimestamp
 		lastUtilizationPct = float64(utilizationRes.averageUtilization)
 
-		// Always choose the highest recommendation given
 		if rec > recommendedReplicas.Replicas {
 			recommendedReplicas.Replicas = rec
 			recommendedReplicas.Timestamp = ts
@@ -116,40 +119,36 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	return &recommendedReplicas, nil
 }
 
+// recommend computes a replica recommendation for a single objective from observed pod state
+// only, so the result is stable and independent of the scaling direction.
+//
+// Pods are bucketed in calculateUtilization:
+//
+//   - Measured: Running, Ready, past their warmup window, with usable metrics. They are the
+//     sole metric source and denominator.
+//   - Missing: Running & Ready but without usable (fresh, post-warmup) metrics. Each is
+//     reserved as one replica (neutral fill) — it can neither justify a scale-up (no observed
+//     load) nor be scaled away (we keep its capacity until metrics return).
+//   - Excluded: terminating/terminal pods (never capacity) and Pending/not-Ready/warming pods
+//     (future capacity whose metrics are unreliable). They are left out of both numerator and
+//     denominator until they become measurable, which prevents the warmup-burst runaway.
+//
+// The recommendation is therefore: size for the measured load, then add one slot per missing
+// pod.
 func recommend(currentTime time.Time, recSettings resourceRecommenderSettings, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult) (int32, utilizationResult, error) {
-	currentReplicas := float64(len(pods))
 	utilizationRes, err := calculateUtilization(recSettings, pods, queryResult, currentTime)
 	if err != nil {
 		return 0, utilizationResult{}, err
 	}
 
-	recommendedReplicas := calculateReplicas(recSettings, currentReplicas, utilizationRes.averageUtilization)
-
-	scaleDirection := common.GetScaleDirection(int32(currentReplicas), recommendedReplicas)
-	if scaleDirection != common.NoScale && len(utilizationRes.missingPods) > 0 {
-		adjustedPodToUtilization := adjustMissingPods(scaleDirection, utilizationRes.podToUtilization, utilizationRes.missingPods)
-		adjustedUtilization := getAveragePodUtilization(adjustedPodToUtilization)
-		newRecommendation := calculateReplicas(recSettings, currentReplicas, adjustedUtilization)
-
-		// If scale direction is reversed, we should not scale
-		if common.GetScaleDirection(int32(currentReplicas), newRecommendation) != scaleDirection {
-			recommendedReplicas = int32(currentReplicas)
-		} else {
-			recommendedReplicas = newRecommendation
-			utilizationRes.averageUtilization = adjustedUtilization
-		}
-	}
+	measuredCount := float64(utilizationRes.measuredPods)
+	recommendedReplicas := calculateReplicas(recSettings, measuredCount, utilizationRes.averageUtilization)
+	recommendedReplicas += int32(utilizationRes.missingPods)
 
 	return recommendedReplicas, utilizationRes, nil
 }
 
 func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime time.Time) (utilizationResult, error) {
-	totalPodUtilization := 0.0
-	podCount := 0
-	podUtilization := make(map[string]float64)
-	missingPods := []string{}
-	lastValidTimestamp := time.Time{}
-
 	if len(pods) == 0 {
 		return utilizationResult{}, errors.New("No pods found")
 	}
@@ -158,65 +157,93 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 		return utilizationResult{}, errors.New("Issue fetching metrics data")
 	}
 
+	measuredPods := 0
+	totalMeasuredUtilization := 0.0
+	missingPods := 0
+	lastValidTimestamp := time.Time{}
+
 	for _, pod := range pods {
-		totalUsage := 0.0
-		totalRequests := 0.0
-
-		for _, container := range pod.Containers {
-			if recSettings.containerName != "" && container.Name != recSettings.containerName {
-				continue
-			}
-
-			if recSettings.metricName == "container.memory.usage" && container.Resources.MemoryRequest != nil {
-				totalRequests += float64(*container.Resources.MemoryRequest)
-			} else if recSettings.metricName == "container.cpu.usage" && container.Resources.CPURequest != nil {
-				totalRequests += convertCPURequestToNanocores(*container.Resources.CPURequest)
-			} else {
-				continue // skip; no request information
-			}
-
-			series := getContainerMetrics(queryResult, pod.Name, container.Name)
-			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime, recSettings.fallbackStaleDataThreshold)
-			if err != nil {
-				continue // skip; no usage information
-			}
-			totalUsage += averageValue
-			if lastTimestamp.After(lastValidTimestamp) {
-				lastValidTimestamp = lastTimestamp
-			}
+		if !isMeasurablePod(pod, currentTime) {
+			continue
 		}
 
-		if totalRequests > 0 && totalUsage > 0 {
-			utilization := totalUsage / totalRequests
-			podUtilization[pod.Name] = utilization
-			totalPodUtilization += podUtilization[pod.Name]
-			podCount++
-		} else {
-			missingPods = append(missingPods, pod.Name)
+		minValidTime := pod.ReadyTimestamp.Add(readinessWarmupWindow)
+		utilization, lastTimestamp, ok := calculatePodUtilization(recSettings, pod, queryResult, currentTime, minValidTime)
+		if !ok {
+			missingPods++
+			continue
+		}
+
+		measuredPods++
+		// Keep the average deterministic by accumulating in pod order.
+		totalMeasuredUtilization += utilization
+		if lastTimestamp.After(lastValidTimestamp) {
+			lastValidTimestamp = lastTimestamp
 		}
 	}
 
-	if podCount == 0 {
+	if measuredPods == 0 {
 		return utilizationResult{}, errors.New("Issue calculating pod utilization")
 	}
 
 	return utilizationResult{
-		averageUtilization:      totalPodUtilization / float64(podCount),
+		averageUtilization:      totalMeasuredUtilization / float64(measuredPods),
+		measuredPods:            measuredPods,
 		missingPods:             missingPods,
-		podToUtilization:        podUtilization,
 		recommendationTimestamp: lastValidTimestamp,
 	}, nil
 }
 
-func getAveragePodUtilization(podToUtilization map[string]float64) float64 {
-	totalUtilization := 0.0
-	for _, utilization := range podToUtilization {
-		totalUtilization += utilization
+// isMeasurablePod applies readiness guards used to avoid startup bursts.
+func isMeasurablePod(pod *workloadmeta.KubernetesPod, currentTime time.Time) bool {
+	if pod.DeletionTimestamp != nil || pod.Phase != string(corev1.PodRunning) {
+		return false
 	}
-	return totalUtilization / float64(len(podToUtilization))
+
+	// A nil ReadyTimestamp is treated like HPA's missing ready condition.
+	if !pod.Ready || pod.ReadyTimestamp == nil {
+		return false
+	}
+
+	return !currentTime.Before(pod.ReadyTimestamp.Add(readinessWarmupWindow))
 }
 
-// getContainerMetrics retrieves the metrics for a specific container in a pod
+// calculatePodUtilization returns ok=false when the pod lacks enough fresh post-warmup data.
+func calculatePodUtilization(recSettings resourceRecommenderSettings, pod *workloadmeta.KubernetesPod, queryResult loadstore.QueryResult, currentTime, minValidTime time.Time) (float64, time.Time, bool) {
+	totalUsage := 0.0
+	totalRequests := 0.0
+	latestTimestamp := time.Time{}
+
+	for _, container := range pod.Containers {
+		if recSettings.containerName != "" && container.Name != recSettings.containerName {
+			continue
+		}
+
+		if recSettings.metricName == containerMemoryUsageMetricName && container.Resources.MemoryRequest != nil {
+			totalRequests += float64(*container.Resources.MemoryRequest)
+		} else if recSettings.metricName == containerCPUUsageMetricName && container.Resources.CPURequest != nil {
+			totalRequests += convertCPURequestToNanocores(*container.Resources.CPURequest)
+		} else {
+			continue
+		}
+
+		series := getContainerMetrics(queryResult, pod.Name, container.Name)
+		averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime, minValidTime, recSettings.fallbackStaleDataThreshold)
+		if err != nil {
+			continue
+		}
+		totalUsage += averageValue
+		if lastTimestamp.After(latestTimestamp) {
+			latestTimestamp = lastTimestamp
+		}
+	}
+
+	if totalRequests > 0 && totalUsage > 0 {
+		return totalUsage / totalRequests, latestTimestamp, true
+	}
+	return 0, time.Time{}, false
+}
+
 func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerName string) []loadstore.EntityValue {
 	for _, result := range queryResult.Results {
 		if result.PodName == podName {
@@ -228,51 +255,40 @@ func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerNa
 	return nil
 }
 
-// processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
-// corresponding timestamp to use to generate a recommendation
-func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time, fallbackStaleDataThreshold int64) (float64, time.Time, error) {
-	if len(series) < 2 { // too little metrics data
-		return 0.0, time.Time{}, errors.New("Missing usage metrics")
-	}
-
+// processAverageContainerMetricValue drops stale and pre-warmup samples before averaging.
+// It returns the oldest sample timestamp used in the average.
+func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time, minValidTime time.Time, fallbackStaleDataThreshold int64) (float64, time.Time, error) {
 	values := []loadstore.ValueType{}
-	var lastTimestamp time.Time
+	var oldestTimestamp time.Time
 
-	// series is already sorted oldest to newest data point based on insertion
 	for i := len(series) - 1; i >= 0; i-- {
 		entity := series[i]
-		// Invalid data point; data not yet populated
 		if entity.Timestamp == 0 {
 			continue
 		}
 
-		// Discard stale metrics
-		if isStaleMetric(currentTime, entity.Timestamp, fallbackStaleDataThreshold) && len(values) >= minRequiredMetricDataPoints {
+		if isStaleMetric(currentTime, entity.Timestamp, fallbackStaleDataThreshold) {
+			continue
+		}
+
+		ts := convertTimestampToTime(entity.Timestamp)
+		// Keep samples exactly at the warmup boundary, matching HPA's strict-before check.
+		// minValidTime is always set: isMeasurablePod guarantees a non-nil ReadyTimestamp.
+		if ts.Before(minValidTime) {
 			continue
 		}
 
 		values = append(values, entity.Value)
-		ts := convertTimestampToTime(entity.Timestamp)
-		// we want to keep the oldest timestamp used in the average
-		if (lastTimestamp == time.Time{}) || ts.Before(lastTimestamp) {
-			lastTimestamp = ts
-		}
-
-	}
-
-	return average(values), lastTimestamp, nil
-}
-
-func adjustMissingPods(scaleDirection common.ScaleDirection, podToUtilization map[string]float64, missingPods []string) map[string]float64 {
-	for _, pod := range missingPods {
-		// adjust based on scale direction
-		if scaleDirection == common.ScaleUp {
-			podToUtilization[pod] = 0.0 // 0%
-		} else if scaleDirection == common.ScaleDown {
-			podToUtilization[pod] = 1.0 // 100%
+		if oldestTimestamp.IsZero() || ts.Before(oldestTimestamp) {
+			oldestTimestamp = ts
 		}
 	}
-	return podToUtilization
+
+	if len(values) < minRequiredMetricDataPoints {
+		return 0.0, time.Time{}, errors.New("Missing usage metrics")
+	}
+
+	return average(values), oldestTimestamp, nil
 }
 
 func calculateReplicas(recSettings resourceRecommenderSettings, currentReplicas float64, averageUtilization float64) int32 {

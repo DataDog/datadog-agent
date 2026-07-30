@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "tcp",
+    srcs = ["tcp_sender.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/client",
+        "//comp/logs-library/client/tcp",
+        "//comp/logs-library/metrics",
+        "//comp/logs-library/sender",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/logs/status/statusinterface",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "tcp_test",
+    srcs = ["tcp_sender_test.go"],
+    embed = [":tcp"],
+    deps = [
+        "//comp/logs-library/client",
+        "//comp/logs-library/client/tcp",
+        "//comp/logs-library/sender",
+        "//comp/logs/agent/config",
+        "//pkg/logs/status/statusinterface",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

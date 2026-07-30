@@ -199,7 +199,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := mock.New(t)
 			confBytes, _ := json.Marshal(tt.config)
-			cfg.SetWithoutSource("prometheus_scrape.checks", string(confBytes))
+			cfg.SetInTest("prometheus_scrape.checks", string(confBytes))
 			checks, err := getPrometheusConfigs()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPrometheusConfigs() error = %v, wantErr %v", err, tt.wantErr)

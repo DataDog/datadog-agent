@@ -53,6 +53,14 @@ repos:
       require_serial: true
       files: \.py$
       pass_filenames: false
+    - id: docs-links
+      name: docs-links
+      description: checks that developer docs link to the repository through the `repo` macro
+      entry: 'dda inv linter.docs-links'
+      language: system
+      require_serial: true
+      files: ^docs/public/.*\.md$
+      pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
@@ -152,6 +160,13 @@ repos:
       name: rst-releasenotes
       description: Check release notes for RST formatting issues (Markdown syntax detected)
       entry: bash -c 'dda inv linter.rst-releasenotes --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true
+    - id: releasenote-unique-ids
+      name: releasenote-unique-ids
+      description: Check that release note UIDs are unique (prevents MQ collisions)
+      entry: bash -c 'dda inv linter.releasenote-unique-ids --files="$(echo "$@" | tr " " ",")"' --
       language: system
       files: ^releasenotes(-dca)?/notes/.*\.yaml$
       pass_filenames: true

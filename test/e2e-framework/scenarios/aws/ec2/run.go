@@ -64,11 +64,10 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 			return err
 		}
 
-		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case.
+		// WithFakeintake automatically wires RC — no separate RC option needed.
 		if params.agentOptions != nil {
-			// Prepend in case it's overridden by the user
-			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
+			params.agentOptions = append([]agentparams.Option{agentparams.WithFakeintake(fakeIntake)}, params.agentOptions...)
 		}
 	} else {
 		// Mark FakeIntake as not provisioned
@@ -124,3 +123,4 @@ func VMRun(ctx *pulumi.Context) error {
 
 	return Run(ctx, awsEnv, env, ParamsFromEnvironment(awsEnv))
 }
+

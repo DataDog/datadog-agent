@@ -40,6 +40,18 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}
 	}
 	marshalVariable := func(enc *jsontext.Encoder, v *ir.Variable) error {
+		// Synthetic variables (e.g. @duration, @it) are not bound to any
+		// subprogram — emit just their role and name so snapshots
+		// remain deterministic.
+		if v.Role == ir.VariableRoleDuration || v.Role == ir.VariableRoleLoopIt {
+			return json.MarshalEncode(enc, struct {
+				Name string          `json:"name"`
+				Role ir.VariableRole `json:"role"`
+			}{
+				Name: v.Name,
+				Role: v.Role,
+			})
+		}
 		subprogram, ok := variablesToSubprograms[v]
 		if !ok {
 			return fmt.Errorf("variable %s not found in any subprogram", v.Name)
@@ -88,6 +100,8 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				return enc.WriteToken(jsontext.String("string"))
 			case ir.DynamicSizeHashmap:
 				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.DynamicSizeFilterDeferred:
+				return enc.WriteToken(jsontext.String("filter_deferred"))
 			case ir.StaticSize:
 				return enc.WriteToken(jsontext.String("static"))
 			default:
@@ -103,8 +117,11 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.VariableRole) error {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, _ *ir.DurationSegment) error {
-			return enc.WriteToken(jsontext.String("@duration"))
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpOp) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
 		}),
 	)
 	underOperationMarshalers := json.JoinMarshalers(
@@ -306,6 +323,8 @@ func newTypeMarshaler(typ reflect.Type) *typeMarshaler {
 var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.ArrayType)(nil)),
 	reflect.TypeOf((*ir.BaseType)(nil)),
+	reflect.TypeOf((*ir.DurationType)(nil)),
+	reflect.TypeOf((*ir.TraceContextType)(nil)),
 	reflect.TypeOf((*ir.EventRootType)(nil)),
 	reflect.TypeOf((*ir.GoChannelType)(nil)),
 	reflect.TypeOf((*ir.GoEmptyInterfaceType)(nil)),
@@ -320,8 +339,15 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSubroutineType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapGroupsType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceDataType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapDataType)(nil)),
+	reflect.TypeOf((*ir.GoTimeType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.GoContextImplementationType)(nil)),
+	reflect.TypeOf((*ir.DDTraceSpanType)(nil)),
 	reflect.TypeOf((*ir.VoidPointerType)(nil)),
 	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
@@ -374,9 +400,9 @@ func makeOperationMarshaler(
 			toMarshal = newWithKind(op)
 		case *ir.ExprReadStringOp:
 			toMarshal = newWithKind(op)
-		case *ir.ExprCmpEqBaseOp:
+		case *ir.ExprCmpBaseOp:
 			toMarshal = newWithKind(op)
-		case *ir.ExprCmpEqStringOp:
+		case *ir.ExprCmpStringOp:
 			toMarshal = newWithKind(op)
 		case *ir.SliceBoundsCheckOp:
 			toMarshal = newWithKind(op)
@@ -389,6 +415,46 @@ func makeOperationMarshaler(
 		case *ir.CondJumpOp:
 			toMarshal = newWithKind(op)
 		case *ir.CondLabelOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionStateInitOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafEvalOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafLoadOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckPreserveErrorOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprLoadAddressOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.PanicUnwindPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.PanicUnwindEvictSlotsOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterSliceMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterMapMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterSliceLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterSliceLoopStepOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterMapLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterMapLoopStepOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)

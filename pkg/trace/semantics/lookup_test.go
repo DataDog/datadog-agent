@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -22,8 +21,7 @@ func newTestAccessor(raw map[string]any) PDataMapAccessor {
 }
 
 func TestLookupString(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("finds string value", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"db.statement": "SELECT 1"})
@@ -37,8 +35,7 @@ func TestLookupString(t *testing.T) {
 }
 
 func TestLookupInt64(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("finds int64 value via typed accessor", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"http.status_code": int64(200)})
@@ -62,8 +59,7 @@ func TestLookupInt64(t *testing.T) {
 }
 
 func TestLookupFloat64(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("converts int64 to float64 via typed accessor", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"http.status_code": int64(200)})
@@ -81,8 +77,7 @@ func TestLookupFloat64(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("returns result with metadata", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"db.statement": "SELECT 1"})
@@ -96,6 +91,94 @@ func TestLookup(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"any": "value"})
 		_, ok := Lookup(r, accessor, Concept("unknown"))
 		assert.False(t, ok)
+	})
+}
+
+// TestGRPCStatusCodeConditionalFallback exercises the production rpc.grpc.status_code
+// mapping — rpc.response.status_code is only accepted when rpc.system.name=grpc, or as
+// a legacy fallback when rpc.system=grpc and rpc.system.name is absent. The legacy
+// row's two-condition AND also gives ANDing implicit coverage.
+func TestGRPCStatusCodeConditionalFallback(t *testing.T) {
+	r := testRegistry
+
+	for _, tt := range []struct {
+		name  string
+		attrs map[string]any
+		want  string
+	}{
+		{
+			name: "explicit rpc.grpc.status_code wins regardless of system",
+			attrs: map[string]any{
+				"rpc.grpc.status_code":     "3",
+				"rpc.response.status_code": "4",
+				"rpc.system.name":          "jsonrpc",
+			},
+			want: "3",
+		},
+		{
+			name: "rpc.response.status_code accepted when rpc.system.name=grpc",
+			attrs: map[string]any{
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"rpc.system.name":          "grpc",
+			},
+			want: "DEADLINE_EXCEEDED",
+		},
+		{
+			name: "rpc.response.status_code accepted via legacy rpc.system=grpc",
+			attrs: map[string]any{
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"rpc.system":               "grpc",
+			},
+			want: "DEADLINE_EXCEEDED",
+		},
+		{
+			name: "rpc.system.name=grpc still accepted when legacy rpc.system disagrees",
+			attrs: map[string]any{
+				"rpc.response.status_code": "OK",
+				"rpc.system.name":          "grpc",
+				"rpc.system":               "jsonrpc",
+			},
+			want: "OK",
+		},
+		{
+			name: "non-gRPC rpc.system.name rejects rpc.response.status_code",
+			attrs: map[string]any{
+				"rpc.response.status_code": "-32602",
+				"rpc.system.name":          "jsonrpc",
+			},
+		},
+		{
+			// New rpc.system.name takes precedence over legacy rpc.system: if the
+			// SDK set rpc.system.name explicitly, ignore a stale rpc.system=grpc.
+			name: "explicit non-grpc rpc.system.name overrides legacy rpc.system=grpc",
+			attrs: map[string]any{
+				"rpc.response.status_code": "-32602",
+				"rpc.system.name":          "jsonrpc",
+				"rpc.system":               "grpc",
+			},
+		},
+		{
+			name: "int64 rpc.response.status_code is formatted as string",
+			attrs: map[string]any{
+				"rpc.response.status_code": int64(7),
+				"rpc.system.name":          "grpc",
+			},
+			want: "7",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, LookupString(r, newTestAccessor(tt.attrs), ConceptGRPCStatusCode))
+		})
+	}
+
+	t.Run("LookupInt64 returns typed value through conditional fallback", func(t *testing.T) {
+		accessor := newTestAccessor(map[string]any{
+			"rpc.response.status_code": int64(7),
+			"rpc.system.name":          "grpc",
+		})
+		v, ok := LookupInt64(r, accessor, ConceptGRPCStatusCode)
+		assert.True(t, ok)
+		assert.Equal(t, int64(7), v)
 	})
 }
 
@@ -123,8 +206,7 @@ func TestStringMapAccessor(t *testing.T) {
 	})
 
 	t.Run("with semantic lookup", func(t *testing.T) {
-		r, err := NewEmbeddedRegistry()
-		require.NoError(t, err)
+		r := testRegistry
 
 		accessor := NewStringMapAccessor(map[string]string{"http.status_code": "404"})
 		v, ok := LookupInt64(r, accessor, ConceptHTTPStatusCode)

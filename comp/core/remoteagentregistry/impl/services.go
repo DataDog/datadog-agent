@@ -9,7 +9,6 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,8 +26,9 @@ import (
 )
 
 const (
-	// remoteAgentMetricTagName is the name of the label that will be added to all metrics coming from the remote agent
-	remoteAgentMetricTagName = "remote_agent"
+	// emitterMetricTagName is the label added to all metrics forwarded from a remote agent
+	// to identify which agent produced them. Its value is the registered sanitized display name.
+	emitterMetricTagName = "emitter"
 )
 
 func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
@@ -71,7 +71,15 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 	}
 	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetFlareFilesResponse, err error) *remoteagentregistry.FlareData {
 		if err != nil {
-			return nil
+			// The remote agent is registered but unreachable (crashed, gRPC failure, timeout).
+			// Surface the error as UNREACHABLE.txt without blocking the rest of the flare.
+			log.Warnf("Remote agent %q could not be reached during flare collection: %v", details.DisplayName, err)
+			return &remoteagentregistry.FlareData{
+				RegisteredAgent: details,
+				Files: map[string][]byte{
+					"UNREACHABLE.txt": []byte(fmt.Sprintf("%s could not be reached: %v\n", details.DisplayName, err)),
+				},
+			}
 		}
 		return &remoteagentregistry.FlareData{
 			RegisteredAgent: details,
@@ -89,7 +97,7 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 			// The flare builder already logs errors, so we can ignore them here.
 			// an error here should not prevent the flare from being created.
 			//nolint:errcheck
-			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
+			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.SanitizedDisplayName, registryutil.SanitizeFileName(fileName)), fileData)
 		}
 	}
 
@@ -158,24 +166,7 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				continue
 			}
 
-			// Check if the metric already has a remote_agent label.
-			// With explicit agent identity, metrics should already have the correct value.
-			// We only add the label if it's missing (for backward compatibility).
-			hasRemoteAgentLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
-				return *label.Name == remoteAgentMetricTagName
-			})
-
-			labelNames := make([]string, 0, len(metric.Label)+1)
-			labelValues := make([]string, 0, len(metric.Label)+1)
-			// Only add remote_agent label if the metric doesn't already have one
-			if !hasRemoteAgentLabel {
-				labelNames = append(labelNames, remoteAgentMetricTagName)
-				labelValues = append(labelValues, remoteAgentName)
-			}
-			for _, label := range metric.Label {
-				labelNames = append(labelNames, *label.Name)
-				labelValues = append(labelValues, *label.Value)
-			}
+			labelNames, labelValues := canonicalMetricLabels(metric.Label, remoteAgentName)
 
 			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
 
@@ -223,4 +214,19 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			}
 		}
 	}
+}
+
+func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {
+	labelNames := make([]string, 0, len(incoming)+1)
+	labelValues := make([]string, 0, len(incoming)+1)
+	labelNames = append(labelNames, emitterMetricTagName)
+	labelValues = append(labelValues, registeredEmitter)
+	for _, label := range incoming {
+		if label.GetName() == emitterMetricTagName {
+			continue
+		}
+		labelNames = append(labelNames, label.GetName())
+		labelValues = append(labelValues, label.GetValue())
+	}
+	return labelNames, labelValues
 }

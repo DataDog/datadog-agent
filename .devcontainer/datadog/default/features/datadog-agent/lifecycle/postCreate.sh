@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # Run install tools
 cd ~/dd/datadog-agent
 

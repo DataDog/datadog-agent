@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed a bug on Windows where the NPM TCP failure rate could exceed 100% and
+    climb indefinitely.

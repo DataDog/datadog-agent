@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package test
 
 import (
@@ -24,15 +26,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/viper"
 	yaml "go.yaml.in/yaml/v2"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	utiltest "github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -299,12 +302,13 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 // createConfigFile creates a config file from the given config, altering the
 // apm_config.apm_dd_url and log_level values and returns the full path.
 func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
-	v := viper.New()
+	v := create.NewConfig("datadog")
+	v.SetTestOnlyDynamicSchema(true)
 	v.SetConfigType("yaml")
 	if err := v.ReadConfig(bytes.NewReader(conf)); err != nil {
 		return "", err
 	}
-	if v.IsSet("apm_config.receiver_port") {
+	if v.IsConfigured("apm_config.receiver_port") {
 		s.port = v.GetInt("apm_config.receiver_port")
 	} else {
 		if p, err := testutil.FindTCPPort(); err != nil {
@@ -313,23 +317,26 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 		} else {
 			s.port = p
 		}
-		v.Set("apm_config.receiver_port", s.port)
+		v.Set("apm_config.receiver_port", s.port, pkgconfigmodel.SourceFile)
 	}
-	v.Set("apm_config.apm_dd_url", "http://"+s.ddAddr)
-	if !v.IsSet("api_key") {
-		v.Set("api_key", "testing123")
+	v.Set("apm_config.apm_dd_url", "http://"+s.ddAddr, pkgconfigmodel.SourceFile)
+	if !v.IsConfigured("api_key") {
+		v.Set("api_key", "testing123", pkgconfigmodel.SourceFile)
 	}
-	if !v.IsSet("apm_config.trace_writer.flush_period_seconds") {
-		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)
+	if !v.IsConfigured("hostname") {
+		v.Set("hostname", "trace-agent-test", pkgconfigmodel.SourceFile)
 	}
-	if !v.IsSet("log_level") {
-		v.Set("log_level", "debug")
+	if !v.IsConfigured("apm_config.trace_writer.flush_period_seconds") {
+		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1, pkgconfigmodel.SourceFile)
 	}
-	if !v.IsSet("apm_config.enable_v1_trace_endpoint") {
-		v.Set("apm_config.enable_v1_trace_endpoint", true)
+	if !v.IsConfigured("log_level") {
+		v.Set("log_level", "debug", pkgconfigmodel.SourceFile)
+	}
+	if !v.IsConfigured("apm_config.enable_v1_trace_endpoint") {
+		v.Set("apm_config.enable_v1_trace_endpoint", true, pkgconfigmodel.SourceFile)
 	}
 
-	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port)
+	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port, pkgconfigmodel.SourceFile)
 
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {

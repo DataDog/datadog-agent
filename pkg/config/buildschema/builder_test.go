@@ -7,6 +7,7 @@ package buildschema
 
 import (
 	"testing"
+	"time"
 )
 
 // nodeAt returns the nested node at the given dot-separated path inside the schema.
@@ -39,9 +40,6 @@ func TestLeafNodeHasNodeTypeSettings(t *testing.T) {
 		{"float64 default", func(b *builder) { b.BindEnvAndSetDefault("leaf_float", 3.14) }},
 		{"[]string default", func(b *builder) { b.BindEnvAndSetDefault("leaf_strslice", []string{"a"}) }},
 		{"nested setting", func(b *builder) { b.BindEnvAndSetDefault("section.leaf", "val") }},
-		{"no-default (BindEnv only)", func(b *builder) { b.BindEnv("leaf_env", "DD_LEAF_ENV") }},
-		{"SetKnown", func(b *builder) { b.SetKnown("leaf_known") }},
-		{"SetDefault nil", func(b *builder) { b.SetDefault("leaf_nil_default", nil) }},
 	}
 
 	for _, tc := range cases {
@@ -79,25 +77,106 @@ func TestLeafNodeHasNodeTypeSettings(t *testing.T) {
 	}
 }
 
-// TestNoDefaultNodeHasBothTodoTags verifies that a setting registered without
-// a default carries both TODO:fix-no-default and TODO:fix-missing-type tags,
-// so the schema linter can identify it as a known issue for both checks.
-func TestNoDefaultNodeHasBothTodoTags(t *testing.T) {
+// TestDurationNodeIsStringType verifies that a time.Duration default produces
+// type:"string" (not "number") and serialises the default as a human-readable
+// string so that the generated schema stays consistent with the YAML schema.
+func TestDurationNodeIsStringType(t *testing.T) {
 	b := NewSchemaBuilder("", "", nil).(*builder)
-	b.BindEnv("no_default_setting", "DD_NO_DEFAULT")
+	b.BindEnvAndSetDefault("my.interval", 15*time.Minute)
 
-	leaf := b.Schema["properties"].(map[string]interface{})["no_default_setting"].(map[string]interface{})
-	tags, _ := leaf["tags"].([]string)
-
-	wantTags := []string{"TODO:fix-no-default", "TODO:fix-missing-type"}
-	tagSet := make(map[string]bool, len(tags))
-	for _, t := range tags {
-		tagSet[t] = true
+	leaf := nodeAt(b.Schema, "my", "interval")
+	if leaf == nil {
+		t.Fatal("leaf node not found")
 	}
-	for _, want := range wantTags {
-		if !tagSet[want] {
-			t.Errorf("noDefault node is missing tag %q; got tags: %v", want, tags)
-		}
+
+	if got := leaf["type"]; got != "string" {
+		t.Errorf("duration node type = %q, want %q", got, "string")
+	}
+	if got := leaf["format"]; got != "duration" {
+		t.Errorf("duration node format = %q, want %q", got, "duration")
+	}
+	if got := leaf["default"]; got != "15m0s" {
+		t.Errorf("duration node default = %q, want %q", got, "15m0s")
+	}
+}
+
+// TestParseEnvSetsEnvParser verifies that ParseEnvSplitComma, ParseEnvSplitSpace,
+// and ParseEnvJSON set the correct env_parser value on the schema node.
+func TestParseEnvSetsEnvParser(t *testing.T) {
+	cases := []struct {
+		name       string
+		call       func(b *builder)
+		path       []string
+		wantParser string
+	}{
+		{
+			name:       "ParseEnvSplitComma",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvSplitComma("my_list") },
+			path:       []string{"my_list"},
+			wantParser: "comma_separated",
+		},
+		{
+			name:       "ParseEnvSplitSpace",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvSplitSpace("my_list") },
+			path:       []string{"my_list"},
+			wantParser: "space_separated",
+		},
+		{
+			name:       "ParseEnvJSON",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvJSON("my_list", []string{}) },
+			path:       []string{"my_list"},
+			wantParser: "json",
+		},
+		{
+			name: "ParseEnvSplitComma nested key",
+			call: func(b *builder) {
+				b.BindEnvAndSetDefault("section.my_list", []string{})
+				b.ParseEnvSplitComma("section.my_list")
+			},
+			path:       []string{"section", "my_list"},
+			wantParser: "comma_separated",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewSchemaBuilder("", "", nil).(*builder)
+			tc.call(b)
+
+			leaf := nodeAt(b.Schema, tc.path...)
+			if leaf == nil {
+				t.Fatalf("node not found at path %v", tc.path)
+			}
+			got, ok := leaf["env_parser"].(string)
+			if !ok {
+				t.Fatalf("env_parser not set or wrong type: %v", leaf)
+			}
+			if got != tc.wantParser {
+				t.Errorf("env_parser = %q, want %q", got, tc.wantParser)
+			}
+		})
+	}
+}
+
+// TestParseEnvPanicsOnUnknownKey verifies that ParseEnvSplitComma panics when
+// called for a key that has not been registered in the schema.
+func TestParseEnvPanicsOnUnknownKey(t *testing.T) {
+	b := NewSchemaBuilder("", "", nil).(*builder)
+	b.BindEnvAndSetDefault("known_key", []string{})
+
+	for _, fn := range []func(){
+		func() { b.ParseEnvSplitComma("unknown_key") },
+		func() { b.ParseEnvSplitSpace("unknown_key") },
+		func() { b.ParseEnvJSON("unknown_key", []string{}) },
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Error("expected panic for unknown key, got none")
+				}
+			}()
+			fn()
+		}()
 	}
 }
 

@@ -31,7 +31,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 				},
 			},
 		}
-		mockConfig.SetWithoutSource("cel_workload_exclude", celConfig)
+		mockConfig.SetInTest("cel_workload_exclude", celConfig)
 
 		filterConfig, err := NewFilterConfig(mockConfig)
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 				}
 			}
 		]`
-		mockConfig.SetWithoutSource("cel_workload_exclude", jsonConfig)
+		mockConfig.SetInTest("cel_workload_exclude", jsonConfig)
 
 		filterConfig, err := NewFilterConfig(mockConfig)
 		require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 
 	t.Run("unmarshal cel workload exclude invalid string", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("cel_workload_exclude", "invalid string data")
+		mockConfig.SetInTest("cel_workload_exclude", "invalid string data")
 
 		filterConfig, err := NewFilterConfig(mockConfig)
 		assert.Error(t, err)

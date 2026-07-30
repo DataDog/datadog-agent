@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/lib/env.sh"
 
 STAGE_NAME="package"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -43,9 +36,9 @@ trap cleanup EXIT
 
 # ─── Step 1: Pre-flight — verify staging tree is assembled ────────────────────
 #
-# The agent binary and the postinst lifecycle script are the two most critical
-# components. If either is absent the staging tree is incomplete and mkinstallp
-# will produce a broken or empty BFF.
+# The package must contain the main agent, ADP, ADP license artifacts, and the
+# postinst lifecycle script. If any are absent the staging tree is incomplete
+# and mkinstallp will produce a broken or empty BFF.
 
 AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent"
 if [ ! -f "$AGENT_BIN" ]; then
@@ -55,10 +48,34 @@ if [ ! -f "$AGENT_BIN" ]; then
 fi
 log "Pre-flight: agent binary found at $AGENT_BIN"
 
+ADP_BIN="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
+if [ ! -f "$ADP_BIN" ]; then
+    log "ERROR: agent-data-plane binary not found at $ADP_BIN"
+    log "       Did Stage 05 (05-agent-data-plane) complete successfully?"
+    exit 1
+fi
+log "Pre-flight: agent-data-plane binary found at $ADP_BIN"
+
+ADP_LICENSE="$STAGING/opt/datadog-agent/LICENSES/LICENSE-agent-data-plane-3rdparty.csv"
+if [ ! -f "$ADP_LICENSE" ]; then
+    log "ERROR: ADP third-party license CSV not found at $ADP_LICENSE"
+    log "       Did Stage 05 (05-agent-data-plane) complete successfully?"
+    exit 1
+fi
+log "Pre-flight: ADP third-party license CSV found at $ADP_LICENSE"
+
+ADP_THIRD_PARTY_COUNT=$(find "$STAGING/opt/datadog-agent/LICENSES" -name 'THIRD-PARTY-*' | wc -l | tr -d ' ')
+if [ "$ADP_THIRD_PARTY_COUNT" -eq 0 ]; then
+    log "ERROR: no ADP THIRD-PARTY-* license artifacts found under $STAGING/opt/datadog-agent/LICENSES"
+    log "       Did Stage 05 (05-agent-data-plane) complete successfully?"
+    exit 1
+fi
+log "Pre-flight: ADP THIRD-PARTY license artifacts found ($ADP_THIRD_PARTY_COUNT paths)"
+
 POSTINST="$STAGING/opt/datadog-agent/embedded/share/installp/postinst"
 if [ ! -f "$POSTINST" ]; then
     log "ERROR: postinst script not found at $POSTINST"
-    log "       Did Stage 10 (10-assemble) complete successfully?"
+    log "       Did Stage 11 (11-assemble) complete successfully?"
     exit 1
 fi
 log "Pre-flight: postinst script found at $POSTINST"
@@ -145,7 +162,4 @@ cp "$BFF_SRC" "$BFF_OUT"
 ls -l "$BFF_OUT"
 log "Package ready: $BFF_OUT"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

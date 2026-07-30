@@ -9,6 +9,8 @@ package ddprofilingextensionimpl
 import (
 	"context"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -26,6 +28,12 @@ var (
 	defaultEndpoint                     = "7501"
 )
 
+const (
+	ddServiceEnvVar = "DD_SERVICE"
+	ddEnvEnvVar     = "DD_ENV"
+	ddVersionEnvVar = "DD_VERSION"
+)
+
 // ddExtension is a basic OpenTelemetry Collector extension.
 type ddExtension struct {
 	extension.Extension // Embed base Extension for common functionality.
@@ -35,23 +43,28 @@ type ddExtension struct {
 	traceAgent traceagent.Component
 	server     *http.Server
 	log        corelog.Component
+	agentMode  bool
 }
 
-// NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
+// NewComponent creates a new instance of the extension.
+func NewComponent(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
 		cfg:        cfg,
 		info:       info,
 		traceAgent: traceAgent,
 		log:        log,
+		agentMode:  traceAgent != nil,
 	}, nil
 }
 
 func (e *ddExtension) Start(_ context.Context, host component.Host) error {
-	return e.startForOTelAgent(host)
+	if e.agentMode {
+		return e.startForAgent(host)
+	}
+	return e.startForStandalone()
 }
 
-func (e *ddExtension) startForOTelAgent(host component.Host) error {
+func (e *ddExtension) startForAgent(host component.Host) error {
 	// start server that handles profiles
 	err := e.newServer()
 	if err != nil {
@@ -67,6 +80,14 @@ func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	return profiler.Start(
 		profilerOptions...,
 	)
+}
+
+func (e *ddExtension) startForStandalone() error {
+	profilerOptions := e.buildProfilerOptions()
+	if e.cfg.AgentAddr != "" {
+		profilerOptions = append(profilerOptions, profiler.WithAgentAddr(e.cfg.AgentAddr))
+	}
+	return profiler.Start(profilerOptions...)
 }
 
 func (e *ddExtension) buildProfilerOptions() []profiler.Option {
@@ -92,18 +113,24 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 
 	if e.cfg.ProfilerOptions.Service != "" {
 		profilerOptions = append(profilerOptions, profiler.WithService(e.cfg.ProfilerOptions.Service))
+	} else if service, ok := nonBlankEnv(ddServiceEnvVar); ok {
+		profilerOptions = append(profilerOptions, profiler.WithService(service))
 	} else {
 		profilerOptions = append(profilerOptions, profiler.WithService(e.info.Command))
 	}
 
 	if e.cfg.ProfilerOptions.Version != "" {
 		profilerOptions = append(profilerOptions, profiler.WithVersion(e.cfg.ProfilerOptions.Version))
+	} else if version, ok := nonBlankEnv(ddVersionEnvVar); ok {
+		profilerOptions = append(profilerOptions, profiler.WithVersion(version))
 	} else {
 		profilerOptions = append(profilerOptions, profiler.WithVersion(e.info.Version))
 	}
 
 	if e.cfg.ProfilerOptions.Env != "" {
 		profilerOptions = append(profilerOptions, profiler.WithEnv(e.cfg.ProfilerOptions.Env))
+	} else if env, ok := nonBlankEnv(ddEnvEnvVar); ok {
+		profilerOptions = append(profilerOptions, profiler.WithEnv(env))
 	}
 
 	if e.cfg.ProfilerOptions.Period > 0 {
@@ -113,7 +140,20 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	return profilerOptions
 }
 
+func nonBlankEnv(key string) (string, bool) {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return "", false
+	}
+	return value, true
+}
+
 func (e *ddExtension) Shutdown(ctx context.Context) error {
 	profiler.Stop()
+	if e.server == nil {
+		// Standalone mode sends directly to an external trace-agent and does not
+		// start the local forwarding server used in bundled mode.
+		return nil
+	}
 	return e.server.Shutdown(ctx)
 }

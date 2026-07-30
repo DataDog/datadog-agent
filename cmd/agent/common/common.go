@@ -9,10 +9,13 @@ package common
 
 import (
 	"fmt"
+	"net"
 	"path/filepath"
+	"strconv"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,7 +28,7 @@ func GetPythonPaths() []string {
 	// wheels install in default site - already in sys.path; takes precedence over any additional location
 	return []string{
 		defaultpaths.GetDistPath(),                               // common modules are shipped in the dist path directly or under the "checks/" sub-dir
-		defaultpaths.PyChecksPath,                                // integrations-core legacy checks
+		defaultpaths.GetDefaultPyChecksPath(),                    // integrations-core legacy checks
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
 	}
@@ -33,9 +36,10 @@ func GetPythonPaths() []string {
 
 // NewSettingsClient returns a configured runtime settings client.
 func NewSettingsClient(client ipc.HTTPClient) (settings.Client, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", ipchttp.WithLeaveConnectionOpen), nil
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://%s/agent/config", addr), "agent", ipchttp.WithLeaveConnectionOpen), nil
 }

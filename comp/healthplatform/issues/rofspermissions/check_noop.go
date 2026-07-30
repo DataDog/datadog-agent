@@ -10,11 +10,11 @@
 package rofspermissions
 
 import (
-	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// Check if all directories agent could write to are writable by the agent.
-func Check(_ config.Component) (*healthplatform.IssueReport, error) {
+// Check is a noop on unsupported platforms.
+func Check(_ config.Component) ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }

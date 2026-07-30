@@ -150,6 +150,41 @@ site: datadoghq.com
 	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfiling.Period)
 }
 
+func TestNewConfigManagerDDProfilingPortFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  ddprofiling:
+    port: 1234
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 1234, mgr.hostProfilerConfig.DDProfiling.Port)
+}
+
+func TestNewConfigManagerDDProfilingPortFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DDPROFILING_PORT", "1234")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 1234, mgr.hostProfilerConfig.DDProfiling.Port)
+}
+
+func TestNewConfigManagerDDProfilingPortDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfiling.Port)
+}
+
 func TestNewConfigManagerHPFlarePortFromYAML(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key
@@ -183,4 +218,41 @@ site: datadoghq.com
 	mgr := newConfigManager(cfg)
 
 	assert.Equal(t, 7778, mgr.hostProfilerConfig.HPFlare.Port)
+}
+
+func TestNewConfigManagerProfilingSendToMainEndpointDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: main-key
+site: datadoghq.com
+apm_config:
+  profiling_additional_endpoints:
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu-key
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 2, mgr.endpointsTotalLength)
+	assert.ElementsMatch(t, []endpoint{
+		{site: "datadoghq.eu", apiKeys: []string{"eu-key"}},
+		{site: "datadoghq.com", apiKeys: []string{"main-key"}},
+	}, mgr.endpoints)
+}
+
+func TestNewConfigManagerProfilingSendToMainEndpointDisabled(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: main-key
+site: datadoghq.com
+apm_config:
+  profiling_dd_url: ://invalid-main-url
+  profiling_send_to_main_endpoint: false
+  profiling_additional_endpoints:
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu-key
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 1, mgr.endpointsTotalLength)
+	assert.Equal(t, []endpoint{
+		{site: "datadoghq.eu", apiKeys: []string{"eu-key"}},
+	}, mgr.endpoints)
 }

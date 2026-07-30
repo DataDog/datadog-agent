@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "configsync",
-    srcs = ["component.go"],
+    srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/configsync",
     visibility = ["//visibility:public"],
 )

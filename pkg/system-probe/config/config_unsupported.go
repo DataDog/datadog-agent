@@ -18,7 +18,7 @@ const (
 )
 
 // ValidateSocketAddress is not supported on this platform
-func ValidateSocketAddress(sockPath string) error {
+func ValidateSocketAddress(_ string) error {
 	return errors.New("system-probe unsupported")
 }
 
@@ -29,6 +29,11 @@ func eBPFMapPreallocationSupported() bool {
 
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
+	return false
+}
+
+// DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
+func DirectSendSupported() bool {
 	return false
 }
 

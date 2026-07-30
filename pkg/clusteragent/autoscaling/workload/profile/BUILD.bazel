@@ -1,0 +1,71 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "profile",
+    srcs = [
+        "autoscaler_syncer.go",
+        "builtin.go",
+        "controller.go",
+        "doc.go",
+        "helpers.go",
+        "workload_watcher.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//metadata",
+        "@io_k8s_client_go//metadata/metadatainformer",
+        "@io_k8s_client_go//tools/cache",
+        "@io_k8s_client_go//util/workqueue",
+        "@io_k8s_utils//clock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "profile_test",
+    srcs = [
+        "autoscaler_syncer_test.go",
+        "builtin_test.go",
+        "controller_test.go",
+        "workload_watcher_test.go",
+    ],
+    embed = [":profile"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/store",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/util/pointer",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//metadata/metadatalister",
+        "@io_k8s_client_go//tools/cache",
+        "@io_k8s_utils//clock/testing",
+    ],
+)

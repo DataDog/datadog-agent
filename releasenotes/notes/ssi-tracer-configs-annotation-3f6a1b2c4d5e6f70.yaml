@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not differ between releases and is easy to read regardless
+# of the order the notes are displayed.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM Single Step Instrumentation now supports setting tracer configuration
+    options via the ``admission.datadoghq.com/apm-inject.tracer-configs`` pod
+    annotation, the annotation-based equivalent of the
+    ``apm_config.instrumentation.targets[].ddTraceConfigs`` option. The value is
+    a JSON array of objects (for example
+    ``[{"name":"DD_PROFILING_ENABLED","value":"true"}]``) and each entry's name
+    must start with the ``DD_`` prefix.

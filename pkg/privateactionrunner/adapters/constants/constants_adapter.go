@@ -11,6 +11,11 @@ const (
 	// NOT intended for customer use.
 	InternalSkipTaskVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
 
+	// InternalEnableTelemetryEnvVar is an internal-only env var for SMP tests.
+	// When set to "true", PAR exposes the core telemetry endpoint.
+	// NOT intended for customer use.
+	InternalEnableTelemetryEnvVar = "DD_INTERNAL_PAR_ENABLE_TELEMETRY"
+
 	JwtHeaderName           = "X-Datadog-OnPrem-JWT"
 	ModeHeaderName          = "X-Datadog-OnPrem-Modes"
 	VersionHeaderName       = "X-Datadog-OnPrem-Version"
@@ -18,13 +23,6 @@ const (
 	ArchitectureHeaderName  = "X-Datadog-OnPrem-Architecture"
 	FlavorHeaderName        = "X-Datadog-OnPrem-Flavor"
 	ContainerizedHeaderName = "X-Datadog-OnPrem-Containerized"
-
-	RunnerVersionQueryParam = "runnerVersion"
-	ModesQueryParam         = "modes"
-	PlatformQueryParam      = "platform"
-	ArchitectureQueryParam  = "architecture"
-	FlavorQueryParam        = "flavor"
-	ContainerizedQueryParam = "containerized"
 )
 
 // HTTP Connection Constants

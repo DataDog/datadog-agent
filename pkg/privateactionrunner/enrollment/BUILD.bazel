@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "enrollment",
+    srcs = [
+        "enrollment.go",
+        "k8s_secret.go",
+        "k8s_secret_nocompile.go",
+        "storage.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/modes",
+        "//pkg/privateactionrunner/adapters/regions",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/util",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+        "//pkg/util/kubernetes/clustername",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "enrollment_test",
+    srcs = [
+        "enrollment_test.go",
+        "k8s_secret_test.go",
+    ],
+    embed = [":enrollment"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/flavor",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
+    ],
+)

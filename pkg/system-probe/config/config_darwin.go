@@ -19,6 +19,11 @@ func ProcessEventDataStreamSupported() bool {
 	return false
 }
 
+// DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
+func DirectSendSupported() bool {
+	return false
+}
+
 // RedisMonitoringSupported returns false on darwin as eBPF is not supported
 func RedisMonitoringSupported() bool {
 	return false

@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runners",
+    srcs = [
+        "common_runner.go",
+        "workflow_runner.go",
+        "workflow_task_executor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/config/model",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/adapters/actions",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/bundles",
+        "//pkg/privateactionrunner/credentials/resolver",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/task-verifier",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "runners_test",
+    srcs = [
+        "common_runner_test.go",
+        "workflow_task_executor_test.go",
+    ],
+    embed = [":runners"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/opms/testing",
+        "//pkg/privateactionrunner/types",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

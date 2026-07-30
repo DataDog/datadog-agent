@@ -97,6 +97,42 @@ type LookupResult struct {
 	StringValue string
 }
 
+// conditionMatches reports whether a single Condition holds against the accessor's raw
+// attribute store. Conditions read attributes by exact key — fallback chains are not
+// followed. To gate on a renamed attribute (e.g. rpc.system → rpc.system.name), list
+// one fallback entry per condition attribute in mappings.json.
+//
+// A Condition has up to two predicate fields, all of which must hold (logical AND)
+// for the condition to match:
+//
+//   - Present: requires the attribute to be present (true) or absent (false).
+//   - Eq:      requires the attribute's value to equal the literal string. Implies presence.
+//
+// A Condition with no predicates set always matches (empty conjunction is true).
+func conditionMatches[A Accessor](accessor A, c Condition) bool {
+	value := accessor.GetString(c.Attribute)
+	found := value != ""
+
+	if c.Present != nil && found != *c.Present {
+		return false
+	}
+	if c.Eq != nil {
+		if !found || value != *c.Eq {
+			return false
+		}
+	}
+	return true
+}
+
+func conditionsMatch[A Accessor](accessor A, conditions []Condition) bool {
+	for _, c := range conditions {
+		if !conditionMatches(accessor, c) {
+			return false
+		}
+	}
+	return true
+}
+
 // Lookup performs a semantic attribute lookup in precedence order and returns the first match.
 // For string-typed tags it uses GetString; for numeric-typed tags it uses the typed getter and
 // formats the result as a string, so LookupString works correctly on any concept regardless of
@@ -107,6 +143,9 @@ func Lookup[A Accessor](r Registry, accessor A, concept Concept) (LookupResult, 
 		return LookupResult{}, false
 	}
 	for _, tag := range tags {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
+			continue
+		}
 		switch tag.Type {
 		case ValueTypeInt64:
 			if v, ok := accessor.GetInt64(tag.Name); ok {
@@ -143,6 +182,9 @@ func LookupFloat64[A Accessor](r Registry, accessor A, concept Concept) (float64
 		return 0, false
 	}
 	for _, tag := range tags {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
+			continue
+		}
 		switch tag.Type {
 		case ValueTypeFloat64:
 			if v, ok := accessor.GetFloat64(tag.Name); ok {
@@ -172,6 +214,9 @@ func LookupInt64[A Accessor](r Registry, accessor A, concept Concept) (int64, bo
 		return 0, false
 	}
 	for _, tag := range tags {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
+			continue
+		}
 		switch tag.Type {
 		case ValueTypeInt64:
 			if v, ok := accessor.GetInt64(tag.Name); ok {

@@ -1,8 +1,57 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "symdb",
-    srcs = ["doc.go"],
+    srcs = [
+        "doc.go",
+        "func_index.go",
+        "func_name.go",
+        "symdb.go",
+        "type_emit.go",
+        "type_info_by_offset_index.go",
+        "types_by_package_index.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/dwarf",
+        "//pkg/dyninst/dwarf/dwarfutil",
+        "//pkg/dyninst/dwarf/loclist",
+        "//pkg/dyninst/gosym",
+        "//pkg/dyninst/gosymname",
+        "//pkg/dyninst/object",
+        "//pkg/util/log",
+        "@com_github_google_btree//:btree",
+        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        "@org_golang_x_time//rate",
+    ],
+)
+
+go_test(
+    name = "symdb_test",
+    srcs = [
+        "func_index_test.go",
+        "func_name_test.go",
+        "index_integration_test.go",
+        "symdb_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":symdb"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/dyninst/dyninsttest",
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/symdb/symdbprinter",
+        "//pkg/dyninst/symdb/uploader",
+        "//pkg/dyninst/testprogs",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

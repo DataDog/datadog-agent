@@ -23,9 +23,10 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -95,12 +96,12 @@ func reset(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()), ipc.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}
@@ -127,12 +128,12 @@ func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()), ipc.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}
@@ -151,7 +152,7 @@ func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 		}
 	}
 
-	flare.PrintRemoteConfigStates(os.Stdout, s, stateHA)
+	rcservice.PrintRemoteConfigStates(os.Stdout, s, stateHA)
 
 	return nil
 }

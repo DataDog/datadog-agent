@@ -71,8 +71,8 @@ func TestNamespacesToWatch(t *testing.T) {
 	cfg := mock.New(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg.SetWithoutSource("containerd_namespaces", test.containerdNamespaceVal)
-			cfg.SetWithoutSource("containerd_exclude_namespaces", test.excludeNamespaceVal)
+			cfg.SetInTest("containerd_namespaces", test.containerdNamespaceVal)
+			cfg.SetInTest("containerd_exclude_namespaces", test.excludeNamespaceVal)
 
 			namespaces, err := NamespacesToWatch(context.TODO(), test.client)
 
@@ -152,8 +152,8 @@ func TestFiltersWithNamespaces(t *testing.T) {
 	cfg := mock.New(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg.SetWithoutSource("containerd_namespaces", test.containerdNamespaceVal)
-			cfg.SetWithoutSource("containerd_exclude_namespaces", test.excludeNamespaceVal)
+			cfg.SetInTest("containerd_namespaces", test.containerdNamespaceVal)
+			cfg.SetInTest("containerd_exclude_namespaces", test.excludeNamespaceVal)
 
 			result := FiltersWithNamespaces(test.inputFilters)
 			assert.ElementsMatch(t, test.expectedFilters, result)

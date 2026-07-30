@@ -14,6 +14,8 @@
 stages:
   - functional_test
 
+variables:
+  SMP_ALLOW_FAILURE: "true"
 
 .smp_config_only_job_submit:
   - |
@@ -286,11 +288,17 @@ stages:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
-  allow_failure: true
+  # allow_failure is driven by SMP_ALLOW_FAILURE so the parent trigger can
+  # decide per-context without changing this shared child job.
+  rules:
+    - if: $SMP_ALLOW_FAILURE == "false"
+      allow_failure: false
+    - when: on_success
+      allow_failure: true
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.25.1
+    SMP_VERSION: v0.27.0
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression

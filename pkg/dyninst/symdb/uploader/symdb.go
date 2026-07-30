@@ -13,8 +13,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -22,9 +23,21 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
+	jsonv2 "github.com/go-json-experiment/json"
 	"github.com/google/uuid"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 )
+
+// DefaultFlushThresholdBytes is the default compressed-size threshold at which
+// a BatchEncoder will flush an HTTP chunk.
+const DefaultFlushThresholdBytes = 2 * 1024 * 1024
+
+// ErrUpload is returned (wrapped) by BatchEncoder.Flush when the HTTP upload
+// step fails. Callers can use errors.Is(err, ErrUpload) to distinguish
+// upload-side failures (typically retryable) from local encoder errors.
+var ErrUpload = errors.New("symdb upload failed")
 
 // ScopeType represents the type of scope in the SymDB schema
 type ScopeType string
@@ -71,10 +84,11 @@ const (
 
 // Symbol represents a variable, parameter, or field in the SymDB schema
 type Symbol struct {
-	Name       string     `json:"name"`
-	Type       string     `json:"type"`
-	SymbolType SymbolType `json:"symbol_type"`
-	Line       *int       `json:"line,omitempty"`
+	Name              string             `json:"name"`
+	Type              string             `json:"type"`
+	SymbolType        SymbolType         `json:"symbol_type"`
+	Line              *int               `json:"line,omitempty"`
+	LanguageSpecifics *LanguageSpecifics `json:"language_specifics,omitempty"`
 }
 
 // LanguageSpecifics represents Go language-specific data in the SymDB schema.
@@ -92,9 +106,9 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
-// SymDBUploader deals with uploading SymDB data in the JSON format expected by
-// the debugger backend.
-type SymDBUploader struct {
+// uploader holds the destination and identity metadata used by a
+// BatchEncoder when shipping a batch to the SymDB intake.
+type uploader struct {
 	url       string
 	service   string
 	version   string
@@ -102,121 +116,339 @@ type SymDBUploader struct {
 	headers   [][2]string
 }
 
-// NewSymDBUploader returns a new SymDBUploader.
-func NewSymDBUploader(
-	urlStr string,
+// bodySink is the storage backend a BatchEncoder writes the full HTTP
+// request body into — multipart prologue, gzipped JSON payload, event
+// metadata, and closing boundary. Two implementations are provided:
+// memSink (a bytes.Buffer, the default) and diskSink (a DiskCache-backed
+// file). The interface lets callers spend bounded RAM on the upload
+// body by spilling it to disk when a DiskCache is available.
+type bodySink interface {
+	io.Writer
+	// Size reports the number of bytes written since the last Reset.
+	Size() int
+	// Reader returns an io.Reader that reads back the bytes written so far,
+	// from the start. It must be called only after writes for the current
+	// batch are complete and before Reset.
+	Reader() (io.Reader, error)
+	// Reset discards any data buffered for the current batch and prepares
+	// the sink to accept the next batch.
+	Reset() error
+	// Close releases any resources held by the sink. After Close the sink
+	// must not be used again.
+	Close() error
+}
+
+// memSink is a bodySink backed by an in-memory bytes.Buffer.
+type memSink struct {
+	buf bytes.Buffer
+}
+
+func (s *memSink) Write(p []byte) (int, error) { return s.buf.Write(p) }
+func (s *memSink) Size() int                   { return s.buf.Len() }
+func (s *memSink) Reader() (io.Reader, error)  { return bytes.NewReader(s.buf.Bytes()), nil }
+func (s *memSink) Reset() error                { s.buf.Reset(); return nil }
+func (s *memSink) Close() error                { s.buf = bytes.Buffer{}; return nil }
+
+// diskSinkMaxBytes caps how large a single batch may grow on disk. With the
+// default flush threshold of 2 MiB this is generous, but it bounds the
+// reservation if a caller forgets to Flush.
+const diskSinkMaxBytes = 64 * 1024 * 1024
+
+// diskSink is a bodySink backed by a DiskCache-managed file. The file
+// is unlinked at creation time so it disappears with the process even on a
+// crash. Each batch is written, read back for upload, and then truncated.
+type diskSink struct {
+	df *object.DiskFile
+}
+
+func newDiskSink(dc *object.DiskCache) (*diskSink, error) {
+	df, err := dc.NewFile("symdb-upload", diskSinkMaxBytes, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create disk-backed upload buffer: %w", err)
+	}
+	return &diskSink{df: df}, nil
+}
+
+func (s *diskSink) Write(p []byte) (int, error) { return s.df.Write(p) }
+func (s *diskSink) Size() int                   { return int(s.df.Used()) }
+
+func (s *diskSink) Reader() (io.Reader, error) {
+	return io.NewSectionReader(s.df, 0, int64(s.df.Used())), nil
+}
+
+func (s *diskSink) Reset() error { return s.df.Truncate() }
+func (s *diskSink) Close() error { return s.df.Close() }
+
+// BatchEncoder streams Scope objects into a gzip-compressed SymDB JSON
+// envelope wrapped in a multipart upload body, and ships finalised batches
+// to the SymDB intake when the caller invokes Flush. A single BatchEncoder
+// corresponds to one logical upload (one UploadID) and may emit multiple
+// batches. The full request body is written into the underlying sink, so
+// the in-flight upload need not be held in memory beyond what the sink
+// itself buffers.
+type BatchEncoder struct {
+	up             uploader
+	uploadID       uuid.UUID
+	batchNum       int
+	sink           bodySink
+	mw             *multipart.Writer
+	filePartCounts *countingWriter
+	gz             *gzip.Writer
+	scopeCount     int
+	prefixWritten  bool
+}
+
+// countingWriter wraps an io.Writer and counts the bytes that flow through it.
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
+}
+
+// NewBatchEncoder creates a BatchEncoder for a single logical upload to the
+// SymDB intake at url.
+//
+// diskCache is allowed to be nil. When nil, the gzip-compressed batch
+// buffer is held in memory. When non-nil, the BatchEncoder spills the
+// buffer to a DiskCache-managed file (unlinked at creation) instead;
+// failure to allocate the disk file is reported as an error rather than
+// silently falling back.
+//
+// headers are attached to every upload request.
+func NewBatchEncoder(
+	url string,
 	service string,
 	version string,
 	runtimeID string,
-	headers ...[2]string,
-) *SymDBUploader {
-	return &SymDBUploader{
-		url:       urlStr,
-		service:   service,
-		version:   version,
-		runtimeID: runtimeID,
-		headers:   headers,
+	uploadID uuid.UUID,
+	diskCache *object.DiskCache,
+	headers [][2]string,
+) (*BatchEncoder, error) {
+	var sink bodySink
+	if diskCache != nil {
+		ds, err := newDiskSink(diskCache)
+		if err != nil {
+			return nil, err
+		}
+		sink = ds
+	} else {
+		sink = &memSink{}
 	}
+	return &BatchEncoder{
+		up: uploader{
+			url:       url,
+			service:   service,
+			version:   version,
+			runtimeID: runtimeID,
+			headers:   headers,
+		},
+		uploadID: uploadID,
+		sink:     sink,
+	}, nil
 }
 
-// UploadInfo contains metadata about a batch of packages to be uploaded to
-// SymDB.
-type UploadInfo struct {
-	// UploadID identifies which logical upload this batch is part of: if packages
-	// are split into multiple batches because of size limits, they will all share
-	// the same uploadID.
-	UploadID uuid.UUID
-	// BatchNum is the number of the batch relative to the other batches in this
-	// upload. First batch has number 1.
-	BatchNum int
-	// Final is set if this is the final (or the only) batch of packages for
-	// this upload.
-	Final bool
+// AddScope writes a single Scope into the current batch's gzip stream. On the
+// first call of a new batch, it also writes the JSON envelope prefix.
+func (b *BatchEncoder) AddScope(scope Scope) error {
+	return b.addEncoded(scope)
 }
 
-// UploadBatch uploads a batch the symbols for a batch of packages to SymDB (via
-// the trace-agent).
-func (s *SymDBUploader) UploadBatch(ctx context.Context, info UploadInfo, packages []Scope) error {
-	// Wrap the data in an envelope expected by the debugger backend.
-	var buf bytes.Buffer
-	buf.WriteString(`{
-"service": "` + s.service + `",
-"version": "` + s.version + `",
-"language": "go",
-"upload_id": "` + info.UploadID.String() + `",
-"batch_num": ` + strconv.Itoa(info.BatchNum) + `,
-"final": ` + strconv.FormatBool(info.Final) + `,
-"scopes": `)
+// AddPackage streams a symdb.Package directly into the current batch's gzip
+// stream as a "package" scope, without first allocating an intermediate
+// uploader.Scope tree.
+func (b *BatchEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
+	return b.addEncoded(NewPackageScope(pkg, agentVersion))
+}
 
-	jsonBytes, err := json.Marshal(packages)
-	if err != nil {
-		return fmt.Errorf("failed to marshal scope: %w", err)
+func (b *BatchEncoder) addEncoded(v any) error {
+	if !b.prefixWritten {
+		if err := b.startBatch(); err != nil {
+			return err
+		}
 	}
-	buf.Write(jsonBytes)
-	buf.WriteString("}")
-
-	if err := s.uploadInner(ctx, buf.Bytes()); err != nil {
-		return fmt.Errorf("failed to send individual SymDB: %w", err)
+	if b.scopeCount > 0 {
+		if _, err := b.gz.Write([]byte{','}); err != nil {
+			return fmt.Errorf("failed to write scope separator: %w", err)
+		}
 	}
-
+	if err := jsonv2.MarshalWrite(b.gz, v); err != nil {
+		return fmt.Errorf("failed to encode scope: %w", err)
+	}
+	if err := b.gz.Flush(); err != nil {
+		return fmt.Errorf("failed to flush gzip writer: %w", err)
+	}
+	b.scopeCount++
 	return nil
 }
 
-func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error {
-	// The upload is a multipart containing metadata expected by the event platform
-	// and the gzipped SymDB data.
-
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-
-	compressedData, err := compressSymDBData(symdbData)
-	if err != nil {
-		return fmt.Errorf("failed to compress SymDB data: %w", err)
-	}
-
+// startBatch writes the multipart prologue (leading boundary + file part
+// headers) to the sink, opens a gzip writer over the file part, and writes
+// the JSON envelope prefix into it. Subsequent gzip writes flow through
+// the multipart file part; Flush closes the gzip writer (which finalises
+// the file part body) and then writes the event part + closing boundary.
+func (b *BatchEncoder) startBatch() error {
+	b.batchNum++
+	b.mw = multipart.NewWriter(b.sink)
 	fileHeader := make(textproto.MIMEHeader)
 	fileHeader.Set("Content-Disposition", `form-data; name="file"; filename="file.gz"`)
 	fileHeader.Set("Content-Type", "application/gzip")
-
-	filePart, err := writer.CreatePart(fileHeader)
+	filePart, err := b.mw.CreatePart(fileHeader)
 	if err != nil {
-		return fmt.Errorf("failed to create file part: %w", err)
+		return fmt.Errorf("failed to write multipart file header: %w", err)
 	}
-
-	if _, err := filePart.Write(compressedData); err != nil {
-		return fmt.Errorf("failed to write compressed SymDB data: %w", err)
+	b.filePartCounts = &countingWriter{w: filePart}
+	if b.gz == nil {
+		b.gz = gzip.NewWriter(b.filePartCounts)
+	} else {
+		b.gz.Reset(b.filePartCounts)
 	}
+	// JSON-encode service and version, in case they contain funky
+	// characters.
+	serviceJSON, err := jsonv2.Marshal(b.up.service)
+	if err != nil {
+		return fmt.Errorf("failed to marshal service: %w", err)
+	}
+	versionJSON, err := jsonv2.Marshal(b.up.version)
+	if err != nil {
+		return fmt.Errorf("failed to marshal version: %w", err)
+	}
+	prefix := `{"service":` + string(serviceJSON) +
+		`,"version":` + string(versionJSON) +
+		`,"language":"go","upload_id":"` + b.uploadID.String() +
+		`","batch_num":` + strconv.Itoa(b.batchNum) +
+		`,"scopes":[`
+	if _, err := b.gz.Write([]byte(prefix)); err != nil {
+		return fmt.Errorf("failed to write envelope prefix: %w", err)
+	}
+	b.prefixWritten = true
+	return nil
+}
 
+// Size reports the number of bytes currently buffered for the in-progress
+// batch. This counts the multipart prologue + file part headers + the
+// gzipped JSON written so far. The gzip writer buffers internally
+// (~32 KiB deflate window), so Size is a lower bound on the eventual
+// flushed payload size.
+func (b *BatchEncoder) Size() int {
+	return b.sink.Size()
+}
+
+// BatchCount returns the number of batches that have been started so far
+// (each AddScope after a Flush starts a new batch). Useful for logging.
+func (b *BatchEncoder) BatchCount() int {
+	return b.batchNum
+}
+
+// Close releases any resources held by the encoder (in particular, a
+// DiskCache-managed file when WithDiskCache was used). It is safe to call
+// Close after Flush even if Flush failed; the encoder is unusable
+// afterwards.
+func (b *BatchEncoder) Close() error {
+	if b.sink == nil {
+		return nil
+	}
+	err := b.sink.Close()
+	b.sink = nil
+	return err
+}
+
+// Flush finalises the current batch (if any scopes have been added) and
+// uploads it. If no scopes have been added since the last flush, this is a
+// no-op even when final is true. After Flush returns, the encoder is ready
+// to accept scopes for the next batch.
+//
+// Errors from the HTTP upload step are wrapped with ErrUpload so callers can
+// distinguish them with errors.Is.
+func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
+	if !b.prefixWritten {
+		return nil
+	}
+	suffix := `],"final":` + strconv.FormatBool(final) + `}`
+	if _, err := b.gz.Write([]byte(suffix)); err != nil {
+		return fmt.Errorf("failed to write envelope suffix: %w", err)
+	}
+	if err := b.gz.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+	// Emit the inter-part boundary + event part header, then the event JSON
+	// body, then the closing boundary. The multipart.Writer handles the
+	// boundary framing.
 	eventHeader := make(textproto.MIMEHeader)
 	eventHeader.Set("Content-Disposition", `form-data; name="event"; filename="event.json"`)
 	eventHeader.Set("Content-Type", "application/json")
-
-	eventPart, err := writer.CreatePart(eventHeader)
+	eventPart, err := b.mw.CreatePart(eventHeader)
 	if err != nil {
-		return fmt.Errorf("failed to create event part: %w", err)
+		return fmt.Errorf("failed to write multipart event header: %w", err)
 	}
 
-	meta := []byte(`{
-"ddsource": "dd_debugger",
-"service": "` + s.service + `",
-"runtimeId": "` + s.runtimeID + `",
-"debugger": {
-	"type": "symdb"
-}
-}`)
+	// Some of the fields in here are duplicated inside the envelope in the
+	// attachment file; that's on purpose: having them in this message allows
+	// the debugger backend to have enough information for its bookkeeping
+	// without downloading the attachment. Having the info in the attachment is
+	// useful in order to make attachments self-contained.
+	event := struct {
+		DDSource       string    `json:"ddsource"`
+		Service        string    `json:"service"`
+		Version        string    `json:"version"`
+		Language       string    `json:"language"`
+		RuntimeID      string    `json:"runtimeId"`
+		Type           string    `json:"type"`
+		UploadID       uuid.UUID `json:"uploadId"`
+		BatchNum       int       `json:"batchNum"`
+		Final          bool      `json:"final"`
+		AttachmentSize int64     `json:"attachmentSize"`
+	}{
+		DDSource:       "dd_debugger",
+		Service:        b.up.service,
+		Version:        b.up.version,
+		Language:       "go",
+		RuntimeID:      b.up.runtimeID,
+		Type:           "symdb",
+		UploadID:       b.uploadID,
+		BatchNum:       b.batchNum,
+		Final:          final,
+		AttachmentSize: b.filePartCounts.n,
+	}
+	meta, err := jsonv2.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event meta: %w", err)
+	}
 	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
 	}
-
-	if err := writer.Close(); err != nil {
+	if err := b.mw.Close(); err != nil {
 		return fmt.Errorf("failed to close multipart writer: %w", err)
 	}
+	r, err := b.sink.Reader()
+	if err != nil {
+		return fmt.Errorf("failed to read back upload body: %w", err)
+	}
+	if err := b.up.uploadInner(ctx, r, b.mw.FormDataContentType()); err != nil {
+		return fmt.Errorf("%w: %w", ErrUpload, err)
+	}
+	if err := b.sink.Reset(); err != nil {
+		return fmt.Errorf("failed to reset upload buffer: %w", err)
+	}
+	b.mw = nil
+	b.scopeCount = 0
+	b.prefixWritten = false
+	return nil
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, &buf)
+// uploadInner POSTs body to s.url with the given multipart Content-Type.
+// body is the entire request body (file + event parts + boundaries) as
+// already-framed bytes coming from the BatchEncoder's sink.
+func (s *uploader) uploadInner(ctx context.Context, body io.Reader, contentType string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, body)
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentType)
 	for _, keyVal := range s.headers {
 		req.Header.Set(keyVal[0], keyVal[1])
 	}
@@ -232,25 +464,6 @@ func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error
 	}
 
 	return nil
-}
-
-func compressSymDBData(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	gzWriter := gzip.NewWriter(&buf)
-
-	if _, err := gzWriter.Write(data); err != nil {
-		return nil, fmt.Errorf("failed to write to gzip writer: %w", err)
-	}
-
-	if err := gzWriter.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-func cleanString(s string) string {
-	return strings.ReplaceAll(s, " ", "")
 }
 
 // ConvertPackageToScope converts a symdb.Package to a Scope.
@@ -299,16 +512,16 @@ func convertFunctionToScope(fn symdb.Function, isMethod bool) Scope {
 	injectibleLines := make([]LineRange, len(fn.InjectibleLines))
 	for i, r := range fn.InjectibleLines {
 		injectibleLines[i] = LineRange{
-			Start: r[0],
-			End:   r[1],
+			Start: int(r[0]),
+			End:   int(r[1]),
 		}
 	}
 	scope := Scope{
 		ScopeType:          scopeType,
 		Name:               fn.Name,
 		SourceFile:         fn.File,
-		StartLine:          fn.StartLine,
-		EndLine:            fn.EndLine,
+		StartLine:          int(fn.StartLine),
+		EndLine:            int(fn.EndLine),
 		Symbols:            make([]Symbol, 0, len(fn.Variables)),
 		Scopes:             make([]Scope, 0, len(fn.Scopes)),
 		HasInjectibleLines: true,
@@ -345,7 +558,7 @@ func convertTypeToScope(typ symdb.Type) Scope {
 	for _, field := range typ.Fields {
 		symbol := Symbol{
 			Name:       field.Name,
-			Type:       cleanString(field.Type),
+			Type:       field.Type,
 			SymbolType: SymbolTypeField,
 		}
 		scope.Symbols = append(scope.Symbols, symbol)
@@ -364,8 +577,8 @@ func convertScopeToScope(s symdb.Scope, sourceFile string) Scope {
 	scope := Scope{
 		ScopeType:  ScopeTypeLocal,
 		SourceFile: sourceFile,
-		StartLine:  s.StartLine,
-		EndLine:    s.EndLine,
+		StartLine:  int(s.StartLine),
+		EndLine:    int(s.EndLine),
 		Symbols:    make([]Symbol, 0, len(s.Variables)),
 		Scopes:     make([]Scope, 0, len(s.Scopes)),
 	}
@@ -390,25 +603,25 @@ func convertVariableToSymbol(variable symdb.Variable) Symbol {
 		symbolType = SymbolTypeArg
 	}
 
+	declLine := int(variable.DeclLine)
 	symbol := Symbol{
 		Name:       variable.Name,
-		Type:       cleanString(variable.TypeName),
+		Type:       variable.TypeName,
 		SymbolType: symbolType,
-		Line:       &variable.DeclLine,
+		Line:       &declLine,
 	}
 
-	// Add language specifics for line ranges if available
 	if len(variable.AvailableLineRanges) > 0 {
 		ranges := make([]LineRange, len(variable.AvailableLineRanges))
 		for i, r := range variable.AvailableLineRanges {
 			ranges[i] = LineRange{
-				Start: r[0],
-				End:   r[1],
+				Start: int(r[0]),
+				End:   int(r[1]),
 			}
 		}
-		/*symbol.LanguageSpecifics = &LanguageSpecifics{
+		symbol.LanguageSpecifics = &LanguageSpecifics{
 			AvailableLineRanges: ranges,
-		}*/
+		}
 	}
 
 	return symbol

@@ -17,7 +17,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -26,10 +26,10 @@ import (
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 )
 
@@ -176,12 +176,12 @@ func TestResolveHostname(t *testing.T) {
 
 			cfg := configmock.New(t)
 			// Lower the GRPC timeout, otherwise the test will time out in CI
-			cfg.SetWithoutSource("process_config.grpc_connection_timeout_secs", 1)
+			cfg.SetInTest("process_config.grpc_connection_timeout_secs", 1)
 
-			cfg.SetWithoutSource("hostname", tc.configHostname)
+			cfg.SetInTest("hostname", tc.configHostname)
 
 			if tc.ddAgentBin != "" {
-				cfg.SetWithoutSource("process_config.dd_agent_bin", tc.ddAgentBin)
+				cfg.SetInTest("process_config.dd_agent_bin", tc.ddAgentBin)
 			}
 
 			if tc.fargateHostname != "" {
@@ -293,8 +293,8 @@ func TestGetContainerHostType(t *testing.T) {
 				t.Setenv("EKS_FARGATE", tc.eksExecEnv)
 			}
 			if tc.deployMode != "" {
-				pkgconfigsetup.Datadog().SetWithoutSource("ecs_deployment_mode", tc.deployMode)
-				defer pkgconfigsetup.Datadog().SetWithoutSource("ecs_deployment_mode", "")
+				pkgconfigsetup.Datadog().SetInTest("ecs_deployment_mode", tc.deployMode)
+				defer pkgconfigsetup.Datadog().SetInTest("ecs_deployment_mode", "")
 			}
 			env.SetFeatures(t, tc.features...)
 

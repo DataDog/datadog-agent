@@ -1,0 +1,347 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/cluster_agent.yaml.schema.json
+node_type: section
+title: Cluster Agent Configuration
+type: object
+visibility: public
+description: |-
+  Settings for the Cluster Agent.
+  See https://docs.datadoghq.com/agent/cluster_agent/
+tags:
+- template_section:ClusterAgent
+- full-agent-only:true
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Set to true to enable the Cluster Agent.
+  auth_token:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: Auth token used to make requests to the Kubernetes API server.
+  url:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: The Cluster Agent endpoint. There's no need to set it if "kubernetes_service_name"
+      is set.
+  kubernetes_service_name:
+    node_type: setting
+    type: string
+    default: datadog-cluster-agent
+    visibility: public
+    description: Name of the Kubernetes service for the Cluster Agent.
+  max_leader_connections:
+    node_type: setting
+    type: integer
+    default: 100
+    visibility: public
+    description: Maximum number of connections between a follower and a leader.
+  client_reconnect_period_seconds:
+    node_type: setting
+    type: integer
+    default: 1200
+    visibility: public
+    description: |-
+      Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
+      Set to 0 to disable periodic reconnection.
+  tagging_fallback:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Set to true to enabled fallback to local metamapper when the connection
+      with the Cluster Agent fails.
+  server:
+    node_type: section
+    type: object
+    visibility: public
+    description: Sets the connection timeouts
+    tags:
+    - template_section:ClusterAgent
+    properties:
+      read_timeout_seconds:
+        node_type: setting
+        type: integer
+        default: 2
+        visibility: public
+        description: Read timeout in seconds.
+      write_timeout_seconds:
+        node_type: setting
+        type: integer
+        default: 2
+        visibility: public
+        description: Write timeout in seconds.
+      idle_timeout_seconds:
+        node_type: setting
+        type: integer
+        default: 60
+        visibility: public
+        description: Idle timeout in seconds.
+  tracing:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      APM tracing for the Cluster Agent. When enabled, traces internal operations for
+      improved debugging. Traces appear in APM with service name "datadog-cluster-agent".
+      Covers: cluster check dispatching and rebalancing decisions.
+      To view traces: APM -> Services -> datadog-cluster-agent -> Traces
+    tags:
+    - template_section:ClusterAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enable APM tracing for the Cluster Agent.
+        comment: APM tracing for the cluster agent itself (currently covers cluster
+          check dispatching)
+      env:
+        node_type: setting
+        type: string
+        default: ''
+        visibility: public
+        description: The environment tag to apply to all traces emitted by the Cluster
+          Agent.
+      sample_rate:
+        node_type: setting
+        type: number
+        default: 0.1
+        visibility: public
+        description: |-
+          Sample rate for traces emitted by the Cluster Agent (0.0 to 1.0).
+          Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
+        tags:
+        - golang_type:float64
+  allow_legacy_tls:
+    node_type: setting
+    type: boolean
+    default: false
+  appsec:
+    node_type: section
+    type: object
+    properties:
+      injector:
+        node_type: section
+        type: object
+        properties:
+          annotations:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+          base_backoff:
+            node_type: setting
+            type: string
+            default: 5m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: AppSec Injector in the cluster agent ( Preview )
+          envoy_gateway:
+            node_type: section
+            type: object
+            properties:
+              controller_namespace:
+                node_type: setting
+                type: string
+                default: envoy-gateway-system
+              namespace:
+                node_type: setting
+                type: string
+                default: envoy-gateway-system
+          istio:
+            node_type: section
+            type: object
+            properties:
+              namespace:
+                node_type: setting
+                type: string
+                default: istio-system
+          labels:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+          max_backoff:
+            node_type: setting
+            type: string
+            default: 1h
+          mode:
+            node_type: setting
+            type: string
+            default: sidecar
+          processor:
+            node_type: section
+            type: object
+            properties:
+              service:
+                node_type: section
+                type: object
+                properties:
+                  name:
+                    node_type: setting
+                    type: string
+                    default: ''
+                  namespace:
+                    node_type: setting
+                    type: string
+                    default: ''
+  cluster_tagger:
+    node_type: section
+    type: object
+    properties:
+      grpc_max_message_size:
+        node_type: setting
+        type: integer
+        default: 4194304
+        comment: |-
+          partially deprecated: `agent_ipc.grpc_max_message_size` should now be used for configuring the maximum gRPC
+          message size on the agent IPC server
+
+          this is still used directly for determining the chunking behavior of messages sent from the remote tagger and
+          remote workloadmeta, to preserve existing behavior until we can better unify chunking behavior across all the
+          gRPC services on the IPC endpoint.
+
+          if this value is larger than `agent_ipc.grpc_max_message_size`, it will still be honoured by the agent gRPC
+          server instead of `agent_ipc.grpc_max_message_size`.
+  cmd_port:
+    node_type: setting
+    type: integer
+    default: 5005
+  collect_kubernetes_tags:
+    node_type: setting
+    type: boolean
+    default: false
+  isolation_segments_tags:
+    node_type: setting
+    type: boolean
+    default: false
+  kube_metadata_collection:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      resource_annotations_exclude:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      resources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: |-
+          list of kubernetes resources for which we collect metadata
+          each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
+          resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
+
+          the version is optional and can be left empty, and in this case, the agent will automatically assign
+          the version that is considered by the api server as the preferred version for the related group.
+
+          examples with version:
+          - apps/v1/deployments
+          - /v1/nodes
+
+          examples without version:
+          - apps/deployments
+          - /nodes
+          - nodes
+  kubernetes_resources_collection:
+    node_type: section
+    type: object
+    properties:
+      deployment_annotations_exclude:
+        node_type: setting
+        type: array
+        default:
+        - ^kubectl\.kubernetes\.io\/last-applied-configuration$
+        - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
+        items:
+          type: string
+      pod_annotations_exclude:
+        node_type: setting
+        type: array
+        default:
+        - ^kubectl\.kubernetes\.io\/last-applied-configuration$
+        - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
+        items:
+          type: string
+  kueue:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  language_detection:
+    node_type: section
+    type: object
+    properties:
+      cleanup:
+        node_type: section
+        type: object
+        properties:
+          language_ttl:
+            node_type: setting
+            type: string
+            default: 30m
+            comment: sets the expiration deadline (TTL) for reported languages
+          period:
+            node_type: setting
+            type: string
+            default: 10m
+            comment: language annotation cleanup period
+      patcher:
+        node_type: section
+        type: object
+        properties:
+          base_backoff:
+            node_type: setting
+            type: string
+            default: 5m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          max_backoff:
+            node_type: setting
+            type: string
+            default: 1h
+  refresh_on_cache_miss:
+    node_type: setting
+    type: boolean
+    default: true
+  serve_nozzle_data:
+    node_type: setting
+    type: boolean
+    default: false
+  service_account_name:
+    node_type: setting
+    type: string
+    default: ''
+  sidecars_tags:
+    node_type: setting
+    type: boolean
+    default: false
+  token_name:
+    node_type: setting
+    type: string
+    default: datadogtoken

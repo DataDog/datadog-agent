@@ -59,6 +59,7 @@ type FakePodAutoscalerInternal struct {
 	InPlaceEvictionErrorCount          uint
 	InPlaceRolloutFallbackCount        uint
 	InPlacePDBBlockedCount             uint
+	InPlaceDisruptionThrottledCount    uint
 	InPlaceResizeCompletedCount        uint
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
@@ -133,6 +134,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		inPlaceEvictionErrorCount:          f.InPlaceEvictionErrorCount,
 		inPlaceRolloutFallbackCount:        f.InPlaceRolloutFallbackCount,
 		inPlacePDBBlockedCount:             f.InPlacePDBBlockedCount,
+		inPlaceDisruptionThrottledCount:    f.InPlaceDisruptionThrottledCount,
 		inPlaceResizeCompletedCount:        f.InPlaceResizeCompletedCount,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,

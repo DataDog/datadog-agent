@@ -25,8 +25,8 @@ import (
 // Needs to be called as the leader instance to avoid conflicts.
 func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Component, leaderSub leaderNotifier) {
 	logger.Info("Cleaning up appsec injections from cluster resources because proxy injection is disabled")
-	injector = newSecurityInjector(ctx, logger, appsecconfig.FromComponent(datadogConfig, logger), leaderSub)
-	if injector == nil {
+	cleanupInjector := newSecurityInjector(ctx, logger, appsecconfig.FromComponent(datadogConfig, logger), leaderSub)
+	if cleanupInjector == nil {
 		return
 	}
 
@@ -44,7 +44,7 @@ func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Com
 			<-leaderNotifChange
 		}
 
-		for _, pattern := range injector.patterns {
+		for _, pattern := range cleanupInjector.patterns {
 			cleanupPattern(ctx, logger, apiClient.DynamicCl, pattern)
 		}
 	}()

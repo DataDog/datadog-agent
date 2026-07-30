@@ -121,6 +121,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		BindEventType.String(),
 		ConnectEventType.String(),
 		AcceptEventType.String(),
+		SocketEventType.String(),
 		SetSockOptEventType.String(),
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
@@ -174,7 +175,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 
 	// Internal
 	case
-		NopEventType.String():
+		NopEventType.String(),
+		SampleRefreshEventType.String():
 		return InternalCategory
 	}
 

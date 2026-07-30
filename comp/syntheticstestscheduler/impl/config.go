@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const defaultSite = "datadoghq.com"
@@ -29,21 +30,23 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 	}
 }
 
-type onDemandPollerConfig struct {
+type testPollerConfig struct {
 	site          string
 	apiKey        string
+	agentVersion  string
 	httpTransport *http.Transport
 }
 
-func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig {
+func newTestPollerConfig(agentConfig config.Component) *testPollerConfig {
 	site := agentConfig.GetString("site")
 	if site == "" {
 		site = defaultSite
 	}
 
-	return &onDemandPollerConfig{
+	return &testPollerConfig{
 		site:          site,
 		apiKey:        agentConfig.GetString("api_key"),
+		agentVersion:  version.AgentVersion,
 		httpTransport: httputils.CreateHTTPTransport(agentConfig),
 	}
 }

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds Agent Data Plane packaging and launchd service support to macOS Agent packages.

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "defaultscript",
@@ -13,5 +13,18 @@ go_library(
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/config",
         "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "defaultscript_test",
+    srcs = ["default_script_test.go"],
+    embed = [":defaultscript"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

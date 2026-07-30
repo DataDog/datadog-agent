@@ -9,15 +9,17 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
 
 var taggerServerGracefulStopTimeout = 5 * time.Second
@@ -41,7 +43,7 @@ func (w *taggerServerWrapper) TaggerFetchEntity(ctx context.Context, in *pb.Fetc
 // startTaggerServer starts the minimal tagger gRPC server
 func (e *dogtelExtension) startTaggerServer() error {
 	// 1. Create listener
-	addr := fmt.Sprintf("%s:%d", e.config.TaggerServerAddr, e.config.TaggerServerPort)
+	addr := hostport.Join(e.config.TaggerServerAddr, strconv.Itoa(e.config.TaggerServerPort))
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to create listener on %s: %w", addr, err)

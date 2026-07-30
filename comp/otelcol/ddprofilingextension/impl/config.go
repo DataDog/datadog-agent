@@ -9,21 +9,22 @@ package ddprofilingextensionimpl
 // Config contains the config of the profiler.
 type Config struct {
 	ProfilerOptions ProfilerOptions `mapstructure:"profiler_options"`
-	// Endpoint reports the endpoint used for profiles.
-	// Default: BuildInfo.Version (e.g. v0.117.0)
+	AgentAddr       string          `mapstructure:"agent_addr"`
+	// Endpoint is the local port the profiling HTTP server listens on; used as "localhost:<endpoint>".
+	// Default: "7501"
 	Endpoint string `mapstructure:"endpoint"`
 }
 
 // ProfilerOptions defines settings relevant to the profiler.
 type ProfilerOptions struct {
 	// Service the profiler will report with.
-	// Default: BuildInfo.Command (e.g. otel-agent)
+	// Default: DD_SERVICE, then BuildInfo.Command (e.g. otel-agent)
 	Service string `mapstructure:"service"`
 	// Env the profiler will report with.
-	// Default: none
+	// Default: DD_ENV, then none
 	Env string `mapstructure:"env"`
 	// Version the profiler will report with.
-	// Default: BuildInfo.Version (e.g. v0.117.0)
+	// Default: DD_VERSION, then BuildInfo.Version (e.g. v0.117.0)
 	Version string `mapstructure:"version"`
 	// Period in seconds the profiler will report with.
 	// Default: 60s

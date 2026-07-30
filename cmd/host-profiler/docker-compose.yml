@@ -2,7 +2,7 @@ name: "host-profiler-with-agent"
 
 services:
   datadog-agent:
-    image: gcr.io/datadoghq/agent:7
+    image: registry.datadoghq.com/agent:7
     privileged: true
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}

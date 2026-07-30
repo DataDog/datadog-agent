@@ -134,12 +134,14 @@ func (m *symdbManager) debugInfo() SymDBDebugInfo {
 
 	tracked := make([]string, 0, len(m.mu.trackedProcesses))
 	for k := range m.mu.trackedProcesses {
-		tracked = append(tracked, k.String())
+		tracked = append(tracked, fmt.Sprintf("%s (service: %s, version: %s)", k.pid, k.service, k.version))
 	}
 
 	var currentUpload string
 	if m.mu.currentUpload != nil {
-		currentUpload = m.mu.currentUpload.procID.String()
+		k := m.mu.currentUpload.procID
+		currentUpload = fmt.Sprintf("%s (service: %s, version: %s, runtime ID: %s)",
+			k.pid, k.service, k.version, m.mu.currentUpload.runtimeID)
 	}
 
 	return SymDBDebugInfo{

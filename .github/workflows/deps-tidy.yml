@@ -1,0 +1,142 @@
+---
+name: "Tidy Dependencies"
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+permissions: {}
+
+jobs:
+  go_mod_tidy:
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
+    concurrency:
+      group: deps-tidy-go-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      id-token: write # Required for dd-octo-sts OIDC token
+      pull-requests: write # Required to auto-close PRs that bump the root go directive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: ./.github/actions/deps-tidy-setup
+        id: setup
+      - name: Install go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: ".go-version"
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Go mod tidy
+        run: dda inv -- -e tidy
+      - name: Close PR if root go directive was bumped
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          base_directive="$(git show "origin/$BASE_REF:go.mod" | grep -E '^go [0-9]' | head -1)"
+          current_directive="$(grep -E '^go [0-9]' go.mod | head -1)"
+          if [ "$base_directive" != "$current_directive" ]; then
+            echo "::warning::Root go.mod 'go' directive changed from '$base_directive' to '$current_directive'. Auto-closing this PR — a dependency requires a newer Go version than the repo."
+            gh pr comment "$PR_NUMBER" --body "Auto-closing: this update bumps the root \`go.mod\` \`go\` directive from \`$base_directive\` to \`$current_directive\`. Hold this dependency update until we bump the repository's Go version."
+            gh pr close "$PR_NUMBER"
+            exit 1
+          fi
+      - name: Update LICENSE-3rdparty.csv
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
+        run: |
+          dda inv -- -e install-tools
+          dda inv -- -e generate-licenses
+      - name: Update mocks
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
+        run: dda inv -- -e security-agent.gen-mocks
+      - uses: ./.github/actions/deps-tidy-push
+        with:
+          token: ${{ steps.setup.outputs.token }}
+          commit-message: "[renovate skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
+
+  cargo_tidy:
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
+    concurrency:
+      group: deps-tidy-cargo-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      id-token: write # Required for dd-octo-sts OIDC token
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: ./.github/actions/deps-tidy-setup
+        id: setup
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+      - name: Repin Bazel Rust lockfile
+        run: |
+          bazel mod tidy
+          bazel mod deps
+      - name: Generate Rust licenses
+        run: |
+          cargo install dd-rust-license-tool@1.0.6 --locked
+          cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
+      - uses: ./.github/actions/deps-tidy-push
+        with:
+          token: ${{ steps.setup.outputs.token }}
+          commit-message: "[renovate skip] Auto-repin Bazel Rust lockfile and regenerate Rust licenses"
+
+  bazel_native_tidy:
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
+    permissions:
+      id-token: write # Required for dd-octo-sts OIDC token
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: ./.github/actions/deps-tidy-setup
+        id: setup
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Refresh http_archive sha256 for changed deps
+        env:
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: dda inv -- renovate.refresh-archive-hashes --base-ref=origin/${BRANCH}
+      - uses: ./.github/actions/deps-tidy-push
+        with:
+          token: ${{ steps.setup.outputs.token }}
+          commit-message: "[renovate skip] Auto-refresh http_archive sha256"
+
+  bazel_tidy:
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
+    concurrency:
+      group: deps-tidy-bazel-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      id-token: write # Required for dd-octo-sts OIDC token
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: ./.github/actions/deps-tidy-setup
+        id: setup
+      - name: Repin Bazel module lockfile
+        run: |
+          bazel mod tidy
+          bazel mod deps
+      - uses: ./.github/actions/deps-tidy-push
+        with:
+          token: ${{ steps.setup.outputs.token }}
+          commit-message: "[renovate skip] Auto-repin Bazel module lockfile"

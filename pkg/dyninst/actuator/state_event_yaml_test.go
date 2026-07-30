@@ -29,11 +29,18 @@ type eventConfig struct {
 	discoveredTypesLimit   int
 	recompilationRateLimit float64
 	recompilationRateBurst int
+	// Circuit-breaker thresholds. Zero values mean "use the production
+	// defaults"; tests that need to exercise a trip must set these.
+	perProbeCPULimit  float64
+	allProbesCPULimit float64
 }
 
 func (e eventConfig) String() string {
-	return fmt.Sprintf("eventConfig{discoveredTypesLimit: %d, recompilationRateLimit: %g, recompilationRateBurst: %d}",
-		e.discoveredTypesLimit, e.recompilationRateLimit, e.recompilationRateBurst)
+	return fmt.Sprintf(
+		"eventConfig{discoveredTypesLimit: %d, recompilationRateLimit: %g, recompilationRateBurst: %d, perProbeCPULimit: %g, allProbesCPULimit: %g}",
+		e.discoveredTypesLimit, e.recompilationRateLimit, e.recompilationRateBurst,
+		e.perProbeCPULimit, e.allProbesCPULimit,
+	)
 }
 
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
@@ -185,6 +192,12 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 		if ev.recompilationRateBurst != 0 {
 			data["recompilation_rate_burst"] = ev.recompilationRateBurst
 		}
+		if ev.perProbeCPULimit != 0 {
+			data["per_probe_cpu_limit"] = ev.perProbeCPULimit
+		}
+		if ev.allProbesCPULimit != 0 {
+			data["all_probes_cpu_limit"] = ev.allProbesCPULimit
+		}
 		return encodeNodeTag("!config", data)
 
 	default:
@@ -279,8 +292,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	case "loaded":
 		var eventData struct {
-			ProgramID    int                `yaml:"program_id"`
-			RuntimeStats []runtimeStatsYAML `yaml:"runtime_stats,omitempty"`
+			ProgramID            int                `yaml:"program_id"`
+			RuntimeStats         []runtimeStatsYAML `yaml:"runtime_stats,omitempty"`
+			IncludeRecoveryProbe bool               `yaml:"include_recovery_probe,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode loaded event: %w", err)
@@ -293,6 +307,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 					runtimeStats: runtimeStatsFromYAML(
 						eventData.RuntimeStats,
 					),
+					includeRecoveryProbe: eventData.IncludeRecoveryProbe,
 				},
 			},
 		}
@@ -404,6 +419,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			DiscoveredTypesLimit   int     `yaml:"discovered_types_limit"`
 			RecompilationRateLimit float64 `yaml:"recompilation_rate_limit"`
 			RecompilationRateBurst int     `yaml:"recompilation_rate_burst"`
+			PerProbeCPULimit       float64 `yaml:"per_probe_cpu_limit"`
+			AllProbesCPULimit      float64 `yaml:"all_probes_cpu_limit"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode config event: %w", err)
@@ -412,6 +429,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			discoveredTypesLimit:   eventData.DiscoveredTypesLimit,
 			recompilationRateLimit: eventData.RecompilationRateLimit,
 			recompilationRateBurst: eventData.RecompilationRateBurst,
+			perProbeCPULimit:       eventData.PerProbeCPULimit,
+			allProbesCPULimit:      eventData.AllProbesCPULimit,
 		}
 
 	default:
@@ -428,8 +447,64 @@ type runtimeStatsYAML struct {
 }
 
 type fakeLoadedProgram struct {
+	probes       []ir.ProbeDefinition
 	runtimeStats []loader.RuntimeStats
+	// includeRecoveryProbe declares that this loaded program would have
+	// been built with the synthetic runtime.recovery probe appended
+	// (i.e. it has at least one function-targeted user probe and
+	// LoadOptions.SkipRuntimeRecoveryProbe was false). The probes
+	// slice is populated with a recovery-probe stub at the tail in
+	// populateFakeLoadedProgramProbes; the test author is responsible
+	// for keeping runtime_stats in sync (one extra entry).
+	includeRecoveryProbe bool
 }
+
+// recoveryProbeStub satisfies ir.ProbeDefinition for snapshot tests that
+// need to model the synthetic runtime.recovery probe. Production code
+// uses an irgen-internal stub; this one only implements what the
+// actuator reads (GetID, GetVersion, GetKind, GetWhere).
+type recoveryProbeStub struct{}
+
+var _ ir.ProbeDefinition = recoveryProbeStub{}
+
+func (recoveryProbeStub) GetID() string         { return ir.RuntimeRecoveryProbeID }
+func (recoveryProbeStub) GetVersion() int       { return 0 }
+func (recoveryProbeStub) GetKind() ir.ProbeKind { return ir.ProbeKindRuntimeRecovery }
+func (recoveryProbeStub) GetWhere() ir.Where    { return recoveryStubWhere{} }
+func (recoveryProbeStub) GetTags() []string     { return nil }
+func (recoveryProbeStub) GetTemplate() ir.TemplateDefinition {
+	return nil
+}
+func (recoveryProbeStub) GetWhen() json.RawMessage { return nil }
+func (recoveryProbeStub) GetWhenDSL() string       { return "" }
+func (recoveryProbeStub) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
+	return nil
+}
+func (recoveryProbeStub) GetCaptureConfig() ir.CaptureConfig {
+	return recoveryStubCaptureConfig{}
+}
+func (recoveryProbeStub) GetThrottleConfig() ir.ThrottleConfig {
+	return recoveryStubThrottleConfig{}
+}
+
+type recoveryStubWhere struct{}
+
+func (recoveryStubWhere) Where()           {}
+func (recoveryStubWhere) Location() string { return "runtime.recovery" }
+
+var _ ir.FunctionWhere = recoveryStubWhere{}
+
+type recoveryStubCaptureConfig struct{}
+
+func (recoveryStubCaptureConfig) GetMaxReferenceDepth() uint32 { return 0 }
+func (recoveryStubCaptureConfig) GetMaxCollectionSize() uint32 { return 0 }
+func (recoveryStubCaptureConfig) GetMaxFieldCount() uint32     { return 0 }
+func (recoveryStubCaptureConfig) GetMaxLength() uint32         { return 0 }
+
+type recoveryStubThrottleConfig struct{}
+
+func (recoveryStubThrottleConfig) GetThrottlePeriodMs() uint32 { return 0 }
+func (recoveryStubThrottleConfig) GetThrottleBudget() int64    { return 0 }
 
 func (*fakeLoadedProgram) Attach(ProcessID, Executable) (AttachedProgram, error) {
 	return nil, nil
@@ -446,6 +521,17 @@ func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
 			CPU:          1e3 * time.Second,
 		},
 	}
+}
+
+func (p *fakeLoadedProgram) NumProbes() int {
+	return len(p.probes)
+}
+
+func (p *fakeLoadedProgram) ProbeDefinition(probeID uint32) ir.ProbeDefinition {
+	if int(probeID) >= len(p.probes) {
+		return nil
+	}
+	return p.probes[probeID]
 }
 
 func (p *fakeLoadedProgram) setRuntimeStats(stats []loader.RuntimeStats) {

@@ -37,7 +37,7 @@ func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -59,7 +59,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
@@ -808,7 +808,7 @@ func TestTopologyPayload_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -830,7 +830,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
@@ -1569,7 +1569,7 @@ func TestTopologyPayload_CDPSecondaryIP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1591,7 +1591,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
@@ -2331,7 +2331,7 @@ func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2353,7 +2353,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 

@@ -11,8 +11,8 @@ import (
 	"io"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -185,8 +185,9 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 
 	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)
 
-	b.utilization.Stop()
+	// Stay in-use across the channel write: blocking here is downstream backpressure, not idle.
 	outputChan <- p
+	b.utilization.Stop()
 	b.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, b.instanceID)
 	b.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 }

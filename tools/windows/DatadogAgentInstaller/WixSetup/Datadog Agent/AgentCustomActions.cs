@@ -46,7 +46,11 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction CleanupOnRollback { get; }
 
+        public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
+
         public ManagedAction CleanupOnUninstall { get; }
+
+        public ManagedAction CleanupInstallDirAfterUninstall { get; }
 
         public ManagedAction ConfigureUser { get; }
 
@@ -252,9 +256,10 @@ namespace WixSetup.Datadog_Agent
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
                 .HideTarget(true);
 
-            // Cleanup leftover files on rollback
-            // must be before the DecompressPythonDistributions custom action.
-            // That way, if DecompressPythonDistributions fails, this will get executed.
+            // Cleanup leftover files on rollback. DecompressPythonDistributions must be sequenced
+            // after every rollback cleanup action so a decompression failure still runs them all.
+            // Rollback CAs run in reverse install-sequence order, so schedule RemoveEmptyInstallDirOnRollback
+            // before CleanupOnRollback if it should run after fleet/config cleanup on rollback.
             CleanupOnRollback = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnRollback)),
                     CustomActions.CleanupFiles,
@@ -269,6 +274,20 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveEmptyInstallDirOnRollback)),
+                    CustomActions.RemoveEmptyInstallDirOnRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(CleanupOnRollback.Id),
+                    Conditions.FirstInstall
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
@@ -348,6 +367,20 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
+            CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
+                    new Id(nameof(CleanupInstallDirAfterUninstall)),
+                    CustomActions.RemoveEmptyInstallDirAfterUninstall,
+                    Return.check,
+                    When.After,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),
                     CustomActions.RunPreRemovePythonScript,
@@ -396,6 +429,7 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS], " +
                                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                                "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);
@@ -578,7 +612,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.After,
                     Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);
@@ -679,7 +713,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
-                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS]");
 
             DeleteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(DeleteInstallState)),
@@ -757,6 +792,7 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
                                "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
@@ -778,11 +814,13 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
-                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
+                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED], " +
+                               "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]")
                 .HideTarget(true);
 
             ConfigureAutoLogger = new CustomAction<CustomActions>(

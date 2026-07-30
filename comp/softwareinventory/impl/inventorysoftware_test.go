@@ -16,7 +16,7 @@ import (
 	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/require"
@@ -89,7 +89,7 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 	hostnameComp := &mockHostname{}
 
 	configComp := config.NewMock(t)
-	configComp.SetWithoutSource("software_inventory.enabled", enabled)
+	configComp.SetInTest("software_inventory.enabled", enabled)
 
 	// Create a mock event platform forwarder
 	epMock := &mockEventPlatform{}

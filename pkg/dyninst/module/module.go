@@ -97,7 +97,7 @@ func NewModule(
 // eventbufBudgetBytes is the per-process byte ceiling enforced across all
 // per-program event buffers. Matches the pre-Buffer pairing-store budget.
 // TODO: make this configurable.
-const eventbufBudgetBytes = 512 << 10
+const eventbufBudgetBytes = 512 << 18
 
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not
@@ -253,9 +253,6 @@ func makeRealDependencies(
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
 		loaderOpts = config.TestingKnobs.LoaderOptions
-	}
-	if config.UseMultiAttach {
-		loaderOpts = append(loaderOpts, loader.WithUseMultiAttach(true))
 	}
 	ret.loader, err = loader.NewLoader(loaderOpts...)
 	if err != nil {

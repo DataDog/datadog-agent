@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "tags",
+    srcs = [
+        "cluster_name.go",
+        "container_instance_arn.go",
+        "container_instance_arn_nodocker.go",
+        "docs.go",
+        "ec2_no_tags.go",
+        "ec2_tags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ec2/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/cache",
+        "//pkg/util/ec2",
+        "//pkg/util/ec2/internal",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/log",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "tags_test",
+    srcs = [
+        "cluster_name_test.go",
+        "ec2_tags_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":tags"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "//pkg/util/cache",
+        "//pkg/util/ec2/internal",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

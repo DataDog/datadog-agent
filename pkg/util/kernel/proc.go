@@ -33,8 +33,8 @@ func AllPidsProcs(procRoot string) ([]int, error) {
 
 	pids := make([]int, 0, len(dirs))
 	for _, name := range dirs {
-		if pid, err := strconv.Atoi(name); err == nil {
-			pids = append(pids, pid)
+		if pid, err := strconv.ParseInt(name, 10, 32); err == nil {
+			pids = append(pids, int(pid))
 		}
 	}
 	return pids, nil

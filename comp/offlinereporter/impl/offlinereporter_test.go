@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -39,13 +40,10 @@ type testDeps struct {
 	Demux    demultiplexer.FakeSamplerMock
 }
 
-// newTestOptions creates an in-memory filesystem and the fx options to wire a
-// real offlinereporter component against mock dependencies. The returned fs can
-// be used by callers to pre-seed or inspect the heartbeat file. Pass
-// enabled=false to simulate telemetry.offlinereporter.enabled=false.
-func newTestOptions(t *testing.T, enabled bool) (afero.Fs, fx.Option) {
+func newTestOptions(t *testing.T, enabled bool) (afero.Fs, *clock.Mock, fx.Option) {
 	fs := afero.NewMemMapFs()
-	return fs, fx.Options(
+	clk := clock.NewMock()
+	return fs, clk, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
@@ -54,7 +52,7 @@ func newTestOptions(t *testing.T, enabled bool) (afero.Fs, fx.Option) {
 				"run_path": testRunPath,
 			})
 		}),
-		fx.Supply(Params{Fs: fs}),
+		fx.Supply(Params{Fs: fs, Clk: clk}),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		hostnameimpl.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
@@ -71,7 +69,7 @@ func newTestOptions(t *testing.T, enabled bool) (afero.Fs, fx.Option) {
 
 // TestFirstRun verifies SendOfflineDuration is a no-op when no previous file exists.
 func TestFirstRun(t *testing.T) {
-	_, opts := newTestOptions(t, true)
+	_, _, opts := newTestOptions(t, true)
 	deps := fxutil.Test[testDeps](t, opts)
 
 	deps.Reporter.SendOfflineDuration("test.offline", nil)
@@ -80,15 +78,14 @@ func TestFirstRun(t *testing.T) {
 	assert.Empty(t, timed, "expected no samples on first run")
 }
 
-// TestSecondRun verifies SendOfflineDuration sends a gauge ≈ seconds since
-// the previous heartbeat.
+// TestSecondRun verifies SendOfflineDuration sends a gauge equal to
+// the seconds since the previous heartbeat.
 func TestSecondRun(t *testing.T) {
-	fs, opts := newTestOptions(t, true)
-	pastTs := time.Now().Add(-10 * time.Second).Unix()
+	fs, clk, opts := newTestOptions(t, true)
+	pastTs := clk.Now().Add(-10 * time.Second).Unix()
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte(strconv.FormatInt(pastTs, 10)), 0600))
 
 	deps := fxutil.Test[testDeps](t, opts)
-
 	deps.Reporter.SendOfflineDuration("test.offline", []string{"env:test"})
 
 	_, timed := deps.Demux.WaitForSamples(1 * time.Second)
@@ -97,12 +94,12 @@ func TestSecondRun(t *testing.T) {
 	assert.Equal(t, "test.offline", sample.Name)
 	assert.Equal(t, "my-hostname", sample.Host)
 	assert.Equal(t, metrics.GaugeType, sample.Mtype)
-	assert.InDelta(t, 10.0, sample.Value, 2.0, "offline duration should be ~10s")
+	assert.Equal(t, 10.0, sample.Value)
 }
 
 // TestCorruptFile verifies that a corrupt heartbeat file is treated as a first run.
 func TestCorruptFile(t *testing.T) {
-	fs, opts := newTestOptions(t, true)
+	fs, _, opts := newTestOptions(t, true)
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte("not-a-timestamp"), 0600))
 
 	deps := fxutil.Test[testDeps](t, opts)
@@ -115,7 +112,7 @@ func TestCorruptFile(t *testing.T) {
 
 // TestOnStart_WritesFile verifies the heartbeat file is created on startup.
 func TestOnStart_WritesFile(t *testing.T) {
-	fs, opts := newTestOptions(t, true)
+	fs, clk, opts := newTestOptions(t, true)
 	fxutil.Test[testDeps](t, opts)
 
 	var secs int64
@@ -127,7 +124,7 @@ func TestOnStart_WritesFile(t *testing.T) {
 		secs, err = strconv.ParseInt(string(data), 10, 64)
 		return err == nil
 	}, 100*time.Millisecond, 5*time.Millisecond)
-	assert.InDelta(t, time.Now().Unix(), secs, 2.0)
+	assert.Equal(t, clk.Now().Unix(), secs)
 }
 
 // TestDisabled verifies that when telemetry.offlinereporter.enabled=false,
@@ -135,8 +132,8 @@ func TestOnStart_WritesFile(t *testing.T) {
 // NewComponent skips registering lifecycle hooks, so onStart (and readLastHeartbeat)
 // are never called.
 func TestDisabled(t *testing.T) {
-	fs, opts := newTestOptions(t, false)
-	pastTs := time.Now().Add(-10 * time.Second).Unix()
+	fs, clk, opts := newTestOptions(t, false)
+	pastTs := clk.Now().Add(-10 * time.Second).Unix()
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte(strconv.FormatInt(pastTs, 10)), 0600))
 
 	deps := fxutil.Test[testDeps](t, opts)
@@ -151,7 +148,7 @@ func TestDisabled(t *testing.T) {
 // fxutil.Test registers app.RequireStop() as a cleanup function; if OnStop blocks,
 // the test runner will time out.
 func TestOnStop_StopsLoop(t *testing.T) {
-	_, opts := newTestOptions(t, true)
+	_, _, opts := newTestOptions(t, true)
 	fxutil.Test[testDeps](t, opts)
 }
 
@@ -169,7 +166,7 @@ func TestNegativeInterval(t *testing.T) {
 				"run_path": testRunPath,
 			})
 		}),
-		fx.Supply(Params{Fs: fs}),
+		fx.Supply(Params{Fs: fs, Clk: clock.NewMock()}),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		hostnameimpl.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),

@@ -27,21 +27,22 @@ import (
 // WorkloadService implements the Service interface and stores data collected from
 // workloadmeta.Store. Covers containers and kubernetes pods.
 type WorkloadService struct {
-	entity          workloadmeta.Entity
-	tagsHash        string
-	adIdentifiers   []string
-	hosts           map[string]string
-	ports           []workloadmeta.ContainerPort
-	pid             int
-	hostname        string
-	ready           bool
-	checkNames      []string
-	extraConfig     map[string]string
-	metricsExcluded bool
-	logsExcluded    bool
-	tagger          tagger.Component
-	wmeta           workloadmeta.Component
-	imageName       string
+	entity            workloadmeta.Entity
+	tagsHash          string
+	adIdentifiers     []string
+	hosts             map[string]string
+	ports             []workloadmeta.ContainerPort
+	pid               int
+	hostname          string
+	ready             bool
+	checkNames        []string
+	extraConfig       map[string]string
+	metricsExcluded   bool
+	logsExcluded      bool
+	tagger            tagger.Component
+	wmeta             workloadmeta.Component
+	imageName         string
+	staticConfigIndex *StaticConfigIndex
 }
 
 var _ Service = &WorkloadService{}
@@ -149,6 +150,15 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	s.filterTemplatesOverriddenChecks(configs)
 	filterTemplatesMatched(s, configs)
 
+	// Runs after matching so only instrumentation configs that are actually
+	// bound to this service override file-based configs.
+	s.filterTemplatesInstrumentationOverFile(configs)
+
+	// Drop discovery templates when another config source already covers
+	// the same integration for this service. Runs after AD-identifier and
+	// CEL matching so we only consider templates actually bound to this service.
+	filterTemplatesDiscovery(s.staticConfigIndex, configs)
+
 	// Container Collect All filtering should always be last
 	s.filterTemplatesContainerCollectAll(configs)
 }
@@ -191,18 +201,40 @@ func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]integ
 // labels/annotations specify a check of the same name.
 func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
 	for digest, config := range configs {
-		if config.Provider != names.File {
-			continue // only override file configs
+		if config.Provider != names.File && config.Provider != names.InstrumentationChecks {
+			continue // only override file & instrumentation configs
 		}
 		for _, checkName := range s.checkNames {
 			if config.Name == checkName {
-				// Ignore config from file when the same check is activated on
+				// Ignore config from file or CRD when the same check is activated on
 				// the same service via other config providers (k8s annotations
 				// or container labels)
 				log.Debugf("Ignoring config from %s: the service %s overrides check %s",
 					config.Source, s.GetServiceID(), config.Name)
 				delete(configs, digest)
 			}
+		}
+	}
+}
+
+// filterTemplatesInstrumentationOverFile drops file-based templates when an
+// instrumentation check of the same name exists, giving instrumentation checks
+// priority over file-based ones.
+func (s *WorkloadService) filterTemplatesInstrumentationOverFile(configs map[string]integration.Config) {
+	instrumentationCheckNames := make(map[string]bool)
+	for _, config := range configs {
+		if config.Provider == names.InstrumentationChecks {
+			instrumentationCheckNames[config.Name] = true
+		}
+	}
+	for digest, config := range configs {
+		if config.Provider != names.File {
+			continue
+		}
+		if instrumentationCheckNames[config.Name] {
+			log.Debugf("Ignoring config from %s: instrumentation check overrides file check %s",
+				config.Source, config.Name)
+			delete(configs, digest)
 		}
 	}
 }

@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/zstd"
@@ -26,6 +28,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -85,13 +88,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error) {
-	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
 	port := config.GetInt("cmd_port")
-	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
+	url := fmt.Sprintf("https://%s/agent/dogstatsd-contexts-dump", net.JoinHostPort(addr, strconv.Itoa(port)))
 
 	body, err := client.Post(url, "", nil)
 	if err != nil {

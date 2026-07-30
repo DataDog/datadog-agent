@@ -36,23 +36,23 @@ func (_m *mockCollector) EXPECT() *mockCollector_Expecter {
 }
 
 // Collect provides a mock function for the type mockCollector
-func (_mock *mockCollector) Collect() ([]Metric, error) {
+func (_mock *mockCollector) Collect() ([]*Metric, error) {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Collect")
 	}
 
-	var r0 []Metric
+	var r0 []*Metric
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() ([]Metric, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func() ([]*Metric, error)); ok {
 		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func() []Metric); ok {
+	if returnFunc, ok := ret.Get(0).(func() []*Metric); ok {
 		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]Metric)
+			r0 = ret.Get(0).([]*Metric)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func() error); ok {
@@ -80,12 +80,12 @@ func (_c *mockCollector_Collect_Call) Run(run func()) *mockCollector_Collect_Cal
 	return _c
 }
 
-func (_c *mockCollector_Collect_Call) Return(metrics []Metric, err error) *mockCollector_Collect_Call {
+func (_c *mockCollector_Collect_Call) Return(metrics []*Metric, err error) *mockCollector_Collect_Call {
 	_c.Call.Return(metrics, err)
 	return _c
 }
 
-func (_c *mockCollector_Collect_Call) RunAndReturn(run func() ([]Metric, error)) *mockCollector_Collect_Call {
+func (_c *mockCollector_Collect_Call) RunAndReturn(run func() ([]*Metric, error)) *mockCollector_Collect_Call {
 	_c.Call.Return(run)
 	return _c
 }

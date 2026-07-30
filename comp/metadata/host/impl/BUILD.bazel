@@ -1,0 +1,76 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "host.go",
+        "payload.go",
+        "payload_no_gohai.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/host.tmpl",
+        "status_templates/hostHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/def",
+        "//comp/metadata/host/def",
+        "//comp/metadata/host/impl/utils",
+        "//comp/metadata/resources/def",
+        "//comp/metadata/runner/def",
+        "//pkg/config/env",
+        "//pkg/config/utils",
+        "//pkg/gohai",
+        "//pkg/serializer",
+        "//pkg/util/hostinfo",
+        "//pkg/util/http",
+        "//pkg/util/scrubber",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+    ] + select({
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/serializer/marshaler",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["host_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/metadata/resources/def",
+        "//comp/metadata/resources/mock",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

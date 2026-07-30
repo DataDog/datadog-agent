@@ -8,18 +8,41 @@
 #
 # You can also point the host at this file explicitly (same idea as `agent run -c` /
 # `system-probe --config`):
-#   ai-prompt-logger-native-host --config=/path/to/ai_usage_native_host.yaml
+#   ai-usage-agent-native-host --config=/path/to/ai_usage_native_host.yaml
 
 # Base URL of the Agent trace receiver (same role as DD_TRACE_AGENT_URL).
 # Use http:// only (local receiver is plain HTTP; this host has no TLS client).
-trace_agent_url: "http://localhost:8126"
+trace_agent_url: "http://127.0.0.1:8126"
 
 # EVP proxy API version (same role as DD_EVP_PROXY_API_VERSION).
 evp_proxy_api_version: 2
 
-# Logs intake subdomain header (same role as DD_LOGS_EVP_SUBDOMAIN).
-logs_evp_subdomain: "http-intake.logs"
+# AI usage EVP intake subdomain header.
+ai_usage_evp_subdomain: "softinv-intake"
 
-# Chrome extension ID for Native Messaging host registration. When the installer exposes
-# DD_AI_USAGE_CHROME_EXTENSION_ID, that value is applied here; otherwise set below.
-# chrome_extension_id: ""
+# Standalone desktop monitoring settings. These are used only when the binary is
+# launched with --desktop-monitor; Chrome native messaging mode ignores them.
+desktop_monitoring:
+  enabled: true
+  poll_interval_seconds: 60
+  # Hosted AI CLIs are counted only after their process-level read/write
+  # counters advance since the previous poll. The first poll initializes the
+  # baseline and does not emit AI-usage event.
+  process_activity_window_seconds: 600
+
+  # The built-in AI tool and host process lookup tables are compiled into the
+  # desktop monitor so software upgrades can update them without rewriting this
+  # file. Future custom AI tools may be added here; entries with the same `tool`
+  # value as a built-in tool replace that built-in record.
+  #
+  # ai_process_names:
+  #   - process_names: ["example-ai-cli", "example-ai-cli.exe"]
+  #     tool: "Example AI CLI"
+  #     provider: "Example"
+  #     match_scope: "hosted_child"
+  #     approved: false
+  #
+  # Custom foreground host applications are merged with the built-in host list.
+  #
+  # host_process_names:
+  #   - "ExampleTerminal"

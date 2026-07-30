@@ -6,7 +6,6 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
@@ -14,7 +13,7 @@ package(
     default_visibility = ["//packages:__subpackages__"],
 )
 
-VERSION = "1.10.2"
+VERSION = "1.12.2"
 
 package_metadata(
     name = "package_metadata",
@@ -24,7 +23,7 @@ package_metadata(
     ],
     purl = purl_for_generic(
         download_url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{version}.tar.bz2",
-        package = "gpg-error",
+        package = "libgcrypt",
         version = VERSION,
     ),
 )
@@ -58,8 +57,8 @@ expand_template(
     name = "gcrypt_h",
     out = "src/gcrypt.h",
     substitutions = {
-        "@VERSION@": "1.11.2",
-        "@VERSION_NUMBER@": "0x010b02",
+        "@VERSION@": VERSION,
+        "@VERSION_NUMBER@": "0x010c02",
     },
     template = ":src/gcrypt.h.in",
 )
@@ -217,11 +216,15 @@ cc_library(
         "mpi/mpih-mul.c",
         "mpi/mpih-pow.c",
         "mpi/mpiutil.c",
+        "random/random.h",
+        "src/cipher-proto.h",
+        "src/cipher.h",
         "src/const-time.h",
         "src/context.h",
         "src/ec-context.h",
         "src/g10lib.h",
         "src/gcrypt-int.h",
+        "src/gcrypt-testapi.h",
         "src/mpi.h",
         "src/types.h",
         "src/visibility.h",
@@ -383,6 +386,7 @@ _CIPHER_COMMON_SRCS = [
     "random/random.h",
     "src/gcrypt-testapi.h",
     "src/cipher-proto.h",
+    "src/hwf-common.h",
     "cipher/bithelp.h",
     "cipher/bufhelp.h",
     "src/const-time.h",
@@ -605,6 +609,7 @@ cc_library(
                    "cipher/rijndael-ssse3-amd64-asm.S",
                    "cipher/rijndael-vaes-avx2-amd64.S",
                    "cipher/rijndael-vaes-avx2-i386.S",
+                   "cipher/rijndael-vaes-avx512-amd64.S",
                    "cipher/rijndael-vaes-i386.c",
                    "cipher/salsa20-amd64.S",
                    "cipher/serpent-avx2-amd64.S",
@@ -767,7 +772,7 @@ pkg_files(
 dd_cc_packaged(
     name = "gcrypt_pkg",
     input = ":gcrypt",
-    version = "20.4.2",
+    version = "20.7.2",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
 )
@@ -781,12 +786,5 @@ pkg_filegroup(
     visibility = [
         "@@//deps/openscap:__pkg__",
         "@@//packages:__subpackages__",
-    ],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
     ],
 )

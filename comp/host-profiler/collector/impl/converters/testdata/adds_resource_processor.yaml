@@ -1,0 +1,19 @@
+service:
+  pipelines:
+    profiles:
+      receivers: [profiling]
+      processors: [batch, infraattributes]
+      exporters: [otlp_http]
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+processors:
+  batch:
+    timeout: 10s
+  infraattributes:
+    allow_hostname_override: true
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: test-key

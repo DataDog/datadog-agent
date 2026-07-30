@@ -1,4 +1,7 @@
 # Tests circuit breaker behavior with runtime stat updates.
+# After the per-probe stats migration the runtime_stats list is keyed
+# by probe_id (not per-CPU); the test process has a single probe.
+- !config { discovered_types_limit: 0, per_probe_cpu_limit: 0.01, all_probes_cpu_limit: 1000 }
 - !processes-updated
   updated:
     - process_id: { pid: 1001 }
@@ -16,31 +19,22 @@
     - hit_cnt: 0
       throttled_cnt: 0
       cpu: 0s
-    - hit_cnt: 0
-      throttled_cnt: 0
-      cpu: 0s
 - !attached { program_id: 1, process_id: 1001 }
 - !heartbeat-check
 - !runtime-stats
   program_id: 1
   runtime_stats:
-    - hit_cnt: 200
+    - hit_cnt: 1200
       throttled_cnt: 0
-      cpu: 1000ns
-    - hit_cnt: 1000
-      throttled_cnt: 0
-      cpu: 2000ns
+      cpu: 3000ns
 - !heartbeat-check
 # Second heartbeat check should trigger the circuit breaker.
 - !runtime-stats
   program_id: 1
   runtime_stats:
-    - hit_cnt: 2000
+    - hit_cnt: 7000
       throttled_cnt: 0
-      cpu: 1000s
-    - hit_cnt: 5000
-      throttled_cnt: 0
-      cpu: 500s
+      cpu: 1500s
 - !heartbeat-check
 ---
 event: !processes-updated
@@ -66,9 +60,6 @@ state:
 event: !loaded
   program_id: 1
   runtime_stats:
-    - hit_cnt: 0
-      throttled_cnt: 0
-      cpu: 0s
     - hit_cnt: 0
       throttled_cnt: 0
       cpu: 0s
@@ -111,12 +102,32 @@ state:
 event: !runtime-stats
   program_id: 1
   runtime_stats:
-    - hit_cnt: 200
+    - hit_cnt: 1200
       throttled_cnt: 0
-      cpu: 1000ns
-    - hit_cnt: 1000
+      cpu: 3000ns
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !heartbeat-check
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 7000
       throttled_cnt: 0
-      cpu: 2000ns
+      cpu: 1500s
 state:
   currently_loading: <nil>
   queued_programs: '[]'
@@ -127,40 +138,17 @@ state:
 ---
 event: !heartbeat-check
 effects:
-  - !detach-from-process {failure: "yes", process_id: 1001, program_id: 1}
+  - !report-probe-error {probe_id: probe1, process_id: 1001, program_id: 1, reason: "yes"}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Attached (prog 1) -> Failed (prog 1)
+    1001: Attached (prog 1) -> Detaching (prog 1) circuitBroken=[probe1]
   programs:
     1: Loaded (proc 1001) -> Draining (proc 1001)
   stats:
     numAttached: 1 -> 0
-    numFailed: 0 -> 1
+    numDetaching: 0 -> 1
+    typeRecompilationsTriggered: 0 -> 1
 ---
-event: !runtime-stats
-  program_id: 1
-  runtime_stats:
-    - hit_cnt: 2000
-      throttled_cnt: 0
-      cpu: 1000s
-    - hit_cnt: 5000
-      throttled_cnt: 0
-      cpu: 500s
-state:
-  currently_loading: <nil>
-  queued_programs: '[]'
-  processes:
-    1001: Failed (prog 1)
-  programs:
-    1: Draining (proc 1001)
----
-event: !heartbeat-check
-state:
-  currently_loading: <nil>
-  queued_programs: '[]'
-  processes:
-    1001: Failed (prog 1)
-  programs:
-    1: Draining (proc 1001)

@@ -13,9 +13,7 @@ import (
 	"maps"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/pkg/api/version"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -32,12 +30,12 @@ import (
 // The API is only meant to expose stats used by the Cluster Agent
 // Check configs and any data that could contain sensitive information
 // MUST NEVER be sent via this API
-func SetupHandlers(r *mux.Router, ac autodiscovery.Component) {
-	r.HandleFunc("/clcrunner/version", version.Get).Methods("GET")
-	r.HandleFunc("/clcrunner/stats", func(w http.ResponseWriter, r *http.Request) {
+func SetupHandlers(r *http.ServeMux, ac autodiscovery.Component) {
+	r.HandleFunc("GET /clcrunner/version", version.Get)
+	r.HandleFunc("GET /clcrunner/stats", func(w http.ResponseWriter, r *http.Request) {
 		getCLCRunnerStats(w, r, ac)
-	}).Methods("GET")
-	r.HandleFunc("/clcrunner/workers", getCLCRunnerWorkers).Methods("GET")
+	})
+	r.HandleFunc("GET /clcrunner/workers", getCLCRunnerWorkers)
 }
 
 // getCLCRunnerStats retrieves Cluster Level Check runners stats

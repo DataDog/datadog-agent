@@ -1,0 +1,232 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/compliance_config.yaml.schema.json
+node_type: section
+title: Security Agent Compliance Configuration
+type: object
+visibility: public
+description: Enter specific configuration for continuous compliance checks.
+tags:
+- template_section:CoreAgent
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Set to true to enable Cloud Security Posture Management (CSPM).
+    tags:
+    - full-agent-only:true
+  dir:
+    node_type: setting
+    type: string
+    default: /etc/datadog-agent/compliance.d
+    visibility: public
+    description: Directory path for compliance checks configuration containing enabled
+      benchmarks
+    tags:
+    - full-agent-only:true
+  check_interval:
+    node_type: setting
+    type: string
+    default: 20m0s
+    format: duration
+    visibility: public
+    description: Check interval (see  https://golang.org/pkg/time/#ParseDuration for
+      available options)
+    example: 20m
+    tags:
+    - golang_type:duration
+    - full-agent-only:true
+  check_max_events_per_run:
+    node_type: setting
+    type: integer
+    default: 100
+    visibility: public
+    description: The maximum number of events emitted by a check each time it runs.
+    tags:
+    - full-agent-only:true
+  container_exclude:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    tags:
+    - full-agent-only:true
+  container_include:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    tags:
+    - full-agent-only:true
+  database_benchmarks:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  endpoints:
+    node_type: section
+    type: object
+    properties:
+      additional_endpoints:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: object
+      batch_max_concurrent_send:
+        node_type: setting
+        type: integer
+        default: 0
+      batch_max_content_size:
+        node_type: setting
+        type: integer
+        default: 5000000
+      batch_max_size:
+        node_type: setting
+        type: integer
+        default: 1000
+      batch_wait:
+        node_type: setting
+        type: number
+        default: 5
+        tags:
+        - golang_type:float64
+      compression_kind:
+        node_type: setting
+        type: string
+        default: zstd
+      compression_level:
+        node_type: setting
+        type: integer
+        default: 6
+      connection_reset_interval:
+        node_type: setting
+        type: integer
+        default: 0
+      dd_url:
+        node_type: setting
+        type: string
+        default: ''
+      dev_mode_no_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        tags:
+        - no-env
+      input_chan_size:
+        node_type: setting
+        type: integer
+        default: 100
+      logs_dd_url:
+        node_type: setting
+        type: string
+        default: ''
+      logs_no_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+      sender_backoff_base:
+        node_type: setting
+        type: number
+        default: 1
+        tags:
+        - golang_type:float64
+      sender_backoff_factor:
+        node_type: setting
+        type: number
+        default: 2
+        tags:
+        - golang_type:float64
+      sender_backoff_max:
+        node_type: setting
+        type: number
+        default: 120
+        tags:
+        - golang_type:float64
+      sender_recovery_interval:
+        node_type: setting
+        type: integer
+        default: 2
+      sender_recovery_reset:
+        node_type: setting
+        type: boolean
+        default: false
+      use_compression:
+        node_type: setting
+        type: boolean
+        default: true
+      use_v2_api:
+        node_type: setting
+        type: boolean
+        default: true
+      zstd_compression_level:
+        node_type: setting
+        type: integer
+        default: 1
+  exclude_pause_container:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+  host_benchmarks:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+    tags:
+    - full-agent-only:true
+  metrics:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+    tags:
+    - full-agent-only:true
+  opa:
+    node_type: section
+    type: object
+    properties:
+      metrics:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+    tags:
+    - full-agent-only:true
+  run_commands_as:
+    node_type: setting
+    type: string
+    default: ''
+  run_in_system_probe:
+    node_type: setting
+    type: boolean
+    default: false
+    tags:
+    - full-agent-only:true
+  xccdf:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: deprecated, use host_benchmarks instead
+    tags:
+    - full-agent-only:true

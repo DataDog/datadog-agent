@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 )
 
-var registry = semantics.DefaultRegistry()
-
 // isPromotedTag returns true if the key is a promoted tag that should be set as a field instead of an attribute
 func isPromotedTag(key string) bool {
 	return key == "env" || key == "version" || key == "component" || key == "span.kind"
@@ -27,25 +25,46 @@ func isPromotedTag(key string) bool {
 // ConvertToIdx converts a TracerPayload to the new string indexed TracerPayload format
 // originPayloadVersion is the version of the original payload, this is used to set the _dd.convertedv1 attribute on the spans (for debugging purposes)
 func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.InternalTracerPayload {
+	reg := semantics.DefaultRegistry()
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
-	idxChunks := make([]*idx.InternalTraceChunk, len(payload.Chunks))
+	// Built by appending only successfully converted chunks: chunks that are nil,
+	// empty, or all-nil-spans are dropped rather than left as nil slots, which
+	// downstream consumers (firstService, ProcessV1) would dereference.
+	idxChunks := make([]*idx.InternalTraceChunk, 0, len(payload.Chunks))
 	chunkConvertedFields := idx.ChunkConvertedFields{}
-	for chunkIndex, chunk := range payload.Chunks {
+	for _, chunk := range payload.Chunks {
 		if chunk == nil || len(chunk.Spans) == 0 {
 			continue
 		}
 		spanConvertedFields := idx.NewSpanConvertedFields()
-		tidUpper, tidLower, err := chunk.Spans[0].Get128BitTraceID()
+		// A decoded payload may contain nil span entries (e.g. v0.4 JSON
+		// `[[null]]`); find the first non-nil span to derive the chunk's
+		// 128-bit trace ID from, and skip the chunk entirely if all are nil.
+		var firstSpan *pb.Span
+		for _, s := range chunk.Spans {
+			if s != nil {
+				firstSpan = s
+				break
+			}
+		}
+		if firstSpan == nil {
+			continue
+		}
+		tidUpper, tidLower, err := firstSpan.Get128BitTraceID()
 		if err != nil {
 			log.Errorf("Failed to determine full 128-bit trace ID from incoming span: %v. Resulting trace chunk(%d) will be missing upper 64 bits of the trace ID.", err, tidLower)
 		}
 		spanConvertedFields.TraceIDUpper = tidUpper
 		spanConvertedFields.TraceIDLower = tidLower
 		chunkAttrs := convertAttributesMap(chunk.Tags, stringTable)
-		idxSpans := make([]*idx.InternalSpan, len(chunk.Spans))
+		idxSpans := make([]*idx.InternalSpan, 0, len(chunk.Spans))
 		var rootSampling idx.RootSamplingMergeState
-		for spanIndex, span := range chunk.Spans {
+		for _, span := range chunk.Spans {
+			// Skip nil span entries rather than dereferencing span.Meta below.
+			if span == nil {
+				continue
+			}
 			spanAttrs := make(map[uint32]*idx.AnyValue, len(span.Meta)+len(span.Metrics)+len(span.MetaStruct))
 			for k, v := range span.Meta {
 				if isPromotedTag(k) {
@@ -57,7 +76,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 					},
 				}
 			}
-			if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(span.Metrics), semantics.ConceptSamplingPriority); ok {
+			if p, ok := semantics.LookupFloat64(reg, semantics.NewMetricsMapAccessor(span.Metrics), semantics.ConceptSamplingPriority); ok {
 				spanConvertedFields.SamplingPriority = int32(p)
 			}
 			for k, v := range span.Metrics {
@@ -81,51 +100,64 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				}
 			}
 			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(spanConvertedFields, span.ParentID)
-			spanLinks := make([]*idx.SpanLink, len(span.SpanLinks))
-			for spanLinkIndex, link := range span.SpanLinks {
+			// A nil entry in SpanLinks is a valid decode result; skip it rather
+			// than dereferencing link.TraceID, and drop it instead of preserving
+			// a nil idx.SpanLink slot that downstream paths would dereference.
+			spanLinks := make([]*idx.SpanLink, 0, len(span.SpanLinks))
+			for _, link := range span.SpanLinks {
+				if link == nil {
+					continue
+				}
 				linkTraceID := make([]byte, 16)
 				binary.BigEndian.PutUint64(linkTraceID[8:], link.TraceID)
 				binary.BigEndian.PutUint64(linkTraceID[:8], link.TraceIDHigh)
-				spanLinks[spanLinkIndex] = &idx.SpanLink{
+				spanLinks = append(spanLinks, &idx.SpanLink{
 					TraceID:       linkTraceID,
 					SpanID:        link.SpanID,
 					TracestateRef: stringTable.Add(link.Tracestate),
 					Flags:         link.Flags,
 					Attributes:    convertAttributesMap(link.Attributes, stringTable),
-				}
+				})
 			}
-			spanEvents := make([]*idx.SpanEvent, len(span.SpanEvents))
-			for spanEventIndex, event := range span.SpanEvents {
-				spanEvents[spanEventIndex] = &idx.SpanEvent{
+			// A nil entry in SpanEvents is a valid msgpack decode result; skip it
+			// rather than dereferencing event.TimeUnixNano. Nil entries are dropped
+			// instead of preserved as nil idx.SpanEvent slots, which downstream V1
+			// paths would dereference.
+			spanEvents := make([]*idx.SpanEvent, 0, len(span.SpanEvents))
+			for _, event := range span.SpanEvents {
+				if event == nil {
+					continue
+				}
+				spanEvents = append(spanEvents, &idx.SpanEvent{
 					Time:       uint64(event.TimeUnixNano),
 					NameRef:    stringTable.Add(event.Name),
 					Attributes: convertSpanEventAttributes(event.Attributes, stringTable),
-				}
+				})
 			}
 
 			// Each span gets its own env/version based on its meta, but we also promote
 			// the first occurrence to chunk/payload level via spanConvertedFields
 			metaAccessor := semantics.NewStringMapAccessor(span.Meta)
 			var spanEnvRef, spanVersionRef uint32
-			if env := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDEnv); env != "" {
+			if env := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDEnv); env != "" {
 				spanEnvRef = stringTable.Add(env)
 				if spanConvertedFields.EnvRef == 0 {
 					spanConvertedFields.EnvRef = spanEnvRef
 				}
 			}
-			if spanHost := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDHostname); spanHost != "" && spanConvertedFields.HostnameRef == 0 {
+			if spanHost := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDHostname); spanHost != "" && spanConvertedFields.HostnameRef == 0 {
 				spanConvertedFields.HostnameRef = stringTable.Add(spanHost)
 			}
-			if spanVersion := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDVersion); spanVersion != "" {
+			if spanVersion := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDVersion); spanVersion != "" {
 				spanVersionRef = stringTable.Add(spanVersion)
 				if spanConvertedFields.AppVersionRef == 0 {
 					spanConvertedFields.AppVersionRef = spanVersionRef
 				}
 			}
-			if spanGitCommitSha := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDGitCommitSHA); spanGitCommitSha != "" && spanConvertedFields.GitCommitShaRef == 0 {
+			if spanGitCommitSha := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDGitCommitSHA); spanGitCommitSha != "" && spanConvertedFields.GitCommitShaRef == 0 {
 				spanConvertedFields.GitCommitShaRef = stringTable.Add(spanGitCommitSha)
 			}
-			if spanDecisionMaker := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDDecisionMaker); spanDecisionMaker != "" && spanConvertedFields.SamplingMechanism == 0 {
+			if spanDecisionMaker := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDDecisionMaker); spanDecisionMaker != "" && spanConvertedFields.SamplingMechanism == 0 {
 				spanDecisionMaker, _ = strings.CutPrefix(spanDecisionMaker, "-")
 				samplingMechanism, err := strconv.ParseUint(spanDecisionMaker, 10, 32)
 				if err != nil {
@@ -133,14 +165,14 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				}
 				spanConvertedFields.SamplingMechanism = uint32(samplingMechanism)
 			}
-			if spanAPMMode := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDAPMMode); spanAPMMode != "" && spanConvertedFields.APMModeRef == 0 {
+			if spanAPMMode := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDAPMMode); spanAPMMode != "" && spanConvertedFields.APMModeRef == 0 {
 				spanConvertedFields.APMModeRef = stringTable.Add(spanAPMMode)
 			}
-			if spanOrigin := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDOrigin); spanOrigin != "" && spanConvertedFields.OriginRef == 0 {
+			if spanOrigin := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDOrigin); spanOrigin != "" && spanConvertedFields.OriginRef == 0 {
 				spanConvertedFields.OriginRef = stringTable.Add(spanOrigin)
 			}
-			component := semantics.LookupString(registry, metaAccessor, semantics.ConceptComponent)
-			kindStr := semantics.LookupString(registry, metaAccessor, semantics.ConceptSpanKind)
+			component := semantics.LookupString(reg, metaAccessor, semantics.ConceptComponent)
+			kindStr := semantics.LookupString(reg, metaAccessor, semantics.ConceptSpanKind)
 			var kind idx.SpanKind
 			switch kindStr {
 			case "server":
@@ -174,31 +206,33 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				Links:        spanLinks,
 				Events:       spanEvents,
 			}
-			idxSpans[spanIndex] = idx.NewInternalSpan(stringTable, protoSpan)
+			internalSpan := idx.NewInternalSpan(stringTable, protoSpan)
 			if originPayloadVersion != "" {
-				idxSpans[spanIndex].SetStringAttribute("_dd.convertedv1", originPayloadVersion)
+				internalSpan.SetStringAttribute("_dd.convertedv1", originPayloadVersion)
 			}
+			idxSpans = append(idxSpans, internalSpan)
 		}
-		idxChunks[chunkIndex] = &idx.InternalTraceChunk{
+		idxChunk := &idx.InternalTraceChunk{
 			Strings:      stringTable,
 			Attributes:   chunkAttrs,
 			Spans:        idxSpans,
 			DroppedTrace: chunk.DroppedTrace,
 		}
-		idxChunks[chunkIndex].SetOrigin(chunk.Origin)
-		idxChunks[chunkIndex].ApplyPromotedFields(spanConvertedFields, &chunkConvertedFields)
-		if chunk.Priority != int32(sampler.PriorityNone) && idxChunks[chunkIndex].Priority == int32(sampler.PriorityNone) {
+		idxChunk.SetOrigin(chunk.Origin)
+		idxChunk.ApplyPromotedFields(spanConvertedFields, &chunkConvertedFields)
+		if chunk.Priority != int32(sampler.PriorityNone) && idxChunk.Priority == int32(sampler.PriorityNone) {
 			// If the chunk has a priority set and none on any internal span then use the chunk's priority
-			idxChunks[chunkIndex].Priority = chunk.Priority
+			idxChunk.Priority = chunk.Priority
 		}
-		if chunkDm, ok := idxChunks[chunkIndex].GetAttributeAsString("_dd.p.dm"); ok && idxChunks[chunkIndex].SamplingMechanism() == 0 {
+		if chunkDm, ok := idxChunk.GetAttributeAsString("_dd.p.dm"); ok && idxChunk.SamplingMechanism() == 0 {
 			chunkDm, _ = strings.CutPrefix(chunkDm, "-")
 			samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32)
 			if err != nil {
 				log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", chunkDm, err)
 			}
-			idxChunks[chunkIndex].SetSamplingMechanism(uint32(samplingMechanism))
+			idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
 		}
+		idxChunks = append(idxChunks, idxChunk)
 	}
 	idxPayload := &idx.InternalTracerPayload{
 		Strings:    stringTable,
@@ -220,6 +254,11 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 func convertSpanEventAttributes(attrs map[string]*pb.AttributeAnyValue, stringTable *idx.StringTable) map[uint32]*idx.AnyValue {
 	spanEventAttrs := make(map[uint32]*idx.AnyValue, len(attrs))
 	for k, v := range attrs {
+		// A nil attribute value is a valid msgpack decode result (e.g.
+		// attributes["cc"] = nil); drop it rather than dereferencing v.Type.
+		if v == nil {
+			continue
+		}
 		switch v.Type {
 		case pb.AttributeAnyValue_STRING_VALUE:
 			spanEventAttrs[stringTable.Add(k)] = &idx.AnyValue{
@@ -259,9 +298,19 @@ func convertSpanEventAttributes(attrs map[string]*pb.AttributeAnyValue, stringTa
 }
 
 func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTable) *idx.ArrayValue {
-	values := make([]*idx.AnyValue, len(arrayValue.Values))
-	for i, value := range arrayValue.Values {
-		values[i] = convertAttributeArrayValue(value, stringTable)
+	// An attribute may declare ARRAY_VALUE while carrying a nil ArrayValue, since
+	// Type and ArrayValue are independent fields rather than a real oneof.
+	if arrayValue == nil {
+		return &idx.ArrayValue{}
+	}
+	// Drop nil/unconvertible elements rather than storing nil AnyValue entries:
+	// several V1 paths (AnyValue.AsString, Msgsize, MarshalMsg) dereference every
+	// array element and would panic on a nil entry.
+	values := make([]*idx.AnyValue, 0, len(arrayValue.Values))
+	for _, value := range arrayValue.Values {
+		if converted := convertAttributeArrayValue(value, stringTable); converted != nil {
+			values = append(values, converted)
+		}
 	}
 	return &idx.ArrayValue{
 		Values: values,
@@ -269,6 +318,12 @@ func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTab
 }
 
 func convertAttributeArrayValue(arrayValue *pb.AttributeArrayValue, stringTable *idx.StringTable) *idx.AnyValue {
+	// A nil element is a valid decode result (the msgpack decoder stores nil for
+	// a nil array element); return nil so the caller can drop it instead of
+	// storing an unusable nil AnyValue in the array.
+	if arrayValue == nil {
+		return nil
+	}
 	switch arrayValue.Type {
 	case pb.AttributeArrayValue_STRING_VALUE:
 		return &idx.AnyValue{

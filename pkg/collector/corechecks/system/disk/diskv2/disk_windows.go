@@ -22,6 +22,16 @@ import (
 
 var defaultStatFn statFunc = func(_ string) (StatT, error) { return StatT{}, nil }
 
+// GetDriveTypeFn returns the Windows drive type for a given path.
+// It is a variable so it can be overridden in tests.
+var GetDriveTypeFn = func(path string) uint32 {
+	typePath, err := win.UTF16PtrFromString(path)
+	if err != nil {
+		return win.DRIVE_UNKNOWN
+	}
+	return win.GetDriveType(typePath)
+}
+
 func defaultIgnoreCase() bool {
 	return true
 }
@@ -49,10 +59,13 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 }
 
 func (c *Check) excludePartitionInPlatform(partition gopsutil_disk.PartitionStat) bool {
-	/* skip cd-rom drives with no disk in it; they may raise
-	ENOENT, pop-up a Windows GUI error for a non-ready
-	partition or just hang;
-	and all the other excluded disks */
+	// Skip CD-ROM drives entirely, including inserted CDFS/UDF media.
+	// gopsutil does not expose drive type in PartitionStat on Windows, so use
+	// the same GetDriveType API that psutil uses under the Python disk check.
+	if GetDriveTypeFn(partition.Mountpoint) == win.DRIVE_CDROM {
+		return true
+	}
+
 	return slices.Contains(partition.Opts, "cdrom") || partition.Fstype == ""
 }
 

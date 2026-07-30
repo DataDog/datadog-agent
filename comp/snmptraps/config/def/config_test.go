@@ -10,14 +10,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 const mockedHostname = "VeryLongHostnameThatDoesNotFitIntoTheByteArray"
@@ -96,15 +97,11 @@ var usmUsers = []*gosnmp.UsmSecurityParameters{
 func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) config.Component {
 	ddcfg := configmock.New(t)
 	if globalNamespace != "" {
-		ddcfg.SetWithoutSource("network_devices.namespace", globalNamespace)
+		ddcfg.SetInTest("network_devices.namespace", globalNamespace)
 	}
 	if trapConfig != nil {
-		rawTrapConfig := make(map[string]any)
-		err := mapstructure.Decode(trapConfig, &rawTrapConfig)
-		require.NoError(t, err)
-		for k, v := range rawTrapConfig {
-			k = "network_devices.snmp_traps." + k
-			ddcfg.SetWithoutSource(k, v)
+		for k, v := range basic.StructToMap(trapConfig).(map[string]interface{}) {
+			ddcfg.SetInTest("network_devices.snmp_traps."+k, v)
 		}
 	}
 	return ddcfg
@@ -247,4 +244,23 @@ func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
 		Namespace: "bar",
 	}, "foo")
 	assert.Equal(t, "bar", config.Namespace)
+}
+
+func TestTagsUnmarshalFromYAML(t *testing.T) {
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{"application:foo", "team:netops", "env:prod"},
+	}, "")
+	assert.Equal(t, []string{"application:foo", "team:netops", "env:prod"}, config.Tags)
+}
+
+func TestTagsDefaultEmpty(t *testing.T) {
+	config := buildTrapsConfig(t, nil, "")
+	assert.Empty(t, config.Tags)
+}
+
+func TestTagsNormalization(t *testing.T) {
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{"  application:foo  ", "", "   ", "team:netops"},
+	}, "")
+	assert.Equal(t, []string{"application:foo", "team:netops"}, config.Tags)
 }

@@ -9,7 +9,9 @@
 // Future work (OTel semantic convention updates):
 //   - rpc.service is deprecated; the replacement is to include it as part of rpc.method,
 //     so the fallback system alone cannot extract the concept value. Needs different handling.
-//   - rpc.system is superseded by rpc.system.name; add rpc.system.name as fallback/canonical.
+//   - rpc.system is superseded by rpc.system.name (OTel semconv v1.39.0); add rpc.system.name
+//     as a fallback or promote it to canonical. Note: this affects getOTelOperationNameV2,
+//     so a release note is required.
 //   - db.system is deprecated in favor of db.system.name; add db.system.name to mappings.
 package semantics
 
@@ -128,12 +130,20 @@ const (
 	ConceptDDAPMMode       Concept = "_dd.apm_mode"
 )
 
+// Condition describes a predicate that must match before a fallback tag can be used.
+type Condition struct {
+	Attribute string  `json:"attribute,omitempty"`
+	Present   *bool   `json:"present,omitempty"`
+	Eq        *string `json:"eq,omitempty"`
+}
+
 // TagInfo contains metadata about a semantic attribute and its location.
 type TagInfo struct {
-	Name     string    `json:"name"`
-	Provider Provider  `json:"provider"`
-	Version  string    `json:"version,omitempty"`
-	Type     ValueType `json:"type,omitempty"`
+	Name     string      `json:"name"`
+	Provider Provider    `json:"provider"`
+	Version  string      `json:"version,omitempty"`
+	Type     ValueType   `json:"type,omitempty"`
+	When     []Condition `json:"when,omitempty"`
 }
 
 // ConceptMapping represents a semantic concept and its equivalent attributes.
@@ -152,4 +162,10 @@ type Registry interface {
 
 	// Version returns the semantic registry version string.
 	Version() string
+
+	// ContentHash returns the content-bound hash of the registry's concept mappings.
+	ContentHash() string
+
+	// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
+	Source() string
 }

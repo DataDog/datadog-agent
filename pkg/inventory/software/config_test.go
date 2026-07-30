@@ -17,7 +17,7 @@ import (
 func TestSoftwareInventoryModuleConfig(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("software_inventory.enabled", true)
+		cfg.SetInTest("software_inventory.enabled", true)
 		assert.True(t, cfg.GetBool("software_inventory.enabled"))
 	})
 

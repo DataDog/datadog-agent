@@ -84,6 +84,7 @@ type StructField struct {
 	RestrictedTo     []string
 	IsIterator       bool
 	ReadOnly         bool
+	DefaultValue     string
 }
 
 // GetEvaluatorType returns the evaluator type name
@@ -117,6 +118,10 @@ func (sf *StructField) GetEvaluatorType() string {
 
 // GetDefaultReturnValue returns default value for the given return type
 func (sf *StructField) GetDefaultReturnValue() string {
+	if sf.DefaultValue != "" {
+		return sf.DefaultValue
+	}
+
 	if sf.ReturnType == "int" {
 		if sf.Iterator != nil || sf.IsArray {
 			return "[]int{}"
@@ -129,7 +134,7 @@ func (sf *StructField) GetDefaultReturnValue() string {
 		return "false"
 	} else if sf.ReturnType == "net.IPNet" {
 		if sf.IsArray {
-			return "&eval.CIDRValues{}"
+			return "[]net.IPNet{}"
 		}
 		return "net.IPNet{}"
 	} else if sf.Iterator != nil || sf.IsArray {

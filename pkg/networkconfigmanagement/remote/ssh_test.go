@@ -3,128 +3,129 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build test
 
 package remote
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
-	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func TestSSHClient_RetrieveRunningConfig_Success(t *testing.T) {
+func makeDevice(t testing.TB, srv *FakeSSHServer) *ncmconfig.DeviceInstance {
+	t.Helper()
+	knownHosts := MakeKnownHostsFile(t, srv)
+	port, err := strconv.Atoi(srv.Port())
+	if err != nil {
+		t.Fatalf("Initializing fake device: %v", err)
+	}
+	return &ncmconfig.DeviceInstance{
+		IPAddress: srv.Host(),
+		Auth: ncmconfig.AuthCredentials{
+			Username: srv.User(),
+			Password: srv.Password(),
+			Port:     strconv.Itoa(port),
+			Protocol: "tcp",
+			SSH: &ncmconfig.SSHConfig{
+				KnownHostsPath: knownHosts,
+			},
+		},
+	}
+}
+
+func TestSSHConnector(t *testing.T) {
 	expectedConfig := `
 version 15.1
 hostname Router1
 interface GigabitEthernet0/1
  ip address 192.168.1.1 255.255.255.0
-end`
+`
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{
+		"show running-config": Ok(expectedConfig),
+		"show startup-config": Ok(expectedConfig),
+	})
+	device := makeDevice(t, srv)
+	client, err := NewSSHConnector(device)
+	require.NoError(t, err)
+	conn, err := client.Connect()
+	require.NoError(t, err)
+	t.Run("no_profile", func(t *testing.T) {
+		_, err := conn.RetrieveRunningConfig(context.Background())
+		assert.Error(t, err)
+		_, err = conn.RetrieveStartupConfig(context.Background())
+		assert.Error(t, err)
+	})
+	conn.SetProfile(&profile.NCMProfile{
+		Name:     "test-profile",
+		Commands: profile.CommandSet{},
+	})
+	t.Run("no_command", func(t *testing.T) {
+		_, err := conn.RetrieveRunningConfig(context.Background())
+		assert.Error(t, err)
+		_, err = conn.RetrieveStartupConfig(context.Background())
+		assert.Error(t, err)
+	})
 
-	session := &mockSSHSession{
-		outputs: map[string]string{
-			"show running-config": expectedConfig,
+	conn.SetProfile(&profile.NCMProfile{
+		Name: "test-profile",
+		Commands: profile.CommandSet{
+			GetRunning: profile.MkCommand("show running-config"),
+			GetStartup: profile.MkCommand("show startup-config"),
+		},
+	})
+	t.Run("running_config", func(t *testing.T) {
+		config, err := conn.RetrieveRunningConfig(context.Background())
+		if assert.NoError(t, err) {
+			assert.Equal(t, expectedConfig, string(config))
+		}
+	})
+	t.Run("startup_config", func(t *testing.T) {
+		config, err := conn.RetrieveStartupConfig(context.Background())
+		if assert.NoError(t, err) {
+			assert.Equal(t, expectedConfig, string(config))
+		}
+	})
+}
+
+func TestSSHConnector_MissingSSHConfig(t *testing.T) {
+	device := &ncmconfig.DeviceInstance{}
+	_, err := NewSSHConnector(device)
+	assert.ErrorContains(t, err, "missing ssh client config")
+}
+
+func TestSSHConnector_InvalidSSHConfig(t *testing.T) {
+	device := &ncmconfig.DeviceInstance{
+		IPAddress: "127.0.0.1",
+		Auth: ncmconfig.AuthCredentials{
+			Username: "nobody",
+			Password: "wrong",
+			Port:     "22",
+			Protocol: "tcp",
+			SSH: &ncmconfig.SSHConfig{
+				Ciphers: []string{ssh.InsecureCipherAES128CBC},
+			},
 		},
 	}
-
-	client := &MockSSHClient{
-		session: session,
-	}
-
-	config, err := client.RetrieveRunningConfig()
-
-	assert.NoError(t, err)
-	assert.Equal(t, expectedConfig, config)
-	assert.True(t, session.closed, "Session should be closed after use")
-}
-
-func TestSSHClient_RetrieveStartupConfig_Success(t *testing.T) {
-	expectedConfig := `
-version 15.1
-hostname Router1
-interface GigabitEthernet0/1
- ip address 192.168.1.1 255.255.255.0
-end`
-
-	session := &mockSSHSession{
-		outputs: map[string]string{
-			"show startup-config": expectedConfig,
-		},
-	}
-
-	client := &MockSSHClient{
-		session: session,
-	}
-
-	config, err := client.RetrieveStartupConfig()
-
-	assert.NoError(t, err)
-	assert.Equal(t, expectedConfig, config)
-	assert.True(t, session.closed, "Session should be closed after use")
-}
-
-func TestSSHClient_RetrieveConfig_SessionCreationFailure(t *testing.T) {
-	client := &MockSSHClient{
-		sessionError: errors.New("failed to create SSH session"),
-	}
-
-	_, err := client.RetrieveRunningConfig()
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create SSH session")
-}
-
-func TestSSHClient_RetrieveConfig_CommandExecutionFailure(t *testing.T) {
-	session := &mockSSHSession{
-		err: errors.New("command execution failed"),
-	}
-
-	client := &MockSSHClient{
-		session: session,
-	}
-
-	_, err := client.RetrieveRunningConfig()
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "command execution failed")
-	assert.True(t, session.closed, "Session should be closed even on failure")
-}
-
-func TestSSHClient_MultipleCommands(t *testing.T) {
-	session := &mockSSHSession{
-		outputs: map[string]string{
-			"show version":    "Cisco IOS Software Version 15.1",
-			"show interfaces": "GigabitEthernet0/1 is up, line protocol is up",
-			"show ip route":   "Gateway of last resort is not set",
-		},
-	}
-
-	client := &MockSSHClient{
-		session: session,
-	}
-
-	commands := []string{"show version", "show interfaces", "show ip route"}
-	results, err := client.retrieveConfiguration(commands)
-
-	assert.NoError(t, err)
-	assert.Contains(t, results, "Cisco IOS Software Version 15.1")
-	assert.Contains(t, results, "GigabitEthernet0/1 is up, line protocol is up")
-	assert.Contains(t, results, "Gateway of last resort is not set")
-	assert.True(t, session.closed, "Session should be closed after use")
+	_, err := NewSSHConnector(device)
+	assert.ErrorContains(t, err, "unsupported cipher")
 }
 
 func TestBuildHostKeyCallback(t *testing.T) {
@@ -236,13 +237,22 @@ func TestValidateClientConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid cipher",
+			name: "legacy cipher forbidden",
 			config: &ncmconfig.SSHConfig{
-				Ciphers:           []string{"bad-cipher"},
+				Ciphers:           []string{ssh.InsecureCipherAES128CBC},
 				KeyExchanges:      []string{validKex},
 				HostKeyAlgorithms: []string{validHostKey},
 			},
 			errContains: "unsupported cipher",
+		},
+		{
+			name: "legacy cipher allowed",
+			config: &ncmconfig.SSHConfig{
+				Ciphers:               []string{ssh.InsecureCipherAES128CBC},
+				KeyExchanges:          []string{validKex},
+				HostKeyAlgorithms:     []string{validHostKey},
+				AllowLegacyAlgorithms: true,
+			},
 		},
 		{
 			name: "invalid key exchange",
@@ -266,11 +276,10 @@ func TestValidateClientConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateClientConfig(tt.config)
+			err := ValidateSSHConfig(tt.config)
 
 			if tt.errContains != "" {
-				assert.Error(t, err)
-				if tt.errContains != "" {
+				if assert.Error(t, err) {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
@@ -320,7 +329,7 @@ func TestBuildAuthMethods(t *testing.T) {
 				Username: "test",
 				Password: "hunter2",
 			},
-			expectedAuthMethods: 1,
+			expectedAuthMethods: 2,
 		},
 		{
 			name: "success: private key only",
@@ -340,13 +349,13 @@ func TestBuildAuthMethods(t *testing.T) {
 			expectedAuthMethods: 1,
 		},
 		{
-			name: "success: 2 auth methods, user/pass + private key",
+			name: "success: 2 auth methods, user+pass + private key",
 			auth: ncmconfig.AuthCredentials{
 				Username:       "test",
 				Password:       "hunter2",
 				PrivateKeyFile: privateKeyPath,
 			},
-			expectedAuthMethods: 2,
+			expectedAuthMethods: 3,
 		},
 		{
 			name: "error: cannot read private key",

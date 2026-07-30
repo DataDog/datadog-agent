@@ -15,7 +15,7 @@ int hook_security_sb_umount(ctx_t *ctx) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

@@ -3,19 +3,42 @@
 # Contains jobs which fetch go dependencies, in order
 # to reuse them in further jobs that need them.
 
+# Keep GOPROXY entries usable from the current environment; drop the rest.
+.sanitize_goproxy:
+  - . tools/ci/sanitize-goproxy.sh
+
+# Windows host equivalent, for jobs that forward GOPROXY into a container.
+.sanitize_goproxy_windows:
+  - . ./tools/ci/sanitize-goproxy.ps1
+
 .retrieve_linux_go_deps:
+  - !reference [.sanitize_goproxy]
   - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.zst
 
 .retrieve_linux_go_tools_deps: 
-  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && zstd -dc modcache_tools.tar.zst | tar xf - -C $GOPATH
-  - rm -f modcache_tools.tar.zst
-  - export PATH=$PATH:$GOPATH/bin
+  - |
+    go_bin="$(go env GOBIN)"
+    if [ -z "$go_bin" ]; then
+      go_bin="$(go env GOPATH)/bin"
+    fi
+    mkdir -p "$go_bin" "$GOPATH/pkg/mod/cache"
+    zstd -dc go_tools_bin.tar.zst | tar xf - -C "$go_bin"
+    zstd -dc modcache_tools.tar.zst | tar xf - -C "$GOPATH/pkg/mod/cache"
+  - rm -f go_tools_bin.tar.zst modcache_tools.tar.zst
+  - export PATH=$PATH:$go_bin
 
 .retrieve_linux_go_tools_deps_arm64:
-  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && zstd -dc modcache_tools_arm64.tar.zst | tar xf - -C $GOPATH
-  - rm -f modcache_tools_arm64.tar.zst
-  - export PATH=$PATH:$GOPATH/bin
+  - |
+    go_bin="$(go env GOBIN)"
+    if [ -z "$go_bin" ]; then
+      go_bin="$(go env GOPATH)/bin"
+    fi
+    mkdir -p "$go_bin" "$GOPATH/pkg/mod/cache"
+    zstd -dc go_tools_bin_arm64.tar.zst | tar xf - -C "$go_bin"
+    zstd -dc modcache_tools_arm64.tar.zst | tar xf - -C "$GOPATH/pkg/mod/cache"
+  - rm -f go_tools_bin_arm64.tar.zst modcache_tools_arm64.tar.zst
+  - export PATH=$PATH:$go_bin
 
 .retrieve_linux_go_e2e_deps:
   - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache_e2e.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
@@ -73,13 +96,20 @@ go_tools_deps:
   extends: .cache
   tags: ["arch:amd64", "specific:true"]
   script:
-    - if [ -f modcache_tools.tar.zst  ]; then exit 0; fi
+    - if [ -f go_tools_bin.tar.zst ] && [ -f modcache_tools.tar.zst ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
-    - cd $GOPATH && tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.zst $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
+    - |
+      go_bin="$(go env GOBIN)"
+      if [ -z "$go_bin" ]; then
+        go_bin="$(go env GOPATH)/bin"
+      fi
+      tar c -C "$go_bin" -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f "$CI_PROJECT_DIR/go_tools_bin.tar.zst" --exclude='./datadog-package' .
+      tar c -C "$GOPATH/pkg/mod/cache" -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f "$CI_PROJECT_DIR/modcache_tools.tar.zst" .
   artifacts:
     expire_in: 1 day
     paths:
+      - $CI_PROJECT_DIR/go_tools_bin.tar.zst
       - $CI_PROJECT_DIR/modcache_tools.tar.zst
   cache:
     - key:
@@ -88,19 +118,27 @@ go_tools_deps:
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
         prefix: "go_tools_deps_modcache_zstd"
       paths:
+        - go_tools_bin.tar.zst
         - modcache_tools.tar.zst
 
 go_tools_deps_arm64:
   extends: .cache
   tags: ["arch:arm64", "specific:true"]
   script:
-    - if [ -f modcache_tools_arm64.tar.zst  ]; then exit 0; fi
+    - if [ -f go_tools_bin_arm64.tar.zst ] && [ -f modcache_tools_arm64.tar.zst ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
-    - cd $GOPATH && tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.zst $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
+    - |
+      go_bin="$(go env GOBIN)"
+      if [ -z "$go_bin" ]; then
+        go_bin="$(go env GOPATH)/bin"
+      fi
+      tar c -C "$go_bin" -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f "$CI_PROJECT_DIR/go_tools_bin_arm64.tar.zst" --exclude='./datadog-package' .
+      tar c -C "$GOPATH/pkg/mod/cache" -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f "$CI_PROJECT_DIR/modcache_tools_arm64.tar.zst" .
   artifacts:
     expire_in: 1 day
     paths:
+      - $CI_PROJECT_DIR/go_tools_bin_arm64.tar.zst
       - $CI_PROJECT_DIR/modcache_tools_arm64.tar.zst
   cache:
     - key:
@@ -109,6 +147,7 @@ go_tools_deps_arm64:
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
         prefix: "go_tools_deps_modcache_arm64_zstd"
       paths:
+        - go_tools_bin_arm64.tar.zst
         - modcache_tools_arm64.tar.zst
 
 go_e2e_deps:

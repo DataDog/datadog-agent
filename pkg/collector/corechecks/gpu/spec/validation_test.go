@@ -34,3 +34,61 @@ func TestValidateMetricType(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestExpectedMetricsSuppressesInactiveNVLinkMetrics(t *testing.T) {
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"nvlink.count.active": {
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+				"nvlink.nvswitch_connected": {
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+			},
+		},
+	}
+	config := GPUConfig{
+		Architecture: "hopper",
+		DeviceMode:   DeviceModePhysical,
+		Capabilities: ArchitectureCapabilities{NVLink: 4},
+	}
+
+	expected := ExpectedMetricsForConfig(specs, config, ValidationOptions{})
+
+	require.NotContains(t, expected, "nvlink.count.active")
+	require.Contains(t, expected, "nvlink.nvswitch_connected")
+}
+
+func TestValidateEmittedMetricsAllowsZeroNVSwitchWithNoActiveNVLink(t *testing.T) {
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"nvlink.nvswitch_connected": {
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+			},
+		},
+		Tags: &TagsSpec{},
+	}
+	config := GPUConfig{
+		Architecture: "hopper",
+		DeviceMode:   DeviceModePhysical,
+		Capabilities: ArchitectureCapabilities{NVLink: 4},
+	}
+	value := float64(0)
+	emittedMetrics := map[string][]MetricObservation{
+		"nvlink.nvswitch_connected": {{Value: &value}},
+	}
+
+	result, err := ValidateEmittedMetricsAgainstSpec(specs, config, emittedMetrics, nil, ValidationOptions{})
+
+	require.NoError(t, err)
+	require.False(t, result.HasFailures())
+}

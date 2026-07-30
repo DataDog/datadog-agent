@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
@@ -23,14 +24,16 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for ROFS permission issues
-	IssueID = "read-only-filesystem-error"
+	// IssueName is the identifier for ROFS permission issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "Read-Only Filesystem Error"
 
-	// CheckID is the unique identifier for the built-in check
-	CheckID = "rofs-permissions"
+	// IssueType is the snake_case type key for ROFS permission issues:
+	// IssueName lowercased with spaces replaced by underscores (hyphens preserved).
+	IssueType = "read-only_filesystem_error"
 
-	// CheckName is the human-readable name for the health check
-	CheckName = "ROFS Permissions Check"
+	// IssueID is the unique instance id used when reporting this issue
+	IssueID = "rofs-permissions"
 )
 
 type rofsPermissionsModule struct {
@@ -39,28 +42,36 @@ type rofsPermissionsModule struct {
 }
 
 // NewModule creates a new ROFS permissions issue module
-func NewModule(conf config.Component) issues.Module {
+func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &rofsPermissionsModule{
 		template: NewRofsPermissionIssue(),
-		conf:     conf,
+		conf:     deps.Config,
 	}
 }
 
-func (r *rofsPermissionsModule) IssueID() string {
-	return IssueID
+func (r *rofsPermissionsModule) IssueName() string {
+	return IssueName
 }
 
-func (r *rofsPermissionsModule) IssueTemplate() issues.IssueTemplate {
-	return r.template
+func (r *rofsPermissionsModule) IssueType() string {
+	return IssueType
 }
 
-func (r *rofsPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
-		ID:   CheckID,
-		Name: CheckName,
-		CheckFn: func() (*healthplatform.IssueReport, error) {
+func (r *rofsPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return r.template.BuildIssue(context)
+}
+
+// BuiltInPeriodicHealthCheck returns nil — filesystem permission checks run once at startup, not periodically.
+func (r *rofsPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck runs the filesystem permission check once at agent startup.
+func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return &runnerdef.BuiltInHealthCheck{
+		Source: "agent",
+		Fn: func() ([]runnerdef.IssueReport, error) {
 			return Check(r.conf)
 		},
-		Once: true,
 	}
 }

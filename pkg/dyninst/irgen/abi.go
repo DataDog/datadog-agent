@@ -478,6 +478,9 @@ func registerAssign(
 		}
 		return pieces, true, nil
 
+	case *ir.GoTimeType:
+		return registerAssign(typ.StructureType, regs, abi)
+
 	case *ir.ArrayType:
 		if !typ.HasCount {
 			return nil, false, fmt.Errorf(

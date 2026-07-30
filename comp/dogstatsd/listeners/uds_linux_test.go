@@ -37,7 +37,7 @@ func TestUDSPassCred(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, cfg)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	listernersTelemetryStore := NewTelemetryStore(nil, deps.Telemetry)
-	pool := packets.NewPool(512, packetsTelemetryStore)
+	pool := packets.NewPool(deps.Config, 512, packetsTelemetryStore)
 	poolManager := packets.NewPoolManager(pool)
 	s, err := NewUDSDatagramListener(nil, poolManager, nil, deps.Config, nil, option.None[workloadmeta.Component](), deps.PidMap, listernersTelemetryStore, packetsTelemetryStore, deps.Telemetry)
 	defer s.Stop()

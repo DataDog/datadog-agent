@@ -21,9 +21,11 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	remoteflagsfx "github.com/DataDog/datadog-agent/comp/core/remoteflags/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -55,7 +57,8 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 		logfx.Module(),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-		sysprobeconfigimpl.Module(),
+		sysprobeconfigfx.Module(),
+		remoteflagsfx.Module(),
 		telemetryfx.Module(),
 		pidfx.Module(), // You must supply pidimpl.NewParams in order to use it
 		params.secretsModule,

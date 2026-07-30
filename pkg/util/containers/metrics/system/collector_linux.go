@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -305,7 +303,7 @@ func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, _ time.Durati
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cg, stats)
 	if allFailed {
-		return nil, fmt.Errorf("cgroup parsing failed, no data for containerID: %s, err: %w", cg.Identifier(), multierror.Append(nil, errs...))
+		return nil, fmt.Errorf("cgroup parsing failed, no data for containerID: %s, err: %w", cg.Identifier(), errors.Join(errs...))
 	} else if len(errs) > 0 {
 		log.Debugf("Incomplete data when getting cgroup stats for cgroup id: %s, errs: %v", cg.Identifier(), errs)
 	}
@@ -366,7 +364,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
-	if cgs.UsageTotal != nil && cgs.InactiveFile != nil {
+	if cgs.UsageTotal != nil && cgs.InactiveFile != nil && *cgs.InactiveFile < *cgs.UsageTotal {
 		cs.WorkingSet = pointer.Ptr(float64(*cgs.UsageTotal - *cgs.InactiveFile))
 	}
 

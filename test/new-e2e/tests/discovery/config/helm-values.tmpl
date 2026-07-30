@@ -1,0 +1,21 @@
+datadog:
+  discovery:
+    enabled: true
+{{- if eq .Mode "sp" }}
+  # Add a non-discovery system-probe feature so the agent's
+  # shouldExecSPLite logic keeps the full binary running instead
+  # of exec'ing into system-probe-lite.
+  systemProbe:
+    enableOOMKill: true
+{{- end }}
+
+agents:
+  # The discovery-e2e-mode annotation is purely a no-op marker
+  # whose only purpose is to change the DaemonSet pod template
+  # hash between sub-tests, forcing a pod rollout. Without it,
+  # toggling datadog.systemProbe.enableOOMKill only updates the
+  # configmap and the existing pod stays alive (the chart has
+  # no checksum/system_probe annotation tying the pod template
+  # to the configmap content).
+  podAnnotations:
+    discovery-e2e-mode: "{{ .Mode }}"

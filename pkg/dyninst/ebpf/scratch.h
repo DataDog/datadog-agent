@@ -46,10 +46,11 @@ typedef uint64_t buf_offset_t;
 // than this many fragments for a single invocation.
 #define MAX_CONTINUATION_FRAGMENTS 16
 
-// Side-channel for drop notifications. Notifications are 32 bytes each; at
-// 16 KiB the side channel holds ~500 notifications — far more than the
-// number of concurrently-buffered events userspace can hold, so the side
-// channel is very unlikely to fill even when out_ringbuf is saturated.
+// Side-channel for drop notifications. Notifications are 40 bytes each
+// (see di_drop_notification_t); at 16 KiB the side channel holds ~400
+// notifications — far more than the number of concurrently-buffered
+// events userspace can hold, so the side channel is very unlikely to
+// fill even when out_ringbuf is saturated.
 #define DROP_NOTIFY_RINGBUF_CAPACITY ((uint64_t)1 << 14) // 16KiB
 
 struct {
@@ -79,35 +80,49 @@ struct {
   __type(value, uint64_t);
 } drop_notify_lost_at SEC(".maps");
 
-// send_drop_notification publishes a drop notification to the side channel.
-// On failure (drop_notify_ringbuf full), stamps drop_notify_lost_at with
-// the current ktime so userspace can later reconcile the stuck eventbuf
-// entry.
-static inline void send_drop_notification(
-    uint32_t prog_id,
-    uint32_t probe_id,
-    uint64_t goid,
-    uint32_t stack_byte_depth,
-    uint16_t last_seq,
-    uint64_t entry_ktime_ns,
-    uint8_t drop_reason) {
-  di_drop_notification_t notif = {
-      .prog_id = prog_id,
-      .probe_id = probe_id,
-      .goid = goid,
-      .stack_byte_depth = stack_byte_depth,
-      .drop_reason = drop_reason,
-      .last_seq = last_seq,
-      .entry_ktime_ns = entry_ktime_ns,
-  };
-  if (bpf_ringbuf_output(&drop_notify_ringbuf, &notif, sizeof(notif), 0) !=
+// Per-CPU scratch slot for building drop notifications without a stack-local
+// struct. The 40-byte di_drop_notification_t would otherwise inflate
+// probe_run_with_cookie's frame (the root of every call chain the BPF
+// verifier checks), pushing the combined stack over the 512-byte limit on
+// arm64.
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, uint32_t);
+  __type(value, di_drop_notification_t);
+} drop_notify_scratch SEC(".maps");
+
+// drop_notify_prepare returns a pointer to the per-CPU drop notification
+// scratch slot, or NULL if the map lookup fails (should never happen).
+// Callers fill the struct fields, then call send_drop_notification() to
+// submit it to the side-channel ringbuf.
+static inline di_drop_notification_t* drop_notify_prepare(void) {
+  uint32_t zero = 0;
+  return bpf_map_lookup_elem(&drop_notify_scratch, &zero);
+}
+
+// send_drop_notification submits the notification prepared in
+// drop_notify_scratch to drop_notify_ringbuf. On failure (ringbuf full),
+// stamps drop_notify_lost_at so userspace can reconcile.
+//
+// Noinline global function: its frame (ringbuf output + error handling)
+// is accounted separately from probe_run_with_cookie, and zero args
+// sidesteps the BPF 5-register calling convention limit.
+__attribute__((noinline)) int send_drop_notification(void) {
+  uint32_t zero = 0;
+  di_drop_notification_t* notif =
+      bpf_map_lookup_elem(&drop_notify_scratch, &zero);
+  if (!notif) {
+    return 0;
+  }
+  if (bpf_ringbuf_output(&drop_notify_ringbuf, notif, sizeof(*notif), 0) !=
       0) {
-    uint32_t zero = 0;
     uint64_t* slot = bpf_map_lookup_elem(&drop_notify_lost_at, &zero);
     if (slot) {
       *slot = bpf_ktime_get_ns();
     }
   }
+  return 0;
 }
 
 // A helper to check if the scratch buffer has enough space.
@@ -187,13 +202,6 @@ static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
   header->continuation_seq = *continuation_seq;
   header->continuation_flags = 1; // more fragments follow
 
-  // Save header fields before submit.
-  uint32_t prog_id = header->prog_id;
-  uint64_t goid = header->goid;
-  uint32_t stack_byte_depth = header->stack_byte_depth;
-  uint32_t probe_id = header->probe_id;
-  unsigned char event_pairing_expectation = header->event_pairing_expectation;
-
   if (!events_scratch_buf_submit(scratch_buf, start_ns)) {
     return false;
   }
@@ -201,20 +209,25 @@ static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
   *last_submitted_seq = *continuation_seq;
   (*continuation_seq)++;
 
-  // Reinitialize the buffer with a continuation header.
+  // Reinitialize the buffer for the next continuation fragment.
+  // bpf_ringbuf_output (called by events_scratch_buf_submit) copies the
+  // buffer without modifying the source, so header fields we want to
+  // keep (prog_id, goid, stack_byte_depth, probe_id,
+  // event_pairing_expectation, entry_ktime_ns) are still in place.
+  // ktime_ns was set to start_ns by events_scratch_buf_submit.
+  // Reset the buffer length and zero only the fields that must differ
+  // in continuation fragments — this avoids a 64-byte struct literal
+  // and 5 saved-field locals on the stack, which matters for staying
+  // within the 512-byte BPF combined-stack limit.
   scratch_buf_set_len(scratch_buf, sizeof(di_event_header_t));
-  di_event_header_t* new_header = (di_event_header_t*)scratch_buf;
-  *new_header = (di_event_header_t){
-      .data_byte_len = sizeof(di_event_header_t),
-      .prog_id = prog_id,
-      .goid = goid,
-      .stack_byte_depth = stack_byte_depth,
-      .probe_id = probe_id,
-      .stack_byte_len = 0, // no stack trace in continuations
-      .event_pairing_expectation = event_pairing_expectation,
-      .ktime_ns = start_ns, // same timestamp for fragment correlation
-      .entry_ktime_ns = entry_ktime_ns,
-  };
+  header->stack_byte_len = 0;       // no stack trace in continuations
+  header->condition_eval_error = 0;
+  header->continuation_seq = 0;     // set on next flush
+  header->continuation_flags = 0;
+  header->__padding[0] = 0;
+  header->stack_hash = 0;
+  header->panic_lo_depth = 0;
+  header->panic_hi_depth = 0;
   return true;
 }
 
@@ -244,6 +257,78 @@ static long copy_stack_loop(unsigned long i, void* _ctx) {
 #define ENQUEUE_LEN_SENTINEL __UINT32_MAX__
 
 static const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
+
+// scratch_buf_serialize_with_src is a sibling of
+// scratch_buf_serialize_inner that takes a separate src_addr for the
+// bpf_probe_read_user call. This decouples the wire header's .address
+// (which the filter emit helper uses to carry the output_index) from
+// the source-memory address (filter_loop_state.data_ptr or a swiss-map
+// slot field address). max_size is the static upper bound the verifier
+// needs for the in-buffer payload write.
+//
+// Return value matches scratch_buf_serialize_inner's convention:
+//   - 0 on buffer-full (header didn't fit).
+//   - offset with FAILED_READ_OFFSET_BIT set on bpf_probe_read_user
+//     failure (header committed, payload zeroed; caller should rollback
+//     to pre-emit_len).
+//   - plain offset on success.
+static inline buf_offset_t
+scratch_buf_serialize_with_src_inner(scratch_buf_t* scratch_buf,
+                                     di_data_item_header_t* hdr,
+                                     target_ptr_t src_addr,
+                                     const uint64_t len) {
+  buf_offset_t offset = scratch_buf_len(scratch_buf);
+  if (!scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
+    return 0;
+  }
+  if (hdr->length == ENQUEUE_LEN_SENTINEL) {
+    hdr->length = len;
+  }
+  uint64_t read_len = hdr->length;
+  if (read_len >= len) {
+    read_len = len;
+  }
+  hdr->length = read_len;
+  *(di_data_item_header_t*)(&(*scratch_buf)[offset]) = *hdr;
+  offset += sizeof(di_data_item_header_t);
+  if (!scratch_buf_bounds_check(&offset, len)) {
+    return 0;
+  }
+  int read_result = bpf_probe_read_user(&(*scratch_buf)[offset], read_len,
+                                        (void*)src_addr);
+  scratch_buf_set_len(scratch_buf, offset + read_len);
+  int rem = hdr->length % 8;
+  if (rem != 0) {
+    scratch_buf_increment_len(scratch_buf, 8 - rem);
+  }
+  if (read_result != 0) {
+    offset |= FAILED_READ_OFFSET_BIT;
+  }
+  return offset;
+}
+
+// scratch_buf_serialize_with_src_256 is the single fixed-size-class
+// global wrapper used by the filter emit helpers. Filter elements / map
+// (key, value) pairs are capped at COLLECTION_PREDICATE_MAX_ELEM_BYTES
+// (256), so we only need one bound here — no SIZE_LIST dispatch.
+buf_offset_t scratch_buf_serialize_with_src_256(
+    scratch_buf_t* scratch_buf,
+    di_data_item_header_t* hdr,
+    target_ptr_t src_addr,
+    const uint64_t len) {
+  if (!hdr || !scratch_buf) {
+    return 0;
+  }
+  if (hdr->length == ENQUEUE_LEN_SENTINEL) {
+    hdr->length = len;
+  } else if (hdr->length > len) {
+    hdr->length = len;
+  }
+  if (len > 256) {
+    return 0;  // not supported by this fixed-size wrapper.
+  }
+  return scratch_buf_serialize_with_src_inner(scratch_buf, hdr, src_addr, 256);
+}
 
 // Write the queue entry to the scratch buffer, and return the offset of the
 // data in the scratch buffer on success or 0 on failure.
@@ -348,9 +433,10 @@ SIZE_LIST
 
 #undef X
 
-buf_offset_t scratch_buf_serialize_whole(scratch_buf_t* scratch_buf,
-                                         di_data_item_header_t* data_item_header,
-                                         const uint64_t len) {
+static __always_inline buf_offset_t
+scratch_buf_serialize_whole(scratch_buf_t* scratch_buf,
+                            di_data_item_header_t* data_item_header,
+                            const uint64_t len) {
   // Use macro to also define the checking for the size classes.
 #define X(max_size)                                                         \
   if (len <= max_size) {                                                    \

@@ -19,10 +19,10 @@ import (
 )
 
 // NewFactory creates a factory for the receiver.
-func NewFactory() receiver.Factory {
+func NewFactory(profilerName string) receiver.Factory {
 	return xreceiver.NewFactory(
 		component.MustNewType("profiling"),
-		defaultConfig,
+		func() component.Config { return defaultConfig(profilerName) },
 		xreceiver.WithProfiles(createProfilesReceiver, component.StabilityLevelAlpha))
 }
 
@@ -37,7 +37,9 @@ func createProfilesReceiver(
 		return nil, fmt.Errorf("invalid config type. Expected %T, got %T", Config{}, baseCfg)
 	}
 
-	logger.Info("Enabled tracers: " + config.EbpfCollectorConfig.Tracers)
+	logger.Info(fmt.Sprintf("Go symbolization disabled: %v, Go labels disabled: %v",
+		config.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled(),
+		config.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled()))
 
 	var createProfiles xreceiver.CreateProfilesFunc
 	if config.SymbolUploader.Enabled {

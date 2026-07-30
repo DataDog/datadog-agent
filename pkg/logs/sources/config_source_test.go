@@ -73,7 +73,7 @@ func TestSubscribeForTypeAndAddFileSource(t *testing.T) {
 		configSource.AddSource(source)
 	}
 
-	addedChan, _ := configSource.SubscribeForType("file")
+	addedChan, _ := configSource.SubscribeForType("file", make(chan struct{}), make(chan struct{}))
 	added := <-addedChan
 	assert.NotNil(t, added)
 	assert.Equal(t, "file", added.Config.Type)

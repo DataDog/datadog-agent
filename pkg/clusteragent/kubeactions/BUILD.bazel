@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "kubeactions",
+    srcs = [
+        "action_store.go",
+        "config_retriever.go",
+        "doc.go",
+        "executor.go",
+        "processor.go",
+        "reporter.go",
+        "setup.go",
+        "telemetry.go",
+        "types.go",
+        "validator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/sender",
+        "//pkg/clusteragent/kubeactions/executors",
+        "//pkg/logs/message",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//kubeactions",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//kubernetes",
+        "@org_golang_google_protobuf//encoding/protojson",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kubeactions_test",
+    srcs = ["action_store_test.go"],
+    embed = [":kubeactions"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+)

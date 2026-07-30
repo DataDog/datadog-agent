@@ -11,7 +11,7 @@ go_library(
         "//comp/core/secrets/def",
         "//comp/def",
         "//comp/forwarder/connectionsforwarder/def",
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/impl",
         "//comp/forwarder/defaultforwarder/resolver",
         "//pkg/config/setup",
         "//pkg/process/runner/endpoint",

@@ -1,4 +1,5 @@
 import os
+import shlex
 import tempfile
 from datetime import datetime
 
@@ -17,7 +18,7 @@ from tasks.libs.package.size import (
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.url import get_deb_package_url, get_rpm_package_url
+from tasks.libs.package.url import get_deb_package_url, get_docker_image_url, get_installer_oci_url, get_rpm_package_url
 from tasks.libs.package.utils import (
     PackageSize,
     get_ancestor,
@@ -150,9 +151,27 @@ def diff(
     print(f"Artifacts will be downloaded to {tmpdir}")
 
     base_extract_dir = os.path.join(tmpdir, "base")
-    download(ctx, base_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=base_extract_dir)
+    download(
+        ctx,
+        pipeline=base_pipeline_id,
+        binary=binary,
+        _type=_type,
+        flavor=flavor,
+        arch=arch,
+        path=tmpdir,
+        extract_dir=base_extract_dir,
+    )
     target_extract_dir = os.path.join(tmpdir, "target")
-    download(ctx, target_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=target_extract_dir)
+    download(
+        ctx,
+        pipeline=target_pipeline_id,
+        binary=binary,
+        _type=_type,
+        flavor=flavor,
+        arch=arch,
+        path=tmpdir,
+        extract_dir=target_extract_dir,
+    )
 
     _diff(base_extract_dir, target_extract_dir, sort_by_size=sort_by_size)
 
@@ -160,18 +179,20 @@ def diff(
 @task(
     help={
         "pipeline": "The pipeline id to download the package from",
-        "binary": "The binary of the package, either agent or dogstatsd",
-        "type": "The type of package, only deb is supported for now",
+        "pull_request_id": "Download the package from the pull request's target (head) pipeline.",
+        "binary": "The binary of the package, either agent, dogstatsd, or installer",
+        "type": "The type of package: deb, rpm, docker, or oci",
         "flavor": "The flavor of the package, either empty, heroku, iot or fips",
         "arch": "The package architecture, either amd64 or arm64",
         "path": "The path to download the package to",
-        "extract": "Whether to extract the package",
+        "extract": "Whether to extract the package (ignored for docker/oci types)",
         "extract_dir": "The directory to extract the package to",
+        "ecr_release_suffix": "ECR image repo suffix for nightly/release pipelines, e.g. '-nightly' or '-release'",
     }
 )
 def download(
     ctx: Context,
-    pipeline: str | int,
+    pipeline: str | int | None = None,
     binary: str = "agent",
     _type: str = "deb",
     flavor: str = "",
@@ -179,18 +200,31 @@ def download(
     path: str | None = None,
     extract: bool = True,
     extract_dir: str | None = None,
+    pull_request_id: str | None = None,
+    ecr_release_suffix: str = "",
 ):
     """
     Download the package from the given pipeline.
+
+    Exactly one of --pipeline or --pull-request-id must be provided.
+    For docker/oci types, extraction is always disabled.
+    The installer OCI image uses a different registry and tag scheme from agent/dogstatsd.
     """
 
-    assert binary in ("agent", "dogstatsd"), "Unknown binary"
+    assert binary in ("agent", "dogstatsd", "installer"), "Unknown binary"
     assert flavor in ("", "heroku", "iot", "fips"), "Unknown flavor"
     assert arch in ("amd64", "arm64"), "Unknown architecture"
 
+    repo = None
+    if pull_request_id is not None:
+        assert pipeline is None, "Only one of --pipeline or --pull-request-id may be provided"
+        repo = get_gitlab_repo("DataDog/datadog-agent")
+        pipeline = get_pipeline_id(ctx, repo, None, None, pull_request_id, base=False)
+
+    assert pipeline is not None, "One of --pipeline or --pull-request-id must be provided"
+
     if path is None:
         path = os.getcwd()
-
     if extract_dir is None:
         extract_dir = path
     else:
@@ -199,16 +233,33 @@ def download(
 
     match _type:
         case "deb":
-            _get_package_url = get_deb_package_url
-            _extract = extract_deb
+            package_name = get_package_name(binary, flavor)
+            download_path = _download(get_deb_package_url(ctx, int(pipeline), package_name, arch), path)
+            if extract:
+                extract_deb(ctx, download_path, extract_dir)
+
         case "rpm":
-            _get_package_url = get_rpm_package_url
-            _extract = extract_rpm
+            package_name = get_package_name(binary, flavor)
+            download_path = _download(get_rpm_package_url(ctx, int(pipeline), package_name, arch), path)
+            if extract:
+                extract_rpm(ctx, download_path, extract_dir)
+
+        case "docker" | "oci":
+            if binary == "installer":
+                image_url = get_installer_oci_url(int(pipeline))
+            else:
+                if repo is None:
+                    repo = get_gitlab_repo("DataDog/datadog-agent")
+                gitlab_pipeline = repo.pipelines.get(int(pipeline))
+                commit_short_sha = gitlab_pipeline.sha[:8]
+                image_url = get_docker_image_url(
+                    int(pipeline), binary, flavor, arch, commit_short_sha, ecr_release_suffix
+                )
+            if not os.path.isdir(path):
+                raise Exit(code=1, message=f"--path must be a directory for docker/oci downloads, got: {path}")
+            output_path = os.path.join(path, f"{get_package_name(binary, flavor)}-{arch}.{_type}")
+            crane_format = "--format=oci " if _type == "oci" else ""
+            ctx.run(f"crane pull {crane_format}{shlex.quote(image_url)} {shlex.quote(output_path)}")
+
         case _:
             raise Exit(code=1, message=f"Unknown package type: {_type}")
-
-    package_name = get_package_name(binary, flavor)
-    download_path = _download(_get_package_url(ctx, int(pipeline), package_name, arch), path)
-
-    if extract:
-        _extract(ctx, download_path, extract_dir)

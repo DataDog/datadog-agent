@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
@@ -39,10 +39,16 @@ type Provides struct {
 
 // component implements the Data Observability query actions component
 type component struct {
-	log             log.Component
-	ac              autodiscovery.Component
-	rcclient        rcclient.Component
-	activeConfigs   map[string]activeConfigEntry
+	log      log.Component
+	ac       autodiscovery.Component
+	rcclient rcclient.Component
+	// activeConfigs maps a DO config_id to the DO check config currently scheduled for it.
+	activeConfigs map[string]activeConfigEntry
+	// managedBases maps a base postgres config Digest to the bookkeeping needed to restore it.
+	// A base config has an entry here while at least one DO config targets one of its instances;
+	// the entry records the original config (for restoration) and the remainder config currently
+	// scheduled in its place. See reconcileBases.
+	managedBases    map[string]*managedBaseEntry
 	activeConfigsMu sync.Mutex
 }
 
@@ -53,6 +59,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ac:            reqs.Ac,
 		rcclient:      reqs.RcClient,
 		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -177,9 +184,6 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 // data_observability.enabled: true is configured in autodiscovery.
 func (c *component) hasSupportedIntegration() bool {
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
-		if !isSupportedIntegration(cfg.Name) {
-			continue
-		}
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {

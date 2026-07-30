@@ -18,10 +18,10 @@ import (
 
 // newPreprocessorHandler is the single constructor for all preprocessor-based line handlers.
 // The caller picks the Aggregator that determines the combining strategy; everything else
-// (tokenization, labeling, JSON aggregation, sampling) is wired identically.
+// (tokenization, labeling, JSON aggregation, Go stack trace aggregation, sampling) is wired identically.
 // Pass nil for labeler on paths that don't use auto multiline detection (regex, pass-through).
-func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler preprocessor.Labeler, sampler preprocessor.Sampler, outputChan chan *message.Message, jsonAggregator preprocessor.JSONAggregator, flushTimeout time.Duration, labelerMaxBytes int) LineHandler {
-	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, outputChan, jsonAggregator, flushTimeout, labelerMaxBytes)
+func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler preprocessor.Labeler, sampler preprocessor.Sampler, outputChan chan *message.Message, jsonAggregator preprocessor.JSONAggregator, stackTraceAggregator preprocessor.StackTraceAggregator, flushTimeout time.Duration, labelerMaxBytes int) LineHandler {
+	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, outputChan, jsonAggregator, stackTraceAggregator, flushTimeout, labelerMaxBytes)
 	return &preprocessorLineHandler{preprocessor: pp}
 }
 

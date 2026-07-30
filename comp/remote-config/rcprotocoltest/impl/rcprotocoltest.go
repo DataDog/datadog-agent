@@ -47,7 +47,7 @@ func New(reqs Requires) Provides {
 	}
 
 	apiKey := reqs.Cfg.GetString("api_key")
-	if reqs.Cfg.IsSet("remote_configuration.api_key") {
+	if reqs.Cfg.IsConfigured("remote_configuration.api_key") {
 		apiKey = reqs.Cfg.GetString("remote_configuration.api_key")
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)

@@ -12,20 +12,34 @@
 // 1. Create a new sub-package (e.g., issues/myissue/)
 // 2. Implement the Module interface
 // 3. Call RegisterModuleFactory in your package's init() function
+//
+// Health-check IssueIDs must be unique per host, since a downstream aggregator
+// keys recommendations on (org, IssueID) alone. A module whose check can run
+// with different results/config on multiple hosts (or multiple binaries on the
+// same host) must scope its IssueID accordingly — see invalidconfig's
+// instanceIssueID for the pattern.
 package issues
 
 import (
 	"sync"
-	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
+// ModuleDeps carries the dependencies available to every issue module.
+// SysProbeConfig is optional: it is nil in commands that don't bundle system-probe config.
+type ModuleDeps struct {
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component
+	Hostname       hostnameinterface.Component
+}
+
 // ModuleFactory is a function that creates a new Module instance
-type ModuleFactory func(config config.Component) Module
+type ModuleFactory func(deps ModuleDeps) Module
 
 var (
 	moduleFactories   []ModuleFactory
@@ -42,45 +56,45 @@ func RegisterModuleFactory(factory ModuleFactory) {
 
 // GetAllModules creates and returns all registered modules.
 // Each call creates new module instances.
-func GetAllModules(config config.Component) []Module {
+func GetAllModules(deps ModuleDeps) []Module {
 	moduleFactoriesMu.Lock()
 	defer moduleFactoriesMu.Unlock()
 
 	modules := make([]Module, 0, len(moduleFactories))
 	for _, factory := range moduleFactories {
-		modules = append(modules, factory(config))
+		modules = append(modules, factory(deps))
 	}
 	return modules
 }
 
-// IssueTemplate defines how to build a complete issue (metadata + remediation) from context
-type IssueTemplate interface {
-	// BuildIssue creates a complete issue using the provided context
+// Template is the remediation side of a Module: it knows its issue name and
+// can build a complete Issue from context.
+type Template interface {
+	// IssueName returns the issue name. It is the registry key and
+	// must equal the IssueName field in any proto Issue emitted by this module's checks.
+	IssueName() string
+
+	// IssueType returns the issue type. It must equal the IssueType field in any
+	// proto Issue emitted by this module's checks, and must equal IssueName()
+	// lowercased with spaces replaced by underscores (hyphens preserved).
+	IssueType() string
+
+	// BuildIssue creates a complete issue using the provided context.
 	BuildIssue(context map[string]string) (*healthplatform.Issue, error)
 }
 
-// BuiltInCheck represents configuration for a built-in health check
-type BuiltInCheck struct {
-	ID       string
-	Name     string
-	CheckFn  healthplatformdef.HealthCheckFunc
-	Interval time.Duration
+// HealthCheckProvider is the detection side of a Module.
+// Both methods return nil if this module has no check of that type.
+type HealthCheckProvider interface {
+	// BuiltInPeriodicHealthCheck returns the periodic health check configuration, or nil.
+	BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck
 
-	// Once is mutually exclusive with Interval.
-	// If true, the check will only run once at startup.
-	Once bool
+	// BuiltInStartupHealthCheck returns a check that runs once at startup, or nil.
+	BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck
 }
 
-// Module represents a complete issue feature module
-// Each module bundles detection (optional) with remediation
+// Module bundles detection (optional) with remediation for a single issue type.
 type Module interface {
-	// IssueID returns the unique identifier for this issue type
-	IssueID() string
-
-	// IssueTemplate returns the template for building complete issues
-	IssueTemplate() IssueTemplate
-
-	// BuiltInCheck returns the built-in health check configuration, or nil if
-	// this issue is only reported by external integrations
-	BuiltInCheck() *BuiltInCheck
+	Template
+	HealthCheckProvider
 }

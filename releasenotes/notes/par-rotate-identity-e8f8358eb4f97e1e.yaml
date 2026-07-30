@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add ``datadog-private-action-runner rotate-identity`` to force a new
+    enrollment and rotate the runner's credentials. Restart the process to apply.

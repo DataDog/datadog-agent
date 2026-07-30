@@ -18,7 +18,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			replayimpl.NewTrafficCapture,
+			replayimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[replay.Component](),
 	)

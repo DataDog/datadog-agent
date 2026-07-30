@@ -12,6 +12,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
@@ -42,7 +43,41 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
 			Annotations: pod.Annotations,
+			Rootowner:   resolveRootOwner(pod.Owners),
 		},
+	}
+}
+
+// resolveRootOwner determines the root owner of a pod by walking the owner chain.
+// For example, a pod owned by a ReplicaSet resolves to the parent Deployment.
+func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRootOwner {
+	if len(owners) == 0 {
+		return nil
+	}
+
+	owner := owners[0]
+	for _, o := range owners {
+		if o.Controller != nil && *o.Controller {
+			owner = o
+			break
+		}
+	}
+
+	switch owner.Kind {
+	case kubernetes.ReplicaSetKind:
+		if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
+			return &core.FilterRootOwner{Kind: kubernetes.DeploymentKind, Name: deployment}
+		}
+		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
+	case kubernetes.JobKind:
+		if cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name); cronjob != "" {
+			return &core.FilterRootOwner{Kind: kubernetes.CronJobKind, Name: cronjob}
+		}
+		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
+		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
+	default:
+		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
 	}
 }
 

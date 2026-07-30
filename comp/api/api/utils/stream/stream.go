@@ -14,7 +14,7 @@ import (
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,7 +86,12 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 				return
 			case <-r.Context().Done():
 				return
-			case line := <-logChan:
+			case line, ok := <-logChan:
+				if !ok {
+					// Filter channel closed by the receiver — usually agent
+					// shutdown. Exit so we don't spin reading zero values.
+					return
+				}
 				fmt.Fprint(w, line)
 			case <-flushTimer.C:
 				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.

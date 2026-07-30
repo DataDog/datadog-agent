@@ -123,7 +123,7 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 
 // valid kinds to call IsNil on
 // duplicated from pkg/config/helper in order to avoid import cycle
-var nillableKinds = []reflect.Kind{reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
+var nillableKinds = []reflect.Kind{reflect.Map, reflect.Pointer, reflect.Interface, reflect.Slice}
 
 // isNilValue returns true if a is nil, or a is an interface with nil data
 // duplicated from pkg/config/helper in order to avoid import cycle
@@ -208,31 +208,4 @@ func copyIfNeeded(v interface{}) interface{} {
 func isSlice(v interface{}) bool {
 	rval := reflect.ValueOf(v)
 	return rval.Kind() == reflect.Slice
-}
-
-// convertToDefaultType converts a value to match the type of the given default value using cast
-// If defaultValue is nil or the type is not one of the known types, it is returned
-func convertToDefaultType(value interface{}, defaultValue interface{}) (interface{}, error) {
-	if defaultValue == nil {
-		return value, nil
-	}
-	switch defaultValue.(type) {
-	case bool:
-		return cast.ToBoolE(value)
-	case string:
-		return cast.ToStringE(value)
-	case int32, int16, int8, int:
-		return cast.ToIntE(value)
-	case int64:
-		return cast.ToInt64E(value)
-	case float64, float32:
-		return cast.ToFloat64E(value)
-	case time.Time:
-		return cast.ToTimeE(value)
-	case time.Duration:
-		return cast.ToDurationE(value)
-	case []string:
-		return cast.ToStringSliceE(value)
-	}
-	return value, nil
 }

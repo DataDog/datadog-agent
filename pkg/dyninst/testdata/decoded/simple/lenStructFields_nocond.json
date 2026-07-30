@@ -18,12 +18,12 @@
           {
             "function": "main.lenStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 633
+            "lineNumber": 878
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 161
+            "lineNumber": 201
           },
           {
             "function": "runtime.main",
@@ -173,12 +173,12 @@
           {
             "function": "main.lenStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 630
+            "lineNumber": 875
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 165
+            "lineNumber": 205
           },
           {
             "function": "runtime.main",
@@ -250,13 +250,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: maximum call count exceeded"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

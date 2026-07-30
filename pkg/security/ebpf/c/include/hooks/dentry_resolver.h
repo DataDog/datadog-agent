@@ -6,14 +6,43 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
+// INTERNAL events are forwarded unconditionally (e.g. cgroup tracking) and ACCEPTED events are already approved,
+// so neither should be filtered by discarders. RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP is a carry-over flag set by
+// approve_syscall when a traced cgroup forces an otherwise-discarded event to be kept, so it must be
+// preserved when callers refresh the resolver flags after approval.
+int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *syscall, u8 apply_discarders) {
+    if (!apply_discarders) {
+        return syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
+    }
+
+    u32 flags = syscall->state != INTERNAL && syscall->state != ACCEPTED ? RESOLVER_FLAG_APPLY_DISCARDERS : 0;
+    return flags | (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP);
+}
+
+void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
+    if (syscall->state != ACCEPTED) {
+        // Discarders take priority over basename approvers: a parent basename may match an approver,
+        // but a discarder set on any ancestor inode must still discard the whole path.
+        if (syscall->resolver.ret == DENTRY_DISCARDED) {
+            syscall->state = DISCARDED;
+            monitor_discarded(event_type);
+        } else if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
+            syscall->state = APPROVED;
+            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+        }
+    }
+}
+
 int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct dentry_resolver_input_t *input) {
     struct path_leaf_t map_value = {};
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
-    struct qstr qstr;
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
     unsigned long ino_parent = 0;
+    struct basename_t basename = {
+        .type = PARENT_BASENAME,
+    };
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
@@ -21,7 +50,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_ERROR;
     }
     *params = (struct is_discarded_by_inode_t){
-        .event_type = input->discarder_event_type,
+        .event_type = input->event_type,
         .now = bpf_ktime_get_ns(),
     };
 
@@ -29,14 +58,20 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
+    u64 dentry_name_offset = get_dentry_name_offset();
+    u64 dentry_d_inode_offset;
+    LOAD_CONSTANT("dentry_d_inode_offset", dentry_d_inode_offset);
+    u64 inode_ino_offset;
+    LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
+
 #ifndef USE_FENTRY
 #pragma unroll
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
-        bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
+        read_dentry_parent(dentry, &d_parent);
 
         key = next_key;
-        ino_parent = get_dentry_ino(d_parent);
+        ino_parent = get_dentry_ino_at(d_parent, dentry_d_inode_offset, inode_ino_offset);
         if (dentry != d_parent) {
             next_key.ino = ino_parent;
         } else {
@@ -44,23 +79,23 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             next_key.mount_id = 0;
         }
 
-        if (input->discarder_event_type && input->iteration == 1 && i <= 3) {
+        if ((input->flags & RESOLVER_FLAG_APPLY_DISCARDERS) && input->iteration == 1 && i <= 3) {
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
 
             if (is_discarded_by_inode(params)) {
-                if (input->flags & ACTIVITY_DUMP_RUNNING) {
-                    input->flags |= SAVED_BY_ACTIVITY_DUMP;
+                if (input->flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING) {
+                    input->flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
                 } else {
                     return DENTRY_DISCARDED;
                 }
             }
         }
 
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+        const char *name = get_dentry_name_ptr_at(dentry, dentry_name_offset);
 
-        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
+        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)name);
         if (len < 0) {
             len = 0;
         }
@@ -78,14 +113,23 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             // It's not expected to have 2 different dentries with the same inode in the same mount
             // In case of btrfs, it might be the root of the subvolume
             struct dentry *d_parent_parent = NULL;
-            bpf_probe_read(&d_parent_parent, sizeof(d_parent_parent), &d_parent->d_parent);
+            read_dentry_parent(d_parent, &d_parent_parent);
             if (d_parent == d_parent_parent) {
                 update = 0;
             }
         }
         if (update) {
-        bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
-    }
+            bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
+        }
+
+        // check parent basename approver: at i == 1 map_value.name holds the leaf's parent name,
+        // and iteration == 1 keeps the lookup to the first tail call so we only check it once.
+        if (input->iteration == 1 && i == 1 && input->event_type) {
+            bpf_probe_read_str(basename.value, sizeof(basename.value), map_value.name);
+            if (is_basename_in_map(&basename, input->event_type)) {
+                input->flags |= RESOLVER_FLAG_BASENAME_APPROVED;
+            }
+        }
 
         dentry = d_parent;
         if (next_key.ino == 0) {
@@ -140,20 +184,20 @@ void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CA
    dentry_resolver_kern_recursive(ctx, prog_type, &syscall->resolver);
 }
 
-struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 type) {
+struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 event_type) {
     struct dentry_resolver_input_t *inputs = (struct dentry_resolver_input_t *)bpf_map_lookup_elem(&dentry_resolver_inputs, &pid_tgid);
     if (!inputs) {
         return NULL;
     }
-    if (!type || inputs->type == type) {
+    if (!event_type || inputs->event_type == event_type) {
         return inputs;
     }
     return NULL;
 }
 
-struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inputs(u64 type) {
+struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inputs(u64 event_type) {
     u64 key = bpf_get_current_pid_tgid();
-    return peek_task_resolver_inputs(key, type);
+    return peek_task_resolver_inputs(key, event_type);
 }
 
 void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
@@ -354,7 +398,7 @@ TAIL_CALL_FNC(dentry_resolver_ad_filter, ctx_t *ctx) {
     }
 
     if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
-        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+        syscall->resolver.flags |= RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING;
     }
 
     tail_call_dr_progs(ctx, KPROBE_OR_FENTRY_TYPE, DR_DENTRY_RESOLVER_KERN_KEY);
@@ -368,7 +412,7 @@ TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_ad_filter, void *ctx) {
     }
 
     if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
-        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+        syscall->resolver.flags |= RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING;
     }
 
     tail_call_dr_progs(ctx, TRACEPOINT_TYPE, DR_DENTRY_RESOLVER_KERN_KEY);

@@ -8,7 +8,6 @@ from tasks.e2e_framework.azure.common import (
     get_architectures,
     get_default_architecture,
     get_default_os_family,
-    get_deploy_job,
     get_os_families,
 )
 from tasks.e2e_framework.deploy import deploy
@@ -26,6 +25,7 @@ remote_hostname = "az-vm"
         "config_path": doc.config_path,
         "install_agent": doc.install_agent,
         "install_installer": doc.install_installer,
+        "pipeline_id": doc.pipeline_id,
         "agent_version": doc.agent_version,
         "stack_name": doc.stack_name,
         "debug": doc.debug,
@@ -44,6 +44,7 @@ def create_vm(
     ctx: Context,
     config_path: str | None = None,
     stack_name: str | None = None,
+    pipeline_id: str | None = None,
     install_agent: bool | None = True,
     install_installer: bool | None = False,
     agent_version: str | None = None,
@@ -55,7 +56,6 @@ def create_vm(
     os_version: str | None = None,
     architecture: str | None = None,
     instance_type: str | None = None,
-    deploy_job: str | None = None,
     no_verify: bool | None = False,
     use_fakeintake: bool | None = False,
     add_known_host: bool | None = True,
@@ -79,11 +79,9 @@ def create_vm(
         raise Exit("The field `azure.publicKeyPath` is required in the config file")
 
     os_family, os_arch = _get_os_information(os_family, architecture)
-    _deploy_job = None if no_verify else get_deploy_job(os_family, os_arch, agent_version)
 
     extra_flags = {
         "ddinfra:env": f"az/{account if account else cfg.get_azure().account}",
-        "ddinfra:az/defaultPublicKeyPath": cfg.get_azure().publicKeyPath,
         "ddinfra:osDescriptor": f"{os_family}:{os_version if os_version else ''}:{os_arch}",
     }
 
@@ -101,6 +99,7 @@ def create_vm(
         scenario_name,
         config_path,
         stack_name=stack_name,
+        pipeline_id=pipeline_id,
         install_agent=install_agent,
         install_installer=install_installer,
         agent_version=agent_version,

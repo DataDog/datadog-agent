@@ -7,7 +7,7 @@
 
 package hostname
 
-import "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+import hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 
 // Mock implements mock-specific methods.
-type Mock = hostnameinterface.Mock
+type Mock = hostnamemock.Mock

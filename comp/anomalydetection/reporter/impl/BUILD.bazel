@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "notify.go",
+        "reporter.go",
+        "reporter_event.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/reporter/def",
+        "//comp/anomalydetection/severityevents/def",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/logs/message",
+        "//pkg/util/strings",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "notify_test.go",
+        "payload_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/anomalydetection/observer/def",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

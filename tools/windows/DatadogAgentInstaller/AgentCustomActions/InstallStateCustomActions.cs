@@ -43,6 +43,7 @@ namespace Datadog.AgentCustomActions
                     LoadAgentUserProperty(subkey);
                     RegistryValueProperty(_session, "PROJECTLOCATION", subkey, "InstallPath");
                     RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
+                    RegistryValueProperty(_session, ConfigureUserCustomActions.KeepRightsPropertyName, subkey, KeepRightsRegistryValueName);
                 }
 
                 GetWindowsBuildVersion();
@@ -177,6 +178,8 @@ namespace Datadog.AgentCustomActions
             {
                 "bin\\agent",
                 "embedded3",
+                // Fleet postinst writes processes.d/*.yaml (untracked by MSI)
+                "processes.d",
                 // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
                 "embedded2",
             };
@@ -218,6 +221,7 @@ namespace Datadog.AgentCustomActions
                 }
 
                 StoreAgentUserInRegistry(subkey);
+                StoreKeepUserRightsInRegistry(subkey);
             }
             catch (Exception e)
             {

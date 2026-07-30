@@ -10,16 +10,17 @@ import (
 	"strconv"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewHTTPSender returns a new http sender.
+// NewHTTPSender returns a new http sender. pipelineMonitor is caller-supplied so pipelines that
+// shouldn't surface on the status page can pass a NoopPipelineMonitor (which owns no snapshot registry).
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
 	sink sender.Sink,
@@ -35,6 +36,7 @@ func NewHTTPSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 	secretsComp secrets.Component,
+	pipelineMonitor metrics.PipelineMonitor,
 ) *sender.Sender {
 	log.Debugf(
 		"Creating a new sender for component %s with %d queues, %d http workers, %d min sender concurrency, and %d max sender concurrency",
@@ -44,7 +46,6 @@ func NewHTTPSender(
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 	)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
 	destinationFactory := httpDestinationFactory(
 		endpoints,

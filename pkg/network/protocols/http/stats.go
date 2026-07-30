@@ -136,6 +136,12 @@ type RequestStat struct {
 	// keep-alives where a short-lived TCP connection is used for a single request.
 	FirstLatencySample float64
 
+	// LatencySum is the running sum of request latencies in nanoseconds.
+	// Populated by discovery service map mode in lieu of DDSketches; the
+	// encoder serializes it directly, and deriving an average (sum / count)
+	// is left to downstream consumers. Unused outside of discovery mode.
+	LatencySum float64
+
 	// Tags bitfields from tags-types.h
 	StaticTags uint64
 
@@ -161,6 +167,7 @@ func (r *RequestStat) close() {
 
 	r.Count = 0
 	r.FirstLatencySample = 0
+	r.LatencySum = 0
 	r.StaticTags = 0
 	clear(r.DynamicTags)
 }
@@ -186,9 +193,23 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 			continue
 		}
 
+		// Discovery buckets track LatencySum and have no DDSketch.
+		if newRequests.LatencySum != 0 {
+			r.mergeDiscoveryBucket(statusCode, newRequests)
+			continue
+		}
+
 		if newRequests.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
 			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.DynamicTags)
+			continue
+		}
+
+		// A discovery bucket whose latencies sum to exactly zero also reaches
+		// this point (Count > 1, LatencySum == 0) but carries no DDSketch. Merge
+		// it as a discovery bucket rather than dereferencing the nil sketch below.
+		if newRequests.Latencies == nil {
+			r.mergeDiscoveryBucket(statusCode, newRequests)
 			continue
 		}
 
@@ -218,6 +239,27 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		}
 		stats.StaticTags |= newRequests.StaticTags
 		stats.Count += newRequests.Count
+	}
+}
+
+// mergeDiscoveryBucket merges a discovery-mode bucket (Count and LatencySum,
+// no DDSketch) from newRequests into the receiver's bucket for statusCode.
+func (r *RequestStats) mergeDiscoveryBucket(statusCode uint16, newRequests *RequestStat) {
+	stats, exists := r.Data[statusCode]
+	if !exists {
+		stats = &RequestStat{}
+		r.Data[statusCode] = stats
+	}
+	stats.Count += newRequests.Count
+	stats.LatencySum += newRequests.LatencySum
+	stats.StaticTags |= newRequests.StaticTags
+	if len(newRequests.DynamicTags) != 0 {
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range newRequests.DynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
 	}
 }
 
@@ -265,6 +307,38 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 	if err := stats.Latencies.Add(latency); err != nil {
 		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
+}
+
+// AddDiscoveryRequest records a transaction in discovery mode.
+// Status codes are collapsed to two buckets (200 = success, 400 = error)
+// and no DDSketch is created — only counters and a running latency sum
+// (LatencySum) are tracked. The encoder serializes LatencySum directly;
+// deriving an average (LatencySum / Count) is left to downstream consumers.
+func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
+	// Collapse all status codes into two buckets
+	bucket := uint16(200)
+	if statusCode >= 400 {
+		bucket = 400
+	}
+
+	stats, exists := r.Data[bucket]
+	if !exists {
+		stats = requestStatPool.Get()
+		r.Data[bucket] = stats
+	}
+
+	stats.StaticTags |= staticTags
+	if len(dynamicTags) != 0 {
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range dynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
+	}
+
+	stats.Count++
+	stats.LatencySum += latency
 }
 
 // HalfAllCounts sets the count of all stats for each status class to half their current value.

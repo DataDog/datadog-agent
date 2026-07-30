@@ -150,8 +150,8 @@ def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consu
                 attribute_to_consumers = attribute_to_consumers,
                 attribute_kinds = attribute_kinds,
             )
-        if hasattr(t_m_i, "trans"):
-            fail("TransititiveMetadataInfo contains both metadata and trans." + str(t_m_i))
+        if hasattr(t_m_i, "transitive"):
+            fail("TransititiveMetadataInfo contains both metadata and transitive." + str(t_m_i))
 
 def _license_csv_impl(ctx):
     # Gather all metadata and make a report from that
@@ -218,9 +218,9 @@ def _license_csv_impl(ctx):
                 attribute_kinds = attribute_kinds,
             )
 
-    if hasattr(t_m_i, "trans"):
-        for trans in t_m_i.trans.to_list():
-            _handle_transitive_collector(trans, args, inputs, report, attribute_to_consumers, attribute_kinds)
+    if hasattr(t_m_i, "transitive"):
+        for twmi in t_m_i.transitive.to_list():
+            _handle_transitive_collector(twmi, args, inputs, report, attribute_to_consumers, attribute_kinds)
 
     # For the next few months of co-development with supply-chain, print a
     # report of what we have. It's not the final output. It just helps see what
@@ -253,6 +253,9 @@ def _license_csv_impl(ctx):
     ctx.actions.write(kinds_map_file, json.encode_indent(attribute_kinds, indent = " "))
     inputs.append(kinds_map_file)
     args.add("--kinds", kinds_map_file.path)
+
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("flag_per_line")
 
     ctx.actions.run(
         mnemonic = "GatherLicenseMetadata",

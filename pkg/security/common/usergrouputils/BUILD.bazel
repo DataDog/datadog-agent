@@ -15,4 +15,5 @@ go_test(
         "group.sample",
         "passwd.sample",
     ],
+    gotags = ["test"],
 )

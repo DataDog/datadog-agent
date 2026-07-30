@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["profiler.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/profiler/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/def",
+        "//comp/process/profiler/def",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/profiling",
+        "//pkg/version",
+    ],
+)

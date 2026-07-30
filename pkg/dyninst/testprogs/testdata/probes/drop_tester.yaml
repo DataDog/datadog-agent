@@ -85,3 +85,24 @@ probes:
       maxReferenceDepth: 4096
     sampling:
       snapshotsPerSecond: 10000
+
+  # Duration-threshold probe on CaptureSleep. Fires only when the call
+  # ran for more than 100ms, with the sleep argument embedded in the
+  # template so the integration test can confirm which call fired.
+  # Used by TestDurationThreshold to verify @duration > X works at
+  # runtime against a meaningful threshold.
+  - id: condDuration_threshold
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureSleep
+    captureSnapshot: false
+    when:
+      dsl: "@duration > 100.0"
+      json: {gt: [{ref: "@duration"}, 100.0]}
+    template: "ms={ms}"
+    segments:
+      - str: "ms="
+      - json: {ref: "ms"}
+        dsl: "ms"
+    sampling:
+      snapshotsPerSecond: 100

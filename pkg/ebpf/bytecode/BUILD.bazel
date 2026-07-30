@@ -1,3 +1,4 @@
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:runtime_compilation.bzl", "runtime_compilation_bundle")
 
 _EBPF_HEADERS = ["//pkg/ebpf/c:ebpf_c_headers_files"]
@@ -127,5 +128,17 @@ runtime_compilation_bundle(
     out_go_file = "//pkg/ebpf/bytecode/runtime:gpu.go",
     out_name = "gpu",
     src_c = "//pkg/gpu/ebpf/c/runtime:gpu.c",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "bytecode",
+    srcs = [
+        "asset_reader.go",
+        "asset_reader_nobindata.go",
+        "permissions.go",
+        "permissions_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode",
     visibility = ["//visibility:public"],
 )

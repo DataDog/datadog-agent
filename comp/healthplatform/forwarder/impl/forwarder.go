@@ -13,197 +13,53 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	// intakeEndpointPrefix is the URL prefix for the Datadog intake endpoint
 	intakeEndpointPrefix = "https://agenthealth-intake."
-
-	// intakeEndpointPath is the API path for agent health reports
-	intakeEndpointPath = "/api/v2/agenthealth"
-
-	// defaultForwarderInterval is the default interval between health report submissions
-	defaultForwarderInterval = 15 * time.Minute
-
-	// httpTimeout is the timeout for HTTP requests
-	httpTimeout = 30 * time.Second
-
-	// eventType is the event type for health reports
-	eventType = "agent-health-issues"
+	intakeEndpointPath   = "/api/v2/agenthealth"
+	httpTimeout          = 30 * time.Second
 )
 
-// forwarder handles periodic sending of health reports to the Datadog intake
+// forwarder is a stateless HTTP client. It has no ticker or provider — the
+// egress component owns the send cadence.
 type forwarder struct {
-	cfg         pkgconfigmodel.Reader
-	intakeURL   string
-	interval    time.Duration
-	hostname    string
-	agentFlavor string
-	providerMu  sync.RWMutex
-	provider    forwarderdef.IssueProvider
-	httpClient  *http.Client
-	log         log.Component
-
-	stopCh chan struct{}
-	doneCh chan struct{}
+	cfg        pkgconfigmodel.Reader
+	intakeURL  string
+	httpClient *http.Client
+	log        log.Component
 }
 
 // Requires defines the dependencies for the forwarder.
 type Requires struct {
-	Log       log.Component
-	Config    config.Component
-	Hostname  hostnameinterface.Component
-	Lifecycle compdef.Lifecycle
+	Log    log.Component
+	Config config.Component
 }
 
-// New creates a new forwarder instance and registers its lifecycle hooks.
-func New(reqs Requires) forwarderdef.Component {
-	if !reqs.Config.GetBool("health_platform.enabled") {
-		return &forwarder{log: reqs.Log}
-	}
-
-	hostname, err := reqs.Hostname.Get(context.Background())
-	if err != nil {
-		reqs.Log.Warn("Health platform forwarder: failed to get hostname, will use empty string: " + err.Error())
-		hostname = ""
-	}
-
-	interval := reqs.Config.GetDuration("health_platform.forwarder.interval")
-	if interval <= 0 {
-		interval = defaultForwarderInterval
-	}
-
-	f := &forwarder{
-		cfg:         reqs.Config,
-		intakeURL:   buildIntakeURL(reqs.Config),
-		interval:    interval,
-		hostname:    hostname,
-		agentFlavor: flavor.GetFlavor(),
-		httpClient:  buildHTTPClient(reqs.Config),
-		log:         reqs.Log,
-		stopCh:      make(chan struct{}),
-		doneCh:      make(chan struct{}),
-	}
-
-	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: f.start,
-		OnStop:  f.stop,
-	})
-
-	return f
-}
-
-func (f *forwarder) start(_ context.Context) error {
-	f.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", f.interval, f.intakeURL))
-	go f.run()
-	return nil
-}
-
-func (f *forwarder) stop(_ context.Context) error {
-	f.log.Info("Stopping health platform forwarder")
-	close(f.stopCh)
-	<-f.doneCh
-	return nil
-}
-
-// SetProvider wires the issue provider. Safe to call concurrently with sendHealthReport.
-func (f *forwarder) SetProvider(provider forwarderdef.IssueProvider) {
-	f.providerMu.Lock()
-	defer f.providerMu.Unlock()
-	f.provider = provider
-}
-
-// buildIntakeURL constructs the intake URL based on site configuration
-func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
-	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
-	return baseURL + intakeEndpointPath
-}
-
-// buildHTTPClient creates an HTTP client with agent-standard transport configuration
-func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
-	return &http.Client{
-		Timeout:   httpTimeout,
-		Transport: httputils.CreateHTTPTransport(cfg),
+// NewComponent creates a forwarder. It never registers lifecycle hooks; there is nothing
+// to clean up for a stateless HTTP client.
+func NewComponent(reqs Requires) forwarderdef.Component {
+	return &forwarder{
+		cfg:        reqs.Config,
+		intakeURL:  buildIntakeURL(reqs.Config),
+		httpClient: buildHTTPClient(reqs.Config),
+		log:        reqs.Log,
 	}
 }
 
-// run is the main loop that sends health reports periodically
-func (f *forwarder) run() {
-	defer close(f.doneCh)
-
-	ticker := time.NewTicker(f.interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			f.sendHealthReport()
-		case <-f.stopCh:
-			return
-		}
-	}
-}
-
-// sendHealthReport collects issues and sends them to the intake endpoint
-func (f *forwarder) sendHealthReport() {
-	f.providerMu.RLock()
-	provider := f.provider
-	f.providerMu.RUnlock()
-
-	if provider == nil {
-		f.log.Warn("Health platform forwarder has no provider set, skipping report")
-		return
-	}
-	count, issues := provider.GetAllIssues()
-
-	if count == 0 {
-		f.log.Info("No health issues to report")
-		return
-	}
-
-	report := f.buildReport(issues)
-
-	if err := f.send(report); err != nil {
-		f.log.Warn(fmt.Sprintf("Failed to send health report: %v", err))
-		return
-	}
-
-	f.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
-}
-
-// buildReport creates a HealthReport from the current issues
-func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
-	return &healthplatform.HealthReport{
-		EventType: eventType,
-		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:   f.agentFlavor,
-		Host: &healthplatform.HostInfo{
-			Hostname:     f.hostname,
-			AgentVersion: pointer.Ptr(version.AgentVersion),
-		},
-		Issues: issues,
-	}
-}
-
-// send marshals and sends the report to the intake endpoint
-func (f *forwarder) send(report *healthplatform.HealthReport) error {
-	// Fetch API key once and check if configured
+// Send marshals report and POSTs it to the Datadog intake.
+func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthReport) error {
 	apiKey := f.cfg.GetString("api_key")
 	if apiKey == "" {
 		return errors.New("API key not configured")
@@ -214,10 +70,10 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 		return fmt.Errorf("marshal report: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.intakeURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, f.intakeURL, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -238,4 +94,16 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 	}
 
 	return nil
+}
+
+func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
+	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
+	return baseURL + intakeEndpointPath
+}
+
+func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
+	return &http.Client{
+		Timeout:   httpTimeout,
+		Transport: httputils.CreateHTTPTransport(cfg),
+	}
 }

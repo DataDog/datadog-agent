@@ -1,6 +1,5 @@
 """Repository rule for building a patched cmd/go binary."""
 
-load("@go_host_compatible_sdk_label//:defs.bzl", "HOST_COMPATIBLE_SDK")
 load("@rules_python//python/private:repo_utils.bzl", "repo_utils")  # buildifier: disable=bzl-visibility
 
 _PATCHED = [
@@ -10,6 +9,7 @@ _PATCHED = [
 
 def _impl(rctx):
     sdk = rctx.path(rctx.attr._go_sdk).dirname
+    rctx.watch(sdk.get_child("VERSION"))  # invalidate on SDK bump, since non-overlaid files can differ across patches
     replace = {}
     for path in _PATCHED:
         src = sdk.get_child(path)
@@ -33,7 +33,7 @@ def _impl(rctx):
 go_fast = repository_rule(
     implementation = _impl,
     attrs = {
-        "_go_sdk": attr.label(default = HOST_COMPATIBLE_SDK),
+        "_go_sdk": attr.label(default = "@go_work_sdk//:ROOT"),
         "patch": attr.label(default = "//bazel/rules/go_fast:avoid-redundant-work-in-go-work-sync.patch"),
     },
 )

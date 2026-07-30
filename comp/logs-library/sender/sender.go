@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"go.uber.org/atomic"
@@ -171,6 +171,7 @@ func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
 
 // Start starts all sender workers.
 func (s *Sender) Start() {
+	s.pipelineMonitor.Start()
 	for _, worker := range s.workers {
 		worker.start()
 	}
@@ -179,6 +180,7 @@ func (s *Sender) Start() {
 // Stop stops all sender workers
 func (s *Sender) Stop() {
 	log.Debug("sender mux stopping")
+	s.pipelineMonitor.Stop()
 	for _, s := range s.workers {
 		s.stop()
 	}

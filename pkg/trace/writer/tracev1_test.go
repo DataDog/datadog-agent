@@ -487,6 +487,38 @@ func TestTraceWriterV1AgentPayload(t *testing.T) {
 	})
 }
 
+// TestTraceWriterV1BytesMetricsMultipleSenders verifies that bytes_uncompressed is
+// counted once per sender (same scope as bytes), so the two metrics remain
+// consistent regardless of the number of configured endpoints.
+func TestTraceWriterV1BytesMetricsMultipleSenders(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{
+			{APIKey: "123", Host: srv.URL},
+			{APIKey: "123", Host: srv.URL},
+		},
+		SynchronousFlushing: true,
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 100},
+	}
+	defer useFlushThreshold(1)()
+	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, passthroughCompressor{})
+
+	tw.WriteChunksV1(randomSampledSpansV1(20, 8))
+	require.NoError(t, tw.FlushSync())
+
+	bytes := tw.statsLastMinute.Bytes.Load()
+	bytesUncompressed := tw.statsLastMinute.BytesUncompressed.Load()
+	assert.Greater(t, bytes, int64(0))
+	// With a passthrough compressor, compressed == uncompressed per payload.
+	// Both metrics are counted once per sender, so they must be equal.
+	assert.Equal(t, bytes, bytesUncompressed)
+
+	tw.Stop()
+}
+
 func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()

@@ -367,6 +367,7 @@ const (
 	MetricSourceOpenTelemetryCollectorNginxReceiver
 	MetricSourceOpenTelemetryCollectorNsxtReceiver
 	MetricSourceOpenTelemetryCollectorOracledbReceiver
+	MetricSourceOpenTelemetryCollectorPodmanReceiver
 	MetricSourceOpenTelemetryCollectorPostgresqlReceiver
 	MetricSourceOpenTelemetryCollectorPrometheusReceiver
 	MetricSourceOpenTelemetryCollectorRabbitmqReceiver
@@ -1068,6 +1069,8 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_nsxtreceiver"
 	case MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return "opentelemetry_collector_oracledbreceiver"
+	case MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return "opentelemetry_collector_podmanreceiver"
 	case MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return "opentelemetry_collector_postgresqlreceiver"
 	case MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1782,6 +1785,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorNsxtReceiver
 	case "opentelemetry_collector_oracledbreceiver":
 		return MetricSourceOpenTelemetryCollectorOracledbReceiver
+	case "opentelemetry_collector_podmanreceiver":
+		return MetricSourceOpenTelemetryCollectorPodmanReceiver
 	case "opentelemetry_collector_postgresqlreceiver":
 		return MetricSourceOpenTelemetryCollectorPostgresqlReceiver
 	case "opentelemetry_collector_prometheusreceiver":

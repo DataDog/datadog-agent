@@ -10,6 +10,7 @@ package journald
 
 import (
 	"os"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
 
@@ -42,6 +43,7 @@ func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, erro
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
 	sources          chan *sources.LogSource
+	sourcesDone      chan struct{}
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
 	tailers          map[string]*tailer.Tailer
@@ -49,6 +51,7 @@ type Launcher struct {
 	journalFactory   tailer.JournalFactory
 	fc               *flareController.FlareController
 	tagger           tagger.Component
+	stopOnce         sync.Once
 }
 
 // NewLauncher returns a new Launcher.
@@ -60,6 +63,7 @@ func NewLauncher(fc *flareController.FlareController, tagger tagger.Component) *
 func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController, tagger tagger.Component) *Launcher {
 	return &Launcher{
 		tailers:        make(map[string]*tailer.Tailer),
+		sourcesDone:    make(chan struct{}),
 		stop:           make(chan struct{}),
 		journalFactory: journalFactory,
 		fc:             fc,
@@ -69,7 +73,7 @@ func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareContr
 
 // Start starts the launcher.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
-	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
+	l.sources = sourceProvider.GetAddedForType(config.JournaldType, l.sourcesDone)
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
 	go l.run()
@@ -116,13 +120,16 @@ func (l *Launcher) run() {
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	for identifier, tailer := range l.tailers {
-		stopper.Add(tailer)
-		delete(l.tailers, identifier)
-	}
-	stopper.Stop()
+	l.stopOnce.Do(func() {
+		close(l.sourcesDone)
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		for identifier, tailer := range l.tailers {
+			stopper.Add(tailer)
+			delete(l.tailers, identifier)
+		}
+		stopper.Stop()
+	})
 }
 
 // setupTailer configures and starts a new tailer,

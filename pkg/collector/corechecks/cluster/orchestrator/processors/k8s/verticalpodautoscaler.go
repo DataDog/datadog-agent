@@ -35,10 +35,10 @@ func NewVerticalPodAutoscalerHandlers(tagger tagger.Component) *VerticalPodAutos
 	return &VerticalPodAutoscalerHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *VerticalPodAutoscalerHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *VerticalPodAutoscalerHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*v1.VerticalPodAutoscaler)
 	m := resourceModel.(*model.VerticalPodAutoscaler)
 
@@ -113,10 +113,24 @@ func (h *VerticalPodAutoscalerHandlers) ResourceList(ctx processors.ProcessorCon
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *VerticalPodAutoscalerHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*v1.VerticalPodAutoscaler).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *VerticalPodAutoscalerHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*v1.VerticalPodAutoscaler).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

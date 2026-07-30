@@ -1,0 +1,23 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "config_proto",
+    srcs = [
+        "echo.proto",
+        "remoteconfig.proto",
+    ],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "config_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":config_proto",
+    visibility = ["//visibility:public"],
+)

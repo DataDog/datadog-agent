@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The Private Action Runner now supports a split deployment model in which
+    a dedicated on-demand executor runs actions in a separate process, reachable
+    over a local gRPC socket secured with mutual TLS.

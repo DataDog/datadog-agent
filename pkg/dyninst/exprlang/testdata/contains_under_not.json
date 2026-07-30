@@ -1,0 +1,22 @@
+{
+  "type": "not",
+  "operation": "",
+  "left": {
+    "type": "contains",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "m",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": "k",
+      "error": ""
+    },
+    "error": ""
+  },
+  "error": ""
+}

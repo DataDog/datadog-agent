@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-mock",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/replay/mock",
+        "//pkg/util/fxutil",
+    ],
+)

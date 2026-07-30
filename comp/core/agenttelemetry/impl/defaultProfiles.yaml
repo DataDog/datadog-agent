@@ -1,0 +1,549 @@
+profiles:
+- name: checks
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: checks.execution_time
+        preserve_tags:
+          - check_name
+          - check_loader
+      - name: checks.first_execution_time
+        preserve_tags:
+          - check_name
+          - check_loader
+      - name: checks.delay
+        preserve_tags:
+          - check_name
+      - name: checks.runs
+        preserve_tags:
+          - check_name
+          - state
+      - name: pymem.inuse
+      - name: health_platform.issues_detected
+        preserve_tags:
+          - issue_type
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: logs-and-metrics
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: dogstatsd.udp_packets_bytes
+        preserve_tags:
+          - emitter
+      - name: dogstatsd.uds_packets_bytes
+        preserve_tags:
+          - emitter
+      - name: logs.bytes_missed
+      - name: logs.bytes_sent
+        preserve_tags:
+          - emitter
+        aggregate_total: true
+      - name: logs.decoded
+      - name: logs.dropped
+      - name: logs.encoded_bytes_sent
+        preserve_tags:
+          - emitter
+          - compression_kind
+        aggregate_total: true
+      - name: logs.http_connectivity_check
+        preserve_tags:
+          - status
+      - name: logs.http_connectivity_retry_attempt
+        preserve_tags:
+          - status
+      - name: logs.http_connectivity_failure
+        preserve_tags:
+          - failure_cause
+      - name: logs.restart_attempt
+        preserve_tags:
+          - status
+          - transport
+      - name: logs.sender_latency
+      - name: logs.truncated
+        preserve_tags:
+          - service
+          - source
+      - name: logs.auto_multi_line_aggregator_flush
+        preserve_tags:
+          - truncated
+          - line_type
+      - name: logs.auto_multi_line_default_total_lines
+      - name: logs.auto_multi_line_default_would_combine
+      - name: logs.auto_multi_line_default_would_truncate
+      - name: logs_destination.destination_workers
+      - name: point.sent
+        preserve_tags:
+          - domain
+          - emitter
+      - name: point.dropped
+        preserve_tags:
+          - domain
+          - emitter
+      - name: transactions.input_count
+        preserve_tags:
+          - domain
+          - endpoint
+          - emitter
+      - name: transactions.input_bytes
+        preserve_tags:
+          - domain
+          - endpoint
+          - emitter
+      - name: transactions.requeued
+      - name: transactions.retries
+      - name: transactions.http_errors
+        preserve_tags:
+          - code
+          - endpoint
+          - emitter
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: agent-performance
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: agent_performance.container_restarts
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.container_terminated
+        preserve_tags:
+          - kind
+          - pod_name
+          - reason
+      - name: agent_performance.memory_usage
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.memory_limit
+        preserve_tags:
+          - kind
+          - pod_name
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: database
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: oracle.activity_samples_count
+      - name: oracle.activity_latency
+      - name: oracle.statement_metrics
+      - name: oracle.statement_plan_errors
+      - name: postgres.collect_activity_snapshot_ms
+      - name: postgres.collect_relations_autodiscovery_ms
+      - name: postgres.collect_statement_samples_ms
+      - name: postgres.collect_statement_samples_count
+      - name: postgres.collect_stat_autodiscovery_ms
+      - name: postgres.get_active_connections_ms
+      - name: postgres.get_active_connections_count
+      - name: postgres.get_new_pg_stat_activity_count
+      - name: postgres.get_new_pg_stat_activity_ms
+      - name: postgres.schema_tables_elapsed_ms
+      - name: postgres.schema_tables_count
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: synthetics
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: synthetics_agent.checks_received
+      - name: synthetics_agent.checks_processed
+        preserve_tags:
+          - status
+          - subtype
+      - name: synthetics_agent.error_test_config
+        preserve_tags:
+          - subtype
+      - name: synthetics_agent.traceroute_error
+        preserve_tags:
+          - subtype
+      - name: synthetics_agent.evp_send_result_failure
+        preserve_tags:
+          - subtype
+- name: connectivity
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: api_server.request_duration_seconds
+        preserve_tags:
+          - servername
+          - status_code
+          - method
+          - path
+          - auth
+      - name: grpc.request_duration_seconds
+        preserve_tags:
+          - service_method
+      - name: grpc.request_count
+        preserve_tags:
+          - service_method
+          - status
+      - name: grpc.error_count
+        preserve_tags:
+          - service_method
+          - error_code
+  schedule:
+    start_after: 600
+    iterations: 0
+    period: 14400
+- name: csi-driver
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: datadog_csi_driver.node_publish_volume_attempts
+        preserve_tags:
+          - status
+          - type
+      - name: datadog_csi_driver.node_unpublish_volume_attempts
+        preserve_tags:
+          - status
+      - name: datadog_csi_driver.library_resolutions
+        preserve_tags:
+          - library
+          - result
+      - name: datadog_csi_driver.library_download_duration_seconds_count
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_download_duration_seconds_sum
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_cleanup
+        preserve_tags:
+          - library
+          - status
+          - strategy
+      - name: datadog_csi_driver.libraries_cached
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.libraries_cached_bytes
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.library_volume_links
+        preserve_tags:
+          - library
+  schedule:
+    start_after: 60
+    iterations: 0
+    period: 900
+- name: ondemand
+  events:
+    - name: agentbsod
+      request_type: agent-bsod
+      payload_key: agent_bsod
+      message: 'Agent BSOD'
+- name: service-discovery
+  metric:
+    metrics:
+      - name: service_discovery.discovered_services
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: runtime-started
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.started
+  schedule:
+    start_after: 5
+    iterations: 1
+- name: runtime-running
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.running
+- name: hostname
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: hostname.drift_detected
+        preserve_tags:
+          - state
+          - provider
+      - name: hostname.drift_resolution_time_ms
+        preserve_tags:
+          - state
+          - provider
+  schedule:
+    start_after: 1800 # 30 minutes
+    iterations: 0
+    period: 21600 # 6 hours
+- name: rtloader
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: rtloader.inuse_bytes
+      - name: rtloader.frees
+      - name: rtloader.allocations
+- name: otlp
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.datadog_agent_otlp_ingest_metrics
+        preserve_tags:
+          - version
+          - command
+          - host
+      - name: runtime.datadog_agent_ddot_metrics
+        preserve_tags:
+          - version
+          - command
+          - host
+      - name: runtime.datadog_agent_ddot_traces
+        preserve_tags:
+          - version
+          - command
+          - host
+      - name: runtime.datadog_agent_ddot_gateway_usage
+        preserve_tags:
+          - version
+          - command
+      - name: runtime.datadog_agent_ddot_gateway_configured
+        preserve_tags:
+          - version
+          - command
+      - name: runtime.datadog_agent_otlp_logs_requests
+      - name: runtime.datadog_agent_otlp_logs_events
+      - name: runtime.datadog_agent_otlp_metrics_requests
+      - name: runtime.datadog_agent_otlp_metrics_events
+      - name: runtime.datadog_agent_otlp_traces_requests
+      - name: runtime.datadog_agent_otlp_traces_events
+      - name: runtime.ddot_otlp_logs_requests
+      - name: runtime.ddot_otlp_logs_events
+      - name: runtime.ddot_otlp_metrics_requests
+      - name: runtime.ddot_otlp_metrics_events
+      - name: runtime.ddot_otlp_traces_requests
+      - name: runtime.ddot_otlp_traces_events
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: procmgr
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.procmgr_daemon_reachable
+      - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_process_running
+        preserve_tags:
+          - process
+      - name: runtime.agent_service_installed
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_procmgr_configured
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_management_mode
+        preserve_tags:
+          - service
+          - mode
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: trace-agent
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: trace.enabled
+      - name: trace.working
+  schedule:
+    start_after: 60
+    iterations: 0
+    period: 900
+- name: gpu
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: gpu.device_total
+  schedule:
+    start_after: 60
+    iterations: 0
+    period: 900
+- name: cluster-agent
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: admission_webhooks.image_resolution_attempts
+        preserve_tags:
+          - repository
+          - tag
+          - bucket
+          - outcome
+      - name: admission_webhooks.mutation_attempts
+        preserve_tags:
+          - mutation_type
+          - status
+          - injected
+      - name: admission_webhooks.library_injection_attempts
+        preserve_tags:
+          - language
+          - injected
+          - auto_detected
+          - injection_type
+      - name: admission_webhooks.library_injection_errors
+        preserve_tags:
+          - language
+          - auto_detected
+          - injection_type
+      - name: admission_webhooks.patcher_errors
+      - name: admission_webhooks.rc_provider_configs
+      - name: admission_webhooks.rc_provider_configs_invalid
+      - name: autodiscovery.errors
+        preserve_tags:
+          - provider
+      - name: autodiscovery.watched_resources
+        preserve_tags:
+          - listener
+          - kind
+      - name: cluster_checks.configs_dispatched
+      - name: cluster_checks.configs_dangling
+      - name: cluster_checks.configs_info
+        preserve_tags:
+          - check_name
+      - name: cluster_checks.unscheduled_check
+        preserve_tags:
+          - config_source
+      - name: language_detection_patcher.patches
+        preserve_tags:
+          - owner_kind
+          - status
+      - name: workloadmeta.stored_entities
+        preserve_tags:
+          - kind
+          - source
+      - name: tagger.stored_entities
+        preserve_tags:
+          - source
+          - prefix
+      - name: workloadmeta.pull_errors
+        preserve_tags:
+          - collector_id
+      - name: appsec_injector.watched_changes
+        preserve_tags:
+          - proxy_type
+          - operation
+          - success
+      - name: appsec_injector.sidecar_mutations
+        preserve_tags:
+          - proxy_type
+          - outcome
+          - reason
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: injector
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: injector.processes_added_to_injection_tracker
+      - name: injector.processes_removed_from_injection_tracker
+      - name: injector.processes_skipped_subsystem
+      - name: injector.processes_skipped_container
+      - name: injector.processes_skipped_protected
+      - name: injector.processes_skipped_system
+      - name: injector.processes_skipped_excluded
+      - name: injector.injection_attempts
+      - name: injector.injection_attempt_failures
+      - name: injector.injection_max_time_us
+      - name: injector.injection_successes
+      - name: injector.injection_failures
+      - name: injector.pe_caching_failures
+      - name: injector.import_directory_restoration_failures
+      - name: injector.pe_memory_allocation_failures
+      - name: injector.pe_injection_context_allocated
+      - name: injector.pe_injection_context_cleanedup
+      - name: injector.crashes_during_injection
+      - name: injector.crashes_post_injection
+      - name: injector.boot_recovery_crash_boots_detected
+      - name: injector.boot_recovery_driver_self_disabled
+      - name: injector.boot_recovery_stability_timer_fired
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: autodiscovery-discovery-probe
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: autodiscovery.discovery_queue_depth
+        preserve_tags:
+          - integration_name
+          - entity_kind
+      - name: autodiscovery.discovery_results
+        preserve_tags:
+          - integration_name
+          - result
+          - entity_kind
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+- name: ebpf
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: ebpf.core_load_success
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - asset
+          - btf_type
+      - name: ebpf.core_load_error
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - asset
+          - error_type
+      - name: ebpf.core_remoteconfig_success
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+      - name: ebpf.core_remoteconfig_error
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - error_type
+  schedule:
+    start_after: 300 # 5 minutes
+    iterations: 1
+    period: 900

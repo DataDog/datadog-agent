@@ -70,7 +70,7 @@ func TestStatus(t *testing.T) {
 
 func TestStatusWithProfileError(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("snmp_profile_errors", "error")
+	cfg.SetInTest("snmp_profile_errors", "error")
 	profileExpVar := expvar.Get("snmpProfileErrors").(*expvar.Map)
 	errors := []string{"error1", "error2"}
 	profileExpVar.Set("foobar", expvar.Func(func() interface{} {
@@ -177,8 +177,8 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 		},
 	}
 
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", mockListenerConfigs)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
+	mockConfig.SetInTest("network_devices.autodiscovery.configs", mockListenerConfigs)
+	mockConfig.SetInTest("network_devices.autodiscovery.workers", 1)
 
 	listenerConfig, _ := snmp.NewListenerConfig()
 

@@ -58,7 +58,7 @@ func TestProcess(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -74,7 +74,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -90,7 +90,7 @@ func TestProcessNetworkError(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 }
 
@@ -116,21 +116,21 @@ func TestProcessHTTPError(t *testing.T) {
 	secrets.SetRefreshHook(func() bool {
 		return true
 	})
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "API Key invalid")
 
@@ -151,7 +151,7 @@ func TestProcessCancel(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(ctx, mockConfig, log, secrets, client)
+	err := transaction.Process(ctx, mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -224,7 +224,7 @@ func TestProcessDoesNotMutateHeaders(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, headersBefore, transaction.Headers, "t.Headers must not be mutated by Process")
@@ -255,7 +255,7 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
@@ -289,10 +289,111 @@ func TestTransaction403DropsWhenNoSecrets(t *testing.T) {
 		droppedByEndpointBefore = v.(*expvar.Int).Value()
 	}
 
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 
 	assert.NoError(t, err, "a 403 with no secrets backend should drop the transaction, not reschedule it")
 	assert.Equal(t, 0, transaction.ErrorCount, "ErrorCount should not be incremented when the transaction is dropped")
 	assert.Equal(t, droppedBefore+1, TransactionsDropped.Value(), "TransactionsDropped should be incremented")
 	assert.Equal(t, droppedByEndpointBefore+1, TransactionsDroppedByEndpoint.Get("test").(*expvar.Int).Value(), "TransactionsDroppedByEndpoint should be incremented for the endpoint")
+}
+
+// pointCountTelemetryRecorder is a minimal PointCountTelemetry that records
+// every call so tests can assert on point.sent / point.dropped accounting.
+type pointCountTelemetryRecorder struct {
+	sent    int
+	dropped int
+}
+
+func (r *pointCountTelemetryRecorder) OnPointSuccessfullySent(count int) { r.sent += count }
+func (r *pointCountTelemetryRecorder) OnPointDropped(count int)          { r.dropped += count }
+
+func newTransactionForStatusTest(domain string, pointCount int) *HTTPTransaction {
+	tr := NewHTTPTransaction()
+	tr.Domain = domain
+	tr.Endpoint.Route = "/endpoint/test"
+	tr.Endpoint.Name = "test"
+	tr.Payload = NewBytesPayload([]byte("test payload"), pointCount)
+	return tr
+}
+
+func TestProcessPointCountTelemetry(t *testing.T) {
+	cases := []struct {
+		name            string
+		status          int
+		pointCount      int
+		setRefreshHook  bool
+		refreshSucceeds bool
+		wantErr         bool
+		wantSent        int
+		wantDropped     int
+	}{
+		{
+			name:       "2xx credits point.sent",
+			status:     http.StatusOK,
+			pointCount: 17,
+			wantSent:   17,
+		},
+		{
+			name:        "400 drop credits point.dropped",
+			status:      http.StatusBadRequest,
+			pointCount:  9,
+			wantDropped: 9,
+		},
+		{
+			name:        "413 drop credits point.dropped",
+			status:      http.StatusRequestEntityTooLarge,
+			pointCount:  4,
+			wantDropped: 4,
+		},
+		{
+			name:            "403 with failed key refresh credits point.dropped",
+			status:          http.StatusForbidden,
+			pointCount:      3,
+			setRefreshHook:  true,
+			refreshSucceeds: false,
+			wantDropped:     3,
+		},
+		{
+			name:            "403 with successful key refresh is retryable",
+			status:          http.StatusForbidden,
+			pointCount:      12,
+			setRefreshHook:  true,
+			refreshSucceeds: true,
+			wantErr:         true,
+		},
+		{
+			name:       "5xx is retryable",
+			status:     http.StatusServiceUnavailable,
+			pointCount: 6,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer ts.Close()
+
+			tr := newTransactionForStatusTest(ts.URL, tc.pointCount)
+			rec := &pointCountTelemetryRecorder{}
+
+			secrets := secretsmock.New(t)
+			if tc.setRefreshHook {
+				secrets.SetRefreshHook(func() bool { return tc.refreshSucceeds })
+			}
+
+			err := tr.Process(context.Background(), configmock.New(t), logmock.New(t),
+				secrets, &http.Client{}, rec)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantSent, rec.sent, "point.sent")
+			assert.Equal(t, tc.wantDropped, rec.dropped, "point.dropped")
+		})
+	}
 }

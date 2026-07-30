@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -118,7 +117,7 @@ func (suite *k8sSuite) TestZZUpAndRunning() {
 }
 
 func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
@@ -179,7 +178,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 }
 
 func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	expectedWebhookName := "datadog-webhook"
 
 	suite.Run("agent registered mutating webhook configuration", func() {
@@ -212,7 +211,7 @@ func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
 }
 
 func (suite *k8sSuite) TestVersion() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
 	for _, tt := range []struct {
@@ -277,7 +276,7 @@ func (suite *k8sSuite) TestCLI() {
 }
 
 func (suite *k8sSuite) testAgentCLI() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	pod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
@@ -649,7 +648,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 }
 
 func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	var leaderPodName string
 
 	success := suite.EventuallyWithTf(func(c *assert.CollectT) {
@@ -761,6 +760,7 @@ func (suite *k8sSuite) TestNginx() {
 		Expect: testMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
+				`^http_status_code:200$`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
 				`^orch_cluster_id:`,
@@ -1409,7 +1409,7 @@ func (suite *k8sSuite) TestAdmissionControllerWithAutoDetectedLanguage() {
 }
 
 func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string, language string, languageShouldBeAutoDetected bool) {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	// When the language should be auto-detected, we need to wait for the
 	// deployment to be created and the annotation with the languages to be set
@@ -1477,10 +1477,13 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		env[envVar.Name] = envVar.Value
 	}
 
-	if suite.Contains(env, "DD_DOGSTATSD_URL") {
+	// OpenShift disables the UDS socket, so we skip
+	// checking for socket URLs, hostPath volume, or mount.
+	socketInjection := suite.runtime != "cri-o"
+	if socketInjection && suite.Contains(env, "DD_DOGSTATSD_URL") {
 		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
 	}
-	if suite.Contains(env, "DD_TRACE_AGENT_URL") {
+	if socketInjection && suite.Contains(env, "DD_TRACE_AGENT_URL") {
 		suite.Equal("unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
 	}
 	suite.Contains(env, "DD_ENTITY_ID")
@@ -1506,7 +1509,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"], ",",
 	)
 
-	if suite.Contains(hostPathVolumes, "datadog") {
+	if socketInjection && suite.Contains(hostPathVolumes, "datadog") {
 		// trim trailing '/' if exists
 		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
 		suite.Contains("/var/run/datadog", ddHostPath)
@@ -1518,7 +1521,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		volumeMounts[volumeMount.Name] = append(volumeMounts[volumeMount.Name], volumeMount.MountPath)
 	}
 
-	if suite.Contains(volumeMounts, "datadog") {
+	if socketInjection && suite.Contains(volumeMounts, "datadog") {
 		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
 	}
 
@@ -1557,7 +1560,7 @@ func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
 		// Get a pod from kube-system namespace
@@ -1804,7 +1807,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	var nginxPod corev1.Pod
 
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
+		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").List(suite.T().Context(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
 		})
@@ -1819,7 +1822,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		})
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
-	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
+	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(suite.T().Context(), nginxPod.Name, metav1.DeleteOptions{})
 	suite.Require().NoError(err)
 
 	suite.EventuallyWithTf(func(collect *assert.CollectT) {

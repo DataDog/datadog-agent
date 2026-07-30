@@ -19,13 +19,7 @@
           "location": {
             "method": "main.lenString"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: maximum call count exceeded"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

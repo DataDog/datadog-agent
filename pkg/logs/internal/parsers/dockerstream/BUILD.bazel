@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "dockerstream",
+    srcs = ["docker_stream.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream",
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_client//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_diagnostic//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/message",
+    ],
+)
+
+dd_agent_go_test(
+    name = "dockerstream_test",
+    srcs = [
+        "docker_stream_fuzz_test.go",
+        "docker_stream_test.go",
+    ],
+    embed = [":dockerstream"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

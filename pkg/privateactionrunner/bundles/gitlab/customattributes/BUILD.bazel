@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "customattributes",
+    srcs = [
+        "delete_custom_group_attribute.gen.go",
+        "delete_custom_project_attribute.gen.go",
+        "delete_custom_user_attribute.gen.go",
+        "entrypoint.gen.go",
+        "get_custom_group_attribute.gen.go",
+        "get_custom_project_attribute.gen.go",
+        "get_custom_user_attribute.gen.go",
+        "list_custom_group_attributes.gen.go",
+        "list_custom_project_attributes.gen.go",
+        "list_custom_user_attributes.gen.go",
+        "set_custom_group_attribute.gen.go",
+        "set_custom_project_attribute.gen.go",
+        "set_custom_user_attribute.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

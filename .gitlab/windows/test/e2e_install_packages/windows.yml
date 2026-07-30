@@ -57,6 +57,7 @@
       - E2E_MSI_TEST: TestAgentUser/hostname_user
       - E2E_MSI_TEST: TestAgentUser/LocalSystem
       - E2E_MSI_TEST: TestAgentUser/SYSTEM
+      - E2E_MSI_TEST: TestAgentUserKeepRights
       - E2E_MSI_TEST: TestInstallOpts
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
@@ -67,9 +68,9 @@
       - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
       - E2E_MSI_TEST: TestInstallWithAutologger
-      - E2E_MSI_TEST: TestInstallWithoutAutologger
-      - E2E_MSI_TEST: TestInstallWithAutologgerRollback
-      - E2E_MSI_TEST: TestInstallWithoutAutologgerRollback
+      - E2E_MSI_TEST: TestAutologgerEnabledWhenLogonDurationEnabled
+      - E2E_MSI_TEST: TestInstallRollbackRemovesAutologger
+      - E2E_MSI_TEST: TestInstallRollbackPreservesAutologger
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
@@ -168,6 +169,36 @@ new-e2e-windows-ddot-package-a7-x86_64:
     - !reference [.manual]
   timeout: 45m
 
+new-e2e-windows-eudm-package-a7-x86_64:
+  stage: e2e_install_packages
+  extends:
+    - .new_e2e_template
+    - .new-e2e_agent_a7
+  variables:
+    TARGETS: ./tests/installer/windows
+    EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI"
+    TEAM: windows-products
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_windows
+  before_script:
+    - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
+    - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
+    - !reference [.new_e2e_template, before_script]
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI$/TestInstallAndUninstallEUDMExtension$"
+      - EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI$/TestUpgradeEnablesEUDMExtension$"
+      - EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI$/TestInstallWithoutEUDMSkipsExtension$"
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
+  timeout: 45m
+
 new-e2e-installer-windows:
   extends: .new_e2e_template
   rules:
@@ -239,6 +270,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigAltDir$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUser$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalRead$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalReadAfterRollback$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentFails$"

@@ -1,0 +1,16 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters:
+      - otlp_http
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: test-api-key

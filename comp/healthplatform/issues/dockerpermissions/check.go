@@ -14,8 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -28,7 +27,7 @@ const (
 )
 
 // Check checks if Docker socket exists but is not reachable (permission issue)
-func Check() (*healthplatform.IssueReport, error) {
+func Check() ([]runnerdef.IssueReport, error) {
 	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		return nil, nil
@@ -43,13 +42,17 @@ func Check() (*healthplatform.IssueReport, error) {
 	}
 
 	if len(unreachableSockets) > 0 {
-		return &healthplatform.IssueReport{
-			IssueId: IssueID,
-			Context: map[string]string{
-				"dockerDirs": strings.Join(unreachableSockets, ","),
-				"os":         runtime.GOOS,
+		return []runnerdef.IssueReport{
+			{
+				IssueID:   IssueID,
+				IssueName: IssueName,
+				Source:    "docker",
+				Context: map[string]string{
+					"dockerDirs": strings.Join(unreachableSockets, ","),
+					"os":         runtime.GOOS,
+				},
+				Tags: []string{"docker-socket", "permissions"},
 			},
-			Tags: []string{"docker-socket", "permissions"},
 		}, nil
 	}
 

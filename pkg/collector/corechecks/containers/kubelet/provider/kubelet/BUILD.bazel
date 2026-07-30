@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "kubelet",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/kubelet",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/collector/corechecks/containers/kubelet/provider/prometheus",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/prometheus",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kubelet_test",
+    srcs = ["provider_test.go"],
+    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
+    embed = [":kubelet"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
+    deps = [
+        "//comp/core",
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadfilter/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/collector/corechecks/containers/kubelet/common/testing",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_fx//:fx",
+    ],
+)

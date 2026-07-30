@@ -8,24 +8,25 @@ package inventoryagentimpl
 import (
 	"bytes"
 	"errors"
+	"maps"
 	"runtime"
+	"slices"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -68,13 +69,14 @@ func makeRequires(deps testDeps) Requires {
 }
 
 func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
-			sysprobeconfigimpl.MockModule(),
-			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
+			fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
+			fxutil.ProvideOptional[sysprobeconfig.Component](),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
@@ -202,6 +204,8 @@ func TestInitData(t *testing.T) {
 		"remote_updates":                              true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
+		"network_path.remote_config.enabled":          true,
+		"network_path.connections_monitoring.enabled": true,
 		"sbom.enabled":                                true,
 		"sbom.container_image.enabled":                true,
 		"sbom.host.enabled":                           true,
@@ -227,17 +231,19 @@ func TestInitData(t *testing.T) {
 		"config_proxy_https":               "https://name:********@proxy.example.com/",
 		"config_eks_fargate":               true,
 
-		"feature_process_language_detection_enabled": true,
-		"feature_logs_enabled":                       true,
-		"feature_cspm_enabled":                       true,
-		"feature_cspm_host_benchmarks_enabled":       true,
-		"feature_apm_enabled":                        true,
-		"feature_imdsv2_enabled":                     true,
-		"feature_processes_container_enabled":        true,
-		"feature_remote_configuration_enabled":       true,
-		"feature_remote_updates_enabled":             true,
-		"feature_process_enabled":                    true,
-		"feature_container_images_enabled":           true,
+		"feature_process_language_detection_enabled":          true,
+		"feature_logs_enabled":                                true,
+		"feature_cspm_enabled":                                true,
+		"feature_cspm_host_benchmarks_enabled":                true,
+		"feature_apm_enabled":                                 true,
+		"feature_imdsv2_enabled":                              true,
+		"feature_processes_container_enabled":                 true,
+		"feature_remote_configuration_enabled":                true,
+		"feature_remote_updates_enabled":                      true,
+		"feature_process_enabled":                             true,
+		"feature_container_images_enabled":                    true,
+		"feature_network_path_remote_config_enabled":          true,
+		"feature_network_path_connections_monitoring_enabled": true,
 
 		"feature_dynamic_instrumentation_enabled":      true,
 		"feature_cws_enabled":                          true,
@@ -339,7 +345,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			keys := maps.Keys(stats)
+			keys := slices.Collect(maps.Keys(stats))
 
 			assert.Contains(t, keys, "agent_metadata")
 		}},
@@ -377,12 +383,12 @@ func TestFetchSecurityAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for security-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -418,12 +424,12 @@ func TestFetchProcessAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for process-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -465,12 +471,12 @@ func TestFetchTraceAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for trace-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -508,12 +514,12 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		// test that the system-probe config was passed and not the agent config
 		assert.True(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsConfigured("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for system-probe fetcher",
 		)
 		assert.False(
 			t,
-			config.IsSet("hostname"),
+			config.IsConfigured("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 

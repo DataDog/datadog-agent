@@ -1,4 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/process:process_go_proto": [
+            "process.pb.go",
+            "workloadmeta_process.pb.go",
+            "workloadmeta_process_grpc.pb.go",
+        ],
+    },
+)
 
 go_library(
     name = "process",

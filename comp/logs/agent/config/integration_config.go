@@ -33,6 +33,9 @@ const (
 	WindowsEventType  = "windows_event"
 	StringChannelType = "string_channel"
 
+	// SyslogFormat for syslog-formatted log files (format: syslog)
+	SyslogFormat string = "syslog"
+
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
 	// UTF16LE for UTF-16 Little Endian encoding
@@ -61,6 +64,7 @@ type LogsConfig struct {
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
 	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
+	Format       string           `mapstructure:"format" json:"format" yaml:"format"`                         // Parsing format: "syslog" or "" (unstructured)
 
 	ConfigID           string           `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
 	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
@@ -103,12 +107,21 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
-	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
-	// message bodies. When true (the default once syslog ingestion is wired up),
-	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
-	// structured SIEM fields. Set to false to skip this detection and treat the
-	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
-	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+	// AttributeParsing controls whether the full syslog parser is active for
+	// this source. When true, incoming lines are parsed into structured syslog
+	// messages with metadata extraction, CEF/LEEF detection, and processing
+	// rule support (e.g. remap_source). When false, a no-op parser is used
+	// and lines pass through as raw text. When nil (unconfigured), it is
+	// auto-enabled if any remap_source processing rule is defined, and
+	// defaults to off otherwise. See IsAttributeParsingEnabled().
+	AttributeParsing *bool `mapstructure:"attribute_parsing" json:"attribute_parsing" yaml:"attribute_parsing"`
+
+	// DebugAttrParsing controls whether the syslog parser renders structured
+	// JSON output (with "message", "syslog", and optionally "siem" keys) or
+	// passes through the original log line as-is. When false (the default),
+	// only the raw message is sent to intake. Set to true to include the full
+	// structured envelope.
+	DebugAttrParsing *bool `mapstructure:"debug_attr_parsing" json:"debug_attr_parsing" yaml:"debug_attr_parsing"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
@@ -119,10 +132,16 @@ type LogsConfig struct {
 	// ExperimentalAdaptiveSampling provides per-source overrides for the experimental adaptive sampler.
 	// It maps to the 'experimental_adaptive_sampling' key in the YAML configuration.
 	ExperimentalAdaptiveSampling *SourceAdaptiveSamplingOptions `mapstructure:"experimental_adaptive_sampling" json:"experimental_adaptive_sampling" yaml:"experimental_adaptive_sampling"`
+	// ExperimentalNoisyLogDetection overrides the global noisy log detection toggle for this source when set.
+	ExperimentalNoisyLogDetection *bool `mapstructure:"experimental_noisy_log_detection" json:"experimental_noisy_log_detection" yaml:"experimental_noisy_log_detection"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 	FingerprintConfig    *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+
+	// MaxMessageSizeBytes overrides the global logs_config.max_message_size_bytes for this source.
+	// If nil, the global setting is used.
+	MaxMessageSizeBytes *int `mapstructure:"max_message_size_bytes" json:"max_message_size_bytes" yaml:"max_message_size_bytes"`
 
 	// IntegrationSource is the source of the integration file that contains this source.
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
@@ -157,6 +176,11 @@ type SourceAutoMultiLineOptions struct {
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+
+	// StackTraceParsers overrides the list of enabled stack trace parsers for this source.
+	// Valid names match keys in the parser registry (e.g. "go"). An empty list disables
+	// stack trace aggregation for this source.
+	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers" yaml:"stack_trace_parsers"`
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
@@ -181,6 +205,24 @@ type SourceAdaptiveSamplingOptions struct {
 
 	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
 	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
+
+	// TagPatternHash overrides whether logs are tagged with their sampler pattern hash for this source when set.
+	TagPatternHash *bool `mapstructure:"tag_pattern_hash" json:"tag_pattern_hash" yaml:"tag_pattern_hash"`
+
+	// Include limits adaptive sampling to logs matching at least one rule when set.
+	Include []*AdaptiveSamplingRule `mapstructure:"include" json:"include" yaml:"include"`
+
+	// Exclude prevents adaptive sampling from applying to logs matching any rule when set.
+	Exclude []*AdaptiveSamplingRule `mapstructure:"exclude" json:"exclude" yaml:"exclude"`
+}
+
+// AdaptiveSamplingRule defines a log matching rule for adaptive sampler include/exclude filters.
+type AdaptiveSamplingRule struct {
+	// Regex is matched against the raw log content.
+	Regex string `mapstructure:"regex,omitempty" json:"regex,omitempty" yaml:"regex,omitempty"`
+
+	// Sample is tokenized and structurally matched against the log content.
+	Sample string `mapstructure:"sample,omitempty" json:"sample,omitempty" yaml:"sample,omitempty"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -311,15 +353,24 @@ func (c *LogsConfig) Dump(multiline bool) string {
 			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
 				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
 		}
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case FileType:
 		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
 		fmt.Fprintf(&b, ws("Encoding: %#v,"), c.Encoding)
 		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
 		fmt.Fprintf(&b, ws("ExcludePaths: %#v,"), c.ExcludePaths)
 		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case DockerType, ContainerdType:
 		fmt.Fprintf(&b, ws("Image: %#v,"), c.Image)
 		fmt.Fprintf(&b, ws("Label: %#v,"), c.Label)
@@ -452,6 +503,11 @@ func (mode TailingMode) String() string {
 	return ""
 }
 
+// ApplyDefaults populates any zero-value fields with their intended defaults.
+// This is called after the config is parsed but before Validate().
+func (c *LogsConfig) ApplyDefaults(_ pkgconfigmodel.Reader) {
+}
+
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {
@@ -482,7 +538,14 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 
-	// Validate fingerprint configuration
+	if c.Format != "" && c.Format != SyslogFormat {
+		return fmt.Errorf("unsupported format %q (supported: %q or empty)", c.Format, SyslogFormat)
+	}
+
+	if c.Format == SyslogFormat && c.Encoding != "" {
+		log.Warn("non-UTF-8 encodings are not currently supported by the syslog format. The encoding setting will be ignored.")
+	}
+
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
@@ -600,20 +663,29 @@ func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enab
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine, false
 	}
-	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+	if coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection") {
 		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
-		return true, false
 	}
 	isDefault = !coreConfig.IsConfigured("logs_config.auto_multi_line_detection") &&
 		!coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection")
-	return coreConfig.GetBool("logs_config.auto_multi_line_detection"), isDefault
+	return coreConfig.GetBool("logs_config.auto_multi_line_detection") || coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection"), isDefault
 }
 
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
 func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
-	enabled, _ := c.AutoMultiLineStatus(coreConfig)
+	enabled, isDefault := c.AutoMultiLineStatus(coreConfig)
+	if c.Type == UDPType {
+		if isDefault {
+			// UDP datagrams are documented as complete messages; don't let them
+			// silently inherit the global auto-multi-line default.
+			return false
+		}
+		if enabled {
+			log.Warn("Auto multi line detection is not supported for UDP sources, but it has been enabled for log source:", c.Source)
+		}
+	}
 	return enabled
 }
 
@@ -632,13 +704,52 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 	return true // default behaviour when nothing's been configured
 }
 
-// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
-// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
-func (c *LogsConfig) IsSIEMParsingEnabled() bool {
-	if c.SIEMParsing != nil {
-		return *c.SIEMParsing
+// IsAttributeParsingEnabled returns whether the full syslog parser should be
+// active for this source. When AttributeParsing is explicitly set, that value
+// is used. When nil (unconfigured), it is auto-enabled if debug_attr_parsing is
+// on or if any remap_source processing rule — either per-source or global — is
+// defined, and defaults to false otherwise.
+func (c *LogsConfig) IsAttributeParsingEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	if c.AttributeParsing != nil {
+		return *c.AttributeParsing
 	}
-	return true
+	// Debug rendering requires the syslog parser to run: enabling
+	// debug_attr_parsing without attribute_parsing would otherwise install the
+	// noop parser and silently emit raw text instead of the structured envelope.
+	if c.DebugAttrParsing != nil && *c.DebugAttrParsing {
+		return true
+	}
+	for _, rule := range c.ProcessingRules {
+		if rule.Type == RemapSource {
+			return true
+		}
+	}
+	globalRules, _ := GlobalProcessingRules(coreConfig)
+	for _, rule := range globalRules {
+		if rule.Type == RemapSource {
+			return true
+		}
+	}
+	return false
+}
+
+// IsDebugAttrParsingEnabled returns whether the syslog parser should render
+// the full structured JSON envelope (message + syslog + siem keys). When nil
+// (unconfigured), it defaults to false — only the raw message is rendered.
+func (c *LogsConfig) IsDebugAttrParsingEnabled() bool {
+	if c.DebugAttrParsing != nil {
+		return *c.DebugAttrParsing
+	}
+	return false
+}
+
+// GetMaxMessageSizeBytes returns the per-source max message size if configured,
+// or falls back to the global logs_config.max_message_size_bytes setting.
+func (c *LogsConfig) GetMaxMessageSizeBytes(coreConfig pkgconfigmodel.Reader) int {
+	if c.MaxMessageSizeBytes != nil {
+		return *c.MaxMessageSizeBytes
+	}
+	return MaxMessageSizeBytes(coreConfig)
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

@@ -21,10 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"

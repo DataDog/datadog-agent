@@ -75,8 +75,10 @@ enum event_type
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
     EVENT_PIVOT_ROOT,
+    EVENT_SAMPLE_REFRESH,
     EVENT_SETSID,
     EVENT_NOP,
+    EVENT_SOCKET,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -89,6 +91,7 @@ enum
     EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1 << 2, // event is a AD sample
     // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
     EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1 << 4, // event is an anomaly detection event
+    EVENT_FLAGS_INTERNAL = 1 << 5, // event used to keep track of internal caches & resources
 };
 
 enum file_flags
@@ -105,8 +108,11 @@ enum
 
 enum
 {
-    ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
-    SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+    RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
+    RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+    RESOLVER_FLAG_APPLY_DISCARDERS = 1 << 2, // defines whether to apply the discarders or not
+    RESOLVER_FLAG_BASENAME_APPROVED = 1 << 3, // defines that the dentry was approved by basename during the dentry resolution
+    SAMPLE_REFRESH_NEEDED = 1 << 4, // a sample refresh event should be emitted for this dedup cookie
 };
 
 enum policy_mode
@@ -125,9 +131,17 @@ enum APPROVER_TYPE
     IN_UPPER_LAYER_APPROVER_TYPE,
 };
 
+// values must mirror pkg/security/probe/kfilters/approvers.go
+enum BASENAME_APPROVER_TYPE
+{
+    LEAF_BASENAME = 0,
+    LEAF_BASENAME_PREFIX = 1,
+    PARENT_BASENAME = 2,
+};
+
 enum SYSCALL_STATE
 {
-    ACCEPTED = 0,    // approved and can't be discarded later
+    ACCEPTED = 0,    // accepted, can't be discarded later
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
     SAMPLED,         // sampled

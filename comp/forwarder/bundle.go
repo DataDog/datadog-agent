@@ -7,7 +7,8 @@
 package forwarder
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,5 +17,5 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle(params defaultforwarder.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		defaultforwarder.Module(params))
+		defaultforwarderfx.Module(params))
 }

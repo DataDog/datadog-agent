@@ -6,6 +6,12 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+// Size limits for msgp deserialization
+const (
+	za0d4ccedlimitArrays = 500000
+	za0d4ccedlimitMaps   = 500000
+)
+
 // MarshalMsg implements msgp.Marshaler
 func (z *ContainerDebug) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
@@ -75,6 +81,10 @@ func (z *ContainerDebug) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0001 > za0d4ccedlimitMaps {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	for zb0001 > 0 {
@@ -180,6 +190,10 @@ func (z *TraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > za0d4ccedlimitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -205,6 +219,10 @@ func (z *TraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Spans")
+				return
+			}
+			if zb0002 > za0d4ccedlimitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Spans) >= int(zb0002) {
@@ -235,6 +253,10 @@ func (z *TraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if zb0003 > za0d4ccedlimitMaps {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if z.Tags == nil {
@@ -385,6 +407,10 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > za0d4ccedlimitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -430,6 +456,10 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Chunks")
 				return
 			}
+			if zb0002 > za0d4ccedlimitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
 			if cap(z.Chunks) >= int(zb0002) {
 				z.Chunks = (z.Chunks)[:zb0002]
 			} else {
@@ -458,6 +488,10 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if zb0003 > za0d4ccedlimitMaps {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if z.Tags == nil {

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "api",
@@ -15,11 +16,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "api_test",
     srcs = ["http_test.go"],
     embed = [":api"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "@com_github_coreos_go_semver//semver",

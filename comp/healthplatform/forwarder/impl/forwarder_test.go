@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,224 +21,85 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// mockIssueProvider is a test implementation of IssueProvider
-type mockIssueProvider struct {
-	issues map[string]*healthplatform.Issue
-}
-
-func newMockIssueProvider() *mockIssueProvider {
-	return &mockIssueProvider{
-		issues: make(map[string]*healthplatform.Issue),
-	}
-}
-
-func (m *mockIssueProvider) GetAllIssues() (int, map[string]*healthplatform.Issue) {
-	count := 0
-	for _, issue := range m.issues {
-		if issue != nil {
-			count++
-		}
-	}
-	return count, m.issues
-}
-
-func (m *mockIssueProvider) addIssue(checkID string, issue *healthplatform.Issue) {
-	m.issues[checkID] = issue
-}
-
-// newTestForwarder creates a forwarder for white-box testing
-func newTestForwarder(t *testing.T, cfg config.Component, provider *mockIssueProvider, hostname string) *forwarder {
-	interval := cfg.GetDuration("health_platform.forwarder.interval")
-	if interval <= 0 {
-		interval = defaultForwarderInterval
-	}
+func newTestForwarder(t *testing.T, cfg config.Component) *forwarder {
+	t.Helper()
 	return &forwarder{
-		cfg:         cfg,
-		intakeURL:   buildIntakeURL(cfg),
-		interval:    interval,
-		hostname:    hostname,
-		agentFlavor: flavor.GetFlavor(),
-		provider:    provider,
-		httpClient:  buildHTTPClient(cfg),
-		log:         logmock.New(t),
-		stopCh:      make(chan struct{}),
-		doneCh:      make(chan struct{}),
+		cfg:        cfg,
+		intakeURL:  buildIntakeURL(cfg),
+		httpClient: buildHTTPClient(cfg),
+		log:        logmock.New(t),
 	}
 }
 
-// TestForwarderBuildReport tests report building
-func TestForwarderBuildReport(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	provider := newMockIssueProvider()
-
-	fwd := newTestForwarder(t, cfg, provider, "test-host")
-
-	// Add some test issues
-	provider.addIssue("check-1", &healthplatform.Issue{
-		Id:       "issue-1",
-		Title:    "Test Issue 1",
-		Severity: "high",
-	})
-	provider.addIssue("check-2", &healthplatform.Issue{
-		Id:       "issue-2",
-		Title:    "Test Issue 2",
-		Severity: "medium",
-	})
-
-	report := fwd.buildReport(provider.issues)
-
-	assert.Equal(t, "agent-health-issues", report.EventType)
-	assert.Equal(t, flavor.DefaultAgent, report.Service)
-	assert.Equal(t, "test-host", report.Host.Hostname)
-	assert.Equal(t, version.AgentVersion, report.Host.GetAgentVersion())
-	assert.Len(t, report.Issues, 2)
-	assert.NotEmpty(t, report.EmittedAt)
-
-	// Verify timestamp is valid RFC3339
-	_, err := time.Parse(time.RFC3339, report.EmittedAt)
-	assert.NoError(t, err)
-}
-
-// TestForwarderSend tests sending reports to a mock server
-func TestForwarderSend(t *testing.T) {
+func TestSend(t *testing.T) {
 	var receivedRequest *http.Request
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedRequest = r
-
 		buf := make([]byte, r.ContentLength)
 		_, _ = r.Body.Read(buf)
 		receivedBody = buf
-
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	provider := newMockIssueProvider()
+	cfg.SetInTest("api_key", "test-api-key")
 
-	fwd := newTestForwarder(t, cfg, provider, "test-host")
+	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
 
-	provider.addIssue("check-1", &healthplatform.Issue{
-		Id:       "issue-1",
-		Title:    "Test Issue",
-		Severity: "high",
-	})
+	report := &healthplatform.HealthReport{
+		EventType: "agent-health-issues",
+		EmittedAt: time.Now().UTC().Format(time.RFC3339),
+		Host:      &healthplatform.HostInfo{Hostname: "test-host"},
+		Issues: map[string]*healthplatform.Issue{
+			"issue-1": {Id: "issue-1", Title: "Test Issue", Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH},
+		},
+	}
 
-	report := fwd.buildReport(provider.issues)
-	err := fwd.send(report)
-	require.NoError(t, err)
+	require.NoError(t, fwd.Send(context.Background(), report))
 
-	// Verify request headers
 	assert.Equal(t, "application/json", receivedRequest.Header.Get("Content-Type"))
-	assert.Equal(t, "test-api-key", receivedRequest.Header.Get("DD-API-KEY")) // API key read from config at request time
+	assert.Equal(t, "test-api-key", receivedRequest.Header.Get("DD-API-KEY"))
 	assert.Equal(t, version.AgentVersion, receivedRequest.Header.Get("DD-Agent-Version"))
 	assert.Contains(t, receivedRequest.Header.Get("User-Agent"), "datadog-agent/")
 
-	// Verify body can be unmarshaled
-	var receivedReport healthplatform.HealthReport
-	err = json.Unmarshal(receivedBody, &receivedReport)
-	require.NoError(t, err)
-	assert.Equal(t, "test-host", receivedReport.Host.Hostname)
+	var decoded healthplatform.HealthReport
+	require.NoError(t, json.Unmarshal(receivedBody, &decoded))
+	assert.Equal(t, "test-host", decoded.Host.Hostname)
 }
 
-// TestForwarderSendNoIssues tests that no request is sent when there are no issues
-func TestForwarderSendNoIssues(t *testing.T) {
-	requestCount := int32(0)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&requestCount, 1)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	provider := newMockIssueProvider() // No issues
-
-	fwd := newTestForwarder(t, cfg, provider, "test-host")
-	fwd.intakeURL = server.URL
-
-	fwd.sendHealthReport()
-
-	// Verify no request was sent
-	assert.Equal(t, int32(0), atomic.LoadInt32(&requestCount))
-}
-
-// TestForwarderSendError tests error handling when server returns error
-func TestForwarderSendError(t *testing.T) {
+func TestSendHTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	provider := newMockIssueProvider()
+	cfg.SetInTest("api_key", "test-api-key")
 
-	fwd := newTestForwarder(t, cfg, provider, "test-host")
+	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
 
-	provider.addIssue("check-1", &healthplatform.Issue{
-		Id:       "issue-1",
-		Title:    "Test Issue",
-		Severity: "high",
-	})
-
-	// This should not panic - error is logged internally
-	fwd.sendHealthReport()
+	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected status code: 500")
 }
 
-// TestForwarderStartStop tests the forwarder lifecycle
-func TestForwarderStartStop(t *testing.T) {
+func TestSendNoAPIKey(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.forwarder.interval", 100*time.Millisecond)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	fwd := newTestForwarder(t, cfg)
 
-	provider := newMockIssueProvider()
-
-	fwd := newTestForwarder(t, cfg, provider, "test-host")
-
-	// Start the forwarder
-	require.NoError(t, fwd.start(context.Background()))
-
-	// Give it a moment to start the goroutine
-	time.Sleep(50 * time.Millisecond)
-
-	// Stop the forwarder - should complete gracefully
-	require.NoError(t, fwd.stop(context.Background()))
-}
-
-// TestForwarderSendWithoutAPIKey tests that send fails gracefully without API key
-func TestForwarderSendWithoutAPIKey(t *testing.T) {
-	cfg := config.NewMock(t)
-	// Don't set API key
-	provider := newMockIssueProvider()
-
-	fwd := newTestForwarder(t, cfg, provider, "test-host")
-
-	provider.addIssue("check-1", &healthplatform.Issue{
-		Id:       "issue-1",
-		Title:    "Test Issue",
-		Severity: "high",
-	})
-
-	report := fwd.buildReport(provider.issues)
-	err := fwd.send(report)
-
+	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key not configured")
 }
 
-// TestBuildIntakeURL tests URL building based on site configuration
 func TestBuildIntakeURL(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -249,15 +109,12 @@ func TestBuildIntakeURL(t *testing.T) {
 	}{
 		{
 			name:     "default site",
-			site:     "",
-			ddURL:    "",
-			expected: "https://agenthealth-intake.datadoghq.com./api/v2/agenthealth", // FQDN with trailing dot
+			expected: "https://agenthealth-intake.datadoghq.com./api/v2/agenthealth",
 		},
 		{
 			name:     "eu site",
 			site:     "datadoghq.eu",
-			ddURL:    "",
-			expected: "https://agenthealth-intake.datadoghq.eu./api/v2/agenthealth", // FQDN with trailing dot
+			expected: "https://agenthealth-intake.datadoghq.eu./api/v2/agenthealth",
 		},
 		{
 			name:     "custom dd_url overrides",
@@ -271,24 +128,12 @@ func TestBuildIntakeURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			if tt.site != "" {
-				cfg.SetWithoutSource("site", tt.site)
+				cfg.SetInTest("site", tt.site)
 			}
 			if tt.ddURL != "" {
-				cfg.SetWithoutSource("dd_url", tt.ddURL)
+				cfg.SetInTest("dd_url", tt.ddURL)
 			}
-
-			url := buildIntakeURL(cfg)
-			assert.Equal(t, tt.expected, url)
+			assert.Equal(t, tt.expected, buildIntakeURL(cfg))
 		})
 	}
-}
-
-// TestForwarderNewWithHostname tests that a forwarder stores the given hostname
-func TestForwarderNewWithHostname(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	provider := newMockIssueProvider()
-
-	fwd := newTestForwarder(t, cfg, provider, "test-hostname")
-	assert.Equal(t, "test-hostname", fwd.hostname)
 }

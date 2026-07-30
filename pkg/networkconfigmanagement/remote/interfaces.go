@@ -3,25 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package remote provides interfaces for remote device communications (SSH/Telnet) to retrieve configurations
 package remote
 
-import "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+import (
+	"context"
 
-// Client defines the interface for a remote client that can create sessions to execute commands on a device
-type Client interface {
-	Connect() error
-	NewSession() (Session, error)
-	RetrieveRunningConfig() ([]byte, error)
-	RetrieveStartupConfig() ([]byte, error)
-	SetProfile(p *profile.NCMProfile)
-	Close() error
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+)
+
+// Connector is an interface that can connect to a device execute commands on a device
+type Connector interface {
+	Connect() (Connection, error)
 }
 
-// Session defines the interface for a session that can execute commands on a remote device
-type Session interface {
-	CombinedOutput(cmd string) ([]byte, error)
+// Connection is an active connection that can fetch data from a device
+type Connection interface {
+	SetProfile(p *profile.NCMProfile)
+	RetrieveRunningConfig(ctx context.Context) ([]byte, error)
+	RetrieveStartupConfig(ctx context.Context) ([]byte, error)
+	Verify(ctx context.Context) error
+	PushConfig(ctx context.Context, config string) error
 	Close() error
 }

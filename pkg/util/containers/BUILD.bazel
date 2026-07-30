@@ -1,2 +1,32 @@
-# Stub: intermediate package not yet migrated to Bazel.
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "containers",
+    srcs = [
+        "doc.go",
+        "entity.go",
+        "env_vars_filter.go",
+        "filter.go",
+        "identifier.go",
+        "pause.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/legacy",
+        "//pkg/config/setup",
+    ],
+)
+
+dd_agent_go_test(
+    name = "containers_test",
+    srcs = [
+        "entity_test.go",
+        "env_vars_filter_test.go",
+        "indentifier_test.go",
+        "pause_test.go",
+    ],
+    embed = [":containers"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

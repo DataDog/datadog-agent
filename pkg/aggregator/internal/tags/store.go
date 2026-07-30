@@ -131,7 +131,6 @@ func (tc *Store) Shrink() {
 	}
 
 	if len(tc.tagsByKey) < tc.cap/2 {
-		//nolint:revive // TODO(AML) Fix revive linter
 		new := make(map[ckey.TagsKey]*Entry, len(tc.tagsByKey))
 		maps.Copy(new, tc.tagsByKey)
 		tc.cap = len(new)

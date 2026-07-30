@@ -1,0 +1,37 @@
+# Disable the chart's built-in NetworkPolicy because this file defines the
+# Host Profiler egress policy through extraManifests below.
+networkPolicy:
+  enabled: false
+
+# Custom Kubernetes resources rendered by the Helm chart.
+# Requires a cluster networking layer that enforces Kubernetes NetworkPolicy.
+# If your cluster does not enforce NetworkPolicy resources, this manifest is
+# accepted but does not restrict egress.
+#
+# This NetworkPolicy allows DNS, Datadog intake egress, and kubelet API access
+# required by the Host Profiler.
+extraManifests:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: '{{ include "opentelemetry-collector.fullname" . }}-egress'
+      namespace: '{{ include "opentelemetry-collector.namespace" . }}'
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: '{{ include "opentelemetry-collector.name" . }}'
+          app.kubernetes.io/instance: '{{ .Release.Name }}'
+      policyTypes:
+        - Egress
+      egress:
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        - ports:
+            - port: 443
+              protocol: TCP
+        - ports:
+            - port: 10250
+              protocol: TCP

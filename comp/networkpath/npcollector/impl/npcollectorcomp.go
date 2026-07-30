@@ -13,11 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
 
 type dependencies struct {
@@ -35,11 +37,12 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp npcollector.Component
+	Comp       npcollector.Component
+	RCListener rctypes.ListenerProvider
 }
 
-// NewNpCollector creates a new npcollector component.
-func NewNpCollector(deps dependencies) Provides {
+// NewComponent creates a new npcollector component.
+func NewComponent(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig, deps.Logger)
@@ -80,7 +83,15 @@ func NewNpCollector(deps dependencies) Provides {
 		collector = newNoopNpCollectorImpl()
 	}
 
-	return Provides{
-		Comp: collector,
+	return Provides{Comp: collector, RCListener: newRCListener(deps.AgentConfig, collector)}
+}
+
+func newRCListener(cfg config.Component, collector *npCollectorImpl) rctypes.ListenerProvider {
+	var listener rctypes.ListenerProvider
+	if cfg.GetBool("network_path.remote_config.enabled") {
+		listener.ListenerProvider = rctypes.RCListener{
+			data.ProductNetworkPath: collector.UpdateRemoteConfig,
+		}
 	}
+	return listener
 }

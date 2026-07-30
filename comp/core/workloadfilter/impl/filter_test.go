@@ -44,8 +44,8 @@ func newFilterStoreObject(t *testing.T, config config.Component) *localFilterSto
 
 func TestBasicFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
-	mockConfig.SetWithoutSource("container_exclude", []string{"image:datadog/agent:latest"})
+	mockConfig.SetInTest("container_include", []string{"name:dd-agent"})
+	mockConfig.SetInTest("container_exclude", []string{"image:datadog/agent:latest"})
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("empty filters, empty container", func(t *testing.T) {
@@ -187,10 +187,10 @@ func TestADAnnotationFilter(t *testing.T) {
 
 func TestCombinedFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
-	mockConfig.SetWithoutSource("container_exclude", []string{"name:nginx"})
-	mockConfig.SetWithoutSource("ac_include", []string{"kube_namespace:default"})
-	mockConfig.SetWithoutSource("ac_exclude", []string{"kube_namespace:datadog-agent"})
+	mockConfig.SetInTest("container_include", []string{"name:dd-agent"})
+	mockConfig.SetInTest("container_exclude", []string{"name:nginx"})
+	mockConfig.SetInTest("ac_include", []string{"kube_namespace:default"})
+	mockConfig.SetInTest("ac_exclude", []string{"kube_namespace:datadog-agent"})
 
 	filterStore := newFilterStoreObject(t, mockConfig)
 
@@ -330,8 +330,8 @@ container_exclude_metrics: ["kube_namespace:datadog-agent"]
 func TestLegacySharedMetricFilter(t *testing.T) {
 	t.Run("Legacy config with pause container excluded", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+		mockConfig.SetInTest("ac_include", []string{"image:apache.*"})
+		mockConfig.SetInTest("ac_exclude", []string{"name:dd-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerSharedMetricFilters()
@@ -347,9 +347,9 @@ func TestLegacySharedMetricFilter(t *testing.T) {
 
 	t.Run("Legacy config with pause container included", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("exclude_pause_container", false)
-		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+		mockConfig.SetInTest("exclude_pause_container", false)
+		mockConfig.SetInTest("ac_include", []string{"image:apache.*"})
+		mockConfig.SetInTest("ac_exclude", []string{"name:dd-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerSharedMetricFilters()
@@ -361,11 +361,11 @@ func TestLegacySharedMetricFilter(t *testing.T) {
 
 	t.Run("New config with metrics specific filters", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("exclude_pause_container", false)
-		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
-		mockConfig.SetWithoutSource("container_include_metrics", []string{"image:nginx.*"})
-		mockConfig.SetWithoutSource("container_exclude_metrics", []string{"name:ddmetric-.*"})
+		mockConfig.SetInTest("exclude_pause_container", false)
+		mockConfig.SetInTest("container_include", []string{"image:apache.*"})
+		mockConfig.SetInTest("container_exclude", []string{"name:dd-.*"})
+		mockConfig.SetInTest("container_include_metrics", []string{"image:nginx.*"})
+		mockConfig.SetInTest("container_exclude_metrics", []string{"name:ddmetric-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerSharedMetricFilters()
@@ -383,8 +383,8 @@ func TestLegacySharedMetricFilter(t *testing.T) {
 func TestLegacyAutodiscoveryFilter(t *testing.T) {
 	t.Run("Global legacy config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+		mockConfig.SetInTest("ac_include", []string{"image:apache.*"})
+		mockConfig.SetInTest("ac_exclude", []string{"name:dd-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
@@ -400,10 +400,10 @@ func TestLegacyAutodiscoveryFilter(t *testing.T) {
 
 	t.Run("Global new config with legacy config ignored", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
-		mockConfig.SetWithoutSource("ac_include", []string{"image:apache/legacy.*"})
-		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd/legacy-.*"})
+		mockConfig.SetInTest("container_include", []string{"image:apache.*"})
+		mockConfig.SetInTest("container_exclude", []string{"name:dd-.*"})
+		mockConfig.SetInTest("ac_include", []string{"image:apache/legacy.*"})
+		mockConfig.SetInTest("ac_exclude", []string{"name:dd/legacy-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
@@ -419,8 +419,8 @@ func TestLegacyAutodiscoveryFilter(t *testing.T) {
 
 	t.Run("Metrics new config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("container_include_metrics", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("container_exclude_metrics", []string{"name:dd-.*"})
+		mockConfig.SetInTest("container_include_metrics", []string{"image:apache.*"})
+		mockConfig.SetInTest("container_exclude_metrics", []string{"name:dd-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter)
@@ -435,8 +435,8 @@ func TestLegacyAutodiscoveryFilter(t *testing.T) {
 
 	t.Run("Logs new config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("container_include_logs", []string{"image:apache.*"})
-		mockConfig.SetWithoutSource("container_exclude_logs", []string{"name:dd-.*"})
+		mockConfig.SetInTest("container_include_logs", []string{"image:apache.*"})
+		mockConfig.SetInTest("container_exclude_logs", []string{"name:dd-.*"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
@@ -451,8 +451,8 @@ func TestLegacyAutodiscoveryFilter(t *testing.T) {
 
 	t.Run("Filter errors with invalid regex", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*", "kube_namespace:?"})
-		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
+		mockConfig.SetInTest("container_include", []string{"image:apache.*", "kube_namespace:?"})
+		mockConfig.SetInTest("container_exclude", []string{"name:dd-.*", "invalid"})
 
 		filterStore := newFilterStoreObject(t, mockConfig)
 		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
@@ -605,10 +605,10 @@ func TestContainerSBOMFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("sbom.container_image.enabled", true)
-			mockConfig.SetWithoutSource("sbom.container_image.container_include", tt.include)
-			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
-			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
+			mockConfig.SetInTest("sbom.container_image.enabled", true)
+			mockConfig.SetInTest("sbom.container_image.container_include", tt.include)
+			mockConfig.SetInTest("sbom.container_image.container_exclude", tt.exclude)
+			mockConfig.SetInTest("sbom.container_image.exclude_pause_container", tt.pauseCtn)
 
 			filterStore := newFilterStoreObject(t, mockConfig)
 			filterBundle := filterStore.GetContainerSBOMFilters()
@@ -620,8 +620,8 @@ func TestContainerSBOMFilter(t *testing.T) {
 
 func TestFilterPrecedence(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-agent"})
-	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
+	mockConfig.SetInTest("container_exclude", []string{"name:dd-agent"})
+	mockConfig.SetInTest("container_include_metrics", []string{"name:dd-agent"})
 
 	filterStore := newFilterStoreObject(t, mockConfig)
 
@@ -714,10 +714,10 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 
 func TestContainerFilterInitializationError(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
-	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
-	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
-	mockConfig.SetWithoutSource("ac_include", []string{"other_bad_name:nginx"})
+	mockConfig.SetInTest("container_include", []string{"name:dd-agent"})
+	mockConfig.SetInTest("container_exclude", []string{"bad_name:nginx"})
+	mockConfig.SetInTest("container_include_metrics", []string{"name:dd-agent"})
+	mockConfig.SetInTest("ac_include", []string{"other_bad_name:nginx"})
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("Properly defined filter", func(t *testing.T) {
@@ -741,7 +741,7 @@ func TestContainerFilterInitializationError(t *testing.T) {
 
 func TestSpecialCharacters(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
+	mockConfig.SetInTest("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
@@ -824,7 +824,7 @@ func TestServiceFiltering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			if len(tt.exclude) > 0 {
-				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+				mockConfig.SetInTest("container_exclude", tt.exclude)
 			}
 			filterStore := newFilterStoreObject(t, mockConfig)
 			filterBundle := filterStore.GetKubeServiceFilters(tt.filters)
@@ -902,7 +902,7 @@ func TestEndpointFiltering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			if len(tt.exclude) > 0 {
-				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+				mockConfig.SetInTest("container_exclude", tt.exclude)
 			}
 			filterStore := newFilterStoreObject(t, mockConfig)
 			filterBundle := filterStore.GetKubeEndpointFilters(tt.filters)
@@ -942,8 +942,8 @@ func TestImageFiltering(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("container_include", tt.include)
-			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			mockConfig.SetInTest("container_include", tt.include)
+			mockConfig.SetInTest("container_exclude", tt.exclude)
 			filterStore := newFilterStoreObject(t, mockConfig)
 
 			containerFilters := filterStore.GetContainerSharedMetricFilters()
@@ -1031,8 +1031,8 @@ func TestPodFiltering(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("container_include", tt.include)
-			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			mockConfig.SetInTest("container_include", tt.include)
+			mockConfig.SetInTest("container_exclude", tt.exclude)
 			filterStore := newFilterStoreObject(t, mockConfig)
 			filterBundle := filterStore.GetPodFilters(tt.filters)
 
@@ -1114,7 +1114,7 @@ func TestProcessFiltering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			if len(tt.disallowPatterns) > 0 {
-				mockConfig.SetWithoutSource("process_config.blacklist_patterns", tt.disallowPatterns)
+				mockConfig.SetInTest("process_config.blacklist_patterns", tt.disallowPatterns)
 			}
 			f := newFilterStoreObject(t, mockConfig)
 
@@ -1139,10 +1139,8 @@ func TestProcessFiltering(t *testing.T) {
 
 func TestProcessFilterInitializationError(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("process_config.blacklist_patterns", []string{
-		"valid_pattern",
-		"[invalid_regex",
-	})
+	mockConfig.SetInTest("process_config.blacklist_patterns", []string{"valid_pattern", "[invalid_regex"})
+
 	f := newFilterStoreObject(t, mockConfig)
 
 	t.Run("Invalid regex patterns cause initialization errors", func(t *testing.T) {
@@ -1343,13 +1341,13 @@ func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
 	mockSystemProbe := configmock.NewSystemProbe(t)
 
 	// Setup Compliance Config
-	mockConfig.SetWithoutSource("compliance_config.container_include", []string{"image:compliance-agent"})
-	mockConfig.SetWithoutSource("compliance_config.container_exclude", []string{"image:malicious"})
-	mockConfig.SetWithoutSource("compliance_config.exclude_pause_container", false)
+	mockConfig.SetInTest("compliance_config.container_include", []string{"image:compliance-agent"})
+	mockConfig.SetInTest("compliance_config.container_exclude", []string{"image:malicious"})
+	mockConfig.SetInTest("compliance_config.exclude_pause_container", false)
 
 	// Setup Runtime Security Config
-	mockSystemProbe.SetWithoutSource("runtime_security_config.container_include", []string{"image:security-agent"})
-	mockSystemProbe.SetWithoutSource("runtime_security_config.container_exclude", []string{"image:suspicious"})
+	mockSystemProbe.SetInTest("runtime_security_config.container_include", []string{"image:security-agent"})
+	mockSystemProbe.SetInTest("runtime_security_config.container_exclude", []string{"image:suspicious"})
 
 	filterStore := newFilterStoreObject(t, mockConfig)
 

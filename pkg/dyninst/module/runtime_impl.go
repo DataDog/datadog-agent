@@ -167,6 +167,10 @@ func (rt *runtimeImpl) Load(
 	if len(opts.AdditionalTypes) > 0 {
 		irgenOpts = append(irgenOpts, irgen.WithAdditionalTypes(opts.AdditionalTypes))
 	}
+	if opts.SkipRuntimeRecoveryProbe {
+		irgenOpts = append(irgenOpts, irgen.WithSkipRuntimeRecoveryProbe(true))
+	}
+	irgenOpts = append(irgenOpts, irgen.WithRedaction(redactionConfigForPID(processID.PID)))
 	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
@@ -289,6 +293,17 @@ func (l *loadedProgramImpl) RuntimeStats() []loader.RuntimeStats {
 	return l.loadedProgram.RuntimeStats()
 }
 
+func (l *loadedProgramImpl) NumProbes() int {
+	return len(l.ir.Probes)
+}
+
+func (l *loadedProgramImpl) ProbeDefinition(probeID uint32) ir.ProbeDefinition {
+	if int(probeID) >= len(l.ir.Probes) {
+		return nil
+	}
+	return l.ir.Probes[probeID].ProbeDefinition
+}
+
 func (l *loadedProgramImpl) DropNotifyLostAt() uint64 {
 	return l.loadedProgram.DropNotifyLostAt()
 }
@@ -299,8 +314,11 @@ func (l *loadedProgramImpl) EvictBufferOlderThan(cutoffKtimeNs uint64) {
 
 func (l *loadedProgramImpl) Close() error {
 	l.loadedProgram.Close()
-	l.runtime.dispatcher.UnregisterSink(l.programID)
+	// Detach before unregistering: UnregisterSink drains the sink, which
+	// emits buffered events and would otherwise re-report diagnostics for a
+	// runtimeID whose tracker entries were just cleared.
 	l.runtime.onProgramDetached(l.programID)
+	l.runtime.dispatcher.UnregisterSink(l.programID)
 	return nil
 }
 
@@ -313,7 +331,7 @@ type attachedProgramImpl struct {
 	runtimeID procRuntimeID
 	programID ir.ProgramID
 	probes    []ir.ProbeDefinition
-	inner     actuator.AttachedProgram
+	inner     InnerAttachedProgram
 }
 
 var detachLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
@@ -332,6 +350,20 @@ func (a *attachedProgramImpl) Detach(failure error) error {
 	return err
 }
 
+func (a *attachedProgramImpl) ReportProbeError(
+	probe ir.ProbeDefinition, reason error,
+) {
+	if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+		// Internal probe; users never asked for it. The trip is still
+		// recorded in the actuator's circuit-broken set so the next
+		// recompile drops the probe, but no user-visible diagnostic
+		// is emitted.
+		log.Warnf("dyninst: runtime.recovery probe circuit-broken: %v", reason)
+		return
+	}
+	a.runtime.diagnostics.reportError(a.runtimeID, probe, reason, "ExecutionFailed")
+}
+
 func (rt *runtimeImpl) onProgramAttached(
 	programID ir.ProgramID,
 	processID actuator.ProcessID,
@@ -341,6 +373,11 @@ func (rt *runtimeImpl) onProgramAttached(
 	rt.store.link(programID, processID)
 	rt.procRuntimeIDbyProgramID.Store(programID, runtimeID)
 	for _, probe := range program.Probes {
+		if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			// Internal probe; users never asked for it and shouldn't see
+			// its diagnostics.
+			continue
+		}
 		rt.diagnostics.reportInstalled(runtimeID, probe.ProbeDefinition)
 	}
 }
@@ -355,6 +392,9 @@ func (rt *runtimeImpl) reportAttachError(
 ) {
 	log.Errorf("attaching program %v to process %v failed: %v", programID, runtimeID.ID, err)
 	for _, probe := range program.Probes {
+		if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			continue
+		}
 		rt.diagnostics.reportError(runtimeID, probe.ProbeDefinition, err, "AttachmentFailed")
 	}
 }
@@ -383,7 +423,7 @@ func (defaultAttacher) Attach(
 	program *loader.Program,
 	executable actuator.Executable,
 	processID actuator.ProcessID,
-) (actuator.AttachedProgram, error) {
+) (InnerAttachedProgram, error) {
 	return uprobe.Attach(program, executable, processID)
 }
 

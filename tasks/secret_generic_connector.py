@@ -3,12 +3,13 @@ secret_generic_connector namespaced tasks
 """
 
 import os
+import platform
 
 from invoke import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.constants import REPO_PATH
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name
 from tasks.libs.releasing.version import get_version
@@ -29,6 +30,7 @@ def build(
     output_bin=None,
     strip_binary=True,
     fips_mode=False,
+    arch_suffix=False,
 ):
     """
     Build the secret-generic-connector binary.
@@ -60,6 +62,10 @@ def build(
         build="secret-generic-connector", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
     )
     bin_path = output_bin or BIN_PATH
+
+    if arch_suffix:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+        bin_path = f'{bin_path}.{arch}'
 
     go_build(
         ctx,

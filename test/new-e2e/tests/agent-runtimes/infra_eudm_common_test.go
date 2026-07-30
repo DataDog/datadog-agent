@@ -6,6 +6,7 @@
 package agentruntimes
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -85,4 +86,72 @@ func (s *eudmSuite) TestEUDMChecks() {
 			}, 4*time.Minute, 10*time.Second, "%s check should run in EUDM mode", checkName)
 		})
 	}
+}
+
+// TestEUDMHostTags verifies that the EUDM host tags are attached to the
+// agent's host-tags payload when running in end_user_device infrastructure
+// mode. The marker tag is emitted on every supported OS; OS/hardware tag
+// keys are emitted on macOS and Windows.
+func (s *eudmSuite) TestEUDMHostTags() {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	// Hardware tag keys are populated by the agent on macOS and Windows only
+	// (see comp/metadata/host/impl/hosttags/eudm.go). Linux EUDM hosts only
+	// receive the infra_mode marker tag.
+	//
+	// device_model is intentionally omitted: it derives from
+	// Win32_ComputerSystem.SystemSKUNumber on Windows, which is empty on
+	// many hosts (notably EC2 instances). On OEM hardware where the SKU is
+	// populated, the agent will emit device_model — the unit tests cover
+	// that path.
+	hardwareTagKeys := []string{
+		"os_name:",
+		"os_version:",
+		"cpu_model:",
+		"total_memory_gb:",
+	}
+	expectHardwareTags := s.descriptor.Family() == e2eos.WindowsFamily ||
+		s.descriptor.Family() == e2eos.MacOSFamily
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		hosts, err := fakeintake.GetHosts()
+		if !assert.NoError(c, err, "failed to fetch hosts from fakeintake") {
+			return
+		}
+		if !assert.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet") {
+			return
+		}
+
+		for _, host := range hosts {
+			payloads, err := fakeintake.GetHostTags(host)
+			if !assert.NoError(c, err, "failed to fetch host-tags for host %s", host) {
+				continue
+			}
+			if !assert.NotEmpty(c, payloads, "no host-tags payloads for host %s", host) {
+				continue
+			}
+
+			// Latest payload — host_tags are eventually consistent.
+			tags := payloads[len(payloads)-1].HostTags
+
+			assert.Contains(c, tags, "infra_mode:end_user_device",
+				"expected infra_mode marker on host %s; got %v", host, tags)
+
+			if expectHardwareTags {
+				for _, key := range hardwareTagKeys {
+					assert.Truef(c, hasTagWithPrefix(tags, key),
+						"expected a tag with prefix %q on host %s; got %v", key, host, tags)
+				}
+			}
+		}
+	}, 5*time.Minute, 15*time.Second, "EUDM host tags did not appear in fakeintake host-tags payload")
+}
+
+func hasTagWithPrefix(tags []string, prefix string) bool {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, prefix) {
+			return true
+		}
+	}
+	return false
 }

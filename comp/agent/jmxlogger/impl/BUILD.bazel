@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["jmxlogger.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/jmxlogger/def",
+        "//comp/core/config",
+        "//comp/def",
+        "//pkg/util/log/setup",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["jmxlogger_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/agent/jmxlogger/def",
+        "//comp/core/config",
+        "//comp/def",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

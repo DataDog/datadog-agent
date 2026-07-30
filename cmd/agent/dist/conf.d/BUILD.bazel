@@ -15,6 +15,15 @@ pkg_files(
 )
 
 pkg_files(
+    name = "adp_openmetrics_compat_files",
+    srcs = [
+        "openmetrics.d/adp_compat.yaml.example",
+    ],
+    attributes = pkg_attributes(mode = "0644"),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_files(
     name = "iot_checks_files",
     srcs = glob(
         ["%s.d/**" % check for check in IOT_AGENT_CORECHECKS],
@@ -49,12 +58,18 @@ pkg_filegroup(
     name = "all_files",
     srcs = select({
         "//packages/agent:iot_flavor": [":iot_checks_files"],
-        "//conditions:default": [":base_checks_files"],
+        "//conditions:default": [
+            ":adp_openmetrics_compat_files",
+            ":base_checks_files",
+        ],
     }) + select({
         "@platforms//os:macos": [":macos_files"],
         "@platforms//os:windows": [":windows_checks_files"],
         "//conditions:default": [],
     }),
     prefix = select(CONF_DIR_SELECTOR),
-    visibility = ["//cmd/agent/dist:__pkg__"],
+    visibility = [
+        "//cmd/agent/dist:__pkg__",
+        "//packages/agent:__subpackages__",
+    ],
 )

@@ -143,7 +143,7 @@ func newStatus(deps dependencies) provides {
 		),
 		APIGetSection: api.NewAgentEndpointProvider(
 			c.getSection,
-			"/{component}/status",
+			"/status/section/{component}",
 			"GET",
 		),
 		APIGetSectionList: api.NewAgentEndpointProvider(

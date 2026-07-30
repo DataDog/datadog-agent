@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -55,6 +56,13 @@ import (
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
+// beforeTests is captured at package init so the monotonic-time redactor
+// has a lower bound it can assert against: any time.Time captured by a
+// testprog probe must fall in [beforeTests, time.Now()]. The test
+// binary is loaded (and this var initialized) well before the testprog
+// is launched, so any time.Now() inside the testprog is strictly later.
+var beforeTests = time.Now()
+
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	current := goleak.IgnoreCurrent()
@@ -62,9 +70,10 @@ func TestDyninst(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	var integrationTestPrograms = map[string]struct{}{
-		"simple": {},
-		"sample": {},
-		"fault":  {},
+		"simple":        {},
+		"sample":        {},
+		"fault":         {},
+		"panic_recover": {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()
@@ -124,13 +133,6 @@ func testDyninst(
 	t.Cleanup(testServer.s.Close)
 	cfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
-	// In short mode (which never runs in CI), use uprobe_multi attachment to
-	// speed up integration tests on hosts that support it. Kernel feature
-	// detection is unreliable, so we opt in explicitly rather than
-	// auto-detecting in the loader.
-	if testing.Short() {
-		cfg.UseMultiAttach = true
-	}
 	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
@@ -139,6 +141,12 @@ func testDyninst(
 	}
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+	}
+	// In short mode (which never runs in CI), force uprobe_multi attachment
+	// to speed up integration tests on hosts whose kernel supports the
+	// feature but is excluded by canUseMultiAttach's 6.10 floor.
+	if testing.Short() {
+		loaderOpts = append(loaderOpts, loader.WithForceMultiAttach())
 	}
 	cfg.TestingKnobs.LoaderOptions = loaderOpts
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
@@ -288,6 +296,7 @@ func testDyninst(
 	redactors := append(defaultRedactors[:len(defaultRedactors):len(defaultRedactors)],
 		makeRedactorForManyFloats(testProgConfig.GOARCH),
 		makeRedactorForFunctionWithChangingState())
+	redactors = append(redactors, makeRedactorsForMonotonicTime(t, beforeTests)...)
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
 		t.Logf("Snapshot [probe=%s]: %s", log.id, string(log.body))
@@ -295,8 +304,8 @@ func testDyninst(
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
-		expIdx := len(retMap[log.id])
 		id := resultNames[log.id]
+		expIdx := len(retMap[id])
 		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
 			expOut, ok := expOut[id]
@@ -865,4 +874,87 @@ func makeRedactorForFunctionWithChangingState() jsonRedactor {
 		),
 		replacement(`"[per-arch-value]"`),
 	)
+}
+
+// makeRedactorsForMonotonicTime returns redactors that locate the
+// captured time.Time produced by the testprog's testTimeMonotonic probe
+// (a time.Now() value carrying a monotonic clock reading) — both in the
+// snapshot's typed `value` field and in the templated `message` string
+// — and assert each parses as an RFC3339Nano timestamp inside
+// [lower, time.Now()]. The point of the assertion is to confirm the
+// BPF + decode pipeline correctly extracts wall seconds from the packed
+// 33-bit field when hasMonotonic is set, rather than reading the
+// monotonic delta from ext (which would yield nanoseconds since process
+// start — not a wall instant). Asserted values are replaced with a
+// sentinel so the snapshot stays stable.
+//
+// monotonicNow is the field name on the testprog's timeCapture struct
+// argument; the message template renders that field as
+// "{monotonicNow: <RFC3339>}".
+func makeRedactorsForMonotonicTime(
+	t *testing.T, lower time.Time,
+) []jsonRedactor {
+	assertInWindow := func(s string) bool {
+		parsed, err := time.Parse(time.RFC3339Nano, s)
+		if !assert.NoError(t, err,
+			"captured monotonic time should parse as RFC3339Nano, got %q", s) {
+			return false
+		}
+		now := time.Now()
+		ok := assert.Falsef(t, parsed.Before(lower),
+			"captured monotonic time %s is before test start %s",
+			parsed.Format(time.RFC3339Nano), lower.Format(time.RFC3339Nano))
+		ok = assert.Falsef(t, parsed.After(now),
+			"captured monotonic time %s is after now %s",
+			parsed.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)) && ok
+		return ok
+	}
+	valueRedactor := redactor(
+		exactMatcher(
+			"/debugger/snapshot/captures/entry/arguments/c/fields/monotonicNow/value",
+		),
+		replacerFunc(func(v jsontext.Value) jsontext.Value {
+			if v.Kind() != '"' {
+				return v
+			}
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return v
+			}
+			if !assertInWindow(s) {
+				return v
+			}
+			return jsontext.Value(`"[monotonic-time]"`)
+		}),
+	)
+	// Matches "{monotonicNow: <RFC3339Nano>}" inside /message.
+	rfc3339 := `(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))`
+	re := regexp.MustCompile(`monotonicNow: ` + rfc3339)
+	messageRedactor := redactor(
+		exactMatcher(`/message`),
+		replacerFunc(func(v jsontext.Value) jsontext.Value {
+			if v.Kind() != '"' {
+				return v
+			}
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return v
+			}
+			m := re.FindStringSubmatchIndex(s)
+			if len(m) == 0 {
+				return v
+			}
+			// Captured group is at m[2]:m[3].
+			if !assertInWindow(s[m[2]:m[3]]) {
+				return v
+			}
+			replaced := s[:m[2]] + "[monotonic-time]" + s[m[3]:]
+			marshaled, err := json.Marshal(replaced)
+			if err != nil {
+				return v
+			}
+			return jsontext.Value(marshaled)
+		}),
+	)
+	return []jsonRedactor{valueRedactor, messageRedactor}
 }

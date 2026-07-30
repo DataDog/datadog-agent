@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["settingsimpl.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/settings/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/settings/def",
+        "//comp/def",
+        "//pkg/config/model",
+        "//pkg/util/scrubber",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["settingsimpl_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/settings/def",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -133,6 +133,7 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
 			EphemeralContainers:        podEphemeralContainers,
+			Resources:                  extractPodResources(pod.Spec.Resources),
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
@@ -436,6 +437,38 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	}
 
 	return env
+}
+
+func extractPodResources(resourcesSpec *kubelet.ResourcesSpec) workloadmeta.ContainerResources {
+	resources := workloadmeta.ContainerResources{}
+
+	if resourcesSpec == nil {
+		return resources
+	}
+
+	if cpuReq, found := resourcesSpec.Requests[kubelet.ResourceCPU]; found {
+		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
+	}
+	if memoryReq, found := resourcesSpec.Requests[kubelet.ResourceMemory]; found {
+		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
+	}
+	if cpuLimit, found := resourcesSpec.Limits[kubelet.ResourceCPU]; found {
+		resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
+	}
+	if memoryLimit, found := resourcesSpec.Limits[kubelet.ResourceMemory]; found {
+		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+	}
+
+	resources.RawRequests = make(map[string]string, len(resourcesSpec.Requests))
+	for resourceName, quantity := range resourcesSpec.Requests {
+		resources.RawRequests[string(resourceName)] = quantity.String()
+	}
+	resources.RawLimits = make(map[string]string, len(resourcesSpec.Limits))
+	for resourceName, quantity := range resourcesSpec.Limits {
+		resources.RawLimits[string(resourceName)] = quantity.String()
+	}
+
+	return resources
 }
 
 func extractResources(spec *kubelet.ContainerSpec, status *kubelet.ContainerStatus) workloadmeta.ContainerResources {

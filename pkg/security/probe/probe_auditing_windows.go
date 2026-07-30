@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 
 	"golang.org/x/sys/windows"

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Agent now streams Kubernetes metadata from the Cluster Agent by default,
+    instead of polling for it periodically. This propagates tags derived from
+    Kubernetes metadata (like ``kube_service``) with less delay. This behavior
+    is controlled by the ``kubernetes_metadata_streaming`` setting.

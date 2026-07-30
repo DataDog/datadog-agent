@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -51,11 +50,9 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
-
 	mockConfig := configmock.New(suite.T())
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
@@ -93,10 +90,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 		fx.Provide(func() ipc.Component { return ipcmock.New(suite.T()) }),
 	))
 
-	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockConfig.SetInTest("container_exclude", "name:agent-excluded")
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
-	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
+	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger, nil)
 }
 
 func TestProviderTestSuite(t *testing.T) {
@@ -239,9 +236,15 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.limits", 0.5, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.limits", 1073741824.0, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral-storage.limits", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0"))
+
+	// pod resource metrics
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.requests", 0.75, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.requests", 1610612736.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.limits", 1.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.limits", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
 }
 
-// TestTransformPodsInPlaceResize verifies that request/limit metrics
+// TestTransformPodsInPlaceResize verifies that requests/limits metrics
 // reflect containerStatuses[].resources (in-place vertical scaling) when
 // set, and fall back to the spec for keys status does not report.
 func (suite *ProviderTestSuite) TestTransformPodsInPlaceResize() {
@@ -336,7 +339,7 @@ func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error
 	}
 
 	var podList kubelet.PodList
-	if err := jsoniter.Unmarshal(data, &podList); err != nil {
+	if err := kubelet.NewPodUnmarshaller().Unmarshal(data, &podList); err != nil {
 		return err
 	}
 

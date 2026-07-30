@@ -17,7 +17,7 @@ import (
 type scrubCallback = func(string, interface{}) (bool, interface{})
 
 func walkSlice(data []interface{}, callback scrubCallback) {
-	for _, k := range data {
+	for i, k := range data {
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
 			walkHash(v, callback)
@@ -25,6 +25,10 @@ func walkSlice(data []interface{}, callback scrubCallback) {
 			walkSlice(v, callback)
 		case map[string]interface{}:
 			walkStringMap(v, callback)
+		case string:
+			if match, newValue := callback("", v); match {
+				data[i] = newValue
+			}
 		}
 	}
 }
@@ -77,17 +81,19 @@ func walk(data *interface{}, callback scrubCallback) {
 		walkSlice(v, callback)
 	case map[string]interface{}:
 		walkStringMap(v, callback)
+	case string:
+		if match, newValue := callback("", v); match {
+			*data = newValue
+		}
 	}
 }
 
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
-
-		if str, ok := value.(string); ok {
-			if IsEnc(str) {
-				return false, ""
-			}
+		str, isString := value.(string)
+		if isString && IsEnc(str) {
+			return false, ""
 		}
 
 		for _, replacer := range c.singleLineReplacers {
@@ -102,9 +108,35 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 			lowerKey := strings.ToLower(key)
 			if replacer.YAMLKeyRegex.Match([]byte(lowerKey)) {
 				if replacer.ProcessValue != nil {
-					return true, replacer.ProcessValue(value)
+					result := replacer.ProcessValue(value)
+					// If ProcessValue returned a string, still apply the value-content pass
+					// so embedded credentials (e.g. API keys in a JSON-encoded string) get scrubbed.
+					if resultStr, ok := result.(string); ok {
+						lines := strings.Split(resultStr, "\n")
+						for i, line := range lines {
+							lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
+						}
+						joined := strings.Join(lines, "\n")
+						scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
+						return true, scrubbed
+					}
+					return true, result
 				}
 				return true, defaultReplacement
+			}
+		}
+
+		if isString {
+			// Apply single-line replacers per line so regexes like `\bBearer\s+[^*]+\b`
+			// (which match newlines via `[^*]`) can't consume content from following lines.
+			lines := strings.Split(str, "\n")
+			for i, line := range lines {
+				lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
+			}
+			joined := strings.Join(lines, "\n")
+			scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
+			if scrubbed != str {
+				return true, scrubbed
 			}
 		}
 		return false, ""

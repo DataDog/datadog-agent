@@ -20,7 +20,7 @@ import (
 
 func TestLookupUserWithId(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.cache_lookupid", true)
+	cfg.SetInTest("process_config.cache_lookupid", true)
 
 	for _, tc := range []struct {
 		name          string
@@ -68,52 +68,51 @@ func TestLookupUserWithId(t *testing.T) {
 			}
 
 			var timesCalled int
-			p.lookupId = func(inputUid string) (*user.User, error) {
-				// Make sure this function is called once despite the fact that we call `lookupIdWithCache`.
+			p.lookupID = func(inputUID string) (*user.User, error) {
+				// Make sure this function is called once despite the fact that we call `lookupIDWithCache`.
 				// This should simulate a cache hit vs a miss.
 				timesCalled++
 				assert.Equal(t, 1, timesCalled)
 
-				assert.Equal(t, testUID, inputUid)
+				assert.Equal(t, testUID, inputUID)
 				if tc.expectedError != nil {
 					return nil, tc.expectedError
 				}
 				return tc.expectedUser, nil
 			}
 
-			checkResult(p.LookupId(testUID))
-			checkCacheResult(p.lookupIdCache.Get(testUID))
-			checkResult(p.LookupId(testUID))
+			checkResult(p.LookupID(testUID))
+			checkCacheResult(p.lookupIDCache.Get(testUID))
+			checkResult(p.LookupID(testUID))
 		})
 	}
 }
 
-func TestLookupIdConfigSetting(t *testing.T) {
-	//nolint:revive // TODO(PROC) Fix revive linter
-	testLookupIdFunc := func(_ string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
+func TestLookupIDConfigSetting(t *testing.T) {
+	testLookupIDFunc := func(_ string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.cache_lookupid", true)
+		cfg.SetInTest("process_config.cache_lookupid", true)
 
 		p := NewLookupIDProbe(cfg)
-		p.lookupId = testLookupIdFunc
+		p.lookupID = testLookupIDFunc
 
-		_, _ = p.LookupId("1234") // testLookupIdFunc should be called and "1234" added to the cache
-		u, ok := p.lookupIdCache.Get("1234")
+		_, _ = p.LookupID("1234") // testLookupIDFunc should be called and "1234" added to the cache
+		u, ok := p.lookupIDCache.Get("1234")
 		assert.Equal(t, "jojo", u.(*user.User).Name)
 		assert.True(t, ok)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.cache_lookupid", false)
+		cfg.SetInTest("process_config.cache_lookupid", false)
 
 		p := NewLookupIDProbe(cfg)
-		p.lookupId = testLookupIdFunc
+		p.lookupID = testLookupIDFunc
 
-		_, _ = p.LookupId("1234")
-		_, ok := p.lookupIdCache.Get("1234")
+		_, _ = p.LookupID("1234")
+		_, ok := p.lookupIDCache.Get("1234")
 		assert.False(t, ok)
 	})
 }

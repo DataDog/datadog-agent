@@ -48,6 +48,7 @@ NPM_TAG = "npm"
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
+    "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
@@ -94,6 +95,12 @@ TEST_HELPER_CBINS = ["cudasample"]
 RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
+
+# Rust static libraries that must be installed next to the Go source so cgo can
+# link against them. Maps source package -> install destination directory.
+RUST_STATIC_LIBS = {
+    "pkg/discovery/module/rust": "pkg/discovery/module/rust",
+}
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -1124,7 +1131,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
 _BAZEL_WINDOWS_RESOURCE_COPIES = (
-    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.syso", "pkg/util/winutil/messagestrings/messagestrings.syso"),
     ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
     ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
 )
@@ -1135,8 +1142,8 @@ def bazel_build_windows_resources(ctx: Context) -> None:
 
     Replaces the ninja-based windmc/windres pipeline for system-probe.
     Produces:
-      - pkg/util/winutil/messagestrings/rsrc.syso + messagestrings.h  (shared message table)
-      - cmd/system-probe/rsrc.syso                                    (system-probe versioninfo)
+      - pkg/util/winutil/messagestrings/messagestrings.syso + messagestrings.h  (shared message table)
+      - cmd/system-probe/rsrc.syso                                              (system-probe versioninfo)
     """
     import shutil
 
@@ -1234,7 +1241,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     }
 
     platform_flags = []
-    if arch.kmt_arch in platform_map:
+    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
@@ -1243,6 +1250,14 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
         bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+
+    # Install Rust static libraries that cgo needs to find at link time. These
+    # always land in the source tree (alongside the Go files) rather than in
+    # `output_dir`, because cgo LDFLAGS reference them via ${SRCDIR}.
+    for source_path, lib_dest in RUST_STATIC_LIBS.items():
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1699,6 +1714,19 @@ def save_build_outputs(ctx, destfile):
             outfiles.append(relpath)
             count += 1
 
+        # Include Rust static libraries (built by build_rust_binaries) so that
+        # downstream jobs running `build-sysprobe-binary` — which does not
+        # invoke bazel — can still link cgo code that references them.
+        for _, lib_dest in RUST_STATIC_LIBS.items():
+            for afile in glob.glob(os.path.join(lib_dest, "*.a")):
+                relpath = os.path.relpath(afile)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(afile, outdir)
+                outfiles.append(relpath)
+                count += 1
+
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
@@ -1796,11 +1824,11 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
+def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False, ci: bool = False):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
-        go_parallelism = compute_go_parallelism(debug, ci=False)
+        go_parallelism = compute_go_parallelism(debug, ci=ci)
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",

@@ -15,7 +15,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	fetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 )
 

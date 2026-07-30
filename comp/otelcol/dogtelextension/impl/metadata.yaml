@@ -1,0 +1,9 @@
+type: dogtel
+display_name: Datadog Telemetry Extension
+
+status:
+  class: extension
+  stability:
+    beta: [extension]
+  codeowners:
+    active: [DataDog/opentelemetry]

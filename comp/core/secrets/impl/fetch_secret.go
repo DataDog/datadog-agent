@@ -36,14 +36,14 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 	return b.buf.Write(p)
 }
 
-func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
+func (r *secretResolver) execCommand(inputPayload string, timeout int) ([]byte, error) {
 	// hook used only for tests
 	if r.commandHookFunc != nil {
 		return r.commandHookFunc(inputPayload)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(r.backendTimeout)*time.Second)
+		time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	cmd, done, err := commandContext(ctx, r.backendCommand, r.backendArguments...)
@@ -129,9 +129,9 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 		return r.versionHookFunc()
 	}
 
-	// Only get version when secret_backend_type is used
-	if r.backendType == "" {
-		return "", errors.New("version only supported when secret_backend_type is configured")
+	// Only get version when secret_backend_type or multi_secret_backends is used
+	if r.backendType == "" && r.multiBackends == nil {
+		return "", errors.New("version only supported when secret_backend_type or multi_secret_backends is configured")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
@@ -176,48 +176,147 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	return strings.TrimSpace(stdout.buf.String()), nil
 }
 
-// fetchSecret receives a list of secrets name to fetch, exec a custom
-// executable to fetch the actual secrets and returns them.
-func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
+// splitSecretHandle splits on ";" into (backendID, secretKey). Used only when
+// multi_secret_backends is set; the first token is the backend ID.
+func splitSecretHandle(handle string) (backendID, secretKey string) {
+	const delim = ";"
+	idx := strings.Index(handle, delim)
+	if idx == -1 {
+		return "", handle
+	}
+	return handle[:idx], handle[idx+len(delim):]
+}
+
+// resolveBackendConfig returns the type, config, and timeout for backendID in multi_secret_backends.
+// When only multi_secret_backends is set (no secret_backend_type), backendID "" (unprefixed ENC[...]) is rejected.
+// Named backends use the global secret_backend_timeout (r.backendTimeout).
+func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[string]interface{}, int, error) {
+	if backendID == "" {
+		if r.multiBackends != nil && r.backendType == "" {
+			return "", nil, 0, errors.New("unknown backend")
+		}
+		return r.backendType, r.backendConfig, r.backendTimeout, nil
+	}
+	entry, ok := r.multiBackends[strings.ToLower(backendID)]
+	if !ok {
+		return "", nil, 0, fmt.Errorf("unknown backend %q", backendID)
+	}
+	bConfig := entry.Config
+	if bConfig == nil {
+		bConfig = make(map[string]interface{})
+	}
+	return entry.Type, bConfig, r.backendTimeout, nil
+}
+
+// fetchSecret groups the provided handles by backend, calls fetchSingleBackend once per group, and
+// merges results keyed by the original handles. When multi_secret_backends is nil (single-backend
+// mode), every handle is sent as-is to the configured backend; otherwise the first ";" delimits
+// the backendID from the secret key (ENC[backendID;secretKey]).
+func (r *secretResolver) fetchSecret(handles []string) (map[string]string, error) {
+	type group struct {
+		backendType    string
+		backendConfig  map[string]interface{}
+		backendTimeout int
+		keys           []string // stripped secret keys sent to the binary
+		origHandles    []string // original handles for result remapping
+		cfgErr         error    // set when the backend ID could not be resolved
+	}
+
+	groups := map[string]*group{}
+	for _, handle := range handles {
+		var backendID, secretKey string
+		if r.multiBackends == nil {
+			backendID, secretKey = "", handle
+		} else {
+			backendID, secretKey = splitSecretHandle(handle)
+		}
+		if _, exists := groups[backendID]; !exists {
+			bType, bConfig, bTimeout, err := r.resolveBackendConfig(backendID)
+			groups[backendID] = &group{backendType: bType, backendConfig: bConfig, backendTimeout: bTimeout, cfgErr: err}
+		}
+		groups[backendID].keys = append(groups[backendID].keys, secretKey)
+		groups[backendID].origHandles = append(groups[backendID].origHandles, handle)
+	}
+
+	result := make(map[string]string, len(handles))
+	var errs []error
+	for _, g := range groups {
+		if g.cfgErr != nil {
+			for _, h := range g.origHandles {
+				errs = append(errs, fmt.Errorf("handle %q: %w", h, g.cfgErr))
+			}
+			continue
+		}
+		res, perHandleErrs, globalErr := r.fetchSingleBackend(g.backendType, g.backendConfig, g.backendTimeout, g.keys)
+		if globalErr != nil {
+			for range g.origHandles {
+				errs = append(errs, globalErr)
+			}
+			continue
+		}
+		for i, key := range g.keys {
+			if val, ok := res[key]; ok {
+				result[g.origHandles[i]] = val
+			} else if err, ok := perHandleErrs[key]; ok {
+				errs = append(errs, fmt.Errorf("handle %q: %w", g.origHandles[i], err))
+			}
+		}
+	}
+	return result, errors.Join(errs...)
+}
+
+// fetchSingleBackend calls the secret backend command for a single backend type/config.
+// It returns:
+//   - resolved: map of secret key → resolved value for handles that succeeded
+//   - handleErrors: map of secret key → error for handles that failed individually
+//   - err: a global/fatal error (command failure, JSON unmarshal) that affects all handles
+func (r *secretResolver) fetchSingleBackend(backendType string, backendConfig map[string]interface{}, backendTimeout int, secretsHandle []string) (resolved map[string]string, handleErrors map[string]error, err error) {
 	payload := map[string]interface{}{
 		"version":                secrets.PayloadVersion,
 		"secrets":                secretsHandle,
-		"secret_backend_timeout": r.backendTimeout,
+		"secret_backend_timeout": backendTimeout,
 	}
-	if r.backendType != "" {
-		payload["type"] = r.backendType
+	if backendType != "" {
+		payload["type"] = backendType
 	}
-	if len(r.backendConfig) > 0 {
-		payload["config"] = r.backendConfig
+	if len(backendConfig) > 0 {
+		payload["config"] = backendConfig
 	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
+		return nil, nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
 	}
-	output, err := r.execCommand(string(jsonPayload))
+	output, err := r.execCommand(string(jsonPayload), backendTimeout)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	secrets := map[string]secrets.SecretVal{}
-	err = json.Unmarshal(output, &secrets)
-	if err != nil {
+	secretVals := map[string]secrets.SecretVal{}
+	if err = json.Unmarshal(output, &secretVals); err != nil {
 		r.tlmSecretUnmarshalError.Inc()
-		return nil, fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
+		return nil, nil, fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
 			r.backendCommand, err, secretsManagementDocsURL)
 	}
 
-	res := map[string]string{}
+	resolved = map[string]string{}
 	for _, sec := range secretsHandle {
-		v, ok := secrets[sec]
+		v, ok := secretVals[sec]
 		if !ok {
 			r.tlmSecretResolveError.Inc("missing", sec)
-			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command. Ensure your script returns the handle in the expected JSON format. Docs: %s", sec, secretsManagementDocsURL)
+			if handleErrors == nil {
+				handleErrors = make(map[string]error)
+			}
+			handleErrors[sec] = fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command. Ensure your script returns the handle in the expected JSON format. Docs: %s", sec, secretsManagementDocsURL)
+			continue
 		}
 
 		if v.ErrorMsg != "" {
 			r.tlmSecretResolveError.Inc("error", sec)
-			return nil, fmt.Errorf("an error occurred while resolving '%s': %s", sec, v.ErrorMsg)
+			if handleErrors == nil {
+				handleErrors = make(map[string]error)
+			}
+			handleErrors[sec] = fmt.Errorf("an error occurred while resolving '%s': %s", sec, v.ErrorMsg)
+			continue
 		}
 
 		if r.removeTrailingLinebreak {
@@ -226,9 +325,13 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 
 		if v.Value == "" {
 			r.tlmSecretResolveError.Inc("empty", sec)
-			return nil, fmt.Errorf("resolved secret for '%s' is empty. Check that the secret exists in your backend and has a non-empty value. If using secret_backend_remove_trailing_line_break, trailing newlines are stripped. Docs: %s", sec, secretsManagementDocsURL)
+			if handleErrors == nil {
+				handleErrors = make(map[string]error)
+			}
+			handleErrors[sec] = fmt.Errorf("resolved secret for '%s' is empty. Check that the secret exists in your backend and has a non-empty value. If using secret_backend_remove_trailing_line_break, trailing newlines are stripped. Docs: %s", sec, secretsManagementDocsURL)
+			continue
 		}
-		res[sec] = v.Value
+		resolved[sec] = v.Value
 	}
-	return res, nil
+	return resolved, handleErrors, nil
 }

@@ -168,6 +168,430 @@ func TestBuffer_ReturnLost_BeforeEntry(t *testing.T) {
 }
 
 // ------------------------------------------------------------------
+// PanicUnwoundRange (synthetic return from runtime.recovery probe).
+// ------------------------------------------------------------------
+
+// kAt returns a Key with the goid, stack-byte depth and a fixed
+// (probeID, ktime) — convenient for range-scan tests where the
+// depth is the discriminator.
+func kAt(goid uint64, depth uint32) Key {
+	return Key{Goid: goid, StackByteDepth: depth, ProbeID: 1, EntryKtime: 1000}
+}
+
+// Single in-flight frame on goid in the unwound range: the synthetic
+// payload becomes the return-side fragment and the invocation
+// finalizes immediately.
+func TestBuffer_PanicUnwoundRange_SingleFrame(t *testing.T) {
+	b := newTestBuffer()
+	em := newTestMessage(8)
+	pm := newTestMessage(16)
+
+	_, done := b.AddFragment(kAt(1, 200), em, Entry, 0, true, true)
+	require.False(t, done, "entry alone is not final for paired probe")
+
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	shared.ReleaseBase()
+	require.Len(t, readys, 1)
+	r := readys[0]
+	assert.True(t, r.PanicUnwound)
+	assert.False(t, r.ReturnLost)
+	require.NotNil(t, r.Entry)
+	require.NotNil(t, r.Return)
+	// Return-side has exactly one fragment (the panic value).
+	count := 0
+	for range r.Return.Fragments() {
+		count++
+	}
+	assert.Equal(t, 1, count)
+	r.Entry.Release()
+	r.Return.Release()
+	assert.True(t, em.released)
+	assert.True(t, pm.released, "shared release fires once after last handle")
+	assert.Equal(t, 0, b.Len())
+}
+
+// Multiple frames on the same goid inside the unwound range share
+// the panic-value payload via refcount; each Ready finalizes
+// independently, and the underlying message is released exactly once
+// after the last consumer drains.
+func TestBuffer_PanicUnwoundRange_MultiFrameFanout(t *testing.T) {
+	b := newTestBuffer()
+	em1 := newTestMessage(8)
+	em2 := newTestMessage(8)
+	em3 := newTestMessage(8)
+	pm := newTestMessage(16)
+
+	_, done := b.AddFragment(kAt(1, 150), em1, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 250), em2, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 400), em3, Entry, 0, true, true)
+	require.False(t, done)
+
+	// lo=100 (exclusive), hi=300 (inclusive) → matches depths 150, 250.
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	shared.ReleaseBase()
+	require.Len(t, readys, 2)
+	for _, r := range readys {
+		assert.True(t, r.PanicUnwound)
+		r.Entry.Release()
+		// Releasing both Returns decrements the shared payload from
+		// 2 → 1 → 0 and the underlying message is released once.
+		r.Return.Release()
+	}
+	assert.True(t, pm.released, "shared released after last handle")
+	assert.False(t, em3.released, "depth 400 outside range, still in-flight")
+	assert.Equal(t, 1, b.Len())
+
+	// Cleanup the out-of-range entry.
+	b.Discard(kAt(1, 400))
+}
+
+// Under budget pressure, every match of a panic-unwound fanout is
+// pinned against eviction for the duration of the per-match mutation
+// loop, so the loop never observes an evicted *bufferedEvent. Set up
+// three in-flight invocations with incomplete entry sides (so the
+// fanout cannot finalize them and the handle bytes stay charged) and
+// a budget that fits only the entries plus one handle; verify that
+// admitting the fanout leaves all three matches in the tree and emits
+// no budget evictions.
+func TestBuffer_PanicUnwoundRange_NoEvictionOfMatches(t *testing.T) {
+	const entryBytes = 8
+	const handleBytes = 16
+	// 3 entries + 3 handles = 72 bytes needed; budget = entries + one
+	// handle = 40 bytes. The fanout's upfront charge admits all three
+	// handles over-limit because each match is in the pin set.
+	b := NewBuffer(NewBudget(3*entryBytes + handleBytes))
+	em1 := newTestMessage(entryBytes)
+	em2 := newTestMessage(entryBytes)
+	em3 := newTestMessage(entryBytes)
+	pm := newTestMessage(handleBytes)
+
+	// isFinal=false → entry side incomplete; tryFinalize returns false
+	// after the panic-unwound handle attaches, so bytes stay charged
+	// across the fanout loop and the budget stays under pressure.
+	_, done := b.AddFragment(kAt(1, 150), em1, Entry, 0, false, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 200), em2, Entry, 0, false, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 250), em3, Entry, 0, false, true)
+	require.False(t, done)
+
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	shared.ReleaseBase()
+
+	// None finalize yet (entries are incomplete), all three matches
+	// remain in the tree, and none surface as truncated budget evictions.
+	require.Empty(t, readys, "matches deferred while entries are incomplete")
+	assert.Equal(t, 3, b.Len(), "all three matches must still be in the tree")
+	assert.Empty(t, b.TakePendingBudgetEvictions(),
+		"matches must be protected from budget eviction during fanout")
+
+	// Cleanup: discard each in-flight invocation. Each Discard releases
+	// the entry fragment(s) and the panic-unwound handle. After the
+	// third Discard, all three handles have drained → underlying pm
+	// is released exactly once.
+	b.Discard(kAt(1, 150))
+	b.Discard(kAt(1, 200))
+	b.Discard(kAt(1, 250))
+	assert.True(t, pm.released, "shared released after all handles drain")
+	assert.Equal(t, 0, b.Len())
+}
+
+// Range scan that finds no matching entries: the caller is
+// responsible for releasing the shared base (no Acquires happened).
+func TestBuffer_PanicUnwoundRange_NoMatches(t *testing.T) {
+	b := newTestBuffer()
+	pm := newTestMessage(16)
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	require.Empty(t, readys)
+	// Caller releases the unused base; underlying message is released.
+	shared.ReleaseBase()
+	assert.True(t, pm.released)
+}
+
+// Range scan stops at the goid boundary: a frame on a different goid
+// within the same depth range is not affected.
+func TestBuffer_PanicUnwoundRange_StopsAtGoidBoundary(t *testing.T) {
+	b := newTestBuffer()
+	emA := newTestMessage(8)
+	emB := newTestMessage(8)
+	pm := newTestMessage(16)
+
+	_, done := b.AddFragment(kAt(1, 200), emA, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(2, 200), emB, Entry, 0, true, true)
+	require.False(t, done)
+
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	shared.ReleaseBase()
+	require.Len(t, readys, 1)
+	assert.Equal(t, uint64(1), readys[0].Key.Goid)
+	readys[0].Entry.Release()
+	readys[0].Return.Release()
+	assert.True(t, pm.released)
+	assert.False(t, emB.released, "goid 2 entry untouched by goid 1 unwind")
+
+	b.Discard(kAt(2, 200))
+}
+
+// Range scan skips an entry that already has a real return-side
+// fragment buffered (the regular return-side pairing will finalize it
+// independently). The shared payload is unreferenced from that entry;
+// other matches still receive their handles.
+func TestBuffer_PanicUnwoundRange_SkipsEntryWithReturn(t *testing.T) {
+	b := newTestBuffer()
+	em1 := newTestMessage(8)
+	em2 := newTestMessage(8)
+	r2 := newTestMessage(4)
+	pm := newTestMessage(16)
+
+	_, done := b.AddFragment(kAt(1, 150), em1, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 250), em2, Entry, 0, true, true)
+	require.False(t, done)
+	// A real return fragment landed for depth=250 first.
+	_, done = b.AddFragment(kAt(1, 250), r2, Return, 0, false, false)
+	require.False(t, done, "return not final yet")
+
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	shared.ReleaseBase()
+	// Only depth=150 finalizes; depth=250 keeps its real return.
+	require.Len(t, readys, 1)
+	assert.Equal(t, uint32(150), readys[0].Key.StackByteDepth)
+	readys[0].Entry.Release()
+	readys[0].Return.Release()
+	assert.True(t, pm.released, "shared released after the one handle drains")
+	assert.False(t, r2.released, "real return preserved for depth 250")
+	assert.Equal(t, 1, b.Len())
+
+	b.Discard(kAt(1, 250))
+}
+
+// A range scan that attaches a handle to an invocation whose entry side
+// is still in flight does not finalize the invocation. ReleaseBase
+// must defer the underlying release until the entry completes and the
+// outstanding handle drains.
+func TestBuffer_PanicUnwoundRange_DeferredFinalize(t *testing.T) {
+	b := newTestBuffer()
+	e0 := newTestMessage(8)
+	e1 := newTestMessage(8)
+	pm := newTestMessage(16)
+
+	// First entry fragment, not final — entry side will not be ready
+	// when NotePanicUnwoundRange runs.
+	_, done := b.AddFragment(kAt(1, 200), e0, Entry, 0, false, true)
+	require.False(t, done)
+
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	require.Empty(t, readys, "entry incomplete; finalization deferred")
+
+	// Caller signals end-of-Acquire phase. A handle is outstanding in
+	// the bufferedEvent's returnList, so this must NOT release pm yet.
+	shared.ReleaseBase()
+	assert.False(t, pm.released, "handle outstanding; underlying must not release")
+
+	// Final entry fragment arrives. The buffered event already has the
+	// synthetic return-side fragment from NotePanicUnwoundRange, so this
+	// finalizes immediately.
+	ready, done := b.AddFragment(kAt(1, 200), e1, Entry, 1, true, true)
+	require.True(t, done)
+	assert.True(t, ready.PanicUnwound)
+	ready.Entry.Release()
+	ready.Return.Release()
+	assert.True(t, pm.released, "released only after the last handle drains")
+}
+
+// Range scan matches one entry that's complete (finalizes immediately)
+// and one whose entry is still in flight (handle stored, finalization
+// deferred). The caller invokes ReleaseBase between the two finalization
+// stages; the underlying must survive until both handles drain.
+func TestBuffer_PanicUnwoundRange_MixedFinalize(t *testing.T) {
+	b := newTestBuffer()
+	e150 := newTestMessage(8)  // depth=150, single-fragment entry
+	e250a := newTestMessage(8) // depth=250, fragment 0 (not final)
+	e250b := newTestMessage(8) // depth=250, fragment 1 (final)
+	pm := newTestMessage(16)
+
+	_, done := b.AddFragment(kAt(1, 150), e150, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 250), e250a, Entry, 0, false, true)
+	require.False(t, done)
+
+	shared := NewSharedMessage(pm)
+	readys := b.NotePanicUnwoundRange(1, 100, 300, shared)
+	require.Len(t, readys, 1, "depth=150 finalizes, depth=250 deferred")
+	assert.Equal(t, uint32(150), readys[0].Key.StackByteDepth)
+
+	// Caller ends the Acquire phase. Two handles are alive: one in the
+	// returned Ready, one in the deferred bufferedEvent. ReleaseBase
+	// must not release pm yet.
+	shared.ReleaseBase()
+	assert.False(t, pm.released, "two handles outstanding")
+
+	// Drain the immediate Ready. One handle drains; pm still has a
+	// handle in the deferred bufferedEvent.
+	readys[0].Entry.Release()
+	readys[0].Return.Release()
+	assert.False(t, pm.released, "one handle still outstanding")
+
+	// Final entry fragment for depth=250 arrives → finalize.
+	ready, done := b.AddFragment(kAt(1, 250), e250b, Entry, 1, true, true)
+	require.True(t, done)
+	ready.Entry.Release()
+	ready.Return.Release()
+	assert.True(t, pm.released, "released after the last handle drains")
+}
+
+// ------------------------------------------------------------------
+// PANIC_UNWOUND_LOST (range drop notification).
+// ------------------------------------------------------------------
+
+// The BPF synthetic recovery event was dropped. For a single complete
+// entry in the range, NotePanicUnwoundRangeLost finalizes it as a
+// truncated panic-unwound capture (no return-side payload).
+func TestBuffer_PanicUnwoundRangeLost_SingleFrame(t *testing.T) {
+	b := newTestBuffer()
+	em := newTestMessage(8)
+
+	_, done := b.AddFragment(kAt(1, 200), em, Entry, 0, true, true)
+	require.False(t, done, "entry alone is not final for paired probe")
+
+	readys := b.NotePanicUnwoundRangeLost(1, 100, 300)
+	require.Len(t, readys, 1)
+	r := readys[0]
+	assert.True(t, r.PanicUnwound, "marked as panic-unwound")
+	assert.True(t, r.ReturnLost, "no return payload survived")
+	require.NotNil(t, r.Entry)
+	assert.Nil(t, r.Return, "no return fragments — synthetic was dropped")
+	r.Entry.Release()
+	assert.True(t, em.released)
+	assert.Equal(t, 0, b.Len())
+}
+
+// Multiple complete entries on the same goid in the unwound range all
+// finalize as panic-unwound + return-lost from a single drop notification.
+func TestBuffer_PanicUnwoundRangeLost_MultiFrame(t *testing.T) {
+	b := newTestBuffer()
+	em1 := newTestMessage(8)
+	em2 := newTestMessage(8)
+	em3 := newTestMessage(8)
+
+	_, done := b.AddFragment(kAt(1, 150), em1, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 250), em2, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 400), em3, Entry, 0, true, true)
+	require.False(t, done)
+
+	readys := b.NotePanicUnwoundRangeLost(1, 100, 300)
+	require.Len(t, readys, 2, "depths 150, 250 in range; 400 not")
+	for _, r := range readys {
+		assert.True(t, r.PanicUnwound)
+		assert.True(t, r.ReturnLost)
+		assert.Nil(t, r.Return)
+		r.Entry.Release()
+	}
+	assert.True(t, em1.released)
+	assert.True(t, em2.released)
+	assert.False(t, em3.released, "depth 400 outside range, still in-flight")
+	assert.Equal(t, 1, b.Len())
+
+	b.Discard(kAt(1, 400))
+}
+
+// Range scan stops at the goid boundary: an in-range frame on a
+// different goid is not affected.
+func TestBuffer_PanicUnwoundRangeLost_StopsAtGoidBoundary(t *testing.T) {
+	b := newTestBuffer()
+	emA := newTestMessage(8)
+	emB := newTestMessage(8)
+
+	_, done := b.AddFragment(kAt(1, 200), emA, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(2, 200), emB, Entry, 0, true, true)
+	require.False(t, done)
+
+	readys := b.NotePanicUnwoundRangeLost(1, 100, 300)
+	require.Len(t, readys, 1)
+	assert.Equal(t, uint64(1), readys[0].Key.Goid)
+	readys[0].Entry.Release()
+	assert.True(t, emA.released)
+	assert.False(t, emB.released, "goid 2 entry untouched")
+
+	b.Discard(kAt(2, 200))
+}
+
+// No matching invocations: empty Readys slice, no state change.
+func TestBuffer_PanicUnwoundRangeLost_NoMatches(t *testing.T) {
+	b := newTestBuffer()
+	readys := b.NotePanicUnwoundRangeLost(1, 100, 300)
+	require.Empty(t, readys)
+	assert.Equal(t, 0, b.Len())
+}
+
+// A frame whose entry side is incomplete (multi-fragment, last fragment
+// in flight) gets the panic-unwound + return-lost markers stored on the
+// bufferedEvent but does NOT finalize yet — there are still pending
+// entry fragments. The final entry fragment finalizes the truncated
+// panic-unwound capture.
+func TestBuffer_PanicUnwoundRangeLost_DeferredFinalize(t *testing.T) {
+	b := newTestBuffer()
+	e0 := newTestMessage(8)
+	e1 := newTestMessage(8)
+
+	_, done := b.AddFragment(kAt(1, 200), e0, Entry, 0, false, true)
+	require.False(t, done)
+
+	readys := b.NotePanicUnwoundRangeLost(1, 100, 300)
+	require.Empty(t, readys, "entry incomplete; finalization deferred")
+
+	ready, done := b.AddFragment(kAt(1, 200), e1, Entry, 1, true, true)
+	require.True(t, done)
+	assert.True(t, ready.PanicUnwound)
+	assert.True(t, ready.ReturnLost)
+	assert.Nil(t, ready.Return)
+	ready.Entry.Release()
+	assert.True(t, e0.released)
+	assert.True(t, e1.released)
+}
+
+// A frame that already has a real return fragment buffered is skipped
+// (invariant violation logged) so the regular pairing finalizes it.
+func TestBuffer_PanicUnwoundRangeLost_SkipsEntryWithReturn(t *testing.T) {
+	b := newTestBuffer()
+	em1 := newTestMessage(8)
+	em2 := newTestMessage(8)
+	r2 := newTestMessage(4)
+
+	_, done := b.AddFragment(kAt(1, 150), em1, Entry, 0, true, true)
+	require.False(t, done)
+	_, done = b.AddFragment(kAt(1, 250), em2, Entry, 0, true, true)
+	require.False(t, done)
+	// A real return fragment landed for depth=250 first.
+	_, done = b.AddFragment(kAt(1, 250), r2, Return, 0, false, false)
+	require.False(t, done)
+
+	readys := b.NotePanicUnwoundRangeLost(1, 100, 300)
+	// Only depth=150 finalizes; depth=250 keeps its real return path.
+	require.Len(t, readys, 1)
+	assert.Equal(t, uint32(150), readys[0].Key.StackByteDepth)
+	assert.True(t, readys[0].ReturnLost)
+	readys[0].Entry.Release()
+	assert.True(t, em1.released)
+	assert.False(t, r2.released, "real return preserved for depth 250")
+
+	b.Discard(kAt(1, 250))
+}
+
+// ------------------------------------------------------------------
 // PARTIAL_ENTRY.
 // ------------------------------------------------------------------
 

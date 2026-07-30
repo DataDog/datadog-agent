@@ -42,7 +42,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	configComponent := configmock.NewMock(suite.T())
 	logComponent := logmock.New(suite.T())
 	kubeHealthRegistrar := kubehealthmock.NewMockRegistrar()
-	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
 
 	deps := Dependencies{
 		Config:     configComponent,
@@ -250,8 +250,8 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	// Test atomic write enabled
 	configComponent := configmock.NewMock(suite.T())
 	logComponent := logmock.New(suite.T())
-	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
-	configComponent.SetWithoutSource("logs_config.atomic_registry_write", true)
+	configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetInTest("logs_config.atomic_registry_write", true)
 	deps := Dependencies{
 		Config: configComponent,
 		Log:    logComponent,
@@ -262,8 +262,8 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	// Test atomic write disabled
 	configComponent = configmock.NewMock(suite.T())
 	logComponent = logmock.New(suite.T())
-	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
-	configComponent.SetWithoutSource("logs_config.atomic_registry_write", false)
+	configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetInTest("logs_config.atomic_registry_write", false)
 	deps = Dependencies{
 		Config: configComponent,
 		Log:    logComponent,

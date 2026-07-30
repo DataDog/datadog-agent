@@ -257,12 +257,13 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 
 	bucket2 := &metrics.HistogramBucket{
@@ -290,12 +291,13 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 
 	// garbage collection
@@ -354,12 +356,13 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 }
 
@@ -424,16 +427,18 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 
 	require.Len(t, flushed, 2)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name:       "my.histogram",
-		ContextKey: generateContextKey(&metrics.HistogramBucket{Name: "my.histogram"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12410, Sketch: sketchOf(10, 20, 3)},
 		},
 	}, flushed[0], 0.01)
 
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name:       "my.histogram",
-		ContextKey: generateContextKey(&metrics.HistogramBucket{Name: "my.histogram"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12420, Sketch: sketchOf(10, 20, 2)},
 		},
@@ -497,12 +502,13 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	expSketch.InsertInterpolate(10.0, 20.0, 4)
 	expSketch.InsertInterpolate(30.0, 40.0, 6)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch.Finish()},
 		},
-		ContextKey: ctx,
 	}, flushed[0], .03)
 
 	// Second round: same bounds, larger raw values. Per-bound de-cumulation
@@ -539,12 +545,13 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	expSketch.InsertInterpolate(10.0, 20.0, 3)
 	expSketch.InsertInterpolate(30.0, 40.0, 5)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch.Finish()},
 		},
-		ContextKey: ctx,
 	}, flushed[0], .03)
 
 	// One more commit without further adds expires the context (sampler was
@@ -589,12 +596,13 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 }
 
@@ -627,12 +635,13 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name: "my.metric.name",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.metric.name",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
 	}, sketches[0])
 }
 
@@ -780,7 +789,7 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	require.Equal(t, 3, len(sketches))
 	sketchNames := make(map[string]bool)
 	for _, sketch := range sketches {
-		sketchNames[sketch.Name] = true
+		sketchNames[sketch.GetName()] = true
 	}
 
 	assert.True(t, sketchNames["custom.distribution.one"])
