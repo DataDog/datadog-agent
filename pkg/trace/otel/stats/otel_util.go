@@ -17,8 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
+
+const keyStatsComputed = "_dd.stats_computed"
 
 // chunkKey is used to group TraceChunks
 type chunkKey struct {
@@ -64,6 +67,9 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	containerTagsByID := make(map[string][]string)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
+		if hasClientComputedStats(otelres.Attributes()) {
+			continue
+		}
 		var resourceName string
 		if transform.OperationAndResourceNameV2Enabled(conf) {
 			resourceName = transform.GetOTelResourceV2(otelspan, otelres)
@@ -139,6 +145,14 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		})
 	}
 	return inputs
+}
+
+func hasClientComputedStats(attrs pcommon.Map) bool {
+	if _, ok := attrs.Get(keyStatsComputed); !ok {
+		return false
+	}
+	value := transform.GetOTelAttrVal(attrs, true, keyStatsComputed)
+	return value != "" && value != "false"
 }
 
 func obfuscateSpanForConcentrator(o *obfuscate.Obfuscator, span *pb.Span, conf *config.AgentConfig) {
