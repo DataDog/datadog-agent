@@ -498,6 +498,17 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		return fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
 
+	// From here on newEnv may hold a live pool lease that teardown cannot see yet, because
+	// bs.env is only assigned on success below. Release it on any error path, or the
+	// member stays in-use forever -- there is no staleness reclaim. Armed before
+	// registration so a partial multi-host registration is also rolled back.
+	releaseOnFailure := true
+	defer func() {
+		if releaseOnFailure {
+			bs.releasePoolInstanceForEnv(newEnv)
+		}
+	}()
+
 	// Publish the first lease of any macOS pool member this run just created, before
 	// Init builds clients against it. Unlike the release at teardown, a failure here
 	// aborts: a registered-but-unleased instance is undiscoverable by every later run.
@@ -514,6 +525,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 
 	// On success we update the current environment
 	// We need top copy provisioners to protect against external modifications
+	releaseOnFailure = false
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
 	return nil
@@ -842,11 +854,18 @@ func (bs *BaseSuite[Env]) registerPoolInstanceIfNeeded(env *Env) error {
 // bs.env, so pool leases are freed regardless of dev mode or destroy success. It is
 // a no-op when the environment never went through the macOS pool path.
 func (bs *BaseSuite[Env]) releasePoolInstanceIfAny() {
-	if bs.env == nil {
+	bs.releasePoolInstanceForEnv(bs.env)
+}
+
+// releasePoolInstanceForEnv reverts and releases any macOS EC2 pool instance backing env.
+// Errors are logged, never propagated: it runs on teardown and on setup-failure rollback,
+// where a hard failure would mask the original error.
+func (bs *BaseSuite[Env]) releasePoolInstanceForEnv(env *Env) {
+	if env == nil {
 		return
 	}
 
-	v := reflect.ValueOf(bs.env)
+	v := reflect.ValueOf(env)
 	if v.Kind() != reflect.Ptr || v.IsNil() {
 		return
 	}

@@ -9,6 +9,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -235,4 +236,104 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 	// The t.Cleanup hook fired after the sub-test completed. If it had erroneously
 	// re-run cleanup, Destroy would have been called twice.
 	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// envInitFailureTrigger is the Wrapper1.MyField sentinel that makes testEnvWithInit.Init
+// fail. Any other value succeeds. Driving the failure through already-built field data
+// (rather than a field-level Init failure) ensures buildEnvFromResources itself succeeds,
+// so the failure is injected exactly at reconcileEnv's top-level Init check -- the
+// ordering the F3 fix concerns -- not earlier, inside resource building.
+const envInitFailureTrigger = "env-init-should-fail"
+
+// errTestInitFailed is returned by testEnvWithInit.Init when triggered, letting tests
+// force reconcileEnv's top-level Init-failure path deterministically.
+var errTestInitFailed = errors.New("test init failure")
+
+// testEnvWithInit adds an env-level Initializable to testEnv. testEnv itself does not
+// implement common.Initializable, so reconcileEnv's `any(newEnv).(common.Initializable)`
+// check (suite.go) never fires for it; this type exists so that check has something to
+// fail against.
+type testEnvWithInit struct {
+	testEnv
+}
+
+var _ common.Initializable = &testEnvWithInit{}
+
+func (e *testEnvWithInit) Init(common.Context) error {
+	if e.Wrapper1 != nil && e.Wrapper1.MyField == envInitFailureTrigger {
+		return errTestInitFailed
+	}
+	return nil
+}
+
+func testRawResourcesEnvInitFailure() provisioners.RawResources {
+	resources := testRawResources("myWrapper1", envInitFailureTrigger)
+	resources.Merge(testRawResources("myWrapper2", "y"))
+	return resources
+}
+
+type testSuiteInitFailure struct {
+	BaseSuite[testEnvWithInit]
+}
+
+// TestReconcileEnvPreservesEnvOnInitFailure guards the F3 fix: reconcileEnv must not
+// leave bs.env pointing at a newEnv whose Init failed. This is a regression test for the
+// ordering bug, not a full release-path test -- the pool package has no injectable AWS
+// seam, so whether a real lease gets released still requires a real macOS run (see
+// notes/MACOS_POOL_REVIEW_FIX_IMPLEMENTATION_PLAN.md §7). What this test does verify: a
+// re-entrant reconcileEnv call whose Init fails does not corrupt bs.env with the failed
+// newEnv, and reconcileEnv returns the Init error rather than swallowing it.
+func TestReconcileEnvPreservesEnvOnInitFailure(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testSuiteInitFailure{}
+	Run(t, s, WithProvisioner(p))
+}
+
+func (s *testSuiteInitFailure) TestInitFailureDoesNotCorruptEnv() {
+	require.NotNil(s.T(), s.env, "SetupSuite's initial provisioning must have succeeded")
+	healthyEnv := s.env
+
+	failingProvisioner := &testProvisioner{}
+	failingProvisioner.On("ID").Return("test")
+	failingProvisioner.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(testRawResourcesEnvInitFailure(), nil)
+
+	// Call reconcileEnv directly, as TestOrderA does, instead of UpdateEnv: UpdateEnv
+	// calls bs.T().Fail() before panicking on reconcile errors, which would mark this
+	// test failed even though the error is the expected outcome under test.
+	//
+	// reconcileEnv wraps the Init error with %v, not %w, so it is not in errors.Is's
+	// chain -- assert on the message instead, matching this file's existing convention
+	// (see TestOrderA's require.EqualError).
+	err := s.reconcileEnv(provisioners.ProvisionerMap{failingProvisioner.ID(): failingProvisioner})
+	require.ErrorContains(s.T(), err, errTestInitFailed.Error())
+
+	// The critical assertion: bs.env must still be the healthy env from SetupSuite, never
+	// the newEnv whose Init just failed.
+	require.Same(s.T(), healthyEnv, s.env)
+
+	// Undo the direct reconcileEnv call above so TearDownSuite's Destroy bookkeeping
+	// matches what Run's original WithProvisioner(p) call expects.
+	s.currentProvisioners = provisioners.CopyProvisioners(provisioners.ProvisionerMap{failingProvisioner.ID(): failingProvisioner})
+	failingProvisioner.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+}
+
+// TestReleasePoolInstanceForEnvSafeOnNonPoolEnv guards the extraction in
+// releasePoolInstanceForEnv: it must reflect safely over an arbitrary Env, including nil,
+// without a pool-typed field to find. This is the "safe no-op" verification named in
+// notes/MACOS_POOL_REVIEW_FIX_IMPLEMENTATION_PLAN.md §7, since the pool package itself has
+// no injectable seam to test the actual AWS release call against.
+func TestReleasePoolInstanceForEnvSafeOnNonPoolEnv(t *testing.T) {
+	s := &testSuiteInitFailure{}
+
+	require.NotPanics(t, func() {
+		s.releasePoolInstanceForEnv(nil)
+	})
+
+	require.NotPanics(t, func() {
+		s.releasePoolInstanceForEnv(&testEnvWithInit{})
+	})
 }
