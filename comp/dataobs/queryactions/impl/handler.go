@@ -274,12 +274,13 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 // matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
 // whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
 //
-// Matching uses instanceMatchesHost against each entry's resolved instanceIdentity (host:port,
-// falling back to bare host only when the instance has no port), not the raw DBIdentifier.Host
-// from the RC payload — a payload host can be bare and shared by several instances on different
-// ports (e.g. two postgres instances both on "dbhost"), and matching against that bare string
-// would exclude every instance on the host from the remainder instead of only the one actually
-// selected as the DO check.
+// Matching compares each instance's own resolved instanceIdentity against matchedHosts by exact
+// string equality, not the raw DBIdentifier.Host from the RC payload and not the looser
+// host-or-host:port matching instanceMatchesHost does for that payload host. A payload host can
+// be bare and shared by several instances on different ports (e.g. two postgres instances both on
+// "dbhost"), and a loose match against that bare string — or against the resolved identity of a
+// portless matched instance — would incorrectly exclude sibling instances that do have a port,
+// instead of only the one actually selected as the DO check.
 func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
 	for _, instanceData := range base.Instances {
@@ -301,15 +302,14 @@ func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *int
 	return &remainder
 }
 
-// instanceTargeted reports whether any host in matchedHosts targets this instance, using the same
-// host-matching semantics as scheduling.
+// instanceTargeted reports whether this instance is the exact instance a DO config resolved to,
+// by comparing its own instanceIdentity against matchedHosts. Exact identity equality — rather
+// than the looser bare-or-host:port matching used to resolve a payload host to an instance in the
+// first place — ensures a portless matched identity (e.g. "dbhost") can never accidentally match a
+// sibling instance that does have a port (e.g. "dbhost" host with port 5433): that sibling's own
+// identity is "dbhost:5433", which is exactly equal to nothing but itself.
 func instanceTargeted(instance map[string]any, matchedHosts map[string]bool) bool {
-	for host := range matchedHosts {
-		if instanceMatchesHost(instance, host) {
-			return true
-		}
-	}
-	return false
+	return matchedHosts[instanceIdentity(instance)]
 }
 
 // sameConfig reports whether two optional configs are equivalent by autodiscovery digest.

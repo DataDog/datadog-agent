@@ -766,6 +766,64 @@ func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testin
 	assert.Equal(t, []int{siblingPort}, portsOf(*remainder), "remainder must keep the untargeted sibling port")
 }
 
+// TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder is a regression test for a
+// matched instance that omits "port" (e.g. relying on the default) while a sibling instance on the
+// same host has an explicit, different port. The resolved identity of the portless matched
+// instance falls back to the bare host, which a naive host-or-host:port match against the sibling
+// would still hit (the sibling's bare host is identical), wrongly excluding the ported sibling
+// from the remainder. Exact instanceIdentity equality must not match the sibling, since the
+// sibling's own identity includes its port.
+func TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder(t *testing.T) {
+	const sharedHost = "dbhost"
+	const siblingPort = 5433
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("host: %s\ndata_observability:\n  enabled: true\n", sharedHost)),
+			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, siblingPort)),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-portless",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: sharedHost},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-portless": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-portless"].State)
+
+	// Exactly two configs scheduled: the DO check for the portless instance and the remainder
+	// holding only the ported sibling. A remainder with zero instances would mean the sibling on
+	// port 5433 was wrongly dropped.
+	require.Len(t, changes.Schedule, 2)
+
+	var doCfg, remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; hasQueries {
+			doCfg = &changes.Schedule[i]
+		} else {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, doCfg, "a DO check config should be scheduled")
+	require.NotNil(t, remainder, "a remainder config should be scheduled")
+
+	var remainderInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &remainderInstance))
+	assert.Equal(t, sharedHost, remainderInstance["host"])
+	assert.Equal(t, siblingPort, remainderInstance["port"], "remainder must keep the ported sibling, not drop it via the portless matched identity")
+}
+
 // TestOnRCUpdate_MultipleDOConfigsSameBase verifies that two DO configs targeting two different
 // instances of the same base config never leave an instance both in the remainder and as a DO
 // check (which would double-run it). With both instances targeted, no remainder is scheduled.
