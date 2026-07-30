@@ -3854,9 +3854,9 @@
   
 
 
-<h1 id="tools-to-troubleshoot-a-running-agent">Tools to troubleshoot a running Agent<a class="headerlink" href="#tools-to-troubleshoot-a-running-agent" title="Permanent link">&para;</a></h1>
+<h1 id="tools-to-troubleshoot-a-running-agent">Tools to troubleshoot a running Agent</h1>
 <p>This page attempts to list useful tools and resources to troubleshoot and profile a running Agent.</p>
-<h2 id="pprof"><a href="https://golang.org/pkg/net/http/pprof/">pprof</a><a class="headerlink" href="#pprof" title="Permanent link">&para;</a></h2>
+<h2 id="pprof"><a href="https://golang.org/pkg/net/http/pprof/">pprof</a></h2>
 <p>The Agent exposes pprof's HTTP server on port <code>5000</code> by default. Through the pprof port you can get profiles (CPU, memory, etc) on the go runtime, along with some general information on the state of the runtime.</p>
 <p>In particular/additionally, the following commands can come in handy:</p>
 <ul>
@@ -3867,7 +3867,7 @@
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>go<span class="w"> </span>tool<span class="w"> </span>pprof<span class="w"> </span>http://localhost:5000/debug/pprof/heap
 </span></code></pre></div></li>
 </ul>
-<h2 id="expvar">expvar<a class="headerlink" href="#expvar" title="Permanent link">&para;</a></h2>
+<h2 id="expvar">expvar</h2>
 <p>The Agent also exposes expvar variables through an HTTP server on port <code>5000</code> by default, in JSON format.</p>
 <p>General documentation: <a href="https://golang.org/pkg/expvar/">https://golang.org/pkg/expvar/</a></p>
 <p>Most components of the Agent expose variables (under their respective key). By default expvar also exposes general memory stats from <a href="https://golang.org/pkg/runtime/#MemStats"><code>runtime.MemStats</code></a>. In particular, the <code>Sys</code>, <code>HeapSys</code> and <code>HeapInuse</code> variables can be interesting.</p>
@@ -3877,7 +3877,7 @@
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Get names of checks that the collector&#39;s check runner has run</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://localhost:5000/debug/vars<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.runner.Checks | keys&#39;</span>
 </span></code></pre></div></p>
-<h2 id="delve"><a href="https://github.com/derekparker/delve">delve</a><a class="headerlink" href="#delve" title="Permanent link">&para;</a></h2>
+<h2 id="delve"><a href="https://github.com/derekparker/delve">delve</a></h2>
 <p>A debugger for Go.</p>
 <p>Example usage:
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$<span class="w"> </span>sudo<span class="w"> </span>dlv<span class="w"> </span>attach<span class="w"> </span><span class="sb">`</span>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s1">&#39;/opt/datadog-agent/bin/agent/agent run&#39;</span><span class="sb">`</span>
@@ -3899,7 +3899,7 @@
 <p>If you use <code>sudo</code> to run <code>dlv attach</code>, <code>$HOME</code> will be set to <code>/root</code>. You may want to symlink <code>/root/.config/dlv/config.yml</code> to point to your user delve config file.</p>
 </div>
 </div>
-<h2 id="gdb">gdb<a class="headerlink" href="#gdb" title="Permanent link">&para;</a></h2>
+<h2 id="gdb">gdb</h2>
 <p>GDB can in some rare cases be useful to troubleshoot the embedded python interpreter.
 See <a href="https://wiki.python.org/moin/DebuggingWithGdb">https://wiki.python.org/moin/DebuggingWithGdb</a></p>
 <p>Example usage (using the legacy <code>pystack</code> macro):
