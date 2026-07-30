@@ -39,8 +39,8 @@ const (
 type SelfIdent struct {
 	wmeta workloadmeta.Component
 
-	once         sync.Once
-	deploymentID string
+	resolveMu    sync.Mutex
+	deploymentID atomic.Pointer[string]
 
 	resolveRetries    int
 	resolveRetryDelay time.Duration
@@ -60,8 +60,8 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 		resolveRetryDelay: defaultResolveRetryDelay,
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
-		s.once.Do(func() {})
 		empty := ""
+		s.deploymentID.Store(&empty)
 		s.clusterIDResolveOnce.Do(func() {})
 		s.clusterID.Store(&empty)
 	}
@@ -69,22 +69,37 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 }
 
 // DeploymentID returns the UID of the DaemonSet that owns this agent's pod,
-// or "" if not running under one. Resolved once and cached for the process
-// lifetime; if the pod hasn't appeared in workloadmeta yet, resolution is
-// retried a bounded number of times before caching empty.
+// or "" if not running under one. Resolution is retried a bounded number of
+// times before returning; a definitive outcome (found, or the pod/wmeta
+// isn't resolvable at all) is cached for the process lifetime, but a
+// transient "pod not synced yet" outcome is not cached, so a later call —
+// e.g. from another issue module reporting after this one — gets a fresh
+// attempt instead of being stuck replaying a stale "".
 func (s *SelfIdent) DeploymentID() string {
-	s.once.Do(func() {
-		podNamespace := namespace.GetMyNamespace()
-		for attempt := 0; ; attempt++ {
-			id, found := s.resolveDeploymentID(podNamespace)
-			if found || attempt >= s.resolveRetries {
-				s.deploymentID = id
-				return
-			}
-			time.Sleep(s.resolveRetryDelay)
+	if cached := s.deploymentID.Load(); cached != nil {
+		return *cached
+	}
+
+	s.resolveMu.Lock()
+	defer s.resolveMu.Unlock()
+	if cached := s.deploymentID.Load(); cached != nil {
+		return *cached
+	}
+
+	podNamespace := namespace.GetMyNamespace()
+	var id string
+	var definitive bool
+	for attempt := 0; ; attempt++ {
+		id, definitive = s.resolveDeploymentID(podNamespace)
+		if definitive || attempt >= s.resolveRetries {
+			break
 		}
-	})
-	return s.deploymentID
+		time.Sleep(s.resolveRetryDelay)
+	}
+	if definitive {
+		s.deploymentID.Store(&id)
+	}
+	return id
 }
 
 // IssueDiscriminator returns DeploymentID() when non-empty, so all agents in
@@ -105,17 +120,26 @@ func (s *SelfIdent) IssueDiscriminator(hostID string) string {
 }
 
 // ClusterID returns the best-effort Kubernetes cluster id for payload
-// enrichment only — never part of the issue id. Resolves in the background
-// since clustername.GetClusterID() usually makes a synchronous Cluster Agent
-// HTTP call; returns "" immediately until resolved.
+// enrichment only — never part of the issue id. Resolution runs in the
+// background since clustername.GetClusterID() usually makes a synchronous
+// Cluster Agent HTTP call, but a caller made before resolution finishes
+// blocks up to resolveRetries*resolveRetryDelay for it — a startup-only
+// health check (e.g. invalidconfig) calls this exactly once and never
+// re-reports, so returning immediately would permanently miss the id.
+// Callers made after resolution settles return immediately from cache.
 func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
 		go s.resolveClusterID()
 	})
-	if id := s.clusterID.Load(); id != nil {
-		return *id
+	for attempt := 0; ; attempt++ {
+		if id := s.clusterID.Load(); id != nil {
+			return *id
+		}
+		if attempt >= s.resolveRetries {
+			return ""
+		}
+		time.Sleep(s.resolveRetryDelay)
 	}
-	return ""
 }
 
 // resolveClusterID retries clustername.GetClusterID() a bounded number of

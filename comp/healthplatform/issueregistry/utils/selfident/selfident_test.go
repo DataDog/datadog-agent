@@ -154,6 +154,27 @@ func TestDeploymentID_ResolvedOnce(t *testing.T) {
 	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
 }
 
+// If the pod hasn't synced into workloadmeta by the time the retry budget is
+// exhausted, that miss must not be cached permanently — a later call (e.g.
+// from a different issue module reporting after this one) must get a fresh
+// attempt and succeed once the pod has appeared.
+func TestDeploymentID_TransientMissIsNotCachedPermanently(t *testing.T) {
+	t.Setenv(podNameEnvVar, testPodName)
+	mockStore := newMockStore(t)
+
+	s := New(mockStore)
+	s.resolveRetries = 1
+	s.resolveRetryDelay = time.Millisecond
+
+	assert.Empty(t, s.DeploymentID(), "pod not yet in workloadmeta, retry budget exhausted")
+
+	setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{
+		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
+	})
+
+	assert.Equal(t, "daemonset-uid-123", s.DeploymentID(), "a later call must retry rather than replay the stale empty result")
+}
+
 func TestIssueDiscriminator_PrefersDeploymentID(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
 	mockStore := newMockStore(t)
@@ -181,24 +202,25 @@ func TestNew_NoopOutsideKubernetes(t *testing.T) {
 	assert.Empty(t, s.ClusterID())
 }
 
-// ClusterID must never block a caller on Cluster Agent availability: in test
-// environments (no Cluster Agent configured), clustername.GetClusterID fails
-// fast, but the point of the background resolution is that ClusterID doesn't
-// wait for that call at all, however long it takes.
-func TestClusterID_DoesNotBlockCaller(t *testing.T) {
+// ClusterID must bound how long it blocks a caller made before resolution
+// settles — long enough to give a one-shot startup check a real chance at
+// getting the id, but not indefinitely.
+func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
 	s := New(nil)
-	s.resolveRetries = 1
-	s.resolveRetryDelay = time.Millisecond
+	s.resolveRetries = 3
+	s.resolveRetryDelay = 10 * time.Millisecond
 
 	start := time.Now()
 	first := s.ClusterID()
-	assert.Empty(t, first, "not resolved yet on the first call")
-	assert.Less(t, time.Since(start), 50*time.Millisecond, "ClusterID must return immediately, not wait for background resolution")
+	elapsed := time.Since(start)
+	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
+	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
 
-	assert.Eventually(t, func() bool {
-		return s.clusterID.Load() != nil
-	}, time.Second, time.Millisecond, "background resolution should complete and cache a result")
-	assert.Empty(t, s.ClusterID(), "no Cluster Agent is configured in this test, so resolution settles on empty")
+	// Cached from the settled resolution; returns immediately now, well
+	// under the resolveRetries*resolveRetryDelay budget of the first call.
+	start = time.Now()
+	assert.Empty(t, s.ClusterID())
+	assert.Less(t, time.Since(start), 20*time.Millisecond, "a later call must return immediately from cache")
 }
