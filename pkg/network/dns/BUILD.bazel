@@ -1,38 +1,43 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# Maintain by hand: The dependencies are too complex w.r.t. the sources for gazelle to get right.
+# gazelle:ignore
+
 go_library(
     name = "dns",
     srcs = [
         "bpf.go",
         "cache.go",
-        "driver_windows.go",
-        "ebpf.go",
-        "monitor_darwin.go",
-        "monitor_linux.go",
-        "monitor_windows.go",
         "null.go",
-        "packet_source_windows.go",
         "parser.go",
         "snooper.go",
         "stats.go",
         "tcp_dns_layer.go",
         "types.go",
         "udp_dns_layer.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "monitor_darwin.go",
+        ],
+        "@rules_go//go/platform:linux": [
+            "ebpf.go",
+            "monitor_linux.go",
+        ],
+        "@rules_go//go/platform:windows": [
+            "driver_windows.go",
+            "monitor_windows.go",
+            "packet_source_windows.go",
+        ],
+        "//conditions:default": [],
+    }),
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/dns",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
         "//pkg/network/config",
-        "//pkg/network/ebpf",
-        "//pkg/network/ebpf/probes",
         "//pkg/process/util",
         "//pkg/util/intern",
         "//pkg/util/log",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@org_golang_x_net//bpf",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//comp/core/telemetry/def",
@@ -96,12 +101,18 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/network/ebpf",
+            "//pkg/network/ebpf/probes",
             "//pkg/network/filter",
             "//pkg/util/kernel",
             "//pkg/util/kernel/netns",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//layers",
             "@com_github_vishvananda_netns//:netns",
+            "@org_golang_x_net//bpf",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/telemetry/def",

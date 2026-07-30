@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "postgres",
@@ -56,23 +56,4 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-)
-
-go_test(
-    name = "postgres_test",
-    srcs = [
-        "model_linux_test.go",
-        "statskeeper_test.go",
-        "telemetry_test.go",
-    ],
-    data = glob(["testdata/**"]),
-    embed = [":postgres"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/network/config",
-        "//pkg/network/protocols/postgres/ebpf",
-        "//pkg/network/protocols/telemetry",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
 )

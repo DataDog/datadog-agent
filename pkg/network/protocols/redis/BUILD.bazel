@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
@@ -62,20 +63,18 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "redis_test",
     srcs = [
         "stats_test.go",
         "statskeeper_test.go",
         "types_linux_test.go",
     ],
-    # FIXME(agent-build) remove allow_empty once we don't build with omnibus
     data = glob(
         ["testdata/**"],
         allow_empty = True,
     ),
     embed = [":redis"],
-    gotags = ["test"],
     deps = [
         "//pkg/network/config",
         "//pkg/process/util",

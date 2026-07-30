@@ -12,7 +12,6 @@ go_library(
         "tailer_util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald",
-    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",
