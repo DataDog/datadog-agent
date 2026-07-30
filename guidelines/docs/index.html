@@ -2479,6 +2479,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Links">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#repository-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Repository paths
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3947,6 +3964,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Links">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#repository-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Repository paths
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3983,22 +4017,23 @@
   
 
 
-<h1 id="writing-developer-docs">Writing developer docs</h1>
+<h1 id="writing-developer-docs">Writing developer docs<a class="headerlink" href="#writing-developer-docs" title="Permanent link">&para;</a></h1>
 <hr />
 <p>This site is built by <a href="https://zensical.org">Zensical</a>, using its classic theme variant for compatibility with Material for MkDocs.</p>
 <p>You can serve documentation locally with the <code>dda run docs serve</code> command.</p>
-<h2 id="organization">Organization</h2>
+<p>Once the site is built with <code>dda run docs build</code>, <code>dda run docs check-links</code> resolves every link it contains, which <code>dda run docs build --check</code> does for you in one step.</p>
+<h2 id="organization">Organization<a class="headerlink" href="#organization" title="Permanent link">&para;</a></h2>
 <p>The site structure is defined by the <a href="https://zensical.org/docs/setup/navigation/"><code>nav</code></a> key in the <a href="https://github.com/DataDog/datadog-agent/blob/main/mkdocs.yml"><code>mkdocs.yml</code></a> file.</p>
 <p>We strive to follow the principles of the Diátaxis <a href="https://diataxis.fr">documentation framework</a>.</p>
 <p>When adding new pages, first think about what it is <em>exactly</em> that you are trying to document. For example, if you intend to write about something everyone must follow as a standard practice it would be classified as a guideline whereas a short piece about performing a particular task would be a how-to.</p>
 <p>After deciding the kind of content, further segment the page under logical groupings for easier navigation.</p>
-<h2 id="ordered-lists">Ordered lists</h2>
+<h2 id="ordered-lists">Ordered lists<a class="headerlink" href="#ordered-lists" title="Permanent link">&para;</a></h2>
 <p>Each item in an <a href="https://spec.commonmark.org/0.31.2/#ordered-list-marker">ordered list</a> should start with <code>1.</code> and let rendering handle the rest. This is recommended for two reasons:</p>
 <ol>
 <li>Changes to the list size do not require re-numbering unmodified items and therefore reduces the diff when reviewing.</li>
 <li>Rendering will expose improper formatting by having the sequence broken rather than hiding such issues.</li>
 </ol>
-<h2 id="line-continuations">Line continuations</h2>
+<h2 id="line-continuations">Line continuations<a class="headerlink" href="#line-continuations" title="Permanent link">&para;</a></h2>
 <p>For prose where the rendered content should have no line breaks, always keep the Markdown on the same line. This removes the need for any stylistic enforcement and allows for IDEs to intelligently wrap as usual.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -4031,7 +4066,7 @@
 </ul>
 </div>
 </div>
-<h2 id="emphasis">Emphasis</h2>
+<h2 id="emphasis">Emphasis<a class="headerlink" href="#emphasis" title="Permanent link">&para;</a></h2>
 <p>When you want to call something out, use <a href="https://squidfunk.github.io/mkdocs-material/reference/admonitions/">admonitions</a> rather than making large chunks of text bold or italicized. The latter is okay for small spans within sentences.</p>
 <p>Here's an example:</p>
 <div class="grid cards">
@@ -4054,10 +4089,81 @@
 </li>
 </ul>
 </div>
-<h2 id="links">Links</h2>
+<h2 id="links">Links<a class="headerlink" href="#links" title="Permanent link">&para;</a></h2>
 <p>Always use <a href="https://spec.commonmark.org/0.31.2/#inline-link">inline links</a> rather than <a href="https://spec.commonmark.org/0.31.2/#reference-link">reference links</a>.</p>
 <p>The only exception to that rule is links that many pages may need to reference. Such links may be added to <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/.snippets/links.txt">this file</a> that all pages are able to reference.</p>
-<h2 id="abbreviations">Abbreviations</h2>
+<h3 id="repository-paths">Repository paths<a class="headerlink" href="#repository-paths" title="Permanent link">&para;</a></h3>
+<p>Never write a link to a file or directory of this repository by hand. Give the <code>repo</code> macro a path relative to the repository root and it links files as <code>blob</code>, links directories as <code>tree</code>, and fails the build when the path no longer exists. Links to anything else the repository hosts, such as a pull request, are still written by hand.</p>
+<p>Links point at the branch being built rather than always at <code>main</code>, so a preview built from a pushed branch links to that branch's own files.</p>
+<div class="grid cards">
+<ul>
+<li>
+<p>Markdown</p>
+<hr />
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">-</span><span class="w"> </span>Directory
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    &lt;&lt;&lt;repo(&quot;bazel/rules&quot;)&gt;&gt;&gt;
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">-</span><span class="w"> </span>File
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    &lt;&lt;&lt;repo(&quot;MODULE.bazel&quot;)&gt;&gt;&gt;
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">-</span><span class="w"> </span>Line in file
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    &lt;&lt;&lt;repo(
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        &quot;.gitlab-ci.yml&quot;,
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        match=&quot;^stages:&quot;,
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    )&gt;&gt;&gt;
+</span></code></pre></div>
+</li>
+<li>
+<p>Rendered</p>
+<hr />
+<ul>
+<li>
+<p>Directory</p>
+<p><a href="https://github.com/DataDog/datadog-agent/tree/main/bazel/rules"><code>bazel/rules</code></a></p>
+</li>
+<li>
+<p>File</p>
+<p><a href="https://github.com/DataDog/datadog-agent/blob/main/MODULE.bazel"><code>MODULE.bazel</code></a></p>
+</li>
+<li>
+<p>Line in file</p>
+<p><a href="https://github.com/DataDog/datadog-agent/blob/main/.gitlab-ci.yml#L174"><code>.gitlab-ci.yml</code></a></p>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+<p>The link text defaults to the path in backticks. A second argument replaces it and is itself Markdown, so add backticks yourself when you want a short monospaced label.</p>
+<p>To link a single line, pass <code>match</code> with a regular expression that matches exactly one line of the file, as above. The search is unanchored, so <code>^</code> and <code>$</code> are available to pin the expression to the start or end of a line, and characters such as <code>(</code> need escaping to match literally. The line number is resolved on every build and therefore never drifts, so never write one by hand.</p>
+<p>When a link will not do, such as in a raw HTML attribute, <code>repo_url</code> validates the same path and <code>match</code> arguments but renders only the URL:</p>
+<div class="grid cards">
+<ul>
+<li>
+<p>Markdown</p>
+<hr />
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>&lt;a href=&quot;&lt;&lt;&lt;repo_url(
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    &quot;.gitlab-ci.yml&quot;,
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    match=&quot;^stages:&quot;,
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>)&gt;&gt;&gt;&quot;&gt;the stage list&lt;/a&gt;
+</span></code></pre></div>
+</li>
+<li>
+<p>Rendered</p>
+<hr />
+<p><a href="https://github.com/DataDog/datadog-agent/blob/main/.gitlab-ci.yml#L174">the stage list</a></p>
+</li>
+</ul>
+</div>
+<p>The macro rejects Markdown pages under <code>docs/public</code>, which are linked relatively so that readers stay on this site.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Macros are rendered everywhere on a page, including inside fenced code blocks. To show a macro rather than call it, wrap it in <code>&lt;&lt;% raw %&gt;&gt;</code> and <code>&lt;&lt;% endraw %&gt;&gt;</code> on the same line, the way the example above does. Putting those tags on their own lines leaves blank lines behind.</p>
+<p>Macros do not run inside <a href="https://github.com/DataDog/datadog-agent/tree/main/docs/public/.snippets"><code>docs/public/.snippets</code></a>, whose files are appended to each page after macros have already been rendered.</p>
+</div>
+<h2 id="abbreviations">Abbreviations<a class="headerlink" href="#abbreviations" title="Permanent link">&para;</a></h2>
 <p><a href="https://squidfunk.github.io/mkdocs-material/reference/tooltips/#adding-abbreviations">Abbreviations</a> like <abbr title="DogStatsD">DSD</abbr> may be added to <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/.snippets/abbrs.txt">this file</a> which will make it so that a tooltip will be displayed on hover.</p>
 
 
