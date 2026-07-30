@@ -50,7 +50,6 @@ import (
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Registry struct {
