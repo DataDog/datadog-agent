@@ -117,7 +117,7 @@ allowed_cmdlets:
   Get-Thing:
     module: ThingModule
     parameters:
-      Scope: { required: true }
+      Scope: { required: true, allowed_values: [all, local] }
 `))
 	require.NoError(t, err)
 
@@ -127,6 +127,53 @@ allowed_cmdlets:
 	assert.NoError(t, al.validateInstance(&instanceConfig{
 		Cmdlet:  "Get-Thing",
 		Filters: []filterEntry{{Name: "Scope", Value: "all"}},
+	}))
+}
+
+func TestParseAllowlistRequiresValueConstraint(t *testing.T) {
+	// Every declared parameter must set allowed_values or pattern; a parameter
+	// with neither is rejected at load time (fail closed).
+	_, err := parseAllowlist([]byte(`
+version: 1
+allowed_cmdlets:
+  Get-Thing:
+    module: ThingModule
+    parameters:
+      Scope: { required: false }
+`))
+	assert.Error(t, err)
+
+	// A cmdlet with no declared parameters is still fine (nothing to constrain).
+	_, err = parseAllowlist([]byte(`
+version: 1
+allowed_cmdlets:
+  Get-Thing:
+    module: ThingModule
+`))
+	assert.NoError(t, err)
+}
+
+func TestPatternIsAnchored(t *testing.T) {
+	// Patterns must match the ENTIRE value, not a substring: an unanchored
+	// 'PROD-CL01' would otherwise also accept "PROD-CL01' OR '1'='1".
+	al, err := parseAllowlist([]byte(`
+version: 1
+allowed_cmdlets:
+  Get-ClusterNode:
+    module: FailoverClusters
+    parameters:
+      Cluster: { pattern: 'PROD-CL01' }
+`))
+	require.NoError(t, err)
+
+	assert.NoError(t, al.validateInstance(&instanceConfig{
+		Cmdlet:  "Get-ClusterNode",
+		Filters: []filterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
+	}))
+
+	assert.Error(t, al.validateInstance(&instanceConfig{
+		Cmdlet:  "Get-ClusterNode",
+		Filters: []filterEntry{{Name: "Cluster", Value: "PROD-CL01' OR '1'='1"}},
 	}))
 }
 

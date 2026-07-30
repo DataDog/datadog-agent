@@ -17,8 +17,10 @@ import (
 // allowlistVersion is the only supported allowlist schema version.
 const allowlistVersion = 1
 
-// allowedParam constrains a single cmdlet parameter: whether it is required and,
-// if present, what values are acceptable (either an exact set or a regex).
+// allowedParam constrains a single cmdlet parameter: whether it is required and
+// what values are acceptable. A value constraint is mandatory — every declared
+// parameter must set either AllowedValues (an exact set) or Pattern (a regex,
+// which is anchored to the whole value at parse time).
 type allowedParam struct {
 	Required      bool     `yaml:"required"`
 	AllowedValues []string `yaml:"allowed_values"`
@@ -70,8 +72,18 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 			if err := validateIdentifier("parameter", pName); err != nil {
 				return nil, fmt.Errorf("allowlist entry %q: %w", name, err)
 			}
+			// Every declared parameter must constrain its values, making the
+			// value axis default-deny like the cmdlet/parameter names.
+			if len(p.AllowedValues) == 0 && p.Pattern == "" {
+				return nil, fmt.Errorf("allowlist entry %q parameter %q must define allowed_values or pattern", name, pName)
+			}
 			if p.Pattern != "" {
-				re, err := regexp.Compile(p.Pattern)
+				// Anchor the pattern so it must match the ENTIRE value, not a
+				// substring. Go's regexp is unanchored by default, so an
+				// unanchored pattern like 'PROD-CL01' would also accept
+				// "PROD-CL01' OR '1'='1". \A and \z bind to the start and end of
+				// the whole string.
+				re, err := regexp.Compile(`\A(?:` + p.Pattern + `)\z`)
 				if err != nil {
 					return nil, fmt.Errorf("allowlist entry %q parameter %q: invalid pattern: %w", name, pName, err)
 				}
