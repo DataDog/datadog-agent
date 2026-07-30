@@ -55,6 +55,26 @@ type PatchDeploymentInputs struct {
 	PatchStrategy string `json:"patchStrategy,omitempty"`
 }
 
+// PatchDaemonSetInputs are the inputs for the patch_daemonset action.
+type PatchDaemonSetInputs struct {
+	ResourceRef
+	// Patch is the raw JSON patch body applied to the daemonset.
+	Patch json.RawMessage `json:"patch"`
+	// PatchStrategy selects the Kubernetes patch type: "merge", "json", or
+	// (default) strategic merge.
+	PatchStrategy string `json:"patchStrategy,omitempty"`
+}
+
+// PatchStatefulSetInputs are the inputs for the patch_statefulset action.
+type PatchStatefulSetInputs struct {
+	ResourceRef
+	// Patch is the raw JSON patch body applied to the statefulset.
+	Patch json.RawMessage `json:"patch"`
+	// PatchStrategy selects the Kubernetes patch type: "merge", "json", or
+	// (default) strategic merge.
+	PatchStrategy string `json:"patchStrategy,omitempty"`
+}
+
 // RollbackDeploymentInputs are the inputs for the rollback_deployment action.
 type RollbackDeploymentInputs struct {
 	ResourceRef
@@ -144,6 +164,34 @@ func (in PatchDeploymentInputs) Validate() error {
 	}
 	if len(in.Patch) == 0 {
 		return fmt.Errorf("patch is required for patch_deployment action")
+	}
+	return nil
+}
+
+// Validate checks the patch_daemonset inputs.
+func (in PatchDaemonSetInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "DaemonSet" {
+		return fmt.Errorf("resource.kind must be 'DaemonSet' for patch_daemonset action")
+	}
+	if len(in.Patch) == 0 {
+		return fmt.Errorf("patch is required for patch_daemonset action")
+	}
+	return nil
+}
+
+// Validate checks the patch_statefulset inputs.
+func (in PatchStatefulSetInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "StatefulSet" {
+		return fmt.Errorf("resource.kind must be 'StatefulSet' for patch_statefulset action")
+	}
+	if len(in.Patch) == 0 {
+		return fmt.Errorf("patch is required for patch_statefulset action")
 	}
 	return nil
 }

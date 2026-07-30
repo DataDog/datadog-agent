@@ -29,6 +29,8 @@ func NewKubernetesKubeActions(ka kubeactions.Component) *KubernetesKubeActions {
 			kubeactions.ActionNameDeletePod:          NewDeletePodHandler(ka),
 			kubeactions.ActionNameRestartDeployment:  NewRestartDeploymentHandler(ka),
 			kubeactions.ActionNamePatchDeployment:    NewPatchDeploymentHandler(ka),
+			kubeactions.ActionNamePatchDaemonSet:     NewPatchDaemonSetHandler(ka),
+			kubeactions.ActionNamePatchStatefulSet:   NewPatchStatefulSetHandler(ka),
 			kubeactions.ActionNameRollbackDeployment: NewRollbackDeploymentHandler(ka),
 			kubeactions.ActionNameGetResource:        NewGetResourceHandler(ka),
 		},

@@ -14,6 +14,8 @@ const (
 	ActionNameDeletePod          = "deletePod"
 	ActionNameRestartDeployment  = "restartDeployment"
 	ActionNamePatchDeployment    = "patchDeployment"
+	ActionNamePatchDaemonSet     = "patchDaemonset"
+	ActionNamePatchStatefulSet   = "patchStatefulset"
 	ActionNameRollbackDeployment = "rollbackDeployment"
 	ActionNameGetResource        = "getResource"
 )
@@ -25,6 +27,8 @@ const (
 	ActionTypeDeletePod          = "delete_pod"
 	ActionTypeRestartDeployment  = "restart_deployment"
 	ActionTypePatchDeployment    = "patch_deployment"
+	ActionTypePatchDaemonSet     = "patch_daemonset"
+	ActionTypePatchStatefulSet   = "patch_statefulset"
 	ActionTypeRollbackDeployment = "rollback_deployment"
 	ActionTypeGetResource        = "get_resource"
 )
