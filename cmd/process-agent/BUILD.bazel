@@ -23,10 +23,6 @@ dd_agent_go_binary(
         "//conditions:default": [],
     }),
     embed = [":process-agent_lib"],
-    gotags = select({
-        "@platforms//os:macos": sorted((COMMON_TAGS | PROCESS_AGENT_TAGS) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
-        "@platforms//os:windows": sorted((COMMON_TAGS | PROCESS_AGENT_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
-        "//conditions:default": sorted(COMMON_TAGS | PROCESS_AGENT_TAGS),
-    }),
+    gotags = PROCESS_AGENT_TAGS,
     visibility = ["//visibility:public"],
 )
