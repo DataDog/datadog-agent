@@ -28,6 +28,7 @@ dd_agent_go_test(
     srcs = ["config_test.go"],
     embed = [":remote"],
     deps = [
+        "//comp/trace/compression/impl-zstd",
         "//pkg/proto/pbgo/core",
         "//pkg/trace/api",
         "//pkg/trace/config",
