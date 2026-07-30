@@ -206,21 +206,24 @@ var (
 		Stable:           true,
 	}
 
+	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
+	// and -nocap (instead of -nc)
+	// but windows has a limit of file path length, so we use shorter names
 	systemdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "systemd/oci", units: unitSet(stableDataOCI, expDataOCI, true, false)},
-		{subdir: "systemd/debrpm", units: unitSet(stableDataDebRpm, expDataDebRpm, true, false)},
-		{subdir: "systemd/oci-nocap", units: unitSet(stableDataOCI, expDataOCI, false, false)},
-		{subdir: "systemd/debrpm-nocap", units: unitSet(stableDataDebRpm, expDataDebRpm, false, false)},
+		{subdir: "sd/oci", units: unitSet(stableDataOCI, expDataOCI, true, false)},
+		{subdir: "sd/debrpm", units: unitSet(stableDataDebRpm, expDataDebRpm, true, false)},
+		{subdir: "sd/oci-nc", units: unitSet(stableDataOCI, expDataOCI, false, false)},
+		{subdir: "sd/debrpm-nc", units: unitSet(stableDataDebRpm, expDataDebRpm, false, false)},
 	}
 	procmgrEmbeddedLayouts = []embeddedLayout{
-		{subdir: "procmgr/oci", units: unitSet(stableDataOCI, expDataOCI, true, true)},
-		{subdir: "procmgr/debrpm", units: unitSet(stableDataDebRpm, expDataDebRpm, true, true)},
-		{subdir: "procmgr/oci-nocap", units: unitSet(stableDataOCI, expDataOCI, false, true)},
-		{subdir: "procmgr/debrpm-nocap", units: unitSet(stableDataDebRpm, expDataDebRpm, false, true)},
-		{subdir: "procmgr/oci", units: yamlSet(stableDataOCI, expDataOCI)},
-		{subdir: "procmgr/debrpm", units: yamlSet(stableDataDebRpm, expDataDebRpm)},
-		{subdir: "procmgr/oci-nocap", units: yamlSet(stableDataOCI, expDataOCI)},
-		{subdir: "procmgr/debrpm-nocap", units: yamlSet(stableDataDebRpm, expDataDebRpm)},
+		{subdir: "pm/oci", units: unitSet(stableDataOCI, expDataOCI, true, true)},
+		{subdir: "pm/debrpm", units: unitSet(stableDataDebRpm, expDataDebRpm, true, true)},
+		{subdir: "pm/oci-nc", units: unitSet(stableDataOCI, expDataOCI, false, true)},
+		{subdir: "pm/debrpm-nc", units: unitSet(stableDataDebRpm, expDataDebRpm, false, true)},
+		{subdir: "pm/oci", units: yamlSet(stableDataOCI, expDataOCI)},
+		{subdir: "pm/debrpm", units: yamlSet(stableDataDebRpm, expDataDebRpm)},
+		{subdir: "pm/oci-nc", units: yamlSet(stableDataOCI, expDataOCI)},
+		{subdir: "pm/debrpm-nc", units: yamlSet(stableDataDebRpm, expDataDebRpm)},
 	}
 	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},

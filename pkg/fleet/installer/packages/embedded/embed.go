@@ -28,13 +28,13 @@ var ScriptDDHostInstall []byte
 
 // systemdUnits holds the unit set for the systemd service manager
 //
-//go:embed tmpl/gen/systemd
+//go:embed tmpl/gen/sd
 var systemdUnits embed.FS
 
 // procmgrUnits holds the unit set for the procmgr service manager: the .service for systemd units
 // plus the .yaml processes.d entries it supervises.
 //
-//go:embed tmpl/gen/procmgr
+//go:embed tmpl/gen/pm
 var procmgrUnits embed.FS
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
@@ -67,17 +67,17 @@ const (
 
 // GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
 func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	return systemdUnits.ReadFile(filepath.Join("tmpl/gen/systemd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	return systemdUnits.ReadFile(filepath.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 }
 
 // GetProcmgrUnit returns the unit for the given name, for the procmgr service manager.
 func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/procmgr", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 }
 
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
 	if ambiantCapabilitiesSupported {
 		return string(unitType)
 	}
-	return string(unitType) + "-nocap"
+	return string(unitType) + "-nc"
 }
