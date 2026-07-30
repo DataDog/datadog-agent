@@ -15,6 +15,18 @@
 // point, admitting successive points until the doors would cross, at
 // which point the last inbounds point is issued as the segment's end and
 // a new segment begins from there.
+//
+// One deliberate deviation from the patent: a closed segment's end point is
+// the real, observed lastInBounds point (the patent's own "choose the last
+// inbounds point" alternative, Col. 9), not a computed point along the
+// crossing-out-point-plus-E/2 construction the patent uses by default
+// (Col. 9-10). That choice has a correctness consequence, which is why
+// Update's accept test compares a candidate's raw (un-widened) slope
+// against the accumulated door cone, rather than the patent's literal test
+// of comparing the candidate's own ±errorBound-widened SU(i)/SL(i) against
+// the running SU(MAX)/SL(MIN) — see the comment above that comparison in
+// Update for why the literal test is provably insufficient once the
+// segment end point is a real, un-adjusted point.
 package sdc
 
 import "math"
@@ -109,14 +121,36 @@ func (c *Compressor) Update(ts, value float64) []Point {
 
 	cand := doorSlopes(c.first, ts, value, errorBound)
 
-	// A candidate is only safe to fold into the current segment if its own
-	// real slope from the first point is already consistent with
-	// everything swallowed so far. A merely non-empty intersected cone is
-	// not enough: this point's own slope could sit outside the pre-update
-	// cone while still leaving the (further-narrowed) cone non-empty,
-	// which would let a later close silently misrepresent an earlier
-	// point beyond tolerance. See the package tests for a concrete
-	// counterexample.
+	// Why this compares cand.slope (raw, un-widened) rather than the
+	// patent's literal test of cand.upperDoorSlope/cand.lowerDoorSlope
+	// (SU(i)/SL(i)) against the running door bounds:
+	//
+	// The patent's literal test only proves that SOME slope within the
+	// surviving [upperDoorSlope, lowerDoorSlope] cone would keep every
+	// admitted point within errorBound — it doesn't constrain WHICH slope
+	// gets used for reconstruction. The patent's own default reconstruction
+	// (a computed crossing-out point, nudged by errorBound/2 toward the
+	// center line) is free to land anywhere in that cone, so the literal
+	// test is sufficient for it. This implementation instead ships the
+	// real, observed lastInBounds point as the segment end (the patent's
+	// own "choose the last inbounds point" alternative — faster, and it
+	// preserves an actual data point) — which means the reconstruction
+	// line's slope is fixed to be exactly lastInBounds's own raw slope
+	// from first, not a free choice from the cone.
+	//
+	// That makes the patent's literal test provably insufficient here: a
+	// candidate can have its ±errorBound-widened range merely graze the
+	// existing cone (technically keeping SU(MAX) <= SL(MIN)) while its own
+	// raw, un-widened slope already sits outside it. If that candidate is
+	// then accepted and later becomes lastInBounds, the straight line from
+	// first to it can misrepresent an earlier point by well over
+	// errorBound — see TestSwingDoorCandidateMustMatchItsOwnSlope for a
+	// concrete, worked counterexample (misses an intermediate point by 50%
+	// over tolerance). Requiring the candidate's raw slope to already lie
+	// in the pre-update cone is what actually guarantees that whichever
+	// point ends up shipped as lastInBounds has a slope from first
+	// consistent with every other point swallowed by the segment, at the
+	// full errorBound — not just with the two doors.
 	if cand.feasible && cand.slope >= c.upperDoorSlope && cand.slope <= c.lowerDoorSlope {
 		c.upperDoorSlope = math.Max(c.upperDoorSlope, cand.upperDoorSlope)
 		c.lowerDoorSlope = math.Min(c.lowerDoorSlope, cand.lowerDoorSlope)
