@@ -218,9 +218,11 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
 	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
 
-	// Cached from the settled resolution; returns immediately now, well
-	// under the resolveRetries*resolveRetryDelay budget of the first call.
+	// Cached from the settled resolution; returns immediately now, without
+	// re-running the resolution loop. Compared against the first call's own
+	// elapsed time (rather than a fixed threshold) to avoid flakiness under
+	// slow/loaded CI runners.
 	start = time.Now()
 	assert.Empty(t, s.ClusterID())
-	assert.Less(t, time.Since(start), 20*time.Millisecond, "a later call must return immediately from cache")
+	assert.Less(t, time.Since(start), elapsed/2, "a later call must return immediately from cache, not re-run resolution")
 }
