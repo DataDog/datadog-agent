@@ -7,6 +7,7 @@ package queryactionsimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"strings"
@@ -320,7 +321,7 @@ func (c *component) findSupportedIntegrationConfig(
 	queries []QuerySpec,
 ) (*integration.Config, map[string]any, int, error) {
 	if dbID.Host == "" {
-		return nil, nil, -1, fmt.Errorf("empty db_identifier.host")
+		return nil, nil, -1, errors.New("empty db_identifier.host")
 	}
 
 	cfgs := c.ac.GetUnresolvedConfigs()
