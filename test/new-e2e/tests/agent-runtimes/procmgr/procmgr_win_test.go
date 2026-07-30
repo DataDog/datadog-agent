@@ -147,7 +147,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 	e2e.Run(t, s, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),

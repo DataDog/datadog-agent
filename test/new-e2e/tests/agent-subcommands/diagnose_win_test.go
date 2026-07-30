@@ -29,7 +29,7 @@ func TestWindowsDiagnoseSuite(t *testing.T) {
 
 func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), ec2.WithAgentOptions(params))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()), ec2.WithAgentOptions(params))))
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
 	v.AssertOutputNotError(diagnose)

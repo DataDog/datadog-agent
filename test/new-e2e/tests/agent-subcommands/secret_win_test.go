@@ -27,7 +27,7 @@ type windowsSecretSuite struct {
 
 func TestWindowsSecretSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {

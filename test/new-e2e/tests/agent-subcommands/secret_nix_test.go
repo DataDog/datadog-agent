@@ -100,6 +100,7 @@ api_key: ENC[api_key]
 					agentparams.WithSkipAPIKeyInConfig(),
 					agentparams.WithAgentConfig(config),
 				),
+				scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 			),
 		),
 	)
