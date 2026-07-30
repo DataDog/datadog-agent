@@ -26,6 +26,7 @@ import (
 //   - [WithHostID]
 //   - [WithTenancy]
 //   - [WithVolumeThroughput]
+//   - [WithoutInternetAccess]
 //   - [WithPulumiResourceOptions]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -40,6 +41,7 @@ type vmArgs struct {
 	tenancy         string
 	hostID          string
 
+	withoutInternetAccess bool
 	httpTokensRequired    bool
 	volumeThroughput      int // GP3 volume throughput in MiB/s (125-1000, default 125)
 	pulumiResourceOptions []pulumi.ResourceOption
@@ -144,6 +146,29 @@ func WithPulumiResourceOptions(options ...pulumi.ResourceOption) VMOption {
 func WithVolumeThroughput(throughput int) VMOption {
 	return func(p *vmArgs) error {
 		p.volumeThroughput = throughput
+		return nil
+	}
+}
+
+// WithoutInternetAccess replaces the account's default security groups with the ones
+// configured to block internet access (see aws.Environment.NoInternetSecurityGroupNames).
+// These security groups must already exist and be configured accordingly, since AWS
+// security group rules are additive across all groups attached to an instance: attaching
+// a restrictive group in addition to the permissive defaults would not restrict anything.
+func WithoutInternetAccess() VMOption {
+	return func(p *vmArgs) error {
+		p.withoutInternetAccess = true
+		return nil
+	}
+}
+
+// WithInternetAccess explicitly opts the VM into internet access, overriding any
+// no-internet default set by the provisioner. Tests that need to reach external
+// hosts (e.g. to download packages, pull images, or contact external APIs) must
+// call this option explicitly.
+func WithInternetAccess() VMOption {
+	return func(p *vmArgs) error {
+		p.withoutInternetAccess = false
 		return nil
 	}
 }
