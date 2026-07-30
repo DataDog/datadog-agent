@@ -132,7 +132,7 @@ func unitSet(stableData, expData installerTemplateData, ambiantCapabilitiesSuppo
 		"datadog-agent-action-exp.service":     mustReadUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported, procmgr),
 
 		// Keep DDOT service unit event with procmgr for the deprecated datadog-agent-ddot package standalone (not managed by procmgr)
-		// Can be added only for procmgr=true once we remove the standalone package
+		// Can be added only for procmgr=false once we remove the standalone package
 		"datadog-agent-ddot.service":     mustReadUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported, procmgr),
 		"datadog-agent-ddot-exp.service": mustReadUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported, procmgr),
 	}
