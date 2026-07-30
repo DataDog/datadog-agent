@@ -54,7 +54,7 @@ func TestFromEnv(t *testing.T) {
 				Hostname:   "",
 				HTTPProxy:  "",
 				HTTPSProxy: "",
-				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				NoProxy:    "",
 			},
 		},
 		{
@@ -184,8 +184,7 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags:    []string{},
-				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				Tags: []string{},
 			},
 		},
 		{
@@ -215,16 +214,21 @@ func TestFromEnv(t *testing.T) {
 				DefaultPackagesVersionOverride: map[string]string{},
 				Tags:                           []string{},
 				Hostname:                       "",
-				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
+	}
+
+	// Some CI runners inject an egress-proxy sidecar that sets these (and their
+	// lowercase forms, which getProxySetting also falls back to) in the pod
+	// environment; clear them so the ambient environment can't leak into expectations.
+	for _, key := range []string{envHTTPProxy, envHTTPSProxy, envNoProxy, "http_proxy", "https_proxy", "no_proxy"} {
+		t.Setenv(key, "")
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
+				t.Setenv(key, value)
 			}
 			tt.expected.FIPSMode = pkgfips.BuiltForFIPS()
 			result := FromEnv()
