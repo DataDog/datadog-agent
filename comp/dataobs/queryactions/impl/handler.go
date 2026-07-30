@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -24,18 +25,12 @@ import (
 // the DO check config or remainder config that this component derives from it.
 
 // activeConfigEntry stores the scheduled DO check config alongside the base integration config it
-// was derived from and the host it targets, so reconcileBases can rebuild the set of integration
-// instances that should keep running independently of any single DO config.
+// was derived from and the exact instance ordinal it targets, so reconcileBases can rebuild the
+// set of integration instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
 	checkConfig   integration.Config
 	baseCfg       *integration.Config // the original matched integration config (full, all instances)
-	matchHost     string              // resolved instanceIdentity (host:port) of the matched instance
-	matchDatabase string              // database for Azure SQL Database, empty for other deployments
-}
-
-type instanceMatch struct {
-	identity string
-	database string
+	instanceIndex int                 // ordinal of the matched instance in baseCfg.Instances
 }
 
 // managedBaseEntry tracks a base integration config that has at least one instance targeted by a
@@ -138,7 +133,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findSupportedIntegrationConfig(&payload.DBIdentifier, payload.Queries)
+		baseCfg, instance, instanceIndex, err := c.findSupportedIntegrationConfig(&payload.DBIdentifier, payload.Queries)
 		if err != nil {
 			c.log.Warnf("No matching integration config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -162,13 +157,11 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		// Remove previous DO config version if this config_id was already active.
 		c.removeActiveConfig(configID, &changes)
 
-		matchDatabase, _ := azureSQLDatabase(instance)
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
 			checkConfig:   checkConfig,
 			baseCfg:       baseCfg,
-			matchHost:     instanceIdentity(instance),
-			matchDatabase: matchDatabase,
+			instanceIndex: instanceIndex,
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -237,17 +230,17 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	// Group the instances targeted by active DO configs per base config digest.
 	type baseGroup struct {
 		original  integration.Config
-		instances map[instanceMatch]bool
+		instances map[int]bool
 	}
 	desired := make(map[string]*baseGroup)
 	for _, entry := range c.activeConfigs {
 		digest := entry.baseCfg.Digest()
 		g := desired[digest]
 		if g == nil {
-			g = &baseGroup{original: *entry.baseCfg, instances: make(map[instanceMatch]bool)}
+			g = &baseGroup{original: *entry.baseCfg, instances: make(map[int]bool)}
 			desired[digest] = g
 		}
-		g.instances[instanceMatch{identity: entry.matchHost, database: entry.matchDatabase}] = true
+		g.instances[entry.instanceIndex] = true
 	}
 
 	// Newly-managed or changed bases.
@@ -292,17 +285,12 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 }
 
 // buildRemainder returns a copy of base containing only instances that are not DO-managed.
-// It matches the resolved host:port identity and, for Azure SQL Database, the database. Instances
-// whose YAML cannot be parsed are kept so they are never silently dropped.
-func buildRemainder(base *integration.Config, matchedInstances map[instanceMatch]bool) *integration.Config {
+// Matched ordinals refer directly to base.Instances, so instances with identical or otherwise
+// colliding connection fields remain distinct. Invalid ordinals do not remove any instance.
+func buildRemainder(base *integration.Config, matchedInstances map[int]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
-	for _, instanceData := range base.Instances {
-		var instance map[string]any
-		if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-			kept = append(kept, instanceData)
-			continue
-		}
-		if instanceTargeted(instance, matchedInstances) {
+	for instanceIndex, instanceData := range base.Instances {
+		if matchedInstances[instanceIndex] {
 			continue
 		}
 		kept = append(kept, instanceData)
@@ -315,14 +303,6 @@ func buildRemainder(base *integration.Config, matchedInstances map[instanceMatch
 	return &remainder
 }
 
-// instanceTargeted reports whether this is the exact instance a DO config resolved to. Host:port
-// identity keeps same-host, different-port instances distinct; the database additionally keeps
-// Azure SQL Database instances sharing a server identity distinct.
-func instanceTargeted(instance map[string]any, matchedInstances map[instanceMatch]bool) bool {
-	database, _ := azureSQLDatabase(instance)
-	return matchedInstances[instanceMatch{identity: instanceIdentity(instance), database: database}]
-}
-
 // sameConfig reports whether two optional configs are equivalent by autodiscovery digest.
 func sameConfig(a, b *integration.Config) bool {
 	if a == nil || b == nil {
@@ -332,22 +312,30 @@ func sameConfig(a, b *integration.Config) bool {
 }
 
 // findSupportedIntegrationConfig finds a supported DB integration config that matches the
-// given identifier and queries and has data_observability.enabled: true. Returns the matching
-// config and the already-parsed instance map to avoid re-parsing YAML in callers.
+// given identifier and queries and has data_observability.enabled: true. The identifier must
+// resolve to exactly one local instance. Returns the matching config, already-parsed instance,
+// and its ordinal in the base config to avoid lossy identity reconstruction during reconciliation.
 func (c *component) findSupportedIntegrationConfig(
 	dbID *DBIdentifier,
 	queries []QuerySpec,
-) (*integration.Config, map[string]any, error) {
+) (*integration.Config, map[string]any, int, error) {
+	if dbID.Host == "" {
+		return nil, nil, -1, fmt.Errorf("empty db_identifier.host")
+	}
+
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
+	var matchedConfig *integration.Config
+	var matchedInstance map[string]any
+	matchedInstanceIndex := -1
 	for cfgIdx := range cfgs {
-		cfg := cfgs[cfgIdx]
+		cfg := &cfgs[cfgIdx]
 		if !isSupportedIntegration(cfg.Name) {
 			continue
 		}
 
-		for _, instanceData := range cfg.Instances {
+		for instanceIndex, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
 				c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
@@ -356,24 +344,33 @@ func (c *component) findSupportedIntegrationConfig(
 			}
 
 			if matchesIdentifier(instance, dbID, queries) && instanceHasDOEnabled(instance) {
-				return &cfg, instance, nil
+				if matchedConfig != nil {
+					return nil, nil, -1, fmt.Errorf("ambiguous integration instance match for identifier: type=%s, host=%s",
+						dbID.Type, dbID.Host)
+				}
+				matchedConfig = cfg
+				matchedInstance = instance
+				matchedInstanceIndex = instanceIndex
 			}
 		}
+	}
+	if matchedConfig != nil {
+		return matchedConfig, matchedInstance, matchedInstanceIndex, nil
 	}
 
 	if lastParseErr != nil {
 		// Surface the parse error so operators debug the integration config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
+		return nil, nil, -1, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
 			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s",
+	return nil, nil, -1, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier and queries.
 // Most deployments match by host. SAP HANA also supports a server and port identifier.
 // Azure SQL Database must match both host and every query database because databases share a
-// server host.
+// server host. SQL Server database names use case-insensitive backend grouping semantics.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier, queries []QuerySpec) bool {
 	if !instanceMatchesHost(instance, dbID.Host) {
 		return false
@@ -386,7 +383,7 @@ func matchesIdentifier(instance map[string]any, dbID *DBIdentifier, queries []Qu
 		return false
 	}
 	for _, query := range queries {
-		if query.DBName != database {
+		if !strings.EqualFold(query.DBName, database) {
 			return false
 		}
 	}
@@ -396,10 +393,12 @@ func matchesIdentifier(instance map[string]any, dbID *DBIdentifier, queries []Qu
 // instanceMatchesHost reports whether an integration instance targets the given host.
 // sap_hana uses "server" as the host key; postgres uses "host". The target host may be
 // "host:port" (as sent by sap_hana backends) or bare "host", so we match against both the
-// bare host and the "host:port" form built from the instance. Remainder matching uses the exact
-// resolved instanceIdentity instead, so a bare target cannot remove a same-host sibling on a
-// different port.
+// bare host and the "host:port" form built from the instance. Remainder reconciliation stores the
+// matched base-config ordinal rather than reconstructing identity from these connection fields.
 func instanceMatchesHost(instance map[string]any, targetHost string) bool {
+	if targetHost == "" {
+		return false
+	}
 	host := instanceHost(instance)
 	// Try the more specific "host:port" form first — sap_hana backends include the port in the
 	// identifier, and this form disambiguates instances that share a host but differ by port.
@@ -422,17 +421,6 @@ func instancePort(instance map[string]any) (int, bool) {
 		return int(v), true
 	}
 	return 0, false
-}
-
-// instanceIdentity returns a canonical "host:port" identity for an instance, falling back to the
-// bare host when no port is present. Unlike matching against a possibly-bare payload host, this
-// always disambiguates instances that share a host but differ by port.
-func instanceIdentity(instance map[string]any) string {
-	host := instanceHost(instance)
-	if port, ok := instancePort(instance); ok {
-		return fmt.Sprintf("%s:%d", host, port)
-	}
-	return host
 }
 
 // buildCheckConfig creates a check config with data_observability queries injected.

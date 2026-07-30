@@ -209,15 +209,17 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 // are discarded because the latest RC snapshot is authoritative. This prevents stale
 // Schedule entries from resurrecting configs that the new snapshot intentionally removed.
 func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
-	// Two separate postgres instances so each RC config can match a distinct one.
-	postgresCfg := integration.Config{
-		Name: "postgres",
-		Instances: []integration.Data{
-			integration.Data("host: localhost\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
-			integration.Data("host: localhost\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
-		},
+	// Two separate postgres base configs so each RC config can match a distinct one without
+	// exercising bundled-instance remainder behavior in this channel-focused test.
+	postgresCfgA := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: db-a\ndata_observability:\n  enabled: true\n")},
 	}
-	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
+	postgresCfgB := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("host: otherhost\ndbname: db-b\ndata_observability:\n  enabled: true\n")},
+	}
+	c, rc := newStreamComponent(t, []integration.Config{postgresCfgA, postgresCfgB})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -244,7 +246,7 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	// sendChanges must drain the full channel and merge update 2's Unschedule into update 3.
 	// Only Unschedule from the dropped update is preserved; dropped Schedule (base config
 	// restoration) is discarded since the new snapshot is authoritative.
-	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", singleQuery)
+	payload3 := buildPayloadJSON(t, "cfg-B", "otherhost", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
 	select {

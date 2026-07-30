@@ -5,18 +5,19 @@
 
 package queryactionsimpl
 
-// DOQueryPayload represents the RC config payload for a database cluster.
-// Each config groups all active monitor queries for a single host, with per-query dbname routing.
+// DOQueryPayload represents the RC config payload for a database integration instance.
+// QuerySpec.DBName is authoritative for execution routing and also selects the local Azure SQL
+// Database instance when several databases share a server hostname.
 type DOQueryPayload struct {
 	ConfigID     string       `json:"config_id"`
 	DBIdentifier DBIdentifier `json:"db_identifier"`
 	Queries      []QuerySpec  `json:"queries"`
 }
 
-// DBIdentifier identifies a database cluster to target.
-// Type describes the hosting kind, such as "self-hosted", "rds" or "azure". Instance matching
-// normally uses the host; Azure SQL Database additionally uses the queries' DBName fields
-// because multiple databases share the same server hostname.
+// DBIdentifier identifies the integration host to target.
+// Host participates in local instance matching. Type describes the producer's hosting kind and is
+// informational. Azure SQL Database additionally matches the queries' DBName fields against the
+// top-level integration database because several databases can share a server hostname.
 type DBIdentifier struct {
 	Type          string `json:"type"`
 	Host          string `json:"host"`
