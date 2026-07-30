@@ -4,6 +4,7 @@
 #include "constants/custom.h"
 #include "constants/offsets/filesystem.h"
 #include "helpers/process.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/utils.h"
 #include "hooks/dentry_resolver.h"
@@ -173,16 +174,17 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     if (!inputs)
         return 0;
 
-    struct cgroup_write_event_t event = {
-        .path_key = inputs->original_key,
-        .pid = inputs->cgroup_write_ctx.cgroup_write_pid,
-    };
+    struct cgroup_write_event_t *event = SPAN_FILL_EVENT(struct cgroup_write_event_t, EVENT_CGROUP_WRITE);
+    if (!event) {
+        return 0;
+    }
+    event->path_key = inputs->original_key;
+    event->pid = inputs->cgroup_write_ctx.cgroup_write_pid;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_CGROUP_WRITE, event);
+    bpf_tail_call_compat(ctx, &span_fill_progs, 0);
 
     return 0;
 }

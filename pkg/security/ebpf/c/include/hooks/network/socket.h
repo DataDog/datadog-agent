@@ -3,6 +3,7 @@
 
 #include "constants/offsets/network.h"
 #include "helpers/iouring.h"
+#include "helpers/span_fill.h"
 
 static long __attribute__((always_inline)) trace__sys_socket(void *ctx, u16 domain, u16 type, u16 protocol, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
@@ -27,7 +28,7 @@ static long __attribute__((always_inline)) trace__sys_socket(void *ctx, u16 doma
     return 0;
 }
 
-static int __attribute__((always_inline)) sys_socket_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_socket_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SOCKET);
     if (!syscall) {
         return 0;
@@ -41,25 +42,30 @@ static int __attribute__((always_inline)) sys_socket_ret(void *ctx, int retval) 
         return 0;
     }
 
-    struct socket_event_t event = {
-        .syscall.retval = retval,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .domain = syscall->socket.domain,
-        .type = syscall->socket.type,
-        .protocol = syscall->socket.protocol,
-    };
+    struct socket_event_t *event = SPAN_FILL_EVENT(struct socket_event_t, EVENT_SOCKET);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->domain = syscall->socket.domain;
+    event->type = syscall->socket.type;
+    event->protocol = syscall->socket.protocol;
 
     struct proc_cache_t *entry;
     if (syscall->socket.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->socket.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event->process, syscall->socket.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event->process);
     }
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_SOCKET, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+static int __attribute__((always_inline)) sys_socket_ret(void *ctx, int retval) {
+    return sys_socket_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_ENTRY3(socket, int, domain, int, type, int, protocol) {
@@ -96,7 +102,7 @@ int rethook_io_socket(ctx_t *ctx) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_socket_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_socket_ret(args, args->ret);
+    return sys_socket_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 SEC("cgroup/sock_create")

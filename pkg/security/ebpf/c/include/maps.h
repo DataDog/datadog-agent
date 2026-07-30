@@ -139,15 +139,11 @@ BPF_PERCPU_ARRAY_MAP(network_flow_monitor_event_gen, struct network_flow_monitor
 BPF_PERCPU_ARRAY_MAP(active_flows_gen, struct active_flows_t, 1)
 BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
-// Per-CPU scratch slots for events whose on-stack form is too large to leave
-// any room for a bpf-to-bpf call from the hook (pre-6.17 verifier enforces
-// combined bpf-to-bpf stack ≤ 512 bytes; fill_span_context_go is the call
-// that runs into this).
-BPF_PERCPU_ARRAY_MAP(setxattr_event_gen, struct setxattr_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(init_module_event_gen, struct init_module_event_t, 1)
+// Per-CPU scratch slot for the syscall monitor event: it carries a 64-byte
+// syscall encoding table plus process/cgroup/span context, too large to leave
+// room for the fill_span_context call if kept on the stack.
 BPF_PERCPU_ARRAY_MAP(sc_monitor_event, struct syscall_monitor_event_t, 1)
 // Per-CPU scratch slot for the proc_cache_t aggregator built by send_exec_event
 // before it is committed to the proc_cache map. Keeping it off the stack lets
@@ -155,6 +151,12 @@ BPF_PERCPU_ARRAY_MAP(sc_monitor_event, struct syscall_monitor_event_t, 1)
 // send_exec_event) fit within the 512-byte combined budget alongside
 // fill_span_context_go.
 BPF_PERCPU_ARRAY_MAP(exec_proc_cache_gen, struct proc_cache_t, 1)
+// Shared per-CPU staging slot for the deferred span-context fill + send: a
+// group A/B hook builds its event into span_fill_event->data, then tail-calls
+// span_fill_progs (fill_span_and_send) to attach the span context and emit it.
+// Shared across all such event types and (maps are global) across program
+// types, so the tracepoint-typed twin reuses it. See helpers/span_fill.h.
+BPF_PERCPU_ARRAY_MAP(span_fill_event, struct span_fill_slot_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
@@ -169,6 +171,21 @@ BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
 BPF_PROG_ARRAY(cache_syscall_progs, 1)
+// Targets for the deferred span-context fill + send. bpf_tail_call requires the
+// target program type to match the caller's, so kprobe/fentry callers use
+// span_fill_progs and tracepoint callers (handle_sys_*_exit) use the
+// tracepoint-typed twin span_fill_tp_progs. span_fill_tail_call() (helpers/
+// span_fill.h) selects the right one from a TAIL_CALL_PROG_TYPE.
+//
+// Index 0 is the generic program (shared span_fill_event slot); index 1 is the
+// setsockopt-specific program, which reads the dedicated setsockopt_event map
+// (its 4KB filter buffer must persist across hooks, so it can't use the shared
+// slot); index 2 is the exit-specific program (generic fill+send plus the
+// post-emit unregister_go_labels teardown). See the SPAN_FILL_KEY_* enum in
+// helpers/span_fill.h. The tracepoint twin only needs indices 0/1 (exit is
+// kprobe/fentry-only).
+BPF_PROG_ARRAY(span_fill_progs, 3)
+BPF_PROG_ARRAY(span_fill_tp_progs, 2)
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)

@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 HOOK_ENTRY("vm_mmap_pgoff")
@@ -61,7 +62,7 @@ int hook___get_unmapped_area(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
+int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 addr, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
@@ -80,25 +81,30 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         retval = 0;
     }
 
-    struct mmap_event_t event = {
-        .syscall.retval = retval,
-        .file = syscall->mmap.file,
-        .addr = addr,
-        .offset = syscall->mmap.offset,
-        .len = syscall->mmap.len,
-        .protection = syscall->mmap.protection,
-        .flags = syscall->mmap.flags,
-    };
+    struct mmap_event_t *event = SPAN_FILL_EVENT(struct mmap_event_t, EVENT_MMAP);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->file = syscall->mmap.file;
+    event->addr = addr;
+    event->offset = syscall->mmap.offset;
+    event->len = syscall->mmap.len;
+    event->protection = syscall->mmap.protection;
+    event->flags = syscall->mmap.flags;
 
     if (syscall->mmap.dentry != NULL) {
-        fill_file(syscall->mmap.dentry, &event.file);
+        fill_file(syscall->mmap.dentry, &event->file);
     }
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_MMAP, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
+    return sys_mmap_ret_impl(ctx, retval, addr, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_EXIT("vm_mmap_pgoff")
@@ -135,7 +141,7 @@ int hook_security_mmap_file(ctx_t *ctx) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_mmap_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
+    return sys_mmap_ret_impl(args, (int)args->ret, (u64)args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

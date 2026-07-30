@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
@@ -41,7 +42,7 @@ HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char *, filename, umode_t, mode
     return trace__sys_chmod(ctx, filename, mode);
 }
 
-int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) sys_chmod_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
     if (!syscall) {
         return 0;
@@ -53,22 +54,27 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
 
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
-    struct chmod_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .file = syscall->setattr.file,
-        .mode = syscall->setattr.mode,
-    };
+    struct chmod_event_t *event = SPAN_FILL_EVENT(struct chmod_event_t, EVENT_CHMOD);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->file = syscall->setattr.file;
+    event->mode = syscall->setattr.mode;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, EVENT_CHMOD, event);
+    span_fill_tail_call(ctx, prog_type);
 
     return 0;
+}
+
+int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
+    return sys_chmod_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(chmod) {
@@ -92,7 +98,7 @@ HOOK_SYSCALL_EXIT(fchmodat2) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_chmod_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_chmod_ret(args, args->ret);
+    return sys_chmod_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

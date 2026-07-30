@@ -1,6 +1,8 @@
 #ifndef _HOOKS_ON_DEMAND_H_
 #define _HOOKS_ON_DEMAND_H_
 
+#include "helpers/span_fill.h"
+
 enum param_kind_t {
 	PARAM_NO_ACTION,
 	PARAM_KIND_INTEGER,
@@ -44,25 +46,21 @@ enum param_kind_t {
 #define HOOK_ON_DEMAND HOOK_ENTRY("parse_args")
 
 struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
-	u32 key = 0;
-	struct on_demand_event_t* evt = bpf_map_lookup_elem(&on_demand_event_gen, &key);
+	// The event is staged in the shared span_fill slot (built and emitted within
+	// this same program, so no cross-hook persistence is needed). SPAN_FILL_EVENT
+	// zeroes it; the span context is attached later by the tail-called
+	// fill_span_and_send program.
+	struct on_demand_event_t* evt = SPAN_FILL_EVENT(struct on_demand_event_t, EVENT_ON_DEMAND);
 	if (!evt) {
 		return NULL;
 	}
 
 	u64 synth_id;
     LOAD_CONSTANT("synth_id", synth_id);
-
-	// make sure the event is clean
 	evt->synth_id = synth_id;
-	for (int i = 0; i < 6; i++) {
-		u64 *ptr = (u64 *)(&evt->data[i * ON_DEMAND_PER_ARG_SIZE]);
-		*ptr = 0;
-	}
 
 	struct proc_cache_t *entry = fill_process_context(&evt->process);
     fill_cgroup_context(entry, &evt->cgroup);
-    fill_span_context(&evt->span, &evt->go_labels);
 
 	return evt;
 }
@@ -83,7 +81,7 @@ int hook_on_demand(ctx_t *ctx) {
 	param_parsing_regular(5);
 	param_parsing_regular(6);
 
-	send_event_ptr(ctx, EVENT_ON_DEMAND, event);
+	span_fill_tail_call(ctx, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
@@ -106,7 +104,7 @@ int hook_on_demand_syscall(ctx_t *ptctx) {
 	param_parsing_syscall(5);
 	param_parsing_syscall(6);
 
-	send_event_ptr(ptctx, EVENT_ON_DEMAND, event);
+	span_fill_tail_call(ptctx, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
