@@ -10,6 +10,7 @@ go_library(
         "scheduler.go",
         "scheduler_metriclookback.go",
         "scheduler_metriclookback_nopython.go",
+        "scheduler_sdc_interval.go",
         "stats.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector",

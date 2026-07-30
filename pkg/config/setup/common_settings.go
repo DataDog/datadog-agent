@@ -46,27 +46,29 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Check names that should have their metrics streaming-compressed via
 	// Swinging Door Trending/Compression (SDC). Experimental; see
-	// pkg/aggregator/sender/sdcsender.
+	// pkg/aggregator/sender/sdcsender. Ignored when checks.sdc_compression_all
+	// is true.
 	config.BindEnvAndSetDefault("checks.sdc_compression_checks", []string{})
 	// A plain string-slice env var binding does not comma-split its value
 	// (it falls back to whitespace-splitting only), so
 	// DD_CHECKS_SDC_COMPRESSION_CHECKS=foo,bar would otherwise become a
 	// single-element ["foo,bar"] instead of ["foo","bar"].
 	config.ParseEnvSplitComma("checks.sdc_compression_checks")
+	// When true, every check gets SDC-compressed metrics, regardless of
+	// checks.sdc_compression_checks.
+	config.BindEnvAndSetDefault("checks.sdc_compression_all", false)
 	// When true, SDC-compressed checks still run every sample through the
 	// compressor for measurement (see the sdcsender_samples_total /
 	// sdcsender_breakpoints_total telemetry), but ship their original,
 	// uncompressed data — nothing the compressor produces is actually sent.
 	config.BindEnvAndSetDefault("checks.sdc_compression_dry_run", false)
-	// When non-empty, SDC-compressed checks ship BOTH their original,
-	// uncompressed data (like dry-run) AND the compressor's breakpoints —
-	// the latter under hostname+this suffix, so the two series can be
-	// graphed side by side (e.g. `by {host}`) to visually compare
-	// compression fidelity. Doubles shipped metric volume for compressed
-	// checks; intended for short, deliberate comparison windows, not left
-	// on indefinitely. Takes precedence over checks.sdc_compression_dry_run
-	// when non-empty.
-	config.BindEnvAndSetDefault("checks.sdc_compression_shadow_host_suffix", "")
+	// When set to a positive number of seconds, overrides the scheduling
+	// cadence of every SDC-compressed check (per
+	// checks.sdc_compression_all/checks.sdc_compression_checks), taking
+	// precedence over each check's own min_collection_interval — mirrors
+	// gpu.collection_interval_override, generalized to any SDC-compressed
+	// check instead of just the gpu check.
+	config.BindEnvAndSetDefault("checks.sdc_compression_interval_override", 0)
 	// SDC compressor tuning (see pkg/aggregator/internal/sdc.Config): the
 	// shipped tolerance is max(sdc_compression_epsilon*scale,
 	// sdc_compression_floor), where scale is an EWMA (smoothing factor
