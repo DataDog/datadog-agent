@@ -1380,7 +1380,7 @@ properties:
       batch_size_threshold_bytes:
         node_type: setting
         type: integer
-        default: 4000000
+        default: 1000000
         env_vars:
         - DD_APM_TELEMETRY_BATCH_SIZE_THRESHOLD_BYTES
       dd_url:
@@ -1398,7 +1398,7 @@ properties:
       max_inflight_memory:
         node_type: setting
         type: integer
-        default: 20000000
+        default: 5000000
         env_vars:
         - DD_APM_TELEMETRY_MAX_INFLIGHT_MEMORY
   trace_writer:
