@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "builder",
@@ -42,14 +43,17 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "builder_test",
     srcs = [
         "workloadmeta_conversion_test.go",
         "workloadmeta_pods_test.go",
     ],
     embed = [":builder"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "//comp/core",
         "//comp/core/workloadmeta/def",

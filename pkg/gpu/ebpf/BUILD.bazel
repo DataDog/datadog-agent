@@ -3,7 +3,6 @@ load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
-# gazelle:dd_agent_go_test on
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 # gazelle:go_stringer_src kprobe_types_string_linux.go=kprobe_types_linux.go
 

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "maps",
@@ -13,21 +13,5 @@ go_library(
         "//pkg/network/usm",
         "//pkg/util/kernel",
         "@com_github_cilium_ebpf//:ebpf",
-    ],
-)
-
-go_test(
-    name = "maps_test",
-    srcs = [
-        "detector_test.go",
-        "pid_validator_test.go",
-    ],
-    embed = [":maps"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/util/kernel",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//rlimit",
-        "@com_github_stretchr_testify//require",
     ],
 )

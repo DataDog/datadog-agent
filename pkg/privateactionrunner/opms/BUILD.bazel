@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "opms",
@@ -28,11 +29,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "opms_test",
     srcs = ["opms_test.go"],
     embed = [":opms"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",

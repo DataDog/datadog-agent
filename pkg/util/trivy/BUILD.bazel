@@ -1,12 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 # This library requires the go tag "trivy" to have any impact, and
 # trivy is only used in linux builds. But we still do not want to mark
 # it as linux only because the top level binaries depend on this and
 # expect go tag inclusion to save them.
+
 go_library(
     name = "trivy",
     srcs = [

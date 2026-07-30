@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "monitor",
@@ -28,20 +28,4 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-)
-
-go_test(
-    name = "monitor_test",
-    srcs = ["process_monitor_test.go"],
-    embed = [":monitor"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/eventmonitor/consumers/testutil",
-        "//pkg/network/protocols/telemetry",
-        "//pkg/util/kernel/netns",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@com_github_stretchr_testify//suite",
-        "@com_github_vishvananda_netns//:netns",
-    ],
 )

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "redact",
@@ -17,7 +18,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "redact_test",
     srcs = [
         "cr_test.go",
@@ -25,7 +26,6 @@ go_test(
         "pod_test.go",
     ],
     embed = [":redact"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
