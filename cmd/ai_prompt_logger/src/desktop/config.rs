@@ -49,7 +49,7 @@ impl Default for DesktopMonitoringConfig {
 }
 
 fn default_desktop_monitoring_enabled() -> bool {
-    true
+    false
 }
 
 fn default_desktop_monitoring_poll_interval_seconds() -> u64 {
@@ -676,7 +676,7 @@ desktop_monitoring:
         let cfg = load_desktop_monitoring_config(Some(path.clone()), || None);
         let _ = std::fs::remove_file(path);
 
-        assert!(cfg.enabled);
+        assert!(!cfg.enabled);
         assert_eq!(cfg.debug, 0);
         assert_eq!(cfg.poll_interval_seconds, 60);
         assert!(
@@ -717,7 +717,7 @@ desktop_monitoring:
         let fallback_cfg = load_desktop_monitoring_config(Some(path.clone()), || None);
         let _ = std::fs::remove_file(path);
 
-        assert!(fallback_cfg.enabled);
+        assert!(!fallback_cfg.enabled);
         assert_eq!(fallback_cfg.debug, 2);
         assert_eq!(fallback_cfg.poll_interval_seconds, 7);
     }
