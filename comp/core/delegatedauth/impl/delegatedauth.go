@@ -142,8 +142,18 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 	var resolvedProvider string
 	var disabledReason string
 
-	// If provider config is explicitly specified, use it
-	if params.ProviderConfig != nil {
+	// Some flavors (IoT, Heroku) are built without the AWS credential providers because they cannot
+	// encounter AWS workload identity. Check that before detecting rather than after: detection is
+	// compiled unconditionally and would happily report EC2 IMDS, enabling the component so that
+	// every subsequent refresh fails with an error the operator has no way to act on. Recording it
+	// as a disable reason instead keeps the status page honest and the logs quiet.
+	if !aws.Supported {
+		disabledReason = "this Agent flavor is not built with AWS Cloud Auth support"
+		log.Warnf("Delegated authentication is configured but this Agent flavor is not built with " +
+			"AWS Cloud Auth support, so it will stay disabled and the Agent will keep using its " +
+			"statically configured API key.")
+	} else if params.ProviderConfig != nil {
+		// If provider config is explicitly specified, use it
 		detectedConfig = params.ProviderConfig
 		resolvedProvider = params.ProviderConfig.ProviderName()
 		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", resolvedProvider)
