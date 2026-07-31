@@ -99,6 +99,9 @@ rewrite_rpath(
     name = "par-control_linux",
     inputs = [":par-control"],
     target_compatible_with = ["@platforms//os:linux"],
+    # Absolute rpaths on Linux, matching the //conditions:default branch of the
+    # select() in dd_cc_packaged.bzl (relative rpaths are a macOS-only need).
+    use_relative_rpaths = False,
 )
 
 # Packaging: install par-control into the agent distribution (see
