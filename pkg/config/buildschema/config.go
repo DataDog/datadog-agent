@@ -223,6 +223,11 @@ func (b *builder) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, 
 	return nil, 0
 }
 
+func (b *builder) GetHash() string {
+	b.notImplemented()
+	return ""
+}
+
 func (b *builder) SetTestOnlyDynamicSchema(_ bool) {
 	b.notImplemented()
 }

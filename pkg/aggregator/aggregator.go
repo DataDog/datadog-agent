@@ -39,6 +39,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// configHasher is a narrow view of comp/core/config.Component's GetHash method,
+// used to tag agent telemetry metrics with a fingerprint of the effective
+// configuration without coupling pkg/aggregator to the full config component.
+type configHasher interface {
+	GetHash() string
+}
+
 const (
 	// DefaultFlushInterval aggregator default flush interval
 	DefaultFlushInterval = 15 * time.Second // flush interval
@@ -265,6 +272,7 @@ type BufferedAggregator struct {
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
 	configID               string
+	configHash             configHasher
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -531,6 +539,13 @@ func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
 	agg.observerHandle = h
 }
 
+// SetConfigHash wires a config content-hash provider into the aggregator, used
+// to tag agent telemetry metrics with a fingerprint of the effective
+// configuration (see configHashTags). The call is a no-op when h is nil.
+func (agg *BufferedAggregator) SetConfigHash(h configHasher) {
+	agg.configHash = h
+}
+
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
@@ -634,7 +649,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice(slices.Concat(agg.tags(true), agg.configIDTags())),
+		Tags:           tagset.CompositeTagsFromSlice(slices.Concat(agg.tags(true), agg.configIDTags(), agg.configHashTags())),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -643,6 +658,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	if agg.haAgent.Enabled() {
 		haAgentTags := slices.Concat(agg.tags(false),
 			agg.configIDTags(),
+			agg.configHashTags(),
 			[]string{"ha_agent_state:" + string(agg.haAgent.GetState())},
 		)
 		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
@@ -931,6 +947,20 @@ func (agg *BufferedAggregator) configIDTags() []string {
 		tag = append(tag, "config_id:"+agg.configID)
 	}
 	return tag
+}
+
+// configHashTags returns the config_hash tag for agent telemetry metrics.
+// Unlike configID, the hash is read live on every call (it's cheap and
+// cached by the config component) so it reflects config changes applied
+// after startup, including ones pushed by Remote Config.
+func (agg *BufferedAggregator) configHashTags() []string {
+	if agg.configHash == nil {
+		return nil
+	}
+	if hash := agg.configHash.GetHash(); hash != "" {
+		return []string{"config_hash:" + hash}
+	}
+	return nil
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {

@@ -32,11 +32,6 @@ type Component interface {
 
 	// StartTime returns the time at which the agent process started.
 	StartTime() time.Time
-
-	// GetHash returns a fingerprint of the current effective configuration.
-	// The result is cached and only recomputed when the configuration
-	// changes, including changes pushed by Remote Config.
-	GetHash() string
 }
 
 // Module defines the fx options for this component.

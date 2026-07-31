@@ -7,9 +7,11 @@
 package nodetreemodel
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"maps"
 	"os"
@@ -107,6 +109,11 @@ type ntmConfig struct {
 
 	notificationReceivers []model.NotificationReceiver
 	sequenceID            uint64
+
+	// hash caches the result of GetHash, keyed on the sequenceID it was computed at
+	hashComputed bool
+	hashSeq      uint64
+	cachedHash   string
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -1094,6 +1101,33 @@ func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}
 		settings[key] = c.getNodeValue(key)
 	}
 	return settings, c.sequenceID
+}
+
+// GetHash returns a fingerprint of the effective configuration content. The
+// result is cached and keyed on the sequence ID, so it is only recomputed
+// when the config has actually changed since the last call (from any source,
+// including Remote Config).
+func (c *ntmConfig) GetHash() string {
+	settings, seq := c.AllFlattenedSettingsWithSequenceID()
+
+	c.Lock()
+	defer c.Unlock()
+	if c.hashComputed && c.hashSeq == seq {
+		return c.cachedHash
+	}
+
+	// encoding/json sorts map keys, so this serialization is deterministic.
+	b, err := json.Marshal(settings)
+	if err != nil {
+		return ""
+	}
+	h := fnv.New64a()
+	h.Write(b) //nolint:errcheck
+
+	c.cachedHash = hex.EncodeToString(h.Sum(nil))
+	c.hashSeq = seq
+	c.hashComputed = true
+	return c.cachedHash
 }
 
 // AddConfigPath adds another config for the given path

@@ -96,6 +96,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 		hostnameDetected,
 	)
 	agentDemultiplexer.SetObserver(deps.Observer)
+	agentDemultiplexer.Aggregator().SetConfigHash(deps.Config)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
