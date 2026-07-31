@@ -47,81 +47,6 @@ import (
 */
 import "C"
 
-var (
-	telemetryMap  = map[string]any{}
-	telemetryLock = sync.Mutex{}
-)
-
-func lazyInitTelemetryHistogram(checkName string, metricName string, labelNames []string) telemetry.Histogram {
-	key := checkName + "." + metricName
-	telemetryLock.Lock()
-	defer telemetryLock.Unlock()
-
-	histogram, ok := telemetryMap[key]
-	if !ok {
-		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
-			checkName,
-			metricName,
-			labelNames,
-			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
-			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
-			telemetry.DefaultOptions,
-		)
-		telemetryMap[key] = histogram
-	}
-	if histogram, ok := histogram.(telemetry.Histogram); ok {
-		return histogram
-	}
-	log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when histogram was expected", metricName, checkName, histogram)
-	return nil
-}
-
-func lazyInitTelemetryCounter(checkName string, metricName string, labelNames []string) telemetry.Counter {
-	key := checkName + "." + metricName
-	telemetryLock.Lock()
-	defer telemetryLock.Unlock()
-
-	counter, ok := telemetryMap[key]
-	if !ok {
-		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-			checkName,
-			metricName,
-			labelNames,
-			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
-			telemetry.DefaultOptions,
-		)
-		telemetryMap[key] = counter
-	}
-	if counter, ok := counter.(telemetry.Counter); ok {
-		return counter
-	}
-	log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when counter was expected", metricName, checkName, counter)
-	return nil
-}
-
-func lazyInitTelemetryGauge(checkName string, metricName string, labelNames []string) telemetry.Gauge {
-	key := checkName + "." + metricName
-	telemetryLock.Lock()
-	defer telemetryLock.Unlock()
-
-	gauge, ok := telemetryMap[key]
-	if !ok {
-		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-			checkName,
-			metricName,
-			labelNames,
-			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
-			telemetry.DefaultOptions,
-		)
-		telemetryMap[key] = gauge
-	}
-	if gauge, ok := gauge.(telemetry.Gauge); ok {
-		return gauge
-	}
-	log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when gauge was expected", metricName, checkName, gauge)
-	return nil
-}
-
 // GetVersion exposes the version of the agent to Python checks.
 //
 //export GetVersion
@@ -634,6 +559,90 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedMongoDBString)
+}
+
+var (
+	telemetryMap  = map[string]any{}
+	telemetryLock = sync.Mutex{}
+)
+
+func lazyInitTelemetryHistogram(checkName string, metricName string, labelNames []string) telemetry.Histogram {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	histogram, ok := telemetryMap[key]
+	if !ok {
+		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+			checkName,
+			metricName,
+			labelNames,
+			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
+			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = histogram
+	}
+	switch t := histogram.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when histogram was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Histogram:
+		return t
+	}
+}
+
+func lazyInitTelemetryCounter(checkName string, metricName string, labelNames []string) telemetry.Counter {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	counter, ok := telemetryMap[key]
+	if !ok {
+		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+			checkName,
+			metricName,
+			labelNames,
+			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = counter
+	}
+	switch t := counter.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when counter was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Counter:
+		return t
+	}
+}
+
+func lazyInitTelemetryGauge(checkName string, metricName string, labelNames []string) telemetry.Gauge {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	gauge, ok := telemetryMap[key]
+	if !ok {
+		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+			checkName,
+			metricName,
+			labelNames,
+			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = gauge
+	}
+	switch t := gauge.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when gauge was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Gauge:
+		return t
+	}
 }
 
 // EmitAgentTelemetry records a telemetry data point for a Python integration.
