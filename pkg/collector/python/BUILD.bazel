@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "python",
     srcs = [
+        "agent_telemetry.go",
         "check.go",
         "containers.go",
         "datadog_agent.go",
