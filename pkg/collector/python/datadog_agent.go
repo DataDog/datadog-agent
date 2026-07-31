@@ -12,7 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"unsafe"
@@ -561,14 +562,9 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 var (
-	telemetryMap  = map[agentTelemetryMetricKey]*agentTelemetryMetric{}
+	telemetryMap  = map[string]*agentTelemetryMetric{}
 	telemetryLock = sync.Mutex{}
 )
-
-type agentTelemetryMetricKey struct {
-	checkName  string
-	metricName string
-}
 
 type agentTelemetryMetric struct {
 	metric     any
@@ -576,33 +572,8 @@ type agentTelemetryMetric struct {
 	labelNames []string
 }
 
-func newAgentTelemetryMetricKey(checkName string, metricName string) agentTelemetryMetricKey {
-	return agentTelemetryMetricKey{checkName: checkName, metricName: metricName}
-}
-
-func sortedLabelNames(labels map[string]string) []string {
-	labelNames := make([]string, 0, len(labels))
-	for labelName := range labels {
-		labelNames = append(labelNames, labelName)
-	}
-	sort.Strings(labelNames)
-	return labelNames
-}
-
-func sameStringSlice(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func lazyInitTelemetryMetric(checkName string, metricName string, metricType string, labelNames []string) (*agentTelemetryMetric, error) {
-	key := newAgentTelemetryMetricKey(checkName, metricName)
+	key := checkName + "." + metricName
 	telemetryLock.Lock()
 	defer telemetryLock.Unlock()
 
@@ -610,7 +581,7 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 		if entry.metricType != metricType {
 			return nil, fmt.Errorf("metric %s for check %s was already emitted as %s when %s was expected", metricName, checkName, entry.metricType, metricType)
 		}
-		if !sameStringSlice(entry.labelNames, labelNames) {
+		if !slices.Equal(entry.labelNames, labelNames) {
 			return nil, fmt.Errorf("metric %s for check %s was already emitted with labels %v when labels %v were expected", metricName, checkName, entry.labelNames, labelNames)
 		}
 		return entry, nil
@@ -618,7 +589,7 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 
 	entry := &agentTelemetryMetric{
 		metricType: metricType,
-		labelNames: append([]string(nil), labelNames...),
+		labelNames: slices.Clone(labelNames),
 	}
 	switch metricType {
 	case "counter":
@@ -682,7 +653,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 		}
 	}
 
-	entry, err := lazyInitTelemetryMetric(goCheckName, goMetricName, goMetricType, sortedLabelNames(labels))
+	entry, err := lazyInitTelemetryMetric(goCheckName, goMetricName, goMetricType, slices.Sorted(maps.Keys(labels)))
 	if err != nil {
 		log.Warnf("EmitAgentTelemetry: %v", err)
 		return

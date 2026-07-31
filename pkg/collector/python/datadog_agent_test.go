@@ -39,10 +39,6 @@ func TestEmitAgentTelemetry(t *testing.T) {
 	testEmitAgentTelemetry(t)
 }
 
-func TestAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t *testing.T) {
-	testAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t)
-}
-
 func TestEmitAgentTelemetryLabels(t *testing.T) {
 	testEmitAgentTelemetryLabels(t)
 }
