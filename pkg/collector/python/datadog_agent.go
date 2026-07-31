@@ -677,15 +677,18 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	labelNames := slices.Sorted(maps.Keys(labels))
 	switch goMetricType {
 	case "counter":
-		if counter := lazyInitTelemetryCounter(goCheckName, goMetricName, labelNames); counter != nil {
+		counter := lazyInitTelemetryCounter(goCheckName, goMetricName, labelNames)
+		if counter != nil {
 			counter.AddWithTags(goMetricValue, labels)
 		}
 	case "histogram":
-		if histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName, labelNames); histogram != nil {
+		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName, labelNames)
+		if histogram != nil {
 			histogram.WithTags(labels).Observe(goMetricValue)
 		}
 	case "gauge":
-		if gauge := lazyInitTelemetryGauge(goCheckName, goMetricName, labelNames); gauge != nil {
+		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName, labelNames)
+		if gauge != nil {
 			gauge.WithTags(labels).Set(goMetricValue)
 		}
 	default:
