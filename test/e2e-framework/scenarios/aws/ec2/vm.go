@@ -7,6 +7,8 @@ package ec2
 
 import (
 	"fmt"
+	stdos "os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -69,7 +71,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		// pool-release wiring below, once the instance itself has been created or
 		// imported.
 		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
-		isLocalRun := e.PipelineID() == ""
+		isCI, _ := strconv.ParseBool(stdos.Getenv("CI"))
 		username := e.Username()
 		stackID := e.Ctx().Stack()
 		var poolAcquired pool.AcquireResult
@@ -84,11 +86,11 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			// instance via the username tag. Found == false means they own none yet,
 			// so provision one; an existing but busy instance is an error instead.
 			var localOpts *pool.LocalProvisionOptions
-			if isLocalRun {
+			if !isCI {
 				localOpts = &pool.LocalProvisionOptions{Username: username}
 			}
 
-			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, e.PipelineID(), stackID, localOpts)
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, stackID, localOpts)
 			if err != nil {
 				return err
 			}

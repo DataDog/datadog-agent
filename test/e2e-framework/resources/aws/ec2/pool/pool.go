@@ -60,7 +60,6 @@ const (
 type leaseRecord struct {
 	Status   string `json:"status"` // one of statusIdle, statusInUse
 	ImageID  string `json:"imageId,omitempty"`
-	Owner    string `json:"owner,omitempty"`
 	LeasedAt int64  `json:"leased_at,omitempty"`
 
 	// Persistent marks a lease whose root volume must never be reverted by
@@ -128,7 +127,7 @@ var errPoolExhausted = errors.New("no idle instance available")
 // AcquireIdleInstance claims one idle instance from pool via a conditional S3 write
 // (If-Match on the lease object's current ETag), retrying the whole-pool scan up to
 // maxAcquireRetries times, acquireRetryInterval apart, then failing errPoolExhausted.
-func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, ownerPipelineID, stackID string) (instanceID string, leaseToken string, imageID string, err error) {
+func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, stackID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", "", "", err
@@ -167,7 +166,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 				continue // held by another run; try the next pool instance
 			}
 
-			body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: ownerPipelineID, LeasedAt: now.Unix(), Holder: stackID, Persistent: current.Persistent})
+			body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, LeasedAt: now.Unix(), Holder: stackID, Persistent: current.Persistent})
 			if err != nil {
 				return "", "", "", fmt.Errorf("failed to marshal lease record for instance %s: %w", id, err)
 			}
@@ -245,7 +244,7 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 		}
 	}
 
-	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID, current.Owner, current.Persistent)
+	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID, current.Persistent)
 }
 
 // RevertInPlace reverts instanceID's root volume to the lease's current baseline
@@ -281,7 +280,7 @@ func RevertInPlace(ctx context.Context, region, profile, instanceID, leaseToken 
 		return "", fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
 	}
 
-	body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, Owner: current.Owner, LeasedAt: time.Now().Unix(), Holder: current.Holder, Persistent: current.Persistent})
+	body, err := json.Marshal(leaseRecord{Status: statusInUse, ImageID: current.ImageID, LeasedAt: time.Now().Unix(), Holder: current.Holder, Persistent: current.Persistent})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
 	}
@@ -363,10 +362,10 @@ func replaceRootVolume(ctx context.Context, client *awsec2.Client, instanceID, s
 }
 
 // releaseLease writes status/imageID back to instanceID's lease record, conditioned
-// on leaseToken matching the lease object's current ETag. owner/persistent are
-// carried forward from the current record rather than defaulted to zero values.
-func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID, owner string, persistent bool) error {
-	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID, Owner: owner, Persistent: persistent})
+// on leaseToken matching the lease object's current ETag. persistent is carried
+// forward from the current record rather than defaulted to zero values.
+func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID string, persistent bool) error {
+	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID, Persistent: persistent})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
 	}
@@ -421,10 +420,10 @@ func isConditionalWriteConflict(err error) bool {
 	return false
 }
 
-// PublishInitialLease writes instanceID's first lease record, held by owner and marked
-// Persistent, and returns the lease token. Fails ErrLeaseAlreadyExists if a lease is
-// already present.
-func PublishInitialLease(ctx context.Context, region, profile, instanceID, imageID, owner, holder string) (string, error) {
+// PublishInitialLease writes instanceID's first lease record, held by holder and
+// marked Persistent, and returns the lease token. Fails ErrLeaseAlreadyExists if a
+// lease is already present.
+func PublishInitialLease(ctx context.Context, region, profile, instanceID, imageID, holder string) (string, error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", err
@@ -433,7 +432,6 @@ func PublishInitialLease(ctx context.Context, region, profile, instanceID, image
 	body, err := json.Marshal(leaseRecord{
 		Status:     statusInUse,
 		ImageID:    imageID,
-		Owner:      owner,
 		LeasedAt:   time.Now().Unix(),
 		Holder:     holder,
 		Persistent: true,
@@ -502,7 +500,7 @@ type LocalProvisionOptions struct {
 // Acquire lists every instance tagged PoolTagKey=PoolTagValue (additionally scoped
 // to OwnerUsernameTagKey=local.Username when local is non-nil) and claims one idle
 // member. An empty pool yields Found: false for a local run; all else is an error.
-func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, ownerPipelineID, stackID string, local *LocalProvisionOptions) (AcquireResult, error) {
+func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, stackID string, local *LocalProvisionOptions) (AcquireResult, error) {
 	tags := map[string]string{PoolTagKey: PoolTagValue}
 	if local != nil {
 		// An empty owner filter matches no instance, which would look like an empty
@@ -531,7 +529,7 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 		ids = append(ids, pi.InstanceID)
 	}
 
-	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, ownerPipelineID, stackID)
+	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, stackID)
 	if err != nil {
 		return AcquireResult{}, err
 	}

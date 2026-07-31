@@ -830,10 +830,8 @@ func (bs *BaseSuite[Env]) registerPoolInstanceIfNeeded(env *Env) error {
 		}
 
 		ctx, cancel := bs.providerContext(deleteTimeout)
-		// Owner is the pipeline ID, and registration only happens on the local
-		// cache-miss path, where there is none -- matching what acquire writes locally.
 		token, err := pool.PublishInitialLease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile,
-			remoteHost.PoolInstanceID, remoteHost.PoolBaselineImageID, "", remoteHost.PoolStackID)
+			remoteHost.PoolInstanceID, remoteHost.PoolBaselineImageID, remoteHost.PoolStackID)
 		if errors.Is(err, pool.ErrLeaseAlreadyExists) {
 			// Expected when UpdateEnv re-enters reconcileEnv: adopt the live lease
 			// rather than failing.
