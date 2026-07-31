@@ -20,8 +20,6 @@ go_library(
         "//pkg/version",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
-        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
-        "@com_github_aws_aws_sdk_go_v2_credentials//endpointcreds",
     ],
 )
 
@@ -36,8 +34,6 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/mock",
         "//pkg/util/aws/creds",
-        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
-        "@com_github_aws_aws_sdk_go_v2_credentials//endpointcreds",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

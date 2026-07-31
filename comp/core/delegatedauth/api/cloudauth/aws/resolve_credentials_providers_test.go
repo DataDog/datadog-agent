@@ -18,8 +18,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -121,7 +119,7 @@ func TestCredentialProvider_Selection(t *testing.T) {
 		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.Equal(t, creds.SourceEnvironment, source)
-		assert.IsType(t, credentials.StaticCredentialsProvider{}, p)
+		assert.IsType(t, staticProvider{}, p)
 	})
 	t.Run("IRSA web identity", func(t *testing.T) {
 		isolateAWSEnv(t)
@@ -138,7 +136,7 @@ func TestCredentialProvider_Selection(t *testing.T) {
 		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.Equal(t, creds.SourceContainer, source)
-		assert.IsType(t, &endpointcreds.Provider{}, p)
+		assert.IsType(t, &containerProvider{}, p)
 	})
 	t.Run("IMDS default", func(t *testing.T) {
 		isolateAWSEnv(t)
@@ -347,5 +345,120 @@ func TestWebIdentityProvider_Retrieve_Errors(t *testing.T) {
 		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: "/no/such/token", stsURL: "https://sts.us-east-1.amazonaws.com/", client: http.DefaultClient}).Retrieve(context.Background())
 		require.Error(t, err)
 		assert.Empty(t, got.AccessKeyID)
+	})
+}
+
+// TestContainerProvider_Retrieve covers the hand-rolled ECS/EKS container credential fetch that
+// replaced credentials/endpointcreds: the request it sends, the document it accepts, and the
+// failures it must surface rather than turn into blank credentials.
+func TestContainerProvider_Retrieve(t *testing.T) {
+	t.Run("fetches and maps the credential document", func(t *testing.T) {
+		var gotAuth, gotAccept, gotPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth, gotAccept, gotPath = r.Header.Get("Authorization"), r.Header.Get("Accept"), r.URL.Path
+			w.Write([]byte(`{"AccessKeyId":"AKID","SecretAccessKey":"SECRET","Token":"TOKEN","Expiration":"2030-01-01T00:00:00Z"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{
+			endpoint: srv.URL + "/v2/credentials/abc",
+			client:   srv.Client(),
+			token:    func() (string, error) { return "tok-1", nil },
+		}
+		got, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "AKID", got.AccessKeyID)
+		assert.Equal(t, "SECRET", got.SecretAccessKey)
+		assert.Equal(t, "TOKEN", got.SessionToken)
+		assert.Equal(t, "DelegatedAuthContainer", got.Source)
+		assert.Equal(t, "tok-1", gotAuth)
+		assert.Equal(t, "application/json", gotAccept)
+		assert.Equal(t, "/v2/credentials/abc", gotPath)
+	})
+
+	t.Run("omits Authorization when no token is configured", func(t *testing.T) {
+		seen := true
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, seen = r.Header["Authorization"]
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.False(t, seen, "Authorization header must be absent when no token is configured")
+	})
+
+	// EKS Pod Identity rotates the token file, so the value must be re-read per request rather than
+	// captured once when the provider is built.
+	t.Run("re-reads the token file on every retrieve", func(t *testing.T) {
+		var gotAuth []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = append(gotAuth, r.Header.Get("Authorization"))
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("first\n"), 0o600))
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL)
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
+
+		// Build through the production path so this covers the real token wiring, including the
+		// TrimSpace that keeps a trailing newline in the file out of the Authorization header.
+		provider, err := containerCredentialsProvider()
+		require.NoError(t, err)
+		p := provider.(*containerProvider)
+		p.client = srv.Client()
+		_, err = p.Retrieve(context.Background())
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(tokenFile, []byte("second"), 0o600))
+		_, err = p.Retrieve(context.Background())
+		require.NoError(t, err)
+
+		require.Len(t, gotAuth, 2)
+		assert.NotEqual(t, gotAuth[0], gotAuth[1], "rotated token file must produce a new Authorization value")
+	})
+
+	t.Run("surfaces a non-200 with the body", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("no role associated"))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "403")
+		assert.Contains(t, err.Error(), "no role associated")
+	})
+
+	t.Run("rejects a malformed document", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("not json"))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "parse container credentials response")
+	})
+
+	// A 200 carrying an error document unmarshals cleanly into zero values; resolveCredentialsFrom
+	// is what must catch that, so confirm the pair behaves rather than reporting a false success.
+	t.Run("blank credentials are rejected by the caller", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte(`{"Code":"InternalError"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		auth := &AWSAuth{}
+		_, err := auth.resolveCredentialsFrom(context.Background(), p, creds.SourceContainer)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "returned empty credentials")
 	})
 }

@@ -9,6 +9,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -21,8 +22,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
@@ -54,6 +53,9 @@ const (
 	// containerCredentialsTimeout bounds a container credential fetch so a local endpoint that
 	// accepts the connection but stalls cannot hang the initial fetch or a background refresh.
 	containerCredentialsTimeout = 10 * time.Second
+	// containerCredentialsMaxResponseBytes bounds the credential document read. The real document is
+	// a few hundred bytes; this leaves generous headroom while capping a misbehaving endpoint.
+	containerCredentialsMaxResponseBytes = 64 << 10
 )
 
 // resolveCredentials selects the AWS credential provider matching the runtime
@@ -126,11 +128,12 @@ func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider aws.Crede
 func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, string, error) {
 	switch {
 	case creds.HasAWSCredentialsInEnvironment():
-		return credentials.NewStaticCredentialsProvider(
-			os.Getenv("AWS_ACCESS_KEY_ID"),
-			os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			os.Getenv("AWS_SESSION_TOKEN"),
-		), creds.SourceEnvironment, nil
+		return staticProvider{aws.Credentials{
+			AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+			SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			SessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
+			Source:          "DelegatedAuthStaticEnvironment",
+		}}, creds.SourceEnvironment, nil
 
 	case creds.HasAWSWorkloadIdentityInEnvironment():
 		// IRSA: exchange the projected web-identity token via STS AssumeRoleWithWebIdentity. We
@@ -169,6 +172,14 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 		return imdsProvider{fetch: creds.GetSecurityCredentials}, creds.SourceIMDS, nil
 	}
 }
+
+// staticProvider returns fixed credentials read from the environment. It stands in for
+// credentials.NewStaticCredentialsProvider so that aws-sdk-go-v2/credentials is not linked for a
+// value the caller already has in hand.
+type staticProvider struct{ creds aws.Credentials }
+
+// Retrieve returns the fixed credentials.
+func (p staticProvider) Retrieve(context.Context) (aws.Credentials, error) { return p.creds, nil }
 
 // imdsProvider resolves EC2 instance-role credentials through the Agent's IMDS helper, which
 // applies the Agent's ec2_metadata_timeout and IMDSv2 configuration. It implements
@@ -330,21 +341,88 @@ func containerCredentialsProvider() (aws.CredentialsProvider, error) {
 		return nil, err
 	}
 
-	return endpointcreds.New(endpoint, func(o *endpointcreds.Options) {
-		o.HTTPClient = containerCredentialsHTTPClient()
-		if token := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN"); token != "" {
-			o.AuthorizationToken = token
+	p := &containerProvider{endpoint: endpoint, client: containerCredentialsHTTPClient()}
+	if token := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN"); token != "" {
+		p.token = func() (string, error) { return token, nil }
+	}
+	// The token file wins over the literal token, and is re-read on every Retrieve: EKS Pod Identity
+	// rotates the file, so a value cached at construction would go stale and start returning 401.
+	if path := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE"); path != "" {
+		p.token = func() (string, error) {
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				return "", fmt.Errorf("failed to read authorization token from %s: %w", path, err)
+			}
+			return strings.TrimSpace(string(contents)), nil
 		}
-		if path := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE"); path != "" {
-			o.AuthorizationTokenProvider = endpointcreds.TokenProviderFunc(func() (string, error) {
-				contents, err := os.ReadFile(path)
-				if err != nil {
-					return "", fmt.Errorf("failed to read authorization token from %s: %w", path, err)
-				}
-				return string(contents), nil
-			})
+	}
+	return p, nil
+}
+
+// containerProvider fetches ECS task-role / EKS Pod Identity credentials with a plain GET against
+// the link-local credential endpoint, mirroring the hand-rolled IMDS and web-identity providers
+// above. The response is the documented container-credential JSON document.
+//
+// We do this rather than use credentials/endpointcreds because that package reaches the same
+// one-shot GET through the full smithy-go middleware and retry stack, which measured at ~320 KiB of
+// code and reflection metadata in the trace-agent (about 80% of this feature's total size cost) for
+// a single unauthenticated request to 169.254.170.2. Everything endpointcreds would have
+// contributed beyond the request itself, the endpoint allowlist, the proxy-less client and the
+// authorization token handling, is already implemented here.
+type containerProvider struct {
+	endpoint string
+	client   *http.Client
+	// token supplies the Authorization header value, or is nil when the endpoint needs no token.
+	token func() (string, error)
+}
+
+// Retrieve fetches and decodes the container credential document.
+func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint, nil)
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("build container credentials request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	if p.token != nil {
+		token, err := p.token()
+		if err != nil {
+			return aws.Credentials{}, err
 		}
-	}), nil
+		req.Header.Set("Authorization", token)
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("container credentials request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Cap the read: the endpoint is link-local and trusted, but a wedged or misbehaving one should
+	// not be able to make the Agent allocate without bound.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, containerCredentialsMaxResponseBytes))
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("read container credentials response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return aws.Credentials{}, fmt.Errorf("container credentials endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var doc struct {
+		AccessKeyID     string `json:"AccessKeyId"`
+		SecretAccessKey string `json:"SecretAccessKey"`
+		Token           string `json:"Token"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return aws.Credentials{}, fmt.Errorf("parse container credentials response: %w", err)
+	}
+
+	// Blank fields are caught by resolveCredentialsFrom, which reports them against this source.
+	return aws.Credentials{
+		AccessKeyID:     doc.AccessKeyID,
+		SecretAccessKey: doc.SecretAccessKey,
+		SessionToken:    doc.Token,
+		Source:          "DelegatedAuthContainer",
+	}, nil
 }
 
 // containerCredentialsHTTPClient returns an HTTP client that never uses a proxy. The supported
