@@ -38,6 +38,7 @@ go_test(
         "status_nix_test.go",
         "status_win_test.go",
     ],
+    # keep
     embedsrcs = [
         "check/fixtures/hello.py",
         "check/fixtures/hello.yaml",
