@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Autodiscovery misconfiguration issue titles reported to Agent Health now
+    properly escape the affected pod/container identifier instead of using
+    unescaped manual quoting, addressing a static analysis finding.
