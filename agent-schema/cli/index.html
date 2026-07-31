@@ -4040,7 +4040,7 @@
   
 
 
-<h1 id="cli-commands-dda-inv-schema">CLI Commands (<code>dda inv schema.*</code>)</h1>
+<h1 id="cli-commands-dda-inv-schema">CLI Commands (<code>dda inv schema.*</code>)<a class="headerlink" href="#cli-commands-dda-inv-schema" title="Permanent link">&para;</a></h1>
 <p>The schema tooling is exposed through a set of <code>dda inv schema.*</code> invoke tasks
 (defined in <code>tasks/schema/</code>). This page documents each command, its arguments,
 and when you would run it.</p>
@@ -4049,8 +4049,8 @@ repository</strong>. Most of them run automatically as part of the build and CI
 pipelines, so you rarely need to invoke them by hand — but they are useful when
 adding or editing settings, debugging schema problems, or regenerating output
 locally.</p>
-<h2 id="how-the-commands-fit-together">How the commands fit together</h2>
-<h2 id="schemaadd-setting"><code>schema.add-setting</code></h2>
+<h2 id="how-the-commands-fit-together">How the commands fit together<a class="headerlink" href="#how-the-commands-fit-together" title="Permanent link">&para;</a></h2>
+<h2 id="schemaadd-setting"><code>schema.add-setting</code><a class="headerlink" href="#schemaadd-setting" title="Permanent link">&para;</a></h2>
 <p>Interactive wizard to add a new setting to the schema. It prompts for the
 setting name (dotted path), type, default, visibility, and description, then
 inserts the node into the correct schema file under <code>pkg/config/schema/yaml/</code>
@@ -4080,7 +4080,7 @@ inserts the node into the correct schema file under <code>pkg/config/schema/yaml
 public with a description. It runs <code>schema.lint</code> at the end so any remaining
 problems are visible.</p>
 <hr />
-<h2 id="schemagenerate"><code>schema.generate</code></h2>
+<h2 id="schemagenerate"><code>schema.generate</code><a class="headerlink" href="#schemagenerate" title="Permanent link">&para;</a></h2>
 <p>Generate the enriched schema files for the core Agent and system-probe.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.generate<span class="w"> </span>--agent-bin<span class="o">=</span>./bin/agent/agent
 </span></code></pre></div>
@@ -4125,7 +4125,7 @@ problems are visible.</p>
     <code>dda inv agent.build</code>. Rebuild after changing any <code>pkg/config/setup</code> code so
     the schema reflects your changes.</p>
 <hr />
-<h2 id="schemalint"><code>schema.lint</code></h2>
+<h2 id="schemalint"><code>schema.lint</code><a class="headerlink" href="#schemalint" title="Permanent link">&para;</a></h2>
 <p>Validate the schema against the schema quality rules and exit
 non-zero on any violation. This is the check enforced in CI
 (<code>generate_config_schema-linux</code>).</p>
@@ -4156,7 +4156,7 @@ non-zero on any violation. This is the check enforced in CI
 </tbody>
 </table>
 <hr />
-<h2 id="schematemplate"><code>schema.template</code></h2>
+<h2 id="schematemplate"><code>schema.template</code><a class="headerlink" href="#schematemplate" title="Permanent link">&para;</a></h2>
 <p>Render a single config template (one build type, one OS) from the schema file. Useful for inspecting what a setting will
 look like in the generated example without running the whole build.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
@@ -4200,7 +4200,7 @@ look like in the generated example without running the whole build.</p>
 template sections are included; the OS target controls which platform-specific
 defaults and <code>platform_only</code> settings are emitted.</p>
 <hr />
-<h2 id="schematemplate-all"><code>schema.template-all</code></h2>
+<h2 id="schematemplate-all"><code>schema.template-all</code><a class="headerlink" href="#schematemplate-all" title="Permanent link">&para;</a></h2>
 <p>Render every combination of build type × OS target from the core and
 system-probe schemas at once. This is what the build pipeline uses to keep the
 shipped <code>*.yaml.example</code> files in sync.</p>
@@ -4236,7 +4236,7 @@ shipped <code>*.yaml.example</code> files in sync.</p>
 </tbody>
 </table>
 <hr />
-<h2 id="schemalocate"><code>schema.locate</code></h2>
+<h2 id="schemalocate"><code>schema.locate</code><a class="headerlink" href="#schemalocate" title="Permanent link">&para;</a></h2>
 <p>Find where a setting or section is defined in the schema source and print its
 node plus the exact file and line.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
@@ -4264,7 +4264,7 @@ valid regex it falls back to shell-style glob (<code>fnmatch</code>). Pattern ma
 </span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;apm_config\..*enabled&#39;</span><span class="w"> </span>--json
 </span></code></pre></div>
 <hr />
-<h2 id="typical-workflows">Typical workflows</h2>
+<h2 id="typical-workflows">Typical workflows<a class="headerlink" href="#typical-workflows" title="Permanent link">&para;</a></h2>
 <p><strong>I edited a setting in <code>pkg/config/setup</code> and want the schema to reflect it:</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>agent.build<span class="w">                                  </span><span class="c1"># rebuild the binary</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.generate<span class="w"> </span>--agent-bin<span class="o">=</span>./bin/agent/agent<span class="w">  </span><span class="c1"># regenerate the schema</span>
@@ -4279,7 +4279,7 @@ valid regex it falls back to shell-style glob (<code>fnmatch</code>). Pattern ma
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled<span class="w">   </span><span class="c1"># exact: node + file:line</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;*enabled&#39;</span><span class="w">           </span><span class="c1"># pattern: all paths ending in &quot;enabled&quot;</span>
 </span></code></pre></div>
-<h2 id="see-also">See also</h2>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../">Introduction</a> — what the schema is and why it exists.</li>
 <li><a href="../keywords/">Keyword Reference</a> — the keywords these commands read and write.</li>
