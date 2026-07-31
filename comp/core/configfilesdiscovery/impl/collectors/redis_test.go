@@ -139,17 +139,18 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
-	require.Len(t, files, 1)
+	require.Len(t, collected.ConfigFiles, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
 		Path:          "/etc/redis/redis.conf",
 		Content:       []byte("port 6379\n"),
 		Truncated:     true,
 		PayloadFormat: redisConfigPayloadFormat,
-	}, files[0])
+	}, collected.ConfigFiles[0])
+	assert.Empty(t, collected.EnvVars)
 }
 
 func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
@@ -160,11 +161,12 @@ func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
-	assert.Empty(t, files)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Empty(t, collected.EnvVars)
 }
 
 func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
@@ -172,10 +174,10 @@ func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 	reader := &redisCollectorTestReader{commandlineErr: expectedErr}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
-	assert.Nil(t, files)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
@@ -188,11 +190,11 @@ func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
-	assert.Nil(t, files)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 type redisCollectorTestReader struct {

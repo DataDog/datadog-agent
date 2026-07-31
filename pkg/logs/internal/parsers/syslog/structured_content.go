@@ -184,19 +184,43 @@ func (s *SyslogStructuredContent) GetAttribute(path string) (string, bool) {
 	}
 }
 
+// isAbsentField reports whether a syslog string header field carries no real
+// value. Parsers encode an absent field either as the empty string or as the
+// nilvalue sentinel "-" (RFC 5424 NILVALUE, and the placeholder used by
+// parseBSDNoTimestamp); both must be treated as "not found" so remap_source
+// rules never match on a hollow "-".
+func isAbsentField(v string) bool {
+	return v == "" || v == nilvalue
+}
+
 func (f *SyslogFields) getAttribute(field string) (string, bool) {
 	top, rest, hasDot := splitFirst(field)
 	switch top {
 	case "timestamp":
-		return f.Timestamp, !hasDot
+		if isAbsentField(f.Timestamp) || hasDot {
+			return "", false
+		}
+		return f.Timestamp, true
 	case "hostname":
-		return f.Hostname, !hasDot
+		if isAbsentField(f.Hostname) || hasDot {
+			return "", false
+		}
+		return f.Hostname, true
 	case "appname":
-		return f.AppName, !hasDot
+		if isAbsentField(f.AppName) || hasDot {
+			return "", false
+		}
+		return f.AppName, true
 	case "procid":
-		return f.ProcID, !hasDot
+		if isAbsentField(f.ProcID) || hasDot {
+			return "", false
+		}
+		return f.ProcID, true
 	case "msgid":
-		return f.MsgID, !hasDot
+		if isAbsentField(f.MsgID) || hasDot {
+			return "", false
+		}
+		return f.MsgID, true
 	case "severity":
 		if f.Severity < 0 || hasDot {
 			return "", false

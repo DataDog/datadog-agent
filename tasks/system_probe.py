@@ -48,6 +48,7 @@ NPM_TAG = "npm"
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
+    "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
@@ -1130,7 +1131,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
 _BAZEL_WINDOWS_RESOURCE_COPIES = (
-    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.syso", "pkg/util/winutil/messagestrings/messagestrings.syso"),
     ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
     ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
 )
@@ -1141,8 +1142,8 @@ def bazel_build_windows_resources(ctx: Context) -> None:
 
     Replaces the ninja-based windmc/windres pipeline for system-probe.
     Produces:
-      - pkg/util/winutil/messagestrings/rsrc.syso + messagestrings.h  (shared message table)
-      - cmd/system-probe/rsrc.syso                                    (system-probe versioninfo)
+      - pkg/util/winutil/messagestrings/messagestrings.syso + messagestrings.h  (shared message table)
+      - cmd/system-probe/rsrc.syso                                              (system-probe versioninfo)
     """
     import shutil
 
@@ -1823,11 +1824,11 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
+def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False, ci: bool = False):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
-        go_parallelism = compute_go_parallelism(debug, ci=False)
+        go_parallelism = compute_go_parallelism(debug, ci=ci)
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",

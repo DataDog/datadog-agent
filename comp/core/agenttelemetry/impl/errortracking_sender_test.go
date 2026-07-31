@@ -26,6 +26,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
@@ -187,6 +188,11 @@ func TestErrorLogToLog_WireShape(t *testing.T) {
 	// Git source integration tags.
 	assert.Contains(t, out.Tags, "git.repository_url:https://github.com/DataDog/datadog-agent",
 		"Tags must carry git.repository_url for Source Code Integration")
+
+	// Origin tag: identifies which agent binary emitted the log, since this
+	// pipeline is shared across core agent, cluster-agent, process-agent, etc.
+	assert.Contains(t, out.Tags, "agent.flavor:"+flavor.GetFlavor(),
+		"Tags must carry agent.flavor so COAT can attribute errors to the emitting binary")
 
 	// Wire schema fields that are intentionally not populated.
 	assert.Empty(t, out.Message, "Message must NOT be on the wire")

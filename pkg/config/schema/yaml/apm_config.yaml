@@ -56,6 +56,7 @@ properties:
       Enabling this setting may result in unexpected behavior.
     platform_default:
       linux: /var/run/datadog/apm.socket
+      aix: /var/run/datadog/apm.socket
       other: ''
   apm_non_local_traffic:
     node_type: setting

@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net"
 	"os"
 	"regexp"
@@ -37,123 +36,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
-// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
-// Using a map ensures each prefix is only registered once.
-// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
-var (
-	registeredDelegatedAuthConfigs   = make(map[string]string)
-	registeredDelegatedAuthConfigsMu sync.Mutex
-)
-
 const (
-
-	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
-	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 100000
-
-	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
-	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
-	DefaultLinesOrBytesToSkip = 0
-
-	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
-	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
-	// value based on the configured fingerprint_strategy.
-	DefaultFingerprintingCount = 0
-
-	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
-	// Options are:
-	// - "line_checksum": compute the fingerprint by lines
-	// - "byte_checksum": compute the fingerprint by bytes
-	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "disabled"
-
-	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
-
-	// DefaultNumWorkers default number of workers for our check runner
-	DefaultNumWorkers = 4
-	// MaxNumWorkers maximum number of workers for our check runner
-	MaxNumWorkers = 25
-	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
-	DefaultAPIKeyValidationInterval = 60
-
-	// DefaultForwarderRecoveryInterval is the default recovery interval,
-	// also used if the user-provided value is invalid.
-	DefaultForwarderRecoveryInterval = 2
-
 	megaByte = 1024 * 1024
-
-	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5.0
-
-	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
-
-	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
-
-	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
-
-	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
-	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
-
-	// DefaultAuditorTTL is the default logs auditor TTL in hours
-	DefaultAuditorTTL = 23
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zstd"
-
-	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
-
-	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
-	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
-	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
-
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
-	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
-
-	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
-
-	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
-
-	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
-
-	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
-	// in the core agent if the process check is disabled.
-	DefaultLocalProcessCollectorInterval = 1 * time.Minute
-
-	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
-	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 900 * 1000
-
-	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 1000
-
-	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
-	DefaultNetworkPathMaxTTL = 30
-
-	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
-	DefaultNetworkPathStaticPathTracerouteQueries = 3
-
-	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
-	DefaultNetworkPathStaticPathE2eQueries = 50
 )
 
 var (
@@ -201,24 +91,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// ConfigurationProviders helps unmarshalling `config_providers` config param
-type ConfigurationProviders struct {
-	Name                    string `mapstructure:"name"`
-	Polling                 bool   `mapstructure:"polling"`
-	PollInterval            string `mapstructure:"poll_interval"`
-	TemplateURL             string `mapstructure:"template_url"`
-	TemplateDir             string `mapstructure:"template_dir"`
-	Username                string `mapstructure:"username"`
-	Password                string `mapstructure:"password"`
-	CAFile                  string `mapstructure:"ca_file"`
-	CAPath                  string `mapstructure:"ca_path"`
-	CertFile                string `mapstructure:"cert_file"`
-	KeyFile                 string `mapstructure:"key_file"`
-	Token                   string `mapstructure:"token"`
-	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
-	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
-}
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
@@ -296,11 +168,6 @@ func InitConfigObjects() {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
-	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs = make(map[string]string)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// -------------------------------------------------------------
 	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
 	// Add them to common_settings.go instead
@@ -706,34 +573,15 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
-	// Copy the registered configs map while holding the lock to avoid races during iteration
-	registeredDelegatedAuthConfigsMu.Lock()
-	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for prefix, apiKeyConfigKey := range configsCopy {
-		// Build the config key prefix for delegated_auth settings
-		var configPrefix string
-		if prefix == "" {
-			configPrefix = "delegated_auth"
-		} else {
-			configPrefix = prefix + ".delegated_auth"
-		}
-
+	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		// Build description for logging
-		description := "global"
-		if prefix != "" {
-			description = prefix
-		}
-
-		log.Infof("Configuring delegated authentication for '%s'", description)
+		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
@@ -741,11 +589,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			APIKeyConfigKey: apiKeyConfigKey,
+			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey: section.apiKeyPath,
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
@@ -1031,21 +879,6 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 
 	// Provider-specific configuration (nested under provider name)
 	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
-
-	// Register this prefix for use in configureDelegatedAuth
-	// Build the API key config key
-	var apiKeyConfigKey string
-	if prefix == "" {
-		apiKeyConfigKey = "api_key"
-	} else {
-		apiKeyConfigKey = prefix + ".api_key"
-	}
-
-	// Map automatically handles duplicates - repeated registrations just overwrite with same value
-	// Use mutex to protect concurrent access during tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
-	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -1160,23 +993,18 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
 	// setting in pkg/config/schema/yaml/.
 
-	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
-	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 	config.Set("logs_config.use_http", true, pkgconfigmodel.SourceAgentRuntime)
 
-	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
 	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
-	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
-	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
 	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
@@ -1187,13 +1015,10 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
-	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
-	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
-	// Compliance
 	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
 
 	return nil
@@ -1423,8 +1248,8 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 }
 
 // sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
-// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, and
-// Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
 // is false, this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
@@ -1447,7 +1272,7 @@ func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLooku
 	}
 
 	switch {
-	case goos == "linux", goos == "darwin":
+	case goos == "linux", goos == "darwin", goos == "aix":
 		return
 	case goos == "windows":
 		if config.GetBool("process_manager.enabled") {
@@ -1790,7 +1615,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                // Default level for the gzip algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
@@ -1829,37 +1654,7 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
-// IsCLCRunner returns whether the Agent is in cluster check runner mode
-func IsCLCRunner(config pkgconfigmodel.Reader) bool {
-	if !config.GetBool("clc_runner_enabled") {
-		return false
-	}
-
-	var cps []ConfigurationProviders
-	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
-		return false
-	}
-
-	for _, name := range config.GetStringSlice("extra_config_providers") {
-		cps = append(cps, ConfigurationProviders{Name: name})
-	}
-
-	// A cluster check runner is an Agent configured to run clusterchecks only
-	// We want exactly one ConfigProvider named clusterchecks
-	if len(cps) == 0 {
-		return false
-	}
-
-	for _, cp := range cps {
-		if cp.Name != "clusterchecks" {
-			return false
-		}
-	}
-
-	return true
-}
-
-func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+func getPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if pkgconfigenv.IsECSFargate() {
 		if val, found := platformValues["fargate"]; found {
 			return val

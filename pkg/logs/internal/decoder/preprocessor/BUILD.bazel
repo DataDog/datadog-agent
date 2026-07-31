@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "preprocessor",
@@ -35,6 +36,7 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/logs-library/metrics",
@@ -48,7 +50,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "preprocessor_test",
     srcs = [
         "aggregator_test.go",
@@ -62,6 +64,7 @@ go_test(
         "pattern_table_test.go",
         "preprocessor_test.go",
         "sampler_benchmark_test.go",
+        "sampler_smart_severity_profile_test.go",
         "sampler_test.go",
         "stack_trace_aggregator_test.go",
         "timestamp_detector_test.go",
@@ -71,8 +74,8 @@ go_test(
         "user_samples_test.go",
     ],
     embed = [":preprocessor"],
-    gotags = ["test"],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",

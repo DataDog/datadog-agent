@@ -27,6 +27,7 @@ import (
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -99,7 +100,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		cfg.LogFilePath = DefaultLogFilePath()
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +431,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			c.ReceiverHost = host
 		}
 
-		if core.IsConfigured("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
+		// Gate on the value (not IsConfigured) so the Kubernetes binary default — applied at
+		// SourceDefault by applyKubernetesContainerDefaults — still forces 0.0.0.0 over an explicit
+		// bind_host, matching the historical datadog-kubernetes.yaml behavior. An explicit
+		// apm_non_local_traffic: false (file/env) sets the value false and releases the override.
+		if core.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {

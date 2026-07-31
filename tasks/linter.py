@@ -117,10 +117,6 @@ def go(
         print(color_message("No modules to lint", "yellow"))
         return
 
-    # Detect cross-OS linting from environment variables
-    goos = os.getenv("GOOS")
-    goarch = os.getenv("GOARCH")
-
     lint_result, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
@@ -136,8 +132,6 @@ def go(
         headless_mode=headless_mode,
         verbose=verbose,
         recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
-        goos=goos,
-        goarch=goarch,
     )
 
     if not headless_mode:
@@ -863,6 +857,38 @@ def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=Fal
     except LintFailure:
         # the linter prints useful messages on its own, so no need to print the exception
         sys.exit(1)
+
+
+@task
+def docs_links(ctx):
+    """Checks that the developer documentation links to this repository through the `repo` macro.
+
+    A hand-written link is unchecked, because the link checker skips this repository on the grounds
+    that the macro resolves every path it renders against the working tree.
+    """
+    # Double quoted because `cmd` passes a single quote through to Git, which then matches nothing.
+    # In a pathspec `*` spans directories, so this reaches every nested page.
+    result = ctx.run(
+        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "docs/public/*.md"',
+        warn=True,
+        hide=True,
+    )
+
+    # Finding nothing is what we want; anything beyond that is Git itself failing.
+    if result.exited == 1:
+        print(color_message("The documentation references this repository properly", Color.GREEN))
+        return
+    if result.exited > 1:
+        raise Exit(code=result.exited)
+
+    print(
+        color_message("Use the `repo` macro rather than a hand-written link to this repository:", Color.RED),
+        file=sys.stderr,
+    )
+    for match in result.stdout.splitlines():
+        page, number, _ = match.split(":", 2)
+        print(f"  {page}:{number}", file=sys.stderr)
+    raise Exit(code=1)
 
 
 @task

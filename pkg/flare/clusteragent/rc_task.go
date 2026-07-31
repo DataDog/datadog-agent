@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -71,6 +72,18 @@ func HandleRCFlareTask(
 
 	log.Infof("[RemoteFlare] Cluster-agent flare created at %s (UUID=%s)", filePath, task.Config.UUID)
 
+	flareSource := task.Config.TaskArgs["source"]
+
+	var tags []string
+	if rawTags, ok := task.Config.TaskArgs["tags"]; ok && rawTags != "" {
+		if err := json.Unmarshal([]byte(rawTags), &tags); err != nil {
+			log.Infof("[RemoteFlare] Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
+			tags = nil
+		}
+	}
+
+	rcSource := flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
+
 	_, err = sendFlareFunc(
 		cfg,
 		filePath,
@@ -78,7 +91,7 @@ func HandleRCFlareTask(
 		userHandle,
 		cfg.GetString("api_key"),
 		configUtils.GetInfraEndpoint(cfg),
-		flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID),
+		rcSource,
 	)
 	if err != nil {
 		return err

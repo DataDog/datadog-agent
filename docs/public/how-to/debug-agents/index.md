@@ -80,8 +80,7 @@ thread <number> # switch to thread
 pystack # python stacktrace of current thread
 ```
 
-To debug a core dump generated with the `c_core_dump` Agent option, refer to the [GDB docker image
-that includes the Agent symbols](https://github.com/DataDog/datadog-agent/tree/main/tools/gdb).
+To debug a core dump generated with the `c_core_dump` Agent option, refer to the <<<repo("tools/gdb", "GDB docker image that includes the Agent symbols")>>>.
 
 For simple debugging cases, you can simply use the python-provided `pdb` to jump into
 a debugging shell by adding to the python code that's run:

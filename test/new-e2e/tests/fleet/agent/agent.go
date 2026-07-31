@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
@@ -144,10 +144,10 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 		return "", fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
 
-	err := retry.Do(func() error {
+	_, err := backoff.Retry(a.t().Context(), func() (struct{}, error) {
 		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
-		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+		return struct{}{}, err
+	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}

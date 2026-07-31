@@ -155,7 +155,8 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 		pointDims := dims.WithAttributeMap(p.Attributes())
 
 		// Emit count as a Gauge (raw value, no delta conversion)
-		countDims := pointDims.WithSuffix("count")
+		// `.count` counts observations, so we drop the unit.
+		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		consumer.ConsumeTimeSeries(ctx, countDims, Gauge, ts, 0, float64(p.Count()))
 
 		// Emit sum as a Gauge (raw value, no delta conversion)

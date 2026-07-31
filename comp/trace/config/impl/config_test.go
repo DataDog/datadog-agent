@@ -42,7 +42,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -557,6 +557,21 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
+// TestReceiverHostKubernetesDefaultOverridesBindHost reproduces the case where bind_host is set
+// explicitly but apm_non_local_traffic comes only from the Kubernetes binary default (applied at
+// SourceDefault, so IsConfigured is false). The trace receiver must still listen on 0.0.0.0,
+// matching the historical datadog-kubernetes.yaml behavior, while statsd keeps honoring bind_host.
+func TestReceiverHostKubernetesDefaultOverridesBindHost(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.Set("bind_host", "127.0.0.1", configmodel.SourceFile)
+	coreConfig.Set("apm_config.apm_non_local_traffic", true, configmodel.SourceDefault)
+
+	cfg := buildComponent(t, true, coreConfig).Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, "127.0.0.1", cfg.StatsdHost)
+}
+
 func TestDisableLoggingConfig(t *testing.T) {
 	config := buildConfigComponentFromYAML(t, true, "./testdata/disable_file_logging.yaml")
 	cfg := config.Object()
@@ -567,6 +582,16 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
@@ -2323,7 +2348,7 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 
 		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
 			"https://second-org.datadoghq.com": {"resolved-real-key"},
-		}, pkgconfigmodel.SourceSecret)
+		}, configmodel.SourceSecret)
 
 		require.Len(t, cfg.Endpoints, 2, "main endpoint must be preserved")
 		assert.Equal(t, "https://second-org.datadoghq.com", cfg.Endpoints[1].Host)
@@ -2344,7 +2369,7 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 
 		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
 			"https://second-org.datadoghq.com": {"resolved-real-key"},
-		}, pkgconfigmodel.SourceSecret)
+		}, configmodel.SourceSecret)
 
 		require.Len(t, cfg.Endpoints, 3)
 		assert.True(t, cfg.Endpoints[1].IsMRF, "MRF endpoint must be preserved")
@@ -2362,7 +2387,7 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 
 		coreConfig.Set("apm_config.profiling_additional_endpoints", map[string][]string{
 			"https://intake.profile.datadoghq.eu/api/v2/profile": {"resolved-real-key"},
-		}, pkgconfigmodel.SourceSecret)
+		}, configmodel.SourceSecret)
 
 		assert.Equal(t, []string{"resolved-real-key"}, cfg.ProfilingProxy.AdditionalEndpoints["https://intake.profile.datadoghq.eu/api/v2/profile"])
 	})
@@ -2378,7 +2403,7 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 
 		coreConfig.Set("evp_proxy_config.additional_endpoints", map[string][]string{
 			"https://third-org.datadoghq.com": {"resolved-real-key"},
-		}, pkgconfigmodel.SourceSecret)
+		}, configmodel.SourceSecret)
 
 		assert.Equal(t, []string{"resolved-real-key"}, cfg.EVPProxy.AdditionalEndpoints["https://third-org.datadoghq.com"])
 	})

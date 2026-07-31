@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "test",
+    srcs = ["handler.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privileged-logs/test",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//cmd/system-probe/modules",
+            "//pkg/system-probe/api/module",
+            "//pkg/system-probe/api/server",
+            "//pkg/system-probe/config/types",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/system-probe/modules",
+            "//pkg/system-probe/api/module",
+            "//pkg/system-probe/api/server",
+            "//pkg/system-probe/config/types",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
