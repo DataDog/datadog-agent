@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "celtypes_unix.go",
         "celtypes_windows.go",
+        "describe.go",
         "env.go",
         "errors.go",
         "fieldtypes.go",
@@ -32,6 +33,7 @@ go_test(
     srcs = [
         "celtypes_test.go",
         "corpus_test.go",
+        "describe_test.go",
         "seclcel_test.go",
         "typed_test.go",
     ],

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "secl2cel_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/seclcel/secl2cel",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/security/seclcel"],
+)
+
+go_binary(
+    name = "secl2cel",
+    embed = [":secl2cel_lib"],
+    visibility = ["//visibility:public"],
+)
