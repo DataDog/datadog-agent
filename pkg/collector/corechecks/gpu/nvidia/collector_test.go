@@ -379,9 +379,14 @@ func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]stru
 		testutil.WithArchitecture("blackwell"),
 	)
 
+	// Stop the gatherer before returning instead of registering a t.Cleanup: its
+	// worker goroutine reads the global NVML mock, and the caller invokes this
+	// helper again, which installs a fresh one. A t.Cleanup would not run until
+	// the whole test ends, leaving the first worker racing the second setup.
+	// Stop() joins the worker, so the two can never overlap.
 	eventsGatherer := NewDeviceEventsGatherer()
 	require.NoError(t, eventsGatherer.Start())
-	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+	defer func() { require.NoError(t, eventsGatherer.Stop()) }()
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
