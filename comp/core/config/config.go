@@ -7,8 +7,12 @@ package config
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
+	"hash/fnv"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -36,6 +40,12 @@ type cfg struct {
 
 	// warnings are the warnings generated during setup
 	warnings *pkgconfigmodel.Warnings
+
+	// hashMu protects the cached content hash below
+	hashMu       sync.Mutex
+	hashComputed bool
+	hashSeq      uint64
+	cachedHash   string
 }
 
 type dependencies struct {
@@ -122,6 +132,35 @@ func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 
 func (c *cfg) StartTime() time.Time {
 	return c.Config.StartTime()
+}
+
+// GetHash returns a fingerprint of the current effective configuration,
+// computed from all flattened settings (defaults, file, env, CLI, secrets,
+// and Remote Config/fleet-policy overrides). The result is cached and keyed
+// on the config's sequence ID, which is bumped on every change regardless of
+// source, so the cache is automatically invalidated by Remote Config pushes
+// without any dedicated wiring.
+func (c *cfg) GetHash() string {
+	settings, seq := c.Config.AllFlattenedSettingsWithSequenceID()
+
+	c.hashMu.Lock()
+	defer c.hashMu.Unlock()
+	if c.hashComputed && c.hashSeq == seq {
+		return c.cachedHash
+	}
+
+	// encoding/json sorts map keys, so this serialization is deterministic.
+	b, err := json.Marshal(settings)
+	if err != nil {
+		return ""
+	}
+	h := fnv.New64a()
+	h.Write(b) //nolint:errcheck
+
+	c.cachedHash = hex.EncodeToString(h.Sum(nil))
+	c.hashSeq = seq
+	c.hashComputed = true
+	return c.cachedHash
 }
 
 // fillFlare add the Configuration files to flares.
