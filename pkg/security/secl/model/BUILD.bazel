@@ -22,7 +22,10 @@ exports_files(
             "model_string.go",
         ],
     ),
-    visibility = ["//pkg/security/seclwin/model:__pkg__"],
+    visibility = [
+        "//pkg/security/seclcel:__pkg__",
+        "//pkg/security/seclwin/model:__pkg__",
+    ],
 )
 
 go_stringer(

@@ -171,3 +171,51 @@ def accessors(name, tags, model, types_file, output, field_handlers, field_acces
             field_accessors_output: ":{}/{}".format(out_dir, field_accessors_output),
         },
     )
+
+def cel_types(name, tags, model, types_file, package_path, output, srcs = [], visibility = None):
+    """Generate the CEL type declarations for a SECL model.
+
+    Runs the accessors generator with only its CEL types output asked for, so the
+    declarations land in the package that consumes them rather than next to the
+    model. That keeps cel-go out of //pkg/security/secl, which is synchronised
+    into //pkg/security/seclwin.
+
+    Args:
+        name: Name of the target.
+        tags: Build tags to use.
+        model: Model file to use.
+        types_file: Types file to use.
+        package_path: Package path of the *model*, for parsing.
+        output: Output file to use.
+        srcs: Additional source files to use.
+        visibility: Visibility to use.
+    """
+    gen = "{}_gen".format(name)
+    out_dir = name
+    run_binary(
+        name = gen,
+        srcs = [model, types_file] + srcs,
+        args = [
+            "-tags={}".format(tags),
+            "-input=$(execpath {})".format(model),
+            "-types-file=$(execpath {})".format(types_file),
+            "-package={}".format(package_path),
+            "-module={}".format(package_path.rsplit("/", 1)[-1]),
+            # The generator writes every output it is given a path for; the CEL
+            # types are the only one wanted here.
+            "-output=",
+            "-field-handlers=",
+            "-field-accessors-output=",
+            "-cel-types-output=$(execpath {}/{})".format(out_dir, output),
+        ],
+        outs = ["{}/{}".format(out_dir, output)],
+        tool = "//pkg/security/generators/accessors",
+        visibility = visibility,
+    )
+    native.exports_files([output], visibility)
+    write_source_file(
+        name = name,
+        in_file = ":{}".format(gen),
+        out_file = output,
+        check_that_out_file_exists = False,
+    )

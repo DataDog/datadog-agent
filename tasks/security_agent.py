@@ -514,6 +514,10 @@ def cws_go_generate(ctx, verbose=False):
     bazel(ctx, "run", "//pkg/security/secl/model:consts_map_names_linux")
     bazel(ctx, "run", "//pkg/security/secl/model:accessors_unix")
     bazel(ctx, "run", "//pkg/security/secl/model:accessors_windows")
+    # The CEL type declarations come from the same generator but land in the
+    # package that consumes them, to keep cel-go out of pkg/security/secl.
+    bazel(ctx, "run", "//pkg/security/seclcel:celtypes_unix")
+    bazel(ctx, "run", "//pkg/security/seclcel:celtypes_windows")
     bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_unix")
     bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_windows")
     bazel(ctx, "run", "//docs/cloud-workload-security:secl_linux")

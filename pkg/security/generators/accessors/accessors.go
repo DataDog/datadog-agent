@@ -45,6 +45,7 @@ var (
 	typesFile            string
 	pkgname              string
 	output               string
+	celTypesOutput       string
 	verbose              bool
 	docOutput            string
 	fieldHandlersOutput  string
@@ -1229,6 +1230,8 @@ func upperCase(str string) string {
 }
 
 var funcMap = map[string]interface{}{
+	"ShapePathComment":         shapePathComment,
+	"CELTypeExpr":              celTypeExpr,
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
 	"HasPrefix":                strings.HasPrefix,
@@ -1262,6 +1265,64 @@ var fieldHandlersTemplate string
 //go:embed field_accessors.tmpl
 var perFieldAccessorsTemplate string
 
+//go:embed cel_types.tmpl
+var celTypesTemplate string
+
+// shapePathComment renders the SECL paths sharing a CEL shape, capped so that a
+// shape shared by dozens of paths does not produce an unreadable comment.
+func shapePathComment(paths []string) string {
+	const max = 4
+	if len(paths) <= max {
+		return strings.Join(paths, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(paths[:max], ", "), len(paths)-max)
+}
+
+// celTypeExpr renders the Go expression for a member's CEL type. The generated
+// file is the type declaration itself, so there is no intermediate encoding to
+// map at run time.
+func celTypeExpr(member common.CELMember) string {
+	var base string
+
+	switch {
+	case member.Shape != "":
+		base = fmt.Sprintf("types.NewObjectType(%q)", member.Shape)
+	case member.Kind == common.CELKindInt:
+		base = "types.IntType"
+	case member.Kind == common.CELKindBool:
+		base = "types.BoolType"
+	case member.Kind == common.CELKindCIDR:
+		// The network extension library owns the IP and CIDR types.
+		base = "ext.CIDRType"
+	default:
+		base = "types.StringType"
+	}
+
+	if member.List {
+		base = fmt.Sprintf("types.NewListType(%s)", base)
+	}
+	return base
+}
+
+// celTypesView is the data cel_types.tmpl renders.
+type celTypesView struct {
+	BuildTags []string
+	Tree      *common.CELTypeTree
+}
+
+// GenerateCELTypes derives the CEL type tree from the module and writes it out.
+func GenerateCELTypes(output string, module *common.Module) error {
+	tree, err := common.BuildCELTypeTree(module)
+	if err != nil {
+		return fmt.Errorf("building the CEL type tree: %w", err)
+	}
+
+	return generate(output, celTypesView{
+		BuildTags: module.BuildTags,
+		Tree:      tree,
+	}, celTypesTemplate)
+}
+
 func main() {
 	module, err := parseFile(modelFile, typesFile, pkgname)
 	if err != nil {
@@ -1281,22 +1342,37 @@ func main() {
 		}
 	}
 
-	os.Remove(output)
-	if err := GenerateContent(output, module, accessorsTemplateCode); err != nil {
-		panic(err)
+	if output != "" {
+		os.Remove(output)
+		if err := GenerateContent(output, module, accessorsTemplateCode); err != nil {
+			panic(err)
+		}
 	}
 
-	if err := GenerateContent(fieldAccessorsOutput, module, perFieldAccessorsTemplate); err != nil {
-		panic(err)
+	if fieldAccessorsOutput != "" {
+		if err := GenerateContent(fieldAccessorsOutput, module, perFieldAccessorsTemplate); err != nil {
+			panic(err)
+		}
+	}
+
+	if celTypesOutput != "" {
+		os.Remove(celTypesOutput)
+		if err := GenerateCELTypes(celTypesOutput, module); err != nil {
+			panic(err)
+		}
 	}
 }
 
 // GenerateContent generates with the given template
 func GenerateContent(output string, module *common.Module, tmplCode string) error {
+	return generate(output, module, tmplCode)
+}
+
+func generate(output string, data interface{}, tmplCode string) error {
 	tmpl := template.Must(template.New("header").Funcs(funcMap).Funcs(sprig.TxtFuncMap()).Parse(tmplCode))
 
 	buffer := bytes.Buffer{}
-	if err := tmpl.Execute(&buffer, module); err != nil {
+	if err := tmpl.Execute(&buffer, data); err != nil {
 		return err
 	}
 
@@ -1341,6 +1417,7 @@ func init() {
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
 	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_unix.go", "Generated per-field accessors output file")
 	flag.StringVar(&output, "output", "accessors_unix.go", "Go generated file")
+	flag.StringVar(&celTypesOutput, "cel-types-output", "", "Generated CEL type tree output file (skipped when empty)")
 	flag.StringVar(&moduleNameOverride, "module", "", "Module name override (default: derived from -output's dir, falls back to -package basename). Set this when -output is an absolute path so the heuristic doesn't pick up bazel-out subdirs.")
 	flag.Parse()
 }
