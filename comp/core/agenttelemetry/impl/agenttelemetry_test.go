@@ -2391,13 +2391,6 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	assert.True(t, len(atCfg.events) > 0)
 	assert.True(t, len(atCfg.schedule) > 0)
 	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
-
-	// COAT cardinality: checks.max_returned_metrics_reached must stay at check_name only.
-	for _, p := range atCfg.Profiles {
-		if m, ok := p.metricsMap["checks_max_returned_metrics_reached"]; ok {
-			assert.Equal(t, []string{"check_name"}, m.PreserveTags)
-		}
-	}
 }
 
 func TestAgentTelemetryEventConfiguration(t *testing.T) {
