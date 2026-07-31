@@ -121,6 +121,34 @@ func (s *parK8sSuite) TestRshellOperatorPathPolicyNarrowsBackendPolicy() {
 	assert.NotContains(s.T(), result.Outputs["stdout"], operatorBlockedContent)
 }
 
+// TestRshellSystemServicePolicyIntersection verifies the signed backend service
+// grants are narrowed by the deployed operator policy without contacting systemd.
+func (s *parK8sSuite) TestRshellSystemServicePolicyIntersection() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "help",
+		"allowedCommands": []string{"rshell:help"},
+		"systemServices": map[string]interface{}{
+			systemServiceOverlap:     []string{"read", "restart"},
+			systemServiceBackendOnly: []string{"read"},
+		},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().Equal(taskID, result.TaskID)
+	s.Require().True(result.Success, "unexpected PAR rshell result: %+v", result)
+	s.Require().Zero(result.ErrorCode)
+	s.Require().Empty(result.ErrorDetails)
+	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected PAR rshell result: %+v", result)
+	assert.Contains(s.T(), result.Outputs["stdout"], "Allowed systemd units:\n  "+systemServiceOverlap+":read\n")
+	assert.NotContains(s.T(), result.Outputs["stdout"], systemServiceOverlap+":read+restart")
+	assert.NotContains(s.T(), result.Outputs["stdout"], systemServiceBackendOnly)
+	assert.NotContains(s.T(), result.Outputs["stdout"], systemServiceOperatorOnly)
+	assert.Equal(s.T(), "", result.Outputs["stderr"])
+	assert.NotContains(s.T(), result.Outputs, "sandboxWarnings")
+}
+
 // TestRshellBlockedPath verifies rshell blocks access to paths outside restricted_shell.allowed_paths.
 func (s *parK8sSuite) TestRshellBlockedPath() {
 	taskID := uuid.New().String()

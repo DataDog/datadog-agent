@@ -30,12 +30,17 @@ const (
 	// (helm-charts PR #2517). Drop this override once the e2e framework's global HelmVersion
 	// default is bumped to at least this value.
 	minHelmChartVersion = "3.197.2"
+
+	systemServiceOverlap        = "par-e2e.service"
+	systemServiceBackendOnly    = "par-e2e-backend-only.service"
+	systemServiceOperatorOnly   = "par-e2e-operator-only.service"
+	systemServiceOperatorPolicy = `{"par-e2e-operator-only.service":["read"],"par-e2e.service":["read"]}`
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
 // Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
 // automatically by the e2e framework's configureFakeintake when fakeintake is present.
-// %s parameters: clusterName, runnerURN, privateKeyB64
+// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -53,8 +58,9 @@ agents:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
-        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS: '["rshell:cat","rshell:echo","rshell:find","rshell:grep"]'
+        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS: '["rshell:cat","rshell:echo","rshell:find","rshell:grep","rshell:help"]'
         DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS: '["/host/var/log/par-e2e-allowed","/tmp:rw","/var/tmp:ro"]'
+        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES: '%s'
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
@@ -132,7 +138,13 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			// injected automatically by the e2e framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithFakeintake(fi),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)),
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(
+					parHelmValuesTemplate,
+					ctx.Stack(),
+					runnerURN,
+					privateKeyB64,
+					systemServiceOperatorPolicy,
+				)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
