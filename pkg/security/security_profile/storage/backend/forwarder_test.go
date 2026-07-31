@@ -7,11 +7,16 @@
 package backend
 
 import (
+	"compress/gzip"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,6 +71,77 @@ func endpointForServer(t *testing.T, srv *httptest.Server, apiKeyPath string) lo
 	port, err := strconv.Atoi(portStr)
 	require.NoError(t, err)
 	return logsconfig.NewEndpoint("api-key", apiKeyPath, host, port, "", false /* useSSL */)
+}
+
+// TestSendToEndpointStreamsGzippedMultipart verifies the streaming send path: the request body
+// must be gzip-encoded, streamed (chunked, i.e. no precomputed Content-Length), and decode back
+// to the exact event/dump parts that were handed in. This locks in the io.Pipe rewrite that
+// dropped the full gzipped body buffer — if a refactor reintroduces buffering or breaks the
+// encoding chain (multipart -> gzip -> pipe), the round-trip assertions below fail.
+func TestSendToEndpointStreamsGzippedMultipart(t *testing.T) {
+	header := []byte(`{"meta":"data"}`)
+	dump := []byte("this is the raw protobuf dump payload")
+
+	type received struct {
+		contentType     string
+		contentEncoding string
+		contentLength   int64
+		event           []byte
+		dump            []byte
+	}
+	got := make(chan received, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := received{
+			contentType:     r.Header.Get("Content-Type"),
+			contentEncoding: r.Header.Get("Content-Encoding"),
+			contentLength:   r.ContentLength,
+		}
+
+		// The server does not auto-decompress request bodies, so Content-Encoding: gzip means
+		// r.Body is the raw gzip stream we produced.
+		gz, err := gzip.NewReader(r.Body)
+		require.NoError(t, err)
+		defer gz.Close()
+
+		_, params, err := mime.ParseMediaType(rec.contentType)
+		require.NoError(t, err)
+
+		mr := multipart.NewReader(gz, params["boundary"])
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			require.NoError(t, err)
+			b, err := io.ReadAll(part)
+			require.NoError(t, err)
+			switch part.FormName() {
+			case "event":
+				rec.event = b
+			case "dump":
+				rec.dump = b
+			}
+		}
+
+		got <- rec
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	backend := &ActivityDumpRemoteBackend{
+		tooLargeEntities: atomic.NewUint64(0),
+		client:           srv.Client(),
+	}
+
+	require.NoError(t, backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump))
+
+	rec := <-got
+	assert.Equal(t, "gzip", rec.contentEncoding, "body must be gzip-encoded")
+	assert.Equal(t, int64(-1), rec.contentLength, "streamed body should have unknown length (chunked), not a precomputed size")
+	assert.True(t, strings.HasPrefix(rec.contentType, "multipart/form-data"), "content type should be multipart form-data, got %q", rec.contentType)
+	assert.Equal(t, header, rec.event, "event part must round-trip through the streamed body")
+	assert.Equal(t, dump, rec.dump, "dump part must round-trip through the streamed body")
 }
 
 func TestHandleActivityDumpGatesMRFEndpointOnFailover(t *testing.T) {
