@@ -26,4 +26,10 @@ enhancements:
     The ``agent status`` Delegated Authentication section now reports the AWS credential
     source in use for each managed API key (static environment variables, IRSA web
     identity, ECS/EKS container credentials, or EC2 IMDS), along with the last and next
-    scheduled key refresh.
+    scheduled key refresh and the last error.
+  - |
+    Agent Cloud Auth (delegated authentication) failures now name the AWS credential
+    mechanism that was attempted and what to check for it, instead of reporting a generic
+    ``missing AWS credentials``. Credential resolution that returns blank credentials, for
+    example when the EC2 metadata service answers with an error document, is now treated
+    as a failure rather than reported as a successful resolution.

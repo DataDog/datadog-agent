@@ -69,51 +69,62 @@ const (
 //   - only AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are read for static creds (not the legacy
 //     AWS_ACCESS_KEY / AWS_SECRET_KEY aliases), and shared-config / SSO / credential_process are
 //     unsupported.
-func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
-	provider, err := a.credentialProvider(cfg)
+func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) (*creds.SecurityCredentials, error) {
+	// The mechanism is decided by the environment before any credential is fetched. Record it up
+	// front so that a failure can name what was actually attempted: the chain is first-match, so
+	// only one mechanism is ever tried and a message listing all four would misdirect.
+	provider, source, err := a.credentialProvider(cfg)
+	a.lastSource.Store(&source)
 	if err != nil {
-		log.Warnf("AWS credential provider setup failed: %v", err)
-		return &creds.SecurityCredentials{}
+		return nil, fmt.Errorf("%s: provider setup failed: %w", source, err)
 	}
+	return a.resolveCredentialsFrom(ctx, provider, source)
+}
 
+// resolveCredentialsFrom retrieves and validates credentials from an already-selected provider.
+// Split out from resolveCredentials so the retrieval and validation behavior can be tested against
+// an injected provider without depending on the ambient environment.
+func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider aws.CredentialsProvider, source string) (*creds.SecurityCredentials, error) {
 	// Resolve once per call. Delegated auth re-runs this on each proof generation (startup and
 	// every refresh interval), and the credentials it returns are valid for hours, so no
 	// cross-call caching is needed.
 	sdkCreds, err := provider.Retrieve(ctx)
 	if err != nil {
-		log.Warnf("AWS credential retrieval failed: %v", err)
-		return &creds.SecurityCredentials{}
+		return nil, fmt.Errorf("%s: %w", source, err)
+	}
+	if sdkCreds.AccessKeyID == "" || sdkCreds.SecretAccessKey == "" {
+		// Treat blank credentials as a failure rather than passing them on. The Agent's IMDS helper
+		// unmarshals whatever JSON the metadata endpoint returns, so an error document answered with
+		// a 200 yields an empty, error-free result; without this check the caller would log a
+		// successful resolution and then fail to sign the proof for no visible reason.
+		return nil, fmt.Errorf("%s: returned empty credentials", source)
 	}
 
 	// sdkCreds.Source is set by the provider that produced the credentials (ex:
-	// DelegatedAuthWebIdentity, EC2RoleProvider), naming which environment matched. Logged at Info
-	// (once per key fetch, matching the surrounding delegated-auth logs) so operators can confirm
-	// the credential source without enabling debug, and recorded for the status page so it is also
-	// visible from `agent status` without correlating logs.
+	// DelegatedAuthWebIdentity, EC2RoleProvider). Logged at Info (once per key fetch, matching the
+	// surrounding delegated-auth logs) so operators can confirm the credential source without
+	// enabling debug; the status page reads it from lastSource for the same reason.
 	log.Infof("delegated auth resolved AWS credentials via %s", sdkCreds.Source)
-	// Copy the string rather than storing &sdkCreds.Source, which would keep the whole
-	// aws.Credentials value (including the secret access key) reachable for the process lifetime.
-	source := sdkCreds.Source
-	a.lastSource.Store(&source)
 
 	return &creds.SecurityCredentials{
 		AccessKeyID:     sdkCreds.AccessKeyID,
 		SecretAccessKey: sdkCreds.SecretAccessKey,
 		Token:           sdkCreds.SessionToken,
-	}
+	}, nil
 }
 
 // credentialProvider picks the credential provider for the current environment, matching the AWS
 // SDK default-chain precedence: static env vars, then IRSA web identity, then container
-// credentials (ECS / EKS Pod Identity), then EC2 IMDS instance role.
-func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, error) {
+// credentials (ECS / EKS Pod Identity), then EC2 IMDS instance role. It also returns the name of
+// the mechanism it selected, so callers can attribute a failure to the one leg that was tried.
+func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, string, error) {
 	switch {
 	case creds.HasAWSCredentialsInEnvironment():
 		return credentials.NewStaticCredentialsProvider(
 			os.Getenv("AWS_ACCESS_KEY_ID"),
 			os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			os.Getenv("AWS_SESSION_TOKEN"),
-		), nil
+		), creds.SourceEnvironment, nil
 
 	case creds.HasAWSWorkloadIdentityInEnvironment():
 		// IRSA: exchange the projected web-identity token via STS AssumeRoleWithWebIdentity. We
@@ -137,10 +148,11 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 			sessionName: sessionName,
 			stsURL:      "https://" + fmt.Sprintf(regionalStsHost, a.resolveRegion()) + "/",
 			client:      &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)},
-		}, nil
+		}, creds.SourceWebIdentity, nil
 
 	case creds.HasAWSContainerCredentialsInEnvironment():
-		return containerCredentialsProvider()
+		provider, err := containerCredentialsProvider()
+		return provider, creds.SourceContainer, err
 
 	default:
 		// No env / IRSA / container credentials: fall back to the EC2 instance role via IMDS.
@@ -148,7 +160,7 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 		// IMDS client so the call honors ec2_metadata_timeout and the Agent's IMDSv2 configuration
 		// (ec2_prefer_imdsv2 / ec2_imdsv2_transition_payload_enabled), matching every other Agent
 		// IMDS access.
-		return imdsProvider{fetch: creds.GetSecurityCredentials}, nil
+		return imdsProvider{fetch: creds.GetSecurityCredentials}, creds.SourceIMDS, nil
 	}
 }
 

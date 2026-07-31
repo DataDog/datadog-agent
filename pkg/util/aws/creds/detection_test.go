@@ -262,3 +262,40 @@ func TestHasAWSContainerCredentialsInEnvironment(t *testing.T) {
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/creds")
 	assert.True(t, HasAWSContainerCredentialsInEnvironment())
 }
+
+// TestDetectAWSCredentialSourceNoSource covers the case that made this feature hard to support: no
+// credential source at all. The returned error is what the Agent logs and shows in `agent status`,
+// so it must name every mechanism that was checked. IMDS is pointed at a closed port so the test
+// does not depend on whether the machine running it happens to be an EC2 instance.
+func TestDetectAWSCredentialSourceNoSource(t *testing.T) {
+	for _, k := range []string{
+		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+		"AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+	} {
+		t.Setenv(k, "")
+	}
+
+	// Point IMDS at a listener that accepts nothing, so detection fails deterministically.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+	originalTokenURL := ec2internal.TokenURL
+	originalIdentityURL := ec2internal.InstanceIdentityURL
+	ec2internal.TokenURL = server.URL + "/latest/api/token"
+	ec2internal.InstanceIdentityURL = server.URL + "/latest/dynamic/instance-identity/document/"
+	defer func() {
+		ec2internal.TokenURL = originalTokenURL
+		ec2internal.InstanceIdentityURL = originalIdentityURL
+	}()
+
+	source, err := DetectAWSCredentialSource(context.Background())
+	require.Error(t, err)
+	assert.Empty(t, source)
+	// The message must point the operator at each mechanism, not just say "not on AWS".
+	assert.Contains(t, err.Error(), "AWS_ACCESS_KEY_ID")
+	assert.Contains(t, err.Error(), "AWS_WEB_IDENTITY_TOKEN_FILE")
+	assert.Contains(t, err.Error(), "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+	assert.Contains(t, err.Error(), "IMDS")
+}

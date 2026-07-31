@@ -55,9 +55,12 @@ type authInstance struct {
 	consecutiveFailures int
 
 	// lastRefresh is when this key was last fetched successfully, and nextRefresh when the next
-	// attempt is scheduled. Both are for status reporting only.
+	// attempt is scheduled. lastError is the most recent failure. All three are for status
+	// reporting only: without lastError the status page can only report a failure count, which
+	// tells an operator that something is broken but not what.
 	lastRefresh time.Time
 	nextRefresh time.Time
+	lastError   error
 
 	// Context and cancellation for background refresh goroutine
 	refreshCtx    context.Context
@@ -302,7 +305,13 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	apiKey, _, err := d.refreshAndGetAPIKey(ctx, instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
-		// Backoff will be used for retry interval in startBackgroundRefresh
+		// Record the failure so the status page shows it. Without this the instance renders as
+		// "Pending" with no error until the first background refresh, which is a full refresh
+		// interval away, so a startup failure would look identical to a fetch still in flight.
+		d.mu.Lock()
+		instance.consecutiveFailures++
+		instance.lastError = err
+		d.mu.Unlock()
 	} else {
 		// Update the config with the initial API key
 		d.updateConfigWithAPIKey(instance, *apiKey)
@@ -352,6 +361,7 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instan
 	d.mu.Lock()
 	instance.apiKey = apiKey
 	instance.lastRefresh = time.Now()
+	instance.lastError = nil
 	d.mu.Unlock()
 
 	return apiKey, true, nil
@@ -396,6 +406,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 
 					// Track failures for status reporting
 					instance.consecutiveFailures++
+					instance.lastError = lErr
 
 					// Get next backoff interval (exponentially increasing with jitter)
 					nextInterval := instance.backoff.NextBackOff()
@@ -541,17 +552,23 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 			instanceInfo["NextRefresh"] = instance.nextRefresh.Format(time.RFC3339)
 		}
 
-		// Which credential mechanism actually produced the credentials behind this key. This is the
-		// first thing to check when delegated auth works on one workload and not another.
+		// Which credential mechanism was selected for this key. Reported for failed attempts too,
+		// since "which source did it even try" is the first thing to establish when delegated auth
+		// works on one workload and not another.
 		if reporter, ok := instance.provider.(common.CredentialSourceReporter); ok {
 			if source := reporter.LastCredentialSource(); source != "" {
 				instanceInfo["CredentialSource"] = source
 			}
 		}
 
-		// Add error info if there are consecutive failures
+		// Add error info if there are consecutive failures. The message carries the last error, which
+		// names the credential mechanism that was tried and why it failed.
 		if instance.consecutiveFailures > 0 {
-			instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures", instance.consecutiveFailures)
+			if instance.lastError != nil {
+				instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures, last error: %v", instance.consecutiveFailures, instance.lastError)
+			} else {
+				instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures", instance.consecutiveFailures)
+			}
 		}
 
 		instances[key] = instanceInfo

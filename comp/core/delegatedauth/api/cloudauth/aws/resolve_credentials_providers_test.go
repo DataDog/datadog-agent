@@ -34,27 +34,54 @@ func TestResolveCredentials_StaticEnvVarsReturned(t *testing.T) {
 	t.Setenv("AWS_SESSION_TOKEN", "EKSTATICTOKEN")
 
 	auth := &AWSAuth{region: "eu-west-1"}
-	got := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.NoError(t, err)
 	require.NotNil(t, got)
+	assert.Equal(t, creds.SourceEnvironment, auth.LastCredentialSource())
 	assert.Equal(t, "EKSTATICKEY", got.AccessKeyID)
 	assert.Equal(t, "EKSTATICSECRET", got.SecretAccessKey)
 	assert.Equal(t, "EKSTATICTOKEN", got.Token)
 }
 
-// TestResolveCredentials_NoUsableCredsReturnsEmpty verifies resolveCredentials returns empty
-// credentials (not nil) when the selected provider fails, exercising the wrapper's error branch.
-// It forces a deterministic web-identity failure via a missing token file rather than falling
-// through to the IMDS provider, which would make a live metadata call on an EC2 host or CI runner.
-func TestResolveCredentials_NoUsableCredsReturnsEmpty(t *testing.T) {
+// TestResolveCredentials_ProviderFailureIsAttributed verifies a failing provider yields an error
+// naming the credential mechanism that was tried, and that the mechanism is recorded for the status
+// page even though the attempt failed. It forces a deterministic web-identity failure via a missing
+// token file rather than falling through to the IMDS provider, which would make a live metadata
+// call on an EC2 host or CI runner.
+func TestResolveCredentials_ProviderFailureIsAttributed(t *testing.T) {
 	isolateAWSEnv(t)
 	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", filepath.Join(t.TempDir(), "no-such-token"))
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background(), configmock.New(t))
-	require.NotNil(t, got)
-	// AccessKeyID will be empty; downstream generateAwsAuthData returns "missing AWS credentials".
-	assert.Empty(t, got.AccessKeyID)
+	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), creds.SourceWebIdentity)
+	assert.Equal(t, creds.SourceWebIdentity, auth.LastCredentialSource())
+}
+
+// TestResolveCredentials_EmptyCredentialsAreAnError verifies a provider that succeeds but hands
+// back blank credentials is treated as a failure. The Agent's IMDS helper unmarshals whatever JSON
+// the metadata endpoint returns, so an error document served with a 200 produces exactly this
+// shape; without the check the caller would log a successful resolution and then fail to sign.
+func TestResolveCredentials_EmptyCredentialsAreAnError(t *testing.T) {
+	isolateAWSEnv(t)
+
+	auth := &AWSAuth{region: "us-east-1"}
+	// Drive the IMDS leg with an injected fetch so no live metadata call is made.
+	provider := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
+		return &creds.SecurityCredentials{}, nil
+	}}
+	sdkCreds, err := provider.Retrieve(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, sdkCreds.AccessKeyID)
+
+	// resolveCredentials rejects that result rather than passing it on.
+	got, err := auth.resolveCredentialsFrom(context.Background(), provider, creds.SourceIMDS)
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "empty credentials")
 }
 
 // TestResolveRegion_EC2 covers the region precedence used for the IRSA STS call. The IRSA-only
@@ -89,29 +116,33 @@ func TestCredentialProvider_Selection(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_ACCESS_KEY_ID", "k")
 		t.Setenv("AWS_SECRET_ACCESS_KEY", "s")
-		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
+		assert.Equal(t, creds.SourceEnvironment, source)
 		assert.IsType(t, credentials.StaticCredentialsProvider{}, p)
 	})
 	t.Run("IRSA web identity", func(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
 		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
-		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
+		assert.Equal(t, creds.SourceWebIdentity, source)
 		assert.IsType(t, &webIdentityProvider{}, p)
 	})
 	t.Run("container credentials", func(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
-		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
+		assert.Equal(t, creds.SourceContainer, source)
 		assert.IsType(t, &endpointcreds.Provider{}, p)
 	})
 	t.Run("IMDS default", func(t *testing.T) {
 		isolateAWSEnv(t)
-		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
+		assert.Equal(t, creds.SourceIMDS, source)
 		assert.IsType(t, imdsProvider{}, p)
 	})
 }
@@ -196,7 +227,7 @@ func TestCredentialProvider_WebIdentitySessionName(t *testing.T) {
 		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
 		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/token")
 		t.Setenv("AWS_ROLE_SESSION_NAME", "caller-supplied")
-		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		p, _, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.Equal(t, "caller-supplied", p.(*webIdentityProvider).sessionName)
 	})
@@ -204,7 +235,7 @@ func TestCredentialProvider_WebIdentitySessionName(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
 		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/token")
-		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		p, _, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.Equal(t, defaultWebIdentitySessionName, p.(*webIdentityProvider).sessionName)
 	})

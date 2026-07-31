@@ -26,7 +26,6 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -73,7 +72,13 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 	}
 }
 
-// LastCredentialSource implements common.CredentialSourceReporter.
+// Compile-time check that the status page's optional interface stays satisfied. Without it a rename
+// would silently drop the credential source from `agent status` rather than fail the build.
+var _ common.CredentialSourceReporter = (*AWSAuth)(nil)
+
+// LastCredentialSource implements common.CredentialSourceReporter. It names the mechanism selected
+// for the most recent resolution attempt, whether or not that attempt succeeded, so it is populated
+// exactly when an operator needs it most.
 func (a *AWSAuth) LastCredentialSource() string {
 	if s := a.lastSource.Load(); s != nil {
 		return *s
@@ -90,12 +95,18 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Read
 		return "", ctx.Err()
 	}
 
-	// Get local AWS Credentials. cfg is threaded through so the IRSA web-identity STS call can use
-	// the Agent's configured HTTP transport (proxy / custom CA / TLS settings).
-	credentials := a.getCredentials(ctx, cfg)
-
 	if config == nil || config.OrgUUID == "" {
 		return "", errors.New("missing org UUID in config")
+	}
+
+	// Get local AWS Credentials. cfg is threaded through so the IRSA web-identity STS call can use
+	// the Agent's configured HTTP transport (proxy / custom CA / TLS settings). The error names the
+	// credential mechanism that was tried and why it failed, and is returned rather than only logged
+	// so it reaches the caller's error log and the status page instead of a generic
+	// "missing AWS credentials".
+	credentials, err := a.getCredentials(ctx, cfg)
+	if err != nil {
+		return "", err
 	}
 
 	// Use the credentials to generate the signing data
@@ -114,26 +125,43 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Read
 	return authProof, nil
 }
 
-// getCredentials retrieves AWS credentials from the environment the Agent is running in, trying
-// env -> IRSA web identity -> ECS/EKS container credentials -> IMDS (shared config/SSO/profiles
-// are deliberately unsupported, see resolveCredentials).
-func (a *AWSAuth) getCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
-	resolved := a.resolveCredentials(ctx, cfg)
-	if resolved == nil {
-		return &creds.SecurityCredentials{}
+// getCredentials retrieves AWS credentials from the environment the Agent is running in, using the
+// one mechanism that matches it: env, IRSA web identity, ECS/EKS container credentials, or IMDS
+// (shared config/SSO/profiles are deliberately unsupported, see resolveCredentials).
+//
+// A failure here means delegated auth cannot fetch an API key at all, so the error is annotated
+// with what the operator should look at for the mechanism that was actually tried, then returned.
+// Nothing is logged here: the caller already reports the failure, and logging as well would emit
+// the same remediation text three times per attempt.
+func (a *AWSAuth) getCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) (*creds.SecurityCredentials, error) {
+	resolved, err := a.resolveCredentials(ctx, cfg)
+	if err != nil {
+		// A canceled context means the Agent is shutting down or this instance was replaced, not that
+		// the environment is misconfigured. Return it unadorned so callers can recognize it and skip
+		// the remediation hint.
+		if ctx.Err() != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%w. %s", err, credentialRemediation(a.LastCredentialSource(), cfg))
 	}
-	if resolved.AccessKeyID == "" || resolved.SecretAccessKey == "" {
-		// Warn rather than Debug: without credentials the proof cannot be signed, so delegated auth
-		// cannot produce an API key. The preceding log from resolveCredentials says which step
-		// failed; this line makes the consequence visible at the default log level.
-		log.Warnf("Delegated auth could not resolve AWS credentials, so no API key can be fetched. "+
-			"Checked, in order: AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, IRSA (AWS_ROLE_ARN + "+
-			"AWS_WEB_IDENTITY_TOKEN_FILE), ECS/EKS container credentials "+
-			"(AWS_CONTAINER_CREDENTIALS_RELATIVE_URI/_FULL_URI), then EC2 IMDS. Confirm the workload "+
-			"has an AWS identity attached and that IMDS is reachable (ec2_metadata_timeout=%dms).",
-			cfg.GetInt("ec2_metadata_timeout"))
+	return resolved, nil
+}
+
+// credentialRemediation returns the check to suggest for the credential mechanism that was tried.
+// Naming only that mechanism matters because the chain is first-match: telling an IRSA pod to
+// verify IMDS reachability sends the operator down a path the Agent never took.
+func credentialRemediation(source string, cfg pkgconfigmodel.Reader) string {
+	switch source {
+	case creds.SourceEnvironment:
+		return "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set, so no other credential source was tried; check that they are valid and not expired"
+	case creds.SourceWebIdentity:
+		return "AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE are set, so IRSA was used; check that the token file is mounted and readable and that the role's trust policy allows this service account"
+	case creds.SourceContainer:
+		return "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI or AWS_CONTAINER_CREDENTIALS_FULL_URI is set, so ECS/EKS container credentials were used; check that the task role or Pod Identity association exists and that the credential endpoint is reachable"
+	default:
+		return fmt.Sprintf("no credential environment variables were set, so EC2 IMDS was used; check that an instance profile is attached and that IMDS is reachable (ec2_metadata_timeout=%dms, ec2_prefer_imdsv2=%t)",
+			cfg.GetInt("ec2_metadata_timeout"), cfg.GetBool("ec2_prefer_imdsv2"))
 	}
-	return resolved
 }
 
 func (a *AWSAuth) getConnectionParameters() (string, string, string) {

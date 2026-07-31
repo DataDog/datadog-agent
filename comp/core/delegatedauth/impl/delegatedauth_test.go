@@ -8,12 +8,16 @@ package delegatedauthimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -630,4 +634,128 @@ func TestRefreshIntervalValidation(t *testing.T) {
 				"interval should be <= max expected")
 		})
 	}
+}
+
+// stubProvider is a common.Provider that reports a fixed credential source, standing in for the
+// AWS provider so the status assertions do not depend on the ambient AWS environment.
+type stubProvider struct {
+	source string
+}
+
+func (s stubProvider) GenerateAuthProof(context.Context, pkgconfigmodel.Reader, *common.AuthConfig) (string, error) {
+	return "", nil
+}
+
+func (s stubProvider) LastCredentialSource() string { return s.source }
+
+func TestStatusPopulateInfo_DisabledReason(t *testing.T) {
+	// A configured-but-undetected provider must be distinguishable from "never configured": the
+	// bare "not enabled" that the status page used to show is what made this class of
+	// misconfiguration undiagnosable.
+	comp := &delegatedAuthComponent{
+		initialized:    true,
+		instances:      make(map[string]*authInstance),
+		disabledReason: "no supported cloud provider detected: no AWS credential source found",
+	}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	assert.Equal(t, false, stats["enabled"])
+	assert.Equal(t, "no supported cloud provider detected: no AWS credential source found", stats["disabledReason"])
+
+	var buffer bytes.Buffer
+	require.NoError(t, comp.Text(false, &buffer))
+	assert.Contains(t, buffer.String(), "Delegated Authentication is not enabled")
+	assert.Contains(t, buffer.String(), "no AWS credential source found")
+}
+
+func TestStatusPopulateInfo_NotConfiguredHasNoReason(t *testing.T) {
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	assert.Equal(t, false, stats["enabled"])
+	assert.Nil(t, stats["disabledReason"])
+}
+
+func TestStatusPopulateInfo_CredentialSourceAndRefreshTimes(t *testing.T) {
+	apiKey := "active-key"
+	lastRefresh := time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC)
+	nextRefresh := lastRefresh.Add(time.Hour)
+	comp := &delegatedAuthComponent{
+		initialized:      true,
+		resolvedProvider: cloudauthconfig.ProviderAWS,
+		providerConfig:   &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
+		instances: map[string]*authInstance{
+			"api_key": {
+				apiKey:          &apiKey,
+				refreshInterval: time.Hour,
+				apiKeyConfigKey: "api_key",
+				provider:        stubProvider{source: creds.SourceWebIdentity},
+				lastRefresh:     lastRefresh,
+				nextRefresh:     nextRefresh,
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	instance := stats["instances"].(map[string]map[string]interface{})["api_key"]
+	assert.Equal(t, creds.SourceWebIdentity, instance["CredentialSource"])
+	assert.Equal(t, lastRefresh.Format(time.RFC3339), instance["LastRefresh"])
+	assert.Equal(t, nextRefresh.Format(time.RFC3339), instance["NextRefresh"])
+
+	var buffer bytes.Buffer
+	require.NoError(t, comp.Text(false, &buffer))
+	output := buffer.String()
+	assert.Contains(t, output, "Credential Source: "+creds.SourceWebIdentity)
+	assert.Contains(t, output, "Last Refresh: "+lastRefresh.Format(time.RFC3339))
+	assert.Contains(t, output, "Next Refresh: "+nextRefresh.Format(time.RFC3339))
+}
+
+func TestStatusPopulateInfo_LastErrorIsReported(t *testing.T) {
+	// A failure count alone tells an operator that something is broken but not what. The last error
+	// carries the credential mechanism that was tried and why it failed.
+	comp := &delegatedAuthComponent{
+		initialized:      true,
+		resolvedProvider: cloudauthconfig.ProviderAWS,
+		instances: map[string]*authInstance{
+			"api_key": {
+				refreshInterval:     time.Hour,
+				apiKeyConfigKey:     "api_key",
+				consecutiveFailures: 3,
+				lastError:           errors.New("IRSA web identity: STS returned 403 Forbidden"),
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	instance := stats["instances"].(map[string]map[string]interface{})["api_key"]
+	assert.Equal(t, "3 consecutive failures, last error: IRSA web identity: STS returned 403 Forbidden", instance["Error"])
+}
+
+func TestStatusPopulateInfo_NoCredentialSourceBeforeFirstAttempt(t *testing.T) {
+	// LastCredentialSource is empty until a provider has been selected; the field should be omitted
+	// rather than rendered blank.
+	comp := &delegatedAuthComponent{
+		initialized: true,
+		instances: map[string]*authInstance{
+			"api_key": {
+				refreshInterval: time.Hour,
+				apiKeyConfigKey: "api_key",
+				provider:        stubProvider{source: ""},
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	instance := stats["instances"].(map[string]map[string]interface{})["api_key"]
+	assert.Nil(t, instance["CredentialSource"])
 }
