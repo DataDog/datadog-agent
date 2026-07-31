@@ -27,11 +27,41 @@ type testAgentKeepRightsFleetSuite struct {
 // Automation upgrade path (StartExperiment/PromoteExperiment). Regression test for #53958
 // and the follow-up #54125.
 func TestAgentKeepRightsFleetUpgrade(t *testing.T) {
-	e2e.Run(t, &testAgentKeepRightsFleetSuite{},
+	s := &testAgentKeepRightsFleetSuite{}
+	s.testAgentUpgradeSuite.BaseSuite.CreateStableAgent = s.createStableAgentWithKeepRights
+	e2e.Run(t, s,
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(),
 		),
 	)
+}
+
+// createStableAgentWithKeepRights pins the suite's "previous"/"stable" version to 7.81.0, the
+// first release supporting DDAGENTUSER_KEEP_RIGHTS. The default "last stable" pointer used
+// elsewhere in this suite can resolve to an older release that doesn't understand the property
+// at all, which would silently no-op it.
+func (s *testAgentKeepRightsFleetSuite) createStableAgentWithKeepRights() (*AgentVersionManager, error) {
+	previousVersion := "7.81.0"
+	previousVersionPackage := "7.81.0-1"
+
+	previousOCI, err := NewPackageConfig(
+		WithName(consts.AgentPackage),
+		WithVersion(previousVersion),
+		WithRegistry(consts.BetaS3OCIRegistry),
+		WithDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
+
+	previousMSI, err := windowsagent.NewPackage(
+		windowsagent.WithVersion(previousVersionPackage),
+		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
+
+	agent, err := NewAgentVersionManager(previousVersion, previousVersionPackage, previousOCI, previousMSI)
+	s.Require().NoError(err, "Stable agent version was in an incorrect format")
+
+	return agent, nil
 }
 
 // TestKeepRightsSurvivesFleetUpgrade: install, remove SeDenyNetworkLogonRight (simulating an
@@ -54,7 +84,12 @@ func (s *testAgentKeepRightsFleetSuite) TestKeepRightsSurvivesFleetUpgrade() {
 	s.Require().NoError(err, "should remove %s from SeDenyNetworkLogonRight", keepRightsAgentUser)
 
 	// Reinstall with DDAGENTUSER_KEEP_RIGHTS=1 to persist the opt-out to the registry.
-	s.installPreviousAgentVersion(WithMSIArg("DDAGENTUSER_KEEP_RIGHTS=1"))
+	// installPreviousAgentVersion() defaults to a fixed log filename, so override it here
+	// to avoid colliding with the baseline install's log above.
+	s.installPreviousAgentVersion(
+		WithMSIArg("DDAGENTUSER_KEEP_RIGHTS=1"),
+		WithMSILogFile("install-previous-version-keep-rights.log"),
+	)
 
 	s.Require().Host(vm).
 		HasRegistryKey(consts.RegistryKeyPath).
