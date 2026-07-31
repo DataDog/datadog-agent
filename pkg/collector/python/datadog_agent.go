@@ -52,6 +52,10 @@ var (
 	telemetryLock = sync.Mutex{}
 )
 
+// errMetricRedeclared marks an emission that disagrees with how the metric was first
+// declared. Such a mismatch is a bug in the calling check, so it is logged at error level.
+var errMetricRedeclared = errors.New("metric redeclared")
+
 type agentTelemetryMetric struct {
 	update     func(value float64, labels map[string]string)
 	metricType string
@@ -65,10 +69,10 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 
 	if entry, ok := telemetryMap[key]; ok {
 		if entry.metricType != metricType {
-			return nil, fmt.Errorf("metric %s for check %s was already emitted as %s when %s was expected", metricName, checkName, entry.metricType, metricType)
+			return nil, fmt.Errorf("%w: metric %s for check %s was already emitted as %s when %s was expected", errMetricRedeclared, metricName, checkName, entry.metricType, metricType)
 		}
 		if !slices.Equal(entry.labelNames, labelNames) {
-			return nil, fmt.Errorf("metric %s for check %s was already emitted with labels %v when labels %v were expected", metricName, checkName, entry.labelNames, labelNames)
+			return nil, fmt.Errorf("%w: metric %s for check %s was already emitted with labels %v when labels %v were expected", errMetricRedeclared, metricName, checkName, entry.labelNames, labelNames)
 		}
 		return entry, nil
 	}
@@ -675,7 +679,11 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 
 	entry, err := lazyInitTelemetryMetric(goCheckName, goMetricName, goMetricType, slices.Sorted(maps.Keys(labels)))
 	if err != nil {
-		log.Warnf("EmitAgentTelemetry: %v", err)
+		if errors.Is(err, errMetricRedeclared) {
+			log.Errorf("EmitAgentTelemetry: %v", err)
+		} else {
+			log.Warnf("EmitAgentTelemetry: %v", err)
+		}
 		return
 	}
 
