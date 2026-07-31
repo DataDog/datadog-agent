@@ -67,10 +67,26 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			VolumeThroughput:   vmArgs.volumeThroughput,
 		}
 
+		// TODO: remove E2E_MACOS_POOL_ENABLED and this bypass path once the pool has
+		// been validated and is trusted as the default.
+		//
+		// E2E_MACOS_POOL_ENABLED is an escape hatch to bypass the pool entirely and fall
+		// back to provisioning a fresh Dedicated Host per run. Missing/true keeps pool
+		// behavior; only an explicit "false" disables it. Unlike isCI below, a missing
+		// value must default to true, so parse errors are surfaced instead of ignored.
+		poolEnabled := true
+		if v := stdos.Getenv("E2E_MACOS_POOL_ENABLED"); v != "" {
+			parsed, err := strconv.ParseBool(v)
+			if err != nil {
+				return fmt.Errorf("invalid E2E_MACOS_POOL_ENABLED value %q: %w", v, err)
+			}
+			poolEnabled = parsed
+		}
+
 		// isMacOSPoolMember/poolAcquired drive the pool-acquire/pool-provision/
 		// pool-release wiring below, once the instance itself has been created or
 		// imported.
-		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == ""
+		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" && poolEnabled
 		isCI, _ := strconv.ParseBool(stdos.Getenv("CI"))
 		username := e.Username()
 		stackID := e.Ctx().Stack()
@@ -148,6 +164,22 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				instanceArgs.HostID = host.ID()
 			}
 		} else {
+			// TODO: remove this bypass path once the pool has been validated and is
+			// trusted as the default.
+			if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
+				// Pool bypassed (E2E_MACOS_POOL_ENABLED=false) but still a macOS VM:
+				// mac1/mac2 instance types require Tenancy "host" and a Dedicated Host,
+				// which the pool branch above would otherwise have provisioned.
+				opts = append(opts, pulumi.RetainOnDelete(true))
+				instanceArgs.Tenancy = "host"
+
+				host, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{InstanceType: vmArgs.instanceType}, opts...)
+				if err != nil {
+					return err
+				}
+				instanceArgs.HostID = host.ID()
+			}
+
 			c.PoolInstanceID = pulumi.String("").ToStringOutput()
 			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
 			c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
