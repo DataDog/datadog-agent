@@ -972,7 +972,7 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     char *metric_name = NULL;
     double metric_value;
     char *metric_type = NULL;
-    PyObject *labels = NULL;
+    PyObject *labels = Py_None;
     static char *kwlist[] = { "check_name", "metric_name", "metric_value", "metric_type", "labels", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssds|O", kwlist, &check_name, &metric_name, &metric_value,
                                      &metric_type, &labels)) {
@@ -981,16 +981,11 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     }
 
     char *labels_json = NULL;
-    if (labels != NULL && labels != Py_None) {
-        labels_json = as_json(labels);
-        if (labels_json == NULL) {
-            PyErr_Clear();
-            PyGILState_Release(gstate);
-            Py_RETURN_NONE;
-        }
+    if (labels != Py_None && (labels_json = as_json(labels)) == NULL) {
+        PyErr_Clear();
+    } else {
+        cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type, labels_json);
     }
-
-    cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type, labels_json);
 
     _free(labels_json);
     PyGILState_Release(gstate);
