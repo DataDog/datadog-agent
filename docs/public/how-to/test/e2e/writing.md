@@ -45,27 +45,27 @@ The framework provides several provisioners for different scenarios:
 
 ### Test Validation
 
-E2E tests should validate complete workflows:
+E2E tests should validate complete workflows. With `awshost.Provisioner()` the Agent and a fakeintake are already deployed, so the test asserts on the running system rather than setting it up:
 
 ```go
-func (v *vmSuite) TestAgentInstallation() {
-    vm := v.Env().RemoteHost
-
-    // Install agent
-    _, err := vm.Execute("sudo apt-get install datadog-agent")
-    v.Require().NoError(err)
-
+func (v *vmSuite) TestAgentReportsMetrics() {
     // Verify agent is running
-    out, err := vm.Execute("sudo systemctl status datadog-agent")
-    v.Require().NoError(err)
+    out := v.Env().RemoteHost.MustExecute("sudo systemctl status datadog-agent")
     v.Require().Contains(out, "active (running)")
 
-    // Validate metric submission
-    v.Eventually(func() bool {
-        return v.Env().FakeIntake.GetMetricCount() > 0
-    }, 30*time.Second, 1*time.Second)
+    // Validate metric submission. Payloads take time to arrive, so never assert
+    // on them synchronously.
+    v.EventuallyWithT(func(c *assert.CollectT) {
+        metricNames, err := v.Env().FakeIntake.Client().GetMetricNames()
+        require.NoError(c, err)
+        assert.NotEmpty(c, metricNames)
+    }, 2*time.Minute, 10*time.Second)
 }
 ```
+
+/// warning
+Do not install anything from the public internet in a test body — no `apt-get install`, no `curl https://…`. It is the single largest source of E2E flakiness, and CI is losing outbound internet access. See [Test dependencies](dependencies.md).
+///
 
 ## Test Categories and Scenarios
 
