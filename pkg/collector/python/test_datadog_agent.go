@@ -95,13 +95,21 @@ func testSetExternalTags(t *testing.T) {
 		string(yamlPayload))
 }
 
+func emitTelemetry(checkName string, metricName string, metricValue float64, metricType string, labelsJSON string) {
+	var labels *C.char
+	if labelsJSON != "" {
+		labels = C.CString(labelsJSON)
+	}
+	EmitAgentTelemetry(C.CString(checkName), C.CString(metricName), C.double(metricValue), C.CString(metricType), labels)
+}
+
 func testEmitAgentTelemetry(t *testing.T) {
 	resetAgentTelemetryForTest()
 
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+	emitTelemetry("test_check", "test_metric", 1.0, "gauge", "")
 
 	// Test second time for laziness check
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+	emitTelemetry("test_check", "test_metric", 1.0, "gauge", "")
 
 	// Test for lock problems
 	wg := sync.WaitGroup{}
@@ -109,25 +117,25 @@ func testEmitAgentTelemetry(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			time.Sleep(time.Millisecond * time.Duration(rand.IntN(10)))
-			EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+			emitTelemetry("test_check", "test_metric", 1.0, "gauge", "")
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 
 	// Test that changing the metric type doesn't crash the agent for all the permutations
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("histogram"))
+	emitTelemetry("test_check", "test_metric", 1.0, "counter", "")
+	emitTelemetry("test_check", "test_counter", 1.0, "histogram", "")
 
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("histogram"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("gauge"))
+	emitTelemetry("test_check", "test_counter", 1.0, "counter", "")
+	emitTelemetry("test_check", "test_counter", 1.0, "counter", "")
+	emitTelemetry("test_check", "test_counter", 1.0, "histogram", "")
+	emitTelemetry("test_check", "test_counter", 1.0, "gauge", "")
 
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("histogram"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("histogram"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("gauge"))
+	emitTelemetry("test_check", "test_histogram", 1.0, "histogram", "")
+	emitTelemetry("test_check", "test_histogram", 1.0, "histogram", "")
+	emitTelemetry("test_check", "test_histogram", 1.0, "counter", "")
+	emitTelemetry("test_check", "test_histogram", 1.0, "gauge", "")
 
 	mf := requireTelemetryFamily(t, "test_check__test_metric")
 	require.Len(t, mf.Metric, 1)
@@ -142,16 +150,7 @@ func resetAgentTelemetryForTest() {
 	telemetryimpl.GetCompatComponent().Reset()
 }
 
-func callEmitAgentTelemetryWithLabels(checkName string, metricName string, metricValue float64, metricType string, labelsJSON string) string {
-	var errOut *C.char
-	EmitAgentTelemetryWithLabels(C.CString(checkName), C.CString(metricName), C.double(metricValue), C.CString(metricType), C.CString(labelsJSON), &errOut)
-	if errOut == nil {
-		return ""
-	}
-	return C.GoString(errOut)
-}
-
-func requireTelemetryFamily(t *testing.T, name string) *dto.MetricFamily {
+func telemetryFamily(t *testing.T, name string) *dto.MetricFamily {
 	t.Helper()
 	families, err := telemetryimpl.GetCompatComponent().Gather(false)
 	require.NoError(t, err)
@@ -160,8 +159,14 @@ func requireTelemetryFamily(t *testing.T, name string) *dto.MetricFamily {
 			return family
 		}
 	}
-	t.Fatalf("metric family %s not found", name)
 	return nil
+}
+
+func requireTelemetryFamily(t *testing.T, name string) *dto.MetricFamily {
+	t.Helper()
+	family := telemetryFamily(t, name)
+	require.NotNil(t, family, "metric family %s not found", name)
+	return family
 }
 
 func metricLabels(metricIndex int, family *dto.MetricFamily) map[string]string {
@@ -197,33 +202,50 @@ func testAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t *testing.T) {
 	assert.Equal(t, "right-value", telemetryMap[rightKey].metric)
 }
 
-func testEmitAgentTelemetryWithLabels(t *testing.T) {
+func testEmitAgentTelemetryLabels(t *testing.T) {
 	resetAgentTelemetryForTest()
 
-	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 1, "counter", `{"check_name":"openmetrics","state":"limited"}`))
-	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 2, "counter", `{"state":"limited","check_name":"openmetrics"}`))
+	emitTelemetry("test_check", "test_counter", 1, "counter", `{"check_name":"openmetrics","state":"limited"}`)
+	emitTelemetry("test_check", "test_counter", 2, "counter", `{"state":"limited","check_name":"openmetrics"}`)
 	counterFamily := requireTelemetryFamily(t, "test_check__test_counter")
 	require.Len(t, counterFamily.Metric, 1)
 	assert.Equal(t, map[string]string{"check_name": "openmetrics", "state": "limited"}, metricLabels(0, counterFamily))
 	assert.Equal(t, 3.0, counterFamily.Metric[0].GetCounter().GetValue())
 
-	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_gauge", 7, "gauge", `{"check_name":"openmetrics"}`))
+	emitTelemetry("test_check", "test_gauge", 7, "gauge", `{"check_name":"openmetrics"}`)
 	gaugeFamily := requireTelemetryFamily(t, "test_check__test_gauge")
 	require.Len(t, gaugeFamily.Metric, 1)
 	assert.Equal(t, map[string]string{"check_name": "openmetrics"}, metricLabels(0, gaugeFamily))
 	assert.Equal(t, 7.0, gaugeFamily.Metric[0].GetGauge().GetValue())
 
-	assert.Empty(t, callEmitAgentTelemetryWithLabels("test_check", "test_histogram", 25, "histogram", `{"check_name":"openmetrics"}`))
+	emitTelemetry("test_check", "test_histogram", 25, "histogram", `{"check_name":"openmetrics"}`)
 	histogramFamily := requireTelemetryFamily(t, "test_check__test_histogram")
 	require.Len(t, histogramFamily.Metric, 1)
 	assert.Equal(t, map[string]string{"check_name": "openmetrics"}, metricLabels(0, histogramFamily))
 	assert.Equal(t, uint64(1), histogramFamily.Metric[0].GetHistogram().GetSampleCount())
 
-	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "bad_json", 1, "counter", `{bad`), "invalid labels JSON")
-	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "bad_labels", 1, "counter", `{"check_name":1}`), "invalid labels JSON")
-	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 1, "counter", `{"check_name":"openmetrics"}`), "already emitted with labels")
-	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "test_counter", 1, "gauge", `{"state":"limited","check_name":"openmetrics"}`), "already emitted as counter")
-	assert.Contains(t, callEmitAgentTelemetryWithLabels("test_check", "invalid_type", 1, "rate", `{"check_name":"openmetrics"}`), "unsupported metric type")
+	// Every failure mode is dropped with a log line: nothing is registered and nothing panics.
+	emitTelemetry("test_check", "bad_json", 1, "counter", `{bad`)
+	emitTelemetry("test_check", "bad_labels", 1, "counter", `{"check_name":1}`)
+	emitTelemetry("test_check", "not_an_object", 1, "counter", `["check_name"]`)
+	emitTelemetry("test_check", "null_labels", 1, "counter", `null`)
+	emitTelemetry("test_check", "invalid_type", 1, "rate", `{"check_name":"openmetrics"}`)
+	for _, metricName := range []string{"bad_json", "bad_labels", "not_an_object", "null_labels", "invalid_type"} {
+		assert.Nil(t, telemetryFamily(t, "test_check__"+metricName), "expected %s to be dropped", metricName)
+	}
+
+	// Conflicting label sets and types are dropped too, leaving the first registration intact.
+	emitTelemetry("test_check", "test_counter", 1, "counter", `{"check_name":"openmetrics"}`)
+	emitTelemetry("test_check", "test_counter", 1, "gauge", `{"state":"limited","check_name":"openmetrics"}`)
+	counterFamily = requireTelemetryFamily(t, "test_check__test_counter")
+	require.Len(t, counterFamily.Metric, 1)
+	assert.Equal(t, 3.0, counterFamily.Metric[0].GetCounter().GetValue())
+
+	// A labeled metric cannot later be emitted unlabeled, and vice versa.
+	emitTelemetry("test_check", "test_gauge", 9, "gauge", "")
+	gaugeFamily = requireTelemetryFamily(t, "test_check__test_gauge")
+	require.Len(t, gaugeFamily.Metric, 1)
+	assert.Equal(t, 7.0, gaugeFamily.Metric[0].GetGauge().GetValue())
 }
 
 func testObfuscaterConfig(t *testing.T) {

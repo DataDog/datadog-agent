@@ -1115,11 +1115,6 @@ void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
     _set_emit_agent_telemetry_cb(cb);
 }
 
-void Three::setEmitAgentTelemetryWithLabelsCb(cb_emit_agent_telemetry_with_labels_t cb)
-{
-    _set_emit_agent_telemetry_with_labels_cb(cb);
-}
-
 void Three::setReportIssueCb(cb_report_issue_t cb)
 {
     _set_report_issue_cb(cb);

@@ -654,138 +654,61 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 	return entry, nil
 }
 
-func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
-	entry, err := lazyInitTelemetryMetric(checkName, metricName, "histogram", nil)
-	if err != nil {
-		log.Errorf("EmitAgentTelemetry: %v", err)
-		return nil
-	}
-	histogram, ok := entry.metric.(telemetry.Histogram)
-	if !ok {
-		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when histogram was expected", metricName, checkName, entry.metric)
-		return nil
-	}
-	return histogram
-}
-
-func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
-	entry, err := lazyInitTelemetryMetric(checkName, metricName, "counter", nil)
-	if err != nil {
-		log.Errorf("EmitAgentTelemetry: %v", err)
-		return nil
-	}
-	counter, ok := entry.metric.(telemetry.Counter)
-	if !ok {
-		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when counter was expected", metricName, checkName, entry.metric)
-		return nil
-	}
-	return counter
-}
-
-func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
-	entry, err := lazyInitTelemetryMetric(checkName, metricName, "gauge", nil)
-	if err != nil {
-		log.Errorf("EmitAgentTelemetry: %v", err)
-		return nil
-	}
-	gauge, ok := entry.metric.(telemetry.Gauge)
-	if !ok {
-		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %T when gauge was expected", metricName, checkName, entry.metric)
-		return nil
-	}
-	return gauge
-}
-
-// EmitAgentTelemetry records an unlabeled telemetry data point for a Python integration.
+// EmitAgentTelemetry records a telemetry data point for a Python integration.
+// labelsJSON is optional: NULL or empty means no labels, otherwise it must be a JSON
+// object whose keys and values are strings.
+// Emission is best effort; every failure is logged and dropped, nothing propagates to Python.
 // NB: Cross-org agent telemetry needs to be enabled for each metric in
 // comp/core/agenttelemetry/impl/defaultProfiles.yaml.
 //
 //export EmitAgentTelemetry
-func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char) {
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char, labelsJSON *C.char) {
 	goCheckName := C.GoString(checkName)
 	goMetricName := C.GoString(metricName)
 	goMetricValue := float64(metricValue)
 	goMetricType := C.GoString(metricType)
 
-	switch goMetricType {
-	case "counter":
-		counter := lazyInitTelemetryCounter(goCheckName, goMetricName)
-		if counter != nil {
-			counter.Add(goMetricValue)
+	var labels map[string]string
+	if labelsJSON != nil {
+		if goLabelsJSON := C.GoString(labelsJSON); goLabelsJSON != "" {
+			if err := json.Unmarshal([]byte(goLabelsJSON), &labels); err != nil {
+				log.Warnf("EmitAgentTelemetry: invalid labels for %s.%s: %v", goCheckName, goMetricName, err)
+				return
+			}
+			if labels == nil {
+				log.Warnf("EmitAgentTelemetry: invalid labels for %s.%s: expected a JSON object with string values", goCheckName, goMetricName)
+				return
+			}
 		}
-	case "histogram":
-		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName)
-		if histogram != nil {
-			histogram.Observe(goMetricValue)
+	}
+
+	entry, err := lazyInitTelemetryMetric(goCheckName, goMetricName, goMetricType, sortedLabelNames(labels))
+	if err != nil {
+		log.Warnf("EmitAgentTelemetry: %v", err)
+		return
+	}
+
+	switch metric := entry.metric.(type) {
+	case telemetry.Counter:
+		if len(labels) == 0 {
+			metric.Add(goMetricValue)
+		} else {
+			metric.AddWithTags(goMetricValue, labels)
 		}
-	case "gauge":
-		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
-		if gauge != nil {
-			gauge.Set(goMetricValue)
+	case telemetry.Histogram:
+		if len(labels) == 0 {
+			metric.Observe(goMetricValue)
+		} else {
+			metric.WithTags(labels).Observe(goMetricValue)
+		}
+	case telemetry.Gauge:
+		if len(labels) == 0 {
+			metric.Set(goMetricValue)
+		} else {
+			metric.WithTags(labels).Set(goMetricValue)
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
-	}
-}
-
-func emitAgentTelemetryWithLabels(checkName string, metricName string, metricValue float64, metricType string, labels map[string]string) error {
-	entry, err := lazyInitTelemetryMetric(checkName, metricName, metricType, sortedLabelNames(labels))
-	if err != nil {
-		return err
-	}
-
-	switch metricType {
-	case "counter":
-		counter, ok := entry.metric.(telemetry.Counter)
-		if !ok {
-			return fmt.Errorf("metric %s for check %s was emitted with a different type %T when counter was expected", metricName, checkName, entry.metric)
-		}
-		counter.AddWithTags(metricValue, labels)
-	case "histogram":
-		histogram, ok := entry.metric.(telemetry.Histogram)
-		if !ok {
-			return fmt.Errorf("metric %s for check %s was emitted with a different type %T when histogram was expected", metricName, checkName, entry.metric)
-		}
-		histogram.WithTags(labels).Observe(metricValue)
-	case "gauge":
-		gauge, ok := entry.metric.(telemetry.Gauge)
-		if !ok {
-			return fmt.Errorf("metric %s for check %s was emitted with a different type %T when gauge was expected", metricName, checkName, entry.metric)
-		}
-		gauge.WithTags(labels).Set(metricValue)
-	default:
-		return fmt.Errorf("unsupported metric type %s requested by %s for %s", metricType, checkName, metricName)
-	}
-
-	return nil
-}
-
-// EmitAgentTelemetryWithLabels records a labeled telemetry data point for a Python integration.
-// labelsJSON must be a JSON object whose keys and values are strings.
-//
-//export EmitAgentTelemetryWithLabels
-func EmitAgentTelemetryWithLabels(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char, labelsJSON *C.char, errOut **C.char) {
-	*errOut = nil
-
-	goCheckName := C.GoString(checkName)
-	goMetricName := C.GoString(metricName)
-	goMetricValue := float64(metricValue)
-	goMetricType := C.GoString(metricType)
-	goLabelsJSON := C.GoString(labelsJSON)
-
-	var labels map[string]string
-	if err := json.Unmarshal([]byte(goLabelsJSON), &labels); err != nil {
-		*errOut = TrackedCString(fmt.Sprintf("invalid labels JSON for %s.%s: %v", goCheckName, goMetricName, err))
-		return
-	}
-	if labels == nil {
-		*errOut = TrackedCString(fmt.Sprintf("invalid labels JSON for %s.%s: expected object with string values", goCheckName, goMetricName))
-		return
-	}
-
-	if err := emitAgentTelemetryWithLabels(goCheckName, goMetricName, goMetricValue, goMetricType, labels); err != nil {
-		*errOut = TrackedCString(err.Error())
-		return
 	}
 }
 

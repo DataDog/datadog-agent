@@ -43,8 +43,8 @@ func TestAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t *testing.T) {
 	testAgentTelemetryMetricKeyAvoidsDelimitedCollisions(t)
 }
 
-func TestEmitAgentTelemetryWithLabels(t *testing.T) {
-	testEmitAgentTelemetryWithLabels(t)
+func TestEmitAgentTelemetryLabels(t *testing.T) {
+	testEmitAgentTelemetryLabels(t)
 }
 
 func TestObfuscaterConfig(t *testing.T) {

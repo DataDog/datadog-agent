@@ -1,4 +1,7 @@
 ---
 enhancements:
   - |
-    Allow Python integrations to emit labeled Agent telemetry data.
+    ``datadog_agent.emit_agent_telemetry`` accepts an optional ``labels`` mapping,
+    letting Python integrations emit labeled Agent telemetry. Emission stays best
+    effort: invalid or unserializable labels are logged and dropped by the Agent
+    and can never raise into, or fail, the calling check.

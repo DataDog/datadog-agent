@@ -39,8 +39,7 @@ extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
-extern void emitAgentTelemetry(char*, char*, double, char*);
-extern void emitAgentTelemetryWithLabels(char*, char*, double, char*, char*, char**);
+extern void emitAgentTelemetry(char*, char*, double, char*, char*);
 extern void reportIssue(char*, char*, char**);
 extern void resolveIssue(char*, char**);
 
@@ -64,7 +63,6 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
    set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
-   set_emit_agent_telemetry_with_labels_cb(rtloader, emitAgentTelemetryWithLabels);
    set_report_issue_cb(rtloader, reportIssue);
    set_resolve_issue_cb(rtloader, resolveIssue);
 }
@@ -76,10 +74,11 @@ static inline void call_free(void* ptr) {
 import "C"
 
 var (
-	rtloader                          *C.rtloader_t
-	tmpfile                           *os.File
-	emitAgentTelemetryCalls           int
-	emitAgentTelemetryWithLabelsCalls int
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
+	// emitAgentTelemetryLabels records the labels JSON seen by each emitAgentTelemetry call,
+	// with "" standing for a NULL labels_json (no labels).
+	emitAgentTelemetryLabels []string
 )
 
 type message struct {
@@ -91,8 +90,7 @@ type message struct {
 func setUp() error {
 	// Initialize memory tracking
 	helpers.InitMemoryTracker()
-	emitAgentTelemetryCalls = 0
-	emitAgentTelemetryWithLabelsCalls = 0
+	emitAgentTelemetryLabels = nil
 
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
@@ -395,8 +393,13 @@ func resolveIssue(issueID *C.char, errOut **C.char) {
 }
 
 //export emitAgentTelemetry
-func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char) {
-	emitAgentTelemetryCalls++
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char, labelsJSON *C.char) {
+	labels := ""
+	if labelsJSON != nil {
+		labels = C.GoString(labelsJSON)
+	}
+	emitAgentTelemetryLabels = append(emitAgentTelemetryLabels, labels)
+
 	checkName := C.GoString(check)
 	metricName := C.GoString(metric)
 	metricValue := float64(value)
@@ -414,41 +417,5 @@ func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricTyp
 	}
 	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
 		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
-	}
-}
-
-//export emitAgentTelemetryWithLabels
-func emitAgentTelemetryWithLabels(check *C.char, metric *C.char, value C.double, metricType *C.char, labelsJSON *C.char, errOut **C.char) {
-	*errOut = nil
-	emitAgentTelemetryWithLabelsCalls++
-	checkName := C.GoString(check)
-	metricName := C.GoString(metric)
-	metricValue := float64(value)
-	metricTypeStr := C.GoString(metricType)
-	labelsJSONStr := C.GoString(labelsJSON)
-
-	if checkName == "error_check" {
-		*errOut = (*C.char)(helpers.TrackedCString("stub labeled telemetry failure"))
-		return
-	}
-	if checkName != "test_check" {
-		panic(fmt.Sprintf("unexpected check name: %s", checkName))
-	}
-	if metricName != "test_metric" {
-		panic(fmt.Sprintf("unexpected metric name: %s", metricName))
-	}
-	if metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram" {
-		panic(fmt.Sprintf("unexpected metric type: %s", metricTypeStr))
-	}
-	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
-		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
-	}
-
-	var labels map[string]string
-	if err := json.Unmarshal([]byte(labelsJSONStr), &labels); err != nil {
-		panic(fmt.Sprintf("unexpected labels JSON %q: %v", labelsJSONStr, err))
-	}
-	if labels["check_name"] != "openmetrics" || labels["state"] != "limited" {
-		panic(fmt.Sprintf("unexpected labels: %v", labels))
 	}
 }
