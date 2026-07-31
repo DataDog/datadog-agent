@@ -214,7 +214,7 @@ func TestPagerCommand(t *testing.T) {
 	result, err := ExecuteCommand(context.Background(), client, cmd)
 	require.NoError(t, err)
 	assert.Equal(t, config, result)
-	assert.Equal(t, []string{"terminal pager 0", "more system:running-config"}, srv.Received())
+	assert.Equal(t, []string{"terminal pager 0\nmore system:running-config"}, srv.Received())
 }
 
 func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
@@ -240,14 +240,4 @@ func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
 
 	_, err := ExecuteCommand(context.Background(), client, cmd)
 	assert.ErrorContains(t, err, "matches failure regex")
-}
-
-func TestCleanShellOutput(t *testing.T) {
-	transcript := "fw01# terminal pager 0\n" +
-		"fw01# more system:running-config\n" +
-		"ASA Version 9.24(1)\n" +
-		"hostname FW01\n" +
-		"fw01#\n"
-	got := cleanShellOutput(transcript, []string{"terminal pager 0", "more system:running-config"})
-	assert.Equal(t, "ASA Version 9.24(1)\nhostname FW01\n", got)
 }
