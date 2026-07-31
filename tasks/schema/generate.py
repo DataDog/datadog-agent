@@ -9,6 +9,7 @@ import tempfile
 
 import yaml
 from invoke import Failure, task
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
@@ -271,8 +272,7 @@ def filter(expect, filename):
     return comparator
 
 
-@task
-def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
+def schema_codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     """
     Code generator for config schema
 
@@ -281,6 +281,10 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     fix:             If true, copy the codegen files into SETUP_INIT_DIR
     keeptmp:         If true, don't delete the temporary folder
     """
+
+    # Some test run tasks command with a 'unittest.mock.MagicMock' instead of a Context
+    if not isinstance(ctx, Context):
+        return
 
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
@@ -316,3 +320,10 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)
+
+
+@task
+def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
+    # Some test panic if a @task is called from a 'unittest.mock.MagicMock' which is done often.
+    # Codegen call schema_codegen where we check for MagicMock
+    return schema_codegen(ctx, keep_orig_order, check, fix, keeptmp)
