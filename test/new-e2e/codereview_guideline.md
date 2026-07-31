@@ -6,6 +6,7 @@ These guidelines are in rough "importance" order, but follow _all_ of them.
 A major source of flaky / unrelated failures is reliance on _external dependencies_: anything outside the AWS/GCP/Azure account the test runs in and internal DD systems.
 
 We will soon block _all_ internet access from CI for security reasons, so prepare now.
+> The rules below are the checklist. The long-form "how" for each alternative — the ECR pull-through cache, the S3 artifact bucket, prebaking into an AMI — is in [Test dependencies](../../docs/public/how-to/test/e2e/dependencies.md).
 
 #### Docker image pulls
 It is easy to "accidentally" pull images from `docker.io` / DockerHub, a major source of flakiness due to its restrictive rate limiting.
@@ -19,20 +20,24 @@ Use the ECR pull-through cache set up in the `datadog-agent-qa` account instead:
 
 > Outside AWS, use your provider's registry, which is often not rate limited. Otherwise, ask #agent-devx-help to set up a pull-through cache in that Cloud environment.
 
+See [ECR pull-through cache](../../docs/public/how-to/test/e2e/dependencies.md#ecr-pull-through-cache) for how to read the registry from the parameter store, and for running such a test locally.
+
 #### System package installs (apt, yum, dnf, zypper, ...)
 If your test requires a package unavailable on a bare VM, in order of preference:
 - Avoid it (e.g. you rarely need `jq`: parse JSON in go)
 - Use a containerized environment cached via the previous method. Many tools ship prebuilt container images you can run directly.
-- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [ami-builder](https://github.com/DataDog/ami-builder/ami/images/e2e).
+- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [Custom AMIs](../../docs/public/how-to/test/e2e/custom-amis.md), which also lists what the `-e2e` images already ship.
 - Store your package installer on an internal package repository. See [Other dependencies](#other-dependencies)
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
+
+If a matrix genuinely cannot be prebaked yet, quarantine the installs in one obviously-named file with a header stating why and what will replace it, as `tests/gpu/runtime_installs.go` does. Do not scatter them across a provisioner.
 
 #### Language package installs (pip, npm, gem, cargo, ...)
 These pull from their own public registries and are subject to the same rate limiting and drift risks as system package installs. The same alternatives apply.
 
 #### Other dependencies / Internet accesses
-Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test).
+Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [S3 artifact bucket](../../docs/public/how-to/test/e2e/dependencies.md#s3-artifact-bucket) for the read API, and [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test) for the upload side.
 
 Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
 
