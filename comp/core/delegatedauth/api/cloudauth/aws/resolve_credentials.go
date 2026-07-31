@@ -403,7 +403,15 @@ func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, erro
 	if err != nil {
 		return aws.Credentials{}, fmt.Errorf("read container credentials response: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
+	// Accept any 2xx, as credentials/endpointcreds does. The endpoint is documented to answer 200,
+	// but matching the reference implementation's range avoids rejecting a valid credential document
+	// over a status code we did not anticipate.
+	//
+	// One behavior is deliberately not carried over: endpointcreds wraps this call in the SDK's
+	// standard retryer (transient network errors, 5xx, and 429). Here a failed fetch propagates to
+	// the delegated-auth refresh loop, which already retries with exponential backoff, matching the
+	// IMDS and web-identity legs, neither of which retries internally either.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return aws.Credentials{}, fmt.Errorf("container credentials endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 

@@ -462,3 +462,18 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 		assert.Contains(t, err.Error(), "returned empty credentials")
 	})
 }
+
+// TestContainerProvider_Retrieve_Non200Success confirms the whole 2xx range is accepted, matching
+// credentials/endpointcreds, rather than only a literal 200.
+func TestContainerProvider_Retrieve_Non200Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNonAuthoritativeInfo) // 203
+		w.Write([]byte(`{"AccessKeyId":"AKID","SecretAccessKey":"SECRET"}`))
+	}))
+	defer srv.Close()
+
+	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+	got, err := p.Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "AKID", got.AccessKeyID)
+}
