@@ -9,6 +9,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -25,12 +26,12 @@ func OpenNoFollow(path string) (*os.File, error) {
 
 // OpenPrivileged is not supported on non-Linux platforms.
 func OpenPrivileged(_, _ string) (*os.File, error) {
-	return nil, os.ErrUnsupported
+	return nil, errors.ErrUnsupported
 }
 
 // OpenPrivilegedNoFollow is not supported on non-Linux platforms.
 func OpenPrivilegedNoFollow(_, _ string) (*os.File, error) {
-	return nil, os.ErrUnsupported
+	return nil, errors.ErrUnsupported
 }
 
 // Stat provides a fallback for non-Linux platforms where the privileged logs module is not available.

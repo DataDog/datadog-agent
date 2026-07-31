@@ -62,6 +62,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:android": [
@@ -98,6 +99,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -115,6 +117,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:freebsd": [
@@ -132,6 +135,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:illumos": [
@@ -149,6 +153,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:ios": [
@@ -166,6 +171,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:js": [
@@ -183,6 +189,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:linux": [
@@ -219,6 +226,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:openbsd": [
@@ -236,6 +244,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:osx": [
@@ -253,6 +262,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:plan9": [
@@ -270,6 +280,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:qnx": [
@@ -287,6 +298,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:solaris": [
@@ -304,6 +316,7 @@ dd_agent_go_test(
             "//pkg/logs/tailers",
             "//pkg/logs/util/opener",
             "//pkg/logs/util/testutils",
+            "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
         ],
         "//conditions:default": [],
