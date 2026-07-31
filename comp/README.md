@@ -885,6 +885,15 @@ Package fleetstatus implements the core status component information provider in
 
 Package haagent handles states for HA Agent feature.
 
+### [comp/kubeactions/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions)
+
+*Datadog Team*: container-integrations
+
+Package kubeactions provides a component for executing Kubernetes actions
+(delete pod, restart/patch/rollback deployment, get resource) on behalf of
+the cluster agent, and for reporting their progress and results to the
+backend via the Event Platform.
+
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
 *Datadog Team*: container-platform
