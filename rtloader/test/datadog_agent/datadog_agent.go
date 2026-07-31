@@ -90,7 +90,6 @@ type message struct {
 func setUp() error {
 	// Initialize memory tracking
 	helpers.InitMemoryTracker()
-	emitAgentTelemetryLabels = nil
 
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {

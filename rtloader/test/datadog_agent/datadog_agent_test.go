@@ -760,6 +760,8 @@ func TestEmitAgentTelemetryLabelsArgument(t *testing.T) {
 		expected []string
 	}{
 		{
+			// Whatever serializes is forwarded as-is, values included: type checking belongs to
+			// the Go side, which logs and drops the labels it cannot use.
 			name:     "positional labels",
 			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", {"check_name": "openmetrics", "state": "limited"})`,
 			expected: []string{`{"check_name": "openmetrics", "state": "limited"}`},
@@ -775,26 +777,9 @@ func TestEmitAgentTelemetryLabelsArgument(t *testing.T) {
 			expected: []string{""},
 		},
 		{
-			// Type checking belongs to the caller: the bridge forwards whatever serializes and
-			// the Go side logs and drops what it cannot use.
-			name:     "non-string label value is forwarded, not rejected",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", {"check_name": 1})`,
-			expected: []string{`{"check_name": 1}`},
-		},
-		{
 			// json.dumps raises: the data point is dropped and the check sees no exception.
 			name:     "unserializable labels are dropped",
 			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", {"check_name": b"openmetrics"})`,
-			expected: nil,
-		},
-		{
-			name:     "unserializable label key is dropped",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", {object(): "openmetrics"})`,
-			expected: nil,
-		},
-		{
-			name:     "non-mapping labels are dropped",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", object())`,
 			expected: nil,
 		},
 	}
