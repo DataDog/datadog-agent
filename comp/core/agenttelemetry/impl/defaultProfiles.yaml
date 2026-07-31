@@ -33,21 +33,14 @@ profiles:
       zero_metric: true
     metrics:
       - name: dogstatsd.udp_packets_bytes
-        preserve_tags:
-          - emitter
       - name: dogstatsd.uds_packets_bytes
-        preserve_tags:
-          - emitter
       - name: logs.bytes_missed
       - name: logs.bytes_sent
-        preserve_tags:
-          - emitter
         aggregate_total: true
       - name: logs.decoded
       - name: logs.dropped
       - name: logs.encoded_bytes_sent
         preserve_tags:
-          - emitter
           - compression_kind
         aggregate_total: true
       - name: logs.http_connectivity_check
@@ -79,28 +72,23 @@ profiles:
       - name: point.sent
         preserve_tags:
           - domain
-          - emitter
       - name: point.dropped
         preserve_tags:
           - domain
-          - emitter
       - name: transactions.input_count
         preserve_tags:
           - domain
           - endpoint
-          - emitter
       - name: transactions.input_bytes
         preserve_tags:
           - domain
           - endpoint
-          - emitter
       - name: transactions.requeued
       - name: transactions.retries
       - name: transactions.http_errors
         preserve_tags:
           - code
           - endpoint
-          - emitter
   schedule:
     start_after: 30
     iterations: 0
