@@ -190,6 +190,26 @@ func testMetricFamily(metricType dto.MetricType, metrics ...*dto.Metric) *dto.Me
 	return &dto.MetricFamily{Name: &name, Type: &metricType, Metric: metrics}
 }
 
+func TestConvertPromCountersTreatsDecreaseAsReset(t *testing.T) {
+	previousValues := make(map[string]float64)
+
+	for _, testCase := range []struct {
+		current float64
+		want    float64
+	}{
+		{current: 100, want: 100},
+		{current: 175, want: 75},
+		{current: 20, want: 20},
+		{current: 35, want: 15},
+	} {
+		metric := testCounterMetric(testCase.current)
+		convertPromCountersToDatadogCountersValues([]*dto.Metric{metric}, previousValues, []string{"test-counter"})
+
+		require.Equal(t, testCase.want, metric.GetCounter().GetValue())
+		require.Equal(t, testCase.current, previousValues["test-counter"])
+	}
+}
+
 func metricLabels(metric *dto.Metric) map[string]string {
 	labels := make(map[string]string, len(metric.GetLabel()))
 	for _, label := range metric.GetLabel() {
