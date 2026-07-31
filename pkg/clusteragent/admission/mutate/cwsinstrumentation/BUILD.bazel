@@ -10,7 +10,6 @@ go_library(
         "//cmd/cluster-agent/admission",
         "//comp/core/config",
         "//comp/core/workloadfilter/def",
-        "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/metrics",

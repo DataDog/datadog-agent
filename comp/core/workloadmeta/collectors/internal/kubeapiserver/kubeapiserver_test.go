@@ -693,6 +693,14 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			expectedResources: []string{"//nodes", "apps//statefulsets", "example.com//custom"},
 		},
 		{
+			name: "non-core resources whose name merely ends in nodes should not be excluded",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "storage.k8s.io/csinodes metrics.k8s.io/nodes",
+			},
+			expectedResources: []string{"//nodes", "storage.k8s.io//csinodes", "metrics.k8s.io//nodes"},
+		},
+		{
 			name: "namespaces needed for namespace labels as tags",
 			cfg: map[string]interface{}{
 				"kubernetes_namespace_labels_as_tags": map[string]string{
