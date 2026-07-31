@@ -329,6 +329,7 @@ func TestProcessLogConfigAllowedWhenNoConflict(t *testing.T) {
 	assert.Equal(t, "process-config", logSource.Name)
 	assert.Equal(t, "process-service", logSource.Config.Service)
 	assert.Equal(t, "/var/log/process.log", logSource.Config.Path)
+	assert.True(t, logSource.Config.NoFollow)
 }
 
 func TestNonFileTypeProcessLogConfigAllowed(t *testing.T) {
@@ -352,6 +353,7 @@ func TestNonFileTypeProcessLogConfigAllowed(t *testing.T) {
 	assert.Equal(t, "process-config", logSource.Name)
 	assert.Equal(t, "process-service", logSource.Config.Service)
 	assert.Equal(t, "tcp", logSource.Config.Type)
+	assert.False(t, logSource.Config.NoFollow)
 }
 
 func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {

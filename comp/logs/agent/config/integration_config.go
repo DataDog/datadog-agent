@@ -147,6 +147,10 @@ type LogsConfig struct {
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
 	// IntegrationFileIndex is the index of the integration file that contains this source.
 	IntegrationSourceIndex int `mapstructure:"integration_source_index" json:"integration_source_index" yaml:"integration_source_index"`
+
+	// NoFollow rejects symbolic links in every path component. It is set internally
+	// and cannot be enabled through user configuration.
+	NoFollow bool `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.

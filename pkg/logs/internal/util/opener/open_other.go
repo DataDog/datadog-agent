@@ -9,6 +9,7 @@
 package opener
 
 import (
+	"errors"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -17,6 +18,11 @@ import (
 // OpenLogFile opens a file with filesystem.OpenShared
 func OpenLogFile(path string) (*os.File, error) {
 	return filesystem.OpenShared(path)
+}
+
+// OpenLogFileNoFollow is not supported on non-Linux platforms.
+func OpenLogFileNoFollow(_ string) (*os.File, error) {
+	return nil, errors.ErrUnsupported
 }
 
 // StatLogFile stats a log file
