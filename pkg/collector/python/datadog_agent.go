@@ -671,10 +671,6 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 				log.Warnf("EmitAgentTelemetry: invalid labels for %s.%s: %v", goCheckName, goMetricName, err)
 				return
 			}
-			if labels == nil {
-				log.Warnf("EmitAgentTelemetry: invalid labels for %s.%s: expected a JSON object with string values", goCheckName, goMetricName)
-				return
-			}
 		}
 	}
 
