@@ -53,7 +53,7 @@ var Targets = []Target{
 	{Name: "sbom-node", Image: "node:26.2.0@sha256:980c5420a7a2ddcb44037726977f2a349e5c7b64217516c7488dce4c74d71583", ShortImage: "node"},
 	{Name: "sbom-golang", Image: "golang:1.26.3-alpine@sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d", ShortImage: "golang"},
 	{Name: "sbom-ubi9", Image: "registry.access.redhat.com/ubi9/ubi:9.8-1780376557@sha256:80b1f4c34a7eed1b03a05d12b55768f3e522eef6ec294c6fbd5fa47b6b2892ee", ShortImage: "ubi"},                     // RHEL rpm, single-layer
-	{Name: "sbom-ubi-python", Image: "registry.access.redhat.com/ubi9/python-312:9.8-1779945122@sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663", ShortImage: "python-312"}, // RHEL rpm + pypi, multi-layer
+	{Name: "sbom-ubi-python", Image: "registry.access.redhat.com/ubi9/python-312:9.8-1779945122@sha256:b8a1b4c1e0d944d76a3aa7583e21d416864c2f8b9dcc2e84b2632673fbd0928b", ShortImage: "python-312"}, // RHEL rpm + pypi, multi-layer
 	{Name: "sbom-python", Image: "python:3.14.5@sha256:250e5c97be05e1eb2272fbdbd810dfd638f9012e1e6f65c99390ad3239943a08", ShortImage: "python"},
 	{Name: "sbom-ruby", Image: "ruby:3.3.4-bookworm@sha256:d4233f4242ea25346f157709bb8417c615e7478468e2699c8e86a4e1f0156de8", ShortImage: "ruby"},
 	{Name: "sbom-ubuntu", Image: "ubuntu:24.04@sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae77ff1dc54", ShortImage: "ubuntu"},                              // Ubuntu 24.04 LTS (dpkg), usr-merged

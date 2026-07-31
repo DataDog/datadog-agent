@@ -300,7 +300,7 @@ var containerTargets = []containerTarget{
 	{
 		// ubi9/python-312 is a multi-layer RHEL image: rpm (OS) + pip (pypi) across layers.
 		short: "python-312", repo: "registry.access.redhat.com/ubi9/python-312", tag: "9.8-1779945122",
-		digest:  "sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663",
+		digest:  "sha256:b8a1b4c1e0d944d76a3aa7583e21d416864c2f8b9dcc2e84b2632673fbd0928b",
 		imageID: "sha256:ad02b9631880f45ec370056476ceb23031d67069b598e50829df5983f95c641f",
 		diffIDs: []string{
 			"sha256:71275925ca13ef2f569403246b30b57d44ee7fe1d932461993c525a61ecddecd",
