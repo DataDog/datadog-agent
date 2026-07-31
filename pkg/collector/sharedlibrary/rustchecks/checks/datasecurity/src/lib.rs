@@ -1,11 +1,13 @@
-use core::generate_ffi;
+use shlib_core::generate_ffi;
 
 mod backend;
 mod check;
 use check::check;
 
 mod config;
-mod payload;
+mod constants;
+mod proto;
+mod result;
 mod scanning;
 mod version;
 use version::VERSION;

@@ -14,13 +14,6 @@ then add the new .c files.
 
 We should only have to do this once.
 
-### Make fake attr
-
-Build the deps and put them where we can find them later
-```
-bazel run @attr//:install -- --dest_dir /tmp/attr
-```
-
 ###
 - Download the current libacl sources
 - untar. Leaves the directory acl-2.3.1

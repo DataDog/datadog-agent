@@ -22,6 +22,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -117,7 +118,7 @@ func NewComponent(deps Dependencies) (rcclient.Component, error) {
 }
 
 func (rc *rcClient) createGRPCClient() error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,7 @@ func (rc *rcClient) createGRPCClient() error {
 
 	rc.client, err = client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		rc.IPC.GetAuthToken(),
 		rc.IPC.GetTLSClientConfig(),
 		optsWithDefault...,
@@ -142,7 +143,7 @@ func (rc *rcClient) createGRPCClient() error {
 	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
 		rc.clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
+			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 			rc.IPC.GetAuthToken(),
 			rc.IPC.GetTLSClientConfig(),
 			optsWithDefault...,

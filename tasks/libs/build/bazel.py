@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import IO, NamedTuple
 
 from invoke import Exit
 from invoke.context import Context
@@ -99,6 +99,7 @@ def bazel(
     capture_output: bool = False,
     capture_stderr: bool = False,
     ignore_errors: bool = False,
+    input_stream: IO[str] | bool = False,
     sudo: bool = False,
 ) -> str:
     """Execute a bazel command.
@@ -127,7 +128,7 @@ def bazel(
         kwargs["hide"] = "err"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
-    result = ctx.run(cmdline, echo=False, in_stream=False, warn=ignore_errors, **kwargs)
+    result = ctx.run(cmdline, echo=False, in_stream=input_stream, warn=ignore_errors, **kwargs)
     captured = []
     if capture_output and result.ok:
         captured.append(result.stdout)
@@ -145,7 +146,11 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     if agent_flavor := os.environ.get("AGENT_FLAVOR"):
         flags.append(f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):
-        flags.append(f"--//:install_dir={install_dir}")
+        # In macos, omnibus install_dir is the build location, which is different from the expected install location
+        if sys.platform == "darwin":
+            flags.append("--//:install_dir=/opt/datadog-agent")
+        else:
+            flags.append(f"--//:install_dir={install_dir}")
         flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
     if not flags:
         return args
