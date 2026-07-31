@@ -189,6 +189,11 @@ func (s *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			s.span.Kind = SpanKind(kind)
 		default:
+			o, err = harvestUnknownFieldStrings(o, s.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span field")
+				return
+			}
 		}
 	}
 	return
@@ -256,6 +261,11 @@ func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []
 			}
 			spanEvent.Attributes = kvl
 		default:
+			o, err = harvestUnknownFieldStrings(o, strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span event field")
+				return
+			}
 		}
 	}
 	return
@@ -464,6 +474,81 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 	return
 }
 
+// harvestUnknownFieldStrings walks the value of an unrecognized field and adds
+// any inline strings it carries to the string table, preserving stream order.
+// It returns the bytes remaining after the value.
+//
+// The idx wire format encodes strings as "streaming strings" (see
+// UnmarshalStreamingString): the first occurrence of a string is written inline
+// and appended to the string table, and later occurrences are written as a
+// uint32 index into that table. Indices are therefore purely positional in
+// stream order. A newer producer may add a field an older consumer does not
+// recognize; if that field carries a new inline string, the consumer must still
+// add it to the table, otherwise every subsequent streaming-string index in the
+// known fields that follow would be shifted or point out of range. Simply
+// skipping the value's bytes with msgp.Skip is not enough.
+//
+// Every inline msgpack string in the payload (outside the string table array
+// itself, which is a known field) is a streaming string, so we add each string
+// we encounter and skip all other scalars, recursing into arrays and maps.
+func harvestUnknownFieldStrings(bts []byte, strings *StringTable) (o []byte, err error) {
+	return harvestUnknownFieldStringsDepth(bts, strings, 0)
+}
+
+func harvestUnknownFieldStringsDepth(bts []byte, strings *StringTable, depth int) (o []byte, err error) {
+	if depth > maxAnyValueDepth {
+		return bts, fmt.Errorf("Unknown field nesting depth exceeds maximum of %d", maxAnyValueDepth)
+	}
+	switch msgp.NextType(bts) {
+	case msgp.StrType:
+		var s string
+		s, o, err = msgp.ReadStringBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read string in unknown field")
+			return
+		}
+		strings.Add(s)
+	case msgp.ArrayType:
+		var sz uint32
+		sz, o, err = limitedReadArrayHeaderBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read array header in unknown field")
+			return
+		}
+		for i := uint32(0); i < sz; i++ {
+			o, err = harvestUnknownFieldStringsDepth(o, strings, depth+1)
+			if err != nil {
+				return
+			}
+		}
+	case msgp.MapType:
+		var sz uint32
+		sz, o, err = limitedReadMapHeaderBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read map header in unknown field")
+			return
+		}
+		// Both keys and values may be (or contain) streaming strings.
+		for i := uint32(0); i < sz; i++ {
+			o, err = harvestUnknownFieldStringsDepth(o, strings, depth+1)
+			if err != nil {
+				return
+			}
+			o, err = harvestUnknownFieldStringsDepth(o, strings, depth+1)
+			if err != nil {
+				return
+			}
+		}
+	default:
+		o, err = msgp.Skip(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to skip unknown field value")
+			return
+		}
+	}
+	return
+}
+
 // Helper functions for msgp deserialization
 const (
 	first3        = 0xe0
@@ -558,6 +643,11 @@ func (sl *SpanLink) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, er
 				return
 			}
 		default:
+			o, err = harvestUnknownFieldStrings(o, strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to skip unknown span link field")
+				return
+			}
 		}
 	}
 	return
@@ -1010,29 +1100,33 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 		return
 	}
 	if cap(c.Spans) >= int(numSpans) {
-		c.Spans = c.Spans[:numSpans]
+		c.Spans = c.Spans[:0]
 	} else {
-		c.Spans = make([]*InternalSpan, numSpans)
+		c.Spans = make([]*InternalSpan, 0, numSpans)
 	}
 	convertedFields := NewSpanConvertedFields()
 	var rootSampling RootSamplingMergeState
-	for i := range c.Spans {
+	for i := 0; i < int(numSpans); i++ {
+		// Drop nil span entries rather than storing them: every downstream V1
+		// path (normalizeTraceChunkV1, GetRootV1, ProcessV1) dereferences each
+		// span and would panic on a nil. The nil element is still read to
+		// advance the buffer.
 		if msgp.IsNil(bts) {
 			bts, err = msgp.ReadNilBytes(bts)
 			if err != nil {
 				return
 			}
-			c.Spans[i] = nil
-		} else {
-			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
-			c.Spans[i].SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
-			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, convertedFields)
-			if err != nil {
-				err = msgp.WrapError(err, i)
-				return
-			}
-			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, c.Spans[i].ParentID())
+			continue
 		}
+		span := NewInternalSpan(c.Strings, &Span{})
+		span.SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
+		bts, err = span.UnmarshalMsgConverted(bts, convertedFields)
+		if err != nil {
+			err = msgp.WrapError(err, i)
+			return
+		}
+		rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, span.ParentID())
+		c.Spans = append(c.Spans, span)
 	}
 	c.ApplyPromotedFields(convertedFields, chunkConvertedFields)
 	o = bts
@@ -1307,27 +1401,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Links) >= int(numSpanLinks) {
-				s.span.Links = (s.span.Links)[:numSpanLinks]
+				s.span.Links = (s.span.Links)[:0]
 			} else {
-				s.span.Links = make([]*SpanLink, numSpanLinks)
+				s.span.Links = make([]*SpanLink, 0, numSpanLinks)
 			}
-			for i := range s.span.Links {
+			for i := 0; i < int(numSpanLinks); i++ {
+				// Drop nil link entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each link and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Links[i] = nil
-				} else {
-					if s.span.Links[i] == nil {
-						s.span.Links[i] = new(SpanLink)
-					}
-					bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanLinks", i)
-						return
-					}
+					continue
 				}
+				link := new(SpanLink)
+				bts, err = link.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanLinks", i)
+					return
+				}
+				s.span.Links = append(s.span.Links, link)
 			}
 		case "span_events":
 			var numEvents uint32
@@ -1337,27 +1433,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Events) >= int(numEvents) {
-				s.span.Events = (s.span.Events)[:numEvents]
+				s.span.Events = (s.span.Events)[:0]
 			} else {
-				s.span.Events = make([]*SpanEvent, numEvents)
+				s.span.Events = make([]*SpanEvent, 0, numEvents)
 			}
-			for i := range s.span.Events {
+			for i := 0; i < int(numEvents); i++ {
+				// Drop nil event entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each event and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Events[i] = nil
-				} else {
-					if s.span.Events[i] == nil {
-						s.span.Events[i] = new(SpanEvent)
-					}
-					bts, err = s.span.Events[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanEvents", i)
-						return
-					}
+					continue
 				}
+				event := new(SpanEvent)
+				bts, err = event.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanEvents", i)
+					return
+				}
+				s.span.Events = append(s.span.Events, event)
 			}
 		default:
 			bts, err = msgp.Skip(bts)

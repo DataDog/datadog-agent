@@ -5,9 +5,9 @@ This doc describes how to define new configuration parameters for the Agent.
 1. Define your config.
 2. Add it to the config template (optional).
 3. Use your config in your code.
-4. Request a review from the Agent configuration team (team/agent-configuration)
+4. Request a review from the Fleet Automation team (team/fleet-automation)
 
-If you have any questions, head over to #agent-configuration and ask (datadog
+If you have any questions, head over to #fleet-automation and ask (datadog
 internal).
 
 ## 1. Define Your Config
@@ -25,14 +25,10 @@ There are multiple places a config can be defined:
   put the new config item alongside that existing config.
 
 * If you want your config to be defined by the user in `system-probe.yml` then
-  your declaration belongs in [`system_probe.go`].
+  your declaration belongs in <<<repo("pkg/config/setup/system_probe.go", "`system_probe.go`")>>>.
 
 * Otherwise it lives in the default `datadog-agent.yaml` file and goes in
-  [`config.go`].
-
-
-[`config.go`]: https://github.com/DataDog/datadog-agent/blob/7a12f1ccad639e79a0c09f8eaa8c92cd08ce1ae1/pkg/config/setup/config.go
-[`system_probe.go`]: https://github.com/DataDog/datadog-agent/blob/7a12f1ccad639e79a0c09f8eaa8c92cd08ce1ae1/pkg/config/setup/system_probe.go
+  <<<repo("pkg/config/setup/config.go", "`config.go`")>>>.
 
 ## 2. Add to Template
 
@@ -40,11 +36,7 @@ By default newly declared configs are not added to the sample config file a user
 sees.
 
 If you want your config to appear in the sample config file, add it to the
-[config template].
-
-
-[config template]: https://github.com/DataDog/datadog-agent/blob/7a12f1ccad639e79a0c09f8eaa8c92cd08ce1ae1/pkg/config/config_template.yaml
-
+<<<repo("pkg/config/config_template.yaml", "config template")>>>.
 
 ## 3. Use Your Config
 
@@ -65,7 +57,7 @@ See the [package documentation] for available methods.
 
 ## 4. Request a Review!
 
-Please add this label to your PRs: `team/agent-configuration`
+Please add this label to your PRs: `team/fleet-automation`
 
 This will summon a config wizard who can review your changes and suggest any
 changes.
