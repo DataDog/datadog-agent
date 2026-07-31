@@ -158,9 +158,14 @@ func credentialRemediation(source string, cfg pkgconfigmodel.Reader) string {
 		return "AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE are set, so IRSA was used; check that the token file is mounted and readable and that the role's trust policy allows this service account"
 	case creds.SourceContainer:
 		return "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI or AWS_CONTAINER_CREDENTIALS_FULL_URI is set, so ECS/EKS container credentials were used; check that the task role or Pod Identity association exists and that the credential endpoint is reachable"
-	default:
+	case creds.SourceIMDS:
 		return fmt.Sprintf("no credential environment variables were set, so EC2 IMDS was used; check that an instance profile is attached and that IMDS is reachable (ec2_metadata_timeout=%dms, ec2_prefer_imdsv2=%t)",
 			cfg.GetInt("ec2_metadata_timeout"), cfg.GetBool("ec2_prefer_imdsv2"))
+	default:
+		// The source is unknown only if selection itself failed before recording one. Say nothing
+		// specific rather than defaulting to IMDS advice, which would misdirect exactly the way the
+		// old catch-all message did.
+		return "the credential mechanism could not be determined"
 	}
 }
 

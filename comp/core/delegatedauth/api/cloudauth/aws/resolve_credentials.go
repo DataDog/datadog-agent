@@ -230,11 +230,11 @@ type assumeRoleWithWebIdentityResponse struct {
 // Retrieve exchanges the web-identity token for temporary credentials.
 func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	if p.roleARN == "" || p.tokenFile == "" {
-		return aws.Credentials{}, errors.New("web identity: AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE must be set")
+		return aws.Credentials{}, errors.New("AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE must be set")
 	}
 	token, err := os.ReadFile(p.tokenFile)
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("web identity: read token file %s: %w", p.tokenFile, err)
+		return aws.Credentials{}, fmt.Errorf("read token file %s: %w", p.tokenFile, err)
 	}
 
 	form := url.Values{
@@ -246,31 +246,31 @@ func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, er
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.stsURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("web identity: build STS request: %w", err)
+		return aws.Credentials{}, fmt.Errorf("build STS request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("web identity: STS request failed: %w", err)
+		return aws.Credentials{}, fmt.Errorf("STS request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSTSResponseBytes))
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("web identity: read STS response: %w", err)
+		return aws.Credentials{}, fmt.Errorf("read STS response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return aws.Credentials{}, fmt.Errorf("web identity: STS returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return aws.Credentials{}, fmt.Errorf("STS returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var parsed assumeRoleWithWebIdentityResponse
 	if err := xml.Unmarshal(body, &parsed); err != nil {
-		return aws.Credentials{}, fmt.Errorf("web identity: parse STS response: %w", err)
+		return aws.Credentials{}, fmt.Errorf("parse STS response: %w", err)
 	}
 	c := parsed.Result.Credentials
 	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return aws.Credentials{}, errors.New("web identity: STS response missing credentials")
+		return aws.Credentials{}, errors.New("STS response missing credentials")
 	}
 
 	return aws.Credentials{
