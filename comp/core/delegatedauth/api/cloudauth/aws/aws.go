@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
@@ -53,6 +54,12 @@ const (
 // AWSAuth contains the implementation for the AWS cloud auth
 type AWSAuth struct {
 	region string
+
+	// lastSource names the credential mechanism that produced the credentials most recently
+	// resolved by resolveCredentials (ex: "DelegatedAuthIMDS"). Read by the status page via
+	// common.CredentialSourceReporter. Credentials are resolved on the delegated-auth refresh
+	// goroutine and read by whoever renders status, so it is atomic.
+	lastSource atomic.Pointer[string]
 }
 
 // NewAWSAuth creates a new AWSAuth from an AWSProviderConfig.
@@ -64,6 +71,14 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 	return &AWSAuth{
 		region: region,
 	}
+}
+
+// LastCredentialSource implements common.CredentialSourceReporter.
+func (a *AWSAuth) LastCredentialSource() string {
+	if s := a.lastSource.Load(); s != nil {
+		return *s
+	}
+	return ""
 }
 
 // GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.
@@ -99,16 +114,24 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Read
 	return authProof, nil
 }
 
-// getCredentials retrieves AWS credentials using the build-tag-selected chain:
-//   - ec2 build: AWS SDK chain limited to env -> web identity -> container -> IMDS (shared config/SSO/profiles disabled)
-//   - non-ec2 build: static env vars only (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
+// getCredentials retrieves AWS credentials from the environment the Agent is running in, trying
+// env -> IRSA web identity -> ECS/EKS container credentials -> IMDS (shared config/SSO/profiles
+// are deliberately unsupported, see resolveCredentials).
 func (a *AWSAuth) getCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
 	resolved := a.resolveCredentials(ctx, cfg)
 	if resolved == nil {
 		return &creds.SecurityCredentials{}
 	}
 	if resolved.AccessKeyID == "" || resolved.SecretAccessKey == "" {
-		log.Debugf("AWS credential resolution returned empty credentials")
+		// Warn rather than Debug: without credentials the proof cannot be signed, so delegated auth
+		// cannot produce an API key. The preceding log from resolveCredentials says which step
+		// failed; this line makes the consequence visible at the default log level.
+		log.Warnf("Delegated auth could not resolve AWS credentials, so no API key can be fetched. "+
+			"Checked, in order: AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, IRSA (AWS_ROLE_ARN + "+
+			"AWS_WEB_IDENTITY_TOKEN_FILE), ECS/EKS container credentials "+
+			"(AWS_CONTAINER_CREDENTIALS_RELATIVE_URI/_FULL_URI), then EC2 IMDS. Confirm the workload "+
+			"has an AWS identity attached and that IMDS is reachable (ec2_metadata_timeout=%dms).",
+			cfg.GetInt("ec2_metadata_timeout"))
 	}
 	return resolved
 }

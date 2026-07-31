@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ec2
-
 package creds
 
 import (
@@ -119,17 +117,17 @@ func TestGetAWSRegionFromEnvironment(t *testing.T) {
 	}
 }
 
-func TestIsRunningOnAWSWithCredentials(t *testing.T) {
-	// When AWS credentials are set in environment, IsRunningOnAWS should return true
-	// even without IMDS access
+func TestDetectAWSCredentialSourceWithCredentials(t *testing.T) {
+	// When AWS credentials are set in environment, detection should succeed even without IMDS access
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 
-	result := IsRunningOnAWS(context.Background())
-	assert.True(t, result)
+	source, err := DetectAWSCredentialSource(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, SourceEnvironment, source)
 }
 
-func TestIsRunningOnAWSWithIMDS(t *testing.T) {
+func TestDetectAWSCredentialSourceWithIMDS(t *testing.T) {
 	// Create a mock IMDS server
 	identityDoc := ec2internal.EC2Identity{
 		Region:     "us-west-2",
@@ -168,8 +166,9 @@ func TestIsRunningOnAWSWithIMDS(t *testing.T) {
 		ec2internal.InstanceIdentityURL = originalIdentityURL
 	}()
 
-	result := IsRunningOnAWS(context.Background())
-	assert.True(t, result)
+	source, err := DetectAWSCredentialSource(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, SourceIMDS, source)
 }
 
 func TestGetAWSRegionFromIMDS(t *testing.T) {
@@ -220,43 +219,46 @@ func TestGetAWSRegionFromIMDS(t *testing.T) {
 	assert.Equal(t, "ap-northeast-1", region)
 }
 
-func TestIsRunningOnAWSWithIRSAEnvVars(t *testing.T) {
+func TestDetectAWSCredentialSourceWithIRSAEnvVars(t *testing.T) {
 	// IRSA env vars should signal AWS even without IMDS
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
 	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/test-role")
 
-	result := IsRunningOnAWS(context.Background())
-	assert.True(t, result)
+	source, err := DetectAWSCredentialSource(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, SourceWebIdentity, source)
 }
 
-func TestIsRunningOnAWSWithContainerRelativeURI(t *testing.T) {
+func TestDetectAWSCredentialSourceWithContainerRelativeURI(t *testing.T) {
 	// ECS task role / EKS Pod Identity relative URI
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc123def456")
 
-	result := IsRunningOnAWS(context.Background())
-	assert.True(t, result)
+	source, err := DetectAWSCredentialSource(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, SourceContainer, source)
 }
 
-func TestIsRunningOnAWSWithContainerFullURI(t *testing.T) {
+func TestDetectAWSCredentialSourceWithContainerFullURI(t *testing.T) {
 	// EKS Pod Identity full URI variant
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
 
-	result := IsRunningOnAWS(context.Background())
-	assert.True(t, result)
+	source, err := DetectAWSCredentialSource(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, SourceContainer, source)
 }
 
-func TestHasAWSWorkloadIdentityInEnvironment_Ec2(t *testing.T) {
+func TestHasAWSWorkloadIdentityInEnvironment(t *testing.T) {
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/token")
 	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/r")
 	assert.True(t, HasAWSWorkloadIdentityInEnvironment())
 }
 
-func TestHasAWSWorkloadIdentityInEnvironment_Ec2_OnlyToken(t *testing.T) {
+func TestHasAWSWorkloadIdentityInEnvironment_OnlyToken(t *testing.T) {
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/token")
 	assert.False(t, HasAWSWorkloadIdentityInEnvironment())
 }
 
-func TestHasAWSContainerCredentialsInEnvironment_Ec2(t *testing.T) {
+func TestHasAWSContainerCredentialsInEnvironment(t *testing.T) {
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/creds")
 	assert.True(t, HasAWSContainerCredentialsInEnvironment())
 }

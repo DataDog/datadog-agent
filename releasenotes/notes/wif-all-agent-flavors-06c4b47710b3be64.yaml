@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Agent Cloud Auth (delegated authentication / Workload Identity Federation) on AWS now
+    resolves credentials from EKS IRSA, ECS task roles, EKS Pod Identity and EC2 IMDS in
+    every Agent flavor. Previously only flavors built with the ``ec2`` build tag (main
+    Agent, Cluster Agent, process-agent, security-agent, installer) supported those
+    credential sources; the other flavors silently accepted static ``AWS_ACCESS_KEY_ID`` /
+    ``AWS_SECRET_ACCESS_KEY`` credentials only. Most notably the trace-agent is now
+    covered, so APM no longer requires a statically configured ``api_key`` when Cloud Auth
+    is in use.
+enhancements:
+  - |
+    Agent Cloud Auth (delegated authentication) now reports why it did not start. When
+    ``org_uuid`` is configured but no supported cloud provider is detected, the Agent logs
+    a warning naming every credential source it checked instead of a debug-level message,
+    and ``agent status`` shows the reason rather than only "not enabled".
+  - |
+    The ``agent status`` Delegated Authentication section now reports the AWS credential
+    source in use for each managed API key (static environment variables, IRSA web
+    identity, ECS/EKS container credentials, or EC2 IMDS), along with the last and next
+    scheduled key refresh.

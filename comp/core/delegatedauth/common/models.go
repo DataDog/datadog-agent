@@ -33,3 +33,13 @@ type Provider interface {
 	// The context allows for cancellation of the proof generation.
 	GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *AuthConfig) (string, error)
 }
+
+// CredentialSourceReporter is optionally implemented by a Provider that can name the mechanism
+// which produced the credentials it most recently used (ex: "DelegatedAuthIMDS"). The status page
+// surfaces it so an operator can tell which credential source is in play without reading logs,
+// which is the first question when delegated auth misbehaves on a host where several are available.
+type CredentialSourceReporter interface {
+	// LastCredentialSource returns the source of the most recently resolved credentials, or ""
+	// if no resolution has succeeded yet.
+	LastCredentialSource() string
+}

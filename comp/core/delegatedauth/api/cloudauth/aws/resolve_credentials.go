@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ec2
-
 package aws
 
 import (
@@ -52,7 +50,7 @@ const (
 	containerCredentialsTimeout = 10 * time.Second
 )
 
-// resolveCredentials (ec2 build) selects the AWS credential provider matching the runtime
+// resolveCredentials selects the AWS credential provider matching the runtime
 // environment, in the SDK's standard precedence but limited to the mechanisms a deployed Agent
 // actually encounters: static env vars, IRSA web identity, ECS / EKS Pod Identity container
 // credentials, and EC2 IMDS. It deliberately does not use config.LoadDefaultConfig, which would
@@ -90,8 +88,13 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Rea
 	// sdkCreds.Source is set by the provider that produced the credentials (ex:
 	// DelegatedAuthWebIdentity, EC2RoleProvider), naming which environment matched. Logged at Info
 	// (once per key fetch, matching the surrounding delegated-auth logs) so operators can confirm
-	// the credential source without enabling debug.
+	// the credential source without enabling debug, and recorded for the status page so it is also
+	// visible from `agent status` without correlating logs.
 	log.Infof("delegated auth resolved AWS credentials via %s", sdkCreds.Source)
+	// Copy the string rather than storing &sdkCreds.Source, which would keep the whole
+	// aws.Credentials value (including the secret access key) reachable for the process lifetime.
+	source := sdkCreds.Source
+	a.lastSource.Store(&source)
 
 	return &creds.SecurityCredentials{
 		AccessKeyID:     sdkCreds.AccessKeyID,

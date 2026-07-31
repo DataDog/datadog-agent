@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ec2
-
 package aws
 
 import (
@@ -27,9 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
-// TestResolveCredentials_EC2_StaticEnvVarsReturned verifies the static-env provider is selected
+// TestResolveCredentials_StaticEnvVarsReturned verifies the static-env provider is selected
 // and returns the credentials.
-func TestResolveCredentials_EC2_StaticEnvVarsReturned(t *testing.T) {
+func TestResolveCredentials_StaticEnvVarsReturned(t *testing.T) {
 	isolateAWSEnv(t)
 	t.Setenv("AWS_ACCESS_KEY_ID", "EKSTATICKEY")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "EKSTATICSECRET")
@@ -43,11 +41,11 @@ func TestResolveCredentials_EC2_StaticEnvVarsReturned(t *testing.T) {
 	assert.Equal(t, "EKSTATICTOKEN", got.Token)
 }
 
-// TestResolveCredentials_EC2_NoUsableCredsReturnsEmpty verifies resolveCredentials returns empty
+// TestResolveCredentials_NoUsableCredsReturnsEmpty verifies resolveCredentials returns empty
 // credentials (not nil) when the selected provider fails, exercising the wrapper's error branch.
 // It forces a deterministic web-identity failure via a missing token file rather than falling
 // through to the IMDS provider, which would make a live metadata call on an EC2 host or CI runner.
-func TestResolveCredentials_EC2_NoUsableCredsReturnsEmpty(t *testing.T) {
+func TestResolveCredentials_NoUsableCredsReturnsEmpty(t *testing.T) {
 	isolateAWSEnv(t)
 	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", filepath.Join(t.TempDir(), "no-such-token"))
@@ -84,9 +82,9 @@ func TestResolveRegion_EC2(t *testing.T) {
 	})
 }
 
-// TestCredentialProvider_EC2_Selection verifies the env-driven provider selection follows the
+// TestCredentialProvider_Selection verifies the env-driven provider selection follows the
 // SDK precedence: static env -> IRSA web identity -> container -> IMDS.
-func TestCredentialProvider_EC2_Selection(t *testing.T) {
+func TestCredentialProvider_Selection(t *testing.T) {
 	t.Run("static env", func(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_ACCESS_KEY_ID", "k")

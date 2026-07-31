@@ -18,9 +18,9 @@ import (
 
 // isolateAWSEnv makes credential resolution hermetic: it clears every AWS credential-source
 // environment variable, neutralizes AWS_PROFILE, and points the shared config/credentials files at
-// a nonexistent path so tests do not pick up the developer or CI machine's AWS configuration. In
-// the ec2 build credentialProvider selects a provider from these env vars, so a stray AWS_ROLE_ARN
-// or container URI on the host would otherwise change which provider is chosen. Tests deliberately
+// a nonexistent path so tests do not pick up the developer or CI machine's AWS configuration.
+// credentialProvider selects a provider from these env vars, so a stray AWS_ROLE_ARN or container
+// URI on the host would otherwise change which provider is chosen. Tests deliberately
 // avoid driving the default IMDS branch through resolveCredentials (which would make a live
 // metadata call, ignoring AWS_EC2_METADATA_DISABLED since the Agent governs IMDS via its own
 // config); they assert provider selection or inject the fetch instead.
@@ -39,7 +39,7 @@ func isolateAWSEnv(t *testing.T) {
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
 }
 
-// -- Static env var tests (run in both build variants) --
+// -- Static env var tests --
 
 func TestResolveCredentials_StaticEnvVars(t *testing.T) {
 	isolateAWSEnv(t)
