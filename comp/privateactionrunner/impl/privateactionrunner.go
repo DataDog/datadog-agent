@@ -151,7 +151,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -288,7 +288,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore)
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ka)
 
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 
