@@ -6,9 +6,11 @@ go_library(
     srcs = [
         "autodiscovery_utils.go",
         "checks.go",
+        "integration_instance_validator.go",
         "logs.go",
         "registry.go",
     ],
+    embedsrcs = ["schemas/redisdb-instance.schema.json"],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers",
     visibility = ["//visibility:public"],
     deps = [
@@ -18,7 +20,10 @@ go_library(
         "//pkg/clusteragent/instrumentation",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
+        "@com_github_santhosh_tekuri_jsonschema_v6//kind",
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",

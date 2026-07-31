@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,14 +38,21 @@ const (
 type ChecksHandler struct {
 	checkStore           *CheckStore
 	templateStore        *ServiceCheckTemplateStore
+	instanceValidator    integrationInstanceValidator
 	serviceTargetEnabled bool
 }
 
 // NewChecksHandler returns the checks DatadogInstrumentation handler.
 func NewChecksHandler(dep *Deps) *ChecksHandler {
+	instanceValidator, err := defaultIntegrationInstanceValidator()
+	if err != nil {
+		log.Errorf("Failed to initialize DatadogInstrumentation integration instance validation; checks will be admitted without integration schema validation: %v", err)
+	}
+
 	return &ChecksHandler{
 		checkStore:           dep.CheckStore,
 		templateStore:        dep.ServiceCheckTemplateStore,
+		instanceValidator:    instanceValidator,
 		serviceTargetEnabled: apiserver.UseEndpointSlices(),
 	}
 }
@@ -85,6 +93,17 @@ func (h *ChecksHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrum
 		}
 		if len(check.Instances) == 0 {
 			errs = append(errs, h.checkValidationError(i, "instances", "InvalidInstances", "at least one instance is required"))
+		}
+		if h.instanceValidator != nil {
+			for j, instance := range check.Instances {
+				for _, err := range h.instanceValidator.Validate(check.Integration, instance) {
+					field := fmt.Sprintf("instances[%d]", j)
+					if err.Field != "" {
+						field += "." + err.Field
+					}
+					errs = append(errs, h.checkValidationError(i, field, "InvalidIntegrationInstance", err.Message))
+				}
+			}
 		}
 
 		if !isService(cr) && !hasContainerName(check) {

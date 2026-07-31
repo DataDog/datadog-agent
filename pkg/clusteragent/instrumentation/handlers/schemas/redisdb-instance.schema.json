@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "embedded://redisdb-instance.schema.json",
+  "title": "Redis integration instance",
+  "type": "object",
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": ["host", "port"]
+    },
+    {
+      "required": ["unix_socket_path"]
+    }
+  ],
+  "properties": {
+    "client_name": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "collect_client_metrics": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "command_stats": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "db": {
+      "$ref": "#/$defs/optionalInteger"
+    },
+    "disable_connection_cache": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "disable_generic_tags": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "empty_default_hostname": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "enable_legacy_tags_normalization": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "host": {
+      "type": "string"
+    },
+    "keys": {
+      "$ref": "#/$defs/optionalStringArray"
+    },
+    "metric_patterns": {
+      "$ref": "#/$defs/optionalMetricPatterns"
+    },
+    "min_collection_interval": {
+      "$ref": "#/$defs/optionalNumber"
+    },
+    "password": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "port": {
+      "$ref": "#/$defs/integerOrPlaceholder"
+    },
+    "service": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "slowlog-max-len": {
+      "$ref": "#/$defs/optionalInteger"
+    },
+    "socket_timeout": {
+      "$ref": "#/$defs/optionalInteger"
+    },
+    "ssl": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "ssl_ca_certs": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "ssl_cert_reqs": {
+      "$ref": "#/$defs/optionalInteger"
+    },
+    "ssl_certfile": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "ssl_check_hostname": {
+      "$ref": "#/$defs/optionalBoolean"
+    },
+    "ssl_keyfile": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "tags": {
+      "$ref": "#/$defs/optionalStringArray"
+    },
+    "unix_socket_path": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "username": {
+      "$ref": "#/$defs/optionalString"
+    },
+    "warn_on_missing_keys": {
+      "$ref": "#/$defs/optionalBoolean"
+    }
+  },
+  "$defs": {
+    "placeholder": {
+      "type": "string",
+      "pattern": "^%%[^%]+%%$"
+    },
+    "integerOrPlaceholder": {
+      "type": ["integer", "string"],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/placeholder"
+      }
+    },
+    "optionalBoolean": {
+      "type": ["boolean", "string", "null"],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/placeholder"
+      }
+    },
+    "optionalInteger": {
+      "type": ["integer", "string", "null"],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/placeholder"
+      }
+    },
+    "optionalMetricPatterns": {
+      "type": ["object", "string", "null"],
+      "allOf": [
+        {
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "additionalProperties": false,
+            "properties": {
+              "exclude": {
+                "$ref": "#/$defs/optionalStringArray"
+              },
+              "include": {
+                "$ref": "#/$defs/optionalStringArray"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "string"
+          },
+          "then": {
+            "$ref": "#/$defs/placeholder"
+          }
+        }
+      ]
+    },
+    "optionalNumber": {
+      "type": ["number", "string", "null"],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/placeholder"
+      }
+    },
+    "optionalString": {
+      "type": ["string", "null"]
+    },
+    "optionalStringArray": {
+      "type": ["array", "string", "null"],
+      "allOf": [
+        {
+          "if": {
+            "type": "array"
+          },
+          "then": {
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "string"
+          },
+          "then": {
+            "$ref": "#/$defs/placeholder"
+          }
+        }
+      ]
+    }
+  }
+}
