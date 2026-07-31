@@ -332,3 +332,34 @@ func TestGlobalCustomQueries(t *testing.T) {
 	defer c.Teardown()
 	assertCustomQuery(t, &c, s)
 }
+
+func TestDefaultContainerNotQuoted(t *testing.T) {
+    db, dbMock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+    require.NoError(t, err)
+    defer db.Close()
+
+    dbMock.ExpectExec(`alter session set container = cdb$root`).
+        WillReturnResult(sqlmock.NewResult(1, 1))
+    rows := sqlmock.NewRows([]string{"val"}).AddRow(1)
+    dbMock.ExpectQuery("SELECT val FROM t").WillReturnRows(rows)
+
+    q := config.CustomQuery{
+        MetricPrefix: "oracle.defaultcontainer",
+        // Pdb intentionally omitted
+        Query:        "SELECT val FROM t",
+        Columns:      []config.CustomQueryColumns{{Name: "val", Type: "gauge"}},
+    }
+
+    chk, sender := newDbDoesNotExistCheck(t, "", "")
+    chk.Run()
+    sender.SetupAcceptAll()
+    sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+    sender.On("Commit").Return()
+
+    chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+    chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+    err = chk.CustomQueries()
+    assert.NoError(t, err)
+    assert.NoError(t, dbMock.ExpectationsWereMet())
+}

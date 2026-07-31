@@ -91,13 +91,19 @@ func (c *Check) CustomQueries() error {
 		if !c.connectedToPdb {
 			pdb = q.Pdb
 			if pdb == "" {
-				pdb = "cdb$root"
-			}
-			_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
-			if err != nil {
-				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
-				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
-				continue
+				_, err := c.dbCustomQueries.Exec(`alter session set container = cdb$root`)
+				if err != nil {
+					allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container to cdb$root %s", err))
+					reconnectOnConnectionError(c, &c.dbCustomQueries, err)
+					continue
+				}
+			} else {
+				_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
+				if err != nil {
+					allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
+					reconnectOnConnectionError(c, &c.dbCustomQueries, err)
+					continue
+				}
 			}
 		}
 		rows, err := c.dbCustomQueries.Queryx(q.Query)
