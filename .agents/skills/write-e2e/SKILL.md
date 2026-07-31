@@ -16,7 +16,8 @@ Parse `$ARGUMENTS` to determine what to test.
 | E2E test writing guidelines and rules | `test/new-e2e/codereview_guideline.md` | ✅ |
 | Framework API (environments, provisioners, agentparams) | `test/e2e-framework/AGENTS.md` | ✅ |
 | Fakeintake API (payload types, client methods, extending) | `test/fakeintake/AGENTS.md` | ✅ |
-| Setup, prerequisites, running tests | `docs/public/how-to/test/e2e.md` | |
+| Setup and prerequisites | `docs/public/how-to/test/e2e/index.md` | |
+| Running tests | `docs/public/how-to/test/e2e/running.md` | |
 | Real tests to use as patterns | `test/new-e2e/tests/` (see lookup table in e2e-framework AGENTS.md) | |
 | Check system overview | root `AGENTS.md` § "Check System" | |
 | Test placement / team ownership | `CODEOWNERS` | |

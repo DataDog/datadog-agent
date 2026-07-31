@@ -100,7 +100,7 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
   arrive in **fakeintake**. By default it forwards payloads to `dddev` org account.
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
-  (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
+  (intake mock), `docs/public/how-to/test/e2e/` (setup, running, dependencies, AMIs)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
 
