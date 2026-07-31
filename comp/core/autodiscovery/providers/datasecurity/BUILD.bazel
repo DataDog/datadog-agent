@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "datasecurity",
+    srcs = [
+        "checkconfig.go",
+        "data_security.go",
+        "rcconfig.go",
+        "sharedconfig.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "datasecurity_test",
+    srcs = ["data_security_test.go"],
+    embed = [":datasecurity"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/noopimpl",
+        "//comp/core/autodiscovery/providers/types",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

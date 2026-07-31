@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_linux_bpf on
+
 go_library(
     name = "proxy",
     srcs = [
@@ -115,7 +117,12 @@ go_test(
     name = "proxy_test",
     srcs = ["unix_transparent_proxy_test.go"],
     embed = [":proxy"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//require",
