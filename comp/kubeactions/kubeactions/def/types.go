@@ -35,9 +35,10 @@ const (
 
 // Execution status constants.
 const (
-	StatusSuccess = "success"
-	StatusFailed  = "failed"
-	StatusExpired = "expired"
+	StatusSuccess    = "success"
+	StatusFailed     = "failed"
+	StatusExpired    = "expired"
+	StatusInProgress = "in_progress"
 )
 
 // Event Platform event_type values emitted by the reporter.

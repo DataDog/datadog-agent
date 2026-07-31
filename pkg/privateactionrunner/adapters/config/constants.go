@@ -53,6 +53,8 @@ var KubeActionsActionFQNs = []string{
 	"com.datadoghq.kubernetes.kubeactions.deletePod",
 	"com.datadoghq.kubernetes.kubeactions.restartDeployment",
 	"com.datadoghq.kubernetes.kubeactions.patchDeployment",
+	"com.datadoghq.kubernetes.kubeactions.patchDaemonset",
+	"com.datadoghq.kubernetes.kubeactions.patchStatefulset",
 	"com.datadoghq.kubernetes.kubeactions.rollbackDeployment",
 	"com.datadoghq.kubernetes.kubeactions.getResource",
 }

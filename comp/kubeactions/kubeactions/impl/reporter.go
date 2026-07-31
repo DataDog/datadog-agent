@@ -64,7 +64,7 @@ func (r *resultReporter) ReportReceived(report kubeactions.ActionReport) {
 
 // ReportProgress sends an intermediate action_progress event.
 func (r *resultReporter) ReportProgress(report kubeactions.ActionReport, msg string) {
-	r.report(report, kubeactions.EventTypeActionProgress, "in_progress", msg, nil, time.Now())
+	r.report(report, kubeactions.EventTypeActionProgress, kubeactions.StatusInProgress, msg, nil, time.Now())
 }
 
 // ReportResult sends the terminal action_executed event.

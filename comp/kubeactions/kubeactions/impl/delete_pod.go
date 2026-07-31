@@ -55,6 +55,17 @@ func (e *DeletePodExecutor) Execute(ctx context.Context, in kubeactions.DeletePo
 		deleteOptions.GracePeriodSeconds = &gracePeriod
 	}
 
+	// Close the check-then-delete race: the UID comparison above is against the
+	// pod we Get'd, but the pod could be deleted and recreated with the same
+	// name before the Delete below, so a name-only delete would remove the new
+	// pod. A UID precondition makes the API server reject the delete atomically
+	// if the current object's UID no longer matches. Only set it when the caller
+	// supplied a UID guard (resource_id).
+	if in.ResourceID != "" {
+		uid := pod.UID
+		deleteOptions.Preconditions = &metav1.Preconditions{UID: &uid}
+	}
+
 	if err := e.clientset.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions); err != nil {
 		return kubeactions.ExecutionResult{
 			Status:  kubeactions.StatusFailed,

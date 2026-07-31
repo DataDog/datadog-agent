@@ -232,7 +232,7 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, in kubeactions
 	if apiequality.Semantic.DeepEqual(&replicaSetForRevision.Spec.Template, &currentDeployment.Spec.Template) {
 		return kubeactions.ExecutionResult{
 			Status:  kubeactions.StatusSuccess,
-			Message: "current template already matches the previous revision" + strconv.FormatInt(foundRevision, 10),
+			Message: "current template already matches the previous revision " + strconv.FormatInt(foundRevision, 10),
 		}
 	}
 
