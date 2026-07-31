@@ -59,7 +59,7 @@ func (h *GetResourceHandler) Run(
 	report := newReport(kubeactions.ActionTypeGetResource, in.ResourceRef, task)
 	h.ka.ReportReceived(report)
 
-	result := kubeactionsimpl.NewGetResourceExecutor(client).Execute(ctx, in)
+	result := kubeactionsimpl.NewGetResourceExecutor(client, h.ka.CustomSensitiveWords()).Execute(ctx, in)
 	h.ka.ReportResult(report, result)
 
 	if err := actionErr(result); err != nil {

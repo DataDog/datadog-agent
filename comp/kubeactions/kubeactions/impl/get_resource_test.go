@@ -143,7 +143,7 @@ func TestGetResourceExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			client := newGetResourceClient(tt.objects...)
-			executor := NewGetResourceExecutor(client)
+			executor := NewGetResourceExecutor(client, nil)
 
 			in := kubeactions.GetResourceInputs{ResourceRef: kubeactions.ResourceRef{
 				APIVersion: tt.apiVersion,

@@ -23,7 +23,6 @@ go_library(
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/kubeactions/kubeactions/def",
-        "//pkg/config/setup",
         "//pkg/logs/message",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",

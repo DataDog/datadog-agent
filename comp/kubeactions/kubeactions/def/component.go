@@ -31,4 +31,9 @@ type Component interface {
 	// ReportResult emits the terminal "action_executed" event carrying the
 	// execution outcome.
 	ReportResult(report ActionReport, result ExecutionResult)
+	// CustomSensitiveWords returns the operator-configured extra sensitive words
+	// (orchestrator_explorer.custom_sensitive_words) used to scrub get_resource
+	// output. It is resolved via the config component so impl/executor code does
+	// not import the global pkg/config/setup (disallowed inside comp/ by depguard).
+	CustomSensitiveWords() []string
 }

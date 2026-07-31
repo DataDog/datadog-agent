@@ -42,10 +42,11 @@ type Provides struct {
 }
 
 type kubeactionsImpl struct {
-	log         log.Component
-	clusterID   string
-	clusterName string
-	reporter    *resultReporter
+	log                  log.Component
+	clusterID            string
+	clusterName          string
+	reporter             *resultReporter
+	customSensitiveWords []string
 }
 
 var _ kubeactions.Component = (*kubeactionsImpl)(nil)
@@ -86,11 +87,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Warnf("kubeactions: Event Platform forwarder not available, result reporting will be disabled")
 	}
 
+	// Extra sensitive words for scrubbing get_resource output, read via the config
+	// component (impl code must not import the global pkg/config/setup — depguard).
+	var customSensitiveWords []string
+	if reqs.Config.IsConfigured("orchestrator_explorer.custom_sensitive_words") {
+		customSensitiveWords = reqs.Config.GetStringSlice("orchestrator_explorer.custom_sensitive_words")
+	}
+
 	comp := &kubeactionsImpl{
-		log:         reqs.Log,
-		clusterID:   clusterID,
-		clusterName: clusterName,
-		reporter:    newResultReporter(forwarder, clusterName, clusterID),
+		log:                  reqs.Log,
+		clusterID:            clusterID,
+		clusterName:          clusterName,
+		reporter:             newResultReporter(forwarder, clusterName, clusterID),
+		customSensitiveWords: customSensitiveWords,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
@@ -121,4 +130,9 @@ func (k *kubeactionsImpl) ReportProgress(report kubeactions.ActionReport, messag
 // ReportResult implements kubeactions.Component.
 func (k *kubeactionsImpl) ReportResult(report kubeactions.ActionReport, result kubeactions.ExecutionResult) {
 	k.reporter.ReportResult(report, result)
+}
+
+// CustomSensitiveWords implements kubeactions.Component.
+func (k *kubeactionsImpl) CustomSensitiveWords() []string {
+	return k.customSensitiveWords
 }

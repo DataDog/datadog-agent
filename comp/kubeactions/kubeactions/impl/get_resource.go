@@ -24,7 +24,6 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -51,17 +50,19 @@ type GetResourceExecutor struct {
 	scrubber      *scrubber.Scrubber
 }
 
-// NewGetResourceExecutor creates a new GetResourceExecutor.
-func NewGetResourceExecutor(dynamicClient dynamic.Interface) *GetResourceExecutor {
+// NewGetResourceExecutor creates a new GetResourceExecutor. customSensitiveWords
+// are the operator-configured extra words to scrub from resource output; the
+// caller resolves them via the config component (impl/executor code must not
+// import the global pkg/config/setup — depguard).
+func NewGetResourceExecutor(dynamicClient dynamic.Interface, customSensitiveWords []string) *GetResourceExecutor {
 	scrb := scrubber.NewWithDefaults()
 
 	// If the user has set a custom list of sensitive words, add a replacer for
 	// them. This is originally added for the orchestrator explorer to scrub
 	// sensitive words from the resource output; see
 	// pkg/orchestrator/config/config.go.OrchestratorConfig.Load() for details.
-	if pkgconfigsetup.Datadog().IsConfigured("orchestrator_explorer.custom_sensitive_words") {
-		sensitiveWords := pkgconfigsetup.Datadog().GetStringSlice("orchestrator_explorer.custom_sensitive_words")
-		regex := regexp.MustCompile(strings.Join(sensitiveWords, "|"))
+	if len(customSensitiveWords) > 0 {
+		regex := regexp.MustCompile(strings.Join(customSensitiveWords, "|"))
 		scrb.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 			Regex: regex,
 			Repl:  []byte("********"),
