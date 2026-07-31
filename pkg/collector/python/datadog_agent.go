@@ -561,7 +561,6 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 // EmitAgentTelemetry records a telemetry data point for a Python integration.
 // labelsJSON is optional: NULL or empty means no labels, otherwise it must be a JSON
 // object whose keys and values are strings.
-// Emission is best effort; every failure is logged and dropped, nothing propagates to Python.
 // NB: Cross-org agent telemetry needs to be enabled for each metric in
 // comp/core/agenttelemetry/impl/defaultProfiles.yaml.
 //
