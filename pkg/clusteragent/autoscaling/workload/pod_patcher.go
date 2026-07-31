@@ -109,7 +109,11 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range constrainedVertical.ContainerResources {
-		patched = patchPod(reco, pod) || patched
+		var runtime *model.ContainerRuntimeValues
+		if rv, ok := constrainedVertical.RuntimeValues[reco.Name]; ok {
+			runtime = &rv
+		}
+		patched = patchPod(reco, runtime, pod) || patched
 	}
 
 	return patched, nil
@@ -214,11 +218,11 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 
 // K8s guarantees that the name for an init container or normal container are unique among all containers.
 // It means that dispatching recommendations just by container names is sufficient
-func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, runtime *model.ContainerRuntimeValues, pod *corev1.Pod) (patched bool) {
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
 		if cont.Name == reco.Name {
-			return patchContainerResources(reco, cont)
+			return patchContainerResources(reco, runtime, cont)
 		}
 	}
 
@@ -229,14 +233,14 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 		// sidecar container by definition is an init container with `restartPolicy: Always`
 		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
 		if cont.Name == reco.Name && isInitSidecarContainer {
-			return patchContainerResources(reco, cont)
+			return patchContainerResources(reco, runtime, cont)
 		}
 	}
 
 	return false
 }
 
-func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
+func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, runtime *model.ContainerRuntimeValues, cont *corev1.Container) (patched bool) {
 	patched = false
 
 	if cont.Resources.Limits == nil {
@@ -261,6 +265,23 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	for resourceName, request := range reco.Requests {
 		if request.Cmp(cont.Resources.Requests[resourceName]) != 0 {
 			cont.Resources.Requests[resourceName] = request
+			patched = true
+		}
+	}
+	if runtime != nil && runtime.GoMemLimit != "" {
+		found := false
+		for i, env := range cont.Env {
+			if env.Name == "GOMEMLIMIT" {
+				if env.Value != runtime.GoMemLimit {
+					cont.Env[i].Value = runtime.GoMemLimit
+					patched = true
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			cont.Env = append(cont.Env, corev1.EnvVar{Name: "GOMEMLIMIT", Value: runtime.GoMemLimit})
 			patched = true
 		}
 	}

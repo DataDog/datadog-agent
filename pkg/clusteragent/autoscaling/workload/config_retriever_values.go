@@ -292,11 +292,26 @@ func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.Wor
 			}
 
 			verticalValues.ContainerResources = append(verticalValues.ContainerResources, convertedResources)
+
+			if containerResources.Runtime != nil && containerResources.Runtime.Gomemlimit != "" {
+				if verticalValues.RuntimeValues == nil {
+					verticalValues.RuntimeValues = make(map[string]model.ContainerRuntimeValues)
+				}
+				verticalValues.RuntimeValues[containerResources.ContainerName] = model.ContainerRuntimeValues{
+					GoMemLimit: containerResources.Runtime.Gomemlimit,
+				}
+			}
 		}
 	}
 
 	var err error
-	verticalValues.ResourcesHash, err = autoscaling.ObjectHash(verticalValues.ContainerResources)
+	verticalValues.ResourcesHash, err = autoscaling.ObjectHash(struct {
+		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		RuntimeValues      map[string]model.ContainerRuntimeValues
+	}{
+		ContainerResources: verticalValues.ContainerResources,
+		RuntimeValues:      verticalValues.RuntimeValues,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash container resources: %w", err)
 	}
