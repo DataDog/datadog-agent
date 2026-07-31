@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "test",
@@ -23,32 +23,6 @@ go_library(
             "//pkg/util/log",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
-go_test(
-    name = "test_test",
-    srcs = ["privileged_logs_test.go"],
-    embed = [":test"],
-    gotags = ["test"],
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "//pkg/config/mock",
-            "//pkg/privileged-logs/client",
-            "//pkg/privileged-logs/module",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-            "@com_github_stretchr_testify//suite",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/config/mock",
-            "//pkg/privileged-logs/client",
-            "//pkg/privileged-logs/module",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-            "@com_github_stretchr_testify//suite",
         ],
         "//conditions:default": [],
     }),
