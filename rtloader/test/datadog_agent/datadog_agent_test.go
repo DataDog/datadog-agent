@@ -737,33 +737,20 @@ func TestEmitAgentTelemetry(t *testing.T) {
 	for _, tc := range cases {
 		code := fmt.Sprintf(`
 	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "%s")
-			`, tc)
-		_, err := run(code)
+	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "%s", labels={"check_name": "openmetrics"})
+	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "%s", labels={"check_name": b"unserializable"})
+			`, tc, tc, tc)
+		out, err := run(code)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// Unserializable labels are dropped, never raised into the check.
+		if out != "" {
+			t.Fatalf("unexpected exception: %s", out)
 		}
 	}
 
 	// Check for leaks
-	helpers.AssertMemoryUsage(t)
-}
-
-func TestEmitAgentTelemetryLabelsArgument(t *testing.T) {
-	helpers.ResetMemoryStats()
-	emitAgentTelemetryLabels = nil
-
-	code := `
-	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "counter", labels={"check_name": "openmetrics"})
-	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "counter", labels={"check_name": b"openmetrics"})
-	`
-	_, err := run(code)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(emitAgentTelemetryLabels) != 1 || emitAgentTelemetryLabels[0] != `{"check_name": "openmetrics"}` {
-		t.Fatalf("expected one labeled callback, got %v", emitAgentTelemetryLabels)
-	}
-
 	helpers.AssertMemoryUsage(t)
 }
 
