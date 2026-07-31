@@ -39,9 +39,11 @@ type Command interface {
 // PlainCommand represents a single command plus zero or more regexes to run against
 // the combined stdout/stderr of that command.
 type PlainCommand struct {
-	Command       string    `json:"command"`
-	Validator     Validator `json:"validator"`
-	SetupCommands []string  `json:"setup_commands,omitempty"`
+	Command   string    `json:"command"`
+	Validator Validator `json:"validator"`
+	// SetupCommands run before Command in the same exec session. Note: if a setup
+	// command prints output, it may appear in the saved config.
+	SetupCommands []string `json:"setup_commands,omitempty"`
 }
 
 func (c *PlainCommand) CommandType() string {
