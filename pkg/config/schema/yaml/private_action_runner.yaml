@@ -177,6 +177,8 @@ properties:
         comment: |-
           Optional local restriction on backend system-service grants. When
           unset, backend grants pass through; an explicit empty map denies all.
+          The "*" action admits every backend-granted action for that exact
+          service, including future rshell actions when the backend grants them.
           The environment variable accepts a JSON object only.
   skip_connection_creation:
     node_type: setting
