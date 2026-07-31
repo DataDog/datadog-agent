@@ -22,7 +22,7 @@ func withSelection(t *testing.T, base Type, enabled, installed bool) {
 	t.Helper()
 	initSystemType = func() Type { return base }
 	procmgrEnabled = func() bool { return enabled }
-	procmgrInstalled = func() bool { return installed }
+	procmgrInstalled = func(string) bool { return installed }
 	t.Cleanup(func() {
 		initSystemType = sync.OnceValue(detectInitSystem)
 		procmgrEnabled = func() bool { return env.FromEnv().ProcessManagerEnabled }
@@ -50,7 +50,7 @@ func TestGetServiceManagerType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSelection(t, tt.base, tt.enabled, tt.installed)
-			assert.Equal(t, tt.expected, GetServiceManagerType())
+			assert.Equal(t, tt.expected, GetServiceManagerType(""))
 		})
 	}
 }
@@ -61,11 +61,11 @@ func TestGetServiceManagerType(t *testing.T) {
 func TestGetServiceManagerTypeIsNotMemoized(t *testing.T) {
 	installed := false
 	withSelection(t, SystemdType, true, false)
-	procmgrInstalled = func() bool { return installed }
+	procmgrInstalled = func(string) bool { return installed }
 
-	assert.Equal(t, SystemdType, GetServiceManagerType())
+	assert.Equal(t, SystemdType, GetServiceManagerType(""))
 	installed = true
-	assert.Equal(t, ProcmgrType, GetServiceManagerType())
+	assert.Equal(t, ProcmgrType, GetServiceManagerType(""))
 }
 
 // TestProcmgrIsTheDefault pins the point of expressing the setting as an opt-in that defaults to

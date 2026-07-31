@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "procmgr",
@@ -8,178 +8,48 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/fleet/installer/packages/service/systemd",
-            "//pkg/fleet/installer/paths",
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-            "@org_uber_go_multierr//:multierr",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
-go_test(
-    name = "procmgr_test",
-    srcs = ["procmgr_test.go"],
-    embed = [":procmgr"],
-    gotags = ["test"],
-    deps = select({
-        "@rules_go//go/platform:aix": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:js": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:osx": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

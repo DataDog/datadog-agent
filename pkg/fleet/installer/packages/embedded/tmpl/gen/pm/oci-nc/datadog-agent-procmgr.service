@@ -12,6 +12,8 @@ Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_PM_CONFIG_DIR=/opt/datadog-packages/datadog-agent/stable/processes.d"
 Environment="DD_CONF_DIR=/etc/datadog-agent"
+Environment="DD_PID_DIR=/opt/datadog-packages/datadog-agent/stable"
+Environment="DD_INSTALL_DIR=/opt/datadog-packages/datadog-agent/stable"
 RuntimeDirectory=datadog-procmgrd
 ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgrd
 StartLimitInterval=10

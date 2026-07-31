@@ -234,7 +234,7 @@ func installFilesystem(ctx HookContext) (err error) {
 // A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
 // instances (socket and processes.d conflicts).
 func retireLegacyProcmgrUnits(ctx HookContext) error {
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType, service.ProcmgrType:
 	default:
 		return nil
@@ -339,6 +339,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
+	}
+	if err := agentService.WriteProcesses(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write procmgr processes: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -624,7 +627,7 @@ type datadogAgentService struct {
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType, service.ProcmgrType:
 		return nil
 	case service.UpstartType:
@@ -646,7 +649,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.EnableUnit(ctx, s.SystemdMainUnitStable)
 	case service.ProcmgrType:
@@ -665,7 +668,7 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.DisableUnits(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
@@ -692,7 +695,7 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	if !present {
 		return nil
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
 	case service.ProcmgrType:
@@ -711,7 +714,7 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.ProcmgrType:
@@ -725,19 +728,26 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
+// WriteProcesses writes the processes for the given package path
+func (s *datadogAgentService) WriteProcesses(packagePath string) error {
+	switch service.GetServiceManagerType(packagePath) {
+	case service.ProcmgrType:
+		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
+	default:
+		return nil // Only procmgr defines processes
+	}
+}
+
 // WriteStable writes the stable units to the system and reloads the systemd daemon
 func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
-		if err := writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...); err != nil {
-			return err
-		}
-		return writeEmbeddedProcessesAndReload(ctx, false, s.ProcmgrProcesses...)
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -750,14 +760,11 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
-		if err := removeUnits(ctx, s.ProcmgrUnitsStable...); err != nil {
-			return err
-		}
-		return removeProcesses(ctx, false, s.ProcmgrProcesses...)
+		return removeUnits(ctx, s.ProcmgrUnitsStable...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -770,7 +777,7 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
@@ -789,7 +796,7 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
@@ -806,14 +813,11 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.ProcmgrType:
-		if err := writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...); err != nil {
-			return err
-		}
-		return writeEmbeddedProcessesAndReload(ctx, true, s.ProcmgrProcesses...)
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -828,14 +832,11 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsExp...)
 	case service.ProcmgrType:
-		if err := removeUnits(ctx, s.ProcmgrUnitsExp...); err != nil {
-			return err
-		}
-		return s.restoreStableProcesses(ctx)
+		return removeUnits(ctx, s.ProcmgrUnitsExp...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Experiments are not supported on upstart or sysvinit
 	default:
@@ -922,11 +923,17 @@ func procmgrInstallRoot(ctx HookContext, experiment bool) (string, error) {
 }
 
 func writeEmbeddedSystemdUnitsAndReload(ctx HookContext, units ...string) error {
-	return writeUnitsAndReload(ctx, embedded.GetSystemdUnit, units...)
+	if err := writeUnitsAndReload(ctx, embedded.GetSystemdUnit, units...); err != nil {
+		return err
+	}
+	return systemd.Reload(ctx)
 }
 
 func writeEmbeddedProcmgrUnitsAndReload(ctx HookContext, units ...string) error {
-	return writeUnitsAndReload(ctx, embedded.GetProcmgrUnit, units...)
+	if err := writeUnitsAndReload(ctx, embedded.GetProcmgrUnit, units...); err != nil {
+		return err
+	}
+	return procmgr.Reload(ctx)
 }
 
 type embeddedUnitGetter func(name string, unitType embedded.UnitType, ambiantCapabilitiesSupported bool) ([]byte, error)
@@ -955,77 +962,23 @@ func writeUnitsAndReload(ctx HookContext, get embeddedUnitGetter, units ...strin
 			return err
 		}
 	}
-	return systemd.Reload(ctx)
+	return nil
 }
 
-// writeEmbeddedProcessesAndReload writes the processes.d entries for one lifecycle half and asks a
-// running dd-procmgrd to pick them up. The entries are written unconditionally: each carries a
-// condition_path_exists so the daemon skips a payload that is not installed, exactly as a systemd
-// unit's ConditionPathExists does.
-func writeEmbeddedProcessesAndReload(ctx HookContext, experiment bool, processes ...string) error {
+func writeEmbeddedProcmgrProcesses(packagePath string, processes ...string) error {
 	if len(processes) == 0 {
 		return nil
 	}
-	unitType, err := unitType(ctx)
-	if err != nil {
-		return err
-	}
-	installRoot, err := procmgrInstallRoot(ctx, experiment)
-	if err != nil {
-		return err
-	}
 	for _, process := range processes {
-		templateName := process
-		if experiment {
-			templateName = strings.TrimSuffix(process, ".yaml") + "-exp.yaml"
-		}
-		content, err := embedded.GetProcmgrUnit(templateName, unitType, false)
+		content, err := embedded.GetProcmgrProcess(process)
 		if err != nil {
 			return err
 		}
-		if err := procmgr.WriteConfig(installRoot, process, content); err != nil {
+		if err := procmgr.WriteProcess(packagePath, process, content); err != nil {
 			return err
 		}
 	}
-	return procmgr.Reload(ctx, installRoot)
-}
-
-func removeProcesses(ctx HookContext, experiment bool, processes ...string) error {
-	if len(processes) == 0 {
-		return nil
-	}
-	installRoot, err := procmgrInstallRoot(ctx, experiment)
-	if err != nil {
-		return err
-	}
-	return procmgr.RemoveConfigs(installRoot, processes...)
-}
-
-// restoreStableProcesses rewrites the stable processes.d entries and drops anything else, so the
-// stable daemon is left with exactly the definitions it owns.
-//
-// Removing an experiment cannot simply delete files: during a config experiment the experiment link
-// points at the stable version, so the experiment and stable processes.d are the same directory and
-// a delete would strip stable's definitions.
-func (s *datadogAgentService) restoreStableProcesses(ctx HookContext) error {
-	installRoot, err := procmgrInstallRoot(ctx, false)
-	if err != nil {
-		return err
-	}
-	present, err := procmgr.ListConfigs(installRoot)
-	if err != nil {
-		return err
-	}
-	var stale []string
-	for _, name := range present {
-		if !slices.Contains(s.ProcmgrProcesses, name) {
-			stale = append(stale, name)
-		}
-	}
-	if err := procmgr.RemoveConfigs(installRoot, stale...); err != nil {
-		return err
-	}
-	return writeEmbeddedProcessesAndReload(ctx, false, s.ProcmgrProcesses...)
+	return nil
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {

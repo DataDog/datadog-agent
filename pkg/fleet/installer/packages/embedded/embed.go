@@ -75,6 +75,11 @@ func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported
 	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 }
 
+// GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
+func GetProcmgrProcess(name string) ([]byte, error) {
+	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", "processes.d", name))
+}
+
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
 	if ambiantCapabilitiesSupported {
 		return string(unitType)

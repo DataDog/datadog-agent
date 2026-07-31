@@ -49,12 +49,12 @@ var (
 // opted out via DD_PROCESS_MANAGER_ENABLED=false, and procmgr is actually installed. Only the init
 // system probe is memoized: the other two change during an install, so they are re-evaluated on
 // every call.
-func GetServiceManagerType() Type {
+func GetServiceManagerType(packagePath string) Type {
 	base := initSystemType()
 	if base != SystemdType {
 		return base
 	}
-	if !procmgrEnabled() || !procmgrInstalled() {
+	if !procmgrEnabled() || !procmgrInstalled(packagePath) {
 		return SystemdType
 	}
 	return ProcmgrType

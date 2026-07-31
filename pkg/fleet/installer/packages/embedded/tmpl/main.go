@@ -143,10 +143,10 @@ func unitSet(stableData, expData installerTemplateData, ambiantCapabilitiesSuppo
 	return units
 }
 
-func yamlSet(stableData, expData installerTemplateData) map[string][]byte {
+func yamlSet() map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
+		// The file is always the same, nothing to resolve from the template
+		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
 	}
 }
 
@@ -220,10 +220,7 @@ var (
 		{subdir: "pm/debrpm", units: unitSet(stableDataDebRpm, expDataDebRpm, true, true)},
 		{subdir: "pm/oci-nc", units: unitSet(stableDataOCI, expDataOCI, false, true)},
 		{subdir: "pm/debrpm-nc", units: unitSet(stableDataDebRpm, expDataDebRpm, false, true)},
-		{subdir: "pm/oci", units: yamlSet(stableDataOCI, expDataOCI)},
-		{subdir: "pm/debrpm", units: yamlSet(stableDataDebRpm, expDataDebRpm)},
-		{subdir: "pm/oci-nc", units: yamlSet(stableDataOCI, expDataOCI)},
-		{subdir: "pm/debrpm-nc", units: yamlSet(stableDataDebRpm, expDataDebRpm)},
+		{subdir: "pm/processes.d", units: yamlSet()},
 	}
 	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
