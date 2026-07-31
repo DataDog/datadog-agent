@@ -37,6 +37,7 @@
 /.agents/skills/locate-config-setting/SKILL.md   @DataDog/fleet-automation
 /.agents/skills/create-runtime-setting/SKILL.md  @DataDog/agent-runtimes @DataDog/fleet-automation
 /.agents/skills/create-runtime-setting/SKILL.md  @DataDog/agent-runtimes @DataDog/fleet-automation
+/.agents/skills/cws-btfhub-sync/                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/            @DataDog/agent-security
 /.agents/skills/explain-lading-config            @DataDog/single-machine-performance
 /.agents/skills/injector-dev                     @Datadog/container-platform
