@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ssi-gradual-rollout",
+    srcs = [
+        "registry.go",
+        "utils.go",
+    ],
+    embedsrcs = ["testdata/server.py"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/ssi-gradual-rollout",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "ssi-gradual-rollout_test",
+    srcs = ["ssi_gradual_rollout_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":ssi-gradual-rollout"],
+    embedsrcs = [
+        "testdata/base.yaml",
+        "testdata/default_opt_in.yaml",
+    ],
+    gotags = ["test"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/new-e2e/tests/ssi",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//require",
+    ],
+)

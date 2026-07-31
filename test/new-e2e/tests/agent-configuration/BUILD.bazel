@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent-configuration",
+    srcs = [
+        "configrefresh_endpoint.go",
+        "configrefresh_non_core_agents_sync_common.go",
+        "gui_common.go",
+    ],
+    embedsrcs = [
+        "config-refresh/fixtures/config.yaml.tmpl",
+        "config-refresh/fixtures/security-agent.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_golang_x_net//html",
+    ],
+)
+
+go_test(
+    name = "agent-configuration_test",
+    srcs = [
+        "api_test.go",
+        "configrefresh_api_key_refresh_test.go",
+        "configrefresh_nix_test.go",
+        "configrefresh_win_test.go",
+        "gui_nix_test.go",
+        "gui_win_test.go",
+        "inventory_test.go",
+        "secret_base_test.go",
+        "secret_nix_test.go",
+        "secret_win_test.go",
+        "sgc_aws_nix_test.go",
+        "sgc_aws_win_test.go",
+        "sgc_base_test.go",
+        "sgc_nix_test.go",
+        "sgc_win_test.go",
+    ],
+    embed = [":agent-configuration"],
+    embedsrcs = ["secret/fixtures/secret_script.py"],
+    gotags = ["test"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/agentparams/filepermissions",
+        "//test/e2e-framework/components/datadog/agentparams/msi",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/agent-configuration/secretsutils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

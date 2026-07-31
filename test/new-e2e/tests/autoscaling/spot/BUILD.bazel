@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "spot_test",
+    srcs = [
+        "deployment_test.go",
+        "statefulset_test.go",
+        "suite_test.go",
+    ],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/testutil/flake",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/e2e-framework/testing/provisioners/local/kubernetes",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)

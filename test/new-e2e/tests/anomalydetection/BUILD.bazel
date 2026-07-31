@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "anomalydetection_test",
+    srcs = [
+        "anomalydetection_nix_test.go",
+        "config_matrix_nix_test.go",
+        "defaults_nix_test.go",
+        "helpers_test.go",
+        "scorer_helper_nix_test.go",
+    ],
+    gotags = ["test"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

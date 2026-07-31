@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ccm-mode",
+    srcs = ["docs.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/ccm-mode",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "ccm-mode_test",
+    srcs = ["ccm_mode_nix_test.go"],
+    embed = [":ccm-mode"],
+    gotags = ["test"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

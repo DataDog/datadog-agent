@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "agent-telemetry_test",
+    srcs = ["errortracking_test.go"],
+    data = glob(["testdata/**"]),
+    embedsrcs = [
+        "testdata/error_check.py",
+        "testdata/error_check.yaml",
+        "testdata/errortracking-disabled.yaml",
+        "testdata/errortracking-enabled.yaml",
+        "testdata/errortracking-security-agent.yaml",
+        "testdata/errortracking-system-probe.yaml",
+    ],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/flavor",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/api",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
