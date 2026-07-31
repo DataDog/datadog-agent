@@ -19,12 +19,6 @@ import (
 // This file holds the Agent Telemetry registry backing the datadog_agent.emit_agent_telemetry
 // CGO callback (EmitAgentTelemetry in datadog_agent.go). Python supplies the metric name, type,
 // and label names at runtime, so each metric is declared on first use and cached here.
-//
-// The cached type and label names are load bearing. Registering the same metric twice panics in
-// prometheus.Registry.MustRegister, and updating a metric with a label set it was not declared
-// with panics in prometheus's With, so both conflicts must be detected here and reported as
-// errors: the caller is a CGO callback with no error channel, and a panic would take the Agent
-// down on data supplied by a check.
 
 var (
 	telemetryMap  = map[string]*agentTelemetryMetric{}

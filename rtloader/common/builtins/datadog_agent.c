@@ -959,9 +959,7 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
     with CGO. If the callback has not been set `None` will be returned.
 
     The optional `labels` argument is a mapping serialized to JSON and passed to the callback;
-    omitting it, or passing `None`, sends a NULL `labels_json`. Emission is best effort: apart
-    from a call-arity `TypeError` raised by argument parsing, this method never raises, so a
-    telemetry failure can never fail the calling check.
+    omitting it, or passing `None`, sends a NULL `labels_json`.
 */
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -988,7 +986,7 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     if (labels != NULL && labels != Py_None) {
         labels_json = as_json(labels);
         if (labels_json == NULL) {
-            // Telemetry is best effort: drop the data point rather than raising into the check.
+            // Drop the data point rather than raising into the check.
             PyErr_Clear();
             PyGILState_Release(gstate);
             Py_RETURN_NONE;
