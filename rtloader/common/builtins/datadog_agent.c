@@ -981,11 +981,16 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     }
 
     char *labels_json = NULL;
-    if (labels != Py_None && (labels_json = as_json(labels)) == NULL) {
-        PyErr_Clear();
-    } else {
-        cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type, labels_json);
+    if (labels != Py_None) {
+        labels_json = as_json(labels);
+        if (labels_json == NULL) {
+            PyErr_Clear();
+            PyGILState_Release(gstate);
+            Py_RETURN_NONE;
+        }
     }
+
+    cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type, labels_json);
 
     _free(labels_json);
     PyGILState_Release(gstate);
