@@ -40,8 +40,13 @@ type SenderManager struct {
 	defaultSender   *noopSender
 }
 
-// NewSenderManager creates a sender manager for lookback shadow checks.
+// NewSenderManager creates a sender manager for lookback shadow checks. It
+// returns nil when no writer is configured so selected shadows cannot silently
+// discard their only output.
 func NewSenderManager(ctx context.Context, defaultHostname string, writer Writer, now func() float64) *SenderManager {
+	if writer == nil {
+		return nil
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -50,10 +55,6 @@ func NewSenderManager(ctx context.Context, defaultHostname string, writer Writer
 			return float64(time.Now().UnixNano()) / 1e9
 		}
 	}
-	if writer == nil {
-		writer = noopWriter{}
-	}
-
 	return &SenderManager{
 		ctx:             ctx,
 		defaultHostname: defaultHostname,
@@ -350,12 +351,6 @@ func (s *sender) OrchestratorMetadata(_ []types.ProcessMessageBody, _ string, _ 
 // OrchestratorManifest is not captured by metric lookback.
 func (s *sender) OrchestratorManifest(_ []types.ProcessMessageBody, _ string) {
 	s.recordUnsupportedDrop("OrchestratorManifest")
-}
-
-type noopWriter struct{}
-
-func (noopWriter) Append(context.Context, checkid.ID, []metrics.MetricSample) error {
-	return nil
 }
 
 type noopSender struct{}

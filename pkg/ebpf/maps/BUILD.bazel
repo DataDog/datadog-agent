@@ -1,9 +1,12 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_linux_bpf on
+
 go_library(
     name = "maps",
     srcs = ["generic_map.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/maps",
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
@@ -18,7 +21,12 @@ go_test(
     name = "maps_test",
     srcs = ["generic_map_test.go"],
     embed = [":maps"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/security/ebpf/kernel",
         "//pkg/util/kernel",

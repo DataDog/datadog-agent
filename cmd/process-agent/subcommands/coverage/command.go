@@ -22,7 +22,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -57,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func requestCoverage(_ log.Component, config config.Component, ipc ipc.Component, params *cliParams) error {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(config)
 	url := url.URL{
 		Scheme: "https",
 		Host:   addressPort,

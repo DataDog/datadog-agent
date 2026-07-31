@@ -14,7 +14,6 @@ go_library(
         "//cmd/trace-agent/subcommands",
         "//comp/agent/autoexit/def",
         "//comp/agent/autoexit/fx",
-        "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/fx",
         "//comp/core/config",
         "//comp/core/configstreamconsumer/def",
@@ -44,7 +43,6 @@ go_library(
         "//pkg/trace/api",
         "//pkg/trace/telemetry",
         "//pkg/util/fxutil",
-        "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
     ] + select({

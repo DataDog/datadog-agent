@@ -127,7 +127,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 	mockConfig.SetInTest("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "aix" {
 		mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 		mockSysProbeConfig.SetInTest("network_config.enabled", true)
@@ -164,7 +164,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 		"trace-mutex.pprof":             []byte("mutex"),
 		"trace.trace":                   []byte("trace"),
 	}
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "aix" {
 		maps.Copy(expected, flaretypes.ProfileData{
 			"system-probe-1st-heap.pprof": []byte("heap_profile"),
 			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
@@ -198,7 +198,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockConfig.SetInTest("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "aix" {
 		mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 		mockSysProbeConfig.SetInTest("network_config.enabled", true)
@@ -230,7 +230,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 		"security-agent-mutex.pprof":    []byte("mutex"),
 		"security-agent.trace":          []byte("trace"),
 	}
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "aix" {
 		maps.Copy(expected, flaretypes.ProfileData{
 			"system-probe-1st-heap.pprof": []byte("heap_profile"),
 			"system-probe-2nd-heap.pprof": []byte("heap_profile"),

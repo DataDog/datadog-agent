@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -25,6 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
+
+func TestDefaultNetworkPathMaxTTLMatchesTracerouteDefault(t *testing.T) {
+	// The setup default is generated from the configuration schema, while the
+	// shared traceroute default is maintained separately for comp consumers that
+	// cannot import pkg/config/setup. Keep the two values from drifting.
+	assert.Equal(t, tracerouteconfig.DefaultMaxTTL, setup.DefaultNetworkPathMaxTTL)
+}
 
 func TestNewCheckConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
@@ -629,6 +637,7 @@ tags:
 			path.Namespace == "my-namespace" &&
 			path.Origin == payload.PathOriginNetworkPathIntegration &&
 			path.TestRunType == payload.TestRunTypeScheduled &&
+			path.TestConfigSource == payload.TestConfigSourceRemote &&
 			path.SourceProduct == payload.SourceProductNetworkPath &&
 			path.CollectorType == payload.CollectorTypeAgent &&
 			path.Source.Service == "frontend" &&
@@ -637,16 +646,85 @@ tags:
 	}), eventplatform.EventTypeNetworkPath)
 }
 
-func TestConfigureIgnoresTestConfigIDFromNonRCProvider(t *testing.T) {
-	rawInstance := integration.Data(`
+func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
+	tests := []struct {
+		name                 string
+		provider             string
+		expectedConfigSource payload.TestConfigSource
+		expectedTestConfigID string
+	}{
+		{
+			name:     "file",
+			provider: names.File,
+		},
+		{
+			name:     "container",
+			provider: names.Container,
+		},
+		{
+			name:     "kubernetes",
+			provider: names.Kubernetes,
+		},
+		{
+			name:     "kubernetes container",
+			provider: names.KubeContainer,
+		},
+		{
+			name:                 "network path remote config",
+			provider:             names.NetworkPathRemoteConfig,
+			expectedConfigSource: payload.TestConfigSourceRemote,
+			expectedTestConfigID: "test-config-a",
+		},
+		{
+			name:     "generic remote config",
+			provider: names.RemoteConfig,
+		},
+		{
+			name:     "unknown",
+			provider: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rawInstance := integration.Data(`
 test_config_id: test-config-a
 hostname: api.example.com
 `)
-	check := &Check{CheckBase: core.NewCheckBase(CheckName)}
+			check := &Check{CheckBase: core.NewCheckBase(CheckName)}
 
-	err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "file:network_path.yaml", names.File)
-	assert.NoError(t, err)
-	assert.Empty(t, check.config.TestConfigID)
+			err := check.Configure(nil, integration.FakeConfigHash, rawInstance, integration.Data{}, "test source", tt.provider)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedTestConfigID, check.config.TestConfigID)
+			assert.Equal(t, tt.expectedConfigSource, check.testConfigSource)
+		})
+	}
+}
+
+func TestRunOmitsTestConfigSourceForNonRemoteConfig(t *testing.T) {
+	rawInstance := integration.Data("hostname: api.example.com")
+	rawInitConfig := integration.Data{}
+	expectedID := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstance, rawInitConfig)
+	sender := mocksender.NewMockSender(t, expectedID)
+	sender.SetupAcceptAll()
+
+	check := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		traceroute: &fakeTraceroute{path: payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{Hostname: "api.example.com"},
+		}},
+	}
+	assert.NoError(t, check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, rawInstance, rawInitConfig, "file:network_path.yaml[0]", names.File))
+	assert.NoError(t, check.Run())
+
+	sender.AssertCalled(t, "EventPlatformEvent", mock.MatchedBy(func(raw []byte) bool {
+		var path map[string]any
+		if json.Unmarshal(raw, &path) != nil {
+			return false
+		}
+		_, found := path["test_config_source"]
+		return !found
+	}), eventplatform.EventTypeNetworkPath)
 }
 
 func TestFirstNonZero(t *testing.T) {
