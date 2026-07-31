@@ -408,7 +408,6 @@ func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricTyp
 	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
 		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
 	}
-	// A NULL labels_json means "no labels"; anything else is the serialized labels argument.
 	if labelsJSON != nil && C.GoString(labelsJSON) != `{"check_name": "openmetrics"}` {
 		panic(fmt.Sprintf("unexpected labels json: %s", C.GoString(labelsJSON)))
 	}

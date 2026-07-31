@@ -744,7 +744,6 @@ func TestEmitAgentTelemetry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Unserializable labels are dropped, never raised into the check.
 		if out != "" {
 			t.Fatalf("unexpected exception: %s", out)
 		}

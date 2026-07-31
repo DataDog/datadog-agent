@@ -984,7 +984,6 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     if (labels != NULL && labels != Py_None) {
         labels_json = as_json(labels);
         if (labels_json == NULL) {
-            // Drop the data point rather than raising into the check.
             PyErr_Clear();
             PyGILState_Release(gstate);
             Py_RETURN_NONE;
