@@ -993,9 +993,7 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
 
     cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type, labels_json);
 
-    if (labels_json != NULL) {
-        _free(labels_json);
-    }
+    _free(labels_json);
     PyGILState_Release(gstate);
 
     Py_RETURN_NONE;
