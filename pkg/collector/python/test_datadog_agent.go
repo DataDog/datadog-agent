@@ -134,7 +134,7 @@ func testEmitAgentTelemetry(t *testing.T) {
 
 func resetAgentTelemetryForTest() {
 	telemetryLock.Lock()
-	telemetryMap = map[string]*agentTelemetryMetric{}
+	telemetryMap = map[string]any{}
 	telemetryLock.Unlock()
 	telemetryimpl.GetCompatComponent().Reset()
 }
@@ -193,8 +193,9 @@ func testEmitAgentTelemetryLabels(t *testing.T) {
 	emitTelemetry("test_check", "bad_labels", 1, "counter", `{"check_name":1}`)
 	emitTelemetry("test_check", "not_an_object", 1, "counter", `["check_name"]`)
 	emitTelemetry("test_check", "null_labels", 1, "counter", `null`)
+	emitTelemetry("test_check", "invalid_label_name", 1, "counter", `{"__bad":"value"}`)
 	emitTelemetry("test_check", "invalid_type", 1, "rate", `{"check_name":"openmetrics"}`)
-	for _, metricName := range []string{"bad_json", "bad_labels", "not_an_object", "null_labels", "invalid_type"} {
+	for _, metricName := range []string{"bad_json", "bad_labels", "not_an_object", "null_labels", "invalid_label_name", "invalid_type"} {
 		assert.Nil(t, telemetryFamily(t, "test_check__"+metricName), "expected %s to be dropped", metricName)
 	}
 
