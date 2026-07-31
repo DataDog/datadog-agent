@@ -612,6 +612,12 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
+	// Runtime values (e.g. GOMEMLIMIT) are env vars that can only be applied to new pods via the
+	// admission webhook — they cannot be updated on a running container via pods/resize.
+	// Force the rollout path so pods are recreated and pick up the new values.
+	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil && len(sv.Vertical.RuntimeValues) > 0 {
+		return true
+	}
 	spec := autoscalerInternal.Spec()
 	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
 		return false
@@ -652,8 +658,7 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 }
 
 // isDisruptiveResize reports whether the recommendation changes a resource whose RestartContainer
-// policy would restart a container, or whether it changes runtime values (e.g. GOMEMLIMIT) that
-// can only be applied to new containers. Other resizes happen in place and are never throttled.
+// policy would restart a container. Other resizes happen in place and are never throttled.
 func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.VerticalScalingValues) bool {
 	if recommendation == nil {
 		return false
@@ -663,11 +668,6 @@ func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.V
 		recoByName[cr.Name] = cr
 	}
 	for _, c := range pod.Containers {
-		// Runtime values (e.g. GOMEMLIMIT env var) cannot be applied in-place on a running
-		// container; the pod must be restarted so the admission webhook can inject the new value.
-		if _, hasRuntime := recommendation.RuntimeValues[c.Name]; hasRuntime {
-			return true
-		}
 		cr, ok := recoByName[c.Name]
 		if !ok {
 			continue

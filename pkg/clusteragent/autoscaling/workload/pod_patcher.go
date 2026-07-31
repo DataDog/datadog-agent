@@ -272,8 +272,11 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 		found := false
 		for i, env := range cont.Env {
 			if env.Name == "GOMEMLIMIT" {
-				if env.Value != runtime.GoMemLimit {
+				if env.Value != runtime.GoMemLimit || env.ValueFrom != nil {
+					// Clear ValueFrom in case the env var was previously sourced from a ConfigMap/Secret;
+					// Kubernetes rejects env vars that have both Value and ValueFrom set.
 					cont.Env[i].Value = runtime.GoMemLimit
+					cont.Env[i].ValueFrom = nil
 					patched = true
 				}
 				found = true

@@ -1318,7 +1318,7 @@ func TestPatchContainerResources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			containerCopy := tt.container.DeepCopy()
 
-			patched := patchContainerResources(tt.recommendation, containerCopy)
+			patched := patchContainerResources(tt.recommendation, nil, containerCopy)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchContainerResources should return expected patch status")
 			assert.Equal(t, tt.expectedLimits, containerCopy.Resources.Limits, "Container limits should match expected values")
@@ -1484,7 +1484,7 @@ func TestPatchPod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			podCopy := tt.pod.DeepCopy()
 
-			patched := patchPod(tt.recommendation, podCopy)
+			patched := patchPod(tt.recommendation, nil, podCopy)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchPod should return expected patch status")
 
