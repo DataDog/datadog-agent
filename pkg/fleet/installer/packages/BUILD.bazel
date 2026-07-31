@@ -103,6 +103,7 @@ go_test(
         "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",
             "@in_yaml_go_yaml_v3//:yaml",
         ],
