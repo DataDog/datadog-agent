@@ -948,18 +948,16 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
 
 /*! \fn PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
     \brief This function implements the `datadog_agent.emit_agent_telemetry` method, emitting agent telemetry
-    for the provided check, metric, value, type, and optional labels.
+    for the provided check, metric, and value.
     \param self A PyObject* pointer to the `datadog_agent` module.
-    \param args A PyObject* pointer to a tuple containing the positional arguments.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
     \param kwargs A PyObject* pointer to a map of key value pairs.
-    \return A PyObject* pointer to `None`.
+    \return A PyObject* pointer to the value.
 
     This function is callable as the `datadog_agent.emit_agent_telemetry` Python method and
     uses the `cb_emit_agent_telemetry()` callback to emit the agent telemetry
     with CGO. If the callback has not been set `None` will be returned.
-
-    The optional `labels` argument is a mapping serialized to JSON and passed to the callback;
-    omitting it, or passing `None`, sends a NULL `labels_json`.
+    The optional `labels` mapping is serialized to JSON and passed to the callback.
 */
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
 {

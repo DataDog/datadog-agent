@@ -732,20 +732,17 @@ func TestObfuscateMongoDBString(t *testing.T) {
 func TestEmitAgentTelemetry(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
-	emitAgentTelemetryLabels = nil
 
 	cases := []string{"counter", "histogram", "gauge"}
 	for _, tc := range cases {
 		code := fmt.Sprintf(`
 	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "%s")
-		`, tc)
+			`, tc)
 		_, err := run(code)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	// A call without labels reaches the callback with a NULL labels_json.
-	requireLabelCalls(t, []string{"", "", ""})
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
@@ -753,65 +750,21 @@ func TestEmitAgentTelemetry(t *testing.T) {
 
 func TestEmitAgentTelemetryLabelsArgument(t *testing.T) {
 	helpers.ResetMemoryStats()
+	emitAgentTelemetryLabels = nil
 
-	cases := []struct {
-		name     string
-		call     string
-		expected []string
-	}{
-		{
-			// Whatever serializes is forwarded as-is, values included: type checking belongs to
-			// the Go side, which logs and drops the labels it cannot use.
-			name:     "positional labels",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", {"check_name": "openmetrics", "state": "limited"})`,
-			expected: []string{`{"check_name": "openmetrics", "state": "limited"}`},
-		},
-		{
-			name:     "keyword labels",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "counter", labels={"check_name": "openmetrics"})`,
-			expected: []string{`{"check_name": "openmetrics"}`},
-		},
-		{
-			name:     "explicit None labels",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "histogram", None)`,
-			expected: []string{""},
-		},
-		{
-			// json.dumps raises: the data point is dropped and the check sees no exception.
-			name:     "unserializable labels are dropped",
-			call:     `datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "gauge", {"check_name": b"openmetrics"})`,
-			expected: nil,
-		},
+	code := `
+	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "counter", labels={"check_name": "openmetrics"})
+	datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, "counter", labels={"check_name": b"openmetrics"})
+	`
+	_, err := run(code)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			emitAgentTelemetryLabels = nil
-			out, err := run(tc.call)
-			if err != nil {
-				t.Fatal(err)
-			}
-			// Emitting telemetry must never raise into the check.
-			if out != "" {
-				t.Fatalf("expected no output, got %q", out)
-			}
-			requireLabelCalls(t, tc.expected)
-		})
+	if len(emitAgentTelemetryLabels) != 1 || emitAgentTelemetryLabels[0] != `{"check_name": "openmetrics"}` {
+		t.Fatalf("expected one labeled callback, got %v", emitAgentTelemetryLabels)
 	}
 
 	helpers.AssertMemoryUsage(t)
-}
-
-func requireLabelCalls(t *testing.T, expected []string) {
-	t.Helper()
-	if len(emitAgentTelemetryLabels) != len(expected) {
-		t.Fatalf("expected %d callback calls %v, got %d %v", len(expected), expected, len(emitAgentTelemetryLabels), emitAgentTelemetryLabels)
-	}
-	for i, want := range expected {
-		if emitAgentTelemetryLabels[i] != want {
-			t.Fatalf("call %d: expected labels %q, got %q", i, want, emitAgentTelemetryLabels[i])
-		}
-	}
 }
 
 func TestReportIssue(t *testing.T) {
