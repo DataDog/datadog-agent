@@ -1,0 +1,8 @@
+# Test data for agent commands
+
+filegroup(
+    name = "integrations",
+    srcs = glob(["integrations/**"]),
+    visibility = ["//cmd:__subpackages__"],
+)
+ 
