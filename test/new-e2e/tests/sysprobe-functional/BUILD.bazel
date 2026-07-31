@@ -7,6 +7,10 @@ go_test(
         "apmtags_testdefs_test.go",
         "sysprobe_test.go",
     ],
+    data = glob([
+        "assets/**",
+        "usmtest/**",
+    ]),
     embedsrcs = ["fixtures/system-probe.yaml"],
     gotags = ["test"],
     deps = [

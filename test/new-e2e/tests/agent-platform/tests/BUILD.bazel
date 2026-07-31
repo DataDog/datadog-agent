@@ -13,6 +13,8 @@ go_test(
         "step_by_step_test.go",
         "upgrade_test.go",
     ],
+    # For TestZZUninstallAgent (macos_install_test.go)
+    data = ["//cmd/agent:macos/uninstall_mac_os.sh"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/os",

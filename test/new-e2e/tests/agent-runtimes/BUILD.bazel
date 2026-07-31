@@ -42,6 +42,13 @@ go_test(
         "shared_library_nix_test.go",
         "shared_library_win_test.go",
     ],
+    # For shared_library_common_test.go
+    data = [
+        "checks/shared-library/files/libdatadog-agent-example.dll",
+        "checks/shared-library/files/libdatadog-agent-example.so",
+        "checks/shared-library/files/libdatadog-agent-no-run-symbol.dll",
+        "checks/shared-library/files/libdatadog-agent-no-run-symbol.so",
+    ],
     embed = [":agent-runtimes"],
     embedsrcs = [
         "auth_artifact/fixtures/config.yaml",

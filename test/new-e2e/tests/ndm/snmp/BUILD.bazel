@@ -20,6 +20,7 @@ go_test(
         "snmp_test.go",
         "snmp_vm_test.go",
     ],
+    data = glob(["compose/data/**"]) + ["compose-vm/snmpCompose.yaml"],
     embed = [":snmp"],
     embedsrcs = [
         "compose/data/apc_ups.snmprec",
