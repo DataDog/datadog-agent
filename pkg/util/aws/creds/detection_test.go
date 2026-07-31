@@ -117,8 +117,24 @@ func TestGetAWSRegionFromEnvironment(t *testing.T) {
 	}
 }
 
+// isolateAWSCredentialEnv clears every AWS credential-source environment variable so a test
+// asserting one specific source wins is not at the mercy of the host's ambient environment (a
+// developer machine or CI runner with AWS_ACCESS_KEY_ID set would otherwise make static env win
+// over whatever this test means to exercise).
+func isolateAWSCredentialEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{
+		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+		"AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+	} {
+		t.Setenv(k, "")
+	}
+}
+
 func TestDetectAWSCredentialSourceWithCredentials(t *testing.T) {
 	// When AWS credentials are set in environment, detection should succeed even without IMDS access
+	isolateAWSCredentialEnv(t)
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 
@@ -128,6 +144,9 @@ func TestDetectAWSCredentialSourceWithCredentials(t *testing.T) {
 }
 
 func TestDetectAWSCredentialSourceWithIMDS(t *testing.T) {
+	// A stray credential env var on the host running this test would otherwise win over IMDS.
+	isolateAWSCredentialEnv(t)
+
 	// Create a mock IMDS server
 	identityDoc := ec2internal.EC2Identity{
 		Region:     "us-west-2",
@@ -221,6 +240,7 @@ func TestGetAWSRegionFromIMDS(t *testing.T) {
 
 func TestDetectAWSCredentialSourceWithIRSAEnvVars(t *testing.T) {
 	// IRSA env vars should signal AWS even without IMDS
+	isolateAWSCredentialEnv(t)
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
 	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/test-role")
 
@@ -231,6 +251,7 @@ func TestDetectAWSCredentialSourceWithIRSAEnvVars(t *testing.T) {
 
 func TestDetectAWSCredentialSourceWithContainerRelativeURI(t *testing.T) {
 	// ECS task role / EKS Pod Identity relative URI
+	isolateAWSCredentialEnv(t)
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc123def456")
 
 	source, err := DetectAWSCredentialSource(context.Background())
@@ -240,6 +261,7 @@ func TestDetectAWSCredentialSourceWithContainerRelativeURI(t *testing.T) {
 
 func TestDetectAWSCredentialSourceWithContainerFullURI(t *testing.T) {
 	// EKS Pod Identity full URI variant
+	isolateAWSCredentialEnv(t)
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
 
 	source, err := DetectAWSCredentialSource(context.Background())
@@ -268,13 +290,7 @@ func TestHasAWSContainerCredentialsInEnvironment(t *testing.T) {
 // so it must name every mechanism that was checked. IMDS is pointed at a closed port so the test
 // does not depend on whether the machine running it happens to be an EC2 instance.
 func TestDetectAWSCredentialSourceNoSource(t *testing.T) {
-	for _, k := range []string{
-		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
-		"AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
-		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-	} {
-		t.Setenv(k, "")
-	}
+	isolateAWSCredentialEnv(t)
 
 	// Point IMDS at a listener that accepts nothing, so detection fails deterministically.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
