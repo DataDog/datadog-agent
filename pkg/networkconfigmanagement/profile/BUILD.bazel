@@ -48,6 +48,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/networkconfigmanagement/types",
         "//pkg/util/log",
         "//pkg/util/scrubber",
     ],
