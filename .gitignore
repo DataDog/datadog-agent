@@ -7,6 +7,10 @@ vendor/
 bin/
 /dev/
 /site/
+# Remote content fetched while building the documentation.
+/.docs-cache/
+# Link check results remembered between runs.
+/.lycheecache
 __pycache__
 .pytest_cache
 venv*/
