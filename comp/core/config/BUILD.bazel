@@ -42,6 +42,7 @@ go_library(
 dd_agent_go_test(
     name = "config_test",
     srcs = [
+        "config_hash_test.go",
         "config_test.go",
         "params_test.go",
     ],
