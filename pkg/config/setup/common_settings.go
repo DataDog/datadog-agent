@@ -2235,6 +2235,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.bucket_width", 5*time.Second)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.idle_ttl", 5*time.Minute)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.retention", 10*time.Minute)
 
 	// Internal agent log tap.
 	// min_severity is the minimum level forwarded (logs below it are dropped before sampling).

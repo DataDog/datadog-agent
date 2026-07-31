@@ -121,6 +121,13 @@ type seriesStats struct {
 	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
 	ref       observer.SeriesRef      // compact numeric ID assigned on creation
 	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
+	// supportedAggregations is a bit mask. Zero means all aggregations are
+	// supported; materialized log count buckets set only Average because each
+	// stored point is already one aggregated window count.
+	supportedAggregations uint8
+	// retentionOverrideSecs, when positive, replaces the storage-wide point
+	// retention for this series. Zero uses the storage default.
+	retentionOverrideSecs int64
 
 	// writeGeneration is per-series and increments on every Add, including
 	// same-bucket merges into an existing point.
@@ -132,6 +139,10 @@ type seriesStats struct {
 	counts     []int64
 	mins       []float64
 	maxes      []float64
+}
+
+func aggregateMask(agg observer.Aggregate) uint8 {
+	return 1 << uint8(agg)
 }
 
 // pointCount returns the number of stored points.
@@ -359,12 +370,16 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
 
-	if s.cfg.PointRetentionSecs > 0 {
+	retentionSecs := s.cfg.PointRetentionSecs
+	if stats.retentionOverrideSecs > 0 {
+		retentionSecs = stats.retentionOverrideSecs
+	}
+	if retentionSecs > 0 {
 		// Trim points outside the retention window. Use the series' latest
 		// timestamp (not the incoming bucket) so that backfilled/out-of-order
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.timestamps[len(stats.timestamps)-1]
-		if trim := searchAfter(stats.timestamps, latestTS-s.cfg.PointRetentionSecs-1); trim > 0 {
+		if trim := searchAfter(stats.timestamps, latestTS-retentionSecs-1); trim > 0 {
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
@@ -1069,6 +1084,43 @@ func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricC
 		return stats.context
 	}
 	return nil
+}
+
+// SetSupportedAggregations limits which interpretations detectors should use
+// for a series. An empty list restores the default of supporting all.
+func (s *timeSeriesStorage) SetSupportedAggregations(ref observer.SeriesRef, aggregations ...observer.Aggregate) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return
+	}
+	var mask uint8
+	for _, agg := range aggregations {
+		mask |= aggregateMask(agg)
+	}
+	stats.supportedAggregations = mask
+}
+
+// SupportsAggregate implements the optional detector aggregate policy.
+func (s *timeSeriesStorage) SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := s.resolveByID(ref)
+	if stats == nil || stats.supportedAggregations == 0 {
+		return true
+	}
+	return stats.supportedAggregations&aggregateMask(agg) != 0
+}
+
+// SetSeriesRetention overrides point retention for one series. Zero restores
+// the storage-wide default.
+func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retentionSecs int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		stats.retentionOverrideSecs = max(retentionSecs, 0)
+	}
 }
 
 // RemoveSeriesByMetricName removes all series in the given namespace whose Name
