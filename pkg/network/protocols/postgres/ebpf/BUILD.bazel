@@ -31,6 +31,11 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":ebpf"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/config",
         "@com_github_stretchr_testify//assert",

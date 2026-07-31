@@ -12,5 +12,24 @@
     "forwardPorts": [22],
     "containerUser": "root",
     "remoteUser": "bits",
-    "waitFor": "postStartCommand"
+    "waitFor": "postStartCommand",
+    "securityOpt": [
+        "apparmor:unconfined"
+    ],
+    "capAdd": [
+        "SYS_ADMIN",
+        "SYS_RESOURCE",
+        "SYS_PTRACE",
+        "NET_ADMIN",
+        "NET_BROADCAST",
+        "NET_RAW",
+        "IPC_LOCK",
+        "CHOWN",
+        "KILL"
+    ],
+    "containerEnv": {
+        "HOST_ROOT": "/host/root",
+        "HOST_PROC": "/host/root/proc",
+        "HOST_SYS": "/host/root/sys"
+    }
 }

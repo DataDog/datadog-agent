@@ -85,7 +85,7 @@ func newComponent(deps Requires) Provides {
 ## Testing
 
 The flare component offers a
-[FlareBuilder mock](https://github.com/DataDog/datadog-agent/blob/d0035f997e796204ec4ec07a8bc467c85b9ee6fb/comp/core/flare/helpers/builder_mock.go#L22) to test your callback.
+<<<repo("comp/core/flare/helpers/builder_mock.go", "FlareBuilder mock", match="^type FlareBuilderMock")>>> to test your callback.
 
 Example:
 

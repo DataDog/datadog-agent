@@ -3,6 +3,7 @@ load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 # Maintain by hand: The dependencies are too complex w.r.t. the sources for gazelle to get right.
 # gazelle:ignore
+# gazelle:dd_agent_go_test off
 
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude types_linux_test.go

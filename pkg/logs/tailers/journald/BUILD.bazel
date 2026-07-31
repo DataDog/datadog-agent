@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "journald",
     srcs = [
@@ -13,6 +11,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald",
     visibility = ["//visibility:public"],
+    # keep
     deps = [
         "//comp/core/tagger/def",
         "//comp/core/tagger/tags",
@@ -27,8 +26,12 @@ go_library(
         "//pkg/logs/sources",
         "//pkg/util/cache",
         "//pkg/util/log",
-        "@com_github_coreos_go_systemd_v22//sdjournal",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@com_github_coreos_go_systemd_v22//sdjournal",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -43,7 +46,7 @@ dd_agent_go_test(
         "fips",
         "iot",
     ],
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    # keep
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/logs/agent/config",
@@ -52,7 +55,11 @@ dd_agent_go_test(
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "//pkg/util/cache",
-        "@com_github_coreos_go_systemd_v22//sdjournal",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@com_github_coreos_go_systemd_v22//sdjournal",
+        ],
+        "//conditions:default": [],
+    }),
 )

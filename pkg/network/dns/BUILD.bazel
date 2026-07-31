@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Maintain by hand: The dependencies are too complex w.r.t. the sources for gazelle to get right.
 # gazelle:ignore
@@ -169,7 +170,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "dns_test",
     srcs = [
         "bpf_test.go",
@@ -181,7 +182,6 @@ go_test(
         "types_test.go",
     ],
     embed = [":dns"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/network/config",
