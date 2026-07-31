@@ -44,6 +44,10 @@ go_test(
         "dogstatsdreplay/fixtures/metrics_capture.zstd",
         "status/fixtures/custom_check.py",
         "status/fixtures/custom_check.yaml",
+        "//test/new-e2e/tests/agent-subcommands/config:fixtures/datadog-agent.yaml",
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/datadog-agent.yaml",
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/system-probe.yaml",
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/security-agent.yaml",
     ],
     gotags = ["test"],
     deps = [
