@@ -161,8 +161,8 @@ func (r *kubernetesConfigReader) ReadRuntimeCommandline(ctx context.Context) (Ta
 	return commandline, nil
 }
 
-func (r *kubernetesConfigReader) ReadLiveProcessCommandlines(ctx context.Context) []TargetCommandline {
-	return readContainerProcessCommandlines(ctx, r.store, r.containerID, readLiveProcessWorkingDir)
+func (r *kubernetesConfigReader) ReadLiveProcessCommandlines(context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(r.store, r.containerID)
 }
 
 func kubernetesExecExitError(exitCode int32, stderr []byte) error {

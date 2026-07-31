@@ -8,47 +8,35 @@
 package configfilesdiscoveryimpl
 
 import (
-	"context"
 	"strconv"
 	"testing"
-	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestReadContainerProcessCommandlines(t *testing.T) {
-	wrapperStart := time.Unix(100, 0).UTC()
-	redisStart := time.Unix(101, 0).UTC()
 	redisProcess := &workloadmeta.Process{
-		Pid:          101,
-		ContainerID:  "container-id",
-		CreationTime: redisStart,
-		Cmdline:      []string{"redis-server", "/etc/redis/redis.conf"},
-		Cwd:          "/stale/cwd",
+		Pid:         101,
+		ContainerID: "container-id",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+		Cwd:         "/etc/redis",
 	}
 	store := newProcessCommandlineTestStore(t,
 		redisProcess,
 		&workloadmeta.Process{
-			Pid:          100,
-			ContainerID:  "container-id",
-			CreationTime: wrapperStart,
-			Cmdline:      []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
+			Pid:         100,
+			ContainerID: "container-id",
+			Cmdline:     []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
 		},
 		&workloadmeta.Process{
-			Pid:          102,
-			ContainerID:  "other-container",
-			CreationTime: time.Unix(102, 0).UTC(),
-			Cmdline:      []string{"other-service", "/etc/other/config"},
+			Pid:         102,
+			ContainerID: "other-container",
+			Cmdline:     []string{"other-service", "/etc/other/config"},
 		},
 		nil,
 	)
-	readProcessWorkingDir := fakeProcessWorkingDirReader(map[int32]string{
-		100: "",
-		101: "/etc/redis",
-	})
-
-	commandlines := readContainerProcessCommandlines(context.Background(), store, "container-id", readProcessWorkingDir)
+	commandlines := readContainerProcessCommandlines(store, "container-id")
 
 	assert.ElementsMatch(t, []TargetCommandline{
 		{Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"}},
@@ -59,73 +47,24 @@ func TestReadContainerProcessCommandlines(t *testing.T) {
 	assert.Contains(t, commandlines, TargetCommandline{Args: []string{"redis-server", "/etc/redis/redis.conf"}, WorkingDir: "/etc/redis"})
 }
 
-func TestReadContainerProcessCommandlinesRejectsUnavailableProcesses(t *testing.T) {
-	creationTime := time.Unix(101, 0).UTC()
-	store := newProcessCommandlineTestStore(t, &workloadmeta.Process{
-		Pid:          101,
-		ContainerID:  "container-id",
-		CreationTime: creationTime,
-		Cmdline:      []string{"redis-server", "/etc/redis/redis.conf"},
-	})
+func TestReadContainerProcessCommandlinesRejectsUnavailableStore(t *testing.T) {
+	assert.Empty(t, readContainerProcessCommandlines(nil, "container-id"))
+}
 
-	tests := []struct {
-		name                  string
-		store                 workloadmeta.Component
-		readProcessWorkingDir func(context.Context, *workloadmeta.Process) (string, bool)
-	}{
-		{
-			name:                  "process store unavailable",
-			readProcessWorkingDir: fakeProcessWorkingDirReader(nil),
+func TestReadContainerProcessCommandlinesRejectsIncompleteProcesses(t *testing.T) {
+	store := newProcessCommandlineTestStore(t,
+		&workloadmeta.Process{
+			Pid:         100,
+			ContainerID: "container-id",
 		},
-		{
-			name:  "live process unavailable",
-			store: store,
-			readProcessWorkingDir: func(context.Context, *workloadmeta.Process) (string, bool) {
-				return "", false
-			},
+		&workloadmeta.Process{
+			Pid:         0,
+			ContainerID: "container-id",
+			Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
 		},
-	}
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Empty(t, readContainerProcessCommandlines(context.Background(), tt.store, "container-id", tt.readProcessWorkingDir))
-		})
-	}
-}
-
-func TestMatchesProcessCreationTime(t *testing.T) {
-	secondPrecision := time.Unix(101, 0).UTC()
-	subsecondPrecision := secondPrecision.Add(250 * time.Millisecond)
-
-	assert.True(t, matchesProcessCreationTime(secondPrecision, secondPrecision.Add(860*time.Millisecond)))
-	assert.True(t, matchesProcessCreationTime(subsecondPrecision, subsecondPrecision))
-	assert.False(t, matchesProcessCreationTime(subsecondPrecision, secondPrecision.Add(860*time.Millisecond)))
-	assert.False(t, matchesProcessCreationTime(secondPrecision, secondPrecision.Add(time.Second)))
-}
-
-func TestMatchesLiveProcessIdentity(t *testing.T) {
-	process := &workloadmeta.Process{
-		Cmdline: []string{"redis-server", "/etc/redis/redis.conf"},
-		Exe:     "/usr/bin/redis-server",
-	}
-
-	assert.True(t, matchesLiveProcessIdentity(process, []string{"redis-server *:6379"}, "/usr/bin/redis-server"))
-	assert.False(t, matchesLiveProcessIdentity(process, []string{"nginx"}, "/usr/sbin/nginx"))
-	assert.False(t, matchesLiveProcessIdentity(process, process.Cmdline, ""))
-
-	process.Exe = ""
-	assert.True(t, matchesLiveProcessIdentity(process, process.Cmdline, ""))
-	assert.False(t, matchesLiveProcessIdentity(process, []string{"nginx"}, ""))
-}
-
-func fakeProcessWorkingDirReader(workingDirs map[int32]string) func(context.Context, *workloadmeta.Process) (string, bool) {
-	return func(_ context.Context, process *workloadmeta.Process) (string, bool) {
-		workingDir, ok := workingDirs[process.Pid]
-		if !ok {
-			return "", false
-		}
-		return workingDir, true
-	}
+	assert.Empty(t, readContainerProcessCommandlines(store, "container-id"))
 }
 
 func newProcessCommandlineTestStore(t *testing.T, processes ...*workloadmeta.Process) workloadmeta.Component {

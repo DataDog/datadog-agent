@@ -116,8 +116,8 @@ func (r *dockerConfigReader) ReadRuntimeCommandline(ctx context.Context) (Target
 	return commandline, nil
 }
 
-func (r *dockerConfigReader) ReadLiveProcessCommandlines(ctx context.Context) []TargetCommandline {
-	return readContainerProcessCommandlines(ctx, r.store, r.containerID, readLiveProcessWorkingDir)
+func (r *dockerConfigReader) ReadLiveProcessCommandlines(context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(r.store, r.containerID)
 }
 
 func readConfigFileFromDockerArchive(r io.Reader, requestedPath string) (ConfigFile, error) {
