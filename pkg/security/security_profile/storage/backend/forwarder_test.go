@@ -144,6 +144,82 @@ func TestSendToEndpointStreamsGzippedMultipart(t *testing.T) {
 	assert.Equal(t, dump, rec.dump, "dump part must round-trip through the streamed body")
 }
 
+// decodeGzipMultipart reads a gzip+multipart request body and returns the event and dump parts.
+func decodeGzipMultipart(t *testing.T, r *http.Request) (event []byte, dump []byte) {
+	t.Helper()
+	gz, err := gzip.NewReader(r.Body)
+	require.NoError(t, err)
+	defer gz.Close()
+
+	_, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	require.NoError(t, err)
+
+	mr := multipart.NewReader(gz, params["boundary"])
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		b, err := io.ReadAll(part)
+		require.NoError(t, err)
+		switch part.FormName() {
+		case "event":
+			event = b
+		case "dump":
+			dump = b
+		}
+	}
+	return event, dump
+}
+
+// TestSendToEndpointReplaysBodyOnRedirect verifies the send path sets Request.GetBody so a
+// streamed (chunked) body can be regenerated. Without GetBody, net/http refuses to resend a body
+// on a 307/308 redirect and the dump would be logged as a failure. The regenerated body must be
+// byte-for-byte the same parts under the same multipart boundary as the original attempt.
+func TestSendToEndpointReplaysBodyOnRedirect(t *testing.T) {
+	header := []byte(`{"meta":"data"}`)
+	dump := []byte("this is the raw protobuf dump payload")
+
+	type received struct {
+		event []byte
+		dump  []byte
+	}
+	got := make(chan received, 2)
+
+	mux := http.NewServeMux()
+	// The first hop 307-redirects to /final while preserving method and body; net/http can only
+	// follow it (rather than returning the 307 to the caller) when GetBody is set.
+	mux.HandleFunc("/api/v2/secdump", func(w http.ResponseWriter, r *http.Request) {
+		ev, dp := decodeGzipMultipart(t, r)
+		got <- received{event: ev, dump: dp}
+		http.Redirect(w, r, "/final", http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc("/final", func(w http.ResponseWriter, r *http.Request) {
+		ev, dp := decodeGzipMultipart(t, r)
+		got <- received{event: ev, dump: dp}
+		w.WriteHeader(http.StatusAccepted)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	backend := &ActivityDumpRemoteBackend{
+		tooLargeEntities: atomic.NewUint64(0),
+		client:           srv.Client(),
+	}
+
+	require.NoError(t, backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump))
+
+	// Both the original request and the redirected replay must carry the identical decoded parts.
+	first := <-got
+	second := <-got
+	assert.Equal(t, header, first.event)
+	assert.Equal(t, dump, first.dump)
+	assert.Equal(t, header, second.event, "regenerated body (GetBody) must round-trip the event part")
+	assert.Equal(t, dump, second.dump, "regenerated body (GetBody) must round-trip the dump part")
+}
+
 func TestHandleActivityDumpGatesMRFEndpointOnFailover(t *testing.T) {
 	primaryHits := atomic.NewInt64(0)
 	mrfHits := atomic.NewInt64(0)

@@ -89,54 +89,53 @@ func writeDump(writer *multipart.Writer, raw []byte) error {
 }
 
 // sendToEndpoint streams the multipart body straight into the HTTP request instead of
-// materializing the whole gzipped payload in memory. The encoding chain is
-// protobuf dump -> multipart -> gzip -> io.Pipe -> request body, so only small transient
-// buffers exist while the request is in flight (previously the full gzipped body was held in
-// a bytes.Buffer, then copied again per endpoint).
-//
-// The pipe is single-use: each endpoint (primary and, during a failover, MRF) re-encodes into
-// its own pipe. Trading a re-encode for the removed buffer is fine because the common case is a
-// single endpoint, and MRF is only active during a failover.
+// materializing the whole gzipped payload in memory (encoding chain: protobuf dump -> multipart
+// -> gzip -> io.Pipe -> request body).
 func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey string, header []byte, data []byte) error {
-	pr, pw := io.Pipe()
+	boundary := multipart.NewWriter(io.Discard).Boundary()
+	contentType := "multipart/form-data; boundary=" + boundary
 
-	gzipWriter := gzip.NewWriter(pw)
-	multipartWriter := multipart.NewWriter(gzipWriter)
-	// FormDataContentType only depends on the boundary chosen at NewWriter time; read it before
-	// the writer goroutine starts so the request header is set without racing the writes.
-	contentType := multipartWriter.FormDataContentType()
-
-	go func() {
-		// Close the multipart writer (writes the trailing boundary) then flush gzip, and hand any
-		// error to the reader via CloseWithError so it surfaces out of client.Do below.
-		err := func() error {
-			if err := writeEventMetadata(multipartWriter, header); err != nil {
-				return err
-			}
-			if err := writeDump(multipartWriter, data); err != nil {
-				return err
-			}
-			if err := multipartWriter.Close(); err != nil {
-				return err
-			}
-			return gzipWriter.Close()
+	newBody := func() (io.ReadCloser, error) {
+		pr, pw := io.Pipe()
+		go func() {
+			err := func() error {
+				gzipWriter := gzip.NewWriter(pw)
+				multipartWriter := multipart.NewWriter(gzipWriter)
+				if err := multipartWriter.SetBoundary(boundary); err != nil {
+					return err
+				}
+				if err := writeEventMetadata(multipartWriter, header); err != nil {
+					return err
+				}
+				if err := writeDump(multipartWriter, data); err != nil {
+					return err
+				}
+				if err := multipartWriter.Close(); err != nil {
+					return err
+				}
+				return gzipWriter.Close()
+			}()
+			_ = pw.CloseWithError(err)
 		}()
-		_ = pw.CloseWithError(err)
-	}()
+		return pr, nil
+	}
 
-	r, err := http.NewRequest("POST", url, pr)
+	body, _ := newBody()
+
+	r, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
-		_ = pr.CloseWithError(err)
+		_ = body.Close()
 		return err
 	}
+
+	r.GetBody = newBody
 	r.Header.Set("Content-Type", contentType)
 	r.Header.Set("dd-api-key", apiKey)
 	r.Header.Set("Content-Encoding", "gzip")
 
 	resp, err := backend.client.Do(r)
 	if err != nil {
-		_ = pr.CloseWithError(err)
 		return err
 	}
 	_ = resp.Body.Close()
