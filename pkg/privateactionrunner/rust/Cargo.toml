@@ -23,12 +23,23 @@ clap = { workspace = true, features = ["derive"] }
 hyper-util = { workspace = true, features = ["tokio"] }
 log.workspace = true
 native-tls.workspace = true
+# Already fully resolved/linked as a native-tls dependency (same system OpenSSL,
+# no new C library); this just makes it directly importable so tls.rs can
+# re-encode the IPC key's SEC1 PEM as PKCS8 before native_tls::Identity::from_pkcs8,
+# which requires the PKCS8 header. See tls.rs.
+openssl.workspace = true
 p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time", "sync"] }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "signal",
+  "time",
+  "sync",
+] }
 tokio-native-tls.workspace = true
 tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }

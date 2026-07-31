@@ -44,6 +44,7 @@ _LIB_DEPS = [
     "@crates//:hyper-util",
     "@crates//:log",
     "@crates//:native-tls",
+    "@crates//:openssl",
     "@crates//:p256",
     "@crates//:prost",
     "@crates//:serde",

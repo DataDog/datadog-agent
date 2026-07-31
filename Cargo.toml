@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-    "cmd/ai_prompt_logger",
-    "comp/core/log/rust",
-    "pkg/collector/sharedlibrary/rustchecks/core",
-    "pkg/collector/sharedlibrary/rustchecks/checks/datasecurity",
-    "pkg/collector/sharedlibrary/rustchecks/checks/example",
-    "pkg/discovery/module/rust",
-    "pkg/privateactionrunner/rust",
-    "pkg/procmgr/rust",
+  "cmd/ai_prompt_logger",
+  "comp/core/log/rust",
+  "pkg/collector/sharedlibrary/rustchecks/core",
+  "pkg/collector/sharedlibrary/rustchecks/checks/datasecurity",
+  "pkg/collector/sharedlibrary/rustchecks/checks/example",
+  "pkg/discovery/module/rust",
+  "pkg/privateactionrunner/rust",
+  "pkg/procmgr/rust",
 ]
 
 [workspace.package]
@@ -28,7 +28,11 @@ glob-match = "0.2"
 http-body-util = "0.1"
 hostname = "0.4"
 hyper = "1"
-hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
+hyper-util = { version = "0.1", default-features = false, features = [
+  "http1",
+  "server",
+  "tokio",
+] }
 libc = "0.2"
 log = "0.4"
 prost = "0.14"
@@ -40,6 +44,7 @@ lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
 native-tls = "0.2"
 nom = "8.0"
+openssl = "0.10"
 normalize-path = "0.2"
 p256 = { version = "0.13", default-features = false }
 phf = { version = "0.14", features = ["macros"] }

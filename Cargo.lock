@@ -2199,6 +2199,7 @@ dependencies = [
  "hyper-util",
  "log",
  "native-tls",
+ "openssl",
  "p256",
  "prost",
  "serde",
