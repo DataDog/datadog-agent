@@ -1232,3 +1232,70 @@ func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
 	_, hasSchedule := q["schedule"]
 	assert.False(t, hasSchedule, "schedule field must be absent when not set on the query")
 }
+
+// TestOnRCUpdate_SecondUpdateReusesStoredBase is a regression test for a bug where a SECOND RC
+// update for an already-active config_id could resurrect the true original base config alongside
+// a new DO check. After the first update, the base config's targeted instance is no longer
+// present in GetUnresolvedConfigs() — autodiscovery only reports currently-scheduled configs, and
+// reconcileBases has by then unscheduled it in favor of the DO check. Without reusing the stored
+// base, a second onRCUpdate call would instead match the DO component's own previously-scheduled
+// check as the "base" (it also satisfies matchesIdentifier + instanceHasDOEnabled), corrupting the
+// digest reconcileBases tracks and causing it to wrongly restore the true original — exactly the
+// "three parallel checks" duplication bug, triggered by a second update instead of the first.
+func TestOnRCUpdate_SecondUpdateReusesStoredBase(t *testing.T) {
+	const server = "172.17.128.2"
+	const port = 39041
+	sapHanaCfg := integration.Config{
+		Name:     "sap_hana",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("server: %s\nport: %d\ndata_observability:\n  enabled: true\n", server, port)),
+		},
+	}
+
+	mockAC := &mockAutodiscovery{
+		Component: fxutil.Test[autodiscovery.Component](t, noopautoconfig.Module()),
+		configs:   []integration.Config{sapHanaCfg},
+	}
+	c := &component{
+		log:           logmock.New(t),
+		ac:            mockAC,
+		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
+	}
+
+	dbID := DBIdentifier{Type: "self-hosted", Host: fmt.Sprintf("%s:%d", server, port)}
+	makePayload := func(n int) []byte {
+		queries := make([]QuerySpec, n)
+		for i := range queries {
+			queries[i] = QuerySpec{Type: "run_query", Query: fmt.Sprintf("SELECT %d", i), IntervalSeconds: 60, TimeoutSeconds: 10}
+		}
+		data, err := json.Marshal(DOQueryPayload{ConfigID: "cfg-saphana", DBIdentifier: dbID, Queries: queries})
+		require.NoError(t, err)
+		return data
+	}
+
+	// Update 1: 2 queries. The true original base has no other instances, so it's fully
+	// unscheduled (no remainder) in favor of the DO check.
+	_, changes1 := collectStatuses(c, map[string]state.RawConfig{"path/cfg-saphana": {Config: makePayload(2)}})
+	require.Len(t, changes1.Unschedule, 1, "the true original base should be unscheduled")
+	require.Len(t, changes1.Schedule, 1, "only the DO check should be scheduled")
+
+	// Simulate autodiscovery applying changes1: the true original is gone from the active set;
+	// only the DO check (which itself satisfies matchesIdentifier + instanceHasDOEnabled) remains.
+	mockAC.configs = []integration.Config{changes1.Schedule[0]}
+
+	// Update 2: same config_id, now 3 queries — e.g. a monitor edit changing the query count.
+	_, changes2 := collectStatuses(c, map[string]state.RawConfig{"path/cfg-saphana": {Config: makePayload(3)}})
+
+	// Regression check: the true original (0-query) base must never be rescheduled. Every config
+	// scheduled by update 2 must carry DO queries.
+	for _, cfg := range changes2.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &instance))
+		doSection, ok := instance["data_observability"].(map[string]any)
+		require.True(t, ok, "scheduled config missing data_observability section — looks like the wrongly-restored original")
+		queries, _ := doSection["queries"].([]any)
+		assert.NotEmpty(t, queries, "scheduled config has no DO queries — looks like the wrongly-restored original")
+	}
+}
