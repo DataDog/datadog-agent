@@ -113,8 +113,6 @@ github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 h1:RWengNIwukTxcDr9
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826/go.mod h1:TaXosZuwdSHYgviHp1DAtfrULt5eUgsSMsZf+YrPgl8=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514 h1:o+AAU2uERivzrGHfOa4K7jPaJE1o0TDiXGdCV2xcyws=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.155.0 h1:g+wuSBd5R8Ts3KbomgCLW8yGmeDsI7YiHDU0Uer64q8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.155.0/go.mod h1:zdgSjJcwo1mo0t+2dO1rmhuW4naNNjsnLDcWFtlu2pg=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.155.0 h1:ZQ7xPQvAAoe0zhfDS71mxFvnbc0KwxatLt631F/dqnI=
@@ -146,6 +144,8 @@ github.com/rs/cors v1.11.1 h1:eU3gRzXLRK57F5rKMGMZURNdIG4EoAmX8k94r9wXWHA=
 github.com/rs/cors v1.11.1/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU=
 github.com/shirou/gopsutil/v4 v4.26.6 h1:Mzr/npDtQC/xpeEuQKHZt8Zo9CmPvhTj8nkR8w5TLDs=
 github.com/shirou/gopsutil/v4 v4.26.6/go.mod h1:LZ6ewCSkBqUpvSOf+LsTGnRinC6iaNUNMGBtDkJBaLQ=
+github.com/songy23/opentelemetry-service-contrib/pkg/datadog v0.0.0-20260731010617-07780dd12df3 h1:vueDLrwgVLYDR/5kvGOVomuv2cj3my5MXo18Qf732YU=
+github.com/songy23/opentelemetry-service-contrib/pkg/datadog v0.0.0-20260731010617-07780dd12df3/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
 github.com/spf13/cast v1.10.0 h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY=
 github.com/spf13/cast v1.10.0/go.mod h1:jNfB8QC9IA6ZuY2ZjDp0KtFO2LZZlg4S/7bzP6qqeHo=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=

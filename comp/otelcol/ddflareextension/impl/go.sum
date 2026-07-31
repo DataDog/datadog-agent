@@ -582,8 +582,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.155.0/go.mod h1:OZthgAMO1d1tpdGjdL/aWzbl+6HpapqL8aafFv0dpYM=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.155.0 h1:4zn+Few+8CRipSIQbEQcozYAisNAznBswj54KxA4a5Q=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.155.0/go.mod h1:dsz9Nt1p3fwtzJ/p2D2amXtplHkST33Jq4cKB/r+VmM=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514 h1:o+AAU2uERivzrGHfOa4K7jPaJE1o0TDiXGdCV2xcyws=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.155.0 h1:mbiQHHqcEvxXXbjQl28rbDJam95Qd3BYJCOkjI7E9nM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.155.0/go.mod h1:lYLDFvVo86GvMepdMGDw61QtzQNF8ds3bIvRw/pp2fs=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.155.0 h1:9yXLhB++25lAUb8c+VChxFPt6qDS4Widaa9q44qzKo4=
@@ -723,6 +721,8 @@ github.com/sirupsen/logrus v1.6.0/go.mod h1:7uNnSEd1DgxDLC74fIahvMZmmYsHGZGEOFrf
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/sirupsen/logrus v1.9.4 h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w=
 github.com/sirupsen/logrus v1.9.4/go.mod h1:ftWc9WdOfJ0a92nsE2jF5u5ZwH8Bv2zdeOC42RjbV2g=
+github.com/songy23/opentelemetry-service-contrib/pkg/datadog v0.0.0-20260731010617-07780dd12df3 h1:vueDLrwgVLYDR/5kvGOVomuv2cj3my5MXo18Qf732YU=
+github.com/songy23/opentelemetry-service-contrib/pkg/datadog v0.0.0-20260731010617-07780dd12df3/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
 github.com/spf13/cast v1.10.0 h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY=
 github.com/spf13/cast v1.10.0/go.mod h1:jNfB8QC9IA6ZuY2ZjDp0KtFO2LZZlg4S/7bzP6qqeHo=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
