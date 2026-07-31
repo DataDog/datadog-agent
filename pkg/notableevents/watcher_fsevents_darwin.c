@@ -9,6 +9,7 @@
 #include <dispatch/dispatch.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/qos.h>
 
 extern void goPkgNotableEventsFSEventsCallback(uintptr_t handle, const char *path, uint32_t flags);
 
@@ -114,7 +115,14 @@ void *dd_pkg_notableevents_fsevents_start(
         return NULL;
     }
 
-    watcher->queue = dispatch_queue_create("com.datadoghq.agent.pkg.notableevents.fsevents", DISPATCH_QUEUE_SERIAL);
+    // The queue only coalesces notifications; scanning happens on the Go side.
+    // An explicit QoS keeps that hand-off from being starved under system
+    // pressure, when prompt crash-report pickup matters most.
+    dispatch_queue_attr_t queue_attr = dispatch_queue_attr_make_with_qos_class(
+        DISPATCH_QUEUE_SERIAL,
+        QOS_CLASS_UTILITY,
+        0);
+    watcher->queue = dispatch_queue_create("com.datadoghq.agent.pkg.notableevents.fsevents", queue_attr);
     if (watcher->queue == NULL) {
         FSEventStreamRelease(watcher->stream);
         free(watcher);

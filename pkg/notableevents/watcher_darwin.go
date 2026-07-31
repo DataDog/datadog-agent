@@ -11,6 +11,7 @@ package notableevents
 #cgo LDFLAGS: -framework CoreServices
 
 #include <stdlib.h>
+#include <CoreServices/CoreServices.h>
 #include "watcher_fsevents_darwin.h"
 */
 import "C"
@@ -56,7 +57,12 @@ type darwinDirectoryWatcher struct {
 	pumpWG sync.WaitGroup
 }
 
-const fseventsDroppedFlags = uint32(0x1 | 0x2 | 0x4)
+// fseventsDroppedFlags covers the callbacks where FSEvents could not report
+// every change individually, so the affected roots must be rescanned in full
+// instead of reconciling only the reported path.
+const fseventsDroppedFlags = uint32(C.kFSEventStreamEventFlagMustScanSubDirs |
+	C.kFSEventStreamEventFlagUserDropped |
+	C.kFSEventStreamEventFlagKernelDropped)
 
 // newDarwinReportWatcher creates an FSEvents watcher with coalesced directory notifications.
 func newDarwinReportWatcher() (darwinReportWatcher, error) {
