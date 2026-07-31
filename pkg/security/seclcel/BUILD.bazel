@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "seclcel",
+    srcs = [
+        "env.go",
+        "errors.go",
+        "fieldtypes.go",
+        "lexer.go",
+        "parser.go",
+        "seclcel.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/seclcel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_google_cel_go//cel:go_default_library",
+        "@com_github_google_cel_go//common:go_default_library",
+        "@com_github_google_cel_go//common/ast:go_default_library",
+        "@com_github_google_cel_go//common/operators:go_default_library",
+        "@com_github_google_cel_go//common/types:go_default_library",
+        "@com_github_google_cel_go//ext:go_default_library",
+    ],
+)
+
+go_test(
+    name = "seclcel_test",
+    srcs = [
+        "corpus_test.go",
+        "seclcel_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":seclcel"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_google_cel_go//cel:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
