@@ -5,4 +5,3 @@ filegroup(
     srcs = glob(["integrations/**"]),
     visibility = ["//cmd:__subpackages__"],
 )
- 
