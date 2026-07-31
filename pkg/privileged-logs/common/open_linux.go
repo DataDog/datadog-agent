@@ -26,8 +26,9 @@ import (
 // itself, but for our use case, the root directory itself can not be trusted to
 // not have changed since the time the path was validated.
 //
-// This function is shared by the privileged-logs module (server side,
-// root-running system-probe) and the privileged-logs client (agent side).
+// This function is used both by the privileged-logs module (server side,
+// root-running system-probe) and by the privileged-logs client (agent side),
+// to defend against symlink-swap attacks on process_log-discovered file paths.
 func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("path must be absolute: %s", path)
@@ -36,7 +37,14 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	// Split path into components
 	parts := strings.Split(filepath.Clean(path), string(filepath.Separator))
 
-	dirFd, err := unix.Open("/", unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_DIRECTORY, 0)
+	// Directory components are opened with O_PATH rather than O_RDONLY.
+	// O_PATH only requires search (execute) permission to traverse into a
+	// directory, matching the permission check that a plain os.Open(path)
+	// would perform on the same directories.  O_RDONLY additionally
+	// requires read permission on every directory component, which would
+	// wrongly reject files under directories that are traversable but not
+	// listable (e.g. mode 0711).
+	dirFd, err := unix.Open("/", unix.O_PATH|unix.O_NOFOLLOW|unix.O_DIRECTORY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
 	}
@@ -53,7 +61,7 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 			continue
 		}
 
-		newFd, err := unix.Openat(dirFd, parts[i], unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_DIRECTORY, 0)
+		newFd, err := unix.Openat(dirFd, parts[i], unix.O_PATH|unix.O_NOFOLLOW|unix.O_DIRECTORY, 0)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open directory component %s: %w", parts[i], err)
 		}
@@ -63,7 +71,9 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 		dirFd = newFd
 	}
 
-	// Open the final file component with O_NOFOLLOW
+	// Open the final file component with O_NOFOLLOW. dirFd was opened with
+	// O_PATH, so this openat still enforces the normal read-permission check
+	// on the file itself.
 	fileName := parts[len(parts)-1]
 	fileFd, err := unix.Openat(dirFd, fileName, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
