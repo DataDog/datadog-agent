@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -67,6 +68,8 @@ func NewComponent(reqs Requires) (converter.Component, error) {
 
 // Convert autoconfigures conf and stores both the provided and enhanced conf.
 func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
-	c.enhanceConfig(ctx, conf)
+	confStringMap := xconfmap.ToStringMapRaw(conf)
+	c.enhanceConfig(ctx, confStringMap)
+	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
