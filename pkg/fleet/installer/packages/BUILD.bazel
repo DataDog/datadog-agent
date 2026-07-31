@@ -91,15 +91,7 @@ go_library(
 
 dd_agent_go_test(
     name = "apm_inject_windows_test",
-    srcs = [
-        "apm_inject_windows_test.go",
-        "datadog_agent_ddot_linux_test.go",
-        "datadog_agent_eudm_windows_test.go",
-        "datadog_agent_linux_test.go",
-        "datadog_agent_par_linux_test.go",
-        "datadog_agent_windows_test.go",
-        "otel_config_common_test.go",
-    ],
+    srcs = ["apm_inject_windows_test.go"],
     embed = [":packages"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -113,15 +105,80 @@ dd_agent_go_test(
 )
 
 dd_agent_go_test(
-    name = "datadog_agent_extensions_test",
-    srcs = ["datadog_agent_extensions_test.go"],
+    name = "datadog_agent_ddot_linux_test",
+    srcs = ["datadog_agent_ddot_linux_test.go"],
     embed = [":packages"],
-    deps = [
-        "//pkg/fleet/installer/packages/extensions",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@in_gopkg_yaml_v3//:yaml_v3",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "datadog_agent_eudm_windows_test",
+    srcs = ["datadog_agent_eudm_windows_test.go"],
+    embed = [":packages"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "datadog_agent_linux_test",
+    srcs = ["datadog_agent_linux_test.go"],
+    embed = [":packages"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "datadog_agent_par_linux_test",
+    srcs = ["datadog_agent_par_linux_test.go"],
+    embed = [":packages"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "datadog_agent_windows_test",
+    srcs = ["datadog_agent_windows_test.go"],
+    embed = [":packages"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

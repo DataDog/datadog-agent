@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:go_test file
 
@@ -20,12 +21,11 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "databricks_test",
     srcs = ["databricks_test.go"],
     data = glob(["testdata/**"]),
     embed = [":djm"],
-    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/config",
@@ -35,12 +35,11 @@ go_test(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "dataproc_test",
     srcs = ["dataproc_test.go"],
     data = glob(["testdata/**"]),
     embed = [":djm"],
-    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/telemetry",
@@ -49,7 +48,7 @@ go_test(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "emr_test",
     srcs = ["emr_test.go"],
     data = glob(["testdata/**"]),
@@ -59,7 +58,6 @@ go_test(
         "testdata/emrExtraInstanceData.json",
         "testdata/emrInstance.json",
     ],
-    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/config",
