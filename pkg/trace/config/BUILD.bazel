@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
@@ -22,7 +23,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "config_test",
     srcs = [
         "client_test.go",
@@ -30,7 +31,6 @@ go_test(
         "peer_tags_test.go",
     ],
     embed = [":config"],
-    gotags = ["test"],
     deps = [
         "//pkg/obfuscate",
         "//pkg/trace/semantics",

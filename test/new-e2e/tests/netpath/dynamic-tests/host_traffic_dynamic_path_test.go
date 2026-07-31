@@ -69,6 +69,7 @@ services:
 var hostTrafficDynamicRCConfig = []byte(`{
   "type": "dynamic",
   "test_config_id": "dynamic-host-traffic",
+  "tags": ["team:netpath", "env:e2e"],
   "config": {
     "filters": [
       {
@@ -224,6 +225,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
 		assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
 		assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
+		assert.Equal(c, []string{"team:netpath", "env:e2e"}, match.Tags)
 		remoteConfigMatch = match
 	}, 5*time.Minute, 10*time.Second)
 

@@ -29,12 +29,24 @@ func filterTemplatesMatched(svc FilterableService, configs map[string]integratio
 	}
 }
 
+// genericIntegrationNames are check names for generic metric-scraping
+// integrations that customers commonly point at any service, potentially
+// under a different check name than the one discovery would configure. Their
+// presence for a service (or host) is treated as covering every integration,
+// since we can't tell whether they already scrape the same metrics.
+var genericIntegrationNames = map[string]struct{}{
+	"openmetrics": {},
+	"prometheus":  {},
+}
+
 // filterTemplatesDiscovery drops configuration-discovery templates that are
 // redundant with another config source for the same integration. Dropped when:
 //  1. another check template (Instances > 0) for the same integration Name has
 //     matched this same service (present in configs), or
 //  2. a scheduled non-template (static) config exists for the same Name
-//     (tracked in staticIdx).
+//     (tracked in staticIdx), or
+//  3. a generic integration (openmetrics/prometheus) config matched this
+//     service or is scheduled host-wide, regardless of its Name.
 //
 // Logs-only sibling templates (no Instances) are ignored — discovery covers
 // metric-check configuration and shouldn't be suppressed by an integration's
@@ -44,9 +56,20 @@ func filterTemplatesDiscovery(staticIdx *StaticConfigIndex, configs map[string]i
 		return
 	}
 	nonDiscoveryNames := map[string]struct{}{}
+	hasGenericSibling := false
 	for _, cfg := range configs {
 		if !cfg.IsDiscovery() && len(cfg.Instances) > 0 {
 			nonDiscoveryNames[cfg.Name] = struct{}{}
+			if _, ok := genericIntegrationNames[cfg.Name]; ok {
+				hasGenericSibling = true
+			}
+		}
+	}
+	hasGenericStatic := false
+	for name := range genericIntegrationNames {
+		if staticIdx.Has(name) {
+			hasGenericStatic = true
+			break
 		}
 	}
 	for digest, cfg := range configs {
@@ -54,7 +77,7 @@ func filterTemplatesDiscovery(staticIdx *StaticConfigIndex, configs map[string]i
 			continue
 		}
 		_, hasSibling := nonDiscoveryNames[cfg.Name]
-		if hasSibling || staticIdx.Has(cfg.Name) {
+		if hasGenericSibling || hasGenericStatic || hasSibling || staticIdx.Has(cfg.Name) {
 			log.Debugf("Ignoring discovery template %s from %s: another config source already covers this integration",
 				cfg.Name, cfg.Source)
 			delete(configs, digest)

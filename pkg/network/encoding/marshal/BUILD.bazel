@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "marshal",
@@ -65,7 +68,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "marshal_test",
     srcs = [
         "dns_test.go",
@@ -85,7 +88,6 @@ go_test(
         "usm_test.go",
     ],
     embed = [":marshal"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/config/setup",

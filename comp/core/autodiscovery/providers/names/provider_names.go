@@ -61,6 +61,8 @@ const (
 	GPU = "gpu"
 	// DataStreamsKafkaActions provides one-off Kafka action configurations for Data Streams Monitoring.
 	DataStreamsKafkaActions = "dsm-kafka-actions"
+	// DataSecurity provides one-off Data Security check configurations triggered via Remote Configuration.
+	DataSecurity = "data-security"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.

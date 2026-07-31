@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
@@ -145,7 +146,20 @@ go_library(
     }),
 )
 
-go_test(
+go_stringer(
+    name = "event_common_string",
+    src = "event_common.go",
+    linecomment = True,
+    output = "event_common_string.go",
+    types = [
+        "ConnectionType",
+        "ConnectionFamily",
+        "ConnectionDirection",
+        "EphemeralPortType",
+    ],
+)
+
+dd_agent_go_test(
     name = "network_test",
     srcs = [
         "buffer_test.go",
@@ -171,7 +185,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":network"],
-    gotags = ["test"],
     deps = [
         "//pkg/network/dns",
         "//pkg/network/netlink/testutil",
@@ -256,17 +269,4 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-)
-
-go_stringer(
-    name = "event_common_string",
-    src = "event_common.go",
-    linecomment = True,
-    output = "event_common_string.go",
-    types = [
-        "ConnectionType",
-        "ConnectionFamily",
-        "ConnectionDirection",
-        "EphemeralPortType",
-    ],
 )

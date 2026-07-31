@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "hostmap",
@@ -23,14 +24,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "hostmap_test",
     srcs = [
         "hostmap_test.go",
         "tags_test.go",
     ],
     embed = [":hostmap"],
-    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/internal/testutils",
         "//pkg/opentelemetry-mapping-go/inframetadata/payload",

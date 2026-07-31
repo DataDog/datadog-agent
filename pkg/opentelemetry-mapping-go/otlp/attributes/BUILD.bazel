@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "attributes",
@@ -33,7 +34,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "attributes_test",
     srcs = [
         "attributes_test.go",
@@ -46,7 +47,6 @@ go_test(
         "units_test.go",
     ],
     embed = [":attributes"],
-    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes/azure",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils",

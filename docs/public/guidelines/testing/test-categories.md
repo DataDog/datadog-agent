@@ -208,7 +208,7 @@ Pulumi, and external services.
 
 **Example**:
 
-More examples can be found in the [examples](https://github.com/DataDog/datadog-agent/tree/main/test/new-e2e/examples) directory.
+More examples can be found in the <<<repo("test/new-e2e/examples", "examples")>>> directory.
 ```go
 package examples
 

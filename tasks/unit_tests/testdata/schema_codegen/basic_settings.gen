@@ -12,6 +12,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
 }
 

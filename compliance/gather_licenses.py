@@ -203,6 +203,7 @@ def main():
     )
     parser.add_argument("--target", help="The target we are processing.")
     parser.add_argument("--csv_out", help="The CSV style output file.")
+    parser.add_argument("--manifest_out", help="JSON file listing each package's name/license/copyright.")
     parser.add_argument("--licenses_dir", help="Directory to copy license texts to.")
     parser.add_argument("--offers_dir", help="Directory to write 'ship source' offers to.")
     parser.add_argument("--offers_out", help="File to write 'ship source' offers to.")
@@ -243,6 +244,19 @@ def main():
             csv_writer = csv.writer(out, quotechar="\"", quoting=csv.QUOTE_MINIMAL)
             for license in licenses:
                 csv_writer.writerow(license)
+
+    if options.manifest_out:
+        manifest_entries = [
+            {
+                "name": origin_to_module(origin),
+                "origin": origin,
+                "license": license_type,
+                "copyright": copyright,
+            }
+            for _component, origin, license_type, copyright in licenses
+        ]
+        with open(options.manifest_out, "w", encoding="UTF-8") as out:
+            json.dump(manifest_entries, out, indent=2)
 
     if options.offers_dir:
         for package in attrs.offers:

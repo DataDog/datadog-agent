@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "dcaflare",
@@ -29,11 +30,14 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "dcaflare_test",
     srcs = ["command_test.go"],
     embed = [":dcaflare"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/fxutil",

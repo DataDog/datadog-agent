@@ -140,10 +140,11 @@ func postInstallEUDMExtension(ctx HookContext) error {
 		removeAIUsageScheduledTask(ctx.Context)
 	}()
 
-	// 1) Generate ai_usage_native_host.yaml in ProgramData (best effort; preserve an existing file),
-	// then grant Everyone read/execute on it. C:\ProgramData\Datadog is ACL-restricted, so the
-	// config would otherwise be unreadable by the interactive browser user that Chrome and the
-	// desktop-monitor task launch the host as.
+	// 1) Generate ai_usage_native_host.yaml in ProgramData (best effort; always overwritten from
+	// the packaged template so default changes reach already-installed machines), then grant
+	// Everyone read/execute on it. C:\ProgramData\Datadog is ACL-restricted, so the config would
+	// otherwise be unreadable by the interactive browser user that Chrome and the desktop-monitor
+	// task launch the host as.
 	configPath := filepath.Join(paths.DatadogDataDir, aiUsageConfigName)
 	examplePath := filepath.Join(extensionPath, aiUsageConfigName+".example")
 	if err := writeAIUsageConfig(examplePath, configPath); err != nil {
@@ -203,22 +204,27 @@ func preRemoveEUDMExtension(ctx HookContext) error {
 	return nil
 }
 
-// writeAIUsageConfig renders ai_usage_native_host.yaml from the example template, substituting
-// trace_agent_url with the local trace receiver URL. An existing config is preserved.
+// writeAIUsageConfig renders ai_usage_native_host.yaml from the example template. This always
+// overwrites an existing config (on every install and upgrade) so packaged default changes reach
+// already-installed machines; any manual edits to the generated file do not survive the next
+// agent upgrade.
+//
+// The example template ships trace_agent_url commented out at its compiled-in default
+// (http://127.0.0.1:8126). trace_agent_url is only substituted and activated when the Agent's
+// apm_config.receiver_port differs from that default; otherwise the line is left as shipped
+// (commented) so a future default change takes effect without needing another overwrite.
 func writeAIUsageConfig(examplePath, configPath string) error {
-	if _, err := os.Stat(configPath); err == nil {
-		log.Debugf("AI Usage: %s already exists, not modifying it", configPath)
-		return nil
-	}
 	example, err := os.ReadFile(examplePath)
 	if err != nil {
 		return fmt.Errorf("could not read example config %s: %w", examplePath, err)
 	}
-	port := readAIUsageReceiverPort()
-	rendered := aiUsageTraceAgentURLRe.ReplaceAllString(
-		string(example),
-		fmt.Sprintf(`trace_agent_url: "http://127.0.0.1:%d"`, port),
-	)
+	rendered := string(example)
+	if port := readAIUsageReceiverPort(); port != aiUsageDefaultReceiverPort {
+		rendered = aiUsageTraceAgentURLRe.ReplaceAllString(
+			rendered,
+			fmt.Sprintf(`trace_agent_url: "http://127.0.0.1:%d"`, port),
+		)
+	}
 	if err := os.WriteFile(configPath, []byte(rendered), 0o644); err != nil {
 		return fmt.Errorf("could not write %s: %w", configPath, err)
 	}

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "remoteconfighandler",
@@ -21,11 +22,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "remoteconfighandler_test",
     srcs = ["remote_config_handler_test.go"],
     embed = [":remoteconfighandler"],
-    gotags = ["test"],
     deps = [
         "//pkg/remoteconfig/state",
         "//pkg/remoteconfig/state/products/apmsampling",

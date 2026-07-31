@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import click
-
 from dda.cli.base import dynamic_command, pass_app
 
 if TYPE_CHECKING:
@@ -19,9 +18,9 @@ def cmd(app: Application, *, check: bool) -> None:
     """
     from dda.utils.fs import Path
     from dda.utils.process import EnvVars
-
     from utils.docs.constants import SOURCE_DATE_EPOCH
     from utils.docs.deps import DEPENDENCIES
+    from utils.docs.links import check_links
 
     group_dir = Path(__file__).parent.parent
     venv_path = app.config.storage.join("venvs", group_dir.id).data
@@ -38,5 +37,7 @@ def cmd(app: Application, *, check: bool) -> None:
             cache_marker.parent.mkdir(parents=True, exist_ok=True)
             cache_marker.touch()
 
-        if check:
-            app.subprocess.exit_with(["lychee", "--config", ".lychee.toml", "site"], env=env_vars)
+    # CI runs `dda run docs check-links` as a step of its own instead, so that a rotted link on
+    # somebody else's site is reported separately from documentation that fails to build.
+    if check:
+        check_links(app)

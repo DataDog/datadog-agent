@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "monitor",
@@ -29,11 +30,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "monitor_test",
     srcs = ["policy_monitor_test.go"],
     embed = [":monitor"],
-    gotags = ["test"],
     deps = [
         "//pkg/security/rules/filtermodel",
         "//pkg/security/secl/compiler/eval",

@@ -154,8 +154,15 @@ markdown_extensions:
     module_name: docs/public/.hooks/inject_variables
     on_error_fail: true
     on_undefined: strict
+    # Macros are rendered before code blocks are extracted, so every delimiter must be a sequence
+    # that never appears in quoted code. Jinja's defaults collide with Go composite literals,
+    # GitHub Actions expressions and `attr_list` identifiers such as `{#custom-id}`.
     j2_variable_start_string: "<<<"
     j2_variable_end_string: ">>>"
+    j2_block_start_string: "<<%"
+    j2_block_end_string: "%>>"
+    j2_comment_start_string: "<<#"
+    j2_comment_end_string: "#>>"
 - markdown.extensions.abbr:
 - markdown.extensions.attr_list:
 - markdown.extensions.footnotes:
