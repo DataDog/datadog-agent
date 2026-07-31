@@ -33,14 +33,10 @@ const (
 	// every pair drawn from the two sides must satisfy CIDRMatchFunc.
 	CIDRMatchAllFunc = "secl.cidrMatchAll"
 
-	// ElapsedFunc converts a nanosecond timestamp into the duration that has
-	// passed since then, i.e. `now - value`. SECL applies this implicitly
-	// whenever a field is compared against a duration literal.
-	ElapsedFunc = "secl.elapsed"
-
-	// NanosFunc reinterprets a nanosecond count as a duration. SECL applies this
-	// instead of ElapsedFunc when the left hand side of a duration comparison is
-	// itself an arithmetic expression, e.g. `a - b < 10m`.
+	// NanosFunc reinterprets a nanosecond count as a duration, which is how a
+	// SECL duration comparison reaches CEL. SECL reads `field < 10m` as "less
+	// than ten minutes ago", so the translation subtracts the field from NowVar
+	// before applying it.
 	NanosFunc = "secl.nanos"
 
 	// StrFunc renders a value as the string SECL would substitute for it inside
@@ -64,8 +60,8 @@ const VariablesRoot = "vars"
 // variables, which depend on the model and are supplied by the caller through
 // opts.
 //
-// The declared helper functions have no runtime binding yet: this environment
-// type-checks translated expressions, it does not evaluate them.
+// The helper functions are bound, so an expression built from this environment
+// can be evaluated against an event with Program and NewActivation.
 func NewEnv(opts ...cel.EnvOption) (*cel.Env, error) {
 	base := []cel.EnvOption{
 		// math.bitAnd/bitOr/bitXor/bitNot back SECL's &, |, ^ operators.
@@ -78,22 +74,12 @@ func NewEnv(opts ...cel.EnvOption) (*cel.Env, error) {
 		// metadata is kept.
 		cel.EnableMacroCallTracking(),
 		cel.Variable(VariablesRoot, cel.DynType),
-
-		cel.Function(GlobFunc,
-			cel.Overload("secl_glob_string_string", []*cel.Type{cel.StringType, cel.StringType}, cel.BoolType)),
-		cel.Function(CIDRMatchFunc,
-			cel.Overload("secl_cidr_match", []*cel.Type{cel.DynType, cel.DynType}, cel.BoolType)),
-		cel.Function(CIDRMatchAllFunc,
-			cel.Overload("secl_cidr_match_all", []*cel.Type{cel.DynType, cel.DynType}, cel.BoolType)),
-		cel.Function(ElapsedFunc,
-			cel.Overload("secl_elapsed_int", []*cel.Type{cel.IntType}, cel.DurationType)),
-		cel.Function(NanosFunc,
-			cel.Overload("secl_nanos_int", []*cel.Type{cel.IntType}, cel.DurationType)),
-		cel.Function(StrFunc,
-			cel.Overload("secl_str_dyn", []*cel.Type{cel.DynType}, cel.StringType)),
-		cel.Function(RootDomainFunc,
-			cel.Overload("secl_root_domain_string", []*cel.Type{cel.StringType}, cel.StringType)),
+		cel.Variable(NowVar, cel.IntType),
 	}
+
+	// The helpers are declared together with their implementations, so an
+	// environment is evaluable as well as checkable.
+	base = append(base, helperBindings()...)
 
 	return cel.NewEnv(append(base, opts...)...)
 }

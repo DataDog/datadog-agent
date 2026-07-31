@@ -34,7 +34,7 @@
 //	1.2.3.4, 10.0.0.0/8         ip("1.2.3.4"), cidr("10.0.0.0/8")
 //	a == 10.0.0.0/8, a in …     secl.cidrMatch(a, cidr("10.0.0.0/8"))
 //	a allin 10.0.0.0/8          secl.cidrMatchAll(a, cidr("10.0.0.0/8"))
-//	a < 10m                     secl.elapsed(a) < duration("10m")
+//	a < 10m                     secl.nanos(secl_now - a) < duration("10m")
 //	a - b < 10m                 secl.nanos(a - b) < duration("10m")
 //	${foo}                      vars.foo
 //	${foo.length}               size(vars.foo)

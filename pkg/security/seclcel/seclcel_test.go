@@ -85,15 +85,15 @@ var translations = []struct {
 
 	// durations. SECL reads `field < 10m` as "less than 10 minutes ago", but
 	// compares an arithmetic result against the duration directly.
-	{`process.created_at < 10m`, `secl.elapsed(process.created_at) < duration("10m")`},
-	{`process.created_at >= 1h`, `secl.elapsed(process.created_at) >= duration("1h")`},
+	{`process.created_at < 10m`, `secl.nanos(secl_now - process.created_at) < duration("10m")`},
+	{`process.created_at >= 1h`, `secl.nanos(secl_now - process.created_at) >= duration("1h")`},
 	{`process.created_at - process.parent.created_at < 10m`,
 		`secl.nanos(process.created_at - process.parent.created_at) < duration("10m")`},
 	// a duration used anywhere else is just a nanosecond count
 	{`process.created_at == 10m + 1`, `process.created_at == 600000000000 + 1`},
 	// SECL only gives the ordering operators and == duration semantics, so this
 	// one is a small generalisation
-	{`process.created_at != 10m`, `!(secl.elapsed(process.created_at) == duration("10m"))`},
+	{`process.created_at != 10m`, `!(secl.nanos(secl_now - process.created_at) == duration("10m"))`},
 
 	// variables and field references
 	{`${my.var} == 1`, `vars.my.var == 1`},

@@ -1039,12 +1039,18 @@ func (p *parser) applyMatcher(subject, matcher operand, start, end int) (celast.
 // hand side is itself an arithmetic expression, in which case the two operands
 // are compared directly.
 func (p *parser) durationComparison(op string, subject, dur operand, start, end int) celast.Expr {
-	fn := ElapsedFunc
-	if subject.fromArithmetic {
-		fn = NanosFunc
+	// A bare field is a timestamp, so the comparison is against how long ago it
+	// was. An arithmetic result is already an interval and is compared directly.
+	// Naming the instant rather than reading the clock inside a helper is what
+	// keeps every comparison in one evaluation consistent, as SECL's cached
+	// ctx.Now() does.
+	measured := subject.expr
+	if !subject.fromArithmetic {
+		measured = p.call(operators.Subtract, start, end,
+			p.fac.NewIdent(p.id(start, end), NowVar), subject.expr)
 	}
 
-	elapsed := p.call(fn, subject.start, subject.end, subject.expr)
+	elapsed := p.call(NanosFunc, subject.start, subject.end, measured)
 	literal := p.call(durationFunc, dur.start, dur.end, p.strLit(dur.text, dur.start, dur.end))
 
 	if op == "!=" {

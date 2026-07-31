@@ -6,20 +6,12 @@
 package seclcel
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 )
-
-// ErrRuntimeNotWired is returned when a translated expression is evaluated
-// rather than type-checked. Resolving a field means going back through the
-// generated accessors, and the helper functions NewEnv declares have no
-// implementation yet, so an evaluable environment needs both and is a separate
-// step. Type-checking is fully supported.
-var ErrRuntimeNotWired = errors.New("seclcel: field resolution is not wired up yet, the type provider only supports type-checking")
 
 // modelTypes serves the generated SECL object types to CEL.
 //
@@ -68,9 +60,25 @@ func (m *modelTypes) FindStructFieldType(structType, field string) (*types.Field
 		Type:  fieldType,
 		IsSet: func(any) bool { return true },
 		// The planner turns a select on a known struct type into a call to this
-		// getter, so this is the seam a future runtime binds to the generated
-		// accessors.
-		GetFrom: func(any) (any, error) { return nil, ErrRuntimeNotWired },
+		// getter, which is where a field is read. Nothing is resolved for a member
+		// that is itself an object or a list, so an expression only reaches the
+		// accessors for the leaves it mentions.
+		GetFrom: func(obj any) (any, error) {
+			object, ok := obj.(*seclObject)
+			if !ok {
+				return nil, fmt.Errorf("%w: %T is not a SECL event position", errUnsupportedValue, obj)
+			}
+
+			member := object.selectMember(field, fieldType)
+
+			if _, isObjectList := objectListElem(fieldType); isObjectList {
+				return newIteratedList(member), nil
+			}
+			if fieldType.Kind() == types.StructKind {
+				return member, nil
+			}
+			return member.resolve(member.path, fieldType), nil
+		},
 	}, true
 }
 
