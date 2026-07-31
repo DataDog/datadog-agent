@@ -28,7 +28,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 
 	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
 
-	f, err := t.fileOpener.OpenLogFile(fullpath)
+	f, err := t.openLogFile(fullpath)
 	if err != nil {
 		return err
 	}
