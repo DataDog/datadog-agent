@@ -26,7 +26,7 @@ var (
 )
 
 type agentTelemetryMetric struct {
-	metric     any
+	update     func(value float64, labels map[string]string)
 	metricType string
 	labelNames []string
 }
@@ -52,15 +52,22 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 	}
 	switch metricType {
 	case "counter":
-		entry.metric = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		counter := telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 			checkName,
 			metricName,
 			entry.labelNames,
 			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
 			telemetry.DefaultOptions,
 		)
+		entry.update = func(value float64, labels map[string]string) {
+			if len(labels) == 0 {
+				counter.Add(value)
+				return
+			}
+			counter.AddWithTags(value, labels)
+		}
 	case "histogram":
-		entry.metric = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+		histogram := telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 			checkName,
 			metricName,
 			entry.labelNames,
@@ -68,14 +75,28 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
 			telemetry.DefaultOptions,
 		)
+		entry.update = func(value float64, labels map[string]string) {
+			if len(labels) == 0 {
+				histogram.Observe(value)
+				return
+			}
+			histogram.WithTags(labels).Observe(value)
+		}
 	case "gauge":
-		entry.metric = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+		gauge := telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 			checkName,
 			metricName,
 			entry.labelNames,
 			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
 			telemetry.DefaultOptions,
 		)
+		entry.update = func(value float64, labels map[string]string) {
+			if len(labels) == 0 {
+				gauge.Set(value)
+				return
+			}
+			gauge.WithTags(labels).Set(value)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported metric type %s requested by %s for %s", metricType, checkName, metricName)
 	}

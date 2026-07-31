@@ -20,7 +20,6 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -593,28 +592,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 		return
 	}
 
-	switch metric := entry.metric.(type) {
-	case telemetry.Counter:
-		if len(labels) == 0 {
-			metric.Add(goMetricValue)
-		} else {
-			metric.AddWithTags(goMetricValue, labels)
-		}
-	case telemetry.Histogram:
-		if len(labels) == 0 {
-			metric.Observe(goMetricValue)
-		} else {
-			metric.WithTags(labels).Observe(goMetricValue)
-		}
-	case telemetry.Gauge:
-		if len(labels) == 0 {
-			metric.Set(goMetricValue)
-		} else {
-			metric.WithTags(labels).Set(goMetricValue)
-		}
-	default:
-		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
-	}
+	entry.update(goMetricValue, labels)
 }
 
 func parseIssueJSON(payload string) (*healthplatformpayload.Issue, error) {
