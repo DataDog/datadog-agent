@@ -11,7 +11,7 @@
 use anyhow::Result;
 use clap::Parser;
 use par_control::bootstrap;
-use par_control::config::LaunchGate;
+use par_control::config::{LaunchGate, log_level_from_yaml_file};
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::HttpOpms;
@@ -38,12 +38,24 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // NOTE: a logger implementation (e.g. dd-agent-log) should be initialized
-    // here so the `log` macros emit; left unwired in this first cut. Until then
-    // the launch-path decisions below print to stderr, which the process manager
-    // inherits (`stderr: inherit`) — otherwise a control plane that stands down
-    // would exit silently and look like a crash.
     let cli = Cli::parse();
+
+    // Wire the shared agent logger (the one dd-procmgrd also uses) before doing
+    // anything else, so the `log` macros throughout the orchestration loop
+    // actually emit. It writes to stdout, which the process manager inherits
+    // (`stdout: inherit` in the process definition).
+    //
+    // The level comes from the agent's own `log_level` key, read straight from
+    // the YAML: this runs before the config/identity load so that a stand-down
+    // decision or a config error is itself logged. A logger init failure is not
+    // fatal — a control plane running without logs beats one refusing to run.
+    if let Err(e) = dd_agent_log::init(dd_agent_log::LogConfig {
+        logger_name: "PAR-CONTROL",
+        level: log_level_from_yaml_file(&cli.config),
+        log_file: None,
+    }) {
+        eprintln!("par-control: could not initialize the logger: {e}");
+    }
 
     // The procmgr definition that starts par-control is installed unconditionally,
     // so this process decides for itself whether the split deployment is active.
@@ -52,10 +64,11 @@ async fn main() -> Result<()> {
     // never opted in.
     let gate = LaunchGate::from_yaml_file(&cli.config)?;
     if !gate.split_mode {
-        eprintln!(
-            "par-control: private_action_runner.split_enabled is not enabled; \
+        log::info!(
+            "private_action_runner.split_enabled is not enabled; \
              the monolithic runner owns OPMS polling. Exiting."
         );
+        log::logger().flush();
         return Ok(());
     }
     if cfg!(windows) {
@@ -63,11 +76,12 @@ async fn main() -> Result<()> {
         // On Windows it can reach OPMS but can neither start nor dispatch to the
         // executor, so it would dequeue real tasks and fail every one of them.
         // Refuse up front instead, and exit 0 so procmgr does not restart-loop.
-        eprintln!(
-            "par-control: the split deployment model is not supported on Windows yet \
+        log::error!(
+            "the split deployment model is not supported on Windows yet \
              (named-pipe transport to dd-procmgrd and the executor is not implemented); \
              unset private_action_runner.split_enabled. Exiting."
         );
+        log::logger().flush();
         return Ok(());
     }
 
@@ -86,31 +100,35 @@ async fn main() -> Result<()> {
         config.runner_version.clone(),
         config.modes.clone(),
         config.opms_request_timeout,
-    ));
+    )?);
     let lifecycle = Arc::new(ProcmgrLifecycle::new(
         &config.procmgr_socket,
         config.executor_process_name.clone(),
     ));
-    // Secure the control<->executor channel with mTLS via the agent IPC cert.
-    let executor_tls = match &config.ipc_cert_file {
-        Some(path) => Some(par_control::tls::build_ipc_client_connector(path)?),
-        None => {
-            log::warn!(
-                "ipc_cert_file_path is not set; dispatching to the executor without mTLS \
-                 (the executor requires a client cert, so this will fail in production)"
-            );
-            None
-        }
-    };
+    // Secure the control<->executor channel with mTLS via the agent IPC cert. The
+    // cert is read on each connection, not now: it may not exist yet (see
+    // transport::connect_lazy_tls).
     let dispatcher = Arc::new(ExecutorDispatcher::new(
         &config.executor_socket,
-        executor_tls,
+        Some(&config.ipc_cert_file),
     ));
 
     let params = Params::from_config(&config);
     let orchestrator = Orchestrator::new(opms, lifecycle, dispatcher, params);
 
+    log::info!(
+        "par-control starting: version={} urn={} opms={} executor_socket={} procmgr_socket={} ipc_cert={}",
+        config.runner_version,
+        config.identity.urn,
+        config.opms_base_url,
+        config.executor_socket.display(),
+        config.procmgr_socket.display(),
+        config.ipc_cert_file.display(),
+    );
+
     orchestrator.run(shutdown_signal()).await;
+    log::info!("par-control stopped");
+    log::logger().flush();
     Ok(())
 }
 

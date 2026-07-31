@@ -88,9 +88,25 @@ dda inv install-rust-license-tool   # once
 dda inv generate-rust-licenses
 ```
 
-**TLS:** the crate enables `ureq`'s `native-tls` feature for real HTTPS to OPMS —
-`rustls`/`ring` are intentionally avoided for `cargo-deny` (OpenSSL is Apache-2.0,
-allowed). The resulting `openssl-sys` links the agent's own OpenSSL
+**TLS:** OPMS is reached with `hyper` + `native-tls` (`opms.rs`), *not* a
+higher-level HTTP client. `rustls`/`ring` are intentionally avoided for
+`cargo-deny`, and `ureq` — the workspace's HTTP client — cannot express what is
+needed: its `native-tls` support is gated on a feature that force-enables
+`native-tls-webpki-roots` (`webpki-root-certs`, CDLA-Permissive-2.0, rejected by
+`cargo-deny`), and with only `native-tls-no-default` every native-tls code path in
+ureq is compiled out, so *any* HTTPS request panics at runtime with "provider is
+... but feature is not enabled". Cargo features are additive, so the webpki roots
+cannot be subtracted. `native-tls` needs no bundled roots anyway: it locates the
+system trust store at runtime via `openssl-probe`.
+
+This makes par-control the first Rust component in the agent to make an *outbound*
+HTTPS request — `cmd/ai_prompt_logger` deliberately POSTs plaintext to the local
+trace agent and lets Go do the TLS leg, and the other crates only serve local
+sockets. There is no unit test that can prove HTTPS works against a real endpoint;
+`opms::tests::round_trips_over_a_real_tls_connection` covers it hermetically with a
+local native-tls server, and it must stay that way.
+
+The resulting `openssl-sys` links the agent's own OpenSSL
 (`@openssl//:openssl`, built from source via foreign_cc — "same as the rest of the
 agent"), wired by a `crate.annotation` in `deps/crates.MODULE.bazel` that points
 the build script at the foreign_cc install tree (`@openssl//:gen_dir`) via
@@ -99,10 +115,16 @@ the build script at the foreign_cc install tree (`@openssl//:gen_dir`) via
 **mTLS (slice 7):** the control<->executor channel is secured with mutual TLS via
 the agent IPC cert. par-control reads the combined IPC cert/key file
 (`ipc_cert_file_path`) and presents it as its client identity over the socket
-(`tls.rs` + `transport::connect_lazy_tls`), using native-tls (OpenSSL) for the
-same cargo-deny reasons as the OPMS client. The executor requires a CA-signed
-client cert. Adding `native-tls`/`tokio-native-tls` requires a lock-file repin
-(see above).
+(`tls.rs` + `transport::connect_lazy_tls`), using the same native-tls (OpenSSL)
+stack as the OPMS client. The executor requires a CA-signed client cert.
+
+`ipc_cert_file_path` defaults to empty in the agent and is unset on virtually
+every host, so `config.rs` reproduces Go's fallback chain (`getCertFilepath` in
+`pkg/api/security/cert/cert_getter.go`): explicit setting, else next to
+`auth_token_file_path`, else next to `datadog.yaml`. The connector is rebuilt per
+connection rather than at startup, because par-control is `auto_start: true` and
+can come up before the cert exists — possibly before the very executor it launches,
+which creates the cert when missing.
 
 ## Contracts with the Go side (keep in sync)
 

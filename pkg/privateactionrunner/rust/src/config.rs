@@ -68,7 +68,12 @@ pub struct Config {
     pub runner_version: String,
     /// Comma-joined in the OPMS header.
     pub modes: Vec<String>,
-    pub ipc_cert_file: Option<PathBuf>,
+    /// Resolved path of the agent IPC cert used as the control<->executor mTLS
+    /// identity. Always set: the executor unconditionally requires a client cert,
+    /// so there is no valid "no mTLS" mode to represent with an `Option`. The file
+    /// itself may not exist yet when par-control starts (see
+    /// [`crate::transport::connect_lazy_tls`]).
+    pub ipc_cert_file: PathBuf,
     pub identity: Identity,
 }
 
@@ -77,9 +82,15 @@ pub struct Config {
 #[derive(serde::Deserialize, Default, Clone)]
 struct RawConfig {
     site: Option<String>,
+    /// Agent-wide `log_level`. Reused verbatim instead of adding a par-control
+    /// specific key, so one operator-facing switch controls both halves.
+    log_level: Option<String>,
     /// Full DD URL override, used by e2e against a plaintext fake OPMS.
     dd_url: Option<String>,
     ipc_cert_file_path: Option<String>,
+    /// Only used to locate the IPC cert when `ipc_cert_file_path` is unset,
+    /// mirroring the Go resolution order.
+    auth_token_file_path: Option<String>,
     private_action_runner: Option<RawPar>,
 }
 
@@ -141,20 +152,22 @@ impl Config {
             None => Identity::from_file(&identity_file_path(&raw, path))?,
         };
         match identity {
-            Some(identity) => Ok(Some(Self::build(raw, identity)?)),
+            Some(identity) => Ok(Some(Self::build(raw, identity, path)?)),
             None => Ok(None),
         }
     }
 
     /// Parse configuration from YAML contents with inline identity (test helper).
+    /// Paths that default relative to the config file resolve against a notional
+    /// `datadog.yaml` in the current directory.
     pub fn from_yaml_str(yaml: &str) -> Result<Self> {
         let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
         let identity = inline_identity(raw.private_action_runner.as_ref())?
             .context("private_action_runner identity is not set")?;
-        Self::build(raw, identity)
+        Self::build(raw, identity, Path::new("datadog.yaml"))
     }
 
-    fn build(raw: RawConfig, identity: Identity) -> Result<Self> {
+    fn build(raw: RawConfig, identity: Identity, config_path: &Path) -> Result<Self> {
         let par = raw.private_action_runner.clone().unwrap_or_default();
         let opms_base_url = resolve_opms_base_url(raw.site.as_deref(), raw.dd_url.as_deref())?;
 
@@ -188,10 +201,7 @@ impl Config {
             max_attempts: 20,
             runner_version: RUNNER_VERSION.to_string(),
             modes: par.modes,
-            ipc_cert_file: raw
-                .ipc_cert_file_path
-                .filter(|s| !s.is_empty())
-                .map(PathBuf::from),
+            ipc_cert_file: ipc_cert_file_path(&raw, config_path),
             identity,
         })
     }
@@ -215,6 +225,40 @@ pub struct LaunchGate {
     /// `private_action_runner.self_enroll` (default true, matching Go): may
     /// par-control run the Go one-shot enroll when no identity is persisted yet?
     pub self_enroll: bool,
+}
+
+/// Resolve the control plane's log level from the agent's existing `log_level`
+/// key, so no par-control-specific key (and no config-schema entry) is needed.
+///
+/// Called before anything else in `main`, and therefore *before* any logger
+/// exists: an unreadable or malformed config cannot be reported, so it degrades
+/// to the default level and lets the subsequent [`LaunchGate::from_yaml_file`]
+/// surface the real error.
+pub fn log_level_from_yaml_file(path: &Path) -> log::Level {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| serde_yaml::from_str::<RawConfig>(&contents).ok())
+        .and_then(|raw| raw.log_level)
+        .as_deref()
+        .map(parse_log_level)
+        .unwrap_or(log::Level::Info)
+}
+
+/// Map an agent `log_level` string onto a `log::Level`.
+///
+/// The agent accepts levels the `log` crate does not model: `critical` collapses
+/// onto `Error` (the most severe level available) and `off` onto `Error` as well,
+/// because `dd_agent_log::init` takes a `Level` rather than a `LevelFilter` and so
+/// cannot silence output entirely. Unknown values fall back to `Info` rather than
+/// failing startup over a cosmetic setting.
+fn parse_log_level(raw: &str) -> log::Level {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "trace" => log::Level::Trace,
+        "debug" => log::Level::Debug,
+        "warn" | "warning" => log::Level::Warn,
+        "error" | "critical" | "off" => log::Level::Error,
+        _ => log::Level::Info,
+    }
 }
 
 impl LaunchGate {
@@ -261,6 +305,37 @@ fn inline_identity(par: Option<&RawPar>) -> Result<Option<Identity>> {
         (Some(urn), Some(key)) => Ok(Some(Identity::new(urn.to_string(), key.to_string())?)),
         _ => Ok(None),
     }
+}
+
+/// Default name of the agent IPC cert file, matching `defaultCertFileName` in
+/// `pkg/api/security/cert/cert_getter.go`.
+const DEFAULT_IPC_CERT_FILE_NAME: &str = "ipc_cert.pem";
+
+/// Resolve the agent IPC cert path exactly as `getCertFilepath` does on the Go
+/// side, because `ipc_cert_file_path` defaults to empty and is therefore unset on
+/// virtually every real host:
+///
+/// 1. explicit `ipc_cert_file_path`,
+/// 2. else next to `auth_token_file_path` (operators who move the auth token off
+///    the config directory get the cert moved with it),
+/// 3. else next to `datadog.yaml`.
+///
+/// Getting this wrong is silent: par-control would poll OPMS happily and fail
+/// every dispatch on the executor's required-client-cert handshake.
+fn ipc_cert_file_path(raw: &RawConfig, config_path: &Path) -> PathBuf {
+    if let Some(explicit) = raw.ipc_cert_file_path.as_deref().filter(|s| !s.is_empty()) {
+        return PathBuf::from(explicit);
+    }
+    if let Some(auth_token) = raw.auth_token_file_path.as_deref().filter(|s| !s.is_empty()) {
+        return Path::new(auth_token)
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(DEFAULT_IPC_CERT_FILE_NAME);
+    }
+    config_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(DEFAULT_IPC_CERT_FILE_NAME)
 }
 
 /// Path to the persisted identity file: the explicit `identity_file_path` if set,
@@ -361,6 +436,51 @@ private_action_runner:
         assert_eq!(cfg.executor_socket, PathBuf::from(DEFAULT_EXECUTOR_SOCKET));
     }
 
+    /// `ipc_cert_file_path` defaults to empty in the agent and is unset on
+    /// essentially every host, so par-control has to reproduce Go's fallback chain
+    /// (`getCertFilepath` in pkg/api/security/cert/cert_getter.go). If it does
+    /// not, dispatch fails the executor's required-client-cert handshake while
+    /// OPMS polling keeps working — a silent, confusing failure.
+    #[test]
+    fn resolves_ipc_cert_path_like_the_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg_path = dir.path().join("datadog.yaml");
+        let identity_yaml = "private_action_runner:\n  urn: \"urn:dd:apps:on-prem-runner:us1:42:r\"\n  private_key: \"k\"\n";
+
+        // 1. Explicit setting wins.
+        std::fs::write(
+            &cfg_path,
+            format!("ipc_cert_file_path: /custom/cert.pem\nauth_token_file_path: /tok/auth_token\n{identity_yaml}"),
+        )
+        .unwrap();
+        let cfg = Config::try_from_yaml_file(&cfg_path).unwrap().unwrap();
+        assert_eq!(cfg.ipc_cert_file, PathBuf::from("/custom/cert.pem"));
+
+        // 2. Else next to auth_token_file_path.
+        std::fs::write(
+            &cfg_path,
+            format!("auth_token_file_path: /tok/auth_token\n{identity_yaml}"),
+        )
+        .unwrap();
+        let cfg = Config::try_from_yaml_file(&cfg_path).unwrap().unwrap();
+        assert_eq!(cfg.ipc_cert_file, PathBuf::from("/tok/ipc_cert.pem"));
+
+        // 3. Else next to datadog.yaml — the case that applies to a default host.
+        std::fs::write(&cfg_path, identity_yaml).unwrap();
+        let cfg = Config::try_from_yaml_file(&cfg_path).unwrap().unwrap();
+        assert_eq!(cfg.ipc_cert_file, dir.path().join("ipc_cert.pem"));
+
+        // An empty string is the agent's own default and must not be taken
+        // literally as a path.
+        std::fs::write(
+            &cfg_path,
+            format!("ipc_cert_file_path: \"\"\n{identity_yaml}"),
+        )
+        .unwrap();
+        let cfg = Config::try_from_yaml_file(&cfg_path).unwrap().unwrap();
+        assert_eq!(cfg.ipc_cert_file, dir.path().join("ipc_cert.pem"));
+    }
+
     #[test]
     fn honors_http_dd_url_override() {
         let yaml = format!("dd_url: \"http://fake-opms:8080\"\n{MIN_YAML}");
@@ -433,6 +553,36 @@ private_action_runner:
         assert!(!gate.split_mode);
         // Same default as Go's private_action_runner.self_enroll.
         assert!(gate.self_enroll);
+    }
+
+    #[test]
+    fn parses_agent_log_levels() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("datadog.yaml");
+
+        for (raw, want) in [
+            ("debug", log::Level::Debug),
+            ("TRACE", log::Level::Trace),
+            ("warn", log::Level::Warn),
+            ("warning", log::Level::Warn),
+            ("error", log::Level::Error),
+            // Agent-only levels the `log` crate cannot express.
+            ("critical", log::Level::Error),
+            ("off", log::Level::Error),
+            // Nonsense must not break startup.
+            ("not-a-level", log::Level::Info),
+        ] {
+            std::fs::write(&path, format!("log_level: {raw}\n")).unwrap();
+            assert_eq!(log_level_from_yaml_file(&path), want, "log_level: {raw}");
+        }
+
+        // Absent key, and an unreadable file, both default to info.
+        std::fs::write(&path, "site: datadoghq.com\n").unwrap();
+        assert_eq!(log_level_from_yaml_file(&path), log::Level::Info);
+        assert_eq!(
+            log_level_from_yaml_file(&dir.path().join("missing.yaml")),
+            log::Level::Info
+        );
     }
 
     #[test]

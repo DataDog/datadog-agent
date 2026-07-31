@@ -20,6 +20,22 @@ anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
+# Shared agent logger (same one dd-procmgrd uses), so the `log` macros actually
+# emit: par-control's stdout is inherited by the process manager.
+dd-agent-log.workspace = true
+http-body-util.workspace = true
+# OPMS client: hyper + native-tls, i.e. real HTTPS on the system OpenSSL, avoiding
+# rustls/ring for cargo-deny, with OPMS trust coming from the system store.
+#
+# That is what the workspace `ureq` was originally configured for, but ureq cannot
+# express it: its native-tls support is gated on the `native-tls` feature, which
+# force-enables `native-tls-webpki-roots` (`webpki-root-certs`,
+# CDLA-Permissive-2.0, rejected by cargo-deny). Selecting only
+# `native-tls-no-default` pulls the native-tls *library* in but compiles out every
+# native-tls code path in ureq, so any https:// request panics at runtime. Cargo
+# features are additive, so the webpki roots cannot be subtracted. native-tls needs
+# no bundled roots anyway — it finds the system store via openssl-probe.
+hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["tokio"] }
 log.workspace = true
 native-tls.workspace = true
@@ -45,11 +61,6 @@ tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
 tonic-prost.workspace = true
 tower.workspace = true
-# Real HTTPS to OPMS via native-tls (system OpenSSL), avoiding rustls/ring for
-# cargo-deny. Requires OpenSSL dev libs at build time. See README.md.
-# native-tls-no-default: native-tls without the bundled webpki-root-certs
-# (CDLA-Permissive-2.0, rejected by cargo-deny); OPMS trust uses the system store.
-ureq = { workspace = true, features = ["json", "native-tls-no-default"] }
 uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]

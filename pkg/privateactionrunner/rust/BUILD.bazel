@@ -41,6 +41,8 @@ _LIB_DEPS = [
     "@crates//:anyhow",
     "@crates//:base64",
     "@crates//:chrono",
+    "@crates//:http-body-util",
+    "@crates//:hyper",
     "@crates//:hyper-util",
     "@crates//:log",
     "@crates//:native-tls",
@@ -56,7 +58,6 @@ _LIB_DEPS = [
     "@crates//:tonic",
     "@crates//:tonic-prost",
     "@crates//:tower",
-    "@crates//:ureq",
     "@crates//:uuid",
 ]
 
@@ -82,6 +83,7 @@ rust_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":par-control-lib",
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:clap",
         "@crates//:log",

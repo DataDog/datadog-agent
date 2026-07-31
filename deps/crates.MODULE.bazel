@@ -21,7 +21,8 @@ crate.annotation(
     gen_binaries = ["protoc-gen-tonic"],
 )
 
-# par-control's ureq native-tls backend pulls openssl-sys. Link it against the
+# par-control's native-tls TLS stack (OPMS client + control<->executor mTLS) pulls
+# in openssl-sys. Link it against the
 # agent's own OpenSSL (@openssl, built from source via foreign_cc) — "same as the
 # rest of the agent" — instead of the system libs or a Rust-vendored copy. The
 # openssl-sys build script is pointed at the foreign_cc install tree via OPENSSL_DIR.

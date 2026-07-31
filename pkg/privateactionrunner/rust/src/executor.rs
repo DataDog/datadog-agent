@@ -39,12 +39,15 @@ pub struct ExecutorDispatcher {
 
 impl ExecutorDispatcher {
     /// Build a client for the executor on its Unix socket (connects lazily, since
-    /// the socket only exists after the control plane starts the executor). When a
-    /// TLS connector is supplied the channel is secured with mTLS via the agent IPC
-    /// cert (slice 7); otherwise it dials a plaintext socket (e.g. for local tests).
-    pub fn new(socket: &Path, tls: Option<tokio_native_tls::TlsConnector>) -> Self {
-        let channel = match tls {
-            Some(connector) => transport::connect_lazy_tls(socket, connector),
+    /// the socket only exists after the control plane starts the executor).
+    ///
+    /// `ipc_cert_file` secures the channel with mTLS via the agent IPC cert, read
+    /// at connection time rather than here (see [`transport::connect_lazy_tls`]).
+    /// `None` dials a plaintext socket, which only a test executor accepts — the
+    /// real one requires a CA-signed client cert.
+    pub fn new(socket: &Path, ipc_cert_file: Option<&Path>) -> Self {
+        let channel = match ipc_cert_file {
+            Some(cert) => transport::connect_lazy_tls(socket, cert),
             None => transport::connect_lazy(socket),
         };
         ExecutorDispatcher {

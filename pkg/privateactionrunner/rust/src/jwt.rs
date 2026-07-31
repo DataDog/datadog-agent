@@ -96,17 +96,24 @@ impl JwtSigner for Es256Signer {
     }
 }
 
+/// Deterministic signer for tests in this and other modules (`opms.rs`), so they
+/// need no real key material.
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_support {
     use super::*;
 
-    /// Deterministic fake for orchestration/OPMS tests.
     pub struct StaticSigner(pub String);
     impl JwtSigner for StaticSigner {
         fn sign(&self) -> Result<String> {
             Ok(self.0.clone())
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_support::StaticSigner;
 
     #[test]
     fn static_signer_returns_token() {

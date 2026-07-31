@@ -17,7 +17,7 @@ use crate::config::Config;
 use crate::executor::Dispatcher;
 use crate::opms::{Opms, Outcome, Task};
 use crate::procmgr::ExecutorLifecycle;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -103,6 +103,23 @@ where
         let mut attempt: u32 = 1;
         tokio::pin!(shutdown);
 
+        // Sleep, but wake immediately on shutdown. Without this a stop is delayed
+        // by however long the current backoff has to run — up to `wait_before_retry`
+        // (5 minutes by default), which is far past the process manager's stop
+        // timeout, so the control plane would be SIGKILLed instead of stopping
+        // cleanly. Every wait in this loop must go through here.
+        macro_rules! sleep_or_shutdown {
+            ($duration:expr) => {
+                tokio::select! {
+                    _ = &mut shutdown => {
+                        info!("shutdown requested while waiting; stopping orchestration loop");
+                        break;
+                    }
+                    _ = tokio::time::sleep($duration) => {}
+                }
+            };
+        }
+
         loop {
             // Acquire a pool slot *before* dequeuing so we never hold OPMS leases
             // for work we cannot run. When the pool is full this future is
@@ -126,10 +143,15 @@ where
                         self.maybe_stop_idle_executor(&mut idle_since).await;
                         // Honor a server-requested poll delay, else the idle interval.
                         let delay = dequeued.retry_after.unwrap_or(self.params.loop_interval);
-                        tokio::time::sleep(delay).await;
+                        debug!("no task available; next poll in {delay:?}");
+                        sleep_or_shutdown!(delay);
                         continue;
                     };
                     idle_since = Instant::now();
+                    info!(
+                        "dequeued task {} ({}) for job {}",
+                        task.task_id, task.action_fqn, task.job_id
+                    );
                     if let Err(e) = self.ensure_ready().await {
                         error!("executor did not become ready: {e:#}");
                         let outcome = dispatch_failure(&format!("executor unavailable: {e}"));
@@ -154,7 +176,22 @@ where
                             spawn_heartbeats(Arc::clone(&opms), task.clone(), heartbeat_interval);
 
                         let outcome = match dispatcher.run_action(task.raw.clone()).await {
-                            Ok(o) => o,
+                            Ok(o) => {
+                                match &o {
+                                    Outcome::Success { .. } => {
+                                        info!("task {} succeeded", task.task_id)
+                                    }
+                                    Outcome::Failure {
+                                        error_code,
+                                        message,
+                                        ..
+                                    } => info!(
+                                        "task {} failed with code {error_code}: {message}",
+                                        task.task_id
+                                    ),
+                                }
+                                o
+                            }
                             Err(e) => {
                                 warn!("run_action failed for task {}: {e:#}", task.task_id);
                                 // Slice 6: a broken stream plus an exited process is a
@@ -190,7 +227,7 @@ where
                             "dequeue circuit breaker tripped after {} attempts; waiting {:?}",
                             attempt, self.params.wait_before_retry
                         );
-                        tokio::time::sleep(self.params.wait_before_retry).await;
+                        sleep_or_shutdown!(self.params.wait_before_retry);
                         attempt = 1;
                     } else {
                         let delay = backoff_delay(
@@ -198,7 +235,7 @@ where
                             self.params.min_backoff,
                             self.params.max_backoff,
                         );
-                        tokio::time::sleep(delay).await;
+                        sleep_or_shutdown!(delay);
                         attempt += 1;
                     }
                 }
@@ -211,10 +248,16 @@ where
         self.lifecycle.ensure_started().await?;
         let deadline = Instant::now() + self.params.ready_timeout;
         loop {
-            if let Ok(health) = self.dispatcher.health().await
-                && health.ready
-            {
-                return Ok(());
+            match self.dispatcher.health().await {
+                Ok(health) if health.ready => return Ok(()),
+                Ok(health) => debug!(
+                    "executor is up but not ready yet ({} active actions)",
+                    health.active_actions
+                ),
+                // Expected while the executor is still binding its socket, so
+                // this is only interesting at debug level until the deadline
+                // turns it into a hard error below.
+                Err(e) => debug!("executor health check failed: {e:#}"),
             }
             if Instant::now() >= deadline {
                 anyhow::bail!("executor not ready within {:?}", self.params.ready_timeout);
@@ -324,6 +367,8 @@ mod tests {
         release: tokio::sync::Semaphore,
         // run_action returns an error (broken stream).
         fail_run: bool,
+        // dequeue always errors, driving the loop into backoff.
+        fail_dequeue: bool,
         // Describe reports the process has exited (crash).
         exited: bool,
     }
@@ -335,6 +380,7 @@ mod tests {
                 tasks_to_serve: 0,
                 release: tokio::sync::Semaphore::new(0),
                 fail_run: false,
+                fail_dequeue: false,
                 exited: false,
             }
         }
@@ -343,6 +389,10 @@ mod tests {
     impl Opms for Fakes {
         async fn dequeue(&self) -> anyhow::Result<Dequeued> {
             let mut s = self.state.lock().unwrap();
+            if self.fail_dequeue {
+                s.dequeued += 1;
+                anyhow::bail!("simulated OPMS outage");
+            }
             if s.dequeued >= self.tasks_to_serve {
                 return Ok(Dequeued::default());
             }
@@ -529,6 +579,60 @@ mod tests {
 
         let _ = tx.send(());
         let _ = handle.await;
+    }
+
+    /// A stop must not wait out the current backoff. OPMS being unreachable puts
+    /// the loop into a `wait_before_retry` sleep (5 minutes in production), and a
+    /// sleep that ignores the shutdown signal means the process manager's stop
+    /// timeout expires and SIGKILLs the control plane — potentially mid-action.
+    /// Real (unpaused) time on purpose: with paused time a sleep that ignores
+    /// shutdown would still complete instantly and the bug would pass unnoticed.
+    #[tokio::test]
+    async fn shutdown_is_not_delayed_by_dequeue_backoff() {
+        let fakes = Arc::new(Fakes {
+            fail_dequeue: true,
+            ..Default::default()
+        });
+
+        // One failure is enough to trip the circuit breaker into the long wait.
+        let mut params = test_params(1, Duration::from_secs(3600));
+        params.max_attempts = 1;
+        params.min_backoff = Duration::from_secs(60);
+        params.max_backoff = Duration::from_secs(60);
+        params.wait_before_retry = Duration::from_secs(60);
+
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            params,
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        // Wait until the loop has failed a dequeue and is therefore sleeping.
+        for _ in 0..100 {
+            if fakes.state.lock().unwrap().dequeued > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            fakes.state.lock().unwrap().dequeued > 0,
+            "the loop never attempted a dequeue"
+        );
+
+        let _ = tx.send(());
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("run() must return promptly on shutdown, not after the backoff")
+            .expect("orchestrator task panicked");
     }
 
     #[tokio::test]

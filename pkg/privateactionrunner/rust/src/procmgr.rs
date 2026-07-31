@@ -48,7 +48,12 @@ impl ProcmgrLifecycle {
                 name_or_uuid: self.process_name.clone(),
             })
             .await
-            .context("process-manager Describe failed")?
+            .with_context(|| {
+                format!(
+                    "process-manager Describe failed for process {:?}",
+                    self.process_name
+                )
+            })?
             .into_inner();
         Ok(resp.detail.map(|d| d.state))
     }
@@ -59,13 +64,22 @@ impl ExecutorLifecycle for ProcmgrLifecycle {
         if self.is_running().await? {
             return Ok(());
         }
+        log::info!(
+            "starting the on-demand executor {:?} via the process manager",
+            self.process_name
+        );
         let mut client = self.client.clone();
         client
             .start(procmgr::StartRequest {
                 name_or_uuid: self.process_name.clone(),
             })
             .await
-            .context("process-manager Start failed")?;
+            .with_context(|| {
+                format!(
+                    "process-manager Start failed for process {:?}",
+                    self.process_name
+                )
+            })?;
         Ok(())
     }
 

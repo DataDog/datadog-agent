@@ -9,7 +9,6 @@
 //! the PRD's out-of-scope note on Windows transport details).
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 /// Placeholder URI for the tonic Endpoint when connecting over UDS. The actual
 /// address is irrelevant because `connect_with_connector` bypasses it.
@@ -29,19 +28,27 @@ pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
     )
 }
 
-/// Like [`connect_lazy`] but wraps the Unix-socket stream in mTLS using the given
-/// connector (the control<->executor channel, secured with the agent IPC cert).
-pub fn connect_lazy_tls(
-    path: &Path,
-    connector: tokio_native_tls::TlsConnector,
-) -> tonic::transport::Channel {
+/// Like [`connect_lazy`] but wraps the Unix-socket stream in mTLS using the agent
+/// IPC cert at `ipc_cert_file` (the control<->executor channel).
+///
+/// The connector is rebuilt from the file on each connection rather than once at
+/// startup. par-control is `auto_start: true` under the process manager, so it can
+/// come up before anything has generated the IPC cert — possibly before the very
+/// executor it is about to launch, which creates the cert when missing. A
+/// connector built once at startup would turn that ordering into a permanent
+/// failure instead of a transient one, and would also miss a rotated cert.
+/// Connections happen at most per dispatch and parsing a small PEM is cheap, so
+/// caching buys nothing.
+pub fn connect_lazy_tls(path: &Path, ipc_cert_file: &Path) -> tonic::transport::Channel {
     let path: PathBuf = path.to_path_buf();
-    let connector = Arc::new(connector);
+    let ipc_cert_file: PathBuf = ipc_cert_file.to_path_buf();
     tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT).connect_with_connector_lazy(
         tower::service_fn(move |_| {
             let p = path.clone();
-            let connector = Arc::clone(&connector);
+            let cert = ipc_cert_file.clone();
             async move {
+                let connector = crate::tls::build_ipc_client_connector(&cert)
+                    .map_err(std::io::Error::other)?;
                 let stream = connect_stream(p).await?;
                 // Domain is ignored: hostname verification is disabled for the
                 // local socket (see tls::build_ipc_client_connector).

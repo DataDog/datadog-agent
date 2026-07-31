@@ -89,38 +89,30 @@ fn extract_block(text: &str, label: &str) -> Option<String> {
     Some(text[start..stop].to_string())
 }
 
+/// Cert fixtures shared by this module's tests and `opms.rs`'s TLS round-trip
+/// test (which needs a server identity to prove HTTPS works at all).
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_support {
     use super::*;
 
-    #[test]
-    fn splits_combined_pem() {
-        let pem = b"prefix\n-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\nmiddle\n-----BEGIN EC PRIVATE KEY-----\nBBBB\n-----END EC PRIVATE KEY-----\ntrailing\n";
-        let (cert, key) = split_cert_and_key(pem).unwrap();
-        assert!(String::from_utf8(cert)
-            .unwrap()
-            .starts_with("-----BEGIN CERTIFICATE-----"));
-        let key = String::from_utf8(key).unwrap();
-        assert!(key.starts_with("-----BEGIN EC PRIVATE KEY-----"));
-        assert!(key.ends_with("-----END EC PRIVATE KEY-----"));
+    /// Re-encode a key PEM as PKCS8, for callers that need to hand a key to
+    /// `native_tls::Identity::from_pkcs8`.
+    pub fn to_pkcs8(key_pem: &[u8]) -> Vec<u8> {
+        to_pkcs8_pem(key_pem).expect("re-encoding the fixture key as PKCS8")
     }
 
-    #[test]
-    fn errors_without_cert() {
-        let pem = b"-----BEGIN EC PRIVATE KEY-----\nBBBB\n-----END EC PRIVATE KEY-----\n";
-        assert!(split_cert_and_key(pem).is_err());
-    }
-
-    /// Generates a self-signed P-256 IPC-style cert (SEC1 key, matching
-    /// `pkg/api/security/cert/cert_generator.go`) for the de-risking test below.
-    fn generate_ipc_style_cert() -> (Vec<u8>, Vec<u8>) {
+    /// Generate a self-signed P-256 cert with a SEC1 key, matching the shape of
+    /// the agent IPC cert written by `pkg/api/security/cert/cert_generator.go`.
+    pub fn generate_self_signed_cert() -> (Vec<u8>, Vec<u8>) {
         use openssl::asn1::Asn1Time;
         use openssl::bn::{BigNum, MsbOption};
         use openssl::ec::{EcGroup, EcKey};
         use openssl::hash::MessageDigest;
         use openssl::nid::Nid;
-        use openssl::x509::extension::{BasicConstraints, ExtendedKeyUsage, KeyUsage};
-        use openssl::x509::{X509NameBuilder, X509};
+        use openssl::x509::extension::{
+            BasicConstraints, ExtendedKeyUsage, KeyUsage, SubjectAlternativeName,
+        };
+        use openssl::x509::{X509, X509NameBuilder};
 
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let ec_key = EcKey::generate(&group).unwrap();
@@ -170,6 +162,16 @@ mod tests {
                     .unwrap(),
             )
             .unwrap();
+        // Needed when the fixture is used as a *server* cert.
+        builder
+            .append_extension(
+                SubjectAlternativeName::new()
+                    .ip("127.0.0.1")
+                    .dns("localhost")
+                    .build(&builder.x509v3_context(None, None))
+                    .unwrap(),
+            )
+            .unwrap();
         builder.sign(&pkey, MessageDigest::sha256()).unwrap();
         let cert = builder.build();
 
@@ -177,6 +179,29 @@ mod tests {
         // SEC1, not PKCS8 - matches x509.MarshalECPrivateKey on the Go side.
         let key_pem = ec_key.private_key_to_pem().unwrap();
         (cert_pem, key_pem)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn splits_combined_pem() {
+        let pem = b"prefix\n-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\nmiddle\n-----BEGIN EC PRIVATE KEY-----\nBBBB\n-----END EC PRIVATE KEY-----\ntrailing\n";
+        let (cert, key) = split_cert_and_key(pem).unwrap();
+        assert!(String::from_utf8(cert)
+            .unwrap()
+            .starts_with("-----BEGIN CERTIFICATE-----"));
+        let key = String::from_utf8(key).unwrap();
+        assert!(key.starts_with("-----BEGIN EC PRIVATE KEY-----"));
+        assert!(key.ends_with("-----END EC PRIVATE KEY-----"));
+    }
+
+    #[test]
+    fn errors_without_cert() {
+        let pem = b"-----BEGIN EC PRIVATE KEY-----\nBBBB\n-----END EC PRIVATE KEY-----\n";
+        assert!(split_cert_and_key(pem).is_err());
     }
 
     /// De-risks the SEC1 (`EC PRIVATE KEY`) IPC key format: builds a real
@@ -187,7 +212,7 @@ mod tests {
     /// for the PKCS8 PEM header before parsing.
     #[test]
     fn builds_connector_from_sec1_ipc_cert() {
-        let (cert_pem, key_pem) = generate_ipc_style_cert();
+        let (cert_pem, key_pem) = test_support::generate_self_signed_cert();
         assert!(
             String::from_utf8_lossy(&key_pem).starts_with("-----BEGIN EC PRIVATE KEY-----"),
             "fixture key is not SEC1-encoded, test would not exercise the SEC1 path"
