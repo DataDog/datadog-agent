@@ -48,7 +48,7 @@ pub struct Params {
 impl Params {
     pub fn from_config(config: &Config) -> Self {
         Params {
-            pool_size: config.runner_pool_size,
+            pool_size: config.task_concurrency,
             loop_interval: config.loop_interval,
             ready_timeout: config.ready_timeout,
             idle_timeout: config.idle_timeout,

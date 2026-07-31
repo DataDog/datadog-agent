@@ -16,19 +16,33 @@ use std::time::Duration;
 /// `executor.DefaultSocketPath`; the procmgr socket matches dd-procmgrd.
 pub const DEFAULT_EXECUTOR_SOCKET: &str = "/opt/datadog-agent/run/par-executor.sock";
 pub const DEFAULT_PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
-/// Process-definition name the executor is registered under with the manager.
-pub const DEFAULT_EXECUTOR_PROCESS_NAME: &str = "par-executor";
+/// Process-definition name the executor is registered under with the process
+/// manager. MUST match the `name` of the procmgr process definition installed by
+/// `pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl`
+/// (see the generated files under `.../tmpl/gen/`), otherwise every
+/// Start/Describe/Stop RPC fails with an unknown-process error.
+pub const DEFAULT_EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 
 /// PAR flavor string sent to OPMS (matches `flavor.PrivateActionRunner` on the Go side).
 pub const FLAVOR: &str = "private_action_runner";
 
-/// Runner version reported to OPMS. Set at build time; falls back to the crate version.
-pub const RUNNER_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Runner version reported to OPMS in the `X-Datadog-OnPrem-Version` header.
+///
+/// Must be the *agent* version (Go reports `version.AgentVersion`), not the
+/// crate version — OPMS uses this to reason about runner capabilities. Bazel
+/// injects `DD_AGENT_VERSION` via `rustc_env` in BUILD.bazel, computed by the
+/// crate-local `version.bzl`. Under a plain `cargo` build (no Bazel) the var is
+/// absent and we fall back to the crate version.
+pub const RUNNER_VERSION: &str = match option_env!("DD_AGENT_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
 
 #[derive(Clone)]
 pub struct Config {
     pub opms_base_url: String,
-    pub runner_pool_size: usize,
+    /// Action worker-pool size, from `private_action_runner.task_concurrency`.
+    pub task_concurrency: usize,
     pub executor_socket: PathBuf,
     pub procmgr_socket: PathBuf,
     pub executor_process_name: String,
@@ -65,8 +79,13 @@ struct RawConfig {
 struct RawPar {
     urn: Option<String>,
     private_key: Option<String>,
-    runner_pool_size: Option<usize>,
-    executor_socket_path: Option<String>,
+    /// Size of the action worker pool. Same key and default (5) as the Go
+    /// runner's `private_action_runner.task_concurrency`, so both deployment
+    /// modes honour one operator-facing setting.
+    task_concurrency: Option<usize>,
+    /// Nested `private_action_runner.executor.*` block, matching the Go config
+    /// key `private_action_runner.executor.socket_path`.
+    executor: Option<RawParExecutor>,
     procmgr_socket_path: Option<String>,
     executor_process_name: Option<String>,
     identity_file_path: Option<String>,
@@ -74,6 +93,12 @@ struct RawPar {
     heartbeat_interval_seconds: Option<u64>,
     #[serde(default)]
     modes: Vec<String>,
+}
+
+/// The `private_action_runner.executor.*` sub-section.
+#[derive(serde::Deserialize, Default, Clone)]
+struct RawParExecutor {
+    socket_path: Option<String>,
 }
 
 impl Config {
@@ -120,9 +145,13 @@ impl Config {
 
         Ok(Config {
             opms_base_url,
-            runner_pool_size: par.runner_pool_size.filter(|n| *n > 0).unwrap_or(10),
+            // Default 5 matches the Go `private_action_runner.task_concurrency`
+            // default in pkg/config/setup/privateactionrunner_settings.go.
+            task_concurrency: par.task_concurrency.filter(|n| *n > 0).unwrap_or(5),
             executor_socket: PathBuf::from(
-                par.executor_socket_path
+                par.executor
+                    .and_then(|e| e.socket_path)
+                    .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| DEFAULT_EXECUTOR_SOCKET.to_string()),
             ),
             procmgr_socket: PathBuf::from(
@@ -213,10 +242,71 @@ private_action_runner:
     fn loads_minimal_config() {
         let cfg = Config::from_yaml_str(MIN_YAML).unwrap();
         assert_eq!(cfg.opms_base_url, "https://api.datadoghq.com");
-        assert_eq!(cfg.runner_pool_size, 10);
+        // Same default as Go's private_action_runner.task_concurrency.
+        assert_eq!(cfg.task_concurrency, 5);
         assert_eq!(cfg.identity.org_id, 42);
         assert_eq!(cfg.identity.runner_id, "runner-1");
-        assert_eq!(cfg.executor_process_name, "par-executor");
+        // Must match the procmgr process-definition name installed by the
+        // installer, else Start/Describe/Stop fail against dd-procmgrd.
+        assert_eq!(
+            cfg.executor_process_name,
+            "datadog-agent-action-executor"
+        );
+        assert_eq!(cfg.executor_socket, PathBuf::from(DEFAULT_EXECUTOR_SOCKET));
+    }
+
+    /// The executor socket lives under the *nested* `executor:` block, matching the
+    /// Go config key `private_action_runner.executor.socket_path`. A flat
+    /// `executor_socket_path` key must be ignored, so par-control and the Go
+    /// executor can never disagree about which socket to use.
+    #[test]
+    fn reads_nested_executor_socket_path() {
+        let yaml =
+            format!("{MIN_YAML}  executor:\n    socket_path: /tmp/custom-executor.sock\n");
+        let cfg = Config::from_yaml_str(&yaml).unwrap();
+        assert_eq!(
+            cfg.executor_socket,
+            PathBuf::from("/tmp/custom-executor.sock")
+        );
+    }
+
+    /// OPMS keys runner capabilities off `X-Datadog-OnPrem-Version`, so par-control
+    /// must report the agent version that Bazel injects, never the crate version.
+    /// Under Bazel `DD_AGENT_VERSION` is always set (see BUILD.bazel).
+    #[test]
+    #[cfg(bazel)]
+    fn runner_version_is_the_injected_agent_version() {
+        let injected = option_env!("DD_AGENT_VERSION")
+            .expect("Bazel must inject DD_AGENT_VERSION via rustc_env");
+        assert_eq!(RUNNER_VERSION, injected);
+        assert_ne!(
+            RUNNER_VERSION,
+            env!("CARGO_PKG_VERSION"),
+            "reported version must be the agent version, not the crate version"
+        );
+
+        // Guard against version.bzl silently yielding an empty or malformed string:
+        // `assert_ne!` against the crate version alone would happily accept "".
+        // Expect a leading agent major version, e.g. "7.83.0-localbuild" or
+        // "7.83.0-devel+git.635.e3326d4".
+        let (major, rest) = RUNNER_VERSION
+            .split_once('.')
+            .unwrap_or_else(|| panic!("malformed agent version {RUNNER_VERSION:?}"));
+        assert!(
+            !major.is_empty() && major.chars().all(|c| c.is_ascii_digit()),
+            "agent version {RUNNER_VERSION:?} must start with a numeric major version"
+        );
+        assert!(
+            rest.contains('.'),
+            "agent version {RUNNER_VERSION:?} must have major.minor.patch"
+        );
+    }
+
+    #[test]
+    fn ignores_flat_executor_socket_path_key() {
+        let yaml = format!("{MIN_YAML}  executor_socket_path: /tmp/wrong.sock\n");
+        let cfg = Config::from_yaml_str(&yaml).unwrap();
+        assert_eq!(cfg.executor_socket, PathBuf::from(DEFAULT_EXECUTOR_SOCKET));
     }
 
     #[test]
@@ -262,10 +352,10 @@ private_action_runner:
     #[test]
     fn overrides_pool_size_and_intervals() {
         let yaml = format!(
-            "{MIN_YAML}  runner_pool_size: 3\n  idle_timeout_seconds: 120\n  heartbeat_interval_seconds: 5\n"
+            "{MIN_YAML}  task_concurrency: 3\n  idle_timeout_seconds: 120\n  heartbeat_interval_seconds: 5\n"
         );
         let cfg = Config::from_yaml_str(&yaml).unwrap();
-        assert_eq!(cfg.runner_pool_size, 3);
+        assert_eq!(cfg.task_concurrency, 3);
         assert_eq!(cfg.idle_timeout, Duration::from_secs(120));
         assert_eq!(cfg.heartbeat_interval, Duration::from_secs(5));
     }

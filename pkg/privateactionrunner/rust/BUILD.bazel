@@ -3,6 +3,12 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load(":version.bzl", "par_control_agent_version")
+
+# par-control reports this to OPMS in the X-Datadog-OnPrem-Version header, so it
+# must be the agent version rather than the crate version. Crate-local for now;
+# see version.bzl for why it is not yet shared with the Go binaries' x_defs.
+_RUSTC_ENV = {"DD_AGENT_VERSION": par_control_agent_version()}
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -59,6 +65,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
+    rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -85,6 +92,7 @@ rust_test(
     name = "par-control_test",
     crate = ":par-control-lib",
     edition = "2024",
+    rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
