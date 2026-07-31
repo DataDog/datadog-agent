@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
-	github.com/DataDog/datadog-agent/pkg/fips v0.0.0
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
