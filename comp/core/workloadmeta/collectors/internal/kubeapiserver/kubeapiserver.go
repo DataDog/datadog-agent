@@ -152,7 +152,7 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 			continue
 		}
 
-		if strings.HasSuffix(resource, "nodes") {
+		if group, _, resourceName := parseRequestedResource(resource); group == "" && resourceName == "nodes" {
 			log.Debugf("skipping nodes from metadata collection because a separate node store is initialised in workload metadata store.")
 			continue
 		}
