@@ -112,10 +112,12 @@ func testEmitAgentTelemetry(t *testing.T) {
 	}
 	wg.Wait()
 
-	// A declared metric rejects a later type change: the first registration wins.
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("counter"), nil)
-
-	assert.True(t, true)
+	assert.Nil(t, lazyInitTelemetryCounter("test_check", "test_metric", nil))
+	require.NotNil(t, lazyInitTelemetryCounter("test_check", "test_type_conflict_counter", nil))
+	assert.Nil(t, lazyInitTelemetryHistogram("test_check", "test_type_conflict_counter", nil))
+	assert.Nil(t, lazyInitTelemetryGauge("test_check", "test_type_conflict_counter", nil))
+	require.NotNil(t, lazyInitTelemetryHistogram("test_check", "test_histogram_reuse", nil))
+	require.NotNil(t, lazyInitTelemetryHistogram("test_check", "test_histogram_reuse", nil))
 }
 
 func testEmitAgentTelemetryLabels(t *testing.T) {

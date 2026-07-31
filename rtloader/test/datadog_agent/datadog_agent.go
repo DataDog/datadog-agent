@@ -74,10 +74,8 @@ static inline void call_free(void* ptr) {
 import "C"
 
 var (
-	rtloader *C.rtloader_t
-	tmpfile  *os.File
-	// emitAgentTelemetryLabels records the labels JSON seen by each emitAgentTelemetry call,
-	// with "" standing for a NULL labels_json (no labels).
+	rtloader                 *C.rtloader_t
+	tmpfile                  *os.File
 	emitAgentTelemetryLabels []string
 )
 
