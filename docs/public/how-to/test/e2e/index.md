@@ -1,6 +1,6 @@
 # End-to-end tests
 
-End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the <<<repo("test/e2e-framework", "test-infra-definitions")>>> framework to provision and manage test environments. Tests are stored in the <<<repo("test/new-e2e", "test/new-e2e")>>> folder.
+End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the <<<repo("test/e2e-framework", "E2E framework")>>> in `test/e2e-framework` (formerly the separate `test-infra-definitions` repository) to provision and manage test environments. Tests are stored in the <<<repo("test/new-e2e", "test/new-e2e")>>> folder.
 
 ## In this section
 
@@ -55,4 +55,4 @@ The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, sin
 - [Manual QA](../manual-qa/index.md) - Provisioning the same infrastructure for manual inspection
 - [Using Developer Environments](../../../tutorials/dev/env.md) - Setting up development environments
 - <<<repo("test/new-e2e/codereview_guideline.md", "E2E test writing guidelines")>>> - The rules a new test is reviewed against
-- <<<repo("test/e2e-framework", "test-infra-definitions")>>> - Infrastructure provisioning framework
+- <<<repo("test/e2e-framework", "test/e2e-framework")>>> - Infrastructure provisioning framework
