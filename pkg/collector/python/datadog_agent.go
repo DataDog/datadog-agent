@@ -91,10 +91,6 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 			telemetry.DefaultOptions,
 		)
 		entry.update = func(value float64, labels map[string]string) {
-			if len(labels) == 0 {
-				counter.Add(value)
-				return
-			}
 			counter.AddWithTags(value, labels)
 		}
 	case "histogram":
@@ -107,10 +103,6 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 			telemetry.DefaultOptions,
 		)
 		entry.update = func(value float64, labels map[string]string) {
-			if len(labels) == 0 {
-				histogram.Observe(value)
-				return
-			}
 			histogram.WithTags(labels).Observe(value)
 		}
 	case "gauge":
@@ -122,10 +114,6 @@ func lazyInitTelemetryMetric(checkName string, metricName string, metricType str
 			telemetry.DefaultOptions,
 		)
 		entry.update = func(value float64, labels map[string]string) {
-			if len(labels) == 0 {
-				gauge.Set(value)
-				return
-			}
 			gauge.WithTags(labels).Set(value)
 		}
 	default:
