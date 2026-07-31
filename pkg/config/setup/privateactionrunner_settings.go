@@ -34,6 +34,24 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"other":   "${run_path}/par-executor.sock",
 	}))
 
+	// Split deployment model. When enabled, the always-on Rust control plane
+	// (par-control) owns OPMS polling and starts this binary on demand as
+	// `privateactionrunner run-executor` through dd-procmgrd, so the monolithic
+	// `privateactionrunner run` stands down and only one process talks to OPMS.
+	config.BindEnvAndSetDefault("private_action_runner.split_enabled", false)
+
+	// Control-plane knobs, read by par-control. par-control parses datadog.yaml
+	// directly and therefore does *not* honor the DD_ env vars bound here; the
+	// keys are registered so they are schema-documented and validated, and so
+	// their defaults live next to the rest of the runner's settings.
+	config.BindEnvAndSetDefault("private_action_runner.procmgr_socket_path", getPlatformDefault(map[string]interface{}{
+		"windows": `\\.\pipe\datadog-procmgrd`,
+		"other":   "/var/run/datadog-procmgrd/dd-procmgrd.sock",
+	}))
+	config.BindEnvAndSetDefault("private_action_runner.executor_process_name", "datadog-agent-action-executor")
+	config.BindEnvAndSetDefault("private_action_runner.idle_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("private_action_runner.heartbeat_interval_seconds", 20)
+
 	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
 	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.http_allowlist")

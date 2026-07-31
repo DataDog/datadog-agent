@@ -13,9 +13,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Default local sockets. The executor socket must match the Go executor's
-/// `executor.DefaultSocketPath`; the procmgr socket matches dd-procmgrd.
+/// `private_action_runner.executor.socket_path` platform default; the procmgr
+/// socket must match dd-procmgrd's own default (`pkg/procmgr/rust/src/transport/`).
+/// Both are per-platform: a Unix socket path on Unix, a named pipe on Windows.
+#[cfg(not(windows))]
 pub const DEFAULT_EXECUTOR_SOCKET: &str = "/opt/datadog-agent/run/par-executor.sock";
+#[cfg(windows)]
+pub const DEFAULT_EXECUTOR_SOCKET: &str = r"\\.\pipe\dd-par-executor";
+#[cfg(not(windows))]
 pub const DEFAULT_PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
+#[cfg(windows)]
+pub const DEFAULT_PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
 /// Process-definition name the executor is registered under with the process
 /// manager. MUST match the `name` of the procmgr process definition installed by
 /// `pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl`
@@ -77,6 +85,13 @@ struct RawConfig {
 
 #[derive(serde::Deserialize, Default, Clone)]
 struct RawPar {
+    /// `private_action_runner.enabled`.
+    enabled: Option<bool>,
+    /// `private_action_runner.split_enabled`: run the split control plane +
+    /// on-demand executor instead of the monolithic Go runner.
+    split_enabled: Option<bool>,
+    /// `private_action_runner.self_enroll` (default true on the Go side).
+    self_enroll: Option<bool>,
     urn: Option<String>,
     private_key: Option<String>,
     /// Size of the action worker pool. Same key and default (5) as the Go
@@ -178,6 +193,43 @@ impl Config {
                 .filter(|s| !s.is_empty())
                 .map(PathBuf::from),
             identity,
+        })
+    }
+}
+
+/// The launch-time gate, resolved from `datadog.yaml` *before* a runner identity
+/// is required.
+///
+/// The launch path is unconditional: the procmgr definition that starts
+/// par-control is installed on every host that ships the binary, and the Go
+/// monolith's own unit is always installed too. Both dequeue from OPMS, so
+/// exactly one may run — they consult the same two config keys and the loser
+/// exits cleanly (see `isSplitEnabled` in
+/// `comp/privateactionrunner/impl/privateactionrunner.go`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LaunchGate {
+    /// `private_action_runner.enabled` && `private_action_runner.split_enabled`.
+    /// Both default to false, so a host that has never opted in never starts the
+    /// control plane.
+    pub split_mode: bool,
+    /// `private_action_runner.self_enroll` (default true, matching Go): may
+    /// par-control run the Go one-shot enroll when no identity is persisted yet?
+    pub self_enroll: bool,
+}
+
+impl LaunchGate {
+    pub fn from_yaml_file(path: &Path) -> Result<Self> {
+        let contents = std::fs::read_to_string(path)
+            .with_context(|| format!("failed to read config file: {}", path.display()))?;
+        Self::from_yaml_str(&contents)
+    }
+
+    pub fn from_yaml_str(yaml: &str) -> Result<Self> {
+        let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
+        let par = raw.private_action_runner.unwrap_or_default();
+        Ok(Self {
+            split_mode: par.enabled.unwrap_or(false) && par.split_enabled.unwrap_or(false),
+            self_enroll: par.self_enroll.unwrap_or(true),
         })
     }
 }
@@ -347,6 +399,47 @@ private_action_runner:
         let cfg_path = dir.path().join("datadog.yaml");
         std::fs::write(&cfg_path, "site: datadoghq.com\n").unwrap();
         assert!(Config::try_from_yaml_file(&cfg_path).unwrap().is_none());
+    }
+
+    /// Split mode requires *both* switches. `enabled` alone is the monolithic
+    /// runner's own switch, so honoring it by itself would make par-control and
+    /// the Go runner dequeue the same OPMS tasks on every existing PAR host.
+    #[test]
+    fn split_mode_requires_enabled_and_split_enabled() {
+        let cases = [
+            ("", false),
+            ("private_action_runner:\n  enabled: true\n", false),
+            ("private_action_runner:\n  split_enabled: true\n", false),
+            (
+                "private_action_runner:\n  enabled: true\n  split_enabled: true\n",
+                true,
+            ),
+            (
+                "private_action_runner:\n  enabled: false\n  split_enabled: true\n",
+                false,
+            ),
+        ];
+        for (yaml, want) in cases {
+            let gate = LaunchGate::from_yaml_str(yaml).unwrap();
+            assert_eq!(gate.split_mode, want, "yaml: {yaml:?}");
+        }
+    }
+
+    /// The gate must resolve without an identity: it is read before bootstrap so
+    /// a not-yet-enrolled host can still decide whether to enroll at all.
+    #[test]
+    fn gate_resolves_without_identity() {
+        let gate = LaunchGate::from_yaml_str("site: datadoghq.com\n").unwrap();
+        assert!(!gate.split_mode);
+        // Same default as Go's private_action_runner.self_enroll.
+        assert!(gate.self_enroll);
+    }
+
+    #[test]
+    fn gate_honors_explicit_self_enroll_false() {
+        let gate =
+            LaunchGate::from_yaml_str("private_action_runner:\n  self_enroll: false\n").unwrap();
+        assert!(!gate.self_enroll);
     }
 
     #[test]

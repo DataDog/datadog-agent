@@ -16,17 +16,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWritePARExecutorProcmgrConfig(t *testing.T) {
+func TestWritePARProcmgrConfigs(t *testing.T) {
 	installRoot := t.TempDir()
-	configPath := filepath.Join(installRoot, "processes.d", parExecutorProcmgrConfigName)
+	require.NoError(t, writePARProcmgrConfigs(installRoot))
 
-	require.NoError(t, writePARExecutorProcmgrConfig(installRoot))
-	content, err := os.ReadFile(configPath)
+	executor := readProcmgrConfig(t, installRoot, parExecutorProcmgrConfigName)
+	assert.Contains(t, executor, "${DD_CONF_DIR}/datadog.yaml")
+	assert.Contains(t, executor, filepath.Join(installRoot, "embedded", "bin", "privateactionrunner"))
+	// The executor is only ever started by par-control, and a crashed executor
+	// must not be resurrected behind the control plane's back.
+	assert.Contains(t, executor, "auto_start: false")
+	assert.Contains(t, executor, "restart: never")
+	assert.NotContains(t, executor, "/opt/datadog-agent/")
+
+	control := readProcmgrConfig(t, installRoot, parControlProcmgrConfigName)
+	assert.Contains(t, control, "${DD_CONF_DIR}/datadog.yaml")
+	assert.Contains(t, control, filepath.Join(installRoot, "embedded", "bin", "par-control"))
+	// The control plane is the always-on half of the split deployment: procmgr
+	// starts it with the Agent and restarts it if it crashes. It exits 0 when
+	// private_action_runner.split_enabled is unset, which on-failure ignores.
+	assert.Contains(t, control, "auto_start: true")
+	assert.Contains(t, control, "restart: on-failure")
+	// Identity bootstrap delegates to the Go one-shot enroll; without it a
+	// never-enrolled host in split mode could never obtain an identity, since
+	// the monolithic runner that normally self-enrolls is standing down.
+	assert.Contains(t, control, "--enroll-command")
+	assert.Contains(t, control, "rotate-identity")
+	assert.NotContains(t, control, "/opt/datadog-agent/")
+}
+
+func readProcmgrConfig(t *testing.T, installRoot, name string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(installRoot, "processes.d", name))
 	require.NoError(t, err)
-
-	assert.Contains(t, string(content), "${DD_CONF_DIR}/datadog.yaml")
-	assert.Contains(t, string(content), filepath.Join(installRoot, "embedded", "bin", "privateactionrunner"))
-	assert.Contains(t, string(content), "auto_start: false")
-	assert.Contains(t, string(content), "restart: never")
-	assert.NotContains(t, string(content), "/opt/datadog-agent/")
+	return string(content)
 }

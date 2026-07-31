@@ -58,6 +58,14 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
+// isSplitEnabled reports whether the split deployment model is active, i.e. the
+// par-control control plane polls OPMS and drives this binary as an on-demand
+// executor. Only the monolithic runner consults this: the executor itself is
+// started by par-control and must run regardless.
+func isSplitEnabled(cfg config.Component) bool {
+	return cfg.GetBool(privateactionrunner.PARSplitEnabled)
+}
+
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
@@ -113,6 +121,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
+	}
+	if isSplitEnabled(reqs.Config) {
+		reqs.Log.Info("private_action_runner.split_enabled is true: the par-control control plane polls OPMS and starts this binary on demand as `run-executor`. The monolithic runner is standing down to avoid two processes dequeuing the same tasks.")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrSplitDeployment
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from

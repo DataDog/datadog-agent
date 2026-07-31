@@ -1,4 +1,10 @@
 ---
 other:
   - |
-    Add an internal Rust control-plane binary (``par-control``) for the Private Action Runner.
+    Add an internal Rust control-plane binary (``par-control``) for the
+    Private Action Runner, together with its process-manager launch path.
+    The split deployment model is opt-in behind
+    ``private_action_runner.split_enabled`` (default ``false``): when
+    enabled, ``par-control`` polls the management service and starts the Go
+    runner on demand as an executor, and the always-on monolithic runner
+    stands down. Not yet supported on Windows.

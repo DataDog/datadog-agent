@@ -152,6 +152,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := ensurePARExecutorProcmgrConfig(); err != nil {
 		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
 	}
+	if err := ensurePARControlProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write PAR control plane process manager config: %w", err)
+	}
 
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
@@ -244,6 +247,25 @@ func ensurePARExecutorProcmgrConfig() error {
 	}
 	if err := processmanager.RemovePARExecutorProcmgrConfig(installRoot); err != nil {
 		log.Warnf("PAR executor: could not remove stale process manager config: %v", err)
+	}
+	return nil
+}
+
+// ensurePARControlProcmgrConfig installs the definition for the always-on PAR
+// control plane. It is written whenever the process manager is enabled, like the
+// executor's: par-control itself exits cleanly unless
+// private_action_runner.split_enabled is set.
+func ensurePARControlProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WritePARControlProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemovePARControlProcmgrConfig(installRoot); err != nil {
+		log.Warnf("PAR control plane: could not remove stale process manager config: %v", err)
 	}
 	return nil
 }

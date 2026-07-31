@@ -23,6 +23,35 @@ See `.scratch/par-rss-split/prd.md` for the full design and
 | `proto.rs` | Bazel/cargo dual proto wiring (procmgr + executor prost crates). |
 | `transport.rs` | Lazily-connecting UDS client channel. |
 
+## How it gets launched
+
+`par-control` is supervised by `dd-procmgrd`, from the process definition
+`processes.d/datadog-agent-action-control.yaml`
+(`pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-control.yaml.tmpl`,
+plus the `-windows` variant). It is `auto_start: true` and installed on every
+host that ships the binary, so the *binary* owns the decision to run:
+
+| `private_action_runner` config | `par-control` | Go `privateactionrunner run` |
+| --- | --- | --- |
+| `enabled: false` | exits 0 | exits 0 |
+| `enabled: true` (default) | exits 0 | runs (monolithic) |
+| `enabled: true`, `split_enabled: true` | runs (control plane) | exits 0 |
+
+Both halves dequeue from OPMS, so exactly one may run: `config.rs::LaunchGate`
+and `isSplitEnabled` in `comp/privateactionrunner/impl/privateactionrunner.go`
+read the same two keys, and the loser exits **0** — a non-zero exit would trip
+procmgr's/systemd's restart limit on every host that never opted in.
+
+Identity bootstrap: in split mode the Go monolith that normally self-enrolls is
+standing down, so the procmgr definition passes
+`--enroll-command <privateactionrunner> rotate-identity --cfgpath <datadog.yaml>`
+and par-control runs that one-shot when no identity is persisted yet (honoring
+`private_action_runner.self_enroll`).
+
+**Windows** ships the process definition for symmetry, but par-control refuses
+to run in split mode there and exits 0: `transport.rs` has no named-pipe client
+yet, so it could reach OPMS and dequeue tasks it can never dispatch.
+
 ## Build prerequisites (IMPORTANT)
 
 The crate is Linux/Windows-only (`target_compatible_with`), so on a macOS
@@ -93,10 +122,15 @@ runtime, so each is pinned by a unit test in `config.rs`.
   running/fake OPMS; the bodies here are modeled on the Go client.
 - `private_action_runner.opms_extra_headers` is honored by the Go client but
   ignored here.
-- The par-control-only knobs (`procmgr_socket_path`, `executor_process_name`,
-  `idle_timeout_seconds`, `heartbeat_interval_seconds`) are not registered in
-  `pkg/config/schema/yaml/private_action_runner.yaml`, so they are undocumented
-  and unvalidated.
-- Confirm `native_tls::Identity::from_pkcs8` accepts the IPC key (SEC1 "EC PRIVATE
-  KEY") on the OpenSSL backend, and the disabled-hostname posture over the socket.
-- Wire a `log` implementation (e.g. `dd-agent-log`) in `main`.
+- par-control parses `datadog.yaml` itself, so it honors none of the `DD_*`
+  environment variables bound by `pkg/config/setup/privateactionrunner_settings.go`
+  (including `DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`) — a container-style
+  env-only configuration will not reach the control plane.
+- Config changes are only picked up on restart: neither the split switch nor the
+  control-plane knobs are watched at runtime.
+- Review the disabled-hostname posture on the mTLS channel over the local socket
+  (`native_tls::Identity::from_pkcs8` rejecting the SEC1 IPC key is handled by
+  `tls.rs::to_pkcs8_pem`).
+- Wire a `log` implementation (e.g. `dd-agent-log`) in `main`. Until then the
+  `log::` macros are no-ops and only the launch-path decisions in `main` are
+  visible, via `eprintln!` on the stderr procmgr inherits.

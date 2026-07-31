@@ -11,6 +11,7 @@
 use anyhow::Result;
 use clap::Parser;
 use par_control::bootstrap;
+use par_control::config::LaunchGate;
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::HttpOpms;
@@ -26,19 +27,52 @@ struct Cli {
     config: PathBuf,
 
     /// Command (argv) to run the Go one-shot enroll when no identity is persisted
-    /// yet, e.g. `--enroll-command privateactionrunner --enroll-command enroll
-    /// --enroll-command -c --enroll-command /etc/datadog-agent`. If omitted, an
-    /// existing identity is required.
-    #[arg(long = "enroll-command", num_args = 1..)]
+    /// yet, e.g. `--enroll-command privateactionrunner rotate-identity --cfgpath
+    /// /etc/datadog-agent/datadog.yaml`. Consumes every remaining argument,
+    /// including ones starting with `-` (the enrolled command has its own flags),
+    /// so it must be the last option on the command line. If omitted, an existing
+    /// identity is required.
+    #[arg(long = "enroll-command", num_args = 1.., allow_hyphen_values = true)]
     enroll_command: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // NOTE: a logger implementation (e.g. dd-agent-log) should be initialized
-    // here so the `log` macros emit; left unwired in this first cut.
+    // here so the `log` macros emit; left unwired in this first cut. Until then
+    // the launch-path decisions below print to stderr, which the process manager
+    // inherits (`stderr: inherit`) — otherwise a control plane that stands down
+    // would exit silently and look like a crash.
     let cli = Cli::parse();
-    let config = bootstrap::load_config_with_bootstrap(&cli.config, &cli.enroll_command)?;
+
+    // The procmgr definition that starts par-control is installed unconditionally,
+    // so this process decides for itself whether the split deployment is active.
+    // Exit 0 (not an error) when it is not: `restart: on-failure` then leaves the
+    // process alone instead of hitting the restart limit on every host that has
+    // never opted in.
+    let gate = LaunchGate::from_yaml_file(&cli.config)?;
+    if !gate.split_mode {
+        eprintln!(
+            "par-control: private_action_runner.split_enabled is not enabled; \
+             the monolithic runner owns OPMS polling. Exiting."
+        );
+        return Ok(());
+    }
+    if cfg!(windows) {
+        // par-control's local transport is Unix-socket only (see transport.rs).
+        // On Windows it can reach OPMS but can neither start nor dispatch to the
+        // executor, so it would dequeue real tasks and fail every one of them.
+        // Refuse up front instead, and exit 0 so procmgr does not restart-loop.
+        eprintln!(
+            "par-control: the split deployment model is not supported on Windows yet \
+             (named-pipe transport to dd-procmgrd and the executor is not implemented); \
+             unset private_action_runner.split_enabled. Exiting."
+        );
+        return Ok(());
+    }
+
+    let config =
+        bootstrap::load_config_with_bootstrap(&cli.config, &cli.enroll_command, gate.self_enroll)?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,

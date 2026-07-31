@@ -105,6 +105,14 @@ properties:
         platform_default:
           windows: \\.\pipe\dd-par-executor
           other: ${run_path}/par-executor.sock
+  executor_process_name:
+    node_type: setting
+    type: string
+    default: datadog-agent-action-executor
+  heartbeat_interval_seconds:
+    node_type: setting
+    type: integer
+    default: 20
   identity_file_path:
     node_type: setting
     type: string
@@ -117,6 +125,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
   log_file:
     node_type: setting
     type: string
@@ -131,6 +143,17 @@ properties:
     node_type: setting
     type: string
     default: ''
+  procmgr_socket_path:
+    node_type: setting
+    type: string
+    platform_default:
+      windows: \\.\pipe\datadog-procmgrd
+      other: /var/run/datadog-procmgrd/dd-procmgrd.sock
+    comment: |-
+      Control-plane knobs, read by par-control. par-control parses datadog.yaml
+      directly and therefore does *not* honor the DD_ env vars bound here; the
+      keys are registered so they are schema-documented and validated, and so
+      their defaults live next to the rest of the runner's settings.
   restricted_shell:
     node_type: section
     type: object
@@ -183,6 +206,15 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  split_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      Split deployment model. When enabled, the always-on Rust control plane
+      (par-control) owns OPMS polling and starts this binary on demand as
+      `privateactionrunner run-executor` through dd-procmgrd, so the monolithic
+      `privateactionrunner run` stands down and only one process talks to OPMS.
   urn:
     node_type: setting
     type: string

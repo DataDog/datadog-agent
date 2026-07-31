@@ -10,18 +10,33 @@
 //! An already-enrolled runner is used as-is with no re-enrollment.
 
 use crate::config::Config;
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use log::info;
 use std::path::Path;
 use std::process::Command;
 
 /// Load the control-plane config, running the Go one-shot enroll first if the
 /// runner has no identity yet. `enroll_command` is the argv of the Go enroll
-/// one-shot (e.g. `["privateactionrunner", "enroll", "-c", "<dir>"]`); if empty,
+/// one-shot, which the installed procmgr definition points at
+/// `privateactionrunner rotate-identity --cfgpath <datadog.yaml>`; if empty,
 /// bootstrap does not enroll and an existing identity is required.
-pub fn load_config_with_bootstrap(config_path: &Path, enroll_command: &[String]) -> Result<Config> {
+///
+/// `self_enroll` mirrors `private_action_runner.self_enroll`: an operator who
+/// turned it off provisions the identity out of band, so par-control must not
+/// enroll behind their back — same contract as the Go runner.
+pub fn load_config_with_bootstrap(
+    config_path: &Path,
+    enroll_command: &[String],
+    self_enroll: bool,
+) -> Result<Config> {
     if let Some(cfg) = Config::try_from_yaml_file(config_path)? {
         return Ok(cfg);
+    }
+    if !self_enroll {
+        bail!(
+            "runner has no persisted identity and private_action_runner.self_enroll is false; \
+             pre-provision the identity or enable self-enrollment"
+        );
     }
     if enroll_command.is_empty() {
         bail!(

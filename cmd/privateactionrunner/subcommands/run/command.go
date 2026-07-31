@@ -128,7 +128,10 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 	}
 
 	err := fxutil.Run(fxOptions...)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
+	// Both are expected, clean exits: either the runner is disabled, or the
+	// split deployment model hands OPMS polling to par-control and this
+	// monolithic process must stand down.
+	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) {
 		return nil
 	}
 	return err
