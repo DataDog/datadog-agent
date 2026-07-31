@@ -8,7 +8,8 @@
 ---
 fixes:
   - |
-    Windows: Fixed an issue where an explicit ``DDAGENTUSER_KEEP_RIGHTS``
-    value passed as an install argument to a Fleet Automation-triggered
-    Windows Agent install/upgrade could be silently overridden by a stale
-    value previously stored in the registry.
+    Windows: Fixed an issue where an explicit ``DDAGENTUSER_KEEP_RIGHTS`` or
+    ``DDAGENTUSER_NAME`` value passed as an install argument to a Fleet
+    Automation-triggered Windows Agent install/upgrade could be silently
+    overridden by a stale fallback value (respectively from the registry
+    and from the running service account).
