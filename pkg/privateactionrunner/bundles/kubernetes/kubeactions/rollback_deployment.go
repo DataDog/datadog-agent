@@ -54,5 +54,8 @@ func (h *RollbackDeploymentHandler) Run(
 	result := kubeactionsimpl.NewRollbackDeploymentExecutor(client).Execute(ctx, in)
 	h.ka.ReportResult(report, result)
 
+	if err := actionErr(result); err != nil {
+		return nil, err
+	}
 	return &ActionOutputs{Status: result.Status, Message: result.Message}, nil
 }

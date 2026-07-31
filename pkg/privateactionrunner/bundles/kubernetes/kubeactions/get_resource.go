@@ -62,6 +62,9 @@ func (h *GetResourceHandler) Run(
 	result := kubeactionsimpl.NewGetResourceExecutor(client).Execute(ctx, in)
 	h.ka.ReportResult(report, result)
 
+	if err := actionErr(result); err != nil {
+		return nil, err
+	}
 	out := &GetResourceOutputs{Status: result.Status, Message: result.Message}
 	if len(result.Payloads) > 0 {
 		out.Resources = make(map[string]json.RawMessage, len(result.Payloads))

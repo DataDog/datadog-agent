@@ -12,6 +12,8 @@
 package com_datadoghq_kubernetes_kubeactions
 
 import (
+	"fmt"
+
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -59,4 +61,15 @@ func newReport(actionType string, r kubeactions.ResourceRef, task *types.Task) k
 		report.ActionID = r.ActionID
 	}
 	return report
+}
+
+// actionErr returns a non-nil error when the executed action did not succeed, so
+// the runner publishes task failure to OPMS — matching the EVP action_executed
+// result — instead of reporting a failed Kubernetes action as a successful task.
+// The terminal EVP event has already been emitted by the caller via ReportResult.
+func actionErr(result kubeactions.ExecutionResult) error {
+	if result.Status != kubeactions.StatusSuccess {
+		return fmt.Errorf("kube action failed: %s", result.Message)
+	}
+	return nil
 }

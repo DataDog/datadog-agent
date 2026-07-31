@@ -54,5 +54,8 @@ func (h *PatchStatefulSetHandler) Run(
 	result := kubeactionsimpl.NewPatchStatefulSetExecutor(client).Execute(ctx, in)
 	h.ka.ReportResult(report, result)
 
+	if err := actionErr(result); err != nil {
+		return nil, err
+	}
 	return &ActionOutputs{Status: result.Status, Message: result.Message}, nil
 }

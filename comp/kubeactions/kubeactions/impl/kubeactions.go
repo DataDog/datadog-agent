@@ -10,7 +10,6 @@ package kubeactionsimpl
 
 import (
 	"context"
-	"fmt"
 
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
@@ -55,13 +54,18 @@ var _ kubeactions.Component = (*kubeactionsImpl)(nil)
 func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 
-	coreCl, ok := reqs.APIClient.Cl.CoreV1().(*corev1.CoreV1Client)
-	if !ok {
-		return Provides{}, fmt.Errorf("kubeactions: unexpected CoreV1 client type %T", reqs.APIClient.Cl.CoreV1())
-	}
-	clusterID, err := common.GetOrCreateClusterID(coreCl)
-	if err != nil {
-		return Provides{}, fmt.Errorf("kubeactions: get cluster ID: %w", err)
+	// Resolve the cluster ID best-effort. This component is unconditionally in the
+	// DCA fx graph, so its constructor runs on every startup — a transient
+	// apiserver/RBAC/configmap failure here must NOT abort DCA startup (the legacy
+	// lookup logged and continued). An empty cluster ID only means EVP events omit
+	// cluster_id; the reporter is otherwise nil-safe.
+	var clusterID string
+	if coreCl, ok := reqs.APIClient.Cl.CoreV1().(*corev1.CoreV1Client); !ok {
+		reqs.Log.Warnf("kubeactions: unexpected CoreV1 client type %T; continuing without cluster ID", reqs.APIClient.Cl.CoreV1())
+	} else if id, cidErr := common.GetOrCreateClusterID(coreCl); cidErr != nil {
+		reqs.Log.Warnf("kubeactions: get cluster ID failed, continuing without it: %v", cidErr)
+	} else {
+		clusterID = id
 	}
 
 	// clustername.GetClusterName needs the hostname as a fallback source for the

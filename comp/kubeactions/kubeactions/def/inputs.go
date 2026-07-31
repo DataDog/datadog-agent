@@ -7,6 +7,7 @@ package kubeactions
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -118,13 +119,13 @@ func isProtectedKind(kind string) bool {
 // resource by namespace+name alone.
 func (r ResourceRef) validateCommon() error {
 	if r.Kind == "" {
-		return fmt.Errorf("resource.kind is required")
+		return errors.New("resource.kind is required")
 	}
 	if r.Name == "" {
-		return fmt.Errorf("resource.name is required")
+		return errors.New("resource.name is required")
 	}
 	if r.Namespace == "" {
-		return fmt.Errorf("resource.namespace is required")
+		return errors.New("resource.namespace is required")
 	}
 	if _, ok := protectedNamespaces[r.Namespace]; ok {
 		return fmt.Errorf("actions are not allowed on protected namespace %q", r.Namespace)
@@ -138,7 +139,7 @@ func (in DeletePodInputs) Validate() error {
 		return err
 	}
 	if in.Kind != "Pod" {
-		return fmt.Errorf("resource.kind must be 'Pod' for delete_pod action")
+		return errors.New("resource.kind must be 'Pod' for delete_pod action")
 	}
 	return nil
 }
@@ -149,7 +150,7 @@ func (in RestartDeploymentInputs) Validate() error {
 		return err
 	}
 	if in.Kind != "Deployment" {
-		return fmt.Errorf("resource.kind must be 'Deployment' for restart_deployment action")
+		return errors.New("resource.kind must be 'Deployment' for restart_deployment action")
 	}
 	return nil
 }
@@ -160,10 +161,10 @@ func (in PatchDeploymentInputs) Validate() error {
 		return err
 	}
 	if in.Kind != "Deployment" {
-		return fmt.Errorf("resource.kind must be 'Deployment' for patch_deployment action")
+		return errors.New("resource.kind must be 'Deployment' for patch_deployment action")
 	}
 	if len(in.Patch) == 0 {
-		return fmt.Errorf("patch is required for patch_deployment action")
+		return errors.New("patch is required for patch_deployment action")
 	}
 	return nil
 }
@@ -174,10 +175,10 @@ func (in PatchDaemonSetInputs) Validate() error {
 		return err
 	}
 	if in.Kind != "DaemonSet" {
-		return fmt.Errorf("resource.kind must be 'DaemonSet' for patch_daemonset action")
+		return errors.New("resource.kind must be 'DaemonSet' for patch_daemonset action")
 	}
 	if len(in.Patch) == 0 {
-		return fmt.Errorf("patch is required for patch_daemonset action")
+		return errors.New("patch is required for patch_daemonset action")
 	}
 	return nil
 }
@@ -188,10 +189,10 @@ func (in PatchStatefulSetInputs) Validate() error {
 		return err
 	}
 	if in.Kind != "StatefulSet" {
-		return fmt.Errorf("resource.kind must be 'StatefulSet' for patch_statefulset action")
+		return errors.New("resource.kind must be 'StatefulSet' for patch_statefulset action")
 	}
 	if len(in.Patch) == 0 {
-		return fmt.Errorf("patch is required for patch_statefulset action")
+		return errors.New("patch is required for patch_statefulset action")
 	}
 	return nil
 }
@@ -202,7 +203,7 @@ func (in RollbackDeploymentInputs) Validate() error {
 		return err
 	}
 	if in.Kind != "Deployment" {
-		return fmt.Errorf("resource.kind must be 'Deployment' for rollback_deployment action")
+		return errors.New("resource.kind must be 'Deployment' for rollback_deployment action")
 	}
 	return nil
 }
@@ -213,7 +214,7 @@ func (in GetResourceInputs) Validate() error {
 		return err
 	}
 	if in.APIVersion == "" {
-		return fmt.Errorf("resource.api_version must be set for get_resource action")
+		return errors.New("resource.api_version must be set for get_resource action")
 	}
 	if isProtectedKind(in.Kind) {
 		return fmt.Errorf("actions are not allowed to get protected kind %s", in.Kind)
