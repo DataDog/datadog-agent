@@ -179,8 +179,14 @@ const sysprobeSocket = "/opt/datadog-agent/run/sysprobe.sock"
 // failed, and several of them legitimately exit non-zero in exactly the
 // situations worth debugging: systemctl status for an inactive unit, ps for a
 // process which has since exited (which is what a crash-looping service looks
-// like), curl if the agent is not running. Using MustExecute directly would
-// replace the original failure with an error about the diagnostic itself.
+// like), curl if the agent is not running.
+//
+// The exit status is swallowed by the remote shell rather than handled here
+// because Execute() returns no output at all once the command fails: it blanks
+// stdout and folds it into the error instead, so the output being collected
+// would only be reachable by formatting an error. The redirect is redundant
+// with the framework's use of CombinedOutput, and only kept so that wanting
+// stderr is stated here rather than relying on that.
 func (s *linuxTestSuite) logDiagnostic(t *testing.T, label, cmd string) {
 	t.Logf("%s:\n%s", label, s.Env().RemoteHost.MustExecute(cmd+" 2>&1 || true"))
 }
