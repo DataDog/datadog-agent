@@ -60,7 +60,10 @@ nav:
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
-    - End-to-end tests: how-to/test/e2e.md
+    - End-to-end tests:
+      - how-to/test/e2e/index.md
+      - Running tests: how-to/test/e2e/running.md
+      - Writing tests: how-to/test/e2e/writing.md
     - Manual QA: 
       - how-to/test/manual-qa/index.md
       - AWS: 
