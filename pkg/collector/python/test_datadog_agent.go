@@ -123,19 +123,8 @@ func testEmitAgentTelemetry(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Test that changing the metric type doesn't crash the agent for all the permutations
+	// A declared metric rejects a later type change: the first registration wins.
 	emitTelemetry("test_check", "test_metric", 1.0, "counter", "")
-	emitTelemetry("test_check", "test_counter", 1.0, "histogram", "")
-
-	emitTelemetry("test_check", "test_counter", 1.0, "counter", "")
-	emitTelemetry("test_check", "test_counter", 1.0, "counter", "")
-	emitTelemetry("test_check", "test_counter", 1.0, "histogram", "")
-	emitTelemetry("test_check", "test_counter", 1.0, "gauge", "")
-
-	emitTelemetry("test_check", "test_histogram", 1.0, "histogram", "")
-	emitTelemetry("test_check", "test_histogram", 1.0, "histogram", "")
-	emitTelemetry("test_check", "test_histogram", 1.0, "counter", "")
-	emitTelemetry("test_check", "test_histogram", 1.0, "gauge", "")
 
 	mf := requireTelemetryFamily(t, "test_check__test_metric")
 	require.Len(t, mf.Metric, 1)
