@@ -26,8 +26,9 @@ import (
 // itself, but for our use case, the root directory itself can not be trusted to
 // not have changed since the time the path was validated.
 //
-// This function is shared by the privileged-logs module (server side,
-// root-running system-probe) and the privileged-logs client (agent side).
+// This function is used both by the privileged-logs module (server side,
+// root-running system-probe) and by the privileged-logs client (agent side),
+// to defend against symlink-swap attacks on process_log-discovered file paths.
 func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("path must be absolute: %s", path)
