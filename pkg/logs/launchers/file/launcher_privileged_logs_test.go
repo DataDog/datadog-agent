@@ -78,6 +78,10 @@ func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 			return privilegedlogstest.WithParentPermFixup(t, name, func() error {
 				return os.Remove(name)
 			})
+		}, symlink: func(oldname, newname string) error {
+			return privilegedlogstest.WithParentPermFixup(t, newname, func() error {
+				return os.Symlink(oldname, newname)
+			})
 		}}}
 }
 
@@ -97,6 +101,17 @@ func TestPrivilegedLogsLauncherTestSuiteWithConfigID(t *testing.T) {
 	s := new(PrivilegedLogsLauncherTestSuite)
 	s.configID = "123456789"
 	suite.Run(t, s)
+}
+
+// TestPrivilegedLogsLauncherNoFollowSymlink runs the NoFollow symlink policy
+// test (defined in launcher_test.go) against the privileged-logs path.  The files
+// live in unsearchable directories, so the unprivileged open fails and the launcher
+// falls back to system-probe; the swapped symlink must be rejected there with
+// O_NOFOLLOW rather than followed.
+func TestPrivilegedLogsLauncherNoFollowSymlink(t *testing.T) {
+	strategy := &PrivilegedLogsTestSetupStrategy{}
+	res := strategy.Setup(t)
+	runLauncherNoFollowSymlinkTest(t, res.TestOps, res.TestDirs[0])
 }
 
 func TestPrivilegedLogsLauncherScanStartNewTailer(t *testing.T) {

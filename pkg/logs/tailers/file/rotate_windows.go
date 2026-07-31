@@ -18,7 +18,7 @@ import (
 // On Windows, log rotation is identified by the file size being smaller
 // than the last offset read.
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := t.fileOpener.OpenLogFile(t.fullpath)
+	f, err := t.openLogFile(t.fullpath)
 	if err != nil {
 		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}

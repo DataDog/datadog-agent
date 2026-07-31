@@ -122,7 +122,9 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	}
 
 	// check access to the file; if it is not readable, then returning an error will
-	// try to fall back to reading from a socket.
+	// try to fall back to reading from a socket.  Container log paths (e.g.
+	// /var/log/pods/…) are symlinks created by the container runtime intentionally,
+	// so symlink-following is correct here.
 	f, err := opener.OpenLogFile(path)
 	if err != nil {
 		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
@@ -155,6 +157,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		AutoMultiLineSamples:          source.Config.AutoMultiLineSamples,
 		ExperimentalAdaptiveSampling:  source.Config.ExperimentalAdaptiveSampling,
 		ExperimentalNoisyLogDetection: source.Config.ExperimentalNoisyLogDetection,
+		NoFollow:                      source.Config.NoFollow,
 	})
 
 	// inform the file launcher that it should expect docker-formatted content
@@ -276,6 +279,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			AutoMultiLineSamples:          source.Config.AutoMultiLineSamples,
 			ExperimentalAdaptiveSampling:  source.Config.ExperimentalAdaptiveSampling,
 			ExperimentalNoisyLogDetection: source.Config.ExperimentalNoisyLogDetection,
+			NoFollow:                      source.Config.NoFollow,
 		})
 
 	switch source.Config.Type {

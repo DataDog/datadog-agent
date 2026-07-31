@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package module
+package common
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// openPathWithoutSymlinks opens a file by traversing each path component with
+// OpenPathWithoutSymlinks opens a file by traversing each path component with
 // O_NOFOLLOW, to ensure that the actual filesystem structure matches the path
 // passed to the function.  On newer kernels, this could be done with openat2(2)
 // and RESOLVE_NO_SYMLINKS.
@@ -25,7 +25,11 @@ import (
 // os.OpenInRoot(), since all of those follow symlinks on the root directory
 // itself, but for our use case, the root directory itself can not be trusted to
 // not have changed since the time the path was validated.
-func openPathWithoutSymlinks(path string) (*os.File, error) {
+//
+// This function is used both by the privileged-logs module (server side,
+// root-running system-probe) and by the privileged-logs client (agent side),
+// to defend against symlink-swap attacks on process_log-discovered file paths.
+func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("path must be absolute: %s", path)
 	}
