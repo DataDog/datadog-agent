@@ -46,6 +46,30 @@
 //	a.b[0].c                    a.b[0].c
 //	a.b[X].c == "x"             a.b.exists(X, X.c == "x")
 //
+// # Array semantics
+//
+// SECL reads a comparison against an array field as "some element matches", and
+// whether a field is an array is a property of the model rather than of the
+// syntax. Given a FieldTypes — ModelFieldTypes answers from the CEL types
+// generated into celtypes_unix.go and celtypes_windows.go — the translation
+// writes that quantifier out:
+//
+//	SECL                                CEL
+//	---------------------------------------------------------------
+//	process.ancestors.file.name == "x"  process.ancestors.exists(e, e.file.name == "x")
+//	process.ancestors.uid in [0, 1]     process.ancestors.exists(e, e.uid in [0, 1])
+//	process.ancestors.file.name not in b  !process.ancestors.exists(e, e.file.name in b)
+//	process.ancestors.file.name allin b   process.ancestors.all(e, e.file.name in b)
+//	process.argv == "-l"                process.argv.exists(e, e == "-l")
+//	process.ancestors.args_flags == "c" process.ancestors.exists(e, e.args_flags.exists(e2, e2 == "c"))
+//	process.argv.length > 2             size(process.argv) > 2
+//	process.ancestors.file.name.length  process.ancestors.exists(e, size(e.file.name) …)
+//
+// Without field types those comparisons are translated literally, which is valid
+// CEL but means "the list equals the scalar". NewModelEnv pairs the same type
+// tree with the environment, so CompileWithTypes type-checks against the real
+// field types instead of treating every event as dynamic.
+//
 // # Divergences
 //
 // Some SECL behaviour cannot be reproduced by a translation that does not know
@@ -57,10 +81,9 @@
 //     disagree only about the *source text*, which is why Translate emits
 //     explicit parentheses.
 //
-//   - Comparing an array field against a scalar means "any element matches" in
-//     SECL, and an `in` whose left hand side is an array field means "any
-//     element is in". Whether a field is an array is a property of the model, so
-//     without a FieldTypes those comparisons translate literally.
+//   - Both sides of a comparison being array fields is translated literally
+//     rather than quantified on both, since which one to iterate is ambiguous;
+//     the checker reports it.
 //
 //   - `%{field}` resolves against event fields only, never against macros,
 //     constants or variables, while a bare name tries all of them. CEL has one
