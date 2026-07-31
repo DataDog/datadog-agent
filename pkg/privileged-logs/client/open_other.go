@@ -10,7 +10,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"os"
 )
 
@@ -19,9 +18,12 @@ func Open(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
-// OpenNoFollow is not supported on non-Linux platforms.
+// OpenNoFollow falls back to a regular open on non-Linux platforms: symlink
+// rejection is only needed for process_log-discovered paths, and process_log
+// discovery (based on /proc/<pid>/fd) is Linux-only, so this path is not
+// reachable with an untrusted, attacker-controlled symlink swap here.
 func OpenNoFollow(path string) (*os.File, error) {
-	return nil, fmt.Errorf("privileged-logs client: no-follow open is not supported on non-Linux platforms: %s", path)
+	return os.Open(path)
 }
 
 // OpenPrivileged is not supported on non-Linux platforms.
