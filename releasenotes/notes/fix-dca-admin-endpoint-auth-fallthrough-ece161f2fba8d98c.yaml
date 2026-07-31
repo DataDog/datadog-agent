@@ -1,0 +1,24 @@
+---
+security:
+  - |
+    Cluster Agent local administrative API endpoints, such as ``/stop``,
+    ``/flare``, ``/config`` and ``/api/v1/clusterchecks/rebalance``, now
+    strictly require the Cluster Agent's local IPC token. Previously a failed
+    local token check fell through to validating the ``cluster_agent.auth_token``
+    shared secret, which is distributed to every Node Agent, so any holder of
+    that token could invoke these endpoints. Such requests received a ``403``
+    response after the endpoint's side effect had already run, so past abuse is
+    not apparent from response statuses alone.
+  - |
+    The Cluster Agent no longer takes the query string into account when
+    deciding which credential authenticates an API request. A ``/`` in a query
+    value could previously pad an administrative path until it matched a Node
+    Agent path, causing it to accept the shared ``cluster_agent.auth_token``
+    instead of the local IPC token.
+fixes:
+  - |
+    Fixed the Cluster Agent rejecting Node Agent requests to
+    ``/api/v1/info/node/<nodeName>`` with a ``403`` response. This endpoint,
+    used to detect the Kubernetes distribution from the node's kubelet version,
+    was missing from the list of paths authenticated with the Cluster Agent
+    token.
