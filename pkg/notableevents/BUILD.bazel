@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "notableevents",
@@ -41,7 +42,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "notableevents_test",
     srcs = [
         "collector_darwin_test.go",
@@ -51,7 +52,6 @@ go_test(
         "watcher_darwin_test.go",
     ],
     embed = [":notableevents"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//assert",
