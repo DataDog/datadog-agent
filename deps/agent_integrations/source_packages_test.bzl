@@ -1,7 +1,7 @@
 """Tests for integrations-core source package collection."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load(":source_packages.bzl", "collect_integrations")
+load(":source_packages.bzl", "collect_integrations", "filter_integration_requirements")
 
 LINUX_X86_64 = "@@//:linux_x86_64"
 LINUX_ARM64 = "@@//:linux_arm64"
@@ -92,6 +92,17 @@ override_linux = ["linux"]
             ]),
             "pyproject.toml": "",
         },
+        "kubelet": {
+            "datadog_checks": {
+                "kubelet": {
+                    "data": {
+                        "conf.yaml.example": "",
+                    },
+                },
+            },
+            "manifest.json": _manifest(ALL_SUPPORTED_TAGS),
+            "pyproject.toml": "",
+        },
         "no_manifest_no_override": {
             "pyproject.toml": "",
         },
@@ -114,9 +125,10 @@ override_linux = ["linux"]
     integrations = _integration_by_name(collect_integrations(
         rctx,
         arm_incompatible_integrations = ["ibm_mq"],
+        wheel_exclusions = ["kubelet"],
     ))
 
-    asserts.equals(env, 4, len(integrations))
+    asserts.equals(env, 5, len(integrations))
     asserts.equals(env, [LINUX_X86_64, MACOS_X86_64, WINDOWS_X86_64], integrations["ibm_mq"].platforms)
     asserts.equals(
         env,
@@ -129,6 +141,8 @@ override_linux = ["linux"]
         integrations["override_all"].platforms,
     )
     asserts.equals(env, [LINUX_X86_64, LINUX_ARM64], integrations["override_linux"].platforms)
+    asserts.false(env, integrations["kubelet"].ship_wheel)
+    asserts.equals(env, 1, len(integrations["kubelet"].configuration_targets))
 
     return unittest.end(env)
 
@@ -228,9 +242,31 @@ _collect_integrations_includes_platforms_and_configuration_test = unittest.make(
     _collect_integrations_includes_platforms_and_configuration_impl,
 )
 
+def _filter_integration_requirements_impl(ctx):
+    env = unittest.begin(ctx)
+
+    requirements = """# DO NOT PASS THIS TO PIP DIRECTLY
+--no-index
+datadog-kubelet==10.4.0
+datadog-redisdb==8.6.0
+"""
+    expected = """# DO NOT PASS THIS TO PIP DIRECTLY
+--no-index
+datadog-redisdb==8.6.0
+"""
+
+    asserts.equals(env, expected, filter_integration_requirements(requirements, ["kubelet"]))
+
+    return unittest.end(env)
+
+_filter_integration_requirements_test = unittest.make(
+    _filter_integration_requirements_impl,
+)
+
 def source_packages_test_suite(name):
     unittest.suite(
         name,
         _collect_integrations_uses_manifests_and_overrides_test,
         _collect_integrations_includes_platforms_and_configuration_test,
+        _filter_integration_requirements_test,
     )

@@ -9,8 +9,6 @@
 package kubelet
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -29,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/summary"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -119,10 +116,6 @@ func Factory(store workloadmeta.Component, filterStore workloadfilter.Component,
 
 // Configure configures the check
 func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
-	if !pkgconfigsetup.Datadog().GetBool("kubelet_core_check_enabled") {
-		return fmt.Errorf("%w: kubelet core check is disabled", check.ErrSkipCheckInstance)
-	}
-
 	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err

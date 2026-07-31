@@ -21,6 +21,9 @@ ARM_EXCLUSIONS = ["ibm_ace", "ibm_mq"]
 EXCLUSIONS = [
     "tokumx",  # py2-only, unsupported by current Agent
 ]
+WHEEL_EXCLUSIONS = [
+    "kubelet",  # Implemented by the Agent core; configuration files are still bundled.
+]
 
 INTEGRATION_CONFIGURATION_FILENAMES = [
     "conf.yaml.example",
@@ -63,7 +66,18 @@ def _integration_source_packages_impl(rctx):
         struct(name = name, configuration_targets = [])
         for name in ["datadog_checks_base", "datadog_checks_downloader"]
     ]
-    integrations = collect_integrations(rctx, arm_incompatible_integrations = ARM_EXCLUSIONS)
+    integrations = collect_integrations(
+        rctx,
+        arm_incompatible_integrations = ARM_EXCLUSIONS,
+        wheel_exclusions = WHEEL_EXCLUSIONS,
+    )
+
+    requirements_path = rctx.path("requirements-agent-release.txt")
+    requirements = rctx.read(requirements_path)
+    rctx.file(
+        requirements_path,
+        filter_integration_requirements(requirements, WHEEL_EXCLUSIONS),
+    )
 
     # Individual packages that need to be built get their own BUILD file for building them as wheels.
     for package in base_packages + integrations:
@@ -85,16 +99,17 @@ def _integration_source_packages_impl(rctx):
 
     return rctx.repo_metadata(reproducible = True)
 
-def collect_integrations(rctx, *, arm_incompatible_integrations = []):
+def collect_integrations(rctx, *, arm_incompatible_integrations = [], wheel_exclusions = []):
     """Collects toplevel integration packages and their metadata.
 
     Args:
       rctx: The repository_ctx to use.
       arm_incompatible_integrations: Integrations that can't be shipped for ARM systems.
+      wheel_exclusions: Integrations whose configuration files, but not Python wheels, are shipped.
 
     Returns:
       A list of integration package structs, sorted by name, each containing `name`,
-      `configuration_targets` and `platforms` fields.
+      `configuration_targets`, `platforms`, and `ship_wheel` fields.
     """
     manifest_platform_overrides = _load_manifest_platform_overrides(rctx)
 
@@ -121,9 +136,19 @@ def collect_integrations(rctx, *, arm_incompatible_integrations = []):
             name = integration_name,
             configuration_targets = _configuration_targets(rctx, integration_name),
             platforms = platforms,
+            ship_wheel = integration_name not in wheel_exclusions,
         ))
 
     return integrations
+
+def filter_integration_requirements(requirements, excluded_integrations):
+    """Remove unbundled integrations from requirements-agent-release.txt content."""
+    excluded_packages = ["datadog-{}".format(name.replace("_", "-")) for name in excluded_integrations]
+    return "\n".join([
+        line
+        for line in requirements.split("\n")
+        if line.split("==")[0] not in excluded_packages
+    ])
 
 def _bazel_platforms_for_integration(integration_name, supported_platforms, *, arm_incompatible_integrations = []):
     platforms = []
@@ -268,7 +293,10 @@ pkg_files(
 
 def _root_build_file(base_packages, integrations, commit):
     base_wheel_srcs = ["//{}:wheel".format(package.name) for package in base_packages]
-    integrations_select = _render_platform_select(integrations, "//{}:wheel")
+    integrations_select = _render_platform_select(
+        [integration for integration in integrations if integration.ship_wheel],
+        "//{}:wheel",
+    )
     integrations_configuration_select = _render_platform_select(
         [
             integration

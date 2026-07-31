@@ -9250,10 +9250,6 @@ properties:
     type: integer
     default: 0
     comment: not exposed yet. In seconds. 0 means use workloadmeta default
-  kubelet_core_check_enabled:
-    node_type: setting
-    type: boolean
-    default: true
   kubelet_use_api_server:
     node_type: setting
     type: boolean

@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    The Agent no longer bundles the legacy Python kubelet check and removes the
+    ``kubelet_core_check_enabled`` setting. The Go kubelet core check now always
+    handles kubelet configurations. This affects installations that set
+    ``kubelet_core_check_enabled: false`` to select the Python implementation;
+    remove that setting before upgrading.
