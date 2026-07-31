@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_test")
 
+# gazelle:exclude provisioner.go
+
 # NOTE: provisioner.go references dockerPermissionEnv, which is only defined in
 # docker_permission_test.go. It cannot compile as a standalone (non-test)
 # go_library, so it is built solely as part of the go_test target below.
@@ -9,9 +11,10 @@ go_test(
         "admission_probe_test.go",
         "docker_permission_test.go",
         "helpers_test.go",
-        "provisioner.go",
+        "provisioner.go",  # keep
         "resilience_test.go",
     ],
+    # keep
     embedsrcs = [
         "fixtures/admission_probe_helm_values.yaml",
         "fixtures/docker-compose.busybox.yaml",
@@ -19,6 +22,9 @@ go_test(
         "fixtures/resilience_agent_config.yaml",
     ],
     gotags = ["test"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health",
+    tags = ["manual"],  # need pulumi installed.
+    # keep
     deps = [
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
