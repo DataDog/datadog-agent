@@ -16,6 +16,7 @@ AGENT_CORECHECKS = [
     "go_expvar",
     "io",
     "jmx",
+    "kubelet",
     "kubernetes_apiserver",
     "load",
     "memory",
