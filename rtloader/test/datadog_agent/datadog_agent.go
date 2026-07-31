@@ -74,9 +74,8 @@ static inline void call_free(void* ptr) {
 import "C"
 
 var (
-	rtloader                 *C.rtloader_t
-	tmpfile                  *os.File
-	emitAgentTelemetryLabels []string
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 type message struct {
@@ -391,12 +390,6 @@ func resolveIssue(issueID *C.char, errOut **C.char) {
 
 //export emitAgentTelemetry
 func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char, labelsJSON *C.char) {
-	labels := ""
-	if labelsJSON != nil {
-		labels = C.GoString(labelsJSON)
-	}
-	emitAgentTelemetryLabels = append(emitAgentTelemetryLabels, labels)
-
 	checkName := C.GoString(check)
 	metricName := C.GoString(metric)
 	metricValue := float64(value)
@@ -414,5 +407,9 @@ func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricTyp
 	}
 	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
 		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
+	}
+	// A NULL labels_json means "no labels"; anything else is the serialized labels argument.
+	if labelsJSON != nil && C.GoString(labelsJSON) != `{"check_name": "openmetrics"}` {
+		panic(fmt.Sprintf("unexpected labels json: %s", C.GoString(labelsJSON)))
 	}
 }
