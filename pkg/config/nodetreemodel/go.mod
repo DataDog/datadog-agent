@@ -8,7 +8,7 @@ replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.83.0-devel.0.20260730091851-36c2cf972657
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/cast v1.10.0
