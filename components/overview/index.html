@@ -3936,12 +3936,12 @@
   
 
 
-<h1 id="overview-of-components">Overview of components<a class="headerlink" href="#overview-of-components" title="Permanent link">&para;</a></h1>
+<h1 id="overview-of-components">Overview of components</h1>
 <p>The Agent is structured as a collection of components working together. Depending on how the binary is built, and how it
 is invoked, different components may be instantiated.</p>
 <!-- TODO: What are the goals of using the components?  -->
 
-<h2 id="what-is-a-component">What is a component?<a class="headerlink" href="#what-is-a-component" title="Permanent link">&para;</a></h2>
+<h2 id="what-is-a-component">What is a component?</h2>
 <p>The goal of a component is to encapsulate a particular piece of logic/feature and provide a clear and documented interface. </p>
 <p>A component must:</p>
 <ul>
@@ -3953,20 +3953,20 @@ is invoked, different components may be instantiated.</p>
 </ul>
 <p>Any change within a component that don't change its interface should not require QA of another component using it.</p>
 <p>Since each component is an interface to the outside, it can have several implementations.</p>
-<h2 id="fx-vs-go-module">Fx vs Go module<a class="headerlink" href="#fx-vs-go-module" title="Permanent link">&para;</a></h2>
+<h2 id="fx-vs-go-module">Fx vs Go module</h2>
 <p>Components are designed to be used with a dependency injection framework. In the Agent, we use <a href="../fx/">Fx</a>, a dependency injection framework, for this. All Agent
 binaries use Fx to load, coordinate, and start the required components.</p>
 <p>Some components are used outside the <code>datadog-agent</code> repository, where Fx is not available. To support this, the components implementation must not require Fx. 
 Component implementations can be exported as Go modules. The next section explains in more detail how to create components.</p>
 <p>The important information here is that it's possible to use components without Fx <strong>outside</strong> the Agent repository. This
 comes at the cost of manually doing the work of Fx.</p>
-<h2 id="important-note-on-fx">Important note on Fx<a class="headerlink" href="#important-note-on-fx" title="Permanent link">&para;</a></h2>
+<h2 id="important-note-on-fx">Important note on Fx</h2>
 <p>The component framework project's core goal is to improve the Agent codebase by decoupling parts of the code, removing global state and init
 functions, and increasing reusability by separating logical units into components. <strong>Fx itself is not intrinsic to the
 benefits of componentization</strong>.</p>
 <!-- TODO: Let's have a disclaimer about components not being 1 to 1 to Fx -->
 
-<h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
+<h2 id="next">Next</h2>
 <p>Next, see how to <a href="../creating-components/">create a bundle and a component</a> by using Fx.</p>
 
 
