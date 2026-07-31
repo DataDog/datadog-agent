@@ -2405,7 +2405,7 @@ func TestDefaultProfilesIncludeUntaggedOpenMetricsLimitMetric(t *testing.T) {
 			continue
 		}
 		for _, metric := range profile.Metric.Metrics {
-			if metric.Name == "openmetrics.max_returned_metrics_reached" {
+			if metric.Name == "checks.max_returned_metrics_reached" {
 				matchingMetrics = append(matchingMetrics, metric)
 				matchingProfiles = append(matchingProfiles, profile.Name)
 			}
