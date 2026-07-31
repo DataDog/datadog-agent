@@ -9,6 +9,12 @@ package common
 // OpenFileRequest represents a request to open a file and transfer its file descriptor
 type OpenFileRequest struct {
 	Path string `json:"path"`
+	// NoFollow, when true, asks the module to open the file without following any
+	// symbolic links in the path.  This is used for process_log-discovered paths,
+	// which are canonical at discovery time; a symlink found later indicates an
+	// attacker-controlled swap.  When false (the default), symbolic links are
+	// resolved as usual.
+	NoFollow bool `json:"no_follow,omitempty"`
 }
 
 // OpenFileResponse represents the response from the file descriptor transfer

@@ -810,3 +810,35 @@ func TestValidateAndOpenWithPrefixTOCTOUFileSymlink(t *testing.T) {
 	assert.Nil(t, file)
 	assert.True(t, toctouCalled)
 }
+
+// TestValidateAndOpenWithPrefixNoFollowRejectsSymlink verifies that when noFollow
+// is true, validateAndOpenWithPrefix refuses to open a path that is (or has
+// become) a symlink, even when the symlink target would be allow-listed.  This
+// closes the residual TOCTOU where an attacker swaps a process_log-discovered file
+// to a symlink pointing at a root-readable log that the module would normally allow.
+func TestValidateAndOpenWithPrefixNoFollowRejectsSymlink(t *testing.T) {
+	testDir := t.TempDir()
+
+	// A real log file to discover initially
+	logFile := filepath.Join(testDir, "app.log")
+	require.NoError(t, os.WriteFile(logFile, []byte("log content"), 0644))
+
+	// Attacker swaps app.log for a symlink to an allow-listed target
+	targetLog := filepath.Join(testDir, "secret.log")
+	require.NoError(t, os.WriteFile(targetLog, []byte("secret content"), 0644))
+
+	require.NoError(t, os.Remove(logFile))
+	require.NoError(t, os.Symlink(targetLog, logFile))
+
+	// In noFollow mode the symlink must be rejected even though the target ends in .log
+	file, err := validateAndOpenNoFollowWithPrefix(logFile, testDir+"/")
+	assert.Error(t, err)
+	assert.Nil(t, file)
+
+	// In standard (follow) mode the symlink would succeed
+	file2, err2 := validateAndOpenWithPrefix(logFile, testDir+"/", nil)
+	if err2 == nil {
+		// accepted as expected in follow mode
+		file2.Close()
+	}
+}

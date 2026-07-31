@@ -11,22 +11,32 @@ package client
 import (
 	"errors"
 	"os"
+	"syscall"
 
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"syscall"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// OpenPrivileged opens a file in system-probe and returns the file descriptor
-// This function uses a custom HTTP client that can handle file descriptor transfer
+// OpenPrivileged opens a file in system-probe and returns the file descriptor.
+// This function uses a custom HTTP client that can handle file descriptor transfer.
 func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
+	return openPrivileged(socketPath, filePath, false)
+}
+
+// OpenPrivilegedNoFollow opens a file in system-probe without following symbolic
+// links in any path component.
+func OpenPrivilegedNoFollow(socketPath string, filePath string) (*os.File, error) {
+	return openPrivileged(socketPath, filePath, true)
+}
+
+func openPrivileged(socketPath string, filePath string, noFollow bool) (*os.File, error) {
 	// Create a new connection instead of reusing the shared connection from
 	// pkg/system-probe/api/client/client.go, since the connection is hijacked
 	// from the control of the HTTP server library on the server side.  It also
@@ -39,7 +49,8 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	defer conn.Close()
 
 	req := common.OpenFileRequest{
-		Path: filePath,
+		Path:     filePath,
+		NoFollow: noFollow,
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -111,7 +122,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	return nil, errors.New("no file descriptor received")
 }
 
-func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
+func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.File, error) {
 	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
 	if !enabled {
 		return nil, originalError
@@ -120,7 +131,7 @@ func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
 	log.Debugf("Permission denied, opening file with system-probe: %v", path)
 
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	file, spErr := OpenPrivileged(socketPath, path)
+	file, spErr := openPrivileged(socketPath, path, noFollow)
 	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
 	if spErr != nil {
 		return nil, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, originalError)
@@ -129,20 +140,34 @@ func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
 	return file, nil
 }
 
-// Open attempts to open a file, and if it fails due to permissions, it opens
-// the file using system-probe if the privileged logs module is available.
+// Open attempts to open a file with normal path resolution. If opening fails
+// with permission denied, the file may be opened via system-probe when
+// privileged logs is enabled.
 func Open(path string) (*os.File, error) {
-	file, err := os.Open(path)
+	return open(path, false)
+}
+
+// OpenNoFollow attempts to open a file without following symbolic links in any
+// path component. If opening fails with permission denied, the file may be
+// opened via system-probe with the same no-follow behavior.
+func OpenNoFollow(path string) (*os.File, error) {
+	return open(path, true)
+}
+
+func open(path string, noFollow bool) (*os.File, error) {
+	var file *os.File
+	var err error
+
+	if noFollow {
+		file, err = common.OpenPathWithoutSymlinks(path)
+	} else {
+		file, err = os.Open(path)
+	}
 	if err == nil || !errors.Is(err, os.ErrPermission) {
 		return file, err
 	}
 
-	file, err = maybeOpenPrivileged(path, err)
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
+	return maybeOpenPrivileged(path, err, noFollow)
 }
 
 // Stat attempts to stat a file, and if it fails due to permissions, it opens
@@ -154,7 +179,7 @@ func Stat(path string) (os.FileInfo, error) {
 		return info, err
 	}
 
-	file, err := maybeOpenPrivileged(path, err)
+	file, err := maybeOpenPrivileged(path, err, false)
 	if err != nil {
 		return nil, err
 	}
