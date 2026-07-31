@@ -57,6 +57,24 @@ type Provider struct {
 	agentPerformance *agentperformance.Recorder
 	// now timer func is used to mock time in tests
 	now func() time.Time
+	// containerRestartCounts stores the last observed RestartCount per container,
+	// keyed by (namespace, pod UID, container name) rather than containerID, which
+	// changes when a container is recreated. Used to derive per-reason restart deltas
+	// for kubernetes.containers.last_state.terminated.count. Entries are stamped with
+	// the current run generation and evicted once no longer observed.
+	containerRestartCounts map[string]restartState
+	// restartGen is incremented once per Provide run and stamped onto observed
+	// containerRestartCounts entries so stale ones can be swept after each run.
+	restartGen uint64
+}
+
+// restartState is the per-container tracking entry behind
+// kubernetes.containers.last_state.terminated.count. gen records the last Provide run
+// in which the container was observed, so entries from containers that disappeared can
+// be evicted without maintaining a separate "seen this run" set.
+type restartState struct {
+	count int32
+	gen   uint64
 }
 
 // NewProvider returns a new Provider
@@ -70,6 +88,8 @@ func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Compon
 		tagger:           tagger,
 		agentPerformance: agentPerformance,
 		now:              time.Now,
+
+		containerRestartCounts: make(map[string]restartState),
 	}
 }
 
@@ -81,8 +101,16 @@ func (p *Provider) Provide(_ kubelet.KubeUtilInterface, sender sender.Sender) er
 
 	runningAggregator := newRunningAggregator()
 
+	p.restartGen++
 	for _, pod := range p.store.ListKubernetesPods() {
 		p.processWorkloadmetaPod(pod, sender, runningAggregator)
+	}
+
+	// Evict restart-count state for containers not observed in this run.
+	for key, st := range p.containerRestartCounts {
+		if st.gen != p.restartGen {
+			delete(p.containerRestartCounts, key)
+		}
 	}
 
 	runningAggregator.generateRunningAggregatorMetrics(sender)
@@ -259,6 +287,8 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *wor
 		p.agentPerformance.RecordMetric(agentperformance.ContainerRestarts, &restartCount, pod, "")
 	}
 
+	restartDelta, hasRestart := p.computeRestartDelta(pod, cStatus)
+
 	for key, state := range map[string]workloadmeta.KubernetesContainerState{"state": cStatus.State, "last_state": cStatus.LastTerminationState} {
 		if state.Terminated != nil && slices.Contains(includeContainerStateReason["terminated"], strings.ToLower(state.Terminated.Reason)) {
 			reason := strings.ToLower(state.Terminated.Reason)
@@ -268,12 +298,53 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *wor
 			if p.agentPerformance != nil {
 				p.agentPerformance.RecordMetric(agentperformance.ContainerTerminated, &terminated, pod, reason)
 			}
+			// Emit last_state.terminated.count only on the last_state iteration:
+			// LastTerminationState carries the reason of the termination that caused the
+			// restart, so restartDelta (new restarts observed since the previous run) is
+			// attributed to that reason. Reusing the gauge's termTags keeps this count's
+			// reason tag identical to the last_state.terminated gauge, and emitting the
+			// delta per reason lets each reason accumulate its own series (e.g. 13 oomkilled
+			// restarts stay put while a later app crash starts a fresh error series).
+			if key == "last_state" && hasRestart {
+				sender.Count(common.KubeletMetricsPrefix+"containers."+key+".terminated.count", float64(restartDelta), "", termTags)
+			}
 		}
 		if state.Waiting != nil && slices.Contains(includeContainerStateReason["waiting"], strings.ToLower(state.Waiting.Reason)) {
 			waitTags := utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(state.Waiting.Reason))
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".waiting", 1, "", waitTags)
 		}
 	}
+}
+
+// containerRestartStateKey builds a stable identity for a container across recreations.
+// containerID intentionally excluded: it changes every time the container is recreated,
+// which would reset the restart delta and drop terminations.
+func containerRestartStateKey(pod *workloadmeta.KubernetesPod, containerName string) string {
+	return pod.Namespace + "/" + pod.ID + "/" + containerName
+}
+
+// computeRestartDelta backs the kubernetes.containers.last_state.terminated.count metric.
+// It updates this container's stored RestartCount baseline and returns the restarts seen
+// since the last run; ok is false on first observation (baseline only, nothing to attribute
+// yet) or when the counter did not advance (e.g. pod recreation reset it). The caller
+// attributes the returned delta to the current LastTerminationState reason and emits it as
+// a Count (not MonotonicCount): because the delta is computed here from a single restart
+// baseline, the backend can keep an independent cumulative series per reason without
+// misattributing restarts when the termination reason changes between runs.
+func (p *Provider) computeRestartDelta(pod *workloadmeta.KubernetesPod, cStatus *workloadmeta.KubernetesContainerStatus) (int32, bool) {
+	key := containerRestartStateKey(pod, cStatus.Name)
+
+	prev, seen := p.containerRestartCounts[key]
+	p.containerRestartCounts[key] = restartState{count: cStatus.RestartCount, gen: p.restartGen}
+
+	if !seen {
+		return 0, false
+	}
+	delta := cStatus.RestartCount - prev.count
+	if delta <= 0 {
+		return 0, false
+	}
+	return delta, true
 }
 
 func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *workloadmeta.KubernetesPod) {

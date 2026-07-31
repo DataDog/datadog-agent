@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Adds the ``kubernetes.containers.last_state.terminated.count`` metric to the
+    Kubelet core check. It is a per-reason count of observed container
+    terminations, incremented once per container restart and tagged by the
+    termination ``reason`` (``oomkilled``, ``containercannotrun`` or ``error``).
+    Each reason is tracked as its own independent series, so successive
+    terminations for different reasons do not overwrite one another.
+
+    Known limitations: multiple restarts within a single collection interval
+    collapse to the last observed reason; pods with ``restartPolicy: Never`` (or
+    run-once pods) keep ``restartCount == 0`` and therefore never increment this
+    counter; the delta is derived from in-memory state that resets when the
+    Agent restarts.

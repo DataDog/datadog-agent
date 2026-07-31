@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
@@ -25,6 +26,7 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
@@ -47,6 +49,7 @@ type ProviderTestSuite struct {
 	provider   *Provider
 	mockSender *mocksender.MockSender
 	tagger     tagger.Component
+	fakeTagger taggermock.Mock
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -72,6 +75,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	}
 
 	suite.tagger = fakeTagger
+	suite.fakeTagger = fakeTagger
 
 	// The workloadmeta collectors live in an "internal" package, so we can't
 	// import them here. That means we can’t reuse the pod parsing logic in the
@@ -360,4 +364,282 @@ func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error
 	suite.provider.store.(workloadmetamock.Mock).Notify(wmetaEvents)
 
 	return nil
+}
+
+const (
+	restartTestPodUID        = "restart-pod-uid-0001"
+	restartTestPodName       = "restart-pod"
+	restartTestNamespace     = "restart-ns"
+	restartTestContainerName = "restart-container"
+	restartTestContainerHash = "restartcontainerhash000000000000000000000000000000000000000000000"
+)
+
+// restartTestKey mirrors containerRestartStateKey for the restart-count test fixture.
+func restartTestKey() string {
+	return restartTestNamespace + "/" + restartTestPodUID + "/" + restartTestContainerName
+}
+
+func terminatedState(reason string) workloadmeta.KubernetesContainerState {
+	return workloadmeta.KubernetesContainerState{
+		Terminated: &workloadmeta.KubernetesContainerStateTerminated{Reason: reason},
+	}
+}
+
+func runningState() workloadmeta.KubernetesContainerState {
+	return workloadmeta.KubernetesContainerState{
+		Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: time.Now()},
+	}
+}
+
+func waitingState(reason string) workloadmeta.KubernetesContainerState {
+	return workloadmeta.KubernetesContainerState{
+		Waiting: &workloadmeta.KubernetesContainerStateWaiting{Reason: reason},
+	}
+}
+
+// setRestartTestPod (re)creates the single-container restart-count fixture pod in the
+// store with the supplied restart count and states. The pod UID/namespace/name are kept
+// stable across runs so the provider's cross-run restart tracking is exercised, and the
+// entity is unset first so restart states fully replace (workloadmeta merges append slices).
+func (suite *ProviderTestSuite) setRestartTestPod(restartCount int32, state, lastState workloadmeta.KubernetesContainerState) {
+	suite.fakeTagger.SetTags(
+		taggertypes.NewEntityID(taggertypes.ContainerID, restartTestContainerHash),
+		"kubelet",
+		[]string{"kube_container_name:" + restartTestContainerName, "kube_namespace:" + restartTestNamespace},
+		nil, nil, nil,
+	)
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   restartTestPodUID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      restartTestPodName,
+			Namespace: restartTestNamespace,
+		},
+		Phase:      "Running",
+		Containers: []workloadmeta.OrchestratorContainer{{ID: restartTestContainerHash, Name: restartTestContainerName}},
+		ContainerStatuses: []workloadmeta.KubernetesContainerStatus{{
+			ContainerID:          "containerd://" + restartTestContainerHash,
+			Name:                 restartTestContainerName,
+			RestartCount:         restartCount,
+			State:                state,
+			LastTerminationState: lastState,
+		}},
+	}
+
+	store := suite.provider.store.(workloadmetamock.Mock)
+	store.Unset(pod)
+	store.Set(pod)
+}
+
+func (suite *ProviderTestSuite) unsetRestartTestPod() {
+	store := suite.provider.store.(workloadmetamock.Mock)
+	store.Unset(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   restartTestPodUID,
+		},
+	})
+}
+
+// runProvide resets the recorded sender calls and invokes Provide once, so assertions
+// afterwards only reflect the metrics emitted during that single run.
+func (suite *ProviderTestSuite) runProvide() {
+	suite.mockSender.ResetCalls()
+	require.NoError(suite.T(), suite.provider.Provide(nil, suite.mockSender))
+}
+
+func lastStateTerminatedCountMetric() string {
+	return common.KubeletMetricsPrefix + "containers.last_state.terminated.count"
+}
+
+// TestLastStateTerminatedCountFirstObservationNoCount asserts that a container seen for
+// the first time never emits last_state.terminated.count (only a baseline is recorded),
+// even when it already reports a terminated LastTerminationState with a non-zero restart count.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountFirstObservationNoCount() {
+	suite.setRestartTestPod(3, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+
+	suite.mockSender.AssertNotCalled(suite.T(), "Count", lastStateTerminatedCountMetric(),
+		mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	st, ok := suite.provider.containerRestartCounts[restartTestKey()]
+	require.True(suite.T(), ok, "baseline should be recorded on first observation")
+	assert.Equal(suite.T(), int32(3), st.count)
+}
+
+// TestLastStateTerminatedCountSingleRestart asserts that a single new restart with an
+// allowlisted reason emits a Count of 1 tagged with the termination reason.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountSingleRestart() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(1, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "kube_namespace:"+restartTestNamespace, "reason:oomkilled"))
+}
+
+// TestLastStateTerminatedCountMultipleRestartsInInterval asserts that multiple restarts
+// observed between two runs are emitted as a single Count carrying the full delta.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountMultipleRestartsInInterval() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(3, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 3, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+	suite.mockSender.AssertNumberOfCalls(suite.T(), "Count", 1)
+}
+
+// TestLastStateTerminatedCountRepeatSameReason asserts that successive single restarts
+// with the same reason each emit their own Count of 1 on the same reason series.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountRepeatSameReason() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	for restartCount := int32(1); restartCount <= 3; restartCount++ {
+		suite.setRestartTestPod(restartCount, runningState(), terminatedState("OOMKilled"))
+		suite.runProvide()
+		suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+			append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+		suite.mockSender.AssertNumberOfCalls(suite.T(), "Count", 1)
+	}
+}
+
+// TestLastStateTerminatedCountReasonChange asserts that when the termination reason changes
+// between runs the Count is emitted with the new reason tag.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountReasonChange() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(1, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+
+	suite.setRestartTestPod(2, runningState(), terminatedState("Error"))
+	suite.runProvide()
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:error"))
+}
+
+// TestLastStateTerminatedCountNonAllowlistedReasonAdvancesBaseline asserts that a restart
+// with a non-allowlisted reason emits no Count but still advances the baseline, so a later
+// allowlisted restart is not double-counted.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountNonAllowlistedReasonAdvancesBaseline() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(2, runningState(), terminatedState("Completed"))
+	suite.runProvide()
+	suite.mockSender.AssertNotCalled(suite.T(), "Count", lastStateTerminatedCountMetric(),
+		mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	st, ok := suite.provider.containerRestartCounts[restartTestKey()]
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), int32(2), st.count, "baseline should advance through the skipped restart")
+
+	suite.setRestartTestPod(3, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+}
+
+// TestLastStateTerminatedCountRebaselineOnDecrease asserts that a decreasing restart count
+// (e.g. container recreated) emits no Count and rebaselines to the lower value.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountRebaselineOnDecrease() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(5, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(2, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+	suite.mockSender.AssertNotCalled(suite.T(), "Count", lastStateTerminatedCountMetric(),
+		mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	st, ok := suite.provider.containerRestartCounts[restartTestKey()]
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), int32(2), st.count, "baseline should be rebaselined to the lower value")
+
+	suite.setRestartTestPod(3, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+}
+
+// TestLastStateTerminatedCountTerminatedNilNoCount characterizes that a positive restart
+// delta with a nil terminated LastTerminationState emits no Count, because the last_state
+// branch requires Terminated != nil.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountTerminatedNilNoCount() {
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(2, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.mockSender.AssertNotCalled(suite.T(), "Count", lastStateTerminatedCountMetric(),
+		mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+// TestLastStateTerminatedCountEviction asserts that a container absent from a run has its
+// restart state evicted, so re-adding it behaves as a first observation again.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountEviction() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+	_, ok := suite.provider.containerRestartCounts[restartTestKey()]
+	require.True(suite.T(), ok, "entry should be recorded while the pod is present")
+
+	suite.unsetRestartTestPod()
+	suite.runProvide()
+	_, ok = suite.provider.containerRestartCounts[restartTestKey()]
+	assert.False(suite.T(), ok, "entry should be evicted once the pod is no longer observed")
+
+	suite.setRestartTestPod(1, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+	suite.mockSender.AssertNotCalled(suite.T(), "Count", lastStateTerminatedCountMetric(),
+		mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	suite.setRestartTestPod(2, runningState(), terminatedState("OOMKilled"))
+	suite.runProvide()
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+}
+
+// TestLastStateTerminatedCountDoesNotDisturbExistingGauges asserts that emitting the new
+// count leaves the pre-existing containers.restarts / state.waiting / last_state.terminated
+// gauges intact.
+func (suite *ProviderTestSuite) TestLastStateTerminatedCountDoesNotDisturbExistingGauges() {
+	config := suite.provider.config
+
+	suite.setRestartTestPod(0, runningState(), workloadmeta.KubernetesContainerState{})
+	suite.runProvide()
+
+	suite.setRestartTestPod(1, waitingState("CrashLoopBackOff"), terminatedState("OOMKilled"))
+	suite.runProvide()
+
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.restarts", 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "kube_namespace:"+restartTestNamespace))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.state.waiting", 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:crashloopbackoff"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.last_state.terminated", 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
+	suite.mockSender.AssertMetric(suite.T(), "Count", lastStateTerminatedCountMetric(), 1, "",
+		append(config.Tags, "kube_container_name:"+restartTestContainerName, "reason:oomkilled"))
 }
