@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "instrumentationstatus",
+    srcs = ["reporter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/instrumentationstatus",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/collector/check/id",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+    ],
+)

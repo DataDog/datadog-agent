@@ -66,7 +66,7 @@ Everything under `spec.config` is owned and defined by individual handlers.
 | `types.go` | `Handler` interface, `EventType`, `HandlerStatus`, `ValidationError`, `DatadogInstrumentationGVR`. The platform contract. |
 | `controller.go` | `Controller`: informer wiring, workqueue, reconcile loop, `lastSeen` cache, leader-gated status writes. |
 | `events.go` | `classifySectionEvent` (old/new to Create/Update/Delete/skip) and `DatadogInstrumentationFromObject` (typed/unstructured/tombstone to typed). |
-| `status.go` | `updateStatusConditions`: leader-only, conflict-retried write of one condition per `HandlerStatus`. |
+| `status.go` | `updateStatusConditions` and its exported wrapper: conflict-retried write of one condition per `HandlerStatus`. |
 | `conversion.go` | Unstructured/typed conversion helpers (the informer is dynamic/unstructured). |
 
 The core imports nothing product-specific: only the CRD type, client-go, and

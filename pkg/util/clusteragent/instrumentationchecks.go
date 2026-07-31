@@ -6,14 +6,17 @@
 package clusteragent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 const (
-	dcaInstrumentationConfigsPath = "api/v1/instrumentation/configs"
-	dcaInstrumentationStatusPath  = "api/v1/instrumentation/status"
+	dcaInstrumentationConfigsPath     = "api/v1/instrumentation/configs"
+	dcaInstrumentationStatusPath      = "api/v1/instrumentation/status"
+	dcaInstrumentationCheckStatusPath = "api/v1/instrumentation/check-status"
 )
 
 // InstrumentationCheckClient is the interface used by the instrumentation
@@ -38,4 +41,15 @@ func (c *DCAClient) GetInstrumentationStatus(ctx context.Context) (types.Instrum
 	var status types.InstrumentationStatusResponse
 	err := c.doJSONQuery(ctx, dcaInstrumentationStatusPath, "GET", nil, &status, false)
 	return status, err
+}
+
+// PostInstrumentationCheckStatus sends node-side DDI check results to the
+// leader Cluster Agent.
+func (c *DCAClient) PostInstrumentationCheckStatus(ctx context.Context, request types.InstrumentationCheckStatusRequest) error {
+	body, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	var response struct{}
+	return c.doJSONQueryToLeader(ctx, dcaInstrumentationCheckStatusPath, "POST", bytes.NewReader(body), &response)
 }

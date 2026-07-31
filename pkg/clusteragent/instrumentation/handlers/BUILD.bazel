@@ -5,6 +5,7 @@ go_library(
     name = "handlers",
     srcs = [
         "autodiscovery_utils.go",
+        "check_status.go",
         "checks.go",
         "logs.go",
         "registry.go",
@@ -15,13 +16,19 @@ go_library(
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadfilter/def",
+        "//pkg/clusteragent/clusterchecks/types",
         "//pkg/clusteragent/instrumentation",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/api/meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//dynamic",
     ],
 )
 

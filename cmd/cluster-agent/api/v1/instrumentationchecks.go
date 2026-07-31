@@ -9,6 +9,7 @@ package v1
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -16,9 +17,30 @@ import (
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-func installInstrumentationCheckEndpoints(r *http.ServeMux, confLister clusteragent.ConfigLister) {
+func installInstrumentationCheckEndpoints(r *http.ServeMux, confLister clusteragent.ConfigLister, statusReceiver clusteragent.InstrumentationCheckStatusReceiver) {
 	r.HandleFunc("GET /instrumentation/configs", api.WithTelemetryWrapper("getInstrumentationConfigs", getInstrumentationConfigs(confLister)))
 	r.HandleFunc("GET /instrumentation/status", api.WithTelemetryWrapper("getInstrumentationStatus", getInstrumentationStatus(confLister)))
+	r.HandleFunc("POST /instrumentation/check-status", api.WithTelemetryWrapper("postInstrumentationCheckStatus", postInstrumentationCheckStatus(statusReceiver)))
+}
+
+func postInstrumentationCheckStatus(receiver clusteragent.InstrumentationCheckStatusReceiver) func(w http.ResponseWriter, r *http.Request) {
+	if receiver == nil {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "instrumentation check status receiver not available", http.StatusServiceUnavailable)
+		}
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request cctypes.InstrumentationCheckStatusRequest
+		decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+		if err := decoder.Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		receiver.SubmitInstrumentationCheckStatus(request)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}
 }
 
 func getInstrumentationConfigs(confLister clusteragent.ConfigLister) func(w http.ResponseWriter, r *http.Request) {

@@ -81,6 +81,50 @@ type InstrumentationStatusResponse struct {
 	ConfigHash uint64 `json:"config_hash"`
 }
 
+// InstrumentationCheckStatusState is a node Agent's observed state for one
+// DatadogInstrumentation check instance.
+type InstrumentationCheckStatusState string
+
+const (
+	// InstrumentationCheckStatusRunning means the check instance configured and ran successfully.
+	InstrumentationCheckStatusRunning InstrumentationCheckStatusState = "running"
+	// InstrumentationCheckStatusFailed means the check instance failed to configure or run.
+	InstrumentationCheckStatusFailed InstrumentationCheckStatusState = "failed"
+)
+
+// InstrumentationCheckStatusPhase identifies where a failure occurred.
+type InstrumentationCheckStatusPhase string
+
+const (
+	// InstrumentationCheckStatusConfigure covers check loader/configuration failures.
+	InstrumentationCheckStatusConfigure InstrumentationCheckStatusPhase = "configure"
+	// InstrumentationCheckStatusRun covers check execution results.
+	InstrumentationCheckStatusRun InstrumentationCheckStatusPhase = "run"
+)
+
+// InstrumentationCheckStatusReport attributes one runtime result to a check
+// instance in a DatadogInstrumentation resource.
+type InstrumentationCheckStatusReport struct {
+	Namespace     string                          `json:"namespace"`
+	Name          string                          `json:"name"`
+	UID           string                          `json:"uid"`
+	Generation    int64                           `json:"generation"`
+	CheckIndex    int                             `json:"check_index"`
+	InstanceIndex int                             `json:"instance_index"`
+	CheckName     string                          `json:"check_name"`
+	CheckID       string                          `json:"check_id,omitempty"`
+	NodeName      string                          `json:"node_name,omitempty"`
+	Phase         InstrumentationCheckStatusPhase `json:"phase"`
+	State         InstrumentationCheckStatusState `json:"state"`
+	Error         string                          `json:"error,omitempty"`
+}
+
+// InstrumentationCheckStatusRequest is posted by node Agents to the leader
+// Cluster Agent.
+type InstrumentationCheckStatusRequest struct {
+	Reports []InstrumentationCheckStatusReport `json:"reports"`
+}
+
 // StateResponse holds the DCA response for a dispatching state query
 type StateResponse struct {
 	NotRunning string               `json:"not_running"` // Reason why not running, empty if leading

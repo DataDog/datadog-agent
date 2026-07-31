@@ -23,6 +23,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks",
+        "//pkg/collector/instrumentationstatus",
         "//pkg/collector/loaders",
         "//pkg/collector/metriclookback",
         "//pkg/config/model",

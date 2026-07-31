@@ -400,25 +400,27 @@ func start(log log.Component,
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 	var instrHandlers []instrumentation.Handler
+	var instrCheckStatusStore *instrumentationhandlers.CheckStatusStore
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
+		instrHandlers, instrCheckStatusStore = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
 
 	ctx := controllers.ControllerContext{
-		InformerFactory:             apiCl.InformerFactory,
-		APIExentionsInformerFactory: apiCl.APIExentionsInformerFactory,
-		DynamicClient:               apiCl.DynamicInformerCl,
-		DynamicUpdateClient:         apiCl.DynamicCl,
-		DynamicInformerFactory:      apiCl.DynamicInformerFactory,
-		Client:                      apiCl.InformerCl,
-		IsLeaderFunc:                le.IsLeader,
-		EventRecorder:               eventRecorder,
-		WorkloadMeta:                wmeta,
-		StopCh:                      stopCh,
-		DatadogClient:               dc,
-		InstrumentationHandlers:     instrHandlers,
+		InformerFactory:                 apiCl.InformerFactory,
+		APIExentionsInformerFactory:     apiCl.APIExentionsInformerFactory,
+		DynamicClient:                   apiCl.DynamicInformerCl,
+		DynamicUpdateClient:             apiCl.DynamicCl,
+		DynamicInformerFactory:          apiCl.DynamicInformerFactory,
+		Client:                          apiCl.InformerCl,
+		IsLeaderFunc:                    le.IsLeader,
+		EventRecorder:                   eventRecorder,
+		WorkloadMeta:                    wmeta,
+		StopCh:                          stopCh,
+		DatadogClient:                   dc,
+		InstrumentationHandlers:         instrHandlers,
+		InstrumentationCheckStatusStore: instrCheckStatusStore,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -767,8 +769,9 @@ func start(log log.Component,
 	return nil
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) ([]instrumentation.Handler, *instrumentationhandlers.CheckStatusStore) {
 	checkStore := instrumentationhandlers.NewCheckStore()
+	checkStatusStore := instrumentationhandlers.NewCheckStatusStore()
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
@@ -776,7 +779,7 @@ func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodisc
 	})
 
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
-		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
+		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore, checkStatusStore)
 	})
 
 	if apiserver.UseEndpointSlices() {
@@ -787,7 +790,7 @@ func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodisc
 			ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
 		}
 	}
-	return instrHandlers
+	return instrHandlers, checkStatusStore
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {

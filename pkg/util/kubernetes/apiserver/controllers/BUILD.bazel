@@ -21,6 +21,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/clusteragent/instrumentation",
+        "//pkg/clusteragent/instrumentation/handlers",
         "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/cache",

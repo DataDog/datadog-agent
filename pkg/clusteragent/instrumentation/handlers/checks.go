@@ -86,7 +86,6 @@ func (h *ChecksHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrum
 		if len(check.Instances) == 0 {
 			errs = append(errs, h.checkValidationError(i, "instances", "InvalidInstances", "at least one instance is required"))
 		}
-
 		if !isService(cr) && !hasContainerName(check) {
 			errs = append(errs, h.checkValidationError(i, "containerName", "InvalidContainerTarget", "container name is required"))
 		}
@@ -139,13 +138,13 @@ func (h *ChecksHandler) Handle(_ context.Context, event instrumentation.EventTyp
 	}
 
 	configs := make([]integration.Config, 0, len(cr.Spec.Config.Checks))
-	for _, check := range cr.Spec.Config.Checks {
+	for checkIndex, check := range cr.Spec.Config.Checks {
 		var cfg integration.Config
 		var err error
 		if isService(cr) {
 			cfg, err = translateServiceCheck(cr, check)
 		} else {
-			cfg, err = translateWorkloadCheck(cr, check)
+			cfg, err = translateWorkloadCheck(cr, check, checkIndex)
 		}
 		if err != nil {
 			return instrumentation.HandlerStatus{
@@ -164,15 +163,18 @@ func (h *ChecksHandler) Handle(_ context.Context, event instrumentation.EventTyp
 		h.checkStore.writeConfigs(key, cr, configs)
 	}
 
-	return instrumentation.HandlerStatus{
-		Type:    checksReadyConditionType,
-		Status:  metav1.ConditionTrue,
-		Reason:  "Configured",
-		Message: fmt.Sprintf("%d check(s) configured for %s/%s", len(configs), cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
-	}, nil
+	status := metav1.ConditionUnknown
+	reason := "AwaitingCheckStatus"
+	message := fmt.Sprintf("%d check(s) configured; waiting for node Agent runtime status", len(configs))
+	if isService(cr) {
+		status = metav1.ConditionTrue
+		reason = "Configured"
+		message = fmt.Sprintf("%d check(s) configured for %s/%s", len(configs), cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name)
+	}
+	return instrumentation.HandlerStatus{Type: checksReadyConditionType, Status: status, Reason: reason, Message: message}, nil
 }
 
-func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
+func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig, checkIndex int) (integration.Config, error) {
 	initConfig, instances, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
@@ -190,6 +192,9 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 		Instances:     instances,
 		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
+		Instrumentation: &integration.InstrumentationConfigOrigin{
+			Namespace: cr.Namespace, Name: cr.Name, UID: string(cr.UID), Generation: cr.Generation, CheckIndex: checkIndex,
+		},
 	}, nil
 }
 

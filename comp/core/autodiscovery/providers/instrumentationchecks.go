@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/collector/instrumentationstatus"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -123,6 +124,7 @@ func (c *InstrumentationChecksConfigProvider) initClient() error {
 	dcaClient, err := clusteragent.GetClusterAgentClient()
 	if err == nil {
 		c.dcaClient = dcaClient
+		instrumentationstatus.SetClient(dcaClient)
 	}
 	return err
 }

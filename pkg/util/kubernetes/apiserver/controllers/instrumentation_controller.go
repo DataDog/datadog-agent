@@ -91,6 +91,9 @@ func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error)
 		}
 
 		go controller.Run(controllerCtx)
+		if ctx.InstrumentationCheckStatusStore != nil {
+			go ctx.InstrumentationCheckStatusStore.Run(controllerCtx, ctx.DynamicUpdateClient, ctx.IsLeaderFunc)
+		}
 		ctx.DynamicInformerFactory.Start(ctx.StopCh)
 	}()
 }
