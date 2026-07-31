@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Improved syscall coverage in Workload Protection (CWS) to better track
+    activity that operates on processes through process file descriptors (``pidfd``).
+    Added the ``event.is_pidfd`` field, which is set to ``true`` when an event
+    originates from a ``pidfd``-based syscall.

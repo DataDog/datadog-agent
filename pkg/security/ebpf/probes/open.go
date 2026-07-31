@@ -84,6 +84,18 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_terminate_walk",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_pidfd_receive_fd",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_pidfd___receive_fd",
+			},
+		},
 	}
 
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
@@ -127,6 +139,12 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "openat2",
+	}, fentry, EntryAndExit)...)
+	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "pidfd_getfd",
 	}, fentry, EntryAndExit)...)
 	return openProbes
 }

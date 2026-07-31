@@ -68,6 +68,14 @@ static struct path *__attribute__((always_inline)) get_file_f_path_addr(struct f
     return (struct path *)((char *)file + offset);
 }
 
+static u32 __attribute__((always_inline)) get_file_flags(struct file *file) {
+    u64 offset;
+    LOAD_CONSTANT("file_f_flags_offset", offset);
+    u32 flags = 0;
+    bpf_probe_read(&flags, sizeof(flags), (char *)file + offset);
+    return flags;
+}
+
 static u64 __attribute__((always_inline)) security_have_usernamespace_first_arg(void) {
     u64 flag;
     LOAD_CONSTANT("has_usernamespace_first_arg", flag);

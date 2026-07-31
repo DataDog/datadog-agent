@@ -29,6 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveIsPIDFD(ev)
 	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -1085,6 +1086,7 @@ type FieldHandlers interface {
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveIsIPPublic(ev *Event, e *IPPortContext) bool
+	ResolveIsPIDFD(ev *Event) bool
 	ResolveK8SGroups(ev *Event, e *K8SSessionContext) []string
 	ResolveK8SUID(ev *Event, e *K8SSessionContext) string
 	ResolveK8SUsername(ev *Event, e *K8SSessionContext) string
@@ -1243,6 +1245,7 @@ func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string {
 func (dfh *FakeFieldHandlers) ResolveIsIPPublic(ev *Event, e *IPPortContext) bool {
 	return bool(e.IsPublic)
 }
+func (dfh *FakeFieldHandlers) ResolveIsPIDFD(ev *Event) bool { return bool(ev.IsPIDFD) }
 func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *K8SSessionContext) []string {
 	return []string(e.K8SGroups)
 }

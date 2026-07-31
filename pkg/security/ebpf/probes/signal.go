@@ -33,5 +33,12 @@ func getSignalProbes(fentry bool) []*manager.Probe {
 		SyscallFuncName: "kill",
 	}, fentry, Entry)...)
 
+	signalProbes = append(signalProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "pidfd_send_signal",
+	}, fentry, Entry)...)
+
 	return signalProbes
 }

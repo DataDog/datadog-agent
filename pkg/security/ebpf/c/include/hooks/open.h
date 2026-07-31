@@ -272,7 +272,8 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
                        (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
                        (syscall->resolver.flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
-                       (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
+                       (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0) |
+                       (syscall->from_pidfd ? EVENT_FLAGS_PIDFD : 0),
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
@@ -377,6 +378,61 @@ int rethook_io_openat2(ctx_t *ctx) {
     }
     syscall->retval = CTX_PARMRET(ctx);
     return _sys_open_ret(ctx, syscall);
+}
+
+// pidfd_getfd(pidfd, targetfd, flags) duplicates the file descriptor `targetfd`
+// out of the process referred to by `pidfd` into the caller's fd table. The
+// stolen fd points at a real struct file, so we resolve its path and emit an
+// `open` event for the thief, reusing the open pipeline.
+HOOK_SYSCALL_ENTRY3(pidfd_getfd, int, pidfd, int, targetfd, unsigned int, flags) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_OPEN)) {
+        return 0;
+    }
+
+    struct policy_t policy = fetch_policy(EVENT_OPEN);
+    struct syscall_cache_t syscall = {
+        .type = EVENT_OPEN,
+        .policy = policy,
+        .async = SYNC_SYSCALL,
+        .from_pidfd = 1,
+        .open = {
+            .flags = O_RDONLY,
+            .mode = 0,
+        }
+    };
+
+    // Record the actual pidfd_getfd arguments. These do not line up with the
+    // open syscall context layout (path, flags, mode), so the open.syscall.*
+    // fields will be mislabeled; we keep the real (pidfd, targetfd, flags)
+    // values anyway.
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_INT(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)&pidfd, (void *)&targetfd, (void *)&flags);
+    cache_syscall_update_cgroup(ctx, &syscall);
+    return 0;
+}
+
+static int __attribute__((always_inline)) handle_receive_fd(ctx_t *ctx, struct file *f) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
+    if (!syscall || f == NULL) {
+        return 0;
+    }
+    syscall->open.flags = get_file_flags(f);
+    return handle_open(ctx, get_file_f_path_addr(f));
+}
+
+// receive_fd(struct file *file, int __user *ufd, unsigned int o_flags) — kernel ≥ 5.12
+HOOK_ENTRY("receive_fd")
+int hook_pidfd_receive_fd(ctx_t *ctx) {
+    return handle_receive_fd(ctx, (struct file *)CTX_PARM1(ctx));
+}
+
+// __receive_fd(int fd, struct file *file, int __user *ufd, unsigned int flags) — kernel < 5.12
+HOOK_ENTRY("__receive_fd")
+int hook_pidfd___receive_fd(ctx_t *ctx) {
+    return handle_receive_fd(ctx, (struct file *)CTX_PARM2(ctx));
+}
+
+HOOK_SYSCALL_EXIT(pidfd_getfd) {
+    return sys_open_ret(ctx);
 }
 
 #endif

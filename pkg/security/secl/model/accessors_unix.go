@@ -2060,6 +2060,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "event.is_pidfd":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsPIDFD(ev)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -37391,6 +37402,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.response.ips",
 		"event.async",
 		"event.hostname",
+		"event.is_pidfd",
 		"event.origin",
 		"event.os",
 		"event.rule.tags",
@@ -39897,6 +39909,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "event.hostname":
 		return "", reflect.String, "string", false, nil
+	case "event.is_pidfd":
+		return "", reflect.Bool, "bool", false, nil
 	case "event.origin":
 		return "", reflect.String, "string", false, nil
 	case "event.os":
@@ -44584,6 +44598,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("event.async", &ev.Async, value)
 	case "event.hostname":
 		return ev.setStringFieldValue("event.hostname", &ev.BaseEvent.Hostname, value)
+	case "event.is_pidfd":
+		return ev.setBoolFieldValue("event.is_pidfd", &ev.IsPIDFD, value)
 	case "event.origin":
 		return ev.setStringFieldValue("event.origin", &ev.BaseEvent.Origin, value)
 	case "event.os":
