@@ -1,0 +1,18 @@
+# Deps are intentionally identical to the `example` template so both `cargo
+# build` and the bazel `rust_shared_library` build work with zero crate-universe
+# changes. `core = { path = "../../core" }` resolves only when this crate lives
+# at pkg/collector/sharedlibrary/rustchecks/checks/hello_ccr/ — see README step 0.
+[package]
+name = "hello_ccr"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+core = { path = "../../core" }
+libc.workspace = true
+
+[lib]
+crate-type = ["cdylib"]

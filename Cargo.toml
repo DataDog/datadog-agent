@@ -6,6 +6,7 @@ members = [
     "pkg/collector/sharedlibrary/rustchecks/core",
     "pkg/collector/sharedlibrary/rustchecks/checks/datasecurity",
     "pkg/collector/sharedlibrary/rustchecks/checks/example",
+    "pkg/collector/sharedlibrary/rustchecks/checks/hello_ccr",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
