@@ -45,7 +45,7 @@ pub(crate) fn build_sds_result(
                         data_type: column.data_type,
                     })
                     .collect(),
-                // TODO(DSEC-179): populate table_row_count if possible.
+                // TODO(DSEC-227): populate table_row_count if possible.
                 ..Default::default()
             },
         )),
@@ -79,7 +79,7 @@ pub(crate) fn build_sds_result(
             .iter()
             .map(|rule| rule.id.clone())
             .collect(),
-        // The scanning source is the Agent. TODO(DSEC-179): populate hostname and
+        // The scanning source is the Agent. TODO(DSEC-228): populate hostname and
         // agent version once the check receives them (not provided via config yet).
         scanning_source: Some(proto::ScanningSource {
             source: Some(proto::scanning_source::Source::Agent(
