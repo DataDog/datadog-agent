@@ -143,6 +143,44 @@ func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
 	assert.Empty(t, unclaimedIterators, "cursors no type reaches")
 }
 
+// TestReadersAreBoundWhenThePlanIsBuilt is the claim the per path types exist
+// to make: a field is looked up by name once, while the rule is planned, and
+// never again.
+//
+// It is checked by taking the entry away. If evaluation still reads the field
+// after celReaders no longer contains it, nothing consulted the map — the reader
+// is held by the closure the provider handed the planner.
+func TestReadersAreBoundWhenThePlanIsBuilt(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	event := model.NewFakeEvent()
+	event.BaseEvent.ProcessContext.Process.Comm = "sh"
+
+	program, err := Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	require.NoError(t, err)
+
+	const field = "process.comm"
+	reader := celReaders[field]
+	require.NotNil(t, reader)
+	delete(celReaders, field)
+	t.Cleanup(func() { celReaders[field] = reader })
+
+	out, _, err := program.Eval(NewActivation(eval.NewContext(event)))
+	require.NoError(t, err)
+	assert.Equal(t, types.True, out, "the reader was bound when the rule was planned")
+
+	// The converse, so that the test cannot pass by reading nothing: a rule
+	// planned while the entry is missing is bound to the failure instead, which
+	// is only possible if the binding happens at planning time.
+	missing, err := Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	require.NoError(t, err, "the field is typed either way, so planning still succeeds")
+
+	_, _, err = missing.Eval(NewActivation(eval.NewContext(event)))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), field)
+}
+
 // TestCIDRConversion pins the conversion the readers use for IP and CIDR fields,
 // which is the one place a reader does more than name a struct field.
 func TestCIDRConversion(t *testing.T) {
