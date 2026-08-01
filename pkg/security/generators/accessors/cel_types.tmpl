@@ -19,17 +19,29 @@ import (
 // The types come from a trie over the SECL field *names* rather than from the Go
 // structs behind them: `connect.addr` draws its members from a nested
 // IPPortContext and from flat Go fields tagged `addr.hostname` and `addr.family`,
-// so no Go type describes it. One type is shared by every path exposing the same
-// members, which is why a member carries no field name: the runtime composes the
-// flat SECL name by joining the path it was reached through.
+// so no Go type describes it.
+//
+// There is one type per path rather than one per member set, so a member always
+// denotes exactly one SECL field — see modelPaths.
 var modelShapes = map[string]map[string]*types.Type{
 {{- range .Tree.Shapes}}
-	// {{.Name}} is the type of {{.Paths | ShapePathComment}}.
+	// {{.Name}} is the type of {{.Path}}.
 	"{{.Name}}": {
 	{{- range .Members}}
 		"{{.Name}}": {{. | CELTypeExpr}},
 	{{- end}}
 	},
+{{- end}}
+}
+
+// modelPaths gives the SECL path each object type describes.
+//
+// It is what makes a member select resolvable at planning time: joining the type's
+// path with the member name gives the SECL field, and so the reader for it, once
+// per rule rather than once per read.
+var modelPaths = map[string]string{
+{{- range .Tree.Shapes}}
+	"{{.Name}}": "{{.Path}}",
 {{- end}}
 }
 

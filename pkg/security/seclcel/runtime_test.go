@@ -427,28 +427,21 @@ func TestProgramWalksAnAncestryOnce(t *testing.T) {
 
 // countAncestorSteps replaces the ancestors cursor with one that counts the
 // elements it yields, for the duration of the test.
+//
+// The cursor is bound to the field when a rule is planned, so this has to be in
+// place before the program is built — which it is, because evalSECL plans afresh
+// on every call.
 func countAncestorSteps(t *testing.T) *int {
 	t.Helper()
 
 	var steps int
 
-	process := celRoots["process"]
-	ancestors := process.members["ancestors"]
-
-	counted := *ancestors
-	counted.cursor = func(ctx *eval.Context) celCursor {
-		return &countingCursor{inner: ancestors.cursor(ctx), steps: &steps}
+	const field = "process.ancestors"
+	ancestors := celIterators[field]
+	celIterators[field] = func(ctx *eval.Context) celCursor {
+		return &countingCursor{inner: ancestors(ctx), steps: &steps}
 	}
-
-	patched := *process
-	patched.members = make(map[string]*celNode, len(process.members))
-	for name, member := range process.members {
-		patched.members[name] = member
-	}
-	patched.members["ancestors"] = &counted
-
-	celRoots["process"] = &patched
-	t.Cleanup(func() { celRoots["process"] = process })
+	t.Cleanup(func() { celIterators[field] = ancestors })
 
 	return &steps
 }

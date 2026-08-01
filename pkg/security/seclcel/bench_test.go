@@ -36,28 +36,31 @@ package seclcel
 // resolving a field by joining its path and looking the accessor up by name:
 //
 //	                 SECL              CEL before          CEL now
-//	Comm             169 ns,  2 allocs    672 ns,    6     291 ns,   1
-//	Path             179 ns,  2           846 ns,    8     399 ns,   2
-//	InList           163 ns,  2                          — 314 ns,   1
-//	Regex            351 ns,  2                          — 681 ns,   4
-//	Glob             257 ns,  2                          — 480 ns,   3
-//	Ancestors        6.6 µs, 12          18.8 µs,  178    1.86 µs,   9
-//	DeepAncestors   55.7 µs, 304          150 µs, 1066    48.2 µs, 205
+//	Comm             177 ns,  2 allocs    672 ns,    6     266 ns,   1
+//	Path             189 ns,  2           846 ns,    8     348 ns,   2
+//	InList           172 ns,  2                          — 287 ns,   1
+//	Regex            360 ns,  2                          — 609 ns,   4
+//	Glob             274 ns,  2                          — 422 ns,   3
+//	Ancestors        6.5 µs, 12          18.8 µs,  178    1.83 µs,   9
+//	DeepAncestors   56.3 µs, 304          150 µs, 1066    45.6 µs, 205
 //
 // The three shapes with no before column were added with planningOptions, which
 // is what makes them affordable: unplanned they cost 724 ns, 2847 ns and 736 ns,
 // because the list literal, the regexp and the glob pattern were rebuilt on
 // every event.
 //
-// Decomposing what is left of a scalar read, the 291 ns of Comm: 30 ns is
+// Decomposing what is left of a scalar read, the 266 ns of Comm: 30 ns is
 // resetting the context, which SECL pays too; 47 ns is cel-go evaluating a
 // program that reads nothing at all; 7 ns is the activation handing back a
-// cached root; 37 ns is the node lookup and the reader, of which the struct
-// read is 3 ns and boxing the result 2 ns; and the remaining ~170 ns is cel-go
-// resolving the attribute and dispatching the comparison. Almost none of it is
-// the model, which is why the readers cannot close the gap on their own.
+// cached root; 47 ns is the reader, of which the struct read is 3 ns and boxing
+// the result 2 ns; and the remaining ~135 ns is cel-go resolving the attribute
+// and dispatching the comparison. Almost none of it is the model, which is why
+// the readers cannot close the gap on their own.
 //
-// The iterated cases are what the node graph was built for. Presenting an
+// Path gains more than Comm from binding at planning time because it selects
+// twice, and it is per select that the work went away.
+//
+// The iterated cases are what the cursors were built for. Presenting an
 // iterated field as a list of positions meant reading its length — a full walk
 // of the ancestry — before the predicate saw the first element, and then
 // resolving each position by walking from the root again, so reading positions
@@ -66,7 +69,7 @@ package seclcel
 //
 // Where the two engines now stand:
 //
-//   - A scalar read is dearer through CEL, by about 120 ns, and the breakdown
+//   - A scalar read is dearer through CEL, by about 90 ns, and the breakdown
 //     above says where: cel-go's own attribute resolution and dispatch. SECL
 //     compiles a rule down to a closure over the field, so it has none of that
 //     to do.

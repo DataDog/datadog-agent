@@ -49,13 +49,15 @@ type CELMember struct {
 
 // CELShape is a synthesized CEL object type.
 type CELShape struct {
-	// Name is the CEL type name, e.g. "secl.File".
+	// Name is the CEL type name, e.g. "secl.ProcessFile".
 	Name string
 	// Members are sorted by name.
 	Members []CELMember
-	// Paths lists the SECL paths that share this shape, sorted, for the comment
-	// the generator emits.
-	Paths []string
+	// Path is the SECL path this type describes. There is one type per path
+	// rather than one per member set, which is what lets the runtime bind a
+	// member to the field it denotes when a rule is planned rather than
+	// resolving it on every read.
+	Path string
 }
 
 // CELTypeTree is the generated view of the SECL field namespace.
@@ -197,29 +199,39 @@ func celKindOf(field *StructField) string {
 	}
 }
 
-// nameShapes assigns a CEL type name to every internal node, sharing one name
-// between nodes that expose the same members.
+// nameShapes assigns a CEL type name to every internal node, one per path.
 //
-// Names come from the member set rather than from the Go type, because the Go
-// type does not determine it: `process`, `exec` and `exit` are all process
-// contexts yet expose different members, while `connect.addr` and `accept.addr`
-// are backed by different events and expose the same ones.
+// Sharing a name between nodes exposing the same members would declare fewer
+// types — 84 rather than 276 — but a shared type cannot say which field a
+// member denotes, so the runtime would have to work that out on every read from
+// the path the value was reached through. One type per path lets the provider
+// bind a member to its field when a rule is planned instead.
+//
+// The cost is that two paths exposing the same members are no longer the same
+// type, so nothing can be written polymorphically over them. SECL has no such
+// construct today; macros would be where it started to matter.
 func nameShapes(root *celNode, tree *CELTypeTree) error {
-	// shape signature -> paths sharing it
-	paths := map[string][]string{}
+	taken := map[string]string{} // type name -> the path that claimed it
+
 	var walk func(node *celNode, path string) error
 	walk = func(node *celNode, path string) error {
 		if node.isLeaf {
 			return nil
 		}
+		if node != root {
+			name := celTypePrefix + camelPath(strings.Split(path, "."))
+			// Paths are unique, but two of them can camel case to one name:
+			// `x.file_metadata` and `x.file.metadata` both give FileMetadata.
+			if claimed, ok := taken[name]; ok {
+				return fmt.Errorf("paths %q and %q both name the type %q", claimed, path, name)
+			}
+			taken[name] = path
+			node.shape = name
+		}
 		for _, segment := range sortedKeys(node.children) {
 			if err := walk(node.children[segment], join(path, segment)); err != nil {
 				return err
 			}
-		}
-		if node != root {
-			sig := signatureOf(node, path)
-			paths[sig] = append(paths[sig], path)
 		}
 		return nil
 	}
@@ -227,93 +239,29 @@ func nameShapes(root *celNode, tree *CELTypeTree) error {
 		return err
 	}
 
-	// Name each shape after the tail of one of its paths, so the names read like
-	// the model rather than like a hash. The most widely shared shape gets the
-	// bare name — `secl.File` is the one 37 paths use — and the others are
-	// qualified with as much of their path as it takes to be unique, giving
-	// `secl.ChmodFile` and `secl.CgroupFile` rather than File2 and File4.
-	signatures := make([]string, 0, len(paths))
-	for sig := range paths {
-		sort.Strings(paths[sig])
-		signatures = append(signatures, sig)
-	}
-	sort.Slice(signatures, func(i, j int) bool {
-		if len(paths[signatures[i]]) != len(paths[signatures[j]]) {
-			return len(paths[signatures[i]]) > len(paths[signatures[j]])
-		}
-		return paths[signatures[i]][0] < paths[signatures[j]][0]
-	})
-
-	taken := map[string]bool{}
-	shapeOf := map[string]string{} // path -> shape name
-	for _, sig := range signatures {
-		name := uniqueShapeName(paths[sig][0], taken)
-		taken[name] = true
-
-		for _, path := range paths[sig] {
-			shapeOf[path] = name
-		}
-	}
-
-	// Second pass, now that every path knows its shape name, to fill in the
-	// members that point at other shapes.
-	var assign func(node *celNode, path string)
-	assign = func(node *celNode, path string) {
+	// Second pass, now that every node knows its name, to fill in the members
+	// that point at other shapes.
+	var emit func(node *celNode, path string)
+	emit = func(node *celNode, path string) {
 		if node.isLeaf {
 			return
 		}
 		if node != root {
-			node.shape = shapeOf[path]
+			tree.Shapes = append(tree.Shapes, CELShape{
+				Name:    node.shape,
+				Members: membersOf(node),
+				Path:    path,
+			})
 		}
 		for _, segment := range sortedKeys(node.children) {
-			assign(node.children[segment], join(path, segment))
+			emit(node.children[segment], join(path, segment))
 		}
 	}
-	assign(root, "")
+	emit(root, "")
 
-	emitted := map[string]bool{}
-	for _, sig := range signatures {
-		first := paths[sig][0]
-		name := shapeOf[first]
-		if emitted[name] {
-			return fmt.Errorf("two shapes were both named %q", name)
-		}
-		emitted[name] = true
-
-		node := nodeAt(root, first)
-		tree.Shapes = append(tree.Shapes, CELShape{
-			Name:    name,
-			Members: membersOf(node),
-			Paths:   paths[sig],
-		})
-	}
 	sort.Slice(tree.Shapes, func(i, j int) bool { return tree.Shapes[i].Name < tree.Shapes[j].Name })
 
 	return nil
-}
-
-// uniqueShapeName names a shape after the tail of one of its paths, taking one
-// more segment at a time until the name is free: `exec.cgroup.file` yields File,
-// then CgroupFile, then ExecCgroupFile.
-func uniqueShapeName(path string, taken map[string]bool) string {
-	segments := strings.Split(path, ".")
-
-	name := ""
-	for i := len(segments) - 1; i >= 0; i-- {
-		name = celTypePrefix + camelPath(segments[i:])
-		if !taken[name] {
-			return name
-		}
-	}
-
-	// Two shapes cannot share a path, but a shape's whole path can collide with
-	// a name another shape was qualified with.
-	for n := 2; ; n++ {
-		numbered := fmt.Sprintf("%s%d", name, n)
-		if !taken[numbered] {
-			return numbered
-		}
-	}
 }
 
 // camelPath joins SECL path segments into a Go style type name.
@@ -321,30 +269,6 @@ func camelPath(segments []string) string {
 	var b strings.Builder
 	for _, segment := range segments {
 		b.WriteString(camel(segment))
-	}
-	return b.String()
-}
-
-// signatureOf renders a node's members so that two nodes exposing the same
-// members compare equal. It recurses through child shapes rather than using
-// their names, which are not assigned yet.
-func signatureOf(node *celNode, path string) string {
-	var b strings.Builder
-	for _, segment := range sortedKeys(node.children) {
-		child := node.children[segment]
-		b.WriteString(segment)
-		if child.list {
-			b.WriteString("[]")
-		}
-		b.WriteByte(':')
-		if child.isLeaf {
-			b.WriteString(child.kind)
-		} else {
-			b.WriteByte('{')
-			b.WriteString(signatureOf(child, join(path, segment)))
-			b.WriteByte('}')
-		}
-		b.WriteByte(';')
 	}
 	return b.String()
 }
@@ -362,14 +286,6 @@ func membersOf(node *celNode) []CELMember {
 		members = append(members, member)
 	}
 	return members
-}
-
-func nodeAt(root *celNode, path string) *celNode {
-	node := root
-	for _, segment := range strings.Split(path, ".") {
-		node = node.children[segment]
-	}
-	return node
 }
 
 func sortedKeys(m map[string]*celNode) []string {

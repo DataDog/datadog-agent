@@ -30,15 +30,15 @@ import (
 const NowVar = "secl_now"
 
 // seclObject is a position in the SECL field namespace: an event root, or one
-// element of an iterated field. Selecting a member walks to the member's node,
-// and reaching a leaf reads it.
+// element of an iterated field.
 //
-// Nothing is read until a leaf is reached, so an expression only resolves the
-// fields it actually mentions.
+// It carries no path. Its type names one, and there is one type per path, so
+// which field a member select denotes was settled when the rule was planned —
+// see bindMember. Nothing is read until a leaf is reached, so an expression only
+// resolves the fields it actually mentions.
 type seclObject struct {
-	ctx  *eval.Context
-	typ  *types.Type
-	node *celNode
+	ctx *eval.Context
+	typ *types.Type
 
 	// elem is the element this position belongs to, held as the model value the
 	// cursor yielded rather than as an index into it. Two fields of one element
@@ -75,32 +75,7 @@ func (o *seclObject) Equal(other ref.Val) ref.Val {
 	if !ok {
 		return types.MaybeNoSuchOverloadErr(other)
 	}
-	return types.Bool(o.node == rhs.node && o.elem == rhs.elem)
-}
-
-// selectMember resolves a member of this object: it reads a leaf, opens an
-// iterated field as a list, and descends into anything else.
-//
-// memberType is the type the field tree describes for the member, which is what
-// the value has to report back to the interpreter.
-func (o *seclObject) selectMember(name string, memberType *types.Type) (ref.Val, error) {
-	node, ok := o.node.members[name]
-	if !ok {
-		return nil, fmt.Errorf("%w: %s has no member %q", errUnsupportedValue, o.typ, name)
-	}
-	return newSECLValue(o.ctx, node, memberType, o.elem), nil
-}
-
-// newSECLValue turns a node into the CEL value standing for it.
-func newSECLValue(ctx *eval.Context, node *celNode, typ *types.Type, elem any) ref.Val {
-	switch {
-	case node.cursor != nil:
-		return newIteratedList(ctx, node, typ)
-	case node.read != nil:
-		return node.read(ctx, elem)
-	default:
-		return &seclObject{ctx: ctx, typ: typ, node: node, elem: elem}
-	}
+	return types.Bool(o.typ == rhs.typ && o.elem == rhs.elem)
 }
 
 // stringsToVal and its siblings convert what a reader read into a CEL value.
@@ -198,14 +173,14 @@ func (a *activation) ResolveName(name string) (any, bool) {
 		}
 	}
 
-	node, ok := celRoots[name]
+	rootType, ok := modelRoots[name]
 	if !ok {
 		// vars is declared for SECL's ${…} variables but not populated yet, so an
 		// expression using one fails rather than silently reading nothing.
 		return nil, false
 	}
 
-	value := newSECLValue(a.ctx, node, modelRoots[name], nil)
+	value := bindMember(name, rootType)(a.ctx, nil)
 	if a.cached < len(a.roots) {
 		a.roots[a.cached] = cachedRoot{name: name, value: value}
 		a.cached++

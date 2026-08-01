@@ -33,8 +33,8 @@ import (
 // satisfied. That is what a list of values cannot do, and it is why an iterated
 // field is not materialised into one.
 type iteratedList struct {
-	ctx  *eval.Context
-	node *celNode
+	ctx    *eval.Context
+	cursor celIterator
 	// typ is list(element); elem is the element type, which the members are
 	// selected against.
 	typ  *types.Type
@@ -42,18 +42,19 @@ type iteratedList struct {
 }
 
 // newIteratedList returns the list standing for an iterated field. typ is the
-// list type the field tree describes for it.
-func newIteratedList(ctx *eval.Context, node *celNode, typ *types.Type) ref.Val {
+// list type the field tree describes for it, and cursor was bound to the field
+// when the rule was planned.
+func newIteratedList(ctx *eval.Context, cursor celIterator, typ *types.Type) ref.Val {
 	elem, ok := objectListElem(typ)
 	if !ok {
 		return types.NewErr("iterated field of type '%s' is not a list of objects", typ)
 	}
-	return &iteratedList{ctx: ctx, node: node, typ: typ, elem: elem}
+	return &iteratedList{ctx: ctx, cursor: cursor, typ: typ, elem: elem}
 }
 
 // element returns the position of one element of the list.
 func (l *iteratedList) element(elem any) ref.Val {
-	return &seclObject{ctx: l.ctx, typ: l.elem, node: l.node, elem: elem}
+	return &seclObject{ctx: l.ctx, typ: l.elem, elem: elem}
 }
 
 // Type implements ref.Val.
@@ -82,7 +83,7 @@ func (l *iteratedList) Equal(other ref.Val) ref.Val {
 	if !ok {
 		return types.MaybeNoSuchOverloadErr(other)
 	}
-	return types.Bool(l.node == rhs.node && l.ctx == rhs.ctx)
+	return types.Bool(l.typ == rhs.typ && l.ctx == rhs.ctx)
 }
 
 // Add implements traits.Adder. Concatenating an event's iterated field with
@@ -97,7 +98,7 @@ func (l *iteratedList) Add(other ref.Val) ref.Val {
 // being answered on the way past.
 func (l *iteratedList) Size() ref.Val {
 	var size int
-	cursor := l.node.cursor(l.ctx)
+	cursor := l.cursor(l.ctx)
 	for element := cursor.next(); element != nil; element = cursor.next() {
 		size++
 	}
@@ -116,7 +117,7 @@ func (l *iteratedList) Get(index ref.Val) ref.Val {
 		return types.ValOrErr(index, "%v", err)
 	}
 
-	cursor := l.node.cursor(l.ctx)
+	cursor := l.cursor(l.ctx)
 	for pos := 0; i >= 0; pos++ {
 		element := cursor.next()
 		if element == nil {
@@ -131,7 +132,7 @@ func (l *iteratedList) Get(index ref.Val) ref.Val {
 
 // Contains implements traits.Container.
 func (l *iteratedList) Contains(value ref.Val) ref.Val {
-	cursor := l.node.cursor(l.ctx)
+	cursor := l.cursor(l.ctx)
 	for element := cursor.next(); element != nil; element = cursor.next() {
 		if l.element(element).Equal(value) == types.True {
 			return types.True
@@ -142,7 +143,7 @@ func (l *iteratedList) Contains(value ref.Val) ref.Val {
 
 // Iterator implements traits.Iterable.
 func (l *iteratedList) Iterator() traits.Iterator {
-	return &iteratedListIterator{list: l, cursor: l.node.cursor(l.ctx)}
+	return &iteratedListIterator{list: l, cursor: l.cursor(l.ctx)}
 }
 
 // iteratedListIterator walks an iterated field one element at a time.

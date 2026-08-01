@@ -93,50 +93,54 @@ func TestGeneratedReadersAgreeWithEvaluators(t *testing.T) {
 // outputs of one generator run, and an expression type-checked against one is
 // evaluated against the other.
 func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
-	roots := map[string]bool{}
-	for name := range modelRoots {
-		roots[name] = true
+	// Consumed as they are matched, so what is left over is what has a reader but
+	// nothing to reach it through.
+	unclaimedReaders := make(map[string]bool, len(celReaders))
+	for field := range celReaders {
+		unclaimedReaders[field] = true
+	}
+	unclaimedIterators := make(map[string]bool, len(celIterators))
+	for field := range celIterators {
+		unclaimedIterators[field] = true
 	}
 
-	for name, node := range celRoots {
-		assert.True(t, roots[name], "root %q has readers but no type", name)
-		delete(roots, name)
-		assertNodeMatchesType(t, name, node, modelRoots[name])
-	}
-	for name := range roots {
-		assert.Fail(t, "root has a type but no readers", "root %q", name)
-	}
-}
-
-// assertNodeMatchesType walks a node and the type describing it together.
-func assertNodeMatchesType(t *testing.T, path string, node *celNode, fieldType *types.Type) {
-	t.Helper()
-
-	elem, isObjectList := objectListElem(fieldType)
-	if node.cursor != nil {
-		require.True(t, isObjectList, "%q is iterated but its type %s is not a list of objects", path, fieldType)
-		fieldType = elem
-	} else {
-		require.False(t, isObjectList, "%q has the type of an iterated field but no cursor", path)
+	// Every root's type must describe the root's own path, which is what makes
+	// joining a type's path with a member name give the field.
+	for name, rootType := range modelRoots {
+		require.Equal(t, types.StructKind, rootType.Kind(), "root %q is not an object", name)
+		assert.Equal(t, name, modelPaths[rootType.TypeName()], "the type of root %q describes another path", name)
 	}
 
-	if node.read != nil {
-		assert.NotEqual(t, types.StructKind, fieldType.Kind(), "%q is a leaf but its type %s is an object", path, fieldType)
-		return
+	for typeName, members := range modelShapes {
+		path, ok := modelPaths[typeName]
+		require.True(t, ok, "type %q describes no path", typeName)
+
+		for member, memberType := range members {
+			field := join(path, member)
+
+			elem, isObjectList := objectListElem(memberType)
+			switch {
+			case isObjectList:
+				assert.True(t, unclaimedIterators[field] || celIterators[field] != nil,
+					"%q is typed as iterated but has no cursor", field)
+				assert.Equal(t, field, modelPaths[elem.TypeName()],
+					"the element type of %q describes another path", field)
+				delete(unclaimedIterators, field)
+
+			case memberType.Kind() == types.StructKind:
+				assert.Equal(t, field, modelPaths[memberType.TypeName()],
+					"the type of %q describes another path", field)
+
+			default:
+				assert.True(t, unclaimedReaders[field] || celReaders[field] != nil,
+					"%q is typed but has no reader", field)
+				delete(unclaimedReaders, field)
+			}
+		}
 	}
 
-	require.Equal(t, types.StructKind, fieldType.Kind(), "%q has members but its type %s is not an object", path, fieldType)
-	members := modelShapes[fieldType.TypeName()]
-	require.NotNil(t, members, "%q has the undeclared type %s", path, fieldType)
-
-	for name, member := range node.members {
-		memberType, ok := members[name]
-		require.True(t, ok, "%q has a reader but no type", join(path, name))
-		assertNodeMatchesType(t, join(path, name), member, memberType)
-	}
-	for name := range members {
-		assert.Contains(t, node.members, name, "%q has a type but no reader", join(path, name))
-	}
+	assert.Empty(t, unclaimedReaders, "readers no type reaches")
+	assert.Empty(t, unclaimedIterators, "cursors no type reaches")
 }
 
 // TestCIDRConversion pins the conversion the readers use for IP and CIDR fields,

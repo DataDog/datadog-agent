@@ -109,7 +109,13 @@ func TestGeneratedTypesShape(t *testing.T) {
 	parent, ok := modelShapes[process.TypeName()]["parent"]
 	require.True(t, ok)
 	assert.Equal(t, types.StructKind, parent.Kind())
-	assert.Equal(t, elem.TypeName(), parent.TypeName(),
+
+	// A parent and an ancestor expose the same members, but they are not the same
+	// type: there is one type per path, which is what lets a member select be
+	// bound to the field it denotes when a rule is planned. Nothing can be
+	// written polymorphically over the two, which is the price — see nameShapes.
+	assert.NotEqual(t, elem.TypeName(), parent.TypeName())
+	assert.Equal(t, sortedKeys(modelShapes[elem.TypeName()]), sortedKeys(modelShapes[parent.TypeName()]),
 		"a parent and an ancestor expose the same members")
 
 	// Every referenced type must exist, and no type may be unreachable.

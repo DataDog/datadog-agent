@@ -1231,7 +1231,6 @@ func upperCase(str string) string {
 }
 
 var funcMap = map[string]interface{}{
-	"ShapePathComment":         shapePathComment,
 	"CELTypeExpr":              celTypeExpr,
 	"CELRead":                  celRead,
 	"CELDefault":               celDefault,
@@ -1274,16 +1273,6 @@ var celTypesTemplate string
 
 //go:embed cel_readers.tmpl
 var celReadersTemplate string
-
-// shapePathComment renders the SECL paths sharing a CEL shape, capped so that a
-// shape shared by dozens of paths does not produce an unreadable comment.
-func shapePathComment(paths []string) string {
-	const max = 4
-	if len(paths) <= max {
-		return strings.Join(paths, ", ")
-	}
-	return fmt.Sprintf("%s and %d more", strings.Join(paths[:max], ", "), len(paths)-max)
-}
 
 // celTypeExpr renders the Go expression for a member's CEL type. The generated
 // file is the type declaration itself, so there is no intermediate encoding to

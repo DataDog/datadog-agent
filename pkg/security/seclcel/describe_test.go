@@ -22,17 +22,19 @@ func TestDescribeEnv(t *testing.T) {
 
 	described := DescribeEnv(env)
 
-	// the declared variables, and the types they lead to
+	// the declared variables, and the types they lead to. A type is named after
+	// the path it describes, so secl.ConnectAddr rather than a secl.Addr shared
+	// with every other address.
 	assert.Contains(t, described, "process: secl.Process\n")
-	assert.Contains(t, described, "\nsecl.Addr {\n")
+	assert.Contains(t, described, "\nsecl.ConnectAddr {\n")
 
 	// CEL's own notation for each shape of type
 	assert.Contains(t, described, "\tip: net.CIDR\n")
-	assert.Contains(t, described, "\tancestors: list(secl.Ancestors)\n")
+	assert.Contains(t, described, "\tancestors: list(secl.ProcessAncestors)\n")
 	assert.Contains(t, described, "\targv: list(string)\n")
 	assert.Contains(t, described, "\tuid: int\n")
 	assert.Contains(t, described, "\tis_kworker: bool\n")
-	assert.Contains(t, described, "\tfile: secl.File\n")
+	assert.Contains(t, described, "\tfile: secl.ProcessFile\n")
 
 	// walking from the variables must reach every generated type: one that is
 	// unreachable would be a type no expression could name.
