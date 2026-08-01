@@ -17,6 +17,7 @@ typedef struct aggregator_s {
     cb_submit_event_t cb_submit_event;
     cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
     cb_submit_event_platform_event_t cb_submit_event_platform_event;
+    cb_log_t cb_log;
 } aggregator_t;
 
 // run function, entrypoint of checks

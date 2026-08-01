@@ -163,6 +163,32 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
+// SubmitLog routes a log line emitted by a shared library check through the
+// agent logger, mirroring how python checks log via LogMessage. The level
+// values match the core::LogLevel enum used on the Rust side.
+//
+//export SubmitLog
+func SubmitLog(message *C.char, level C.int) {
+	msg := C.GoString(message)
+
+	switch level {
+	case 0: // Trace
+		log.Trace(msg)
+	case 1: // Debug
+		log.Debug(msg)
+	case 2: // Info
+		log.Info(msg)
+	case 3: // Warn
+		log.Warn(msg)
+	case 4: // Error
+		log.Error(msg)
+	case 5: // Critical
+		log.Critical(msg)
+	default:
+		log.Info(msg)
+	}
+}
+
 // SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
 //
 //export SubmitEventPlatformEvent

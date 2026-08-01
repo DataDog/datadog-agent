@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use super::aggregator::{Aggregator, MetricType, ServiceCheckStatus};
+use super::aggregator::{Aggregator, LogLevel, MetricType, ServiceCheckStatus};
 use super::config::Config;
 
 use std::ffi::{c_int, c_long};
@@ -260,5 +260,43 @@ impl AgentCheck {
             raw_event.len() as c_int,
             event_track_type,
         )
+    }
+
+    /// Logs a message through the Agent logger at the given level, the same way
+    /// python checks log via `self.log`. Logging is best effort: a message that
+    /// cannot be converted to a C string (interior NUL byte) is dropped rather
+    /// than surfaced to the caller.
+    pub fn log(&self, level: LogLevel, message: &str) {
+        let _ = self.aggregator.log(level, message);
+    }
+
+    /// Logs at the TRACE level.
+    pub fn log_trace(&self, message: &str) {
+        self.log(LogLevel::Trace, message);
+    }
+
+    /// Logs at the DEBUG level.
+    pub fn log_debug(&self, message: &str) {
+        self.log(LogLevel::Debug, message);
+    }
+
+    /// Logs at the INFO level.
+    pub fn log_info(&self, message: &str) {
+        self.log(LogLevel::Info, message);
+    }
+
+    /// Logs at the WARN level.
+    pub fn log_warn(&self, message: &str) {
+        self.log(LogLevel::Warn, message);
+    }
+
+    /// Logs at the ERROR level.
+    pub fn log_error(&self, message: &str) {
+        self.log(LogLevel::Error, message);
+    }
+
+    /// Logs at the CRITICAL level.
+    pub fn log_critical(&self, message: &str) {
+        self.log(LogLevel::Critical, message);
     }
 }
