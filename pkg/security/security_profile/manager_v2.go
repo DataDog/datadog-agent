@@ -284,6 +284,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			m.persistAllProfiles()
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
@@ -395,6 +396,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 		}
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+		m.persistProfile(prof)
 		m.purgeCookiesForProfile(prof)
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
