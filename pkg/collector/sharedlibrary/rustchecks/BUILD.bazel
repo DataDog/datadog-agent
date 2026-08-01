@@ -7,7 +7,9 @@ _LINUX = ["@platforms//os:linux"]
 # Rust checks are disabled by default; add a check name -> cdylib target entry
 # here to ship it. Uncomment the datasecurity entry below to ship the check.
 ENABLED_CHECKS = {
-    "hello_ccr": "//pkg/collector/sharedlibrary/rustchecks/checks/hello_ccr:hello_ccr",
+    # hello_ccr is intentionally NOT baked here — it is delivered to CCRs at
+    # runtime via the Datadog CSI driver (DatadogLibrary volume), so the fleet
+    # runs stock images and the check ships as a registry artifact.
     # "datasecurity": "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity",
 }
 
