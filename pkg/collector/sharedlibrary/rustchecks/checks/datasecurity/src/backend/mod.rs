@@ -20,6 +20,8 @@ pub struct ScannedColumn {
 #[derive(Debug, Default)]
 pub struct ScanData {
     /// Column-oriented values consumed by the scanner.
+    // TODO(dsec-173): return an `Event` (dd-sensitive-data-scanner) per backend
+    // instead of a `Value`, to avoid the intermediate JSON map and its copies.
     pub columns: Value,
     /// The scanned columns (name + source data type), in query order.
     pub scanned_columns: Vec<ScannedColumn>,
@@ -33,8 +35,6 @@ pub trait ScanEngine: Sync {
     /// Engine name, matched against the sub task platform.
     fn name(&self) -> &'static str;
     /// Runs the sub task's query and returns its columns and scan metadata.
-    // TODO(dsec-173): return an `Event` (dd-sensitive-data-scanner) per backend
-    // instead of a `Value`, to avoid the intermediate JSON map and its copies.
     fn fetch_data(&self, sub_task: &SubTask) -> Result<ScanData>;
 }
 
