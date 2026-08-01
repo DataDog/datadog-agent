@@ -8,6 +8,9 @@ use crate::config::SubTask;
 #[cfg(feature = "engine-postgres")]
 mod postgres;
 
+#[cfg(test)]
+pub(crate) mod mock;
+
 /// One scanned column's name and its source data type (e.g. `text`, `varchar`).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ScannedColumn {
@@ -43,6 +46,8 @@ fn engines() -> &'static [&'static dyn ScanEngine] {
     &[
         #[cfg(feature = "engine-postgres")]
         &postgres::ENGINE,
+        #[cfg(test)]
+        &mock::ENGINE,
     ]
 }
 
