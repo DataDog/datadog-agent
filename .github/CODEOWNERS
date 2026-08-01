@@ -667,6 +667,7 @@
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
 /pkg/proto/datadog/process              @DataDog/container-experiences
+/pkg/proto/datadog/sds                  @DataDog/sensitive-data-scanner
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config

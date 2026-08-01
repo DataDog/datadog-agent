@@ -169,6 +169,7 @@ scan_data: []
             rule_id: "email".to_string(),
             column_name: "email".to_string(),
             count_matched_rows: 2,
+            count_matches: 2,
             ..Default::default()
         }]
     );
@@ -205,6 +206,7 @@ scan_data: []
             rule_id: "token".to_string(),
             column_name: "note".to_string(),
             count_matched_rows: 1,
+            count_matches: 1,
             ..Default::default()
         }]
     );
@@ -241,6 +243,7 @@ scan_data: []
             rule_id: "code".to_string(),
             column_name: "code".to_string(),
             count_matched_rows: 1,
+            count_matches: 1,
             ..Default::default()
         }]
     );
@@ -259,7 +262,7 @@ scan_data: []
     );
 
     // A single row holds two emails: both match the rule, but they share the
-    // same row path, so the row is counted once.
+    // same row path, so the row is counted once while both matches are counted.
     let data = json!({ "email": ["alice@corp.io and bob@corp.io"] });
 
     let matches = scanner.scan(data).expect("failed to scan data");
@@ -270,6 +273,7 @@ scan_data: []
             rule_id: "email".to_string(),
             column_name: "email".to_string(),
             count_matched_rows: 1,
+            count_matches: 2,
             ..Default::default()
         }]
     );
@@ -305,6 +309,7 @@ scan_data: []
             rule_id: "credit-card".to_string(),
             column_name: "card".to_string(),
             count_matched_rows: 1,
+            count_matches: 1,
             ..Default::default()
         }]
     );
@@ -353,6 +358,7 @@ scan_data: []
             rule_id: "email".to_string(),
             column_name: "foo[bar]".to_string(),
             count_matched_rows: 1,
+            count_matches: 1,
             ..Default::default()
         }]
     );
@@ -382,6 +388,7 @@ scan_data: []
             rule_id: "email".to_string(),
             column_name: "first.last".to_string(),
             count_matched_rows: 2,
+            count_matches: 2,
             ..Default::default()
         }]
     );
