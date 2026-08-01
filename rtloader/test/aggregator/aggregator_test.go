@@ -8,6 +8,7 @@ package testaggregator
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"testing"
 
@@ -278,6 +279,45 @@ func TestSubmitEvent(t *testing.T) {
 	}
 	if _event.tags[0] != "foo" || _event.tags[1] != "bar" {
 		t.Fatalf("Unexpected tags: %v", _event.tags)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitEventIgnoresEventObject(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	type callbackOutput struct {
+		checkID string
+		event   event
+	}
+
+	submitEvent := func(eventObject string) callbackOutput {
+		code := fmt.Sprintf(
+			"aggregator.submit_event(None, 'submit_event_id', {'msg_title': 'Event title', 'msg_text': 'Event message', 'aggregation_key': 'supported-sentinel'%s})",
+			eventObject,
+		)
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out != "" {
+			t.Fatalf("Unexpected printed value: '%s'", out)
+		}
+		if _event == nil {
+			t.Fatal("Event callback was not invoked")
+		}
+
+		return callbackOutput{checkID: checkID, event: *_event}
+	}
+
+	withoutEventObject := submitEvent("")
+	withEventObject := submitEvent(", 'event_object': 'unsupported-sentinel'")
+
+	if !reflect.DeepEqual(withoutEventObject, withEventObject) {
+		t.Fatalf("event_object changed the event callback output: without=%+v, with=%+v", withoutEventObject, withEventObject)
 	}
 
 	// Check for leaks
