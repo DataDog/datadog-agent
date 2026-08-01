@@ -27,15 +27,17 @@ pub enum ServiceCheckStatus {
 
 /// Log level of a message routed to the Agent logger.
 ///
-/// The discriminants must match the `SubmitLog` handler on the Go side.
+/// The discriminants are the rtloader `log_level_t` values (the `cb_log`
+/// callback shares rtloader's `cb_log_t` type), so they stay compatible with
+/// the numeric levels used by the Go `SubmitLog` handler and python checks.
 #[repr(C)]
 pub enum LogLevel {
-    Trace = 0,
-    Debug = 1,
-    Info = 2,
-    Warn = 3,
-    Error = 4,
-    Critical = 5,
+    Trace = 7,
+    Debug = 10,
+    Info = 20,
+    Warn = 30,
+    Error = 40,
+    Critical = 50,
 }
 
 /// Replica of the Agent event struct
