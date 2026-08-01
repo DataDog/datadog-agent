@@ -61,23 +61,14 @@ func (m *modelTypes) FindStructFieldType(structType, field string) (*types.Field
 		IsSet: func(any) bool { return true },
 		// The planner turns a select on a known struct type into a call to this
 		// getter, which is where a field is read. Nothing is resolved for a member
-		// that is itself an object or a list, so an expression only reaches the
-		// accessors for the leaves it mentions.
+		// that is itself an object or an iterated field, so an expression only
+		// reaches the readers for the leaves it mentions.
 		GetFrom: func(obj any) (any, error) {
 			object, ok := obj.(*seclObject)
 			if !ok {
 				return nil, fmt.Errorf("%w: %T is not a SECL event position", errUnsupportedValue, obj)
 			}
-
-			member := object.selectMember(field, fieldType)
-
-			if _, isObjectList := objectListElem(fieldType); isObjectList {
-				return newIteratedList(member), nil
-			}
-			if fieldType.Kind() == types.StructKind {
-				return member, nil
-			}
-			return member.resolve(member.path, fieldType), nil
+			return object.selectMember(field, fieldType)
 		},
 	}, true
 }

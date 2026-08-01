@@ -126,6 +126,11 @@ func TestProgramAncestors(t *testing.T) {
 
 		// the element count
 		{`process.ancestors.length == 3`, true},
+
+		// a constant subscript picks one element out
+		{`process.ancestors[0].comm == "bash"`, true},
+		{`process.ancestors[2].comm == "init"`, true},
+		{`process.ancestors[1].comm == "init"`, false},
 	}
 
 	for _, tt := range tests {
@@ -274,6 +279,188 @@ func TestProgramResolvesOnlyWhatIsMentioned(t *testing.T) {
 	clear(reads)
 	assert.False(t, evalSECL(t, env, event, `process.ancestors.comm == "zzz"`))
 	assert.Equal(t, 2, reads["comm"], "no match, so every element is read once")
+}
+
+// TestActivationOutlivesTheEvent pins what the activation's root cache rests
+// on: the values it hands out hold the context rather than the event, and every
+// read goes through ctx.Event, so an activation stays correct after its context
+// has been reset onto the next event.
+//
+// Without that, caching a root would pin the event it was first resolved
+// against, and a rule would go on matching the event before it.
+func TestActivationOutlivesTheEvent(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	program, err := Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	require.NoError(t, err)
+
+	matching := model.NewFakeEvent()
+	matching.BaseEvent.ProcessContext.Process.Comm = "sh"
+
+	other := model.NewFakeEvent()
+	other.BaseEvent.ProcessContext.Process.Comm = "zsh"
+
+	ctx := eval.NewContext(matching)
+	activation := NewActivation(ctx)
+
+	matches := func() bool {
+		t.Helper()
+		out, _, err := program.Eval(activation)
+		require.NoError(t, err)
+		return out == types.True
+	}
+
+	assert.True(t, matches(), "the event the activation was built on")
+
+	// The rule engine reuses a context across events, so the same activation
+	// sees the next one.
+	ctx.Reset()
+	ctx.SetEvent(other)
+	assert.False(t, matches(), "the next event, through the same activation")
+
+	ctx.Reset()
+	ctx.SetEvent(matching)
+	assert.True(t, matches(), "and back again")
+}
+
+// TestPartialEvaluation records that cel-go's partial evaluation reaches through
+// the custom activation and type provider, which matters twice over.
+//
+// It is the mechanism SECL's Rule.PartialEval provides and that CWS depends on
+// in three places — approvers (rules/approvers.go:60), discarders
+// (probe/discarders_linux.go:585) and ruleset.go:1045 — to decide whether a rule
+// could still match if only one field were known, and so what can be filtered in
+// eBPF. Nothing about the node graph had to change for it to work.
+//
+// It also guards the activation's root cache: a cached root that resolved past
+// the unknown patterns would silently turn an unknown into a value, and the
+// approvers built from it would be wrong.
+func TestPartialEvaluation(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	checked, err := CompileWithTypes(env, `process.comm == "sh" && process.uid == 1000`, ModelFieldTypes{})
+	require.NoError(t, err)
+
+	program, err := env.Program(checked, cel.EvalOptions(cel.OptPartialEval))
+	require.NoError(t, err)
+
+	event := model.NewFakeEvent()
+	event.BaseEvent.ProcessContext.Process.Comm = "sh"
+	event.BaseEvent.ProcessContext.Process.Credentials.UID = 999
+
+	// process.uid is withheld, so the answer depends on what it turns out to be.
+	partial, err := cel.PartialVars(NewActivation(eval.NewContext(event)),
+		cel.AttributePattern("process").QualString("uid"))
+	require.NoError(t, err)
+
+	out, _, err := program.Eval(partial)
+	require.NoError(t, err)
+	require.True(t, types.IsUnknown(out), "got %s", out)
+	assert.Contains(t, out.(*types.Unknown).String(), "process.uid",
+		"the unknown names the field the outcome hangs on")
+
+	// The half that is known still decides it when it can, which is what makes
+	// the answer useful rather than always unknown.
+	event.BaseEvent.ProcessContext.Process.Comm = "zsh"
+	out, _, err = program.Eval(partial)
+	require.NoError(t, err)
+	assert.Equal(t, types.False, out, "no value of process.uid could make this match")
+}
+
+// TestProgramWalksAnAncestryOnce is the regression test for the cost the node
+// graph was built to remove.
+//
+// An iterated field used to be presented as a list of positions, which meant
+// asking how many there were — a full walk of the ancestry — before the
+// predicate saw the first element, and then resolving each position by walking
+// from the root again. Reading positions 0, 1, 2… therefore cost O(N²) on a
+// chain nothing had asked to see all of.
+//
+// A cursor yields the elements instead, so the chain is walked once and only as
+// far as the predicate needs.
+func TestProgramWalksAnAncestryOnce(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	comms := make([]string, 150)
+	uids := make([]uint32, 150)
+	for i := range comms {
+		comms[i] = fmt.Sprintf("proc%d", i)
+		uids[i] = uint32(i)
+	}
+
+	event := model.NewFakeEvent()
+	ancestry(event, comms, uids)
+
+	// One element of lookahead is inherent: a CEL fold asks whether there is a
+	// next element before it checks whether it still wants one.
+	const lookahead = 1
+
+	tests := []struct {
+		expr    string
+		matches bool
+		steps   int
+	}{
+		// The match is at the first element, so the walk stops there rather than
+		// running the length of the chain.
+		{`process.ancestors.comm == "proc0"`, true, 1 + lookahead},
+		// No match, so the whole chain is walked — once, and the trailing step is
+		// the one that reports it exhausted.
+		{`process.ancestors.comm == "zzz"`, false, len(comms) + 1},
+		// Two fields of one element read from one element, so correlating them at
+		// the last one costs one walk rather than one per position before it.
+		{`process.ancestors[A].comm == "proc149" && process.ancestors[A].uid == 149`, true, len(comms) + lookahead},
+		// The count is the one thing that has to see every element.
+		{`process.ancestors.length == 150`, true, len(comms) + 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			steps := countAncestorSteps(t)
+			assert.Equal(t, tt.matches, evalSECL(t, env, event, tt.expr))
+			assert.Equal(t, tt.steps, *steps, "elements walked by %q", tt.expr)
+		})
+	}
+}
+
+// countAncestorSteps replaces the ancestors cursor with one that counts the
+// elements it yields, for the duration of the test.
+func countAncestorSteps(t *testing.T) *int {
+	t.Helper()
+
+	var steps int
+
+	process := celRoots["process"]
+	ancestors := process.members["ancestors"]
+
+	counted := *ancestors
+	counted.cursor = func(ctx *eval.Context) celCursor {
+		return &countingCursor{inner: ancestors.cursor(ctx), steps: &steps}
+	}
+
+	patched := *process
+	patched.members = make(map[string]*celNode, len(process.members))
+	for name, member := range process.members {
+		patched.members[name] = member
+	}
+	patched.members["ancestors"] = &counted
+
+	celRoots["process"] = &patched
+	t.Cleanup(func() { celRoots["process"] = process })
+
+	return &steps
+}
+
+type countingCursor struct {
+	inner celCursor
+	steps *int
+}
+
+func (c *countingCursor) next() any {
+	*c.steps++
+	return c.inner.next()
 }
 
 // countingEnv is the model environment with the type provider wrapped so that

@@ -46,6 +46,7 @@ var (
 	pkgname              string
 	output               string
 	celTypesOutput       string
+	celReadersOutput     string
 	verbose              bool
 	docOutput            string
 	fieldHandlersOutput  string
@@ -1232,6 +1233,9 @@ func upperCase(str string) string {
 var funcMap = map[string]interface{}{
 	"ShapePathComment":         shapePathComment,
 	"CELTypeExpr":              celTypeExpr,
+	"CELRead":                  celRead,
+	"CELDefault":               celDefault,
+	"CELElementDefault":        celElementDefault,
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
 	"HasPrefix":                strings.HasPrefix,
@@ -1267,6 +1271,9 @@ var perFieldAccessorsTemplate string
 
 //go:embed cel_types.tmpl
 var celTypesTemplate string
+
+//go:embed cel_readers.tmpl
+var celReadersTemplate string
 
 // shapePathComment renders the SECL paths sharing a CEL shape, capped so that a
 // shape shared by dozens of paths does not produce an unreadable comment.
@@ -1304,10 +1311,92 @@ func celTypeExpr(member common.CELMember) string {
 	return base
 }
 
+// celRead renders the CEL value a reader returns for a field, wrapping the Go
+// expression the accessors would have returned.
+//
+// Converting here rather than through a type adapter is most of the point of
+// generating readers at all: the shape is known at generation time, so nothing
+// dispatches on it at run time.
+func celRead(field *common.StructField, expr string) string {
+	if field.IsArray && !field.IsLength {
+		switch field.ReturnType {
+		case "int":
+			return fmt.Sprintf("intsToVal(%s)", expr)
+		case "bool":
+			return fmt.Sprintf("boolsToVal(%s)", expr)
+		case "net.IPNet":
+			return fmt.Sprintf("cidrsToVal(%s)", expr)
+		default:
+			return fmt.Sprintf("stringsToVal(%s)", expr)
+		}
+	}
+
+	switch field.ReturnType {
+	case "int":
+		return fmt.Sprintf("types.Int(%s)", expr)
+	case "bool":
+		return fmt.Sprintf("types.Bool(%s)", expr)
+	case "net.IPNet":
+		return fmt.Sprintf("cidrToVal(%s)", expr)
+	default:
+		return fmt.Sprintf("types.String(%s)", expr)
+	}
+}
+
+// celDefault renders what a reader returns when a `check:` guard refuses the
+// field, which is the value the accessors return in the same case.
+func celDefault(field *common.StructField) string {
+	return celRead(field, field.GetDefaultReturnValue())
+}
+
+// celElementDefault renders the same for a field read from an iterated element.
+//
+// The accessors return one default value there, even for a field that holds a
+// list: a refused list field reads as a list holding one empty value rather than
+// as an empty list. That looks like a quirk of the accessors rather than
+// something SECL means, but the readers inherit it deliberately — they are meant
+// to be indistinguishable from the evaluators they replace, and a divergence
+// introduced here is one the differential harness could not then see.
+func celElementDefault(field *common.StructField) string {
+	if field.IsArray && !field.IsLength {
+		return celRead(field, fmt.Sprintf("[]%s{%s}", field.ReturnType, field.GetDefaultScalarReturnValue()))
+	}
+	return celRead(field, field.GetDefaultScalarReturnValue())
+}
+
 // celTypesView is the data cel_types.tmpl renders.
 type celTypesView struct {
 	BuildTags []string
 	Tree      *common.CELTypeTree
+}
+
+// celReadersView is the data cel_readers.tmpl renders.
+type celReadersView struct {
+	*common.Module
+	// ModelPkg qualifies the model types the readers name. The readers are
+	// generated into the package that consumes them rather than next to the
+	// model, so that cel-go stays out of //pkg/security/secl.
+	ModelPkg string
+}
+
+// GenerateCELReaders renders the per-field CEL readers for the module.
+func GenerateCELReaders(output string, module *common.Module) error {
+	// A cursor reads its root from the event, so an iterator nested inside an
+	// iterated element would silently read the wrong one. The accessors have the
+	// same limitation; making it an error here means a future nested iterator
+	// fails the build rather than the rules.
+	for path := range module.Iterators {
+		for other := range module.Iterators {
+			if path != other && strings.HasPrefix(path, other+".") {
+				return fmt.Errorf("iterator %q is nested inside iterator %q, which the readers cannot express", path, other)
+			}
+		}
+	}
+
+	return generate(output, celReadersView{
+		Module:   module,
+		ModelPkg: path.Base(module.SourcePkg) + ".",
+	}, celReadersTemplate)
 }
 
 // GenerateCELTypes derives the CEL type tree from the module and writes it out.
@@ -1358,6 +1447,13 @@ func main() {
 	if celTypesOutput != "" {
 		os.Remove(celTypesOutput)
 		if err := GenerateCELTypes(celTypesOutput, module); err != nil {
+			panic(err)
+		}
+	}
+
+	if celReadersOutput != "" {
+		os.Remove(celReadersOutput)
+		if err := GenerateCELReaders(celReadersOutput, module); err != nil {
 			panic(err)
 		}
 	}
@@ -1418,6 +1514,7 @@ func init() {
 	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_unix.go", "Generated per-field accessors output file")
 	flag.StringVar(&output, "output", "accessors_unix.go", "Go generated file")
 	flag.StringVar(&celTypesOutput, "cel-types-output", "", "Generated CEL type tree output file (skipped when empty)")
+	flag.StringVar(&celReadersOutput, "cel-readers-output", "", "Generated CEL field readers output file (skipped when empty)")
 	flag.StringVar(&moduleNameOverride, "module", "", "Module name override (default: derived from -output's dir, falls back to -package basename). Set this when -output is an absolute path so the heuristic doesn't pick up bazel-out subdirs.")
 	flag.Parse()
 }

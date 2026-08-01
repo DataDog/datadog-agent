@@ -172,13 +172,17 @@ def accessors(name, tags, model, types_file, output, field_handlers, field_acces
         },
     )
 
-def cel_types(name, tags, model, types_file, package_path, output, srcs = [], visibility = None):
-    """Generate the CEL type declarations for a SECL model.
+# `cel_types` is intentionally a legacy macro (regular def), for the same reason
+# as `accessors` above: it bundles two .go writebacks under one umbrella target
+# through `write_source_files`, which calls `native.glob` and so is forbidden in
+# a symbolic macro.
+def cel_types(name, tags, model, types_file, package_path, output, readers_output, srcs = [], visibility = None):
+    """Generate the CEL type declarations and field readers for a SECL model.
 
-    Runs the accessors generator with only its CEL types output asked for, so the
-    declarations land in the package that consumes them rather than next to the
-    model. That keeps cel-go out of //pkg/security/secl, which is synchronised
-    into //pkg/security/seclwin.
+    Runs the accessors generator with only its CEL outputs asked for, so they
+    land in the package that consumes them rather than next to the model. That
+    keeps cel-go out of //pkg/security/secl, which is synchronised into
+    //pkg/security/seclwin.
 
     Args:
         name: Name of the target.
@@ -186,7 +190,8 @@ def cel_types(name, tags, model, types_file, package_path, output, srcs = [], vi
         model: Model file to use.
         types_file: Types file to use.
         package_path: Package path of the *model*, for parsing.
-        output: Output file to use.
+        output: CEL type declarations output file to use.
+        readers_output: CEL field readers output file to use.
         srcs: Additional source files to use.
         visibility: Visibility to use.
     """
@@ -202,20 +207,29 @@ def cel_types(name, tags, model, types_file, package_path, output, srcs = [], vi
             "-package={}".format(package_path),
             "-module={}".format(package_path.rsplit("/", 1)[-1]),
             # The generator writes every output it is given a path for; the CEL
-            # types are the only one wanted here.
+            # ones are the only ones wanted here.
             "-output=",
             "-field-handlers=",
             "-field-accessors-output=",
             "-cel-types-output=$(execpath {}/{})".format(out_dir, output),
+            "-cel-readers-output=$(execpath {}/{})".format(out_dir, readers_output),
         ],
-        outs = ["{}/{}".format(out_dir, output)],
+        outs = [
+            "{}/{}".format(out_dir, output),
+            "{}/{}".format(out_dir, readers_output),
+        ],
         tool = "//pkg/security/generators/accessors",
         visibility = visibility,
     )
-    native.exports_files([output], visibility)
-    write_source_file(
+    native.exports_files([output, readers_output], visibility)
+
+    # Single umbrella target, so that one `bazel run` refreshes the types and the
+    # readers together: they are two views of one field set and must not drift.
+    write_source_files(
         name = name,
-        in_file = ":{}".format(gen),
-        out_file = output,
+        files = {
+            output: ":{}/{}".format(out_dir, output),
+            readers_output: ":{}/{}".format(out_dir, readers_output),
+        },
         check_that_out_file_exists = False,
     )

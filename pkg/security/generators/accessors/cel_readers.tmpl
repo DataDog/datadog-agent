@@ -1,0 +1,163 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+// Code generated - DO NOT EDIT.
+
+{{range .BuildTags }}//{{.}}{{end}}
+
+package seclcel
+
+import (
+	"net"
+
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"{{.SourcePkg}}"
+)
+
+// The readers call whichever of the conversions the fields of this platform's
+// model need. Naming them all keeps the set that exists from depending on which
+// fields happen to be declared, so adding the first field of a shape does not
+// also have to add the conversion for it.
+var _ = []any{net.IPNet{}, stringsToVal, intsToVal, boolsToVal, cidrsToVal, cidrToVal}
+
+// celReaders reads one SECL field, keyed by its SECL name.
+//
+// Each reader is the body of the evaluator the accessors return for the same
+// field, so the two inherit one contract rather than mirroring each other: the
+// same `check:` guards, the same handlers, the same defaults. What differs is
+// what a reader is given and what it returns. It is handed the element it reads
+// from rather than an index into a register, so a field of an iterated element
+// is a direct struct read and two fields of one element read from one pointer;
+// and it returns a CEL value rather than a Go one, so no type adapter runs
+// between the model and the interpreter.
+//
+// The readers cover exactly the leaves of the CEL type tree: the `length` and
+// `root_domain` pseudo fields are absent from both, being translated to size()
+// and a helper call instead.
+var celReaders = map[string]celReader{
+{{- range $Name, $Field := .Fields}}
+	{{- if or $Field.GettersOnly $Field.IsLength $Field.IsRootDomain}}
+		{{- continue}}
+	{{- end}}
+
+	{{- if $Field.Ref}}
+		{{- $Ref := index $.Fields $Field.Ref}}
+		{{- if $Ref}}
+			{{- $Field = $Ref}}
+		{{- end}}
+	{{- end}}
+
+	{{- $Checks := $Field | GetChecks $.AllFields}}
+	{{- $Iterated := and $Field.Iterator (not $Field.IsIterator)}}
+
+	"{{$Name}}": func(ctx *eval.Context, {{if $Iterated}}e{{else}}_{{end}} any) ref.Val {
+		ctx.AppendResolvedField("{{$Name}}")
+
+		{{- if $Iterated}}
+			{{- if $Field.Iterator.IsOrigTypePtr}}
+				element := e.(*{{$.ModelPkg}}{{$Field.Iterator.OrigType}})
+			{{- else}}
+				element := *(e.(*{{$.ModelPkg}}{{$Field.Iterator.OrigType}}))
+			{{- end}}
+			{{- if $Field.Handler}}
+				ev := ctx.Event.(*{{$.ModelPkg}}Event)
+			{{- end}}
+
+			{{- range $Check := $Checks}}
+				{{- if $Field.Iterator.Name | HasPrefix $Check}}
+					{{- $SubName := $Field.Iterator.Name | TrimPrefix $Check}}
+					if !element{{$SubName}}() {
+						return {{CELElementDefault $Field}}
+					}
+				{{- end}}
+			{{- end}}
+
+			{{- $SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+			{{- $Return := $SubName | printf "element%s"}}
+			{{- if $Field.Handler}}
+				{{- $SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+				{{- $Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+				{{- $Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+			{{- end}}
+
+			{{- if eq $Field.ReturnType "int"}}
+				return {{CELRead $Field (printf "int(%s)" $Return)}}
+			{{- else if ne $Field.ReturnType $Field.OrigType}}
+				return {{CELRead $Field (printf "%s(%s)" $Field.ReturnType $Return)}}
+			{{- else}}
+				return {{CELRead $Field $Return}}
+			{{- end}}
+
+		{{- else}}
+			ev := ctx.Event.(*{{$.ModelPkg}}Event)
+
+			{{- $Return := $Field.Name | printf "ev.%s"}}
+
+			{{- range $Check := $Checks}}
+				if !ev.{{$Check}}() {
+					return {{CELDefault $Field}}
+				}
+			{{- end}}
+
+			{{- if $Field.Handler}}
+				{{- $Ptr := "&"}}
+				{{- $Parent := index $.AllFields $Field.Prefix}}
+				{{- if or (not $Parent) $Parent.IsOrigTypePtr}}
+					{{- $Ptr = ""}}
+				{{- end}}
+				{{- if not $Field.Prefix}}
+					{{- $Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
+				{{- else}}
+					{{- $Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Field.Prefix ")"}}
+				{{- end}}
+			{{- end}}
+
+			{{- if eq $Field.ReturnType "int"}}
+				{{- if and $Field.IsArray (ne $Field.OrigType "int")}}
+					result := make([]int, len({{$Return}}))
+					for i, v := range {{$Return}} {
+						result[i] = int(v)
+					}
+					return {{CELRead $Field "result"}}
+				{{- else if ne $Field.OrigType "int"}}
+					return {{CELRead $Field (printf "int(%s)" $Return)}}
+				{{- else}}
+					return {{CELRead $Field $Return}}
+				{{- end}}
+			{{- else if ne $Field.ReturnType $Field.OrigType}}
+				return {{CELRead $Field (printf "%s(%s)" $Field.ReturnType $Return)}}
+			{{- else}}
+				return {{CELRead $Field $Return}}
+			{{- end}}
+		{{- end}}
+	},
+{{- end}}
+}
+
+// celIterators opens a cursor over an iterated SECL field, keyed by its SECL
+// name.
+//
+// A cursor yields the elements one at a time, through the same model iterator
+// the accessors use but through its Front/Next pair rather than its indexed At.
+// Nothing asks how many elements there are, so a quantifier walks exactly as far
+// as its predicate needs, and an element is reached once rather than once per
+// position before it.
+//
+// A cursor reads its root from the event, which is where every iterator in the
+// model starts; an iterator nested inside an iterated element is rejected by the
+// generator rather than read from the wrong root.
+var celIterators = map[string]celIterator{
+{{- range $Name, $Iterator := .Iterators}}
+	"{{$Name}}": func(ctx *eval.Context) celCursor {
+		ev := ctx.Event.(*{{$.ModelPkg}}Event)
+		return &modelCursor[*{{$.ModelPkg}}{{$Iterator.OrigType}}]{
+			iterator: &{{$.ModelPkg}}{{$Iterator.ReturnType}}{Root: ev.{{$Iterator.Name}}},
+			ctx:      ctx,
+		}
+	},
+{{- end}}
+}

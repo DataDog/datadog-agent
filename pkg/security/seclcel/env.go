@@ -49,6 +49,10 @@ const (
 	RootDomainFunc = "secl.rootDomain"
 )
 
+// globPatternArg is the argument of GlobFunc that holds the pattern, which is
+// what lets the pattern be compiled at planning time when it is a literal.
+const globPatternArg = 1
+
 // VariablesRoot is the CEL identifier that SECL variables are rooted at:
 // `${foo.bar}` translates to `vars.foo.bar`. Fields keep their own names, so
 // the prefix is what keeps a variable from colliding with a field of the same

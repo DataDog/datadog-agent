@@ -8,6 +8,7 @@ go_library(
         "field_accessors.tmpl",
         "field_handlers.tmpl",
         "cel_types.tmpl",
+        "cel_readers.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/accessors",
     visibility = ["//visibility:private"],
