@@ -81,6 +81,8 @@ new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64:
     - .new-e2e_script_upgrade7
     - .new-e2e_amazonlinux_a7_x86_64
     - .new-e2e_agent_a7
+  rules:
+    - when: never  # DADP-72: iot/heroku don't bundle ADP; excluded from ADP sweep
   variables:
     FLAVOR: datadog-iot-agent
   parallel:

@@ -54,8 +54,9 @@ func (s *packageAgentSuite) TestInstall() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit)
-	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
+	// DADP-72: data_plane.enabled defaults to true in this sweep, so ADP stays active after install.
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit, dataPlaneUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit)
 
 	state := s.host.State()
 	s.assertUnits(state, true)
@@ -502,8 +503,9 @@ func (s *packageAgentSuite) TestInstallFips() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_AGENT_FLAVOR=datadog-fips-agent")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit)
-	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
+	// DADP-72: data_plane.enabled defaults to true in this sweep, so ADP stays active after install.
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit, dataPlaneUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit)
 
 	// Remote Config is disabled by default for FIPS/FED agents, so the RC client fails to init and the unit exits with code 255.
 	// If remote_configuration.enabled is explicitly set to true, the daemon would start normally.
