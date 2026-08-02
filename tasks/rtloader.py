@@ -121,7 +121,15 @@ def install_with_bazel(ctx):
         )
 
         # Install rtloader and cpython where the Agent expects them at runtime
-        bazel(ctx, "run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
+        # TODO(incident-57868): drop --noremote_accept_cached once the poisoned remote cache entry is healed
+        bazel(
+            ctx,
+            "run",
+            "--noremote_accept_cached",
+            "//rtloader:install",
+            "--",
+            f"--destdir={os.path.dirname(bin_dir)}",
+        )
         bazel(ctx, "run", "@cpython//:install", "--", f"--destdir={bin_dir}")
 
         return os.path.join(bin_dir, "embedded3")
