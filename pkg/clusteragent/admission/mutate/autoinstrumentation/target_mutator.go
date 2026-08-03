@@ -181,7 +181,18 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
-	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// The admission can be re-run for the same pod (e.g. webhook reinvocation triggered by another
+	// mutating webhook, as happens on GKE Autopilot). Fast return if we injected the library
+	// already, otherwise we would mutate the pod a second time and, for instance, append the
+	// injector to LD_PRELOAD twice.
+	//
+	// The instrumentation volume is added by every injection mode (init_container, image_volume and
+	// CSI), so checking for it guards all modes. The CSI mode in particular has no init container,
+	// so the per-init-container checks below would miss it.
+	if containsVolume(pod, libraryinjection.InstrumentationVolumeName) {
+		log.Debugf("Instrumentation volume %q already exists in pod %q", libraryinjection.InstrumentationVolumeName, mutatecommon.PodString(pod))
+		return false, nil
+	}
 	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
@@ -353,6 +364,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
+				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
 	}
@@ -363,6 +375,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
+				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
 	}
@@ -517,6 +530,47 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	}
 
 	return false
+}
+
+func containsVolume(pod *corev1.Pod, volumeName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == volumeName {
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
+// alongside the locally injected libraries. It is the annotation-based equivalent of a target's
+// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// rather than failing the mutation, mirroring the lenient handling of the other local SDK
+// injection annotations.
+func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
+	value, found := annotation.Get(pod, annotation.TracerConfigs)
+	if !found {
+		return nil
+	}
+
+	var tracerConfigs []TracerConfig
+	if err := json.Unmarshal([]byte(value), &tracerConfigs); err != nil {
+		log.Errorf("could not parse %q annotation for Single Step Instrumentation: %v", annotation.TracerConfigs, err)
+		return nil
+	}
+
+	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
+	for _, tc := range tracerConfigs {
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
+		// so this cannot be used as a generic env var injector.
+		if !strings.HasPrefix(tc.Name, "DD_") {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+			continue
+		}
+		envVars = append(envVars, tc.AsEnvVar())
+	}
+
+	return envVars
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {

@@ -9,10 +9,15 @@ sh_binary(
             "--patchelf",
             "$(location @patchelf)",
         ],
+        "@platforms//os:macos": [
+            "--install-name-tool",
+            "$(location @llvm_toolchain_llvm//:install-name-tool)",
+        ],
         "//conditions:default": [],
     }),
     data = select({
         "@platforms//os:linux": ["@patchelf"],
+        "@platforms//os:macos": ["@llvm_toolchain_llvm//:install-name-tool"],
         "//conditions:default": [],
     }),
     tags = ["manual"],

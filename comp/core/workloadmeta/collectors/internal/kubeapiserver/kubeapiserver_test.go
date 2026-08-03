@@ -126,7 +126,7 @@ func TestShouldHavePodStore(t *testing.T) {
 	}
 }
 
-func TestShouldHaveKueueQueueStores(t *testing.T) {
+func TestShouldHaveKueueMetadata(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      map[string]interface{}
@@ -165,7 +165,7 @@ func TestShouldHaveKueueQueueStores(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := config.NewMockWithOverrides(t, test.cfg)
-			assert.Equal(t, test.expected, shouldHaveKueueQueueStores(cfg))
+			assert.Equal(t, test.expected, shouldHaveKueueMetadata(cfg))
 		})
 	}
 }
@@ -691,6 +691,14 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets example.com/custom",
 			},
 			expectedResources: []string{"//nodes", "apps//statefulsets", "example.com//custom"},
+		},
+		{
+			name: "non-core resources whose name merely ends in nodes should not be excluded",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "storage.k8s.io/csinodes metrics.k8s.io/nodes",
+			},
+			expectedResources: []string{"//nodes", "storage.k8s.io//csinodes", "metrics.k8s.io//nodes"},
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",

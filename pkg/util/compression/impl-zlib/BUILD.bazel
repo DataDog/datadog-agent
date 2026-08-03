@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl-zlib",
@@ -8,9 +9,8 @@ go_library(
     deps = ["//pkg/util/compression"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl-zlib_test",
     srcs = ["zlib_strategy_test.go"],
     embed = [":impl-zlib"],
-    gotags = ["test"],
 )

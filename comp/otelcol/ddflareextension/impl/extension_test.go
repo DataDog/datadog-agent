@@ -23,6 +23,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +70,7 @@ func getTestExtension(t *testing.T, optIpc option.Option[ipc.Component]) (ddflar
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info, optIpc, true, false)
+	return NewComponent(c, cfg, telemetry, info, optIpc, true, false)
 }
 
 func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
@@ -117,7 +118,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	return rr
 }
 
-func TestNewExtension(t *testing.T) {
+func TestNewComponent(t *testing.T) {
 	ext, err := getTestExtension(t, option.None[ipc.Component]())
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
@@ -215,6 +216,7 @@ func components() (otelcol.Factories, error) {
 	}
 
 	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
+		cumulativetodeltaprocessor.NewFactory(),
 		transformprocessor.NewFactory(),
 	)
 	if err != nil {

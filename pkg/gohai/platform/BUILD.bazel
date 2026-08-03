@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "platform",
@@ -42,15 +43,15 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "platform_test",
     srcs = [
+        "platform_aix_test.go",
         "platform_darwin_test.go",
         "platform_linux_test.go",
         "platform_test.go",
     ],
     embed = [":platform"],
-    gotags = ["test"],
     deps = [
         "//pkg/gohai/utils",
         "@com_github_stretchr_testify//assert",

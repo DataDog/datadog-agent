@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/actions/private_actions/ for more information.
 tags:
 - template_section:PrivateActionRunner
+- full-agent-only:true
 properties:
   enabled:
     node_type: setting
@@ -18,8 +19,6 @@ properties:
     visibility: public
     description: Set to true to enable the Private Action Runner.
     example: 'true'
-    tags:
-    - template_section:PrivateActionRunner
   self_enroll:
     node_type: setting
     type: boolean
@@ -30,16 +29,12 @@ properties:
       Requires an app_key with Actions API Enable and the following permissions:
         - Connection Write
         - Private Action Write
-    tags:
-    - template_section:PrivateActionRunner
   task_concurrency:
     node_type: setting
     type: integer
     default: 5
     visibility: public
     description: Maximum number of actions that can be executed concurrently.
-    tags:
-    - template_section:PrivateActionRunner
   task_timeout_seconds:
     node_type: setting
     type: integer
@@ -47,8 +42,6 @@ properties:
     visibility: public
     description: Maximum time in seconds an action is allowed to run before being
       terminated. Must be > 1.
-    tags:
-    - template_section:PrivateActionRunner
   actions_allowlist:
     node_type: setting
     type: array
@@ -65,8 +58,6 @@ properties:
 
         - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
         - com.datadoghq.script.runPredefinedScript             # on Linux and Darwin
-    tags:
-    - template_section:PrivateActionRunner
   default_actions_enabled:
     node_type: setting
     type: boolean
@@ -76,8 +67,6 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
-    tags:
-    - template_section:PrivateActionRunner
   http_timeout_seconds:
     node_type: setting
     type: integer
@@ -85,8 +74,6 @@ properties:
     visibility: public
     description: Maximum time in seconds for HTTP actions before timing out. Must
       be > 1.
-    tags:
-    - template_section:PrivateActionRunner
   http_allowlist:
     node_type: setting
     type: array
@@ -95,9 +82,8 @@ properties:
     items:
       type: string
     visibility: public
-    description: List of allowed URL patterns for HTTP actions.
-    tags:
-    - template_section:PrivateActionRunner
+    description: 'List of allowed domains for HTTP actions. Supports glob pattern.
+      Example : ["datadoghq.com", "*.datadoghq.com"]'
   http_allow_imds_endpoint:
     node_type: setting
     type: boolean
@@ -105,12 +91,20 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
-    tags:
-    - template_section:PrivateActionRunner
   api_key_only_enrollment:
     node_type: setting
     type: boolean
     default: false
+  executor:
+    node_type: section
+    type: object
+    properties:
+      socket_path:
+        node_type: setting
+        type: string
+        platform_default:
+          windows: \\.\pipe\dd-par-executor
+          other: ${run_path}/par-executor.sock
   identity_file_path:
     node_type: setting
     type: string
@@ -148,6 +142,7 @@ properties:
         - rshell:*
         items:
           type: string
+        env_parser: json_list_or_comma_separated
       allowed_paths:
         node_type: setting
         type: array
@@ -155,6 +150,34 @@ properties:
         - /
         items:
           type: string
+        env_parser: json_list_or_comma_separated
+        comment: |-
+          Restricted shell allow-lists are opt-in restrictions layered on top of
+          the backend-injected lists. By default, they act as a no-op, allowing
+          everything: the backend is the only filter.
+
+          To allow no paths or commands, use an explicit empty list.
+          Env vars support both CSV and JSON-array forms; the JSON form gives
+          env/YAML parity, including the explicit kill-switch via "[]".
+
+          - allowed_paths defaults to ["/"].
+          - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+          handled as a special case in the operator-side intersection: when
+          it appears in the operator list, every backend command in the
+          "rshell:" namespace is admitted.
+      allowed_system_services:
+        node_type: setting
+        type: object
+        default: {}
+        env_parser: json
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The environment variable accepts a JSON object only.
   skip_connection_creation:
     node_type: setting
     type: boolean

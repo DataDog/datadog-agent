@@ -211,7 +211,9 @@ func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, er
 	}
 	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// discard error, flare command might return error if there is no intake, but the archive is still generated
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
+	// --keep-archive prevents the agent from deleting the local archive after a successful upload,
+	// since we need it to still be on disk afterwards to download it below.
+	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--keep-archive"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {

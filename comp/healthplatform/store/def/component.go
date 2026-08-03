@@ -9,7 +9,7 @@
 // /health-platform/issues HTTP endpoint.
 package store
 
-// team: agent-health
+// team: fleet-remediation
 
 import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -60,6 +60,6 @@ type Component interface {
 	ResolveAllIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
-	// with the given IssueName (e.g. "docker_file_tailing_disabled").
+	// with the given IssueName (e.g. "Docker File Tailing Disabled").
 	GetActiveIssueIDsByIssueName(issueName string) []string
 }

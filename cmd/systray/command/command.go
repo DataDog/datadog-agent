@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -39,10 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-const (
-	defaultLogFile = "c:\\programdata\\datadog\\logs\\ddtray.log"
-)
-
 var (
 	// set by the build task and used to configure the logger to output to console when debugging.
 	// This value should correspond to the subsystem in the PE header.
@@ -62,23 +57,6 @@ func init() {
 func MakeCommand() *cobra.Command {
 	systrayParams := systray.Params{}
 
-	// log file path
-	var logFilePath string
-	confPath, err := winutil.GetProgramDataDir()
-	if err == nil {
-		logFilePath = filepath.Join(confPath, "logs", "ddtray.log")
-	} else {
-		logFilePath = defaultLogFile
-	}
-
-	// log params
-	var logParams log.Params
-	if subsystem == "windows" {
-		logParams = log.ForDaemon("TRAY", "system_tray.log_file", logFilePath)
-	} else if subsystem == "console" {
-		logParams = log.ForOneShot("TRAY", "info", true)
-	}
-
 	// root command
 	cmd := &cobra.Command{
 		Use:          os.Args[0],
@@ -89,6 +67,14 @@ func MakeCommand() *cobra.Command {
 			err := ensureElevated(systrayParams)
 			if err != nil {
 				return err
+			}
+
+			var logParams log.Params
+			if subsystem == "windows" {
+				// No need to pass a default file to the logger since the config already has one by default
+				logParams = log.ForDaemon("TRAY", "system_tray.log_file", "")
+			} else if subsystem == "console" {
+				logParams = log.ForOneShot("TRAY", "info", true)
 			}
 
 			return fxutil.Run(

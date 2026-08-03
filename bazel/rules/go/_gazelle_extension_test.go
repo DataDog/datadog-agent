@@ -13,6 +13,7 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -196,6 +197,310 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	}
 }
 
+// fakeGoLang stubs the embedded Go extension so GenerateRules can be tested
+// against a chosen GenerateResult without a real source-file scan.
+type fakeGoLang struct {
+	language.BaseLang
+	result language.GenerateResult
+}
+
+func (f *fakeGoLang) Kinds() map[string]rule.KindInfo {
+	return map[string]rule.KindInfo{
+		"go_test": {
+			MergeableAttrs: map[string]bool{"srcs": true, "embed": true},
+			ResolveAttrs:   map[string]bool{"deps": true},
+		},
+	}
+}
+
+func (f *fakeGoLang) GenerateRules(language.GenerateArgs) language.GenerateResult {
+	return f.result
+}
+
+// TestGenerateRules_OffDirectiveRevertsExistingConversion reproduces the
+// observed bug: a package that was previously converted to dd_agent_go_test
+// (an on-disk dd_agent_go_test rule exists) has its directive flipped back to
+// "off". GenerateRules is Gazelle's real entry point; running its output
+// through the same two-phase merge Gazelle itself performs must leave the
+// package with a plain go_test, not a stale dd_agent_go_test rule that the
+// merge can't reconcile because the kinds differ.
+func TestGenerateRules_OffDirectiveRevertsExistingConversion(t *testing.T) {
+	old := rule.NewRule("dd_agent_go_test", "pkg_test")
+	old.SetAttr("srcs", []string{"pkg_test.go"})
+	old.SetAttr("embed", []string{":pkg"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	old.Insert(file)
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	if file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected go_test after reverting, got %s", file.Rules[0].Kind())
+	}
+}
+
+// TestGenerateRules_OffDirectiveWithLinuxBPFKeepsTestTag guards a rule that
+// reverts from dd_agent_go_test while dd_linux_bpf is also enabled: gotags is
+// not mergeable, so once applyLinuxBPF writes linux_bpf directly onto the
+// existing (reverted) rule, merge keeps that value verbatim -- if
+// revertDdAgentGoTests hadn't already put "test" on that same rule, it would
+// never make it into the merged file.
+func TestGenerateRules_OffDirectiveWithLinuxBPFKeepsTestTag(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "pkg_test.go", "//go:build linux_bpf")
+
+	old := rule.NewRule("dd_agent_go_test", "pkg_test")
+	old.SetAttr("srcs", []string{"pkg_test.go"})
+	old.SetAttr("embed", []string{":pkg"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	old.Insert(file)
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: false},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file, Dir: dir})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	if got := file.Rules[0].AttrStrings("gotags"); !stringSlicesEqual(got, []string{"test", linuxBPFTag}) {
+		t.Errorf("gotags after merge = %v, want [test %s]", got, linuxBPFTag)
+	}
+}
+
+// TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion guards the
+// already-working case (e.g. cmd/cluster-agent/subcommands/coverage): a
+// package that was never converted keeps its plain go_test untouched when
+// "off" is (still) in effect.
+func TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion(t *testing.T) {
+	existing := rule.NewRule("go_test", "pkg_test")
+	existing.SetAttr("srcs", []string{"pkg_test.go"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	existing.Insert(file)
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 || file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected the untouched go_test to survive, got %v", file.Rules)
+	}
+}
+
+// TestGenerateRules_OffDirectiveRespectsKeptRule guards against deleting a
+// whole-rule `# keep` dd_agent_go_test out from under the user: the direct
+// Delete() used to revert a stale rule bypasses MergeFile's own ShouldKeep()
+// check, so without an explicit guard a hand-protected rule would vanish the
+// moment its package's directive flips to off.
+func TestGenerateRules_OffDirectiveRespectsKeptRule(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+dd_agent_go_test(
+    name = "pkg_test",
+    srcs = ["pkg_test.go"],
+    embed = [":pkg"],
+)  # keep
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+	if !file.Rules[0].ShouldKeep() {
+		t.Fatalf("expected fixture rule to be marked keep")
+	}
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 || file.Rules[0].Kind() != "dd_agent_go_test" {
+		t.Errorf("expected the kept dd_agent_go_test rule to survive untouched, got %v", file.Rules)
+	}
+}
+
+// TestGenerateRules_OffDirectiveSurvivesResolveWithKeptDep replays the full
+// three-step pipeline (PreResolve merge, Resolve, PostResolve merge) against
+// an existing dd_agent_go_test rule with a `# keep`-marked dep, the same
+// scenario TestDepsMerge_KeptItemSurvivesResolveUpdate guards for a package
+// that stays dd_agent_go_test. Deleting the old rule during GenerateRules (as
+// opposed to mutating it in place) removes it before the PostResolve merge
+// ever runs, so whatever the real Go resolver's DelAttr("deps")+SetAttr does
+// to the freshly-inserted go_test candidate has no prior rule to reconcile
+// kept deps against.
+func TestGenerateRules_OffDirectiveSurvivesResolveWithKeptDep(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+dd_agent_go_test(
+    name = "pkg_test",
+    srcs = ["pkg_test.go"],
+    embed = [":pkg"],
+    deps = [
+        "//kept/dep",  # keep
+        "//stale/dep",
+    ],
+)
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"pkg_test.go"})
+	fresh.SetAttr("embed", []string{":pkg"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: false}}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after PreResolve merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	// Simulate Resolve(): it operates on the generated candidate (fresh), not
+	// the existing file rule -- see the real pipeline in cmd/gazelle/update.go,
+	// which calls Resolve on v.rules (the GenerateRules output) and only later
+	// merges that back into the file at PostResolve.
+	fresh.SetAttr("deps", []string{"//fresh/dep"})
+
+	merger.MergeFile(file, nil, []*rule.Rule{fresh}, merger.PostResolve, l.Kinds(), nil)
+
+	got := file.Rules[0].AttrStrings("deps")
+	want := []string{"//kept/dep", "//fresh/dep"}
+	if !stringSlicesEqual(got, want) {
+		t.Errorf("deps after full pipeline: got %v, want %v", got, want)
+	}
+	if file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected go_test after reverting, got %s", file.Rules[0].Kind())
+	}
+}
+
+// TestGenerateRules_LinuxBPFOnlyTestSurvivesFlavorPruning reproduces the bug
+// found while auditing pkg/dyninst after "bazel: globally enable
+// dd_agent_go_test for pkg/": a package with both "dd_agent_go_test on" and
+// "dd_linux_bpf on" (dyninst's real, inherited state) whose test sources are
+// gated entirely behind //go:build linux_bpf lost its test rule outright.
+//
+// linux_bpf isn't a flavor, so dd_linux_bpf and dd_agent_go_test are
+// mutually exclusive (enforced in shouldReplace): once dd_linux_bpf is on,
+// shouldReplace declines and revertDdAgentGoTests takes over instead of
+// flavoring, then applyLinuxBPF tags the surviving plain go_test.
+func TestGenerateRules_LinuxBPFOnlyTestSurvivesFlavorPruning(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"x_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: true},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir})
+
+	if len(result.Gen) != 1 {
+		t.Fatalf("expected the linux_bpf-gated test to survive, got %d gen rules: %v", len(result.Gen), result.Gen)
+	}
+	got := result.Gen[0]
+	if got.Kind() != "go_test" {
+		t.Errorf("expected the rule to stay a plain go_test (not a flavor), got %s", got.Kind())
+	}
+	if want := []string{"test", linuxBPFTag}; !stringSlicesEqual(got.AttrStrings("gotags"), want) {
+		t.Errorf("gotags = %v, want %v", got.AttrStrings("gotags"), want)
+	}
+	if want := []string{linuxPlatform}; !stringSlicesEqual(got.AttrStrings("target_compatible_with"), want) {
+		t.Errorf("target_compatible_with = %v, want %v", got.AttrStrings("target_compatible_with"), want)
+	}
+}
+
+// TestGenerateRules_LinuxBPFDropsStaleFlavoredRule covers a package whose
+// test sources used to have an applicable flavor (so it was converted to
+// dd_agent_go_test) and later became linux_bpf-only. Once dd_linux_bpf turns
+// on, shouldReplace declines regardless of the flavor directive, so
+// revertDdAgentGoTests must remove that stale dd_agent_go_test, not leave it
+// alongside the plain go_test that replaces it.
+func TestGenerateRules_LinuxBPFDropsStaleFlavoredRule(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
+
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+dd_agent_go_test(
+    name = "pkg_test",
+    srcs = ["x_test.go"],
+)
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+
+	fresh := rule.NewRule("go_test", "pkg_test")
+	fresh.SetAttr("srcs", []string{"x_test.go"})
+
+	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+		Gen:     []*rule.Rule{fresh},
+		Imports: []interface{}{nil},
+	}}}
+	c := &config.Config{Exts: map[string]interface{}{
+		extName:         ddAgentGoTestConfig{enabled: true},
+		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+	}}
+
+	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file, Dir: dir})
+	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+
+	if len(file.Rules) != 1 {
+		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
+	}
+	if file.Rules[0].Kind() != "go_test" {
+		t.Errorf("expected the stale dd_agent_go_test to be replaced by a plain go_test, got %s", file.Rules[0].Kind())
+	}
+}
 func TestLoads(t *testing.T) {
 	mal, ok := NewLanguage().(language.ModuleAwareLanguage)
 	if !ok {
@@ -362,6 +667,16 @@ func TestShouldReplace(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			// linux_bpf is not a flavor, so the two are mutually exclusive:
+			// dd_linux_bpf wins even over an explicit dd_agent_go_test on.
+			name: "enabled but dd_linux_bpf also enabled",
+			c: &config.Config{Exts: map[string]interface{}{
+				extName:         ddAgentGoTestConfig{enabled: true},
+				linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
+			}},
+			want: false,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := shouldReplace(tc.c); got != tc.want {
@@ -455,6 +770,12 @@ func TestApplicableFlavors(t *testing.T) {
 	}
 }
 
+// TestKinds guards deps staying a ResolveAttr: Gazelle's post-Resolve
+// MergeFile pass only treats an attr as auto-managed if it's in ResolveAttrs
+// (MergeableAttrs governs the earlier pre-resolve pass instead). Without this,
+// Resolve's dd_agent_go_test deps never take effect past the first
+// conversion. See TestDepsMerge_KeptItemSurvivesResolveUpdate for why
+// ResolveAttrs (not MergeableAttrs) is the correct attribute set for this.
 func TestKinds(t *testing.T) {
 	kinds := NewLanguage().(*lang).Kinds()
 	info, ok := kinds["dd_agent_go_test"]
@@ -466,6 +787,48 @@ func TestKinds(t *testing.T) {
 	}
 	if !info.MergeableAttrs["srcs"] {
 		t.Error("expected srcs in MergeableAttrs")
+	}
+	if !info.ResolveAttrs["deps"] {
+		t.Error("expected deps in ResolveAttrs")
+	}
+}
+
+// TestDepsMerge_KeptItemSurvivesResolveUpdate replays Gazelle's real two-phase
+// merge (PreResolve, then PostResolve after Resolve sets deps) against a
+// dd_agent_go_test rule with a `# keep`-annotated dep, the same pattern used
+// for split cgo_align targets (e.g. pkg/collector/corechecks/ebpf/probe/ebpfcheck).
+// It guards that a manually kept dep survives while a stale one is dropped and
+// a freshly resolved one is added — the same behavior go_test gets for free.
+func TestDepsMerge_KeptItemSurvivesResolveUpdate(t *testing.T) {
+	kinds := newLang().Kinds()
+
+	old := rule.NewRule("dd_agent_go_test", "pkg_test")
+	old.SetAttr("srcs", []string{"pkg_test.go"})
+	old.SetAttr("embed", []string{":pkg"})
+	old.SetAttr("deps", []string{"//kept/dep", "//stale/dep"})
+	list, ok := old.Attr("deps").(*bzl.ListExpr)
+	if !ok {
+		t.Fatalf("expected deps to be a ListExpr, got %T", old.Attr("deps"))
+	}
+	list.List[0].Comment().Suffix = append(list.List[0].Comment().Suffix, bzl.Comment{Token: "# keep"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	old.Insert(file)
+
+	// gen mirrors the rule Gazelle would generate: no deps yet, since Resolve
+	// hasn't run at PreResolve time.
+	gen := rule.NewRule("dd_agent_go_test", "pkg_test")
+	gen.SetAttr("srcs", []string{"pkg_test.go"})
+	gen.SetAttr("embed", []string{":pkg"})
+	merger.MergeFile(file, nil, []*rule.Rule{gen}, merger.PreResolve, kinds, nil)
+
+	// Simulate Resolve() setting the freshly computed deps on the same rule object.
+	gen.SetAttr("deps", []string{"//fresh/dep"})
+	merger.MergeFile(file, nil, []*rule.Rule{gen}, merger.PostResolve, kinds, nil)
+
+	got := file.Rules[0].AttrStrings("deps")
+	want := []string{"//kept/dep", "//fresh/dep"}
+	if !stringSlicesEqual(got, want) {
+		t.Errorf("deps after merge: got %v, want %v", got, want)
 	}
 }
 

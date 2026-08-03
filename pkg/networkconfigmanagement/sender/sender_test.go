@@ -154,7 +154,7 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("test")
+			mockSender := mocksender.NewMockSender(t, "test")
 			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
@@ -204,7 +204,7 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("test")
+			mockSender := mocksender.NewMockSender(t, "test")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock(), "test-agent-host")

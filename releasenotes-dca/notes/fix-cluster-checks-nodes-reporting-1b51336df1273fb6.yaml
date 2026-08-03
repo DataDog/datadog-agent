@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix ``cluster_checks.nodes_reporting`` gauge drifting upward across
+    leader elections. The metric is now correctly decremented when the
+    cluster agent loses leadership and the node store is reset.

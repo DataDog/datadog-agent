@@ -86,7 +86,8 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
 // need to collect metadata from in order to make other enabled features work
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
-	res := []string{"nodes"} // nodes are always needed
+	// resources that we need to collect metadata from in order to make other enabled features work
+	var res []string
 
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 
@@ -131,7 +132,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 // resourcesWithExplicitMetadataCollectionEnabled returns the list of resources
 // to collect metadata from according to the config options that configure
 // metadata collection
-// Pods and/or Deployments are excluded if they have their separate stores and informers
+// Pods, Deployments and Nodes are excluded if they have their separate stores and informers
 // in order to avoid having two collectors collecting the same data.
 func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string {
 	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
@@ -148,6 +149,11 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 		if strings.HasSuffix(resource, "deployments") {
 			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
+			continue
+		}
+
+		if group, _, resourceName := parseRequestedResource(resource); group == "" && resourceName == "nodes" {
+			log.Debugf("skipping nodes from metadata collection because a separate node store is initialised in workload metadata store.")
 			continue
 		}
 
@@ -240,6 +246,10 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	nodeReflector, nodeStore := newNodeStore(ctx, wlmetaStore, c.config, client)
+	objectStores = append(objectStores, nodeStore)
+	go nodeReflector.Run(ctx.Done())
+
 	if shouldHavePodStore(c.config) {
 		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
 		lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled
@@ -264,7 +274,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
-	if shouldHaveKueueQueueStores(c.config) {
+	if shouldHaveKueueMetadata(c.config) {
 		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
 		if err != nil {
 			log.Errorf("failed to discover Kueue queue resources: %v", err)
@@ -278,6 +288,36 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
 				if err != nil {
 					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueResourceFlavorGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueResourceFlavorStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueWorkloadGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue Workload resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueWorkloadStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue
 				}
 				objectStores = append(objectStores, store)

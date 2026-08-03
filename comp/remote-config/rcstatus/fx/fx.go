@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for the rcstatus component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(rcstatusimpl.NewStatus),
+		fxutil.ProvideComponentConstructor(rcstatusimpl.NewComponent),
 	)
 }

@@ -36,8 +36,8 @@ type Provides struct {
 	Component processdiscoverycheck.Component
 }
 
-// NewCheck creates a new processdiscoverycheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new processdiscoverycheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		processDiscoveryCheck: checks.NewProcessDiscoveryCheck(deps.Config, deps.Sysconfig),
 	}

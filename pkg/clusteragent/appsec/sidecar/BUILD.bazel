@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sidecar",
+    srcs = ["container.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/appsec/config",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/util/intstr",
+        "@io_k8s_utils//ptr",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sidecar_test",
+    srcs = ["container_test.go"],
+    embed = [":sidecar"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//pkg/clusteragent/appsec/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+    ],
+)

@@ -76,7 +76,7 @@ func (f droppingFlowFilter) Filter(_ common.FlushContext, _ []*common.Flow) []*c
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	logger := logmock.New(t)
 	conf := &config.NetflowConfig{}
 	collector := &capturingNPCollector{}
@@ -102,7 +102,7 @@ func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpSourcePort(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	logger := logmock.New(t)
 	conf := &config.NetflowConfig{}
 	collector := &capturingNPCollector{}
@@ -126,7 +126,7 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpSourcePort(t *testing
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_IPTarget(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	logger := logmock.New(t)
 	conf := &config.NetflowConfig{}
 	collector := &capturingNPCollector{}
@@ -148,7 +148,7 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_IPTarget(t *testing.T) {
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpDestinationPort(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	logger := logmock.New(t)
 	conf := &config.NetflowConfig{}
 	collector := &capturingNPCollector{}
@@ -169,7 +169,7 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpDestinationPort(t *te
 
 func TestFlowAggregator_flushDoesNotScheduleNetworkPathForFilteredFlow(t *testing.T) {
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -219,7 +219,7 @@ func TestFlowAggregator_flushDoesNotScheduleNetworkPathForFilteredFlow(t *testin
 
 func TestFlowAggregator_flushSchedulesNetworkPathForSentFlow(t *testing.T) {
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -279,7 +279,7 @@ func TestFlowAggregator_flushSchedulesNetworkPathForSentFlow(t *testing.T) {
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -334,6 +334,8 @@ func TestAggregator(t *testing.T) {
     "namespace": "my-ns"
   },
   "direction": "ingress",
+  "dscp": 0,
+  "dscp_name": "CS0",
   "egress": {
     "interface": {
       "index": 0
@@ -370,6 +372,7 @@ func TestAggregator(t *testing.T) {
     "SYN",
     "ACK"
   ],
+  "tos": 0,
   "type": "netflow9"
 }
 `)
@@ -469,7 +472,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	require.NoError(t, err)
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -592,7 +595,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	require.NoError(t, err)
 	ddlog.SetupLogger(l, "debug")
 
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -632,7 +635,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 }
 
 func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
@@ -713,7 +716,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 }
 
 func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
 		AggregatorBufferSize:                   20,
@@ -748,7 +751,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
 		AggregatorBufferSize:                   20,
@@ -834,7 +837,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
 		AggregatorBufferSize:                   20,
@@ -866,7 +869,7 @@ func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
 		AggregatorBufferSize:                   20,
@@ -952,7 +955,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
 		AggregatorBufferSize:                   20,
@@ -1058,7 +1061,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTypes(t *testing.T) {
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(t, "")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
 		AggregatorBufferSize:                   20,
@@ -1426,7 +1429,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("")
+			sender := mocksender.NewMockSender(t, "")
 			conf := config.NetflowConfig{
 				StopTimeout:                            10,
 				AggregatorBufferSize:                   20,
@@ -1457,7 +1460,7 @@ func TestAggregatorFlushing(t *testing.T) {
 		// 3. After FlowCollectionDuration has elapsed, the flow is flushed correctly
 
 		flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
-		sender := mocksender.NewMockSender("")
+		sender := mocksender.NewMockSender(t, "")
 		sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 		sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 		sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1559,7 +1562,7 @@ func TestAggregatorFlushing(t *testing.T) {
 		// rescheduled for nextFlush + FlowCollectionDuration (with NO jitter).
 
 		startTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
-		sender := mocksender.NewMockSender("")
+		sender := mocksender.NewMockSender(t, "")
 		sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 		sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 		sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

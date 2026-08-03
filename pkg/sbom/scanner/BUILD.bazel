@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "scanner",
     srcs = ["scanner.go"],
@@ -36,6 +34,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/sbom",
         "//pkg/sbom/collectors",
+        "//pkg/util/filesystem",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",

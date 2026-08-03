@@ -1,12 +1,12 @@
 ---
 dist:
   description: Manifest that has mismatched otelcol and component versions (should fail collector_tests.py)
-  otelcol_version: 0.154.0
+  otelcol_version: 0.156.0
 
 extensions:
   - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.99.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.154.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.156.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.156.0
 
 receivers:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.156.0

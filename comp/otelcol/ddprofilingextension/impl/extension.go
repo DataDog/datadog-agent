@@ -46,8 +46,8 @@ type ddExtension struct {
 	agentMode  bool
 }
 
-// NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
+// NewComponent creates a new instance of the extension.
+func NewComponent(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
 		cfg:        cfg,
 		info:       info,

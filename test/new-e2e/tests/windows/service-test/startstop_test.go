@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
@@ -551,6 +551,12 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 }
 
 func (s *baseStartStopSuite) SetupSuite() {
+	// Preserve timeout scales explicitly configured by specialized suites, such as
+	// the Driver Verifier suites. The zero value means no scale was configured.
+	if s.timeoutScale == 0 {
+		s.timeoutScale = defaultTimeoutScale
+	}
+
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
@@ -639,10 +645,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 		}
 		return services
 	}
-
-	// By default driver verifier is disabled.
-	s.enableDriverVerifier = false
-	s.timeoutScale = defaultTimeoutScale
 }
 
 func (s *baseStartStopSuite) TearDownSuite() {

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.219.0"
+	HelmVersion = "3.225.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -76,6 +76,8 @@ type HelmInstallationArgs struct {
 	// HelmChartVersion overrides the default HelmVersion for this installation.
 	// When empty, HelmVersion is used.
 	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type HelmComponent struct {
@@ -116,9 +118,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	helmComponent.ClusterAgentToken = randomClusterAgentToken.Result
 
-	// Create namespace if necessary
-	ns, err := corev1.NewNamespace(e.Ctx(), args.Namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), args.Namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(args.Namespace),
 		},
 	}, opts...)
@@ -126,6 +129,32 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		return nil, err
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	if args.OpenShiftControlPlaneMonitoring {
+		etcdMetricClientSecret, err := corev1.GetSecret(
+			e.Ctx(),
+			"openshift-etcd-metric-client-source",
+			pulumi.ID("openshift-etcd-operator/etcd-metric-client"),
+			nil,
+			opts...,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		copiedSecret, err := corev1.NewSecret(e.Ctx(), "openshift-etcd-metric-client", &corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Namespace: ns.Metadata.Name(),
+				Name:      pulumi.String("etcd-metric-client"),
+			},
+			Data: etcdMetricClientSecret.Data,
+			Type: etcdMetricClientSecret.Type,
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, utils.PulumiDependsOn(copiedSecret))
+	}
 
 	// Create secret if necessary
 	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{
@@ -729,8 +758,11 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"tlsVerify": pulumi.Bool(false),
 			},
 			// https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
+			// socketEnabled must be false to prevent the admission controller from injecting
+			// a UDS socket volume that conflicts with OpenShift SCCs.
 			"apm": pulumi.Map{
-				"portEnabled": pulumi.Bool(true),
+				"portEnabled":   pulumi.Bool(true),
+				"socketEnabled": pulumi.Bool(false),
 			},
 			"sbom": pulumi.Map{
 				"containerImage": pulumi.Map{
@@ -988,6 +1020,14 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 				"value": pulumi.String("true"),
 			},
 			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_ADDITIONAL_ENDPOINTS"),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_USE_HTTP"),
+				"value": pulumi.String("true"),
+			},
+			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
 				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
@@ -1016,6 +1056,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_LOGS_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{

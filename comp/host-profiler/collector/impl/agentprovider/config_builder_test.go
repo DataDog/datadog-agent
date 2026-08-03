@@ -62,7 +62,7 @@ func TestBuildExportersNoAdditionalHTTPHeaders(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "test_key", headers["dd-api-key"])
-	assert.Len(t, headers, 3) // dd-api-key, dd-evp-origin, dd-evp-origin-version
+	assert.Len(t, headers, 4) // dd-api-key, dd-evp-origin, dd-evp-origin-version, resource_as_attributes
 }
 
 func TestBuildConfigDDProfilingEnabled(t *testing.T) {
@@ -118,6 +118,47 @@ func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
 	svcExtensions, ok := service["extensions"].([]any)
 	require.True(t, ok)
 	assert.Contains(t, svcExtensions, ddprofilingName)
+}
+
+func TestBuildConfigDDProfilingEnabledWithPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfiling: ddProfilingConfig{Enabled: true, Port: 1234},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "1234", ddprofiling["endpoint"])
+}
+
+func TestBuildConfigDDProfilingEnabledDefaultPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfiling: ddProfilingConfig{Enabled: true},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
+	require.True(t, ok)
+	_, ok = ddprofiling["endpoint"]
+	assert.False(t, ok, "endpoint should not be set when port is unset; extension applies its own default")
 }
 
 func TestBuildConfigDDProfilingDisabled(t *testing.T) {

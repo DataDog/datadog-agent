@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "selftests",
+    srcs = [
+        "chmod.go",
+        "chown.go",
+        "create_file_windows.go",
+        "ebpfless.go",
+        "open.go",
+        "open_registry_key_windows.go",
+        "self_tests.go",
+        "tester.go",
+        "tester_linux.go",
+        "tester_others.go",
+        "tester_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/selftests",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/config",
+        "//pkg/security/events",
+        "//pkg/security/probe",
+        "//pkg/security/proto/api",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/model",
+        "//pkg/security/secl/rules",
+        "//pkg/security/serializers",
+        "//pkg/util/log",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/seclog",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/seclog",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/security/utils/pathutils",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "catalog-otel",
+    srcs = ["catalog.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-otel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/collectors/internal/containerd",
+        "//comp/core/workloadmeta/collectors/internal/crio",
+        "//comp/core/workloadmeta/collectors/internal/docker",
+        "//comp/core/workloadmeta/collectors/internal/ecs",
+        "//comp/core/workloadmeta/collectors/internal/kubelet",
+        "//comp/core/workloadmeta/collectors/internal/kubemetadata",
+        "//comp/core/workloadmeta/collectors/internal/podman",
+        "@org_uber_go_fx//:fx",
+    ],
+)

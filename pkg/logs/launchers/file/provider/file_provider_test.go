@@ -11,10 +11,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -381,6 +383,77 @@ func TestCollectFiles(t *testing.T) {
 		assert.Equal(t, fs.path("t.log"), files[2].Path)
 		assert.Equal(t, fs.path("z.log"), files[3].Path)
 	})
+
+	t.Run("LiteralPathToDirectoryReturnsError", func(t *testing.T) {
+		fs := newTempFs(t)
+		fs.mkDir("logsdir")
+
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
+		source := sources.NewLogSource("dir", &config.LogsConfig{Type: config.FileType, Path: fs.path("logsdir")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.Empty(t, files)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "is a directory")
+	})
+
+	t.Run("WildcardMatchingOnlyDirectoriesReturnsError", func(t *testing.T) {
+		fs := newTempFs(t)
+		fs.mkDir("alpha")
+		fs.mkDir("beta")
+
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
+		source := sources.NewLogSource("dir-only", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.Empty(t, files)
+		assert.Error(t, err)
+		// Directories are filtered silently — a mix of files and subdirectories
+		// is a normal layout and shouldn't generate per-scan noise.
+		assert.Empty(t, source.Messages.GetMessages())
+	})
+
+	t.Run("WildcardSkipsDirectoriesAndKeepsFiles", func(t *testing.T) {
+		fs := newTempFs(t)
+		fs.mkDir("subdir")     // glob match that must be skipped
+		fs.createFile("a.log") // real file
+		fs.createFile("b.log") // real file
+
+		fileProvider := NewFileProvider(5, WildcardUseFileName)
+		source := sources.NewLogSource("mixed", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.NoError(t, err)
+		assert.Len(t, files, 2)
+		paths := []string{files[0].Path, files[1].Path}
+		assert.Contains(t, paths, fs.path("a.log"))
+		assert.Contains(t, paths, fs.path("b.log"))
+		assert.NotContains(t, paths, fs.path("subdir"))
+
+		assert.Empty(t, source.Messages.GetMessages())
+	})
+
+	t.Run("RecursiveGlobSkipsDirectoriesAndKeepsFiles", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest("logs_config.enable_recursive_glob", true)
+
+		fs := newTempFs(t)
+		fs.mkDir("alpha")
+		fs.createFile("alpha/a.log")
+		fs.mkDir("alpha/beta")
+		fs.createFile("alpha/beta/b.log")
+
+		fileProvider := NewFileProvider(5, WildcardUseFileName)
+		source := sources.NewLogSource("recursive", &config.LogsConfig{Type: config.FileType, Path: fs.path("**")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.NoError(t, err)
+
+		paths := make([]string, 0, len(files))
+		for _, f := range files {
+			paths = append(paths, f.Path)
+		}
+		assert.Contains(t, paths, fs.path("alpha/a.log"))
+		assert.Contains(t, paths, fs.path("alpha/beta/b.log"))
+		assert.NotContains(t, paths, fs.path("alpha"))
+		assert.NotContains(t, paths, fs.path("alpha/beta"))
+	})
 }
 
 func TestFilesToTail(t *testing.T) {
@@ -742,21 +815,21 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 	}
 
 	// we've found a symlink validating that the file we have just scanned is concerning the container we're currently processing for this source
-	assert.False(ShouldIgnore(true, &file), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
+	assert.False(ShouldIgnore(true, &file, NewContainerLogSymlinkResolver()), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
 
 	// now, let's change the container for which we are trying to scan files,
 	// because the symlink is pointing from another container, we should ignore
 	// that log file
 	file.Source.Config().Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
-	assert.True(ShouldIgnore(true, &file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
+	assert.True(ShouldIgnore(true, &file, NewContainerLogSymlinkResolver()), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
 
 	// in this scenario, no link is found in /var/log/containers, thus, we should not ignore the file
 	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
-	assert.False(ShouldIgnore(true, &file), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
+	assert.False(ShouldIgnore(true, &file, NewContainerLogSymlinkResolver()), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
 
 	// in this scenario, the file we've found doesn't look like a container ID
 	os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
-	assert.False(ShouldIgnore(true, &file), "no container ID found, we don't want to ignore this scanned file")
+	assert.False(ShouldIgnore(true, &file, NewContainerLogSymlinkResolver()), "no container ID found, we don't want to ignore this scanned file")
 }
 
 func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
@@ -798,6 +871,92 @@ func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
 	}
 	files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
 	assert.Len(t, files, 2) // 1 file from k8s source, 1 file from regular file source.
+}
+
+// containerLogSource builds a Kubernetes container log source/file pair pointing at
+// podLogPath with the given container identifier, for exercising ShouldIgnore.
+func containerLogSource(podLogPath, identifier string) *tailer.File {
+	logSource := sources.NewLogSource("mylogsource", nil)
+	logSource.SetSourceType(sources.KubernetesSourceType)
+	logSource.Config = &config.LogsConfig{
+		Type:       config.FileType,
+		Path:       podLogPath,
+		Identifier: identifier,
+	}
+	return &tailer.File{Path: podLogPath, Source: sources.NewReplaceableSource(logSource)}
+}
+
+const (
+	testMatchingContainerID = "abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd"
+	testOtherContainerID    = "1234123412341234123412341234123412341234123412341234123412341234"
+)
+
+// TestContainerLogSymlinkResolverCaching verifies the core behavior introduced by the
+// resolver: the ContainersLogsDir scan happens once and is reused for the lifetime of a
+// single resolver, while a fresh resolver rescans. This is what makes the scan run at
+// most once per launcher scan cycle instead of once per file.
+func TestContainerLogSymlinkResolverCaching(t *testing.T) {
+	origDir := ContainersLogsDir
+	defer func() { ContainersLogsDir = origDir }()
+
+	containersDir := t.TempDir()
+	ContainersLogsDir = containersDir + "/"
+
+	podLog := "/var/log/pods/file-uuid-foo-bar.log"
+	symlink := filepath.Join(containersDir, "myapp_my-namespace_myapp-"+testMatchingContainerID+".log")
+	require.NoError(t, os.Symlink(podLog, symlink))
+
+	// The source identifier deliberately differs from the container ID encoded in the
+	// symlink, so a successful scan classifies the file as "ignore".
+	file := containerLogSource(podLog, testOtherContainerID)
+
+	resolver := NewContainerLogSymlinkResolver()
+	// First call builds and caches the map; mismatch -> ignore.
+	assert.True(t, ShouldIgnore(true, file, resolver))
+
+	// Remove the symlink. A shared resolver must NOT rescan, so it keeps ignoring
+	// based on its cached map.
+	require.NoError(t, os.Remove(symlink))
+	assert.True(t, ShouldIgnore(true, file, resolver),
+		"a reused resolver should serve its cached scan and not observe the removed symlink")
+
+	// A fresh resolver rescans, no longer finds the symlink, and therefore stops ignoring.
+	assert.False(t, ShouldIgnore(true, file, NewContainerLogSymlinkResolver()),
+		"a new resolver should rescan and reflect the removed symlink")
+}
+
+// TestShouldIgnoreNilResolver documents the public contract that a nil resolver is
+// allowed and results in a one-off scan.
+func TestShouldIgnoreNilResolver(t *testing.T) {
+	origDir := ContainersLogsDir
+	defer func() { ContainersLogsDir = origDir }()
+
+	containersDir := t.TempDir()
+	ContainersLogsDir = containersDir + "/"
+
+	podLog := "/var/log/pods/file-uuid-foo-bar.log"
+	require.NoError(t, os.Symlink(podLog, filepath.Join(containersDir, "myapp_my-namespace_myapp-"+testMatchingContainerID+".log")))
+
+	file := containerLogSource(podLog, testMatchingContainerID)
+	// Matching identifier with a nil resolver -> tail.
+	assert.False(t, ShouldIgnore(true, file, nil))
+
+	// Mismatched identifier with a nil resolver -> ignore.
+	file.Source.Config().Identifier = testOtherContainerID
+	assert.True(t, ShouldIgnore(true, file, nil))
+}
+
+// TestShouldIgnoreMissingContainersDir guards the realistic case of a container source on
+// a host without /var/log/containers: the file should be tailed rather than ignored.
+func TestShouldIgnoreMissingContainersDir(t *testing.T) {
+	origDir := ContainersLogsDir
+	defer func() { ContainersLogsDir = origDir }()
+
+	ContainersLogsDir = filepath.Join(t.TempDir(), "does-not-exist") + "/"
+
+	file := containerLogSource("/var/log/pods/file-uuid-foo-bar.log", testMatchingContainerID)
+	assert.False(t, ShouldIgnore(true, file, NewContainerLogSymlinkResolver()),
+		"a missing containers directory should not cause files to be ignored")
 }
 
 func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {

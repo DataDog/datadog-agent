@@ -14,10 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
@@ -26,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // formatLimits tracks formatting limits for log output.
@@ -48,6 +52,7 @@ const (
 	formatNil             = "nil"
 	formatCycle           = "{cycle}"
 	formatTruncated       = "{truncated}"
+	formatRedacted        = "{redacted}"
 	formatEllipsis        = "..."
 	formatEllipsisComma   = ", ..."
 	formatEllipsisCommaRB = ", ...}"
@@ -99,9 +104,7 @@ func writeBoundedError(
 			return false
 		}
 		available := limits.maxBytes - 2
-		if len(msg) > available {
-			msg = msg[:available]
-		}
+		msg = utilstrings.TruncateUTF8(msg, available)
 		errorMsg = "{" + msg + "}"
 	} else {
 		// Format: "{prefix: message}"
@@ -110,9 +113,7 @@ func writeBoundedError(
 			return false
 		}
 		available := limits.maxBytes - prefixLen
-		if len(msg) > available {
-			msg = msg[:available]
-		}
+		msg = utilstrings.TruncateUTF8(msg, available)
 		errorMsg = "{" + prefix + ": " + msg + "}"
 	}
 	buf.WriteString(errorMsg)
@@ -170,6 +171,9 @@ type encodingContext struct {
 		index  int
 		status ir.ExprStatus
 	}
+	// redaction is the policy for scrubbing sensitive captured values. Nil
+	// when no policy is configured, in which case nothing is redacted.
+	redaction *redaction.Config
 }
 
 // forEachOfType invokes fn for each data item whose IR type ID matches
@@ -183,9 +187,23 @@ func (e *encodingContext) forEachOfType(typeID ir.TypeID, fn func(output.DataIte
 	}
 }
 
+var errInvalidTypeName = errors.New("type name is not valid UTF-8")
+
 // ResolveTypeName implements encodingContext.
 func (e *encodingContext) ResolveTypeName(typeID gotype.TypeID) (string, error) {
-	return e.typeResolver.ResolveTypeName(typeID)
+	name, err := e.typeResolver.ResolveTypeName(typeID)
+	if err != nil {
+		return "", err
+	}
+	// Runtime type names are read out of the target's types blob without any
+	// validation, so a bogus runtime type word resolves to arbitrary bytes.
+	// Report those as unresolved: callers fall back to the unknown-type
+	// rendering and the garbage never reaches the missing type collector,
+	// which would otherwise keep asking for a type that can never resolve.
+	if !utf8.ValidString(name) {
+		return "", errInvalidTypeName
+	}
+	return name, nil
 }
 
 // getPtr implements encodingContext.
@@ -1103,7 +1121,12 @@ func makeFormatMapEntryCallback(
 		}
 
 		valueBeforeLen := buf.Len()
-		if err := formatType(c, buf, valueType, valueData, limits); err != nil {
+		if c.redactMapValue(keyType.GetID(), keyData) {
+			if !limits.canWrite(len(formatRedacted)) {
+				return false, nil
+			}
+			buf.WriteString(formatRedacted)
+		} else if err := formatType(c, buf, valueType, valueData, limits); err != nil {
 			return false, err
 		}
 		valueWritten := buf.Len() - valueBeforeLen
@@ -1128,7 +1151,13 @@ func makeEncodeMapEntryCallback(
 		if err := encodeValue(c, enc, keyTypeID, keyData, keyTypeName); err != nil {
 			return false, err
 		}
-		if err := encodeValue(c, enc, valueTypeID, valueData, valueTypeName); err != nil {
+		if c.redactMapValue(keyTypeID, keyData) {
+			if err := writeRedacted(
+				enc, valueTypeName, tokenNotCapturedReasonRedactedIdent,
+			); err != nil {
+				return false, err
+			}
+		} else if err := encodeValue(c, enc, valueTypeID, valueData, valueTypeName); err != nil {
 			return false, err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {
@@ -1136,6 +1165,57 @@ func makeEncodeMapEntryCallback(
 		}
 		return true, nil
 	}
+}
+
+// redactMapValue reports whether a map value must be redacted because its
+// string key matches a redacted identifier. Non-string keys never match.
+func (e *encodingContext) redactMapValue(keyTypeID ir.TypeID, keyData []byte) bool {
+	if e.redaction == nil {
+		return false
+	}
+	sh, ok := e.getType(keyTypeID)
+	if !ok {
+		return false
+	}
+	strHeader, ok := sh.(*goStringHeaderType)
+	if !ok {
+		return false
+	}
+	key, ok := strHeader.stringValue(e, keyData)
+	if !ok {
+		return false
+	}
+	return e.redaction.RedactIdentifier(key)
+}
+
+// stringValue reads the contents of a captured string from its header bytes.
+// It returns false when the header is too short or the backing bytes were not
+// captured; a captured-but-truncated string is matched on the bytes present.
+func (s *goStringHeaderType) stringValue(c *encodingContext, data []byte) (string, bool) {
+	if s.lenFieldOffset+uint32(s.lenFieldSize) > uint32(len(data)) ||
+		s.strFieldOffset+uint32(s.strFieldSize) > uint32(len(data)) {
+		return "", false
+	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	if strLen == 0 {
+		return "", true
+	}
+	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
+	if address == 0 {
+		return "", false
+	}
+	item, ok := c.getPtr(address, s.Data.GetID())
+	if !ok {
+		return "", false
+	}
+	b, ok := item.Data()
+	if !ok {
+		return "", false
+	}
+	if n := int(strLen); n < len(b) {
+		b = b[:n]
+	}
+	return string(b), true
 }
 
 func (b *goHMapBucketType) irType() ir.Type { return (*ir.GoHMapBucketType)(b) }
@@ -1484,6 +1564,14 @@ func (s *structureType) encodeValueFields(
 		if err := writeTokens(enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}
+		if c.redaction.RedactIdentifier(field.Name) {
+			if err := writeRedacted(
+				enc, field.Type.GetName(), tokenNotCapturedReasonRedactedIdent,
+			); err != nil {
+				return err
+			}
+			continue
+		}
 		fieldEnd := field.Offset + field.Type.GetByteSize()
 		if fieldEnd > uint32(len(data)) {
 			return fmt.Errorf(
@@ -1538,6 +1626,12 @@ func (s *structureType) formatValueFields(
 		}
 		buf.WriteString(fieldName)
 		limits.consume(len(fieldName))
+
+		if c.redaction.RedactIdentifier(field.Name) {
+			writeBoundedString(buf, limits, formatRedacted)
+			fieldCount++
+			continue
+		}
 
 		fieldEnd := field.Offset + field.Type.GetByteSize()
 		if fieldEnd > uint32(len(data)) {
@@ -1951,7 +2045,8 @@ func (s *goStringHeaderType) encodeValueFields(
 		)
 	}
 	length := stringValue.Header().Length
-	if strLen > uint64(length) {
+	truncated := strLen > uint64(length)
+	if truncated {
 		// We captured partial data for the string, report truncation.
 		if err := writeTokens(enc,
 			jsontext.String("size"),
@@ -1966,6 +2061,9 @@ func (s *goStringHeaderType) encodeValueFields(
 		return err
 	}
 	str := unsafe.String(unsafe.SliceData(stringData), min(int(length), int(strLen)))
+	if truncated {
+		str = trimPartialRune(str)
+	}
 	return writeTokens(enc, jsontext.String(str))
 }
 
@@ -2011,7 +2109,9 @@ func (s *goStringHeaderType) formatValueFields(
 	}
 	// We display truncated string with ellipsis if possible, nothing otherwise.
 	if limits.maxBytes > len(formatEllipsis) {
-		str := string(strData[:min(displayLen, limits.maxBytes-len(formatEllipsis))]) + formatEllipsis
+		str := trimPartialRune(
+			string(strData[:min(displayLen, limits.maxBytes-len(formatEllipsis))]),
+		) + formatEllipsis
 		writeBoundedString(buf, limits, str)
 	}
 	return nil
@@ -2173,7 +2273,92 @@ func (i *goInterfaceType) encodeValueFields(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
+	if i.Name == "context.Context" {
+		return encodeContextTraceMap(c, enc, data)
+	}
 	return encodeInterface(c, enc, data)
+}
+
+// encodeContextTraceMap renders a context.Context interface value as a map of
+// the trace-correlation ids carried by the context. Each entry is a [key, value]
+// pair of typed values:
+//
+//	"entries": [
+//	  [{"type": "string", "value": "trace_id"},  {"type": "big.Int", "value": "<128-bit decimal>"}],
+//	  [{"type": "string", "value": "span_id"},   {"type": "uint64", "value": "<id>"}],
+//	  [{"type": "string", "value": "parent_id"}, {"type": "uint64", "value": "<id>"}],
+//	]
+//
+// trace_id is a 128-bit id rendered as a decimal big.Int (a uint64 cannot hold
+// it); span_id and parent_id are 64-bit unsigned integers. The ids come from the
+// synthetic trace-context data item the BPF chain walk publishes for the context
+// (keyed by the concrete context pointer address). parent_id is omitted when
+// zero; a context with no active span renders as an empty entries list.
+func encodeContextTraceMap(
+	c *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if len(data) != 16 {
+		return fmt.Errorf("go interface data must be 16 bytes, got %d", len(data))
+	}
+	runtimeType := binary.NativeEndian.Uint64(data[goRuntimeTypeOffset : goRuntimeTypeOffset+8])
+	if runtimeType == 0 {
+		return writeTokens(enc, jsontext.String("isNull"), jsontext.Bool(true))
+	}
+	if err := writeTokens(enc, jsontext.String("entries"), jsontext.BeginArray); err != nil {
+		return err
+	}
+	addr := binary.NativeEndian.Uint64(data[goInterfaceDataOffset : goInterfaceDataOffset+8])
+	if c.traceContextTypeID != 0 && addr != 0 {
+		if item, ok := c.dataItems[typeAndAddr{
+			irType: uint32(c.traceContextTypeID),
+			addr:   addr,
+		}]; ok {
+			if tc, ok := parseTraceContextDataItem(item); ok {
+				var traceIDBytes [16]byte
+				binary.BigEndian.PutUint64(traceIDBytes[0:8], tc.traceIDUpper)
+				binary.BigEndian.PutUint64(traceIDBytes[8:16], tc.traceIDLower)
+				if err := writeContextTraceEntry(enc,
+					"trace_id", "big.Int", new(big.Int).SetBytes(traceIDBytes[:]).String(),
+				); err != nil {
+					return err
+				}
+				if err := writeContextTraceEntry(enc,
+					"span_id", "uint64", strconv.FormatUint(tc.spanID, 10),
+				); err != nil {
+					return err
+				}
+				if tc.parentID != 0 {
+					if err := writeContextTraceEntry(enc,
+						"parent_id", "uint64", strconv.FormatUint(tc.parentID, 10),
+					); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return writeTokens(enc, jsontext.EndArray)
+}
+
+// writeContextTraceEntry writes a single [key, value] map entry. The key is
+// always a string; valueType is the type label for the value ("uint64" for the
+// 64-bit span and parent ids, "big.Int" for the 128-bit trace id), matching how
+// the decoder renders map entries elsewhere.
+func writeContextTraceEntry(enc *jsontext.Encoder, key, valueType, value string) error {
+	return writeTokens(enc,
+		jsontext.BeginArray,
+		jsontext.BeginObject,
+		jsontext.String("type"), jsontext.String("string"),
+		jsontext.String("value"), jsontext.String(key),
+		jsontext.EndObject,
+		jsontext.BeginObject,
+		jsontext.String("type"), jsontext.String(valueType),
+		jsontext.String("value"), jsontext.String(value),
+		jsontext.EndObject,
+		jsontext.EndArray,
+	)
 }
 
 func (i *goInterfaceType) formatValueFields(
@@ -2282,6 +2467,19 @@ func encodeInterface(
 	}
 	tt := t.irType()
 
+	// Type redaction applies to the resolved concrete type, which is only
+	// known here; the static interface type checked in encodeValue does not
+	// match a redacted type.
+	if c.redaction.RedactType(tt.GetName()) {
+		if err := writeTokens(enc,
+			jsontext.String("type"), jsontext.String(tt.GetName()),
+			tokenNotCapturedReason, tokenNotCapturedReasonRedactedType,
+		); err != nil {
+			return err
+		}
+		return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
+	}
+
 	if err := writeTokens(
 		enc, jsontext.String("type"), jsontext.String(tt.GetName()),
 	); err != nil {
@@ -2344,6 +2542,10 @@ func formatInterface(
 	}
 
 	tt := t.irType()
+	if c.redaction.RedactType(tt.GetName()) {
+		writeBoundedString(buf, limits, formatRedacted)
+		return nil
+	}
 	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
 	if pt, ok := tt.(*ir.PointerType); ok {
 		return (*pointerType)(pt).formatValueFields(c, buf, ptrData, limits)

@@ -1,9 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "datadogexporter",
     srcs = [
         "factory.go",
+        "hostname.go",
         "metadata.go",
         "telemetry.go",
         "traces_exporter.go",
@@ -11,9 +13,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
         "//comp/otelcol/logsagentpipeline/def",
+        "//comp/otelcol/otlp/components/datadogconfig",
         "//comp/otelcol/otlp/components/exporter/logsagentexporter",
         "//comp/otelcol/otlp/components/exporter/serializerexporter",
         "//comp/otelcol/otlp/components/metricsclient",
@@ -25,7 +30,6 @@ go_library(
         "//pkg/proto/pbgo/trace",
         "//pkg/serializer",
         "//pkg/util/otel",
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
         "@io_opentelemetry_go_collector_config_configretry//:configretry",
@@ -41,20 +45,22 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "datadogexporter_test",
     srcs = [
+        "factory_test.go",
         "host_metadata_test.go",
+        "hostname_test.go",
         "traces_exporter_test.go",
     ],
     embed = [":datadogexporter"],
-    gotags = ["test"],
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
         "//comp/logs-library/metrics",
         "//comp/logs-library/pipeline",
         "//comp/otelcol/logsagentpipeline/def",
+        "//comp/otelcol/otlp/components/datadogconfig",
         "//comp/otelcol/otlp/components/exporter/serializerexporter",
         "//comp/otelcol/otlp/components/metricsclient",
         "//comp/otelcol/otlp/testutil",
@@ -71,7 +77,6 @@ go_test(
         "//pkg/util/fxutil",
         "//pkg/util/otel",
         "@com_github_datadog_datadog_go_v5//statsd",
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_config_confignet//:confignet",

@@ -19,9 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
@@ -71,7 +72,7 @@ type Requires struct {
 	WMeta          option.Option[workloadmeta.Component]
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
-	HealthPlatform option.Option[healthplatformdef.Component]
+	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
 }
 
@@ -100,7 +101,7 @@ type AutoConfig struct {
 	logs                     logComp.Component
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
-	healthPlatform           option.Option[healthplatformdef.Component]
+	healthPlatform           healthplatformdef.Component
 	staticConfigIndex        *listeners.StaticConfigIndex
 	serviceTracker           adtypes.ServiceTracker
 
@@ -196,20 +197,15 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 
 // NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
 // Exported for use by the mock package.
-func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
+func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
 	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component], tracker adtypes.ServiceTracker) *AutoConfig {
-	var hpComp healthplatformdef.Component
-	if h, ok := hp.Get(); ok {
-		hpComp = h
-	} else {
-		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
-	}
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex, discovererPkg.NewPythonBridge())
+	telStore := acTelemetry.NewStore(telemetryComp)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
@@ -229,7 +225,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		filterStore:              filterStore,
-		telemetryStore:           acTelemetry.NewStore(telemetryComp),
+		telemetryStore:           telStore,
 		healthPlatform:           hp,
 		staticConfigIndex:        staticConfigIndex,
 		serviceTracker:           tracker,
@@ -498,16 +494,15 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 
 // AddConfigProviderFromCatalog looks up a config provider factory in the catalog by name,
 // creates the provider using internal dependencies, and registers it with autodiscovery.
-func (ac *AutoConfig) AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error {
+func (ac *AutoConfig) AddConfigProviderFromCatalog(cp constants.ConfigurationProviders) error {
 	factory, found := ac.providerCatalog[cp.Name]
 	if !found {
 		return fmt.Errorf("unable to find this provider in the catalog: %v", cp.Name)
 	}
 
-	hp, _ := ac.healthPlatform.Get()
 	wmeta, _ := ac.wmeta.Get()
 
-	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, hp, ac.telemetryStore)
+	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, ac.healthPlatform, ac.telemetryStore)
 	if err != nil {
 		return fmt.Errorf("error while adding config provider %v: %w", cp.Name, err)
 	}

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed testfixtures/test_config_with_stackparams.yaml
+//go:embed testdata/test_config_with_stackparams.yaml
 var configWithStackparams []byte
 
 func Test_parseConfigFileContent(t *testing.T) {
@@ -43,7 +43,7 @@ func Test_parseConfigFileContent(t *testing.T) {
 func Test_NewConfigFileStore(t *testing.T) {
 	dir, err := os.Getwd()
 	require.NoError(t, err)
-	configPath := path.Join(dir, "testfixtures/test_config_with_stackparams.yaml")
+	configPath := path.Join(dir, "testdata/test_config_with_stackparams.yaml")
 
 	store, err := NewConfigFileStore(configPath)
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func Test_NewConfigFileStore(t *testing.T) {
 func Test_NewConfigFileStoreNoAWSAccount(t *testing.T) {
 	dir, err := os.Getwd()
 	require.NoError(t, err)
-	configPath := path.Join(dir, "testfixtures/test_config_no_aws_account.yaml")
+	configPath := path.Join(dir, "testdata/test_config_no_aws_account.yaml")
 
 	store, err := NewConfigFileStore(configPath)
 	require.NoError(t, err)
