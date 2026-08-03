@@ -83,6 +83,25 @@ func TestMaterializedLogCountBucketizerRejectsFlushedLateBucket(t *testing.T) {
 	assert.False(t, b.observe("logs", metric, 2, nil))
 }
 
+func TestMaterializedLogCountBucketizerAcceptsLateObservationForOpenBucket(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{})
+	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
+	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+
+	require.True(t, b.observe("logs", metric, 1, nil))
+	b.flush(storage, 4)
+	require.True(t, b.observe("logs", metric, 3, nil))
+	b.flush(storage, 5)
+
+	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observerdef.Point{{Timestamp: 5, Value: 2}}, series.Points)
+}
+
+func TestLogCountBucketEndBeforeAnchor(t *testing.T) {
+	assert.Equal(t, int64(4), logCountBucketEnd(3, 5, 5))
+}
+
 func TestMaterializedLogCountBucketizerOverridesRetentionForLogSeries(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: 10})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{

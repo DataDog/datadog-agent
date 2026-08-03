@@ -87,20 +87,28 @@ func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
 	return strings.HasSuffix(name, ".count")
 }
 
-// observe adds one extractor output to its pending bucket. False means the
-// bucket was already flushed and the late observation cannot be incorporated
-// without rewriting history.
+// observe adds one extractor output to its pending bucket. False means the late
+// observation cannot be incorporated without rewriting or re-anchoring history.
 func (b *materializedLogCountBucketizer) observe(
 	namespace string,
 	metric observerdef.MetricOutput,
 	timestamp int64,
 	tags []string,
 ) bool {
-	if timestamp <= b.flushedThrough {
-		return false
-	}
 	key := seriesKeyHash(namespace, metric.Name, tags)
 	state := b.series[key]
+	if state == nil && timestamp <= b.flushedThrough {
+		return false
+	}
+	anchor := timestamp
+	if state != nil {
+		anchor = state.anchor
+	}
+	bucketEnd := logCountBucketEnd(timestamp, anchor, b.config.BucketSeconds)
+	if bucketEnd <= b.flushedThrough {
+		return false
+	}
+
 	if state == nil {
 		state = &logCountBucketSeries{
 			namespace:    namespace,
@@ -120,10 +128,6 @@ func (b *materializedLogCountBucketizer) observe(
 		}
 	}
 
-	bucketEnd := logCountBucketEnd(timestamp, state.anchor, b.config.BucketSeconds)
-	if bucketEnd <= b.flushedThrough {
-		return false
-	}
 	state.values[bucketEnd] += metric.Value
 
 	lastEnd := bucketEnd
@@ -216,6 +220,9 @@ func (b *materializedLogCountBucketizer) reset() {
 }
 
 func logCountBucketEnd(timestamp, anchor, bucketSeconds int64) int64 {
+	if timestamp < anchor {
+		return anchor - 1 - ((anchor - timestamp - 1) / bucketSeconds * bucketSeconds)
+	}
 	return anchor + ((timestamp-anchor)/bucketSeconds+1)*bucketSeconds - 1
 }
 
