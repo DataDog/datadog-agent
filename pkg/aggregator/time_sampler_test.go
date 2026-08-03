@@ -212,6 +212,36 @@ func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
 	}
 }
 
+func TestTimeSamplerDogStatsDClientTelemetryMirrorsOnlyUnfilteredSeries(t *testing.T) {
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	clientTelemetry, counters := newTestDogStatsDClientTelemetry()
+	sampler.dogStatsDClientTelemetry = clientTelemetry
+
+	tagMatcher := filterlist.NewNoopTagMatcher()
+	sampler.sample(&metrics.MetricSample{
+		Name:       dogStatsDClientBytesSentMetric,
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"client:go"},
+		SampleRate: 1,
+	}, 1001, tagMatcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       dogStatsDClientBytesDroppedMetric,
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"client:java"},
+		SampleRate: 1,
+	}, 1001, tagMatcher)
+
+	filter := strings.NewMatcher([]string{dogStatsDClientBytesSentMetric}, false)
+	series, _ := flushSerieWithFilterList(sampler, 1020, &filter, true)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, dogStatsDClientBytesDroppedMetric, series[0].Name)
+	assert.Zero(t, counters[0].Get())
+	assert.Equal(t, 5.0, counters[1].Get())
+}
+
 func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {
 	samper := testTimeSampler(tags.NewStore(true, "test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
