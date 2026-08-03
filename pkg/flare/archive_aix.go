@@ -14,7 +14,6 @@ import (
 	"strconv"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getSvmonData captures the AIX virtual memory segment breakdown (heap,
@@ -26,7 +25,7 @@ func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	cmd := exec.CommandContext(ctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("error running svmon -P %s: %s", pid, err)
+		fb.Logf("error running svmon -P %s: %s", pid, err)
 	}
 
 	return fb.AddFile("svmon.log", out)

@@ -12,7 +12,6 @@ import (
 	"os/exec"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getWindowsData(_ context.Context, _ flaretypes.FlareBuilder) error {
@@ -29,7 +28,7 @@ func getUlimitData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 		`echo "=== Soft limits (ulimit -aS) ==="; ulimit -aS; echo; echo "=== Hard limits (ulimit -aH) ==="; ulimit -aH`)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("error running ulimit -a: %s", err)
+		fb.Logf("error running ulimit: %s", err)
 	}
 
 	return fb.AddFile("ulimit.log", out)
