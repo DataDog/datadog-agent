@@ -31,6 +31,7 @@ func TestWindowsRemoteConfigSuite(t *testing.T) {
 					protocol:         "TCP",
 					port:             443,
 					configSubstrings: []string{"hostname: api.datadoghq.eu", "protocol: TCP", "port: 443", "test_config_id: aaa-bbb-ccc"},
+					tags:             []string{"team:netpath", "env:e2e", "service:api"},
 				},
 			},
 		},

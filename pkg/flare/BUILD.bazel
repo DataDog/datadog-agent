@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "flare",
     srcs = [
@@ -32,6 +30,7 @@ go_library(
         "//pkg/api/security",
         "//pkg/collector/check/id",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/remote/flare",
         "//pkg/config/setup",

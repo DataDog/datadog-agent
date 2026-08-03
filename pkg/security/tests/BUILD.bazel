@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_agent_go_test off
+
 go_library(
     name = "tests",
     srcs = [
@@ -152,6 +154,7 @@ go_test(
         "bpf_test.go",
         "capabilities_test.go",
         "capture_all_syscall_errors_test.go",
+        "capture_test.go",
         "cgroup_test.go",
         "chdir_test.go",
         "chmod_test.go",
