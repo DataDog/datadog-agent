@@ -56,12 +56,16 @@ type internalHealthMetricsPipelineResolution struct {
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no profiling is used & configured, add minimal one with symbol_uploader: false
 //   - remove hpflare extensions
-type converterWithoutAgent struct{}
+type converterWithoutAgent struct {
+	// selfContainerID resolves the container ID of the running process. A field rather than
+	// a direct cgroup.GetSelfContainerID call so tests can stub the ambient cgroup state.
+	selfContainerID func() (string, error)
+}
 
 func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
 	logger := convSettings.Logger
 	slog.SetDefault(slog.New(zapslog.NewHandler(logger.Core())))
-	return &converterWithoutAgent{}
+	return &converterWithoutAgent{selfContainerID: cgroup.GetSelfContainerID}
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
@@ -594,7 +598,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 
 	metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
 
-	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
+	if containerID, err := c.selfContainerID(); err == nil {
 		containerIDProcessor := confMap{
 			"attributes": []any{confMap{
 				"key":    version.OTelContainerIDKey,
