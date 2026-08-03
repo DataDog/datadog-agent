@@ -25,8 +25,6 @@ import (
 )
 
 const (
-	pingInterval = 100 * time.Millisecond
-
 	oidSysName = "1.3.6.1.2.1.1.5.0"
 
 	checkPing = "ping"
@@ -48,6 +46,7 @@ const (
 
 type PingOptions struct {
 	Count        int   `json:"count"`
+	IntervalMs   int   `json:"intervalMs"`
 	TimeoutMs    int   `json:"timeoutMs"`
 	UseRawSocket *bool `json:"useRawSocket,omitempty"`
 }
@@ -237,8 +236,8 @@ func buildPinger(opts *PingOptions) (pinger.Pinger, error) {
 	return pinger.New(pinger.Config{
 		UseRawSocket: useRawSocket,
 		Count:        opts.Count,
+		Interval:     time.Duration(opts.IntervalMs) * time.Millisecond,
 		Timeout:      time.Duration(opts.TimeoutMs) * time.Millisecond,
-		Interval:     pingInterval,
 	})
 }
 
@@ -314,32 +313,25 @@ func trySNMPCredential(ctx context.Context, host string, opts *SNMPOptions, cred
 }
 
 func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions, cred SNMPCredential) (*gosnmp.GoSNMP, error) {
-	var ver gosnmp.SnmpVersion
-	switch cred.Version {
-	case "1":
-		ver = gosnmp.Version1
-	case "2c":
-		ver = gosnmp.Version2c
-	case "3":
-		ver = gosnmp.Version3
-	default:
-		return nil, fmt.Errorf("unknown SNMP version '%s' (expected 1, 2c, or 3)", cred.Version)
-	}
-
 	c := &gosnmp.GoSNMP{
 		Context:   ctx,
 		Target:    host,
 		Port:      uint16(opts.Port),
 		Transport: "udp",
-		Version:   ver,
 		Timeout:   time.Duration(opts.TimeoutMs) * time.Millisecond,
 		Retries:   opts.Retries,
 	}
 
-	if ver == gosnmp.Version1 || ver == gosnmp.Version2c {
+	switch cred.Version {
+	case "1":
+		c.Version = gosnmp.Version1
 		c.Community = cred.Community
-	}
-	if ver == gosnmp.Version3 {
+	case "2c":
+		c.Version = gosnmp.Version2c
+		c.Community = cred.Community
+	case "3":
+		c.Version = gosnmp.Version3
+
 		authProtocol, err := gosnmplib.GetAuthProtocol(cred.AuthProtocol)
 		if err != nil {
 			return nil, err
@@ -370,6 +362,8 @@ func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions, cred S
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        cred.PrivKey,
 		}
+	default:
+		return nil, fmt.Errorf("unknown SNMP version '%s' (expected 1, 2c, or 3)", cred.Version)
 	}
 
 	return c, nil
