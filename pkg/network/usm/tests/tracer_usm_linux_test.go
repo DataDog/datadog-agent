@@ -581,6 +581,57 @@ func (s *USMSuite) TestGRPCTLSClassification() {
 	waitForConnectionsWithProtocol(t, tr, serverAddress, serverAddress, &protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC, Encryption: protocols.TLS})
 }
 
+// TestHTTP2TLSClassificationNotGRPC verifies the TLS gRPC classifier only tags connections that
+// actually carry "content-type: application/grpc": plain HTTP/2 over TLS must stay HTTP/2-only.
+func (s *USMSuite) TestHTTP2TLSClassificationNotGRPC() {
+	t := s.T()
+	skipIfKernelIsNotSupported(t, usmhttp2.MinimumKernelVersion)
+	cfg := tracertestutil.Config()
+	if !classificationSupported(cfg) {
+		t.Skip("Classification is not supported")
+	}
+	if !gotlstestutil.GoTLSSupported(t, cfg) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableGoTLSSupport = true
+	cfg.GoTLSExcludeSelf = true
+	cfg.BypassEnabled = true
+
+	port, err := getFreePort()
+	require.NoError(t, err)
+	serverAddress := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
+
+	// Reuse the gRPC server binary: it terminates TLS, speaks HTTP/2 and has the symbols GoTLS hooks.
+	// The request below is deliberately not gRPC, so the connection must not gain the gRPC API layer.
+	srv, cancel := grpc.NewGRPCTLSServer(t, serverAddress, true)
+	t.Cleanup(cancel)
+
+	tr := setupTracer(t, cfg)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, usm.GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+
+	require.NoError(t, tr.Resume())
+	t.Cleanup(func() { _ = tr.Pause() })
+
+	client := &nethttp.Client{
+		Transport: &http2.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	t.Cleanup(client.CloseIdleConnections)
+
+	// A gRPC server rejects a non-gRPC content-type, but the classifier only needs the request's
+	// HEADERS frame to reach it, so the response is intentionally not asserted on.
+	resp, err := client.Post("https://"+serverAddress, "application/json", bytes.NewReader([]byte("test")))
+	if err == nil {
+		resp.Body.Close()
+	}
+
+	waitForConnectionsWithProtocol(t, tr, serverAddress, serverAddress, &protocols.Stack{Application: protocols.HTTP2, Encryption: protocols.TLS})
+}
+
 func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	t := s.T()
 
