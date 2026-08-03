@@ -242,8 +242,8 @@
 ########################################
 
 ## @param gpu_monitoring - custom object - optional
-## Configuration for the GPU Monitoring module, which collects per-process GPU
-## metrics on Linux hosts.
+## Configuration for the GPU Monitoring module, which collects GPU
+## metrics that require privileged access. Only for Linux hosts.
 ## Required for GPU monitoring on non-containerized Linux hosts alongside
 ## gpu.enabled: true in datadog.yaml.
 #
