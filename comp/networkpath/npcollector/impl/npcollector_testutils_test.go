@@ -81,7 +81,28 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 
 	require.NotNil(t, npCollector)
 	require.NotNil(t, app)
+	setTestLocalIPs(npCollector)
 	return app, npCollector
+}
+
+func setTestLocalIPs(npCollector *npCollectorImpl, ips ...string) {
+	localIPs := make(map[netip.Addr]struct{}, len(ips))
+	for _, ip := range ips {
+		localIPs[netip.MustParseAddr(ip)] = struct{}{}
+	}
+	npCollector.localIPs = newLocalIPCache(func() (map[netip.Addr]struct{}, error) {
+		copiedLocalIPs := make(map[netip.Addr]struct{}, len(localIPs))
+		for ip := range localIPs {
+			copiedLocalIPs[ip] = struct{}{}
+		}
+		return copiedLocalIPs, nil
+	})
+}
+
+func setFailingTestLocalIPs(npCollector *npCollectorImpl, err error) {
+	npCollector.localIPs = newLocalIPCache(func() (map[netip.Addr]struct{}, error) {
+		return nil, err
+	})
 }
 
 func createConns(numberOfConns int) []npmodel.NetworkPathConnection {

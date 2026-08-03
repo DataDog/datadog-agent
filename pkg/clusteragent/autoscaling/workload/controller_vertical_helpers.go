@@ -42,10 +42,9 @@ const (
 
 const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
 
-// removeLimitSentinel is stored in a container Limits map by applyVerticalConstraints (burstable
-// mode) to signal "delete this limit from the pod instead of setting it to this value".
-// Negative quantities are never valid as real Kubernetes resource values, making the intent
-// unambiguous and easy to identify with quantity.Sign() < 0.
+// removeLimitSentinel is a sentinel quantity stored in ContainerResources.Limits to
+// signal that an existing limit must be actively deleted from the live pod. Negative
+// quantities are never valid Kubernetes resource values, making the intent unambiguous.
 var removeLimitSentinel = resource.MustParse("-1")
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
@@ -336,9 +335,10 @@ func hasLimitIncrease(
 }
 
 // applyVerticalConstraints applies the container constraints from the PodAutoscaler spec to the
-// recommendations, and in burstable mode stores removeLimitSentinel (-1) on the CPU limit of every
-// container so that:
-//   - the ResourcesHash changes when burstable mode is toggled (triggering pod re-patches)
+// recommendations. When the CPU limit must be removed from the live pod — autoscaler-wide in
+// burstable mode, or per-container when ControlledValues is CPURequestsRemoveLimitsMemoryRequestsAndLimits —
+// it stores removeLimitSentinel (-1) on that container's CPU limit so that:
+//   - the ResourcesHash changes when the removal is toggled (triggering pod re-patches)
 //   - hasLimitIncrease sees cpuLimit.Sign() <= 0 and correctly identifies the transition as a limit increase
 //   - patchContainerResources removes the CPU limit from the pod when it encounters the sentinel
 func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints, burstable bool) (limitErr, err error) {
@@ -380,90 +380,101 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 		if !found {
 			constraint = wildcardConstraint
 		}
-		if constraint == nil {
-			kept = append(kept, cr)
-			continue
+
+		// removeCPULimit is true when the CPU limit must be deleted from the live pod.
+		// It applies autoscaler-wide in burstable mode, and per-container when the
+		// constraint's ControlledValues requests CPU-limit removal (resolved below).
+		// The actual stamping happens once, after constraint processing.
+		removeCPULimit := burstable
+
+		if constraint != nil {
+			// Enabled=false: drop this container's recommendations entirely
+			if constraint.Enabled != nil && !*constraint.Enabled {
+				modified = true
+				continue
+			}
+
+			// Resolve which resources are controlled.
+			// nil defaults to [cpu, memory]; empty list is equivalent to Enabled=false.
+			controlled := constraint.ControlledResources
+			if controlled == nil {
+				controlled = []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
+			}
+			if len(controlled) == 0 {
+				modified = true
+				continue
+			}
+
+			// Remove resources not in the controlled list from requests and limits
+			for name := range cr.Requests {
+				if !slices.Contains(controlled, name) {
+					delete(cr.Requests, name)
+					modified = true
+				}
+			}
+			for name := range cr.Limits {
+				if !slices.Contains(controlled, name) {
+					delete(cr.Limits, name)
+					modified = true
+				}
+			}
+
+			// ControlledValues=RequestsOnly: strip all limits
+			if constraint.ControlledValues != nil && *constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesRequestsOnly {
+				if len(cr.Limits) > 0 {
+					cr.Limits = nil
+					modified = true
+				}
+			}
+
+			// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits: like burstable,
+			// the CPU limit must be removed from the live pod (handled by the shared stamping below).
+			if constraint.ControlledValues != nil &&
+				*constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits {
+				removeCPULimit = true
+			}
+
+			// Resolve min/max bounds for clamping.
+			// New top-level MinAllowed/MaxAllowed apply to both requests and limits.
+			// Deprecated Requests.MinAllowed/MaxAllowed apply to requests only.
+			reqMin, reqMax, limMin, limMax := resolveMinMaxBounds(constraint)
+
+			// Clamp existing requests and limits to their respective bounds.
+			// Track which containers were clamped for the VerticalScalingLimited condition.
+			requestsClamped := clampResourceList(cr.Requests, reqMin, reqMax)
+			limitsClamped := clampResourceList(cr.Limits, limMin, limMax)
+			if requestsClamped || limitsClamped {
+				clampedContainers = append(clampedContainers, cr.Name)
+				modified = true
+			}
+
+			// Maintain invariant: limits >= requests for all resources where both exist.
+			// Skip sentinel limits (negative) — they are internal markers, not values.
+			for resourceName, reqQty := range cr.Requests {
+				if limQty, hasLimit := cr.Limits[resourceName]; hasLimit && limQty.Sign() >= 0 && limQty.Cmp(reqQty) < 0 {
+					cr.Limits[resourceName] = reqQty.DeepCopy()
+					modified = true
+				}
+			}
 		}
 
-		// Enabled=false: drop this container's recommendations entirely
-		if constraint.Enabled != nil && !*constraint.Enabled {
+		// Stamp the CPU limit with removeLimitSentinel (-1) when it must be removed from the
+		// live pod. Done after clamping/invariant so the sentinel value is never altered (both
+		// skip negative quantities). This has three effects:
+		//   1. The ResourcesHash changes when removal is toggled (pods get re-patched).
+		//   2. hasLimitIncrease sees cpuLimit.Sign() <= 0, correctly identifying the transition
+		//      to "no limit" as a limit increase (unlimited > any finite limit).
+		//   3. patchContainerResources sees Sign() < 0 and removes the CPU limit from the running
+		//      pod instead of setting it (an absent entry would mean "leave untouched").
+		if removeCPULimit {
+			if cr.Limits == nil {
+				cr.Limits = corev1.ResourceList{}
+			}
+			cr.Limits[corev1.ResourceCPU] = removeLimitSentinel.DeepCopy()
 			modified = true
-			continue
-		}
-
-		// Resolve which resources are controlled.
-		// nil defaults to [cpu, memory]; empty list is equivalent to Enabled=false.
-		controlled := constraint.ControlledResources
-		if controlled == nil {
-			controlled = []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
-		}
-		if len(controlled) == 0 {
-			modified = true
-			continue
-		}
-
-		// Remove resources not in the controlled list from requests and limits
-		for name := range cr.Requests {
-			if !slices.Contains(controlled, name) {
-				delete(cr.Requests, name)
-				modified = true
-			}
-		}
-		for name := range cr.Limits {
-			if !slices.Contains(controlled, name) {
-				delete(cr.Limits, name)
-				modified = true
-			}
-		}
-
-		// ControlledValues=RequestsOnly: strip all limits
-		if constraint.ControlledValues != nil && *constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesRequestsOnly {
-			if len(cr.Limits) > 0 {
-				cr.Limits = nil
-				modified = true
-			}
-		}
-
-		// Resolve min/max bounds for clamping.
-		// New top-level MinAllowed/MaxAllowed apply to both requests and limits.
-		// Deprecated Requests.MinAllowed/MaxAllowed apply to requests only.
-		reqMin, reqMax, limMin, limMax := resolveMinMaxBounds(constraint)
-
-		// Clamp existing requests and limits to their respective bounds.
-		// Track which containers were clamped for the VerticalScalingLimited condition.
-		requestsClamped := clampResourceList(cr.Requests, reqMin, reqMax)
-		limitsClamped := clampResourceList(cr.Limits, limMin, limMax)
-		if requestsClamped || limitsClamped {
-			clampedContainers = append(clampedContainers, cr.Name)
-			modified = true
-		}
-
-		// Maintain invariant: limits >= requests for all resources where both exist
-		for resourceName, reqQty := range cr.Requests {
-			if limQty, hasLimit := cr.Limits[resourceName]; hasLimit && limQty.Cmp(reqQty) < 0 {
-				cr.Limits[resourceName] = reqQty.DeepCopy()
-				modified = true
-			}
 		}
 
 		kept = append(kept, cr)
-	}
-
-	// In burstable mode, stamp the CPU limit to removeLimitSentinel (-1) on every container.
-	// This has three effects:
-	//   1. The ResourcesHash changes when burstable is toggled (pods get re-patched).
-	//   2. hasLimitIncrease sees cpuLimit.Sign() <= 0, correctly identifying non-burstable →
-	//      burstable as a limit increase (unlimited > any finite limit).
-	//   3. patchContainerResources sees Sign() < 0 and removes the CPU limit from the running
-	//      pod instead of setting it.
-	if burstable {
-		for i := range kept {
-			if kept[i].Limits == nil {
-				kept[i].Limits = corev1.ResourceList{}
-			}
-			kept[i].Limits[corev1.ResourceCPU] = removeLimitSentinel.DeepCopy()
-			modified = true
-		}
 	}
 
 	verticalRecs.ContainerResources = kept
@@ -507,12 +518,17 @@ func resolveMinMaxBounds(c *datadoghqcommon.DatadogPodAutoscalerContainerConstra
 
 // clampResourceList clamps each resource quantity in the list to [min, max].
 // Returns true if any values were modified.
+// removeLimitSentinel entries are skipped: they are internal markers for downstream
+// consumers (signalling "delete this limit from the pod") and must survive clamping.
 func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.ResourceList) bool {
 	if rl == nil {
 		return false
 	}
 	modified := false
 	for name, qty := range rl {
+		if qty.Cmp(removeLimitSentinel) == 0 { // preserve the remove-limit sentinel as-is
+			continue
+		}
 		clamped := false
 		if minQty, ok := minAllowed[name]; ok && qty.Cmp(minQty) < 0 {
 			qty = minQty.DeepCopy()
@@ -613,6 +629,94 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 	}
 
 	return PodResizeStatusCompleted, time.Time{}
+}
+
+// isDisruptiveResize reports whether the recommendation changes a resource whose RestartContainer
+// policy would restart a container. Other resizes happen in place and are never throttled.
+func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.VerticalScalingValues) bool {
+	if recommendation == nil {
+		return false
+	}
+	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(recommendation.ContainerResources))
+	for _, cr := range recommendation.ContainerResources {
+		recoByName[cr.Name] = cr
+	}
+	for _, c := range pod.Containers {
+		cr, ok := recoByName[c.Name]
+		if !ok {
+			continue
+		}
+		if c.ResizePolicy.CPURestartPolicy == string(corev1.RestartContainer) && cpuChanging(c.Resources, cr) {
+			return true
+		}
+		if c.ResizePolicy.MemoryRestartPolicy == string(corev1.RestartContainer) && memoryChanging(c.Resources, cr) {
+			return true
+		}
+	}
+	return false
+}
+
+// cpuChanging reports whether reco changes the container's CPU request or limit, compared in
+// millicores to avoid float equality across the two code paths.
+func cpuChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+	// CPURequest/CPULimit are stored as percentage of 1 CPU (0–100*numCPU); multiply by 10 to get millicores.
+	cpuMilliChanged := func(currentCPUPercent *float64, recoMillis int64) bool {
+		if currentCPUPercent == nil {
+			return true
+		}
+		return int64(*currentCPUPercent*10+0.5) != recoMillis
+	}
+	if q, ok := reco.Requests[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPURequest, q.MilliValue()) {
+		return true
+	}
+	if q, ok := reco.Limits[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPULimit, q.MilliValue()) {
+		return true
+	}
+	return false
+}
+
+// memoryChanging reports whether reco changes the container's memory request or limit.
+func memoryChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+	memBytesChanged := func(currentBytes *uint64, recoBytes int64) bool {
+		if currentBytes == nil {
+			return true
+		}
+		return int64(*currentBytes) != recoBytes
+	}
+	if q, ok := reco.Requests[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryRequest, q.Value()) {
+		return true
+	}
+	if q, ok := reco.Limits[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryLimit, q.Value()) {
+		return true
+	}
+	return false
+}
+
+// countDisruptedPods counts pods that are unavailable or mid-resize. In-flight resizes count even
+// while Ready, since a RestartContainer resize stays Ready while Deferred/InProgress.
+func countDisruptedPods(podsByResizeStatus map[PodResizeStatus][]classifiedPod) int {
+	disrupted := 0
+	for status, cps := range podsByResizeStatus {
+		for _, cp := range cps {
+			if (status == PodResizeStatusNeedsPatch || status == PodResizeStatusCompleted) && cp.pod.Ready {
+				continue
+			}
+			disrupted++
+		}
+	}
+	return disrupted
+}
+
+// allowedDisruptions returns how many more pods may be disrupted this sync to stay within budget.
+func allowedDisruptions(configured int, alreadyDisrupted int) int {
+	pct := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent")
+	tolerance := int(float64(configured) * float64(pct) / 100.0)
+	// Allow one disruption when a healthy workload's tolerance truncates to 0, so low-replica
+	// workloads can still make progress.
+	if tolerance == 0 && alreadyDisrupted == 0 && configured > 0 {
+		return 1
+	}
+	return max(0, tolerance-alreadyDisrupted)
 }
 
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {

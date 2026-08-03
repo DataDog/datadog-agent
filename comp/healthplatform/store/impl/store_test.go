@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
@@ -113,8 +114,8 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByName:     make(map[string]map[string]struct{}),
+		issues:           make(map[string]*storedIssue),
+		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
@@ -148,6 +149,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 	err := h.ReportIssue(&healthplatformpayload.Issue{
 		Id:        "check-failure:mysql:abc",
 		IssueName: "check-failure",
+		IssueType: "check_failure",
 		Title:     "Check 'mysql' Failed",
 		Source:    "mysql",
 		Severity:  healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
@@ -163,6 +165,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 	assert.Contains(t, issue.Tags, "env:prod")
 	assert.NotEmpty(t, issue.DetectedAt)
 	assert.NotNil(t, issue.PersistedIssue)
+	assert.Equal(t, "check_failure", issue.IssueType)
 }
 
 func TestReportIssueMinimalProto(t *testing.T) {
@@ -182,6 +185,37 @@ func TestReportIssueMinimalProto(t *testing.T) {
 	assert.Equal(t, "custom-type", issue.IssueName)
 }
 
+// TestReportIssuePreservesIssueType guards that the store never overwrites or
+// derives IssueType — the caller (module BuildIssue or a direct reporter) owns
+// that value entirely, same as every other proto field.
+func TestReportIssuePreservesIssueType(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "id-1",
+		IssueName: "Some Issue Name",
+		IssueType: "custom_caller_chosen_type",
+	}))
+
+	issue := h.GetIssue("id-1")
+	require.NotNil(t, issue)
+	assert.Equal(t, "custom_caller_chosen_type", issue.IssueType)
+}
+
+// TestReportIssueAllowsEmptyIssueType guards that an unset IssueType is not
+// backfilled by the store — the backend, not the agent, owns any default
+// derivation from IssueName.
+func TestReportIssueAllowsEmptyIssueType(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "id-2",
+		IssueName: "Some Issue Name",
+	}))
+
+	issue := h.GetIssue("id-2")
+	require.NotNil(t, issue)
+	assert.Empty(t, issue.IssueType)
+}
+
 func TestReportIssueStateTransition(t *testing.T) {
 	h := newTestStore(t)
 	issue := &healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}
@@ -189,12 +223,12 @@ func TestReportIssueStateTransition(t *testing.T) {
 	require.NoError(t, h.ReportIssue(issue))
 	persisted := h.persistedIssues["t:id"]
 	require.NotNil(t, persisted)
-	assert.Equal(t, IssueStateNew, persisted.State)
+	assert.Equal(t, IssueStateActive, persisted.State)
 	firstSeen := persisted.FirstSeen
 
 	require.NoError(t, h.ReportIssue(issue))
 	persisted = h.persistedIssues["t:id"]
-	assert.Equal(t, IssueStateOngoing, persisted.State)
+	assert.Equal(t, IssueStateActive, persisted.State)
 	assert.Equal(t, firstSeen, persisted.FirstSeen, "FirstSeen must not change on re-report")
 	assert.GreaterOrEqual(t, persisted.LastSeen, firstSeen)
 }
@@ -203,12 +237,56 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+
 	h.ResolveIssue("t:id")
 
-	assert.Nil(t, h.GetIssue("t:id"))
+	// Issue must be removed from the active set; resolved snapshot written to ResolvedCh.
+	assert.Nil(t, h.GetIssue("t:id"), "issue must be removed from active set after ResolveIssue")
+	require.Len(t, ch, 1, "resolved issue must be written to ResolvedCh")
+	got := <-ch
+	require.NotNil(t, got.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
+
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)
 	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
+}
+
+// TestResolveIssuePreservesIssueType guards that the resolved tombstone carries
+// the same IssueType as the active issue did — backend grouping/filtering by
+// issue_type must not break across a resolve transition.
+func TestResolveIssuePreservesIssueType(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:id", IssueName: "t", IssueType: "custom_type",
+	}))
+
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+
+	h.ResolveIssue("t:id")
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	assert.Equal(t, "custom_type", got.IssueType)
+}
+
+func TestResolveAllIssuesPreservesIssueType(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:1", IssueName: "t", IssueType: "custom_type",
+	}))
+
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+
+	h.ResolveAllIssues()
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	assert.Equal(t, "custom_type", got.IssueType)
 }
 
 func TestResolveIssueUnknownIDIsNoop(t *testing.T) {
@@ -245,9 +323,9 @@ func TestGetAllIssuesDeepCopy(t *testing.T) {
 	require.NotNil(t, got)
 
 	// Mutating the returned value must not affect the in-store issue.
-	originalSource := h.issues["t:id"].Source
+	originalSource := h.issues["t:id"].issue.Source
 	got.Source = "hacked"
-	assert.Equal(t, originalSource, h.issues["t:id"].Source)
+	assert.Equal(t, originalSource, h.issues["t:id"].issue.Source)
 }
 
 func TestMultiInstanceSameType(t *testing.T) {
@@ -280,17 +358,57 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	h1 := newTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Title: "Test Issue", Source: "test-src",
 	}))
+	firstSeen := h1.persistedIssues["t:id"].FirstSeen
 
 	h2 := newTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h2.loadFromDisk())
 
-	issue := h2.GetIssue("t:id")
-	require.NotNil(t, issue, "issue must survive persistence round-trip")
-	assert.Equal(t, "t:id", issue.Id)
-	assert.Equal(t, "Test Issue", issue.Title)
+	// Proto payload is not persisted — it is repopulated when the check re-runs.
+	// What must survive is the lifecycle state so that storeIssue can correctly
+	// resume firstSeen and state on the next ReportIssue call.
+	persisted := h2.persistedIssues["t:id"]
+	require.NotNil(t, persisted, "lifecycle state must survive persistence round-trip")
+	assert.Equal(t, "t:id", persisted.IssueID)
+	assert.Equal(t, "t", persisted.IssueType)
+	assert.Equal(t, "custom_type", persisted.ProtoIssueType, "proto IssueType must survive persistence round-trip")
+	assert.Equal(t, firstSeen, persisted.FirstSeen)
+	assert.Equal(t, IssueStateActive, persisted.State)
+
+	// Re-reporting the same issue picks up the persisted firstSeen.
+	require.NoError(t, h2.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+	}))
+	assert.Equal(t, firstSeen, h2.persistedIssues["t:id"].FirstSeen, "firstSeen must be preserved across restart")
+	assert.Equal(t, IssueStateActive, h2.persistedIssues["t:id"].State)
+}
+
+// TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone guards that a resolved
+// issue reconstructed from disk on restart (before its check re-runs) still
+// carries IssueType in the tombstone sent to observers.
+func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	logger := logmock.New(t)
+
+	h1 := newTestStore(t)
+	h1.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:id", IssueName: "t", IssueType: "custom_type",
+	}))
+	h1.ResolveIssue("t:id")
+
+	h2 := newTestStore(t)
+	h2.persistence = newDiskPersistence(path, logger)
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+	require.NoError(t, h2.loadFromDisk())
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	assert.Equal(t, "custom_type", got.IssueType)
 }
 
 func TestPersistenceVersionMismatch(t *testing.T) {
@@ -303,7 +421,7 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 		"issues": map[string]interface{}{
 			"t:id": map[string]interface{}{
 				"issue_type": "t",
-				"state":      "new",
+				"state":      "active",
 				"first_seen": time.Now().Format(time.RFC3339),
 				"last_seen":  time.Now().Format(time.RFC3339),
 			},
@@ -390,8 +508,8 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByName:     make(map[string]map[string]struct{}),
+		issues:           make(map[string]*storedIssue),
+		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics:          telemetryMetrics{issuesCounter: counter},
@@ -413,4 +531,24 @@ func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	h.ResolveIssue("t:1")
 	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
+}
+
+func newTestObserver(resolvedSz int) storedef.IssuesObserver {
+	return storedef.IssuesObserver{
+		ResolvedCh: make(chan *healthplatformpayload.Issue, resolvedSz),
+	}
+}
+
+// TestIssuesObserverResolvedNotification verifies that ResolvedCh receives a tombstone on ResolveIssue.
+func TestIssuesObserverResolvedNotification(t *testing.T) {
+	h := newTestStore(t)
+	obs := newTestObserver(4)
+	h.RegisterIssuesObserver(obs)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
+	h.ResolveIssue("i:1")
+
+	require.Len(t, obs.ResolvedCh, 1)
+	got := <-obs.ResolvedCh
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
 }

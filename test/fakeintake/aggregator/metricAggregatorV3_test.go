@@ -16,12 +16,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
-	apiv3 "github.com/DataDog/datadog-agent/test/fakeintake/aggregator/internal/apiv3"
+	intake_v3 "github.com/DataDog/agent-payload/v5/metrics/intake_v3"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-// buildMinimalV3Payload constructs an apiv3.Payload containing a single gauge metric
+// buildMinimalV3Payload constructs an intake_v3.Payload containing a single gauge metric
 // "test.gauge" with tag "env:test", timestamp 1000, and value 42.0.
 //
 // Wire encoding of the column-oriented MetricData:
@@ -38,19 +38,19 @@ import (
 //   - ResourcesRefs: [1]            — resource set → dictResources[1]
 //   - SourceTypeNameRefs: [0]
 //   - OriginInfoRefs: [0]
-//   - Intervals:   [0]
+//   - Intervals:   [10]
 //   - NumPoints:   [1]
 //   - Timestamps:  [1000]          — delta-encoded
 //   - ValsFloat64: [42.0]
-func buildMinimalV3Payload() *apiv3.Payload {
+func buildMinimalV3Payload() *intake_v3.Payload {
 	nameStr := append([]byte{10}, []byte("test.gauge")...) // varint(10) + "test.gauge"
 	tagStr := append([]byte{8}, []byte("env:test")...)     // varint(8) + "env:test"
 	resourceStr := append([]byte{4}, []byte("host")...)    // varint(4) + "host"
 	resourceStr = append(resourceStr, byte(6))
 	resourceStr = append(resourceStr, []byte("node-a")...)
 
-	return &apiv3.Payload{
-		MetricData: &apiv3.MetricData{
+	return &intake_v3.Payload{
+		MetricData: &intake_v3.MetricData{
 			DictNameStr:        nameStr,
 			DictTagStr:         tagStr,
 			DictTagsets:        []int64{1, 1}, // size=1, ref=1
@@ -58,13 +58,13 @@ func buildMinimalV3Payload() *apiv3.Payload {
 			DictResourceLen:    []int64{1},
 			DictResourceType:   []int64{1},
 			DictResourceName:   []int64{2},
-			Types:              []uint64{uint64(apiv3.MetricType_Gauge) | uint64(apiv3.ValueType_Float64)},
+			Types:              []uint64{uint64(intake_v3.MetricType_Gauge) | uint64(intake_v3.ValueType_Float64)},
 			NameRefs:           []int64{1},
 			TagsetRefs:         []int64{1},
 			ResourcesRefs:      []int64{1},
 			SourceTypeNameRefs: []int64{0},
 			OriginInfoRefs:     []int64{0},
-			Intervals:          []uint64{0},
+			Intervals:          []uint64{10},
 			NumPoints:          []uint64{1},
 			Timestamps:         []int64{1000},
 			ValsFloat64:        []float64{42.0},
@@ -72,9 +72,9 @@ func buildMinimalV3Payload() *apiv3.Payload {
 	}
 }
 
-func buildV3PayloadWithUnit(unit string) *apiv3.Payload {
+func buildV3PayloadWithUnit(unit string) *intake_v3.Payload {
 	p := buildMinimalV3Payload()
-	p.MetricData.Types[0] |= uint64(apiv3.MetricFlags_flagHasUnit)
+	p.MetricData.Types[0] |= uint64(intake_v3.MetricFlags_flagHasUnit)
 
 	unitStr := append([]byte{byte(len(unit))}, []byte(unit)...)
 	p.MetricData.DictUnitStr = unitStr
@@ -108,6 +108,7 @@ func TestParseMetricSeriesV3_SingleGauge(t *testing.T) {
 	assert.Equal(t, "node-a", s.Resources[0].Name)
 	assert.Equal(t, metricspb.MetricPayload_GAUGE, s.Type)
 	assert.Empty(t, s.Unit)
+	assert.Equal(t, int64(10), s.Interval)
 	require.Len(t, s.Points, 1)
 	assert.Equal(t, int64(1000), s.Points[0].Timestamp)
 	assert.Equal(t, 42.0, s.Points[0].Value)
@@ -157,7 +158,7 @@ func TestParseMetricSeriesV3_CompressedColumnPayload(t *testing.T) {
 }
 
 func TestParseMetricSeriesV3_EmptyPayload(t *testing.T) {
-	p := &apiv3.Payload{MetricData: nil}
+	p := &intake_v3.Payload{MetricData: nil}
 	raw, err := proto.Marshal(p)
 	require.NoError(t, err)
 
@@ -216,12 +217,12 @@ func TestParseMetricSeriesV3_SketchInSeriesPayloadErrors(t *testing.T) {
 	// A sketch entry in a /api/intake/metrics/v3/series payload is a serious agent bug;
 	// the parser must return an error rather than silently skip it.
 	nameStr := append([]byte{10}, []byte("test.dist1")...)
-	p := &apiv3.Payload{
-		MetricData: &apiv3.MetricData{
+	p := &intake_v3.Payload{
+		MetricData: &intake_v3.MetricData{
 			DictNameStr:        nameStr,
 			DictTagStr:         nil,
 			DictTagsets:        []int64{0},
-			Types:              []uint64{uint64(apiv3.MetricType_Sketch) | uint64(apiv3.ValueType_Zero)},
+			Types:              []uint64{uint64(intake_v3.MetricType_Sketch) | uint64(intake_v3.ValueType_Zero)},
 			NameRefs:           []int64{1},
 			TagsetRefs:         []int64{0},
 			ResourcesRefs:      []int64{0},

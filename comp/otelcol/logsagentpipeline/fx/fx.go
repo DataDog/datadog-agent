@@ -14,8 +14,10 @@ import (
 )
 
 // Module defines the fx options for this component.
+// Note: this component's constructor uses fx.In directly (not compdef.In) and returns
+// option.Option, so fx.Provide is used instead of fxutil.ProvideComponentConstructor.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(logsagentpipelineimpl.NewLogsAgentComponent),
+		fx.Provide(logsagentpipelineimpl.NewComponent),
 	)
 }

@@ -43,7 +43,6 @@
 /renovate.json                          @DataDog/agent-devx
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
-/generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
 
@@ -544,7 +543,7 @@
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-products
-/pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
+/comp/logs-library/diagnostic           @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
@@ -679,7 +678,6 @@
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/new-e2e/pkg/components/datadog-installer @DataDog/windows-products
 /test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
-/test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/agent-onboarding @DataDog/agent-delivery @DataDog/agent-devx

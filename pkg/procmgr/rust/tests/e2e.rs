@@ -6,7 +6,7 @@
 mod helpers;
 
 use dd_procmgrd::test_helpers;
-use helpers::{CliRunner, TestEnv, pid_is_alive, wait_for_pid_gone, write_config};
+use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
 use std::path::Path;
 use std::time::Duration;
 
@@ -1260,6 +1260,42 @@ fn test_cli_create_stop_start_cycle() {
 }
 
 #[test]
+fn test_cli_stop_start_then_kill_restarts_on_failure() {
+    let env = TestEnv::new()
+        .with_config(
+            "sleeper",
+            &test_helpers::sleep_config_with("restart: on-failure\n"),
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["stop", "sleeper"]).assert_success();
+    env.cli(&["start", "sleeper"]).assert_success();
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[sleeper] spawned", 2, Duration::from_secs(10)),
+        "start after stop should spawn a new child"
+    );
+
+    let pid = env.cli(&["describe", "sleeper"]).pid_from_field("PID");
+    kill_pid_force(pid);
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[sleeper] spawned", 3, Duration::from_secs(10)),
+        "on-failure should auto-restart after stop -> start -> external kill"
+    );
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Running");
+    assert!(
+        json[0]["restart_count"].as_u64().unwrap() >= 1,
+        "restart_count should reflect the crash restart"
+    );
+}
+
+#[test]
 fn test_cli_reload_then_start() {
     let env = TestEnv::new().start();
 
@@ -1846,20 +1882,13 @@ fn test_cli_invalid_yaml_skipped() {
 }
 
 #[cfg(unix)]
-fn render_ddot_template(
-    install_dir: &str,
-    etc_dir: &str,
-    pid_dir: &str,
-    fleet_dir: &str,
-) -> Option<String> {
+fn render_ddot_template(install_dir: &str, pid_dir: &str) -> Option<String> {
     let tmpl_path = std::path::PathBuf::from(option_env!("DDOT_TEMPLATE_PATH")?);
     let tmpl = std::fs::read_to_string(&tmpl_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", tmpl_path.display()));
     let rendered = tmpl
         .replace("{{.InstallDir}}", install_dir)
-        .replace("{{.EtcDir}}", etc_dir)
-        .replace("{{.PIDDir}}", pid_dir)
-        .replace("{{.FleetPoliciesDir}}", fleet_dir);
+        .replace("{{.PIDDir}}", pid_dir);
     Some(
         rendered
             .lines()
@@ -1878,17 +1907,24 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     let bin_dir = install_dir.join("ext/ddot/embedded/bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
 
+    let conf_dir = dir.path().join("conf");
+    std::fs::create_dir_all(&conf_dir).unwrap();
+    let fleet_policies_dir = conf_dir.join("managed/datadog-agent/stable");
+
     let script = bin_dir.join("otel-agent");
     std::fs::write(
         &script,
-        concat!(
-            "#!/bin/sh\n",
-            "if [ \"$DD_FLEET_POLICIES_DIR\" = \"/etc/dd/policies\" ]; then\n",
-            "  exit 0\n",
-            "else\n",
-            "  echo \"DD_FLEET_POLICIES_DIR=$DD_FLEET_POLICIES_DIR\" >&2\n",
-            "  exit 1\n",
-            "fi\n",
+        format!(
+            concat!(
+                "#!/bin/sh\n",
+                "if [ \"$DD_FLEET_POLICIES_DIR\" = \"{expected}\" ]; then\n",
+                "  exit 0\n",
+                "else\n",
+                "  echo \"DD_FLEET_POLICIES_DIR=$DD_FLEET_POLICIES_DIR\" >&2\n",
+                "  exit 1\n",
+                "fi\n",
+            ),
+            expected = fleet_policies_dir.to_str().unwrap(),
         ),
     )
     .unwrap();
@@ -1898,27 +1934,25 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    let etc_dir = dir.path().join("etc");
-    std::fs::create_dir_all(&etc_dir).unwrap();
     let pid_dir = dir.path().join("pid");
     std::fs::create_dir_all(pid_dir.join("run")).unwrap();
 
     let config_dir = dir.path().join("processes.d");
     std::fs::create_dir_all(&config_dir).unwrap();
 
-    let Some(yaml) = render_ddot_template(
-        install_dir.to_str().unwrap(),
-        etc_dir.to_str().unwrap(),
-        pid_dir.to_str().unwrap(),
-        "/etc/dd/policies",
-    ) else {
+    let Some(yaml) = render_ddot_template(install_dir.to_str().unwrap(), pid_dir.to_str().unwrap())
+    else {
         eprintln!("DDOT_TEMPLATE_PATH not set at compile time, skipping");
         return;
     };
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
     let sock = dir.path().join("daemon.sock");
-    let mut daemon = helpers::DaemonHandle::start(&config_dir, &sock);
+    let mut daemon = helpers::DaemonHandle::start_with_env(
+        &config_dir,
+        &sock,
+        &[("DD_CONF_DIR", conf_dir.to_str().unwrap())],
+    );
     assert!(
         daemon.wait_for_log_default(
             "[datadog-agent-ddot] optional environment file not found, skipping"
@@ -1951,12 +1985,7 @@ fn test_ddot_template_skipped_when_binary_missing() {
     let config_dir = dir.path().join("processes.d");
     std::fs::create_dir_all(&config_dir).unwrap();
 
-    let Some(yaml) = render_ddot_template(
-        "/nonexistent/install",
-        "/nonexistent/etc",
-        "/nonexistent/pid",
-        "/nonexistent/policies",
-    ) else {
+    let Some(yaml) = render_ddot_template("/nonexistent/install", "/nonexistent/pid") else {
         eprintln!("DDOT_TEMPLATE_PATH not set at compile time, skipping");
         return;
     };

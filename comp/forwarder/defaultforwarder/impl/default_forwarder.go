@@ -307,9 +307,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentName != "" {
 		storagePath := config.GetString("forwarder_storage_path")
-		if storagePath == "" {
-			storagePath = path.Join(config.GetString("run_path"), "transactions_to_retry")
-		}
 		outdatedFileInDays := config.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
@@ -333,8 +330,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	}
 
 	flushToDiskMemRatio := config.GetFloat64("forwarder_flush_to_disk_mem_ratio")
-	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
@@ -359,7 +354,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				flushToDiskMemRatio,
 				domainFolderPath,
 				diskUsageLimit,
-				transactionContainerSort,
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
@@ -377,7 +371,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				transactionContainer,
 				numberOfWorkers,
 				options.ConnectionResetInterval,
-				domainForwarderSort,
 				pointCountTelemetry,
 				options.transport)
 			f.domainForwarders[domain] = fwd
@@ -481,6 +474,7 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
+			// On timeout, transactions still queued for purge are dropped.
 			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
 		}
 	} else {
@@ -748,7 +742,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 	bumpOrchestratorPayload(f.log, payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
-	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+	if f.config.GetBool("orchestrator_explorer.use_legacy_endpoint") {
 		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
 	transactions := f.createHTTPTransactions(endpoint, payload, transaction.Process, extra)

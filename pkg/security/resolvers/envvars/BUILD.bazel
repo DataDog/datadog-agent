@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "envvars",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/config",
+            "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/utils",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/config",
+            "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/utils",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,4 +1,3 @@
-load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
@@ -17,7 +16,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 python_externals = {
     "bzip2": "1.0.8",
     "mpdecimal": "4.0.0",
-    "sqlite": "3.53.0.0",
+    "sqlite": "3.53.2.0",
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",
@@ -111,6 +110,7 @@ run_binary(
         ]
     ],
     tool = "build_python.bat",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
 
@@ -145,18 +145,35 @@ cc_library(
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".devcontainer/**",
+            "Android/**",
+            "Doc/**",
+            "InternalDocs/**",
+            "iOS/**",
+            # Windows related.
+            "PC/**",
+            "PCbuild/**",
+            "Tools/msi/**",
+            "Tools/nuget/**",
+            # Tests that don't need to be shipped with the Agent
+            "Lib/idlelib/idle_test/**",
+            "Lib/test/**",
+        ],
+    ),
 )
 
 UNIX_BINS = [
-    "pip{}".format(PYTHON_MAJOR_MINOR),
     "python{}".format(PYTHON_MAJOR_MINOR),
 ]
 
 LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
 MACOS_DYLIB = "libpython{}.dylib".format(PYTHON_MAJOR_MINOR)
 
-python_deps = {
+python_dep_libs = {
     "libffi": "-lffi",
     "libsqlite3": "-lsqlite3",
     "zlib": "-lz",
@@ -164,16 +181,28 @@ python_deps = {
     "liblzma": "-llzma",
 }
 
+# On macOS, the hermetic SDK's /usr/lib is injected before Bazel dependency
+# library search paths. Use exact files from rules_foreign_cc's staged deps
+# directory so CPython extension modules cannot resolve to SDK libraries.
+python_dep_libs_explicit = {
+    "libffi": "$$EXT_BUILD_DEPS/lib/libffi.a",
+    "libsqlite3": "$$EXT_BUILD_DEPS/lib/libsqlite3.dylib",
+    "zlib": "$$EXT_BUILD_DEPS/lib/libz.dylib",
+    "bzip2": "$$EXT_BUILD_DEPS/lib/libbz2.dylib",
+    "liblzma": "$$EXT_BUILD_DEPS/lib/liblzma.dylib",
+}
+
 configure_make(
     name = "python_unix",
     configure_options = [
         "--enable-ipv6",
-        "--with-ensurepip=yes",
+        "--with-ensurepip=no",  # pip is installed as a separate target
         "--enable-shared",
         "--without-static-libpython",
         "--with-dbmliborder=",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
+        "--disable-test-modules",
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
@@ -205,11 +234,17 @@ configure_make(
         "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
     } | {
         dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
-        for dep in python_deps.keys()
-    } | {
-        dep.upper() + "_LIBS": lib
-        for dep, lib in python_deps.items()
+        for dep in python_dep_libs.keys()
     } | select({
+        "@platforms//os:macos": {
+            dep.upper() + "_LIBS": lib
+            for dep, lib in python_dep_libs_explicit.items()
+        },
+        "//conditions:default": {
+            dep.upper() + "_LIBS": lib
+            for dep, lib in python_dep_libs.items()
+        },
+    }) | select({
         "@platforms//os:macos": {
             # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the same flags
             # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
@@ -276,10 +311,10 @@ configure_make(
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        # Set compileall options for improved reproducibility of pyc files by enabling hash-based invalidation
-        # and removing the sandbox path from the paths recorded in them.
-        'install COMPILEALL_OPTS="--invalidation-mode checked-hash -s $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"',
+        "install",
     ],
+    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
+    toolchains = ["@@//:install_dir"],
     target_compatible_with = select({
         "@platforms//os:macos": [],
         "@platforms//os:linux": [],
@@ -294,9 +329,11 @@ configure_make(
     # sandbox paths with their install-prefix-relative equivalents.
     postfix_script = """
     $(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
-      --install-prefix "##PREFIX##" \
+      --install-prefix "$(INSTALL_DIR)/embedded" \
       --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
       $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
+    rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
+    find $$INSTALLDIR/lib/python{version} -name '*.exe' -delete
     """.format(
         version = PYTHON_MAJOR_MINOR,
     ),
@@ -378,38 +415,6 @@ select_file(
     visibility = ["//visibility:public"],
 )
 
-# Using a copy here is the most convenient way to exclude a bunch of things for the final package
-copy_to_directory(
-    name = "python_lib_dir_unix",
-    srcs = [":python_lib_dir_group_unix"],
-    exclude_srcs_patterns = [
-        "test/**/*",
-        "**/*.exe",
-        "**/Makefile",
-    ],
-    root_paths = ["python_unix/lib/python{}".format(PYTHON_MAJOR_MINOR)],
-    out = "python{}".format(PYTHON_MAJOR_MINOR),
-)
-
-filegroup(
-    name = "pip_exec",
-    srcs = [":python_unix"],
-    output_group = "pip{}".format(PYTHON_MAJOR_MINOR),
-)
-
-genrule(
-    name = "patch_pip_shebang",
-    srcs = [":pip_exec"],
-    outs = ["pip_patched_tmp"],
-    cmd = "{ echo '#!{install_dir}/embedded/bin/python3\n' ; tail -n +4 $(location :pip_exec) ;} > $@",
-)
-
-dd_agent_expand_template(
-    name = "patch_pip_interpreter",
-    template = ":patch_pip_shebang",
-    out = "pip{}".format(PYTHON_MAJOR_MINOR),
-)
-
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
@@ -421,8 +426,6 @@ pkg_mklink(
 BIN_SYMLINKS = {
     "bin/python3": "python{}".format(PYTHON_MAJOR_MINOR),
     "bin/python": "python3",
-    "bin/pip3": "pip{}".format(PYTHON_MAJOR_MINOR),
-    "bin/pip": "pip3",
 }
 
 [
@@ -460,18 +463,12 @@ select_file(
     name = "python_stable_lib_linux",
     srcs = ":python_unix",
     subpath = "lib/libpython3.so",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(
     name = "install_headers_unix",
     srcs = [":headers_unix"],
-)
-
-pkg_files(
-    name = "install_pip_unix",
-    srcs = [":patch_pip_interpreter"],
-    prefix = "bin",
-    attributes = pkg_attributes("0755"),
 )
 
 # Grouped helper for python_pkg installed_files: installed_files is non-configurable,
@@ -480,7 +477,6 @@ pkg_filegroup(
     name = "_python_pkg_common_files",
     srcs = [
         ":install_headers_unix",
-        ":install_pip_unix",
     ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()] + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
@@ -493,7 +489,7 @@ dd_cc_packaged(
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
         ":python3_bin": "bin",
-        ":python_lib_dir_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
+        ":python_lib_dir_group_unix": "lib",
     } | select({
         "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
         "//conditions:default": {},
@@ -510,7 +506,6 @@ pkg_filegroup(
         ],
         "//conditions:default": [
             ":install_headers_unix",
-            ":install_pip_unix",
         ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],

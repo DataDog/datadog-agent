@@ -356,11 +356,11 @@ Types:
     - __kind: EventRootType
       ID: 108
       Name: Probe[main.callMe]
-      ByteSize: 41
-      ExprStatusArraySize: 1
+      ByteSize: 42
+      ExprStatusArraySize: 2
       Expressions:
         - Name: s1
-          Offset: 1
+          Offset: 2
           Kind: argument
           Expression:
             Type: 12 GoStringHeaderType string
@@ -372,8 +372,9 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s2
-          Offset: 17
+          Offset: 18
           Kind: argument
           Expression:
             Type: 12 GoStringHeaderType string
@@ -385,8 +386,9 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: i
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 96 PointerType *int
@@ -398,6 +400,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 109
       Name: Probe[main.callMe]Return
@@ -431,6 +434,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 88
       Name: '[10]runtime.heldLockInfo'

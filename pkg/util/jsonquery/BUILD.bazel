@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "jsonquery",
@@ -16,14 +17,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "jsonquery_test",
     srcs = [
         "jsonquery_test.go",
         "yaml_test.go",
     ],
     embed = [":jsonquery"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/cache",
         "@com_github_itchyny_gojq//:gojq",

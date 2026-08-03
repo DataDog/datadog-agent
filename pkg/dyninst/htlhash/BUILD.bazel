@@ -11,7 +11,12 @@ go_library(
 go_test(
     name = "htlhash_test",
     srcs = ["htlhash_test.go"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":htlhash",
         "//pkg/dyninst/testprogs",

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -38,7 +39,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 	})
 
 	checkKernelCompatibility(t, "no override_creds/restore_creds", func(kv *kernel.Version) bool {
-		return kv.Code >= kernel.Kernel6_14
+		return !probe.IsCapabilitiesMonitoringSupported(kv)
 	})
 
 	ruleDefs := []*rules.RuleDefinition{

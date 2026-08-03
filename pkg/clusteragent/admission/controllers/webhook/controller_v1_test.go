@@ -232,6 +232,15 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 	}
+	probeNsSelectorWithAKS := &metav1.LabelSelector{
+		MatchExpressions: append([]metav1.LabelSelectorRequirement{
+			{
+				Key:      common.NamespaceLabelKey,
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{"nsfoo"},
+			},
+		}, common.AzureAKSLabelSelectorRequirement()...),
+	}
 
 	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, operations []admiv1.OperationType, resources []string, to int32) admiv1.MutatingWebhook {
 		return admiv1.MutatingWebhook{
@@ -545,6 +554,63 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					timeout,
 				)
 				return []admiv1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "AKS-specific label selector with probe enabled",
+			setupConfig: func(mockConfig model.Config) {
+				mockConfig.SetInTest("admission_controller.add_aks_selectors", true)
+				mockConfig.SetInTest("admission_controller.probe.enabled", true)
+				mockConfig.SetInTest("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetInTest("admission_controller.inject_config.enabled", true)
+				mockConfig.SetInTest("admission_controller.mutate_unlabelled", true)
+				mockConfig.SetInTest("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetInTest("admission_controller.cws_instrumentation.enabled", false)
+			},
+			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },
+			want: func() []admiv1.MutatingWebhook {
+				configWebhook := webhook(
+					"datadog.webhook.agent.config",
+					"/injectconfig",
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "admission.datadoghq.com/enabled",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
+					&metav1.LabelSelector{
+						MatchExpressions: append([]metav1.LabelSelectorRequirement{
+							{
+								Key:      common.NamespaceLabelKey,
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   excludedDefaultNs,
+							},
+						}, common.AzureAKSLabelSelectorRequirement()...),
+					},
+					[]admiv1.MatchCondition{},
+					[]admiv1.OperationType{admiv1.Create},
+					[]string{"pods"},
+					timeout,
+				)
+				probeWebhook := webhook(
+					"datadog.webhook.probe",
+					"/injectconfig",
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							common.ProbeLabelKey: "true",
+						},
+					},
+					probeNsSelectorWithAKS,
+					nil,
+					[]admiv1.OperationType{admiv1.Create},
+					[]string{"configmaps"},
+					timeout,
+				)
+				return []admiv1.MutatingWebhook{configWebhook, probeWebhook}
 			},
 		},
 		{
@@ -1015,6 +1081,8 @@ func TestGenerateTemplatesV1(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
+			mockConfig.SetInTest("admission_controller.add_aks_selectors", false)
+			mockConfig.SetInTest("admission_controller.probe.enabled", false)
 			tt.setupConfig(mockConfig)
 
 			c := &ControllerV1{}

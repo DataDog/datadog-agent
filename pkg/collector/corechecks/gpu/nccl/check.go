@@ -236,25 +236,29 @@ func (c *Check) processEvent(snd sender.Sender, parsed ParsedEvent) error {
 		tags = append(tags, "timing_source:"+perf.TimingSource)
 	}
 
-	// Emit metrics
-	// Execution time (the key metric for straggler detection)
-	snd.Gauge(ncclMetricsNs+"collective.exec_time_us", perf.ExecTimeUS, "", tags)
+	// Emit metrics as Distribution (DDSketch) so the agent computes
+	// min/max/avg/p50/p95/p99 server-side across all events in the flush window.
+	// Gauge would collapse 570 events/s to a single last-write-wins value, losing
+	// straggler signal. Distribution preserves the tail latency.
+	// Note: hang-detection staleness (seconds_since_last_event) stays as Gauge —
+	// it is a point-in-time rank-health signal, not a distribution of samples.
+	snd.Distribution(ncclMetricsNs+"collective.exec_time_us", perf.ExecTimeUS, "", tags)
 	c.checkTelemetry.metricsSent.Inc("exec_time_us")
 
 	// Bandwidth metrics
 	if perf.AlgoBandwidthGB > 0 {
-		snd.Gauge(ncclMetricsNs+"collective.algo_bandwidth_gbps", perf.AlgoBandwidthGB, "", tags)
+		snd.Distribution(ncclMetricsNs+"collective.algo_bandwidth_gbps", perf.AlgoBandwidthGB, "", tags)
 		c.checkTelemetry.metricsSent.Inc("algo_bandwidth_gbps")
 	}
 
 	if perf.BusBandwidthGB > 0 {
-		snd.Gauge(ncclMetricsNs+"collective.bus_bandwidth_gbps", perf.BusBandwidthGB, "", tags)
+		snd.Distribution(ncclMetricsNs+"collective.bus_bandwidth_gbps", perf.BusBandwidthGB, "", tags)
 		c.checkTelemetry.metricsSent.Inc("bus_bandwidth_gbps")
 	}
 
 	// Message size
 	if perf.MsgSizeBytes > 0 {
-		snd.Gauge(ncclMetricsNs+"collective.msg_size_bytes", float64(perf.MsgSizeBytes), "", tags)
+		snd.Distribution(ncclMetricsNs+"collective.msg_size_bytes", float64(perf.MsgSizeBytes), "", tags)
 		c.checkTelemetry.metricsSent.Inc("msg_size_bytes")
 	}
 

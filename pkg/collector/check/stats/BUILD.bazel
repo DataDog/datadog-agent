@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "stats",
@@ -12,28 +13,24 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/haagent/def",
-        "//comp/healthplatform/issues/checkfailure",
-        "//comp/healthplatform/store/def",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/log",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "stats_test",
     srcs = [
         "stats_test.go",
         "util_test.go",
     ],
     embed = [":stats"],
-    gotags = ["test"],
     deps = [
         "//comp/core/telemetry/impl",
-        "//comp/healthplatform/store/mock",
+        "//comp/haagent/mock",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

@@ -15,7 +15,6 @@ go_library(
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",
         "//test/e2e-framework/components/datadog/fakeintake",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
-        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
@@ -53,6 +54,10 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 	}
 	if kversion < kernel.VersionCode(4, 15, 0) {
 		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
+	}
+	err = ddebpf.Setup(ddebpf.NewConfig(), nil, telemetryimpl.GetCompatComponent())
+	if err != nil {
+		return nil, nil, fmt.Errorf("ebpf setup: %s", err)
 	}
 
 	failedToLoad := make(map[string]struct{})

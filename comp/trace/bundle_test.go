@@ -69,7 +69,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	t.Setenv("DD_HOSTNAME", "trace-bundle-test")
 
 	// Only for test purposes to avoid setting a different default value.
-	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath)
+	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath())
 	defer func() { os.Unsetenv("DDTEST_DEFAULT_LOG_FILE_PATH") }()
 
 	cfg := fxutil.Test[traceconfigdef.Component](t, fx.Options(

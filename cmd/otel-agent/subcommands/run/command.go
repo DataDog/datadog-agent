@@ -10,8 +10,10 @@ package run
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.opentelemetry.io/collector/confmap"
@@ -35,6 +37,7 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -50,6 +53,7 @@ import (
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
@@ -76,11 +80,13 @@ import (
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"go.uber.org/fx"
@@ -136,7 +142,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return acfg
 			}),
 			fx.Provide(func(_ coreconfig.Component) log.Params {
-				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+				return log.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 			}),
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
@@ -208,7 +214,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 			return h.Get, nil
 		}),
 		fx.Provide(func(_ coreconfig.Component) log.Params {
-			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return log.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
@@ -237,7 +243,21 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
+		fx.Provide(func(c defaultforwarder.Component, cfg coreconfig.Component, l log.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+			if serializerexporter.IsSyncForwarderEnabled() {
+				eds, err := configutils.GetMultipleEndpoints(cfg)
+				if err != nil {
+					return nil, fmt.Errorf("building sync forwarder endpoints: %w", err)
+				}
+				timeout := time.Duration(cfg.GetInt("forwarder_timeout")) * time.Second
+				if timeout == 0 {
+					timeout = serializerexporter.LegacyForwarderTimeout
+				}
+				return defaultforwarderimpl.NewOTelSyncForwarder(cfg, l, sec, eds, &http.Client{
+					Timeout:   timeout,
+					Transport: utilhttp.CreateHTTPTransport(cfg),
+				})
+			}
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
@@ -334,8 +354,10 @@ func buildConfigURIs(params *cliParams) []string {
 	// Apply overrides
 	uris := append([]string{}, params.ConfPaths...)
 
-	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
-	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+	// Add fleet policy config when a fleet policies directory is configured.
+	// On Windows, managed procmgr children omit DD_FLEET_POLICIES_DIR from processes.d and
+	// resolve the directory via registry with a stable managed-path fallback (see paths.FleetPoliciesDirForManagedProcess).
+	if fleetPoliciesDir := resolveFleetPoliciesDir(); fleetPoliciesDir != "" {
 		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -372,4 +394,13 @@ func buildConfigURIs(params *cliParams) []string {
 	uris = append(uris, params.Sets...)
 
 	return uris
+}
+
+// resolveFleetPoliciesDir returns DD_FLEET_POLICIES_DIR when set, otherwise a
+// platform-specific fleet policies directory (registry or stable managed dir on Windows).
+func resolveFleetPoliciesDir() string {
+	if v := os.Getenv("DD_FLEET_POLICIES_DIR"); v != "" {
+		return v
+	}
+	return fleetPoliciesDirFromPlatform()
 }

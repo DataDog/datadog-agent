@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "client.go",
+        "telemetry.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/languagedetection/client/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//comp/languagedetection/client/def",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/process",
+        "//pkg/status/health",
+        "//pkg/util/clusteragent",
+        "//pkg/util/option",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["client_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/def",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

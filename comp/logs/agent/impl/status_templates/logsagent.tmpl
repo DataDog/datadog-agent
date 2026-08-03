@@ -28,6 +28,11 @@
   {{- end}}
 {{- end}}
 
+{{- if .BackpressureTable }}
+
+{{ .BackpressureTable }}
+{{- end }}
+
 {{- if .Errors }}
 
   Errors

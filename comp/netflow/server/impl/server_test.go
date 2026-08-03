@@ -113,3 +113,26 @@ func TestStartServerAndStopServer(t *testing.T) {
 	app.RequireStop()
 	assert.False(t, srv.running)
 }
+
+// TestNewComponentSkipsAggregatorWhenDisabled verifies that with netflow
+// disabled (the default), NewComponent returns the zero-allocation
+// disabledServer stub rather than building the flow aggregator (10k-cap
+// input channel + accumulator + filter).
+func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
+	var component server.Component
+	fxtest.New(t, fx.Options(
+		fxutil.FxAgentBase(),
+		fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
+		nfconfigmock.MockModule(),
+		forwardermock.MockModule(),
+		demultiplexerimpl.MockModule(),
+		defaultforwardermock.MockModule(),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		rdnsquerierfxmock.MockModule(),
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Populate(&component),
+	))
+	_, ok := component.(*disabledServer)
+	require.Truef(t, ok, "expected *disabledServer when netflow is disabled, got %T", component)
+}

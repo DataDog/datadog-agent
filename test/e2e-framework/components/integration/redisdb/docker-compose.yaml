@@ -1,0 +1,41 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2025-present Datadog, Inc.
+#
+# Standalone Redis 7.2 OSS server plus a continuous command workload generator
+# for the Datadog redisdb integration lab. The server is published on the host
+# at localhost:6379 so the host-installed Datadog Agent's redisdb check can
+# connect over TCP.
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7.2
+    container_name: redis-lab
+    restart: unless-stopped
+    # Ephemeral cache: no RDB snapshots, no AOF (matches the original lab).
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      # Bind to host loopback so the host Agent connects via TCP at localhost:6379.
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-h", "127.0.0.1", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Continuous workload generator. Shares the redis container's network
+  # namespace so `redis-cli -h 127.0.0.1 -p 6379` reaches the server on the
+  # shared loopback (as the original in-container workload did).
+  redis-workload:
+    image: redis:7.2
+    container_name: redis-lab-workload
+    restart: unless-stopped
+    network_mode: "service:redis"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./redis-workload.sh:/opt/redis-workload.sh:ro
+    entrypoint: ["/bin/bash", "/opt/redis-workload.sh"]

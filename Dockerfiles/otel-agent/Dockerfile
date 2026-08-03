@@ -92,5 +92,8 @@ COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yam
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["/opt/datadog-agent/embedded/bin/otel-agent", "run"]
+ENV DD_OTELCOLLECTOR_ENABLED=true
+ENV DD_OTEL_STANDALONE=true
+
+ENTRYPOINT ["otel-agent"]
+CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]

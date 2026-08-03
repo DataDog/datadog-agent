@@ -14,6 +14,7 @@ proto_library(
         "//pkg/proto/datadog/remoteconfig:config_proto",
         "//pkg/proto/datadog/workloadfilter:workloadfilter_proto",
         "//pkg/proto/datadog/workloadmeta:workloadmeta_proto",
+        "@com_github_datadog_agent_payload_v5//proto/healthplatform:healthplatform_proto",
         "@protobuf//:empty_proto",
     ],
 )
@@ -36,5 +37,6 @@ go_proto_library(
         "//pkg/proto/datadog/remoteconfig:config_go_proto",
         "//pkg/proto/datadog/workloadfilter:workloadfilter_go_proto",
         "//pkg/proto/datadog/workloadmeta:workloadmeta_go_proto",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )

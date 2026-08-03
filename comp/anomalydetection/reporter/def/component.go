@@ -21,8 +21,9 @@ type Component = any
 type Reporter interface {
 	// Name returns the reporter name for identification.
 	Name() string
-	// Report is called by the observer after each detection cycle.
-	Report(output ReportOutput)
+	// Report is called by the observer after each detection cycle and returns
+	// whether this call emitted at least one report payload.
+	Report(output ReportOutput) bool
 }
 
 // ReportOutput carries the data reporters receive after each detection cycle.
@@ -37,14 +38,15 @@ type ReportOutput struct {
 	// ActiveCorrelations are the patterns currently held in each correlator's
 	// sliding window. A pattern leaves this set when it goes inactive
 	// (eviction, timeout) and rejoins if it recurs.
+	// Reporters may use this for telemetry (ongoing count) but must not use it
+	// for event deduplication — that is now owned by the correlators.
 	ActiveCorrelations []observerdef.ActiveCorrelation
-	// CorrelationHistory is the accumulated set of every correlation pattern
-	// the engine has detected during the current run, including ones whose
-	// changepoint timestamps are already old enough to be evicted from
-	// ActiveCorrelations (e.g. batch detector clusters). Reporters that want
-	// to emit exactly once per pattern should drive emission from this set
-	// and use ActiveCorrelations to decide when a pattern has gone inactive.
-	CorrelationHistory []observerdef.ActiveCorrelation
+	// CorrelatorEvents are typed lifecycle events produced by correlators during
+	// this advance cycle. Each event is emitted exactly once by the correlator
+	// that generated it — reporters forward them directly without deduplication.
+	//   EpisodeStarted / EpisodeEnded — from anomaly_scorer
+	//   CorrelationDetected           — from time_cluster, cross_signal, passthrough
+	CorrelatorEvents []observerdef.CorrelatorEvent
 }
 
 // StorageConsumer is an optional interface for reporters that need access to

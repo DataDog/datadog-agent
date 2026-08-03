@@ -1,0 +1,88 @@
+---
+version: "3.9"
+
+services:
+
+  etcd:
+    image: quay.io/coreos/etcd:{ETCD_VERSION}
+    container_name: etcd
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd0
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd0=http://etcd:2380
+      - --initial-cluster-token=dd-e2e-etcd
+      - --initial-cluster-state=new
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "etcd": {
+            "init_config": {},
+            "instances": [
+              {
+                "prometheus_url": "http://%%host%%:2379/metrics"
+              }
+            ]
+          }
+        }
+
+  # Continuously exercises the etcd v3 API (put/get/range/delete/txn/watch/lease)
+  # so the check observes meaningful mvcc, proposal, wal/fsync and grpc activity.
+  etcd-load:
+    image: quay.io/coreos/etcd:{ETCD_VERSION}
+    container_name: etcd-load
+    depends_on:
+      - etcd
+    environment:
+      ETCDCTL_API: "3"
+      ETCDCTL_ENDPOINTS: "http://etcd:2379"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        echo "waiting for etcd to become healthy"
+        for i in $$(seq 1 60); do
+          if /usr/local/bin/etcdctl endpoint health >/dev/null 2>&1; then
+            echo "etcd healthy"; break
+          fi
+          if [ "$$i" -eq 60 ]; then
+            echo "etcd did not become healthy in time" >&2
+            /usr/local/bin/etcdctl endpoint health || true
+            /usr/local/bin/etcdctl endpoint status -w table || true
+            exit 1
+          fi
+          sleep 2
+        done
+        i=0
+        while true; do
+          i=$$((i + 1))
+          k="dd/e2e/key-$$((i % 50))"
+          v="value-$$i-$$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          /usr/local/bin/etcdctl put "$$k" "$$v" >/dev/null 2>&1 || true
+          /usr/local/bin/etcdctl get "$$k" >/dev/null 2>&1 || true
+          /usr/local/bin/etcdctl get --prefix dd/e2e/ --limit 25 >/dev/null 2>&1 || true
+          # transaction touching a couple of keys
+          printf 'put dd/e2e/txn-a a-%s\nput dd/e2e/txn-b b-%s\n\n\n' "$$i" "$$i" \
+            | /usr/local/bin/etcdctl txn >/dev/null 2>&1 || true
+          # short-lived lease so lease/ttl + revision churn is exercised
+          lease=$$(/usr/local/bin/etcdctl lease grant 30 2>/dev/null | awk '{print $$2}') || true
+          if [ -n "$${lease:-}" ]; then
+            /usr/local/bin/etcdctl put "dd/e2e/leased-$$i" "ephemeral" --lease="$$lease" >/dev/null 2>&1 || true
+          fi
+          # bounded deletes to keep the keyspace from growing without bound
+          if [ "$$((i % 25))" -eq 0 ]; then
+            /usr/local/bin/etcdctl del --prefix dd/e2e/key- >/dev/null 2>&1 || true
+            /usr/local/bin/etcdctl compact "$$(/usr/local/bin/etcdctl endpoint status -w json 2>/dev/null | sed -n 's/.*"revision":\([0-9]*\).*/\1/p' | head -n1)" >/dev/null 2>&1 || true
+          fi
+          # bounded randomness in cadence (busybox ash has no $RANDOM; derive jitter from loop counter)
+          jitter=$$(( (i * 7 % 9) + 1 ))
+          sleep "0.$$jitter"
+        done

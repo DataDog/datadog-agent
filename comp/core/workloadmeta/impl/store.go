@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -50,7 +50,9 @@ type subscriber struct {
 func (w *workloadmeta) start(ctx context.Context) {
 	w.firstCollectorReady = make(chan struct{})
 
+	w.startWg.Add(1)
 	go func() {
+		defer w.startWg.Done()
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
 			select {
@@ -73,13 +75,17 @@ func (w *workloadmeta) start(ctx context.Context) {
 	// Start collectors in the background so we don't block the pull goroutine
 	// for the full retry duration (which can cause E2E timeouts when context
 	// is cancelled during slow startup).
+	w.startWg.Add(1)
 	go func() {
+		defer w.startWg.Done()
 		if err := w.startCandidatesWithRetry(ctx); err != nil {
 			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
 
+	w.startWg.Add(1)
 	go func() {
+		defer w.startWg.Done()
 		pullTicker := time.NewTicker(minCollectorPullInterval)
 
 		// Wait for at least one collector or timeout before first pull, so we
@@ -416,6 +422,28 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 	return pod.cached.(*wmdef.KubernetesPod), nil
 }
 
+// GetKubernetesNode implements Store#GetKubernetesNode.
+func (w *workloadmeta) GetKubernetesNode(name string) (*wmdef.KubernetesNode, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesNode, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesNode), nil
+}
+
+// ListKubernetesNodes implements Store#ListKubernetesNodes.
+func (w *workloadmeta) ListKubernetesNodes() []*wmdef.KubernetesNode {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
+
+	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
+	for _, entity := range entities {
+		nodes = append(nodes, entity.(*wmdef.KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
 func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)
@@ -424,6 +452,36 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDepl
 	}
 
 	return entity.(*wmdef.KubernetesDeployment), nil
+}
+
+// GetKubernetesKueueQueue implements Store#GetKubernetesKueueQueue
+func (w *workloadmeta) GetKubernetesKueueQueue(id string) (*wmdef.KubernetesKueueQueue, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueQueue, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueQueue), nil
+}
+
+// GetKubernetesKueueResourceFlavor implements Store#GetKubernetesKueueResourceFlavor
+func (w *workloadmeta) GetKubernetesKueueResourceFlavor(id string) (*wmdef.KubernetesKueueResourceFlavor, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueResourceFlavor, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueResourceFlavor), nil
+}
+
+// GetKubernetesKueueWorkload implements Store#GetKubernetesKueueWorkload
+func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesKueueWorkload, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueWorkload, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
 // ListECSTasks implements Store#ListECSTasks
@@ -661,7 +719,7 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	_, err := backoff.Retry(ctx, func() (any, error) {
 		select {
 		case <-ctx.Done():
-			return nil, &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
+			return nil, backoff.Permanent(fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates))
 		default:
 		}
 
@@ -769,7 +827,9 @@ func (w *workloadmeta) pull(ctx context.Context) {
 
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
+		w.startWg.Add(1)
 		go func(id string, c wmdef.Collector) {
+			defer w.startWg.Done()
 			pullCtx, pullCancel := context.WithTimeout(ctx, maxCollectorPullTime)
 			defer pullCancel()
 

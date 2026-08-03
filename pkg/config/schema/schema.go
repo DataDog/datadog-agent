@@ -14,7 +14,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/DataDog/zstd"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -23,15 +22,6 @@ import (
 
 //go:embed all:compressed
 var schemas embed.FS
-
-var (
-	coreOnce         = new(sync.Once)
-	compiledCore     *jsonschema.Schema
-	coreError        error
-	sysprobeOnce     = new(sync.Once)
-	compiledSysprobe *jsonschema.Schema
-	systemProbeError error
-)
 
 func getSchema(name string) ([]byte, error) {
 	data, err := schemas.ReadFile("compressed/" + name + ".yaml.zstd")
@@ -73,13 +63,11 @@ func loadSchema(name string) (*jsonschema.Schema, error) {
 }
 
 func getCoreSchema() (*jsonschema.Schema, error) {
-	coreOnce.Do(func() { compiledCore, coreError = loadSchema("core_schema") })
-	return compiledCore, coreError
+	return loadSchema("core_schema")
 }
 
 func getSysprobeSchema() (*jsonschema.Schema, error) {
-	sysprobeOnce.Do(func() { compiledSysprobe, systemProbeError = loadSchema("system-probe_schema") })
-	return compiledSysprobe, systemProbeError
+	return loadSchema("system-probe_schema")
 }
 
 var (

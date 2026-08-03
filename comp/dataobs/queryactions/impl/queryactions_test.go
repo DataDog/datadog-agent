@@ -59,6 +59,7 @@ func newStreamComponent(t *testing.T, postgresConfigs []integration.Config) (*co
 		ac:            newMockAutodiscovery(t, postgresConfigs),
 		rcclient:      rc,
 		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
 	return c, rc
 }

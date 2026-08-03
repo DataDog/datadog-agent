@@ -201,6 +201,17 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		"injector__pe_memory_allocation_failures",
 		"injector__pe_injection_context_allocated",
 		"injector__pe_injection_context_cleanedup",
+		"injector__crashes_during_injection",
+		"injector__crashes_post_injection",
+		"injector__boot_recovery_crash_boots_detected",
+		"injector__boot_recovery_driver_self_disabled",
+		"injector__boot_recovery_stability_timer_fired",
+
+		// eBPF metrics
+		"ebpf__core_load_success",
+		"ebpf__core_load_error",
+		"ebpf__core_remoteconfig_success",
+		"ebpf__core_remoteconfig_error",
 	))
 	if err != nil {
 		return nil, err

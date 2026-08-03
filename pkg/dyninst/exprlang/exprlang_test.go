@@ -259,6 +259,10 @@ func exprToResult(expr Expr, err error) exprResult {
 		base := exprToResult(e.Base, nil)
 		pred := exprToResult(e.Pred, nil)
 		return exprResult{Type: "all", Left: &base, Right: &pred}
+	case *FilterExpr:
+		base := exprToResult(e.Base, nil)
+		pred := exprToResult(e.Pred, nil)
+		return exprResult{Type: "filter", Left: &base, Right: &pred}
 	case *LiteralExpr:
 		return exprResult{Type: "literal", Value: e.Value}
 	case *UnsupportedExpr:
@@ -376,10 +380,10 @@ func TestParse(t *testing.T) {
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
 				require.JSONEq(t, string(expectedJSON), string(actualJSON), "comparison expression mismatch")
-			case *AnyExpr, *AllExpr:
+			case *AnyExpr, *AllExpr, *FilterExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
-				require.JSONEq(t, string(expectedJSON), string(actualJSON), "any/all expression mismatch")
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "any/all/filter expression mismatch")
 			case *LiteralExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)

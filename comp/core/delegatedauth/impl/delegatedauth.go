@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws"

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin && !windows
+//go:build linux
 
 // Package networkv2 provides a check for network connection and socket statistics
 package networkv2
@@ -305,22 +305,6 @@ var (
 			"tx_cqe_err",
 			"tx_dropped",
 			"tx_recover",
-			// Per-priority RoCE/PFC counters (mlx5 emits as rx_prio<N>_* / tx_prio<N>_*).
-			// rx_pause_duration / tx_pause_duration are in microseconds.
-			// Per kernel en_stats.c the kernel emits pause_transition only on rx, not tx.
-			"rx_packets",
-			"rx_bytes",
-			"rx_discards",
-			"rx_pause",
-			"rx_pause_duration",
-			"rx_pause_transition",
-			"rx_buf_discard",
-			"rx_cong_discard",
-			"rx_marked",
-			"tx_packets",
-			"tx_bytes",
-			"tx_pause",
-			"tx_pause_duration",
 		},
 	}
 )
@@ -395,42 +379,6 @@ var (
 			"tx_xdp_err",
 			"tx_xsk_err",
 			"tx_xsk_full",
-			// Global PFC counters (mlx5 emits with literal "global" infix, not per-priority).
-			// Per kernel en_stats.c the kernel emits pause_transition only on rx, not tx.
-			"rx_global_pause",
-			"rx_global_pause_duration",
-			"rx_global_pause_transition",
-			"tx_global_pause",
-			"tx_global_pause_duration",
-			// PCIe health: signal integrity, threshold-crossing event counters, buffer overflow.
-			// The percentage-style outbound_pci_stalled_{rd,wr} gauges are intentionally excluded
-			// since the submission path emits monotonic_count and would produce nonsense deltas.
-			"rx_pci_signal_integrity",
-			"tx_pci_signal_integrity",
-			"outbound_pci_buffer_overflow",
-			"outbound_pci_stalled_rd_events",
-			"outbound_pci_stalled_wr_events",
-			"pci_bw_inbound_high",
-			"pci_bw_inbound_low",
-			"pci_bw_outbound_high",
-			"pci_bw_outbound_low",
-			"pci_bw_stale_event",
-			"dev_out_of_buffer",
-			// PFC pause storm indicators (pathological flow-control behavior).
-			"tx_pause_storm_warning_events",
-			"tx_pause_storm_error_events",
-			"rx_pause_ctrl_phy",
-			"tx_pause_ctrl_phy",
-			// FEC / cable health. rx_bits_phy is the denominator for symbol_err and corrected_bits.
-			"rx_pcs_symbol_err_phy",
-			"rx_corrected_bits_phy",
-			"rx_bits_phy",
-			// Module and link recovery.
-			"module_unplug",
-			"rx_buffer_passed_thres_phy",
-			"total_success_recovery_phy",
-			// Drop indicators.
-			"rx_if_down_packets",
 		},
 	}
 )

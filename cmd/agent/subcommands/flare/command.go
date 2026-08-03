@@ -64,6 +64,7 @@ import (
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -111,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.args = args
 			c := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
-					path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
+					path.Join(defaultpaths.GetDefaultConfPath(), "security-agent.yaml"),
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithIgnoreErrors(true),
@@ -121,11 +122,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			flareParams := flare.NewLocalParams(
 				defaultpaths.GetDistPath(),
-				defaultpaths.PyChecksPath,
-				defaultpaths.LogFile,
-				defaultpaths.JmxLogFile,
-				defaultpaths.DogstatsDLogFile,
-				defaultpaths.StreamlogsLogFile,
+				defaultpaths.GetDefaultPyChecksPath(),
+				defaultpaths.GetDefaultLogFile(),
+				defaultpaths.GetDefaultJmxLogFile(),
+				defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+				defaultpaths.GetDefaultStreamlogsLogFile(),
 			)
 			flareParams.KeepArchiveAfterSend = cliParams.keepArchive
 			return fxutil.OneShot(makeFlare,
@@ -219,7 +220,7 @@ func makeFlare(flareComp flare.Component,
 	)
 
 	streamLogParams := streamlogs.CliParams{
-		FilePath: defaultpaths.StreamlogsLogFile,
+		FilePath: defaultpaths.GetDefaultStreamlogsLogFile(),
 		Duration: cliParams.withStreamLogs,
 		Quiet:    true,
 	}
@@ -327,7 +328,7 @@ func makeFlare(flareComp flare.Component,
 
 func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
 		return "", err

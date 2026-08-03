@@ -18,7 +18,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// timeSeriesStorage is an internal storage for time series data.
 // StorageConfig holds tunable parameters for timeSeriesStorage.
 type StorageConfig struct {
 	// MaxSeries caps live series; when exceeded on Advance, series are evicted
@@ -33,6 +32,21 @@ type StorageConfig struct {
 	// Points older than (latest timestamp - PointRetentionSecs) are trimmed
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
+
+	// MaxCorrelations caps how many unique correlation patterns are retained in
+	// the engine's accumulated-correlations map. 0 uses the built-in default
+	// (500). -1 disables the cap entirely (suitable for testbench replay where
+	// all patterns must be visible regardless of scenario length).
+	// Only meaningful when TrackCorrelationHistory is true.
+	MaxCorrelations int
+
+	// TrackCorrelationHistory enables the engine's accumulated-correlations map
+	// (accumulateCorrelations / AccumulatedCorrelations / CorrelationHistory).
+	// Default false — live production mode never reads this map, so the map
+	// write + eviction scan on every Advance is avoided. The testbench sets
+	// this to true alongside MaxCorrelations=-1 to retain the full history for
+	// replay analysis.
+	TrackCorrelationHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -41,6 +55,7 @@ func DefaultStorageConfig() StorageConfig {
 		MaxSeries:          storageMaxSeries,
 		EvictionFloorRatio: storageEvictionBandRatio,
 		PointRetentionSecs: storagePointRetentionSecs,
+		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
 	}
 }
 
@@ -57,6 +72,7 @@ const (
 	storagePointRetentionSecs = 120
 )
 
+// timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
 	cfg    StorageConfig
 	mu     sync.RWMutex
@@ -268,7 +284,15 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		return AddResult{Ref: -1}
 	}
 	h := seriesKeyHash(namespace, name, tags)
-	canonTags := canonicalizeTags(tags)
+	// Skip the alloc when tags are already sorted. Both ingest paths (real metrics
+	// via prepareMetricIngest and virtual metrics via IngestLog) canonicalize before
+	// calling Add, so this fast path is hit on every normal call.
+	var canonTags []string
+	if tagsSorted(tags) {
+		canonTags = tags
+	} else {
+		canonTags = canonicalizeTags(tags)
+	}
 
 	stats, exists := s.series[h]
 	// Collision guard: verify full identity (namespace + name + sorted tags).
@@ -765,6 +789,21 @@ func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
 	return s.seriesIDStats[ref]
 }
 
+// FindRefsByHashes returns the SeriesRef for each hash present in storage.
+// Uses the existing s.series hash map for O(1) per lookup; hashes with no
+// matching series are silently skipped.
+func (s *timeSeriesStorage) FindRefsByHashes(hashes map[uint64]struct{}) []observer.SeriesRef {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	refs := make([]observer.SeriesRef, 0, len(hashes))
+	for h := range hashes {
+		if stats := s.series[h]; stats != nil {
+			refs = append(refs, stats.ref)
+		}
+	}
+	return refs
+}
+
 // GetSeriesMeta returns the metadata for a series by its numeric ref.
 // Returns nil if the ref is out of range.
 func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.SeriesMeta {
@@ -966,37 +1005,14 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 
 // SeriesGeneration returns a counter that increments whenever the series
 // catalog changes — either when a new series key is created or when an
-// existing key is removed via RemoveSeriesByKeys. Callers can use this to
-// safely cache ListSeries results.
+// existing key is removed via RemoveSeriesByRefs or RemoveSeriesByMetricName.
+// Callers can use this to safely cache ListSeries results.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.seriesGen
 }
 
-// RemoveSeriesByKeys deletes the listed internal series keys (as produced by
-// seriesKey). The compact numeric SeriesRef IDs assigned to each removed
-// series are retired but NEVER reused: the slot in seriesIDStats is set to
-// nil so any stale SeriesRef resolves to nil via resolveByID, and the slot
-// in seriesIDKeys is set to "" — the slice length is preserved so subsequent
-// index lookups remain bounds-safe, but the original key string is no longer
-// referenced and can be garbage-collected. GetSeriesByNumericID's nil-stats
-// guard handles the empty-string lookup safely (s.series[""] is always nil).
-// Returns the SeriesRefs that were actually freed (one per successful removal,
-// in input order; unknown keys are silently skipped). seriesGen is bumped iff
-// at least one series was removed so cached ListSeries results are invalidated.
-//
-// Callers use the returned refs to fan out per-series teardown to detector
-// state that's keyed by SeriesRef (BOCPD, ScanMW, ScanWelch posterior maps,
-// seriesDetectorAdapter.lastVisibleCount, etc.). Without that fan-out, those
-// maps grow with the cumulative number of series ever observed even though
-// storage shrinks â defeating the LRU caps put on the upstream extractors.
-//
-// This is the storage-side counterpart to engine.removeContextRefsForEvictedKeys:
-// the engine's contextRefs index keeps track of which storage key was created
-// for which extractor context key, so when an extractor evicts a context the
-// engine can pass the corresponding storage keys here to free their tags +
-// columnar arrays. Without this path, evicted patterns leak indefinitely.
 // RemoveSeriesByRefs deletes series by their compact numeric refs. Each removed
 // series has its seriesIDStats slot set to nil (ref is never reused) and its
 // hash slot deleted from s.series. Returns the refs actually freed; out-of-range

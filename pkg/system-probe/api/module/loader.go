@@ -81,7 +81,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 		enabledModulesFactories = append(enabledModulesFactories, factory)
 	}
 
-	if err := preRegister(cfg, rcclient, enabledModulesFactories); err != nil {
+	if err := preRegister(cfg, rcclient, deps.Telemetry, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 

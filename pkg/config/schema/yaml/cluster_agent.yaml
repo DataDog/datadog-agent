@@ -17,17 +17,12 @@ properties:
     default: false
     visibility: public
     description: Set to true to enable the Cluster Agent.
-    tags:
-    - template_section:ClusterAgent
-    comment: Datadog cluster agent
   auth_token:
     node_type: setting
     type: string
     default: ''
     visibility: public
     description: Auth token used to make requests to the Kubernetes API server.
-    tags:
-    - template_section:ClusterAgent
   url:
     node_type: setting
     type: string
@@ -35,24 +30,18 @@ properties:
     visibility: public
     description: The Cluster Agent endpoint. There's no need to set it if "kubernetes_service_name"
       is set.
-    tags:
-    - template_section:ClusterAgent
   kubernetes_service_name:
     node_type: setting
     type: string
     default: datadog-cluster-agent
     visibility: public
     description: Name of the Kubernetes service for the Cluster Agent.
-    tags:
-    - template_section:ClusterAgent
   max_leader_connections:
     node_type: setting
     type: integer
     default: 100
     visibility: public
     description: Maximum number of connections between a follower and a leader.
-    tags:
-    - template_section:ClusterAgent
   client_reconnect_period_seconds:
     node_type: setting
     type: integer
@@ -61,8 +50,6 @@ properties:
     description: |-
       Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
       Set to 0 to disable periodic reconnection.
-    tags:
-    - template_section:ClusterAgent
   tagging_fallback:
     node_type: setting
     type: boolean
@@ -70,8 +57,6 @@ properties:
     visibility: public
     description: Set to true to enabled fallback to local metamapper when the connection
       with the Cluster Agent fails.
-    tags:
-    - template_section:ClusterAgent
   server:
     node_type: section
     type: object
@@ -86,24 +71,18 @@ properties:
         default: 2
         visibility: public
         description: Read timeout in seconds.
-        tags:
-        - template_section:ClusterAgent
       write_timeout_seconds:
         node_type: setting
         type: integer
         default: 2
         visibility: public
         description: Write timeout in seconds.
-        tags:
-        - template_section:ClusterAgent
       idle_timeout_seconds:
         node_type: setting
         type: integer
         default: 60
         visibility: public
         description: Idle timeout in seconds.
-        tags:
-        - template_section:ClusterAgent
   tracing:
     node_type: section
     type: object
@@ -122,8 +101,6 @@ properties:
         default: false
         visibility: public
         description: Enable APM tracing for the Cluster Agent.
-        tags:
-        - template_section:ClusterAgent
         comment: APM tracing for the cluster agent itself (currently covers cluster
           check dispatching)
       env:
@@ -133,8 +110,6 @@ properties:
         visibility: public
         description: The environment tag to apply to all traces emitted by the Cluster
           Agent.
-        tags:
-        - template_section:ClusterAgent
       sample_rate:
         node_type: setting
         type: number
@@ -145,7 +120,6 @@ properties:
           Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
         tags:
         - golang_type:float64
-        - template_section:ClusterAgent
   allow_legacy_tls:
     node_type: setting
     type: boolean
@@ -173,6 +147,18 @@ properties:
             type: boolean
             default: false
             comment: AppSec Injector in the cluster agent ( Preview )
+          envoy_gateway:
+            node_type: section
+            type: object
+            properties:
+              controller_namespace:
+                node_type: setting
+                type: string
+                default: envoy-gateway-system
+              namespace:
+                node_type: setting
+                type: string
+                default: envoy-gateway-system
           istio:
             node_type: section
             type: object
@@ -297,6 +283,14 @@ properties:
         - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
         items:
           type: string
+  kueue:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   language_detection:
     node_type: section
     type: object
@@ -331,18 +325,6 @@ properties:
             node_type: setting
             type: string
             default: 1h
-  mcp:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      endpoint:
-        node_type: setting
-        type: string
-        default: /mcp
   refresh_on_cache_miss:
     node_type: setting
     type: boolean

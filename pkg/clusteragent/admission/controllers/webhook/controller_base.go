@@ -253,6 +253,22 @@ func (c *controllerBase) triggerReconciliation() {
 	c.queue.Add(c.config.getWebhookName())
 }
 
+func (c *controllerBase) getProbeNamespaceSelector() *metav1.LabelSelector {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      common.NamespaceLabelKey,
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{c.config.getServiceNs()},
+			},
+		},
+	}
+	if c.config.addAKSSelectors {
+		selector.MatchExpressions = append(selector.MatchExpressions, common.AzureAKSLabelSelectorRequirement()...)
+	}
+	return selector
+}
+
 func (c *controllerBase) getSecret() (*corev1.Secret, error) {
 	secret, err := c.secretsLister.Secrets(c.config.getSecretNs()).Get(c.config.getSecretName())
 	if err != nil {

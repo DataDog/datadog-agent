@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "settings",
@@ -14,6 +15,7 @@ go_library(
         "runtime_setting_log_payloads.go",
         "runtime_setting_mutex_profile_fraction.go",
         "runtime_setting_profiling.go",
+        "runtime_setting_profiling_period.go",
         "runtine_setting_profiling_goroutines.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/settings",
@@ -31,16 +33,18 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "settings_test",
     srcs = [
         "runtime_profiling_test.go",
+        "runtime_setting_profiling_period_test.go",
         "runtime_settings_test.go",
     ],
     embed = [":settings"],
-    gotags = ["test"],
     deps = [
+        "//comp/core/config",
         "//comp/core/settings/def",
+        "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

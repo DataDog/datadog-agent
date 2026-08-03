@@ -8,6 +8,7 @@ package guiimpl
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -35,7 +37,7 @@ func checkPaths() []string {
 	return []string{
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
-		defaultpaths.PyChecksPath,                                // Integrations-core checks
+		defaultpaths.GetDefaultPyChecksPath(),                    // Integrations-core checks
 		getFleetPoliciesPath(),                                   // Fleet Policies
 	}
 }
@@ -254,7 +256,7 @@ func getWheelsChecks() ([]string, error) {
 	}
 
 	for _, integration := range integrations {
-		if _, ok := pkgconfigsetup.StandardJMXIntegrations[integration]; !ok {
+		if _, ok := check.StandardJMXIntegrations[integration]; !ok {
 			pyChecks = append(pyChecks, integration)
 		}
 	}
@@ -272,7 +274,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 		}
 
 		for _, file := range files {
-			if ext := filepath.Ext(file.Name()); ext == ".py" && file.Type().IsRegular() {
+			if ext := filepath.Ext(file.Name()); ext == ".py" && resolveEntryType(filepath.Join(path, file.Name()), file).IsRegular() {
 				integrations = append(integrations, file.Name())
 			}
 		}
@@ -293,7 +295,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	for integration := range pkgconfigsetup.StandardJMXIntegrations {
+	for integration := range check.StandardJMXIntegrations {
 		integrations = append(integrations, integration)
 	}
 
@@ -366,6 +368,20 @@ func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	w.Write(res)
 }
 
+// resolveEntryType returns entry's type, following symlinks so that
+// Bazel's runfiles-provided symlinked files/directories are classified correctly.
+func resolveEntryType(fullPath string, entry os.DirEntry) fs.FileMode {
+	t := entry.Type()
+	if t&fs.ModeSymlink == 0 {
+		return t
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return t
+	}
+	return info.Mode().Type()
+}
+
 // Helper function which returns all the filenames in a check config directory
 func readConfDir(path string) ([]string, error) {
 	var filenames []string
@@ -375,16 +391,18 @@ func readConfDir(path string) ([]string, error) {
 	}
 
 	for _, entry := range entries {
+		entryPath := filepath.Join(path, entry.Name())
+
 		// Some check configs are in nested subdirectories
-		if entry.IsDir() {
+		if resolveEntryType(entryPath, entry).IsDir() {
 			if filepath.Ext(entry.Name()) != ".d" {
 				continue
 			}
 
-			subEntries, err := os.ReadDir(filepath.Join(path, entry.Name()))
+			subEntries, err := os.ReadDir(entryPath)
 			if err == nil {
 				for _, subEntry := range subEntries {
-					if hasRightEnding(subEntry.Name()) && subEntry.Type().IsRegular() {
+					if hasRightEnding(subEntry.Name()) && resolveEntryType(filepath.Join(entryPath, subEntry.Name()), subEntry).IsRegular() {
 						// Save the full path of the config file {check_name.d}/{filename}
 						filenames = append(filenames, entry.Name()+"/"+subEntry.Name())
 					}
@@ -393,7 +411,7 @@ func readConfDir(path string) ([]string, error) {
 			continue
 		}
 
-		if hasRightEnding(entry.Name()) && entry.Type().IsRegular() {
+		if hasRightEnding(entry.Name()) && resolveEntryType(entryPath, entry).IsRegular() {
 			filenames = append(filenames, entry.Name())
 		}
 	}

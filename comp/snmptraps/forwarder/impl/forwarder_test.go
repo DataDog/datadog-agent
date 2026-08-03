@@ -98,3 +98,18 @@ func TestForwarderTelemetry(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "device_namespace:totoro", "snmp_version:2"})
 }
+
+func TestForwarderCustomTagsOnForwardedMetric(t *testing.T) {
+	s := setUp(t)
+	pkt := makeSnmpPacket(packet.NetSNMPExampleHeartbeatNotification)
+	pkt.Tags = []string{"application:my-app", "team:netops"}
+	s.Listener.Send(pkt)
+	time.Sleep(100 * time.Millisecond)
+	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{
+		"snmp_version:2",
+		"device_namespace:totoro",
+		"snmp_device:1.1.1.1",
+		"application:my-app",
+		"team:netops",
+	})
+}

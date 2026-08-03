@@ -29,8 +29,8 @@ type Requires struct {
 	Store    storedef.Component
 }
 
-// New creates a new runner instance.
-func New(reqs Requires) runnerdef.Component {
+// NewComponent creates a new runner instance.
+func NewComponent(reqs Requires) runnerdef.Component {
 	return &runner{
 		log:      reqs.Log,
 		registry: reqs.Registry,
@@ -82,7 +82,8 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 // template for report.IssueName, that template is used to populate the proto
 // fields; otherwise a minimal proto is built from the report fields directly.
 func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Issue {
-	if tmpl, ok := r.registry.GetTemplate(report.IssueName); ok {
+	tmpl, ok := r.registry.GetTemplate(report.IssueName)
+	if ok {
 		issue, err := tmpl.BuildIssue(report.Context)
 		if err == nil && issue != nil {
 			issue.Id = report.IssueID
@@ -93,9 +94,18 @@ func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Is
 		}
 		r.log.Warnf("runner: failed to build issue %s from registry: %v; using minimal proto", report.IssueName, err)
 	}
+
+	var issueType string
+	if ok {
+		// Template lookup succeeded but BuildIssue errored; the template still
+		// knows its own IssueType even though it couldn't populate the rest.
+		issueType = tmpl.IssueType()
+	}
 	return &healthplatformpayload.Issue{
 		Id:        report.IssueID,
 		IssueName: report.IssueName,
+		IssueType: issueType,
+		Title:     report.IssueName,
 		Source:    report.Source,
 		Tags:      report.Tags,
 	}

@@ -9,11 +9,11 @@ import (
 	"sync"
 	"testing"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
 // TestObserverDropsMetricsWhenIngestMetricsDisabled verifies that when
@@ -21,6 +21,13 @@ import (
 // ObserveMetric calls while logs and log-derived virtual metrics still
 // reach the engine.
 func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
 	eng := newEngine(engineConfig{
@@ -28,13 +35,12 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
-	th := newTelemetryHandler(noopsimpl.GetCompatComponent())
 	obs := &observerImpl{
 		engine:               eng,
 		obsCh:                make(chan observation, 16),
-		telemetryHandler:     th,
-		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
+		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: false,
+		metricFilter:         defaultFilter,
 	}
 	obs.handleFunc = obs.innerHandle
 
@@ -55,10 +61,10 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	// Guarantee cleanup even if an assertion calls t.Fatal before stopFn().
 	t.Cleanup(stopFn)
 
-	h := obs.GetHandle("all-metrics")
+	h := obs.GetHandle("dogstatsd")
 
 	drop, ok := h.(*metricDropHandle)
-	require.Truef(t, ok, `GetHandle("all-metrics") returned %T, want *metricDropHandle`, h)
+	require.Truef(t, ok, `GetHandle("dogstatsd") returned %T, want *metricDropHandle`, h)
 
 	assert.True(t, drop.ObserveMetricAndReportDrop(&metricObs{
 		name:      "system.cpu.user",
@@ -73,8 +79,8 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	})
 
 	drop.ObserveLog(&logObs{
-		content:     "Request completed in 45ms",
-		status:      "info",
+		content:     "Request failed with unexpected error",
+		status:      "error",
 		tags:        []string{"service:web"},
 		timestampMs: 1_000_000,
 	})
@@ -83,13 +89,100 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	// so the ObserveLog above is guaranteed to be processed before we assert storage.
 	stopFn()
 
-	allMetricsSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "all-metrics"})
-	assert.Empty(t, allMetricsSeries,
+	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
+	assert.Empty(t, dogstatsdSeries,
 		"external metrics must not be stored when observer.ingest_metrics.enabled=false")
 
 	extractorSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
 	require.NotEmpty(t, extractorSeries,
 		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
+
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, "dogstatsd", telComp)
+}
+
+func TestAgentMetricsAreDropped(t *testing.T) {
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	storage := newTimeSeriesStorage()
+	eng := newEngine(engineConfig{storage: storage})
+
+	obs := &observerImpl{
+		engine:               eng,
+		obsCh:                make(chan observation, 16),
+		ingestMetricsEnabled: true,
+		metricFilter:         defaultFilter,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	var (
+		wg        sync.WaitGroup
+		closeOnce sync.Once
+	)
+	stopFn := func() {
+		closeOnce.Do(func() { close(obs.obsCh) })
+		wg.Wait()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		obs.run()
+	}()
+	t.Cleanup(stopFn)
+
+	h := obs.GetHandle("dogstatsd")
+	h.ObserveMetric(&metricObs{
+		name:      "system.cpu.user",
+		value:     50,
+		timestamp: 1000,
+	})
+	h.ObserveMetric(&metricObs{
+		name:      "datadog.agent.running",
+		value:     1,
+		timestamp: 1000,
+	})
+
+	stopFn()
+
+	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
+	require.Len(t, dogstatsdSeries, 1)
+	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
+
+	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
+	assert.Empty(t, agentSeries)
+
+	workloadSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	require.Len(t, workloadSeries, 1)
+	assert.Equal(t, "dogstatsd", workloadSeries[0].Namespace)
+}
+
+func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	storage := newTimeSeriesStorage()
+	obs := &observerImpl{
+		engine:       newEngine(engineConfig{storage: storage}),
+		metricFilter: defaultFilter,
+	}
+
+	obs.IngestMetricSync("dogstatsd", &metricObs{
+		name:      "system.cpu.user",
+		value:     50,
+		timestamp: 1000,
+	})
+	obs.IngestMetricSync("dogstatsd", &metricObs{
+		name:      "datadog.agent.running",
+		value:     1,
+		timestamp: 1000,
+	})
+
+	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
+	require.Len(t, dogstatsdSeries, 1)
+	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
+
+	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
+	assert.Empty(t, agentSeries)
 }
 
 // TestMetricDropHandle covers the metricDropHandle wrapper in isolation.

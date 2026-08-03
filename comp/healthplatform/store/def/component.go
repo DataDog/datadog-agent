@@ -9,14 +9,28 @@
 // /health-platform/issues HTTP endpoint.
 package store
 
-// team: agent-health
+// team: fleet-remediation
 
 import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
+// IssuesObserver holds the channels the store writes issue events into.
+// It is the extension point for reactive integrations — e.g. an MCP server
+// exposing issues to AI agents for proactive remediation.
+type IssuesObserver struct {
+	// ResolvedCh receives issues when they transition to RESOLVED, including
+	// resolved issues recovered from disk on startup.
+	ResolvedCh chan *healthplatformpayload.Issue
+}
+
 // Component is the health platform store component interface.
 type Component interface {
+	// RegisterIssuesObserver registers a state-change listener. Multiple observers
+	// may be registered. Observers registered before OnStart also receive
+	// resolved issues recovered from disk on startup.
+	RegisterIssuesObserver(obs IssuesObserver)
+
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
 	// with the same issue.Id update the same instance (state machine: new →
 	// ongoing). issue.IssueName is used as the issue-type key for telemetry
@@ -46,6 +60,6 @@ type Component interface {
 	ResolveAllIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
-	// with the given IssueName (e.g. "docker_file_tailing_disabled").
+	// with the given IssueName (e.g. "Docker File Tailing Disabled").
 	GetActiveIssueIDsByIssueName(issueName string) []string
 }

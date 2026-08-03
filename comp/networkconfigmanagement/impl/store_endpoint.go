@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	types "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -23,16 +22,20 @@ type GetConfigResponse struct {
 	RawConfig  string           `json:"raw_config"`
 }
 
-// newConfigEndpointHandler returns an http.HandlerFunc for GET /agent/ncm/config?uuid=<uuid>.
-func newConfigEndpointHandler(store ncmstore.ConfigStore) http.HandlerFunc {
+// GetConfigEndpointHandler returns an http.HandlerFunc for GET /agent/ncm/config?uuid=<uuid>.
+func (n *networkDeviceConfigImpl) GetConfigEndpointHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if n.store == nil {
+			http.Error(w, `{"error": "ncm rollbacks not available for agent"}`, http.StatusBadRequest)
+			return
+		}
 		uuid := r.URL.Query().Get("uuid")
 		if uuid == "" {
 			http.Error(w, `{"error": "missing uuid query parameter"}`, http.StatusBadRequest)
 			return
 		}
 
-		rawConfig, metadata, err := store.GetConfig(uuid)
+		rawConfig, metadata, err := n.store.GetConfig(uuid)
 		if err != nil {
 			httputils.SetJSONError(w, err, http.StatusNotFound)
 			return

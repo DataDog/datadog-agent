@@ -236,7 +236,7 @@ func TestConverter(t *testing.T) {
 	mockConfig := configmock.New(t)
 	require := require.New(t)
 	configConverter := NewConfigConverter()
-	cfg, err := GetAgentConfig("./tests/datadog.conf")
+	cfg, err := GetAgentConfig("./testdata/datadog.conf")
 	require.NoError(err)
 	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)
@@ -261,7 +261,7 @@ func TestConverter(t *testing.T) {
 		"bind_host":                    "localhost",
 		"log_level":                    "INFO",
 	} {
-		require.True(c.IsSet(k), k)
+		require.True(c.IsConfigured(k), k)
 		require.Equal(v, c.GetString(k), k)
 	}
 
@@ -273,7 +273,7 @@ func TestConverter(t *testing.T) {
 		"dogstatsd_non_local_traffic":      true,
 		"skip_ssl_validation":              false,
 	} {
-		require.True(c.IsSet(k), k)
+		require.True(c.IsConfigured(k), k)
 		require.Equal(v, c.GetBool(k), k)
 	}
 
@@ -292,7 +292,7 @@ func TestConverter(t *testing.T) {
 		"apm_config.trace_writer.connection_limit": 5,
 		"apm_config.trace_writer.queue_size":       6,
 	} {
-		require.True(c.IsSet(k), k)
+		require.True(c.IsConfigured(k), k)
 		require.Equal(v, c.GetInt(k), k)
 	}
 
@@ -304,7 +304,7 @@ func TestConverter(t *testing.T) {
 		"apm_config.max_memory":               1234.5, // trace.watchdog.max_memory
 		"apm_config.max_cpu_percent":          85.4,   // trace.watchdog.max_cpu_percent
 	} {
-		require.True(c.IsSet(k), k)
+		require.True(c.IsConfigured(k), k)
 		require.Equal(v, c.GetFloat64(k), k)
 	}
 

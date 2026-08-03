@@ -20,10 +20,6 @@ COMMON_TAGS = set([
     # removes the import to golang.org/x/net/trace in github.com/grpc-ecosystem/go-grpc-middleware
     # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
     "retrynotrace",
-    # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
-    # which makes the agent significantly smaller.
-    # This can be removed when we start using containerd v2.1 or later.
-    "no_dynamic_plugins",
     # Remove some dependencies from Trivy to reduce binary size.
     "trivy_no_javadb",
 ])
@@ -52,6 +48,7 @@ ALL_TAGS = set([
     "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
+    "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
@@ -177,8 +174,11 @@ CLUSTER_AGENT_TAGS = set([
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 
-# DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "podman", "zlib", "zstd"])
+# DOGSTATSD_TAGS lists the tags needed when building dogstatsd.
+# no_gogo drops the legacy gogo/protobuf compatibility shim in containerd/typeurl;
+# the containerd metric types dogstatsd unmarshals (cgroups/v3, hcsshim stats) all
+# use the modern google.golang.org/protobuf runtime, so the shim is dead weight.
+DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib", "zstd"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib", "zstd"])
@@ -332,3 +332,25 @@ UNIT_TEST_TAGS = set(["test"])
 
 # List of tags to always remove when running unit tests
 UNIT_TEST_EXCLUDED_TAGS = set(["datadog.no_waf", "pcap"])
+
+### Per-flavor unit-test tag sets
+
+def _unit_test_tags(flavor_tags):
+    return sorted(((flavor_tags | UNIT_TEST_TAGS) - UNIT_TEST_EXCLUDED_TAGS) | COMMON_TAGS)
+
+# FLAVOR_UNIT_TEST_TAGS maps each AgentFlavor name to the build tags used when
+# running its unit tests. It mirrors the build_tags[flavor]["unit-tests"] entries
+# in tasks/build_tags.py: the flavor's build set unioned with UNIT_TEST_TAGS,
+# minus UNIT_TEST_EXCLUDED_TAGS, then unioned with COMMON_TAGS (as
+# get_default_build_tags() does). LINUX_ONLY tags are kept here; per-platform
+# filtering is applied by flavor_gotags() in //bazel/flavors:defs.bzl. Consumed
+# by that macro (Starlark load) and, via tasks/build_tags.py, by the
+# dd_agent_go_test Gazelle extension's generated tags.go. Kept in sync with
+# build_tags.py by tasks/unit_tests/build_tags_tests.py.
+FLAVOR_UNIT_TEST_TAGS = {
+    "base": _unit_test_tags(AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS),
+    "fips": _unit_test_tags(AGENT_TAGS | FIPS_TAGS),
+    "heroku": _unit_test_tags(AGENT_HEROKU_TAGS),
+    "iot": _unit_test_tags(IOT_AGENT_TAGS),
+    "dogstatsd": _unit_test_tags(DOGSTATSD_TAGS),
+}

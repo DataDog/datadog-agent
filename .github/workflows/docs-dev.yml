@@ -4,12 +4,11 @@ on:
   push:
     branches:
     - main
+  # Not filtered by path: the `repo` macro validates documented repository paths while building,
+  # so renaming a path must fail on the pull request that renames it rather than after merge.
   pull_request:
     branches:
     - main
-    paths:
-    - docs/**
-    - .github/workflows/docs-dev.yml
 
 permissions: {}
 
@@ -22,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
         # Fetch all history for applying timestamps to every page
@@ -38,11 +37,53 @@ jobs:
         git config --local user.name 'github-actions[bot]'
         git config --local user.email 'github-actions[bot]@users.noreply.github.com'
 
-    - name: Validate documentation
-      run: dda run docs build --check
+    # Cached for resilience rather than speed: the build fetches content from GitHub, so a restored
+    # cache lets it succeed while GitHub is unreachable. Every URL it fetches is derived from the
+    # build image pinned in .gitlab-ci.yml, so that file changing is the only reason to fetch again.
+    - name: Restore fetched documentation content
+      id: docs-content
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .docs-cache
+        key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'docs/public/.hooks/inject_variables.py') }}
+
+    # Restoring the most recent results, which `cache` in .lychee.toml tells the checker to keep,
+    # means a host that is briefly unreachable does not fail the run.
+    - name: Restore link check results
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .lycheecache
+        key: docs-links-${{ github.run_id }}
+        restore-keys: docs-links-
 
     - name: Build documentation
       run: dda run docs build
+
+    # A step of its own, so that a link that rotted on somebody else's site is reported separately
+    # from documentation that fails to build.
+    - name: Check links
+      run: dda run docs check-links
+      env:
+        # Authenticated requests to github.com are rate limited far less aggressively.
+        GITHUB_TOKEN: ${{ github.token }}
+
+    # Saving is a separate step because actions/cache only saves when the job succeeds, and a run
+    # that fails on an unrelated link is exactly when the next one benefits from not fetching again.
+    - name: Save fetched documentation content
+      if: always() && steps.docs-content.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .docs-cache
+        key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'docs/public/.hooks/inject_variables.py') }}
+
+    # Separate for the same reason. Pull requests save too: the cache is scoped to the pull request,
+    # which is what a re-run of it restores.
+    - name: Save link check results
+      if: always()
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .lycheecache
+        key: docs-links-${{ github.run_id }}
 
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:

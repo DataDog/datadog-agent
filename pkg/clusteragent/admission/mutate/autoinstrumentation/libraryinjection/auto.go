@@ -55,6 +55,12 @@ func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
 	return NewInitContainerProvider(cfg)
 }
 
+// GetName returns the effective injection mode of the resolved concrete provider,
+// suffixed with " (auto)" to indicate that the mode was automatically selected.
+func (p *AutoProvider) GetName() string {
+	return p.realProvider.GetName() + " (auto)"
+}
+
 // InjectInjector mutates the pod to add the APM injector.
 func (p *AutoProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	return p.realProvider.InjectInjector(pod, cfg)

@@ -418,7 +418,7 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			imagesSent := atomic.NewInt32(0)
 
-			sender := mocksender.NewMockSender("")
+			sender := mocksender.NewMockSender(t, "")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				imagesSent.Inc()
 			})

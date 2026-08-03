@@ -88,7 +88,7 @@ func TestParseComponentStatus(t *testing.T) {
 	// FIXME: use the factory instead
 	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
 
-	mocked := mocksender.NewMockSender(kubeASCheck.ID())
+	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
 	kubeASCheck.parseComponentStatus(mocked, expected)
 

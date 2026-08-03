@@ -96,6 +96,7 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewAgentSecureClient(conn)
+	remoteAgentClient := pb.NewRemoteAgentClient(conn)
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
@@ -111,7 +112,7 @@ func main() {
 		Services:       []string{},        // Test client doesn't provide any services
 	}
 
-	registerResp, err := client.RegisterRemoteAgent(ctx, registerReq)
+	registerResp, err := remoteAgentClient.RegisterRemoteAgent(ctx, registerReq)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to register with RAR: %v\n", err)
 		os.Exit(1)

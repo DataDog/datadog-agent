@@ -59,7 +59,7 @@ func Test_makeFlare(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := http.NewServeMux()
-			agentHandler(router, nil, nil, nil, nil, fakeGuiStartTimestamp)
+			agentHandler(router, nil, nil, nil, nil, fakeGuiStartTimestamp, func() string { return "" }, "")
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
@@ -108,7 +108,7 @@ func Test_getConfigSetting(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := http.NewServeMux()
-			agentHandler(router, nil, nil, c, nil, fakeGuiStartTimestamp)
+			agentHandler(router, nil, nil, c, nil, fakeGuiStartTimestamp, func() string { return "" }, "")
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()

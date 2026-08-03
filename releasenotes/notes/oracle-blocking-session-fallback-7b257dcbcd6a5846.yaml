@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Oracle: The Database Monitoring agent now derives blocking session and
+    instance information from ``v$lock``/``gv$lock`` for sessions waiting on
+    enqueue locks (``enq:`` wait events) when the database does not
+    auto-populate these fields. This requires granting ``SELECT`` on
+    ``v$lock`` and ``gv$lock`` to the agent database user.

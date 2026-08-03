@@ -19,7 +19,9 @@ import (
 // Component is a mock for the configstream component.
 type Component struct {
 	m           sync.Mutex
+	closeOnce   sync.Once
 	subscribers map[string]chan *pb.ConfigEvent
+	closedC     chan struct{} // closed by Close(); aborts in-flight sends to SubscribedC/UnsubscribedC
 
 	// SubscribedC is a channel that receives the request of any new subscriber.
 	// Tests can use this to verify that a component has subscribed.
@@ -33,6 +35,7 @@ type Component struct {
 func Mock(t *testing.T) configstream.Component {
 	m := &Component{
 		subscribers:   make(map[string]chan *pb.ConfigEvent),
+		closedC:       make(chan struct{}),
 		SubscribedC:   make(chan *pb.ConfigStreamRequest, 1),
 		UnsubscribedC: make(chan struct{}, 1),
 	}
@@ -46,21 +49,35 @@ func Mock(t *testing.T) configstream.Component {
 
 // Subscribe implements the component interface.
 func (mock *Component) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEvent, func()) {
-	mock.m.Lock()
-	defer mock.m.Unlock()
-
 	ch := make(chan *pb.ConfigEvent, 100)
+
+	mock.m.Lock()
 	mock.subscribers[req.Name] = ch
+	mock.m.Unlock()
 
-	mock.SubscribedC <- req
+	select {
+	case mock.SubscribedC <- req:
+	case <-mock.closedC:
+	}
 
+	var once sync.Once
 	unsubscribe := func() {
-		mock.m.Lock()
-		defer mock.m.Unlock()
-		delete(mock.subscribers, req.Name)
-		close(ch)
+		once.Do(func() {
+			mock.m.Lock()
+			_, ok := mock.subscribers[req.Name]
+			delete(mock.subscribers, req.Name)
+			if ok {
+				close(ch)
+			}
+			mock.m.Unlock()
 
-		mock.UnsubscribedC <- struct{}{}
+			if ok {
+				select {
+				case mock.UnsubscribedC <- struct{}{}:
+				case <-mock.closedC:
+				}
+			}
+		})
 	}
 
 	return ch, unsubscribe
@@ -82,12 +99,16 @@ func (mock *Component) SendEvent(event *pb.ConfigEvent) {
 
 // Close cleans up the mock's resources.
 func (mock *Component) Close() {
-	mock.m.Lock()
-	defer mock.m.Unlock()
+	mock.closeOnce.Do(func() {
+		close(mock.closedC)
 
-	for _, ch := range mock.subscribers {
-		close(ch)
-	}
-	close(mock.SubscribedC)
-	close(mock.UnsubscribedC)
+		mock.m.Lock()
+		subs := mock.subscribers
+		mock.subscribers = make(map[string]chan *pb.ConfigEvent)
+		mock.m.Unlock()
+
+		for _, ch := range subs {
+			close(ch)
+		}
+	})
 }

@@ -17,12 +17,10 @@ import (
 )
 
 const (
-	// defaultIssueTimeout is the default timeout for issue detection.
+	// defaultIssueTimeout is the default timeout for issue detection and resolution.
 	defaultIssueTimeout = 2 * time.Minute
-	// defaultIssuePollInterval is the poll cadence for EventuallyWithT / Never.
+	// defaultIssuePollInterval is the poll cadence for EventuallyWithT.
 	defaultIssuePollInterval = 10 * time.Second
-	// defaultIssueAbsenceWindow is how long we verify an issue stays absent/resolved.
-	defaultIssueAbsenceWindow = 45 * time.Second
 )
 
 // findIssuesByID returns all issues with the given exact ID from a fakeintake payload.

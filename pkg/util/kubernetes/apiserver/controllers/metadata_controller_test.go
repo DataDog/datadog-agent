@@ -20,7 +20,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
@@ -79,17 +78,13 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			"metadata-controller",
 			workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
-				Entity: &workloadmeta.KubernetesMetadata{
+				Entity: &workloadmeta.KubernetesNode{
 					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindKubernetesMetadata,
+						Kind: workloadmeta.KindKubernetesNode,
 						ID:   nodeName,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: nodeName,
-					},
-					GVR: &schema.GroupVersionResource{
-						Version:  "v1",
-						Resource: "nodes",
 					},
 				},
 			},
@@ -99,7 +94,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 
 	// Wait until the workloadmeta events have been processed
 	require.Eventually(t, func() bool {
-		return len(metaController.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)) == 3
+		return len(metaController.wmeta.ListKubernetesNodes()) == 3
 	}, 5*time.Second, 100*time.Millisecond)
 
 	tests := []struct {
@@ -401,17 +396,13 @@ func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
 			"metadata-controller",
 			workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
-				Entity: &workloadmeta.KubernetesMetadata{
+				Entity: &workloadmeta.KubernetesNode{
 					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindKubernetesMetadata,
+						Kind: workloadmeta.KindKubernetesNode,
 						ID:   nodeName,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: nodeName,
-					},
-					GVR: &schema.GroupVersionResource{
-						Version:  "v1",
-						Resource: "nodes",
 					},
 				},
 			},
@@ -420,7 +411,7 @@ func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		return len(metaController.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)) == 3
+		return len(metaController.wmeta.ListKubernetesNodes()) == 3
 	}, 5*time.Second, 100*time.Millisecond)
 
 	tests := []struct {

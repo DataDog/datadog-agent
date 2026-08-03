@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -27,11 +29,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 	}{
 		{
 			key:          "process_config.dd_agent_bin",
-			defaultValue: DefaultDDAgentBin,
+			defaultValue: defaultpaths.GetDefaultDDAgentBin(),
 		},
 		{
 			key:          "process_config.log_file",
-			defaultValue: DefaultProcessAgentLogFile,
+			defaultValue: defaultpaths.GetDefaultProcessAgentLogFile(),
 		},
 		{
 			key:          "process_config.grpc_connection_timeout_secs",
@@ -95,7 +97,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.cmd_port",
-			defaultValue: DefaultProcessCmdPort,
+			defaultValue: constants.DefaultProcessCmdPort,
 		},
 		{
 			key:          "process_config.language_detection.grpc_port",
@@ -332,7 +334,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.strip_proc_arguments",
 			env:      "DD_STRIP_PROCESS_ARGS",
 			value:    "false",
-			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expType:  "boolean",
 			expected: false,
 		},
 		{
@@ -444,26 +446,6 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := newTestConf(t)
-	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
-	cfg.BuildSchema()
-
-	envs := map[string]struct{}{}
-	for _, env := range cfg.GetEnvVars() {
-		envs[env] = struct{}{}
-	}
-
-	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
-	assert.True(t, ok)
-
-	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
-	assert.True(t, ok)
-
-	// Make sure the default is set properly
-	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
 }
 
 func TestProcConfigEnabledTransform(t *testing.T) {

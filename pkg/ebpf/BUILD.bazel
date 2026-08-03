@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
+# gazelle:dd_agent_go_test off
+
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude types_linux_test.go
 
@@ -173,6 +175,8 @@ go_library(
     srcs = [
         "btf.go",
         "co_re.go",
+        "co_re_load.go",
+        "co_re_load_testutil.go",
         "co_re_telemetry.go",
         "co_re_unsupported.go",
         "common.go",
@@ -205,9 +209,11 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
         "//comp/remote-config/rcclient/def",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/ebpf/btf",
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/maps",
         "//pkg/ebpf/names",
@@ -281,9 +287,10 @@ go_test(
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
+        "//comp/core/telemetry/impl/noops",
         "//pkg/config/remote/data",
         "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/ebpftest",  # keep
+        "//pkg/ebpf/ebpftest",
         "//pkg/ebpf/maps",
         "//pkg/ebpf/names",
         "//pkg/remoteconfig/state",

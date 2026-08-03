@@ -354,17 +354,6 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 			// Third shape pushes over the cap of 2; the oldest (metricNames[0]) is evicted.
 			require.Equal(t, []string{metricNames[0]}, res.EvictedMetricNames,
 				"oldest cluster's metric name surfaced for storage cleanup")
-			// Pattern_count telemetry must include a -1 decrement for the eviction.
-			var found bool
-			for _, tel := range res.Telemetry {
-				if tel.Metric == nil {
-					continue
-				}
-				if tel.Metric.GetName() == "observer.log_pattern_extractor.pattern_count" && tel.Metric.GetValue() < 0 {
-					found = true
-				}
-			}
-			require.True(t, found, "LRU eviction should emit a negative pattern_count telemetry")
 		}
 	}
 

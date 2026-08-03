@@ -1,10 +1,9 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "eventlog_test",
     srcs = ["example_test.go"],
-    gotags = ["test"],
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil/eventlog/api",

@@ -30,14 +30,14 @@ import (
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *http.ServeMux, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64) {
+func agentHandler(r *http.ServeMux, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64, getToken func() string, sysprobeSocketPath string) {
 	r.HandleFunc("POST /ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) })
 	r.HandleFunc("POST /status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) })
 	r.HandleFunc("POST /version", getVersion)
 	r.HandleFunc("POST /hostname", getHostname(hostname))
 	r.HandleFunc("POST /log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, config) })
 	r.HandleFunc("POST /flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) })
-	r.HandleFunc("POST /restart", restartAgent)
+	r.HandleFunc("POST /restart", func(w http.ResponseWriter, r *http.Request) { restartAgent(w, r, getToken, sysprobeSocketPath) })
 	r.HandleFunc("POST /getConfig", func(w http.ResponseWriter, _ *http.Request) { getConfigFile(w, config) })
 	r.HandleFunc("GET /getConfig/{setting}", func(w http.ResponseWriter, r *http.Request) { getConfigSetting(w, r, config) })
 	r.HandleFunc("POST /setConfig", func(w http.ResponseWriter, r *http.Request) { setConfigFile(w, r, config) })
@@ -111,7 +111,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.LogFile
+		logFile = defaultpaths.GetDefaultLogFile()
 	}
 
 	logFileContents, e := os.ReadFile(logFile)
@@ -168,9 +168,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function
-func restartAgent(w http.ResponseWriter, _ *http.Request) {
+func restartAgent(w http.ResponseWriter, _ *http.Request, getToken func() string, sysprobeSocketPath string) {
 	log.Infof("got restart function")
-	e := restart()
+	e := restart(getToken, sysprobeSocketPath)
 	if e != nil {
 		log.Warnf("restart failed %v", e)
 		w.Write([]byte(e.Error()))

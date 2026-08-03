@@ -86,6 +86,17 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.Equal(t, runtime.GOOS == "linux", cfg.GetBool(discoveryNS("enabled")))
 	})
 
+	t.Run("default disabled on ECS Fargate", func(t *testing.T) {
+		t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_FARGATE")
+
+		// Reset global config to avoid test interference.
+		_ = mock.NewSystemProbe(t)
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
+	})
+
 	discoveryDefaultEnabled := runtime.GOOS == "linux"
 
 	t.Run("default enabled with USM", func(t *testing.T) {

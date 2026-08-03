@@ -3,7 +3,7 @@ name: "Codex review on draft PR"
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   codex-review:
-    if: github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && !contains(github.event.pull_request.labels.*.name, 'no-draft-review')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

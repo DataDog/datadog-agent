@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -121,10 +122,10 @@ func newRemoteAgentServer() *remoteAgentServer {
 }
 
 // registerWithAgent handles the registration logic with the Core Agent
-func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker, cert tls.Certificate) (string, pbcore.AgentSecureClient, error) {
+func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker, cert tls.Certificate) (string, pbcore.RemoteAgentClient, error) {
 	log.Println("Session ID is empty, entering registration loop")
 
-	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken, cert)
+	agentClient, err := newRemoteAgentClient(agentIpcAddress, agentAuthToken, cert)
 	if err != nil {
 		log.Printf("failed to create agent client: %v", err)
 		return "", nil, err
@@ -157,7 +158,7 @@ func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName
 }
 
 // refreshRegistration handles the refresh logic with the Core Agent
-func refreshRegistration(agentClient pbcore.AgentSecureClient, sessionID string) error {
+func refreshRegistration(agentClient pbcore.RemoteAgentClient, sessionID string) error {
 	_, err := agentClient.RefreshRemoteAgent(context.Background(), &pbcore.RefreshRemoteAgentRequest{SessionId: sessionID})
 	if err != nil {
 		return err
@@ -223,7 +224,7 @@ func main() {
 	var agentAuthTokenFilePath string
 	var agentIPCCertFilePath string
 	var sessionID string
-	var agentClient pbcore.AgentSecureClient
+	var agentClient pbcore.RemoteAgentClient
 
 	flag.StringVar(&agentFlavor, "agent-flavor", "", "Agent Flavor")
 	flag.StringVar(&displayName, "display-name", "", "Display name to register with")
@@ -301,21 +302,21 @@ func getAgentCert(path string) (tls.Certificate, error) {
 	block, rest := pem.Decode(rawFile)
 
 	if block == nil || block.Type != "CERTIFICATE" {
-		return cert, fmt.Errorf("failed to decode PEM block containing certificate")
+		return cert, errors.New("failed to decode PEM block containing certificate")
 	}
 	rawCert := pem.EncodeToMemory(block)
 
 	block, _ = pem.Decode(rest)
 
 	if block == nil || block.Type != "EC PRIVATE KEY" {
-		return cert, fmt.Errorf("failed to decode PEM block containing key")
+		return cert, errors.New("failed to decode PEM block containing key")
 	}
 
 	rawKey := pem.EncodeToMemory(block)
 
 	tlsCert, err := tls.X509KeyPair(rawCert, rawKey)
 	if err != nil {
-		return cert, fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+		return cert, errors.New("unable to generate x509 cert from PEM IPC cert and key")
 	}
 	return tlsCert, nil
 }
@@ -355,7 +356,7 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 	return nil
 }
 
-func newAgentSecureClient(ipcAddress string, agentAuthToken string, cert tls.Certificate) (pbcore.AgentSecureClient, error) {
+func newRemoteAgentClient(ipcAddress string, agentAuthToken string, cert tls.Certificate) (pbcore.RemoteAgentClient, error) {
 	tlsCreds := credentials.NewTLS(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		// We don't need to verify the certificate for this test client
@@ -370,7 +371,7 @@ func newAgentSecureClient(ipcAddress string, agentAuthToken string, cert tls.Cer
 		return nil, err
 	}
 
-	return pbcore.NewAgentSecureClient(conn), nil
+	return pbcore.NewRemoteAgentClient(conn), nil
 }
 
 // Create session ID interceptor that adds session_id to response metadata

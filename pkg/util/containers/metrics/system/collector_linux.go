@@ -364,7 +364,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
-	if cgs.UsageTotal != nil && cgs.InactiveFile != nil {
+	if cgs.UsageTotal != nil && cgs.InactiveFile != nil && *cgs.InactiveFile < *cgs.UsageTotal {
 		cs.WorkingSet = pointer.Ptr(float64(*cgs.UsageTotal - *cgs.InactiveFile))
 	}
 
