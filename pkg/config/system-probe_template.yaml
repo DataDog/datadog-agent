@@ -251,8 +251,7 @@
 
 #   # @param enabled - boolean - optional - default: false
 #   # @env DD_GPU_MONITORING_ENABLED - boolean - optional - default: false
-#   # Set to true to enable the GPU Monitoring module, which collects per-process
-#   # GPU utilization, memory, and performance metrics through NVML.
+#   # Set to true to enable the GPU Monitoring module, enabling collection of privileged metrics.
 #   # Must be used together with gpu.enabled: true in datadog.yaml.
 #
 #   enabled: false
