@@ -196,18 +196,19 @@ func (h *ConfigMapHandlers) ScrubBeforeExtraction(_ processors.ProcessorContext,
 
 // ScrubBeforeMarshalling strips Data, BinaryData, and ManagedFields so that ConfigMap
 // values and field-manager history are never included in the emitted manifest.
-// Data and BinaryData are kept when the ConfigMap is opted into full data collection, in which case
-// Data is scrubbed for secret-looking values first. ManagedFields is always stripped.
+// All three are kept when the ConfigMap is opted into full data collection, in which case Data is
+// scrubbed for secret-looking values first. ManagedFields is kept because it records which manager
+// last set each data key, which is part of what someone opting a ConfigMap in is looking for.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.ConfigMap)
 	if isDataCollected(ctx, r) {
 		h.scrubData(r)
-	} else {
-		r.Data = nil
-		r.BinaryData = nil
+		return
 	}
+	r.Data = nil
+	r.BinaryData = nil
 	r.ManagedFields = nil
 }
 

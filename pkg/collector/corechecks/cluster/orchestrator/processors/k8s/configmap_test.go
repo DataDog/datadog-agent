@@ -223,7 +223,7 @@ func TestConfigMapHandlers_ScrubBeforeMarshallingDataCollected(t *testing.T) {
 
 	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, cm.Data)
 	assert.NotEmpty(t, cm.BinaryData)
-	assert.Nil(t, cm.ManagedFields, "managedFields is stripped even when data is collected")
+	assert.NotEmpty(t, cm.ManagedFields, "managedFields is kept when data is collected")
 }
 
 func TestConfigMapHandlers_ScrubBeforeMarshallingScrubsCollectedData(t *testing.T) {
@@ -484,7 +484,7 @@ func TestConfigMapProcessor_ProcessDataCollected(t *testing.T) {
 	assert.Contains(t, parsed1, "binaryData")
 
 	metadata1 := parsed1["metadata"].(map[string]interface{})
-	assert.NotContains(t, metadata1, "managedFields", "managedFields is stripped even when data is collected")
+	assert.Contains(t, metadata1, "managedFields", "managedFields is kept when data is collected")
 	// The tag applies to the payload envelope only: the manifest body keeps the real etcd version.
 	assert.Equal(t, "1203", metadata1["resourceVersion"])
 
