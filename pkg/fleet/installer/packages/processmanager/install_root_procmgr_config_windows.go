@@ -18,8 +18,9 @@ import (
 )
 
 // installRootProcmgrSpec describes a processes.d config whose binary and YAML both
-// live under the same MSI Program Files install root (PAR, ADP). DDOT is different:
-// its binary is under the fleet package path while processes.d stays on the install root.
+// live under the same MSI Program Files install root (process-agent, PAR, ADP). DDOT
+// is different: its binary is under the fleet package path while processes.d stays on
+// the install root.
 type installRootProcmgrSpec struct {
 	logLabel          string
 	binaryRelPath     string

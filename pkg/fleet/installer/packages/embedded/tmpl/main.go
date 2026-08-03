@@ -13,9 +13,19 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
+
+var yamlTemplateFuncs = template.FuncMap{
+	"yamlQuote": yamlSingleQuote,
+}
+
+// yamlSingleQuote wraps s in YAML single quotes, escaping embedded apostrophes.
+func yamlSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
 
 //go:generate go run ./main.go ./gen
 
@@ -89,7 +99,7 @@ func (l embeddedLayout) writeFilesToSubdir(root string) error {
 }
 
 func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
-	tmpl, err := template.ParseFS(embedded, name)
+	tmpl, err := template.New(filepath.Base(name)).Funcs(yamlTemplateFuncs).ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
 	}
@@ -199,10 +209,18 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
+	windowsProcessCodegenData = installerTemplateData{
+		InstallDir:       "__PROCESS_INSTALL_ROOT__",
+		EtcDir:           "__PROCESS_ETC_ROOT__",
+		FleetPoliciesDir: "__PROCESS_FLEET_POLICIES_DIR__",
+		PIDDir:           "__PROCESS_INSTALL_ROOT__",
+		Stable:           true,
+	}
 	windowsProcmgrLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 	}
 	linuxProcmgrYAMLLayouts = []embeddedLayout{

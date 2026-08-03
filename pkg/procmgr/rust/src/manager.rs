@@ -51,7 +51,7 @@ impl ProcessManager {
         }
     }
 
-    async fn start(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
+    async fn start_configured_processes(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
@@ -72,7 +72,7 @@ impl ProcessManager {
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
-        self.start(&exit_tx).await;
+        self.start_configured_processes(&exit_tx).await;
 
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
@@ -424,17 +424,16 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 
 /// Spawn a background task that awaits the child's exit and sends the result.
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
-    if let Some(child) = proc.take_child() {
+    if let Some(mut handle) = proc.take_handle() {
         let name = proc.name().to_owned();
         let pid = proc.pid().unwrap_or(0);
         let handle = tokio::spawn(async move {
-            let mut child = child;
-            let status = match child.wait().await {
+            let status = match handle.wait().await {
                 Ok(status) => status,
                 Err(e) => {
                     warn!("[{name}] wait error: {e}, killing process");
-                    let _ = child.kill().await;
-                    match child.wait().await {
+                    let _ = handle.kill().await;
+                    match handle.wait().await {
                         Ok(s) => s,
                         Err(e2) => {
                             warn!("[{name}] failed to reap after kill: {e2}");

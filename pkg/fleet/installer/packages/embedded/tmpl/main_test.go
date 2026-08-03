@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
@@ -40,4 +42,31 @@ func TestGenerationIsUpToDate(t *testing.T) {
 	assert.NoError(t, err)
 
 	fixtures.AssertEqualFS(t, currentGeneratedFS, newGeneratedFS)
+}
+
+func TestYamlSingleQuote(t *testing.T) {
+	assert.Equal(t, "'C:/Program Files/Datadog/Agent'", yamlSingleQuote("C:/Program Files/Datadog/Agent"))
+	assert.Equal(t, "'C:/Program Files/Datadog/D''atadog Agent'", yamlSingleQuote("C:/Program Files/Datadog/D'atadog Agent"))
+}
+
+func TestWindowsProcessTemplateApostropheInInstallDir(t *testing.T) {
+	out := mustRenderYAMLConfig("datadog-agent-process-windows.yaml", installerTemplateData{
+		InstallDir: `C:/Program Files/D'atadog Agent`,
+		EtcDir:     `C:/ProgramData/D'atadog`,
+	})
+
+	var doc struct {
+		Command             string `yaml:"command"`
+		ConditionPathExists string `yaml:"condition_path_exists"`
+		ConditionConfigAny  []struct {
+			Path string `yaml:"path"`
+		} `yaml:"condition_config_any"`
+	}
+	require.NoError(t, yaml.Unmarshal(out, &doc))
+
+	assert.Equal(t, `C:/Program Files/D'atadog Agent/bin/agent/process-agent.exe`, doc.Command)
+	assert.Equal(t, `C:/Program Files/D'atadog Agent/bin/agent/process-agent.exe`, doc.ConditionPathExists)
+	require.Len(t, doc.ConditionConfigAny, 2)
+	assert.Equal(t, `C:/ProgramData/D'atadog/datadog.yaml`, doc.ConditionConfigAny[0].Path)
+	assert.Equal(t, `C:/ProgramData/D'atadog/system-probe.yaml`, doc.ConditionConfigAny[1].Path)
 }

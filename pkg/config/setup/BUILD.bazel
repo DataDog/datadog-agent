@@ -83,6 +83,7 @@ dd_agent_go_test(
     srcs = [
         "config_secret_test.go",
         "config_test.go",
+        "config_windows_test.go",
         "privateactionrunner_test.go",
         "process_test.go",
         "system_probe_test.go",

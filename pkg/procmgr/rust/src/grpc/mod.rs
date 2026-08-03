@@ -6,6 +6,8 @@
 pub mod server;
 pub mod service;
 
+mod caller_auth;
+
 #[cfg(not(bazel))]
 pub mod proto {
     tonic::include_proto!("datadog.procmgr");

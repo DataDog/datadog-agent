@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::config_gate::ConditionConfigFile;
 use crate::platform;
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
@@ -193,6 +194,8 @@ pub struct ProcessConfig {
     #[serde(default = "default_true")]
     pub auto_start: bool,
     pub condition_path_exists: Option<String>,
+    #[serde(default)]
+    pub condition_config_any: Vec<ConditionConfigFile>,
     pub stop_timeout: Option<u64>,
     #[serde(default = "default_restart")]
     pub restart: RestartPolicy,
@@ -228,6 +231,7 @@ impl Default for ProcessConfig {
             stderr: "inherit".to_string(),
             auto_start: true,
             condition_path_exists: None,
+            condition_config_any: Vec::new(),
             stop_timeout: None,
             restart: RestartPolicy::Never,
             restart_sec: None,
@@ -482,6 +486,34 @@ condition_path_exists: /usr/bin/sleep
         let result = load_configs(dir.path());
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_process_agent_config_gate_parsing() {
+        let dir = tempfile::tempdir().unwrap();
+        let yaml = r#"
+command: /bin/process-agent
+auto_start: true
+condition_config_any:
+  - path: /etc/datadog-agent/datadog.yaml
+    keys:
+      - process_config.enabled
+      - process_config.process_collection.enabled
+  - path: /etc/datadog-agent/system-probe.yaml
+    keys:
+      - network_config.enabled
+"#;
+        fs::write(dir.path().join("proc.yaml"), yaml).unwrap();
+        let configs = load_configs(dir.path()).unwrap();
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].config.condition_config_any.len(), 2);
+        assert_eq!(
+            configs[0].config.condition_config_any[0].keys,
+            vec![
+                "process_config.enabled".to_string(),
+                "process_config.process_collection.enabled".to_string(),
+            ]
+        );
     }
 
     #[test]

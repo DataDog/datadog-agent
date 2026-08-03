@@ -243,7 +243,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 		"datadog-security-agent",
 	}
 	// NOTE: will need to update this if we add or remove services
-	expectedServices := servicetest.ExpectedInstalledServices()
+	expectedServices := servicetest.ExpectedInstalledServicesBeforeProcmgr()
 	expectedServices = slices.DeleteFunc(expectedServices, func(s string) bool {
 		return slices.Contains(cwsServices, s)
 	})

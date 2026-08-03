@@ -50,6 +50,25 @@ const (
 	StableS3OCIRegistry = "dd-agent.s3.amazonaws.com"
 )
 
+// LegacySCMServices are Windows SCM services migrated to dd-procmgr (see RunningSCMServices).
+// Follow-up: re-evaluate installer service E2E expectations now that procmgr owns these
+// children (WINA-2912).
+var LegacySCMServices = []string{
+	"datadog-process-agent",
+	"datadog-agent-action",
+	"datadog-otel-agent",
+}
+
+// RunningSCMServices are Windows SCM services not yet migrated to dd-procmgr (see LegacySCMServices).
+var RunningSCMServices = []string{
+	"datadogagent",
+	"datadog-system-probe",
+	"datadog-security-agent",
+	"dd-procmgr-service",
+	"ddnpm",
+	"ddprocmon",
+}
+
 var (
 	// BinaryPath is the path of the Datadog Installer binary on disk
 	BinaryPath = path.Join(Path, BinaryName)

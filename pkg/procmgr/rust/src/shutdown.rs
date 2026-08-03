@@ -75,11 +75,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shutdown_all_after_take_child() {
+    async fn test_shutdown_all_after_take_handle() {
         let mut proc =
             ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
         proc.spawn().unwrap();
-        let _child = proc.take_child();
+        let _handle = proc.take_handle();
 
         assert!(proc.is_running(), "state should still be Running");
         let mut procs = vec![proc];
@@ -87,7 +87,7 @@ mod tests {
         assert_eq!(
             procs[0].state(),
             ProcessState::Stopped,
-            "shutdown should transition to Stopped even without child handle"
+            "shutdown should transition to Stopped even without process handle"
         );
     }
 
