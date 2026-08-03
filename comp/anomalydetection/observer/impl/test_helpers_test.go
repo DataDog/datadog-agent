@@ -36,6 +36,7 @@ type mockLogView struct {
 	tags        []string
 	hostname    string
 	timestampMs int64
+	sourceID    string
 }
 
 func (m *mockLogView) GetContent() string           { return m.content }
@@ -43,6 +44,7 @@ func (m *mockLogView) GetStatus() string            { return m.status }
 func (m *mockLogView) Tags() []string               { return m.tags }
 func (m *mockLogView) GetHostname() string          { return m.hostname }
 func (m *mockLogView) GetTimestampUnixMilli() int64 { return m.timestampMs }
+func (m *mockLogView) GetLogSourceID() string       { return m.sourceID }
 
 // dynamicAnomalyDetector produces one anomaly per Detect with a unique source name
 // based on currentIndex.

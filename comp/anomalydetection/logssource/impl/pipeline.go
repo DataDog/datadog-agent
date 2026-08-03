@@ -142,3 +142,9 @@ func (v *messageLogView) GetStatus() string            { return v.msg.GetStatus(
 func (v *messageLogView) Tags() []string               { return v.msg.Tags() }
 func (v *messageLogView) GetHostname() string          { return v.msg.GetHostname() }
 func (v *messageLogView) GetTimestampUnixMilli() int64 { return v.msg.GetTimestampUnixMilli() }
+func (v *messageLogView) GetLogSourceID() string {
+	if v.msg == nil || v.msg.Origin == nil || v.msg.Origin.LogSource == nil {
+		return ""
+	}
+	return logSourceIdentifier(v.msg.Origin.LogSource)
+}

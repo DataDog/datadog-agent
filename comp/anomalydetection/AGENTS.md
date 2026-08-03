@@ -162,6 +162,11 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 | `anomaly_detection.recording.enabled` | `false` | Parquet recording middleware |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
+| `anomaly_detection.detectors.log_pattern_cold_start.enabled` | `false` | Detect a sufficiently frequent, previously unseen error-log pattern on a continuously healthy source |
+| `anomaly_detection.detectors.log_pattern_cold_start.healthy_history` | `5m` | Required continuous source-health history before a new pattern |
+| `anomaly_detection.detectors.log_pattern_cold_start.min_occurrences` | `5` | Occurrences required to emit the one-shot onset anomaly |
+| `anomaly_detection.detectors.log_pattern_cold_start.occurrence_window` | `30s` | Window after first sighting in which the occurrence threshold must be reached |
+| `anomaly_detection.detectors.log_pattern_cold_start.source_health_interval` | `5s` | Live source-status sampling interval |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
 | `anomaly_detection.logs.kubelet.enabled` | `true` | Kubelet journald source |
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |

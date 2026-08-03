@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -16,6 +17,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type channelLogSourceHealth chan observerdef.LogSourceHealthObservation
+
+func (c channelLogSourceHealth) ObserveLogSourceHealth(observation observerdef.LogSourceHealthObservation) {
+	c <- observation
+}
+
+func TestAgentLogSourceHealthStartsAndStopsCleanly(t *testing.T) {
+	observations := make(channelLogSourceHealth, 2)
+	stop := startAgentLogSourceHealth(observations, time.Hour)
+	assert.True(t, (<-observations).Healthy)
+	stop()
+	assert.False(t, (<-observations).Healthy)
+}
 
 type captureHandle struct {
 	logs []observerdef.LogView

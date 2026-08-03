@@ -105,3 +105,38 @@ func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) Tags() []string               { return v.tags }
 func (v *agentLogView) GetHostname() string          { return v.hostname }
 func (v *agentLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }
+func (v *agentLogView) GetLogSourceID() string       { return agentLogSource }
+
+func startAgentLogSourceHealth(observer observerdef.LogSourceHealthObserver, interval time.Duration) func() {
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		emit := func(healthy bool) {
+			observer.ObserveLogSourceHealth(observerdef.LogSourceHealthObservation{
+				SourceID:  agentLogSource,
+				Timestamp: time.Now().Unix(),
+				Healthy:   healthy,
+			})
+		}
+		emit(true)
+		for {
+			select {
+			case <-ticker.C:
+				emit(true)
+			case <-stop:
+				emit(false)
+				return
+			}
+		}
+	}()
+	return func() {
+		close(stop)
+		<-done
+	}
+}

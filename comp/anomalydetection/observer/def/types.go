@@ -59,6 +59,30 @@ type LogView interface {
 	GetTimestampUnixMilli() int64
 }
 
+// LogSourceIDView is optionally implemented by LogView values that can expose
+// the stable identity of the tailer/source that produced the message. The
+// Observer uses it to keep per-source state without adding source identifiers
+// to metric tags.
+type LogSourceIDView interface {
+	LogView
+	GetLogSourceID() string
+}
+
+// LogSourceHealthObservation records whether a discovered log source is
+// currently being tailed successfully. Missing observations mean unknown, not
+// healthy; callers should report state periodically while the source exists.
+type LogSourceHealthObservation struct {
+	SourceID  string
+	Timestamp int64
+	Healthy   bool
+}
+
+// LogSourceHealthObserver is an optional extension implemented by Observer
+// components that consume log-source lifecycle state.
+type LogSourceHealthObserver interface {
+	ObserveLogSourceHealth(LogSourceHealthObservation)
+}
+
 // LogMetricsExtractor transforms observed logs into metrics.
 // Implementations should be fast since they run synchronously on every observed
 // log. Extractors may keep lightweight internal state when needed for pattern
@@ -88,10 +112,25 @@ type MetricOutput struct {
 	Context *MetricContext // optional; stored on the series for anomaly enrichment
 }
 
+// LogPatternObservation exposes a pattern before its extractor's normal metric
+// emission threshold. This lets cold-start detectors evaluate a new error
+// pattern without synthesizing historical metric points.
+type LogPatternObservation struct {
+	SourceID   string
+	Extractor  string
+	MetricName string
+	Pattern    string
+	Example    string
+	Timestamp  int64
+	Tags       []string
+	IsError    bool
+}
+
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
 type LogMetricsExtractorOutput struct {
-	Metrics   []MetricOutput
-	Telemetry []ObserverTelemetry
+	Metrics             []MetricOutput
+	Telemetry           []ObserverTelemetry
+	PatternObservations []LogPatternObservation
 	// EvictedMetricNames lists metric names whose series should be removed from
 	// storage (e.g. after extractor LRU eviction or garbage collection).
 	EvictedMetricNames []string

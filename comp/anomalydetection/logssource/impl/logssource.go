@@ -135,6 +135,17 @@ func NewComponent(deps Requires) (Provides, error) {
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
+	var healthTracker *sourceHealthTracker
+	if deps.Config.GetBool("anomaly_detection.detectors.log_pattern_cold_start.enabled") {
+		if sink, ok := obs.(observer.LogSourceHealthObserver); ok {
+			interval := deps.Config.GetDuration("anomaly_detection.detectors.log_pattern_cold_start.source_health_interval")
+			if interval <= 0 {
+				deps.Log.Warnf("[observer/logssource] cold-start source_health_interval must be > 0, got %s; using 5s", interval)
+				interval = 5 * time.Second
+			}
+			healthTracker = newSourceHealthTracker(logSources, sink, interval)
+		}
+	}
 
 	var sp *sourceProvider
 	var adMgr *adSourceManager
@@ -186,6 +197,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		OnStart: func(_ context.Context) error {
 			deps.Log.Infof("[observer/logssource] starting log pipeline")
 			pipeline.start()
+			if healthTracker != nil {
+				healthTracker.start(ctx)
+			}
 			launchersMgr.Start()
 			if adScheduler != nil {
 				adScheduler.Start(adMgr)
@@ -199,6 +213,9 @@ func NewComponent(deps Requires) (Provides, error) {
 			// Shutdown ordering is load-bearing — do NOT reorder.
 			// 1. Cancel context and wait for source provider to exit fully.
 			cancel()
+			if healthTracker != nil {
+				healthTracker.wait()
+			}
 			if sp != nil {
 				sp.wait()
 			}

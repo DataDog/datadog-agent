@@ -144,6 +144,22 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Detectors ----
 			{
+				name:           LogPatternColdStartDetectorName,
+				displayName:    "Log Pattern Cold Start",
+				kind:           componentDetector,
+				defaultConfig:  DefaultLogPatternColdStartConfig(),
+				factory:        func(cfg any) any { return NewLogPatternColdStartDetector(cfg.(LogPatternColdStartConfig)) },
+				defaultEnabled: false,
+				readConfig:     readLogPatternColdStartConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogPatternColdStartConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("%s: failed to parse JSON config: %w", LogPatternColdStartDetectorName, err)
+					}
+					return cfg, nil
+				},
+			},
+			{
 				name:           "cusum",
 				displayName:    "CUSUM",
 				kind:           componentDetector,
@@ -301,6 +317,32 @@ func defaultCatalog() *componentCatalog {
 			},
 		},
 	}
+}
+
+func readLogPatternColdStartConfig(reader ConfigReader, prefix string) any {
+	cfg := DefaultLogPatternColdStartConfig()
+	if key := prefix + "healthy_history"; reader.IsConfigured(key) {
+		cfg.HealthyHistorySeconds = int64(reader.GetDuration(key).Seconds())
+	}
+	if key := prefix + "min_occurrences"; reader.IsConfigured(key) {
+		cfg.MinOccurrences = reader.GetInt(key)
+	}
+	if key := prefix + "occurrence_window"; reader.IsConfigured(key) {
+		cfg.OccurrenceWindowSeconds = int64(reader.GetDuration(key).Seconds())
+	}
+	if key := prefix + "source_health_max_gap"; reader.IsConfigured(key) {
+		cfg.SourceHealthMaxGapSeconds = int64(reader.GetDuration(key).Seconds())
+	}
+	if key := prefix + "pattern_ttl"; reader.IsConfigured(key) {
+		cfg.PatternTimeToLiveSeconds = int64(reader.GetDuration(key).Seconds())
+	}
+	if key := prefix + "max_patterns_per_source"; reader.IsConfigured(key) {
+		cfg.MaxPatternsPerSource = reader.GetInt(key)
+	}
+	if key := prefix + "max_sources"; reader.IsConfigured(key) {
+		cfg.MaxSources = reader.GetInt(key)
+	}
+	return cfg
 }
 
 // Instantiate creates component instances. Settings provides per-component
