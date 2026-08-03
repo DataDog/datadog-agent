@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -475,13 +476,17 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		msi.WithMsiFromPackagePath(target, agentPackage),
 		msi.WithLogFile(logFile),
 	}
-	if env.MsiParams.AgentUserName != "" {
+	// msi.Cmd() places typed properties after raw args on the command line regardless of
+	// option order, so a getenv() fallback (AgentUserName, AgentUserKeepRights) would
+	// silently win over an explicit value already in args. Guard against that.
+	// AgentUserPassword has no fallback, so it's not at risk.
+	if env.MsiParams.AgentUserName != "" && !argsHaveProperty(args, "DDAGENTUSER_NAME") {
 		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	if env.MsiParams.AgentUserKeepRights != "" {
+	if env.MsiParams.AgentUserKeepRights != "" && !argsHaveProperty(args, "DDAGENTUSER_KEEP_RIGHTS") {
 		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
 	opts = append(opts, msi.WithProperties(props))
@@ -502,6 +507,18 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		return err
 	}
 	return nil
+}
+
+// argsHaveProperty returns true if args already contains an explicit "property=value" entry
+// for the given MSI property.
+func argsHaveProperty(args []string, property string) bool {
+	prefix := property + "="
+	for _, arg := range args {
+		if strings.HasPrefix(arg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func removeProductIfInstalled(ctx context.Context, product string) (err error) {
@@ -670,12 +687,9 @@ func getenv() *env.Env {
 		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
 	}
 
-	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out.
-	// Fleet upgrades uninstall the previous MSI and install the new one as two
-	// separate transactions (unlike an in-place MSI major upgrade), so the
-	// uninstall step removes the registry copy of this value before the
-	// reinstall's own registry read can run. Reading it here, before the
-	// uninstall happens, is what carries the operator's choice forward.
+	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out. Fleet upgrades uninstall
+	// then reinstall the MSI as two transactions, wiping the registry copy in between, so we
+	// read it here - before the uninstall - to carry it forward.
 	if env.MsiParams.AgentUserKeepRights == "" {
 		keepRights, err := getAgentUserKeepRightsFromRegistry()
 		if err != nil {
