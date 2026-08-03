@@ -8,10 +8,6 @@ go_library(
         "gui_common.go",
     ],
     # keep
-    data = [
-        "config-refresh/fixtures/config.yaml.tmpl",
-        "config-refresh/fixtures/security-agent.yaml",
-    ],
     embedsrcs = [
         "config-refresh/fixtures/config.yaml.tmpl",
         "config-refresh/fixtures/security-agent.yaml",
@@ -46,11 +42,8 @@ go_test(
         "sgc_nix_test.go",
         "sgc_win_test.go",
     ],
-    # keep
-    data = [
-        "secret/fixtures/secret_script.py",
-    ],
     embed = [":agent-configuration"],
+    # keep
     embedsrcs = [
         "secret/fixtures/secret_script.py",
         "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
