@@ -7,6 +7,7 @@ package queryactionsimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -591,6 +592,238 @@ func TestOnRCUpdate_PreservesUnrelatedInstances(t *testing.T) {
 	assert.False(t, rdsHasQueries, "RDS instance must remain a plain DBM instance with no DO queries")
 }
 
+// TestBuildRemainder_SapHanaServerKey is a focused regression test for buildRemainder using the
+// "server" key and the "host:port" identifier form sap_hana backends actually send. sap_hana
+// instances key the host under "server" (not "host") with a separate "port", while the RC
+// identifier arrives as "server:port" (e.g. "172.17.128.2:39041"). buildRemainder must recognize
+// the targeted server as DO-managed and drop it from the remainder. Before the fix it compared the
+// absent "host" key against the "host:port" identifier, so no sap_hana instance ever matched and
+// the targeted one was wrongly kept, duplicating collection.
+func TestBuildRemainder_SapHanaServerKey(t *testing.T) {
+	const targetedServer = "172.17.128.2"
+	const siblingServer = "172.17.128.3"
+	const port = 39041
+	base := &integration.Config{
+		Name:     "sap_hana",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("server: %s\nport: %d\n", targetedServer, port)),
+			integration.Data(fmt.Sprintf("server: %s\nport: %d\n", siblingServer, port)),
+		},
+	}
+	// matchedHosts holds DBIdentifier.Host verbatim: the "host:port" form for sap_hana.
+	targetedHostPort := fmt.Sprintf("%s:%d", targetedServer, port)
+	siblingHostPort := fmt.Sprintf("%s:%d", siblingServer, port)
+
+	t.Run("targeted server excluded, sibling kept", func(t *testing.T) {
+		remainder := buildRemainder(base, map[string]bool{targetedHostPort: true})
+		require.NotNil(t, remainder, "sibling instance must keep the remainder alive")
+		require.Len(t, remainder.Instances, 1, "targeted server must be excluded from the remainder")
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &instance))
+		assert.Equal(t, siblingServer, instance["server"], "remainder should hold only the untargeted sibling")
+	})
+
+	t.Run("all servers targeted yields nil remainder", func(t *testing.T) {
+		remainder := buildRemainder(base, map[string]bool{targetedHostPort: true, siblingHostPort: true})
+		assert.Nil(t, remainder, "no instances should remain when every sap_hana server is DO-managed")
+	})
+}
+
+// TestOnRCUpdate_SapHana_ExcludesTargetedInstanceFromRemainder is the end-to-end regression test
+// for the "3 parallel sap_hana check instances" bug, using the real "host:port" identifier form.
+// A base config bundles two sap_hana instances (keyed by "server"); a DO config targets only the
+// first via a "server:port" identifier. The targeted server must run solely as the DO check while
+// the sibling stays in the remainder. Before the fix the remainder wrongly kept the targeted
+// server too, so it ran both as the DO check and in the remainder alongside the original
+// file-provider config.
+func TestOnRCUpdate_SapHana_ExcludesTargetedInstanceFromRemainder(t *testing.T) {
+	const targetedServer = "172.17.128.2"
+	const siblingServer = "172.17.128.3"
+	const port = 39041
+	sapHanaCfg := integration.Config{
+		Name:     "sap_hana",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("server: %s\nport: %d\ndata_observability:\n  enabled: true\n", targetedServer, port)),
+			integration.Data(fmt.Sprintf("server: %s\nport: %d\ndata_observability:\n  enabled: true\n", siblingServer, port)),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sapHanaCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-saphana",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: fmt.Sprintf("%s:%d", targetedServer, port)},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-saphana": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-saphana"].State)
+
+	// The original two-instance base config is unscheduled.
+	require.Len(t, changes.Unschedule, 1)
+
+	// Exactly two configs scheduled: the DO check for the targeted server and the remainder holding
+	// only the untargeted sibling. A third scheduled instance would be the regression.
+	require.Len(t, changes.Schedule, 2)
+
+	serversOf := func(cfg integration.Config) []string {
+		servers := make([]string, 0, len(cfg.Instances))
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+			servers = append(servers, instance["server"].(string))
+		}
+		return servers
+	}
+
+	var doCfg, remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; hasQueries {
+			doCfg = &changes.Schedule[i]
+		} else {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, doCfg, "a DO check config should be scheduled")
+	require.NotNil(t, remainder, "a remainder config should be scheduled")
+
+	assert.Equal(t, []string{targetedServer}, serversOf(*doCfg), "DO check should carry only the targeted sap_hana server")
+	assert.Equal(t, []string{siblingServer}, serversOf(*remainder), "remainder must exclude the targeted server and keep only the sibling")
+}
+
+// TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder is a regression test for a
+// bare-host DBIdentifier (as postgres backends send) matching more than one instance on the same
+// base config. Two postgres instances share host "dbhost" but differ by port; the DO payload
+// targets the bare host, which findMatchingConfig resolves to the first instance (port 5432).
+// buildRemainder must exclude only that resolved instance from the remainder — matching against
+// the bare payload host directly would also match the sibling on port 5433 and wrongly drop it,
+// silently stopping its normal DBM collection.
+func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testing.T) {
+	const sharedHost = "dbhost"
+	const targetedPort = 5432
+	const siblingPort = 5433
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, targetedPort)),
+			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, siblingPort)),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-samehost",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: sharedHost},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-samehost": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-samehost"].State)
+
+	// Exactly two configs scheduled: the DO check for the targeted port and the remainder holding
+	// only the untargeted sibling port. A remainder with zero instances (or none scheduled) would
+	// mean the sibling on port 5433 was wrongly dropped.
+	require.Len(t, changes.Schedule, 2)
+
+	portsOf := func(cfg integration.Config) []int {
+		ports := make([]int, 0, len(cfg.Instances))
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+			ports = append(ports, instance["port"].(int))
+		}
+		return ports
+	}
+
+	var doCfg, remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; hasQueries {
+			doCfg = &changes.Schedule[i]
+		} else {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, doCfg, "a DO check config should be scheduled")
+	require.NotNil(t, remainder, "a remainder config should be scheduled")
+
+	assert.Equal(t, []int{targetedPort}, portsOf(*doCfg), "DO check should carry only the targeted port")
+	assert.Equal(t, []int{siblingPort}, portsOf(*remainder), "remainder must keep the untargeted sibling port")
+}
+
+// TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder is a regression test for a
+// matched instance that omits "port" (e.g. relying on the default) while a sibling instance on the
+// same host has an explicit, different port. The resolved identity of the portless matched
+// instance falls back to the bare host, which a naive host-or-host:port match against the sibling
+// would still hit (the sibling's bare host is identical), wrongly excluding the ported sibling
+// from the remainder. Exact instanceIdentity equality must not match the sibling, since the
+// sibling's own identity includes its port.
+func TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder(t *testing.T) {
+	const sharedHost = "dbhost"
+	const siblingPort = 5433
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("host: %s\ndata_observability:\n  enabled: true\n", sharedHost)),
+			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, siblingPort)),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-portless",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: sharedHost},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-portless": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-portless"].State)
+
+	// Exactly two configs scheduled: the DO check for the portless instance and the remainder
+	// holding only the ported sibling. A remainder with zero instances would mean the sibling on
+	// port 5433 was wrongly dropped.
+	require.Len(t, changes.Schedule, 2)
+
+	var doCfg, remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; hasQueries {
+			doCfg = &changes.Schedule[i]
+		} else {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, doCfg, "a DO check config should be scheduled")
+	require.NotNil(t, remainder, "a remainder config should be scheduled")
+
+	var remainderInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &remainderInstance))
+	assert.Equal(t, sharedHost, remainderInstance["host"])
+	assert.Equal(t, siblingPort, remainderInstance["port"], "remainder must keep the ported sibling, not drop it via the portless matched identity")
+}
+
 // TestOnRCUpdate_MultipleDOConfigsSameBase verifies that two DO configs targeting two different
 // instances of the same base config never leave an instance both in the remainder and as a DO
 // check (which would double-run it). With both instances targeted, no remainder is scheduled.
@@ -998,4 +1231,71 @@ func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
 	assert.Equal(t, 60, q["interval_seconds"], "interval_seconds should be present")
 	_, hasSchedule := q["schedule"]
 	assert.False(t, hasSchedule, "schedule field must be absent when not set on the query")
+}
+
+// TestOnRCUpdate_SecondUpdateReusesStoredBase is a regression test for a bug where a SECOND RC
+// update for an already-active config_id could resurrect the true original base config alongside
+// a new DO check. After the first update, the base config's targeted instance is no longer
+// present in GetUnresolvedConfigs() — autodiscovery only reports currently-scheduled configs, and
+// reconcileBases has by then unscheduled it in favor of the DO check. Without reusing the stored
+// base, a second onRCUpdate call would instead match the DO component's own previously-scheduled
+// check as the "base" (it also satisfies matchesIdentifier + instanceHasDOEnabled), corrupting the
+// digest reconcileBases tracks and causing it to wrongly restore the true original — exactly the
+// "three parallel checks" duplication bug, triggered by a second update instead of the first.
+func TestOnRCUpdate_SecondUpdateReusesStoredBase(t *testing.T) {
+	const server = "172.17.128.2"
+	const port = 39041
+	sapHanaCfg := integration.Config{
+		Name:     "sap_hana",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data(fmt.Sprintf("server: %s\nport: %d\ndata_observability:\n  enabled: true\n", server, port)),
+		},
+	}
+
+	mockAC := &mockAutodiscovery{
+		Component: fxutil.Test[autodiscovery.Component](t, noopautoconfig.Module()),
+		configs:   []integration.Config{sapHanaCfg},
+	}
+	c := &component{
+		log:           logmock.New(t),
+		ac:            mockAC,
+		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
+	}
+
+	dbID := DBIdentifier{Type: "self-hosted", Host: fmt.Sprintf("%s:%d", server, port)}
+	makePayload := func(n int) []byte {
+		queries := make([]QuerySpec, n)
+		for i := range queries {
+			queries[i] = QuerySpec{Type: "run_query", Query: fmt.Sprintf("SELECT %d", i), IntervalSeconds: 60, TimeoutSeconds: 10}
+		}
+		data, err := json.Marshal(DOQueryPayload{ConfigID: "cfg-saphana", DBIdentifier: dbID, Queries: queries})
+		require.NoError(t, err)
+		return data
+	}
+
+	// Update 1: 2 queries. The true original base has no other instances, so it's fully
+	// unscheduled (no remainder) in favor of the DO check.
+	_, changes1 := collectStatuses(c, map[string]state.RawConfig{"path/cfg-saphana": {Config: makePayload(2)}})
+	require.Len(t, changes1.Unschedule, 1, "the true original base should be unscheduled")
+	require.Len(t, changes1.Schedule, 1, "only the DO check should be scheduled")
+
+	// Simulate autodiscovery applying changes1: the true original is gone from the active set;
+	// only the DO check (which itself satisfies matchesIdentifier + instanceHasDOEnabled) remains.
+	mockAC.configs = []integration.Config{changes1.Schedule[0]}
+
+	// Update 2: same config_id, now 3 queries — e.g. a monitor edit changing the query count.
+	_, changes2 := collectStatuses(c, map[string]state.RawConfig{"path/cfg-saphana": {Config: makePayload(3)}})
+
+	// Regression check: the true original (0-query) base must never be rescheduled. Every config
+	// scheduled by update 2 must carry DO queries.
+	for _, cfg := range changes2.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &instance))
+		doSection, ok := instance["data_observability"].(map[string]any)
+		require.True(t, ok, "scheduled config missing data_observability section — looks like the wrongly-restored original")
+		queries, _ := doSection["queries"].([]any)
+		assert.NotEmpty(t, queries, "scheduled config has no DO queries — looks like the wrongly-restored original")
+	}
 }

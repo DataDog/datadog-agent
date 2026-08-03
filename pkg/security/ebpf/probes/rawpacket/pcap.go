@@ -32,13 +32,15 @@ const (
 
 	// raw packet data, see kernel definition
 	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
-	// Layout: kevent_t[0:16] + process_context_t[16:56] + span_context_t[56:80] + cgroup_context_t[80:96] + network_device_context_t[96:104] + len[104:108] + data[108:]
+	// Layout: kevent_t[0:16] + process_context_t[16:56] + span_context_t[56:88] + cgroup_context_t[88:104] + network_device_context_t[104:112] + len[112:116] + data[116:]
 	structRawPacketEventPidOffset      = 16
-	structRawPacketEventCgroupIdOffset = 80
-	structRawPacketEventDataOffset     = 108
+	structRawPacketEventCgroupIdOffset = 88
+	structRawPacketEventDataOffset     = 116
 
 	// payload size
 	structRawPacketEventDataSize = 256
+
+	dropStatsKeyStackOffset = int16(-8)
 )
 
 // ProgOpts defines options
@@ -60,6 +62,7 @@ type ProgOpts struct {
 	ctxSaveReg            asm.Register
 	tailCallMapFd         int
 	hasGetCurrentCgroupId bool
+	dropStatsMapFd        int
 }
 
 // DefaultProgOpts default options
@@ -97,6 +100,37 @@ func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupId bool) *ProgOp
 	return opts
 }
 
+// WithDropStatsMapFd sets the map fd used to count dropped packets per filter index.
+func (opts *ProgOpts) WithDropStatsMapFd(fd int) *ProgOpts {
+	opts.dropStatsMapFd = fd
+	return opts
+}
+
+func dropStatsIncrementInsts(filterIndex int, dropStatsMapFd int, nextLabel string) asm.Instructions {
+	incLabel := fmt.Sprintf("inc_drop_stat_%d", filterIndex)
+
+	return asm.Instructions{
+		// Put the key on the stack
+		asm.Mov.Reg(asm.R1, asm.RFP).WithSymbol(incLabel),
+		asm.Add.Imm(asm.R1, int32(dropStatsKeyStackOffset)),
+		asm.Mov.Imm(asm.R2, int32(filterIndex)),
+		asm.StoreMem(asm.R1, 0, asm.R2, asm.Word),
+		// Lookup in the map
+		asm.LoadMapPtr(asm.R1, dropStatsMapFd),
+		asm.Mov.Reg(asm.R2, asm.RFP),
+		asm.Add.Imm(asm.R2, int32(dropStatsKeyStackOffset)),
+		asm.FnMapLookupElem.Call(),
+		// should never happen
+		asm.JEq.Imm(asm.R0, 0, nextLabel),
+		// Increment
+		asm.Mov.Reg(asm.R5, asm.R0),
+		asm.LoadMem(asm.R6, asm.R5, 0, asm.Word),
+		asm.Add.Imm(asm.R6, 1),
+		asm.StoreMem(asm.R5, 0, asm.R6, asm.Word),
+		asm.Ja.Label(nextLabel),
+	}
+}
+
 // FilterToInsts compile a bpf filter expression
 func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, error) {
 	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter.BPFFilter)
@@ -131,25 +165,42 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 		)
 		resultLabel = ""
 	}
+	useDropStats := opts.dropStatsMapFd != 0
 
+	// Initialize labels
 	mismatchLabel := fmt.Sprintf("mismatch_%d_", index)
+	afterDropStatsLabel := fmt.Sprintf("after_drop_stat_%d", index)
+	matchLabel := opts.onMatchLabel
+	mismatchTail := asm.Instructions{
+		asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
+	}
+	skipLabel := mismatchLabel
+
+	// Change labels if it's a drop filter with drop stats
+	if useDropStats {
+		matchLabel = fmt.Sprintf("inc_drop_stat_%d", index)
+		skipLabel = afterDropStatsLabel
+		mismatchTail = asm.Instructions{
+			asm.Ja.Label(skipLabel),
+		}
+	}
 
 	if filter.Pid != 0 {
 		insts = append(insts,
 			// == 0, no match
-			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
+			asm.JEq.Imm(cbpfcOpts.Result, 0, skipLabel).WithSymbol(resultLabel),
 
 			// check the pid
 			// load the pid from the packet
 			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventPidOffset, asm.Word),
-			asm.JEq.Imm(asm.R7, int32(filter.Pid), opts.onMatchLabel),
-			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel), // nop instruction, just hold the symbol
+			asm.JEq.Imm(asm.R7, int32(filter.Pid), matchLabel),
 		)
+		insts = append(insts, mismatchTail...)
 	} else if !filter.CGroupPathKey.IsNull() {
 		// use the cgroup id which the inode of the cgroup path
 		insts = append(insts,
 			// == 0, no match
-			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
+			asm.JEq.Imm(cbpfcOpts.Result, 0, skipLabel).WithSymbol(resultLabel),
 
 			// load the cgroup id from the packet
 			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventCgroupIdOffset, asm.DWord),
@@ -169,21 +220,33 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 
 			// check the cgroup id
 			asm.LoadImm(asm.R4, int64(filter.CGroupPathKey.Inode), asm.DWord),
-			asm.JEq.Reg(asm.R7, asm.R4, opts.onMatchLabel),
-			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel), // nop instruction, just hold the symbol
+			asm.JEq.Reg(asm.R7, asm.R4, matchLabel),
+		)
+		insts = append(insts, mismatchTail...)
+	} else if useDropStats {
+		insts = append(insts,
+			asm.JEq.Imm(cbpfcOpts.Result, 0, skipLabel).WithSymbol(resultLabel),
+			asm.Ja.Label(matchLabel),
 		)
 	} else {
 		insts = append(insts,
-			asm.JNE.Imm(cbpfcOpts.Result, 0, opts.onMatchLabel).WithSymbol(resultLabel),
+			asm.JNE.Imm(cbpfcOpts.Result, 0, matchLabel).WithSymbol(resultLabel),
 		)
 	}
+
+	if useDropStats {
+		insts = append(insts, dropStatsIncrementInsts(index, opts.dropStatsMapFd, opts.onMatchLabel)...)
+		insts = append(insts, asm.Mov.Imm(asm.R4, 0).WithSymbol(afterDropStatsLabel)) // nop instruction, just hold the symbol
+	}
+
 	return insts, nil
 }
 
-// we want to creates progs like that
-// prog1 -> tc1 -> footer -> prog2 -> tc2 -> footer -> progN -> footer
-// where each prog is like this
-// header -> filter 1 -> filter 2 -> ... -> filter n -> footer
+// we want to create progs like that
+// prog1 -> prog2 -> ... -> progN
+//
+// where each prog is:
+// header -> filter 1 -> filter 2 -> ... -> filter n -> [tail_call] -> footer
 func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
 	var (
 		progInsts []asm.Instructions
@@ -193,6 +256,10 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 	)
 
 	for i, filter := range filters {
+		if i >= MaxDropActionFilters {
+			mErr = multierror.Append(mErr, fmt.Errorf("too many filters, stop adding filters, max is %d", MaxDropActionFilters))
+			break
+		}
 		filterInsts, err := FilterToInsts(i, filter, opts)
 		if err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bytecode for rule `%s`: %s", filter.RuleID, err))

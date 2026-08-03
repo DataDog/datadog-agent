@@ -8,11 +8,11 @@ proc_declare_regex = r'^procBindEnvAndSetDefault\(\w+, (.*)\)'
 event_monitor_regex = r'^eventMonitorBindEnvAndSetDefault\(\w+, (.*)\)'
 
 bind_env_logs = r'bindEnvAndSetLogsConfigKeys\(\w+, "([\w_\.]+)"'
-bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]+)"'
+bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]*)"'
 
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
-# `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value), so we accumulate lines until the
+# `[]string{...}` default, or a `getPlatformDefault(map[...]{...})` value), so we accumulate lines until the
 # parentheses balance and only then match the joined statement against the single-line regexes above.
 DECL_START_PREFIXES = (
     'config.BindEnvAndSetDefault(',
@@ -44,6 +44,7 @@ def analyze_file(sourcefile):
             continue
 
         if line == '':
+            p.blank()
             continue
 
         if within_func_init_config:
@@ -99,6 +100,11 @@ class Processor:
         self.currfunc = ''
         self.settings = []
         self.internal_comment = []
+
+    def blank(self):
+        if len(self.settings) and self.settings[len(self.settings) - 1][0] == '':
+            return
+        self.settings.append(['', '', '-blank-'])
 
     def clearfunc(self):
         if not self.settings:
@@ -175,7 +181,7 @@ class Processor:
             return
 
         # A declaration whose parentheses don't close on this line continues onto the following lines (split
-        # arguments, a multi-line `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value).
+        # arguments, a multi-line `[]string{...}` default, or a `getPlatformDefault(map[...]{...})` value).
         if self._paren_balance(line) > 0:
             self.accum_multiline = [line]
             self.within_multiline = True
