@@ -3,10 +3,10 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metric
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.82.0-rc.9
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/lightstep/go-expohisto v1.0.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.155.0
@@ -22,8 +22,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.9 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -48,7 +48,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

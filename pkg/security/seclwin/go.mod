@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/security/seclwin
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.82.0-rc.9
 )
 
 require (
@@ -14,10 +14,10 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

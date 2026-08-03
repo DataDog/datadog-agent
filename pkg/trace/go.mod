@@ -7,25 +7,25 @@ go 1.25.0
 // for more details.
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/api v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/template v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/api v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/template v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.9
 	github.com/DataDog/datadog-go/v5 v5.9.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -47,7 +47,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/sys v0.47.0
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
@@ -55,11 +55,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.9 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.3 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
@@ -116,9 +116,9 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

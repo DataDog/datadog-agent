@@ -4,10 +4,10 @@ go 1.25.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.205
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.82.0-rc.9
 	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.11.1
@@ -20,12 +20,12 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.9 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -52,7 +52,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

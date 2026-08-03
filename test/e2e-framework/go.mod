@@ -6,10 +6,10 @@ require (
 	al.essio.dev/pkg/shellescape v1.6.0
 	cloud.google.com/go/compute v1.64.0
 	dario.cat/mergo v1.0.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/test/fakeintake v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/test/fakeintake v0.82.0-rc.9
 	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.42.1
@@ -50,7 +50,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/crypto v0.53.0
+	golang.org/x/crypto v0.54.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.6
@@ -66,14 +66,14 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/metrics v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/metrics v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.9 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -139,21 +139,21 @@ require (
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-openapi/jsonpointer v0.23.1 // indirect
-	github.com/go-openapi/jsonreference v0.21.5 // indirect
+	github.com/go-openapi/jsonpointer v1.0.0 // indirect
+	github.com/go-openapi/jsonreference v1.0.0 // indirect
 	github.com/go-openapi/swag v0.25.5 // indirect
 	github.com/go-openapi/swag/cmdutils v0.25.5 // indirect
-	github.com/go-openapi/swag/conv v0.25.5 // indirect
-	github.com/go-openapi/swag/fileutils v0.25.5 // indirect
+	github.com/go-openapi/swag/conv v0.27.3 // indirect
+	github.com/go-openapi/swag/fileutils v0.27.3 // indirect
 	github.com/go-openapi/swag/jsonname v0.26.0 // indirect
-	github.com/go-openapi/swag/jsonutils v0.25.5 // indirect
-	github.com/go-openapi/swag/loading v0.25.5 // indirect
-	github.com/go-openapi/swag/mangling v0.25.5 // indirect
+	github.com/go-openapi/swag/jsonutils v0.27.3 // indirect
+	github.com/go-openapi/swag/loading v0.27.3 // indirect
+	github.com/go-openapi/swag/mangling v0.27.3 // indirect
 	github.com/go-openapi/swag/netutils v0.25.5 // indirect
-	github.com/go-openapi/swag/stringutils v0.25.5 // indirect
-	github.com/go-openapi/swag/typeutils v0.25.5 // indirect
-	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
-	github.com/go-openapi/testify/enable/yaml/v2 v2.4.1 // indirect
+	github.com/go-openapi/swag/pools v0.27.3 // indirect
+	github.com/go-openapi/swag/stringutils v0.27.3 // indirect
+	github.com/go-openapi/swag/typeutils v0.27.3 // indirect
+	github.com/go-openapi/swag/yamlutils v0.27.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.2.5 // indirect
@@ -257,12 +257,12 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 // indirect
 	golang.org/x/mod v0.37.0 // indirect
-	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/term v0.44.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/api v0.279.0 // indirect

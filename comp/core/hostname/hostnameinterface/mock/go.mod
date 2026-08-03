@@ -3,14 +3,14 @@ module github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/moc
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0-rc.9
 	go.uber.org/fx v1.24.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0-rc.9 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -20,7 +20,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

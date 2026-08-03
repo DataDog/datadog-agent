@@ -3,11 +3,11 @@ module github.com/DataDog/datadog-agent/pkg/trace/stats
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/trace v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/proto v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/trace v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0-rc.9
 	github.com/DataDog/datadog-go/v5 v5.9.0
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/google/gofuzz v1.2.0
@@ -18,9 +18,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0-rc.9 // indirect
 	github.com/DataDog/go-sqllexer v0.2.3 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -55,7 +55,7 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -3,17 +3,17 @@ module github.com/DataDog/datadog-agent/pkg/util/cgroups
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0-rc.9
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.82.0-rc.9 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -23,7 +23,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
