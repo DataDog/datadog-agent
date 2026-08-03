@@ -53,7 +53,7 @@ type internalHealthMetricsPipelineResolution struct {
 //   - remove infraattributes processor from metrics processors pipeline
 //   - At least one otlp_http exporter with dd-api-key declared & used
 //   - Check if used otlp_http exporter has dd-api-key as string, if not string convert it, if not at all notify user
-//   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
+//   - If profiling::symbol_uploader::enabled == true, convert api_key to string in each endpoint
 //   - If no profiling is used & configured, add minimal one with symbol_uploader: false
 //   - remove hpflare extensions
 type converterWithoutAgent struct{}
@@ -335,7 +335,7 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 
 // checkProfilingReceiverConfig validates and normalizes a profiling receiver configuration.
 // It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
-// and all api_key/app_key values are strings.
+// and all api_key values are strings.
 func (c *converterWithoutAgent) checkProfilingReceiverConfig(profiling confMap) error {
 	if isEnabled, ok := confmaputils.Get[bool](profiling, pathSymbolUploaderEnabled); !ok || !isEnabled {
 		return nil
@@ -354,7 +354,6 @@ func (c *converterWithoutAgent) checkProfilingReceiverConfig(profiling confMap) 
 	for _, epAny := range endpoints {
 		if ep, ok := epAny.(confMap); ok {
 			ensureKeyStringValue(ep, fieldAPIKey)
-			ensureKeyStringValue(ep, fieldAppKey)
 		}
 	}
 	return nil
