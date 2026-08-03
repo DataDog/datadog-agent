@@ -259,6 +259,9 @@ markdown_extensions:
     check_paths: true
     base_path:
     - docs/public/.snippets
+    # Repo root, so docs pages can embed a section of a normative in-repo file
+    # (e.g. a codereview_guideline.md) rather than restating it.
+    - .
     auto_append:
     - links.txt
     - abbrs.txt

@@ -1,46 +1,22 @@
 # Test dependencies
 
-E2E tests run on real VMs and clusters. Anything a test fetches from the public internet at test time — a package, an image, an installer, a Helm chart — is a dependency on infrastructure nobody at Datadog controls.
+E2E tests run on real VMs and clusters. Anything a test fetches from the public internet at test time is a dependency on infrastructure nobody at Datadog controls — DockerHub throttles, distro mirrors go down, and `apt install <pkg>` quietly installs something different six months from now. CI will also lose outbound internet access.
 
-/// admonition | CI is losing internet access
-    type: warning
+/// info
+The **rules** — what is allowed, in what order of preference, and the requirement to pin versions — are in <<<repo("test/new-e2e/codereview_guideline.md", match="^### Avoiding external dependencies$")>>>, which is what review checks a PR against. It also carries the checklist for <<<repo("test/new-e2e/codereview_guideline.md", "spotting a runtime dependency", match="^#### Spotting a runtime dependency$")>>> in a diff.
 
-Outbound internet access will be blocked from CI. A test that installs or downloads anything from a public host today will fail then, so treat every such fetch as something to move, not something to keep.
+This page is the *how*: the mechanisms behind each alternative, the commands, and the parts that bite.
 ///
 
-Two things go wrong long before that, though, and are the reason most flakes trace back to this page:
+## Where each kind of dependency goes
 
-- **Rate limiting and mirror outages.** DockerHub throttles aggressively; distro mirrors go down; GitHub release downloads fail under load. Each is a failure with nothing to do with the Agent.
-- **Silent drift.** `apt install <pkg>` installs whatever is latest today. Packages get renamed, removed, or change behaviour, and the test that breaks is the one you wrote six months ago.
-
-The short-form rules live in <<<repo("test/new-e2e/codereview_guideline.md")>>>. This page is the long-form "how".
-
-## Spotting a runtime dependency
-
-Look for these shapes in a provisioner, a test body, or an embedded script:
-
-| Smell | Example |
+| What you need | Mechanism |
 |---|---|
-| A package manager on the host | `vm.Execute("sudo apt-get install -y jq")`, `yum install`, `zypper`, `choco` |
-| A download from a public host | `curl https://…`, `wget`, `Invoke-WebRequest`, `msiexec /i https://…` |
-| An image reference with no registry | `docker run busybox`, `FROM ubuntu:22.04`, `image: redis` in a compose or k8s manifest |
-| A language package manager | `pip install`, `npm i`, `gem install`, `cargo install` |
-| A remotely-hosted manifest | `kubectl apply -f https://…`, a Helm `repository:` URL, a remote kustomize base |
-| A "just in case" installer | code that checks whether a tool exists and installs it if not — the installation path is exactly the one that breaks in CI |
-
-The last one is worth calling out: a conditional install looks harmless because it usually no-ops. It only runs on the hosts where it is most likely to fail, and it fails intermittently, which is the worst debugging shape.
-
-## Where to put the dependency instead
-
-In rough order of preference:
-
-| What you need | Do this |
-|---|---|
-| Something the standard library or Go can do | Don't take the dependency. You rarely need `jq` — unmarshal the JSON in Go. |
-| A public container image | Rewrite the reference at the [ECR pull-through cache](#ecr-pull-through-cache) |
+| A public container image | [ECR pull-through cache](#ecr-pull-through-cache) |
 | A CLI tool or system package on the VM | [Prebake it into the machine image](#prebake-into-the-machine-image) |
-| A third-party binary, installer, or tarball | Vendor it in the [S3 artifact bucket](#s3-artifact-bucket) |
-| A tool that ships as a container image | Run it from the pull-through cache instead of installing it on the host |
+| A third-party binary, installer, or tarball | [S3 artifact bucket](#s3-artifact-bucket) |
+| A tool that ships as a container image | Run it from the cache rather than installing it on the host |
+| Something that genuinely cannot be prebaked yet | [Quarantine the install](#when-you-genuinely-cannot-prebake-yet) |
 
 ## ECR pull-through cache
 
@@ -48,23 +24,7 @@ In rough order of preference:
 It is a **cache, not a mirror**. There is no "request that an image be added" process — the first pull of a tag populates it transparently. Rewriting the reference is the whole task.
 ///
 
-The cache lives in the `datadog-agent-qa` account (`669783387624`), `us-east-1`, and covers three upstreams:
-
-| Upstream | Prefix |
-|---|---|
-| DockerHub | `669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/…` |
-| Public ECR | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/…` |
-| Quay | `669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/…` |
-
-DockerHub official images keep their `library/` path, so `busybox:1.37.0` becomes `…/dockerhub/library/busybox:1.37.0`.
-
-GHCR is **not** an upstream. If the image you want is only on GHCR, find an equivalent on a supported upstream rather than pulling it directly.
-
-/// warning
-Pulling from `public.ecr.aws/…` directly is **not** an approved alternative, even though it is not rate-limited today. Route it through the `ecr-public/` namespace above, so that the reference keeps working when CI loses outbound internet access. The same goes for `mirror.gcr.io` and any other public mirror.
-
-There is existing code that does this — roughly ten third-party references still point straight at `public.ecr.aws`. That is debt, not precedent. (Datadog's own published images, `public.ecr.aws/datadog/…`, are a separate question and are not part of that count.)
-///
+--8<-- "test/new-e2e/codereview_guideline.md:registries"
 
 Don't hardcode the registry host. Read it from the runner parameter store, so the same test works in a different account:
 
@@ -109,9 +69,7 @@ If you see `User: arn:aws:sts::… is not authorized to perform: ecr:BatchGetIma
 
 ### Outside AWS
 
-There is no pull-through cache in GCP or Azure, and `InternalDockerhubMirror()` falls back to `registry-1.docker.io` there. For a test that only ever runs on GCP, the provider's own registry — or `mirror.gcr.io`, which is in-network for GCP — is an acceptable answer. Do not import that habit into an AWS test, where the cache exists and is the requirement.
-
-Ask #agent-devx-help before relying on any other public mirror.
+`InternalDockerhubMirror()` resolves to the cache on AWS and falls back to `registry-1.docker.io` in GCP, Azure and locally, so framework code that uses the helper degrades gracefully. Test code that hardcodes a cache URL does not.
 
 ## S3 artifact bucket
 
@@ -146,12 +104,3 @@ Some matrices are hard to prebake — the GPU suite runs on NVIDIA driver images
 Do the same if you have no other option. One file with a ticket in its header is trackable; three `Execute("apt-get install …")` calls scattered across a provisioner are not.
 
 The related shape for clouds without prebaked images is an explicit opt-in helper rather than an implicit install. `test/e2e-framework/components/docker/{InstallDocker,InstallCompose}` are exactly that: no-ops nobody calls on AWS, called deliberately by the Azure and GCP provisioners.
-
-## Pin everything
-
-Whatever route you take, pin the version, and pin a `sha256sum` where the transport allows it. An unpinned dependency is a scheduled outage:
-
-- a container image with no tag is `latest`
-- `apt install <pkg>` is "whatever the mirror has today", and mirrors do not keep old versions
-- a `curl` URL without a version fragment resolves to a moving target
-- a Helm chart or manifest referenced by branch rather than tag is unpinned in the same way

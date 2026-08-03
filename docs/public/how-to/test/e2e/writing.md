@@ -1,7 +1,7 @@
 # Writing E2E tests
 
 /// info
-The rules a new test is reviewed against live in <<<repo("test/new-e2e/codereview_guideline.md")>>>. This page covers the framework mechanics; that file covers the expectations.
+This page covers the framework mechanics. The rules a new test is reviewed against — reliability, timing, structuring parent and child tests, keeping suites fast, CI wiring — are in <<<repo("test/new-e2e/codereview_guideline.md")>>>. Read that before writing a new suite.
 ///
 
 ## Test Framework Usage
@@ -66,54 +66,3 @@ func (v *vmSuite) TestAgentReportsMetrics() {
 /// warning
 Do not install anything from the public internet in a test body — no `apt-get install`, no `curl https://…`. It is the single largest source of E2E flakiness, and CI is losing outbound internet access. See [Test dependencies](dependencies.md).
 ///
-
-## Test Categories and Scenarios
-
-### Installation and Deployment Tests
-- Fresh installation on clean systems
-- Package manager installations (APT, YUM, MSI)
-- Container deployment validation
-- Kubernetes operator deployment
-
-### Upgrade and Migration Tests
-- Agent version upgrades
-- Configuration migration
-- Rollback scenarios
-- Zero-downtime upgrades
-
-### Platform Integration Tests
-- Cloud provider integrations (AWS, Azure, GCP)
-- Container runtime compatibility (Docker, containerd, CRI-O)
-- Kubernetes version compatibility
-- Operating system support validation
-
-### Performance and Scale Tests
-- High-throughput metric collection
-- Resource consumption validation
-- Memory leak detection
-- Long-running stability tests
-
-### Security and Compliance Tests
-- Security configuration validation
-- Compliance framework testing
-- Permission and access control verification
-- Secure communication validation
-
-## Best Practices
-
-### Test Design
-- **Single Responsibility**: Each test should validate one specific workflow
-- **Clear Assertions**: Use descriptive assertion messages
-- **Proper Timeouts**: Set appropriate timeouts for operations
-- **Resource Management**: Always clean up created resources
-
-### Performance Considerations
-- **Parallel Execution**: Design tests to run in parallel when possible
-- **Resource Efficiency**: Reuse infrastructure when appropriate
-- **Test Duration**: Keep individual tests under 10 minutes when possible
-
-### Maintenance
-- **Regular Updates**: Keep test environments updated with latest agent versions
-- **Documentation**: Document test scenarios and expected outcomes
-- **Monitoring**: Monitor test execution times and failure rates
-- **Version Compatibility**: Test against supported platform versions
