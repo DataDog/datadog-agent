@@ -61,7 +61,14 @@ After you apply the updated Custom Resource, the Operator rolls out a new Agent 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## Seccomp (optional)
+## Additional settings
+
+The following optional settings are available if needed:
+
+- [Seccomp](#seccomp) and [AppArmor](#apparmor) add security hardening.
+- [Selective deployment](#selective-deployment) controls which nodes run the Host Profiler.
+
+### Seccomp
 
 Seccomp provides extra hardening by restricting the syscalls available to the Host Profiler container. The Host Profiler does not require seccomp to run in this preview.
 
@@ -83,7 +90,7 @@ spec:
               localhostProfile: host-profiler.json
 ```
 
-## AppArmor (optional)
+### AppArmor
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
 
@@ -102,7 +109,7 @@ spec:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective deployment (optional)
+### Selective deployment
 
 The `agent.datadoghq.com/host-profiler-enabled` annotation enables the Host Profiler on every node by default. To limit the Host Profiler to selected nodes, use a [`DatadogAgentProfile`](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md) instead of setting the annotation directly on the `DatadogAgent` Custom Resource. This feature requires Datadog Operator **v1.30.0** or later.
 
@@ -130,8 +137,6 @@ Remove the Host Profiler annotations from the `DatadogAgent` Custom Resource. Ad
 The profile supports these Host Profiler annotations:
 
 - `agent.datadoghq.com/host-profiler-enabled` enables the Host Profiler.
-- `agent.datadoghq.com/host-profiler-seccomp-enabled` controls the Host Profiler's localhost seccomp profile and the init container that installs it. The default is enabled; set it to `"false"` to disable both.
-- `agent.datadoghq.com/host-profiler-logging-seccomp-enabled` enables verbose seccomp logging. It has no effect when seccomp is disabled.
 - `experimental.agent.datadoghq.com/image-override-config` overrides the Host Profiler image.
 
 For example:

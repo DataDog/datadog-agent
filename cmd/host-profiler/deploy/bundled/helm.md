@@ -55,7 +55,14 @@ After you apply the updated values, Helm rolls out a new Agent DaemonSet revisio
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## AppArmor (optional)
+## Additional settings
+
+The following optional settings are available if needed:
+
+- [AppArmor](#apparmor) adds security hardening.
+- [Selective deployment](#selective-deployment) controls which nodes run the Host Profiler.
+
+### AppArmor
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
 
@@ -71,7 +78,7 @@ datadog:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective deployment (optional)
+### Selective deployment
 
 The Datadog Agent DaemonSet, including the Host Profiler, runs on every node by default. Add one of the following settings to `values.yaml` to schedule it on selected nodes.
 
@@ -108,7 +115,7 @@ agents:
       effect: NoSchedule
 ```
 
-### Deploy a second, node-scoped Agent release
+#### Deploy a second, node-scoped Agent release
 
 If a cluster-wide Agent release already runs, create a second Helm release for the Host Profiler and scope it to the target nodes with `nodeSelector` or `affinity`. Prevent the primary release from scheduling its DaemonSet on those nodes, for example by excluding them with `agents.affinity.nodeAffinity`.
 

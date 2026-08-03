@@ -61,7 +61,14 @@ After you apply the manifests, the OpenTelemetry Operator reconciles the Custom 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## AppArmor (optional)
+## Additional settings
+
+The following optional settings are available if needed:
+
+- [AppArmor](#apparmor) adds security hardening.
+- [Selective deployment](#selective-deployment) controls which nodes run the Host Profiler.
+
+### AppArmor
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
 
@@ -79,7 +86,7 @@ securityContext:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective deployment (optional)
+### Selective deployment
 
 The DaemonSet runs the Host Profiler on every node by default. Add one of the following settings to [`operator/collector.yaml`](operator/collector.yaml) to schedule it on selected nodes.
 
