@@ -6,9 +6,11 @@
 package agenttelemetry
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
@@ -134,6 +137,22 @@ func (s *errorTrackingOTelAgentSuite) getNodeAgentPodName() string {
 	return pods.Items[0].Name
 }
 
+// getOTelAgentContainerLogs returns the "otel-agent" container's stdout for
+// podName, restricted to entries logged at or after since.
+func (s *errorTrackingOTelAgentSuite) getOTelAgentContainerLogs(ctx context.Context, podName string, since time.Time) (string, error) {
+	sinceTime := metav1.NewTime(since)
+	stream, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(otelAgentDatadogNamespace).GetLogs(podName, &corev1.PodLogOptions{
+		Container: "otel-agent",
+		SinceTime: &sinceTime,
+	}).Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer stream.Close()
+	out, err := io.ReadAll(stream)
+	return string(out), err
+}
+
 // TestPayloadShape verifies the otel-agent's own kubeletstats scrape-error
 // ERROR log reaches FakeIntake tagged agent.flavor:otel_agent. Filtered by
 // stack trace since the core agent sharing this pod could forward its own errors too.
@@ -178,29 +197,22 @@ func (s *errorTrackingOTelAgentSuite) TestDisabledByDefault() {
 	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	podName := s.getNodeAgentPodName()
+	ctx := s.T().Context()
+	since := time.Now()
 
-	// Clear the log file after resetting FakeIntake so the wait below only matches
-	// an occurrence generated after the reset, not a stale one from before it.
-	_, _, execErr := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-		otelAgentDatadogNamespace, podName, "otel-agent",
-		[]string{"sh", "-c", "truncate -s 0 /var/log/datadog/otel-agent.log"})
-	require.NoError(s.T(), execErr)
-
-	// Wait until the scrape error appears in the otel-agent's own log file,
-	// confirming the error is generated locally before asserting it is not
-	// forwarded to telemetry.
+	// Wait until the scrape error appears in the current node-agent pod's
+	// stdout, re-resolved on every retry since the Helm upgrade rolls it.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		out, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-			otelAgentDatadogNamespace, podName, "otel-agent",
-			[]string{"sh", "-c", "awk '/" + otelScrapeErrorMessage + "/{count++} END{print count+0}' /var/log/datadog/otel-agent.log"})
-		assert.NoError(c, err)
-		assert.NotEqual(c, "0", strings.TrimSpace(out))
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for scrape error to appear in otel-agent log")
+		podName := s.getNodeAgentPodName()
+		out, err := s.getOTelAgentContainerLogs(ctx, podName, since)
+		if err != nil {
+			assert.Fail(c, fmt.Sprintf("log fetch error for pod %s: %v", podName, err))
+			return
+		}
+		assert.Contains(c, out, otelScrapeErrorMessage)
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for scrape error to appear in otel-agent log")
 
-	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
-	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would
-	// flush within this window and the assertion would catch it.
+	// Confirm nothing is forwarded across five flush cycles (flush_interval_seconds: 1).
 	assert.Never(s.T(), func() bool {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(s.T(), err)
