@@ -45,7 +45,7 @@ def _default_repo_builder_impl(rctx):
         exec_compatible_with = rctx.attr.exec_compatible_with,
     )
 
-def make_repo_builder(name, tool_name, impl = _default_repo_builder_impl):
+def make_toolchain_repository_rule(name, tool_name, impl = _default_repo_builder_impl):
     return repository_rule(
         implementation = impl,
         doc = """Create a repository that defines a {name} toolchain based on tool in the default $PATH.""".format(name = name),
