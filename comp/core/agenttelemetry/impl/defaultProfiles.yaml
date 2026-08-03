@@ -22,9 +22,11 @@ profiles:
       - name: checks.max_returned_metrics_reached
         preserve_tags:
           - check_name
+          - limit_type
       - name: checks.max_returned_metrics_dropped
         preserve_tags:
           - check_name
+          - limit_type
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:
