@@ -42,9 +42,10 @@ func NewProcessTagger(taggerComp tagger.Component, wmeta workloadmeta.Component,
 	return pt
 }
 
-// SetContainerProvider sets the container provider after construction.
+// SetContainerProvider updates the container provider on the existing cache.
+// Called lazily after construction once the shared provider becomes available.
 func (pt *ProcessTagger) SetContainerProvider(p proccontainers.ContainerProvider) {
-	if pt.cache == nil {
+	if pt.cache == nil || p == nil {
 		return
 	}
 	pt.cache.SetContainerProvider(p)
