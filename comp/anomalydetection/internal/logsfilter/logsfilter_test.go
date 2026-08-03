@@ -108,6 +108,22 @@ func TestMinBucketForSeverity(t *testing.T) {
 	assert.Equal(t, WarnPriority, MinBucketForSeverity("garbage"))
 }
 
+func TestIsValidMinSeverity(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{
+		{"", true},
+		{"trace", true},
+		{"warning", true},
+		{"fatal", true},
+		{"off", true},
+		{"verbose", false},
+	} {
+		assert.Equal(t, tc.want, IsValidMinSeverity(tc.value), tc.value)
+	}
+}
+
 func TestMinSeverityGatesCorrectly(t *testing.T) {
 	cases := []struct {
 		minSeverity string

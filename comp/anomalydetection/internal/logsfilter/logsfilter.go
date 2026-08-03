@@ -117,25 +117,46 @@ func BucketForStatus(status string) PriorityBucket {
 //   - "off" → OffPriority (blocks everything)
 //   - unrecognised non-empty string → WarnPriority (safe default)
 func MinBucketForSeverity(minSeverity string) PriorityBucket {
+	bucket, _ := parseMinSeverity(minSeverity)
+	return bucket
+}
+
+// IsValidMinSeverity reports whether minSeverity is an accepted configuration
+// value. Empty is valid and means that no minimum severity is applied.
+func IsValidMinSeverity(minSeverity string) bool {
+	_, valid := parseMinSeverity(minSeverity)
+	return valid
+}
+
+// WarnInvalidMinSeverity emits a startup warning for an unsupported
+// min_severity value. The caller can continue using MinBucketForSeverity,
+// which retains its safe WarnPriority fallback.
+func WarnInvalidMinSeverity(key, value string) {
+	if !IsValidMinSeverity(value) {
+		pkglog.Warnf("config %s has unrecognized value %q; using the safe default warn", key, value)
+	}
+}
+
+func parseMinSeverity(minSeverity string) (PriorityBucket, bool) {
 	switch strings.ToLower(strings.TrimSpace(minSeverity)) {
 	case "":
-		return TracePriority - 1 // below TracePriority → all logs pass
+		return TracePriority - 1, true // below TracePriority → all logs pass
 	case "trace":
-		return TracePriority
+		return TracePriority, true
 	case "debug":
-		return DebugPriority
+		return DebugPriority, true
 	case "info":
-		return InfoPriority
+		return InfoPriority, true
 	case "warn", "warning":
-		return WarnPriority
+		return WarnPriority, true
 	case "error":
-		return ErrorPriority
+		return ErrorPriority, true
 	case "critical", "fatal", "alert", "emergency":
-		return CriticalPriority
+		return CriticalPriority, true
 	case "off":
-		return OffPriority
+		return OffPriority, true
 	default:
-		return WarnPriority // safe default for unrecognised values
+		return WarnPriority, false // safe default for unrecognised values
 	}
 }
 
