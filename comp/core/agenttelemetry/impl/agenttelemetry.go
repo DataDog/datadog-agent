@@ -471,8 +471,8 @@ func convertPromCountersToDatadogCountersValues(metrics []*dto.Metric, prevPromM
 		key := keyNames[i]
 		curValue := m.GetCounter().GetValue()
 
-		// Adjust the counter value if found
-		if prevValue, ok := prevPromMetricValues[key]; ok {
+		// A lower cumulative value marks a producer reset, so its current value is the delta.
+		if prevValue, ok := prevPromMetricValues[key]; ok && curValue >= prevValue {
 			*m.GetCounter().Value -= prevValue
 		}
 
