@@ -21,8 +21,10 @@ const DEQUEUE_PATH: &str = "/api/v2/on-prem-management-service/workflow-tasks/de
 const TASK_UPDATE_PATH: &str =
     "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update";
 const HEARTBEAT_PATH: &str = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat";
+const HEALTH_CHECK_PATH: &str = "/api/v2/on-prem-management-service/runner/health-check";
 
 const RETRY_AFTER_HEADER: &str = "X-Retry-After-Ms";
+const SERVER_TIME_HEADER: &str = "X-Server-Time";
 /// Cap on a server-requested retry-after (matches `maxRetryAfter` on the Go side).
 const MAX_RETRY_AFTER: Duration = Duration::from_secs(120);
 
@@ -120,6 +122,25 @@ pub enum HeartbeatResult {
     NotFound,
 }
 
+/// Outcome of a runner health check. A non-200 status is *not* an error here:
+/// the Go client also returns the parsed header data on rejection so the loop
+/// can still honor a server-requested pacing hint.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HealthCheck {
+    pub status: u16,
+    /// `X-Server-Time`, kept verbatim for logging (Go only logs it).
+    pub server_time: Option<String>,
+    pub retry_after: Option<Duration>,
+    /// Bounded body quote; empty when the check succeeded.
+    pub detail: String,
+}
+
+impl HealthCheck {
+    pub fn ok(&self) -> bool {
+        self.status == 200
+    }
+}
+
 /// The OPMS operations the control plane performs. Async trait (edition 2024);
 /// implementors must be `Send + Sync` so the orchestrator can share and spawn.
 pub trait Opms: Send + Sync {
@@ -138,6 +159,11 @@ pub trait Opms: Send + Sync {
         &self,
         task: &Task,
     ) -> impl std::future::Future<Output = Result<HeartbeatResult>> + Send;
+
+    /// Report runner liveness to OPMS, independently of task flow. This is the
+    /// only signal a runner with no work emits, so the control plane must send it
+    /// exactly like the Go `CommonRunner` health-check loop does.
+    fn health_check(&self) -> impl std::future::Future<Output = Result<HealthCheck>> + Send;
 }
 
 /// Build the JSON:API dequeue request body (client mode: `type` + attributes, no id),
@@ -242,6 +268,7 @@ fn now_rfc3339() -> String {
 struct HttpResponse {
     status: u16,
     retry_after: Option<Duration>,
+    server_time: Option<String>,
     body: Vec<u8>,
 }
 
@@ -371,10 +398,25 @@ impl HttpOpms {
         Ok(headers)
     }
 
-    /// POST `body` to `path` with the standard headers + a fresh JWT. Returns the
-    /// raw response (status/retry-after/body) without treating a non-2xx status as
-    /// an error, so callers can decide (matching Go).
+    /// POST `body` to `path` with the standard headers + a fresh JWT.
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<HttpResponse> {
+        self.request(reqwest::Method::POST, path, Some(body)).await
+    }
+
+    /// GET `path` with the standard headers + a fresh JWT.
+    async fn get(&self, path: &str) -> Result<HttpResponse> {
+        self.request(reqwest::Method::GET, path, None).await
+    }
+
+    /// Send a signed request. Returns the raw response (status/headers/body)
+    /// without treating a non-2xx status as an error, so callers can decide
+    /// (matching Go).
+    async fn request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<Vec<u8>>,
+    ) -> Result<HttpResponse> {
         let jwt = self
             .signer
             .sign()
@@ -383,11 +425,11 @@ impl HttpOpms {
             .base_url
             .join(path)
             .with_context(|| format!("building OPMS request URL for {path}"))?;
-        let response = self
-            .client
-            .post(url)
-            .headers(self.headers(jwt)?)
-            .body(body)
+        let mut request = self.client.request(method, url).headers(self.headers(jwt)?);
+        if let Some(body) = body {
+            request = request.body(body);
+        }
+        let response = request
             .send()
             .await
             .with_context(|| format!("OPMS request to {path} failed"))?;
@@ -399,6 +441,11 @@ impl HttpOpms {
             .and_then(|value| value.parse::<u64>().ok())
             .filter(|milliseconds| *milliseconds > 0)
             .map(|milliseconds| Duration::from_millis(milliseconds).min(MAX_RETRY_AFTER));
+        let server_time = response
+            .headers()
+            .get(SERVER_TIME_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
         let body = response
             .bytes()
             .await
@@ -407,6 +454,7 @@ impl HttpOpms {
         Ok(HttpResponse {
             status,
             retry_after,
+            server_time,
             body,
         })
     }
@@ -540,6 +588,21 @@ impl Opms for HttpOpms {
                 resp.error_detail()
             ),
         }
+    }
+
+    async fn health_check(&self) -> Result<HealthCheck> {
+        let resp = self.get(HEALTH_CHECK_PATH).await?;
+        let detail = if resp.status == 200 {
+            String::new()
+        } else {
+            resp.error_detail()
+        };
+        Ok(HealthCheck {
+            status: resp.status,
+            server_time: resp.server_time,
+            retry_after: resp.retry_after,
+            detail,
+        })
     }
 }
 
@@ -817,6 +880,122 @@ mod tests {
         );
     }
 
+    /// The health check is the only OPMS call an idle runner makes, so its wire
+    /// shape is pinned here: a signed **GET** on the runner health-check path,
+    /// with the server's pacing hint and server time surfaced to the caller. A
+    /// rejection must still return the parsed headers (Go builds its
+    /// `HealthCheckData` before returning the error), otherwise a 429 would be
+    /// answered by hammering OPMS at the default interval.
+    #[tokio::test]
+    async fn health_check_is_a_signed_get_that_surfaces_server_pacing() {
+        for (status_line, expected_status) in [("200 OK", 200_u16), ("429 Too Many Requests", 429)]
+        {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let server = tokio::spawn(async move {
+                use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                let mut byte = [0_u8; 1];
+                while !request.ends_with(b"\r\n\r\n") {
+                    stream.read_exact(&mut byte).await.unwrap();
+                    request.push(byte[0]);
+                }
+                let body = br#"{"errors":["slow down"]}"#;
+                let head = format!(
+                    "HTTP/1.1 {status_line}\r\nContent-Length: {}\r\n\
+                     {SERVER_TIME_HEADER}: 2026-02-03T04:05:06Z\r\n\
+                     {RETRY_AFTER_HEADER}: 45000\r\n\r\n",
+                    body.len()
+                );
+                stream.write_all(head.as_bytes()).await.unwrap();
+                stream.write_all(body).await.unwrap();
+                stream.flush().await.unwrap();
+                String::from_utf8_lossy(&request).to_string()
+            });
+
+            let opms = HttpOpms::new(
+                format!("http://127.0.0.1:{port}"),
+                Arc::new(crate::jwt::test_support::StaticSigner("jwt-health".into())),
+                HttpOpmsConfig {
+                    runner_version: "7.83.0".into(),
+                    modes: vec!["pull".into()],
+                    timeout: Duration::from_secs(10),
+                    proxy: ProxyConfig::default(),
+                    tls: TlsConfig::default(),
+                    extra_headers: HashMap::new(),
+                },
+            )
+            .unwrap();
+
+            let check = opms.health_check().await.expect("health check");
+            assert_eq!(check.status, expected_status);
+            assert_eq!(check.ok(), expected_status == 200);
+            assert_eq!(check.server_time.as_deref(), Some("2026-02-03T04:05:06Z"));
+            assert_eq!(check.retry_after, Some(Duration::from_millis(45_000)));
+            if expected_status == 200 {
+                assert!(check.detail.is_empty());
+            } else {
+                assert!(check.detail.contains("slow down"), "{}", check.detail);
+            }
+
+            let request = server.await.unwrap();
+            assert!(
+                request.starts_with(&format!("GET {HEALTH_CHECK_PATH} HTTP/1.1")),
+                "unexpected request line in: {request}"
+            );
+            assert!(
+                request.contains("jwt-health"),
+                "missing JWT header in: {request}"
+            );
+        }
+    }
+
+    /// A server-requested pacing hint must stay bounded, so a misconfigured or
+    /// hostile OPMS cannot silence liveness reporting for hours.
+    #[tokio::test]
+    async fn health_check_retry_after_is_capped() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0_u8; 1];
+            while !request.ends_with(b"\r\n\r\n") {
+                stream.read_exact(&mut byte).await.unwrap();
+                request.push(byte[0]);
+            }
+            stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n{RETRY_AFTER_HEADER}: 86400000\r\n\r\n"
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            stream.flush().await.unwrap();
+        });
+
+        let opms = HttpOpms::new(
+            format!("http://127.0.0.1:{port}"),
+            Arc::new(crate::jwt::test_support::StaticSigner("jwt".into())),
+            HttpOpmsConfig {
+                runner_version: "7.83.0".into(),
+                modes: vec!["pull".into()],
+                timeout: Duration::from_secs(10),
+                proxy: ProxyConfig::default(),
+                tls: TlsConfig::default(),
+                extra_headers: HashMap::new(),
+            },
+        )
+        .unwrap();
+        let check = opms.health_check().await.unwrap();
+        assert_eq!(check.retry_after, Some(MAX_RETRY_AFTER));
+        server.await.unwrap();
+    }
+
     /// Proves Agent HTTPS proxy configuration results in a CONNECT tunnel and
     /// that proxy credentials are kept on CONNECT rather than sent to OPMS.
     #[tokio::test]
@@ -916,6 +1095,7 @@ mod tests {
         let resp = |body: Vec<u8>| HttpResponse {
             status: 400,
             retry_after: None,
+            server_time: None,
             body,
         };
 

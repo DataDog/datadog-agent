@@ -27,6 +27,11 @@ type parServerState struct {
 	queue        []parQueuedTask
 	results      map[string]*api.PARTaskResult
 	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
+	// healthCheckCalls counts runner health checks. This is the only OPMS call an
+	// idle runner makes, so it is how a test proves liveness reporting happens at
+	// all — in split mode the always-on control plane owns it, since the Go
+	// monolith that normally runs the health-check loop is standing down.
+	healthCheckCalls int
 }
 
 type parQueuedTask struct {
@@ -236,6 +241,10 @@ func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (fi *Server) handlePARHealthCheck(w http.ResponseWriter, _ *http.Request) {
+	fi.par.mu.Lock()
+	fi.par.healthCheckCalls++
+	fi.par.mu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data": map[string]interface{}{
@@ -298,6 +307,7 @@ func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	fi.par.queue = nil
 	fi.par.results = make(map[string]*api.PARTaskResult)
 	fi.par.dequeueCalls = 0
+	fi.par.healthCheckCalls = 0
 	fi.par.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
@@ -305,9 +315,13 @@ func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 func (fi *Server) handlePARStats(w http.ResponseWriter, _ *http.Request) {
 	fi.par.mu.Lock()
 	calls := fi.par.dequeueCalls
+	healthChecks := fi.par.healthCheckCalls
 	fi.par.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]int{"dequeue_calls": calls})
+	_ = json.NewEncoder(w).Encode(map[string]int{
+		"dequeue_calls":      calls,
+		"health_check_calls": healthChecks,
+	})
 }
 
 // parSplitFQN splits "com.foo.bar.actionName" into ("com.foo.bar", "actionName").

@@ -8,7 +8,7 @@
 
 use crate::config::Config;
 use crate::executor::{Dispatcher, SigningKey};
-use crate::opms::{HeartbeatResult, Opms, Outcome, PublishResult, Task};
+use crate::opms::{HealthCheck, HeartbeatResult, Opms, Outcome, PublishResult, Task};
 use crate::procmgr::ExecutorLifecycle;
 use log::{debug, error, info, warn};
 use std::future::Future;
@@ -32,6 +32,8 @@ pub struct Params {
     pub idle_timeout: Duration,
     /// Only while an action's result stream is open.
     pub heartbeat_interval: Duration,
+    /// Runner liveness reporting to OPMS, independent of task flow.
+    pub health_check_interval: Duration,
     /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
@@ -53,6 +55,7 @@ impl Params {
             key_sync_timeout: config.key_sync_timeout,
             idle_timeout: config.idle_timeout,
             heartbeat_interval: config.heartbeat_interval,
+            health_check_interval: config.health_check_interval,
             min_backoff: config.min_backoff,
             max_backoff: config.max_backoff,
             wait_before_retry: config.wait_before_retry,
@@ -111,6 +114,13 @@ where
         let mut attempt: u32 = 1;
         tokio::pin!(shutdown);
 
+        // Liveness reporting runs for the whole process lifetime, deliberately
+        // decoupled from key readiness and task flow: an idle or wedged runner
+        // still has to tell OPMS it is alive, exactly like the Go CommonRunner's
+        // health-check loop, which starts before the workflow runner is ready.
+        let (stop_health, health_done) =
+            spawn_health_checks(Arc::clone(&self.opms), self.params.health_check_interval);
+
         // All loop sleeps must remain interruptible by shutdown.
         macro_rules! sleep_or_shutdown {
             ($duration:expr) => {
@@ -130,6 +140,7 @@ where
             let prewarm = tokio::select! {
                 _ = &mut shutdown => {
                     info!("shutdown requested during executor pre-warm");
+                    stop_health_checks(stop_health, health_done).await;
                     return;
                 }
                 result = self.ensure_ready() => result,
@@ -145,6 +156,7 @@ where
             tokio::select! {
                 _ = &mut shutdown => {
                     info!("shutdown requested during executor pre-warm backoff");
+                    stop_health_checks(stop_health, health_done).await;
                     return;
                 }
                 _ = tokio::time::sleep(self.params.min_backoff) => {}
@@ -338,6 +350,8 @@ where
                 self.params.drain_timeout
             ),
         }
+
+        stop_health_checks(stop_health, health_done).await;
     }
 
     /// Ensure the executor is started and reports ready, bounded by `ready_timeout`.
@@ -473,6 +487,79 @@ async fn publish_with_retry<O: Opms + 'static>(
     }
 }
 
+/// How often a *successful* health check is logged at info level. Mirrors the Go
+/// loop's `ddlog.NewLogLimit(1, 10*time.Minute)`: liveness reporting every 30
+/// seconds would otherwise be 2,880 identical info lines per day on an idle host.
+const HEALTH_CHECK_LOG_INTERVAL: Duration = Duration::from_secs(600);
+
+/// Spawn the OPMS runner health-check loop. It reports liveness every `interval`
+/// until the returned sender is fired/dropped, honoring a server-requested
+/// pacing hint (`X-Retry-After-Ms`) the same way the Go loop does — including on
+/// a rejected check, so a throttling OPMS is not answered with more traffic.
+///
+/// A failed check is logged and retried on the next tick: this loop must never
+/// abort, because giving up would make the runner look permanently dead to OPMS
+/// while it is in fact still dequeuing and executing actions.
+fn spawn_health_checks<O: Opms + 'static>(
+    opms: Arc<O>,
+    interval: Duration,
+) -> (
+    tokio::sync::oneshot::Sender<()>,
+    tokio::task::JoinHandle<()>,
+) {
+    let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        // The first check is sent after one full interval, matching Go's
+        // `time.NewTimer(defaultInterval)`.
+        let mut delay = interval;
+        let mut last_info: Option<Instant> = None;
+        loop {
+            tokio::select! {
+                _ = &mut stop_rx => return,
+                _ = tokio::time::sleep(delay) => {}
+            }
+            match opms.health_check().await {
+                Ok(check) => {
+                    delay = check.retry_after.unwrap_or(interval);
+                    log_health_check(&check, &mut last_info);
+                }
+                Err(e) => {
+                    error!("OPMS health check failed: {e:#}");
+                    delay = interval;
+                }
+            }
+        }
+    });
+    (stop_tx, handle)
+}
+
+/// Stop the health-check loop and wait for it, so a shutting-down control plane
+/// does not leave a request in flight past the drain deadline.
+async fn stop_health_checks(
+    stop: tokio::sync::oneshot::Sender<()>,
+    done: tokio::task::JoinHandle<()>,
+) {
+    let _ = stop.send(());
+    let _ = done.await;
+}
+
+fn log_health_check(check: &HealthCheck, last_info: &mut Option<Instant>) {
+    let server_time = check.server_time.as_deref().unwrap_or("unknown");
+    if !check.ok() {
+        error!(
+            "OPMS health check failed with status {}: {}",
+            check.status, check.detail
+        );
+        return;
+    }
+    if last_info.is_none_or(|at| at.elapsed() >= HEALTH_CHECK_LOG_INTERVAL) {
+        info!("OPMS health check succeeded (server time {server_time})");
+        *last_info = Some(Instant::now());
+    } else {
+        debug!("OPMS health check succeeded (server time {server_time})");
+    }
+}
+
 /// Spawn a task that heartbeats `task`'s OPMS lease every `interval` until the
 /// returned sender is dropped/fired. The first heartbeat is emitted after one
 /// full interval (the immediate `interval` tick is consumed).
@@ -522,6 +609,7 @@ mod tests {
         published: usize,
         failures: usize,
         heartbeats: usize,
+        health_checks: usize,
         max_concurrent: usize,
         concurrent: usize,
         sync_calls: usize,
@@ -549,6 +637,10 @@ mod tests {
         sync_release: tokio::sync::Semaphore,
         // Simulate OPMS forgetting a task on its first heartbeat.
         heartbeat_not_found: bool,
+        // Health checks answer with this status (200 unless a test overrides it).
+        health_check_status: u16,
+        // Health checks fail at the transport level.
+        fail_health_check: bool,
     }
 
     impl Default for Fakes {
@@ -565,6 +657,8 @@ mod tests {
                 block_sync: false,
                 sync_release: tokio::sync::Semaphore::new(0),
                 heartbeat_not_found: false,
+                health_check_status: 200,
+                fail_health_check: false,
             }
         }
     }
@@ -617,6 +711,19 @@ mod tests {
                 return Ok(HeartbeatResult::NotFound);
             }
             Ok(HeartbeatResult::Alive)
+        }
+
+        async fn health_check(&self) -> anyhow::Result<HealthCheck> {
+            self.state.lock().unwrap().health_checks += 1;
+            if self.fail_health_check {
+                anyhow::bail!("simulated health-check outage");
+            }
+            Ok(HealthCheck {
+                status: self.health_check_status,
+                server_time: Some("2026-02-03T04:05:06Z".into()),
+                retry_after: None,
+                detail: String::new(),
+            })
         }
     }
 
@@ -686,6 +793,8 @@ mod tests {
             key_sync_timeout: Duration::from_secs(1),
             idle_timeout: Duration::from_secs(3600),
             heartbeat_interval,
+            // Long enough that only tests that opt in observe a health check.
+            health_check_interval: Duration::from_secs(3600),
             min_backoff: Duration::from_millis(1),
             max_backoff: Duration::from_millis(10),
             wait_before_retry: Duration::from_millis(20),
@@ -1156,5 +1265,161 @@ mod tests {
             "the crashing task is dequeued once, not retried"
         );
         assert_eq!(s.failures, 1, "a crash publishes exactly one failure");
+    }
+
+    /// The always-on control plane must report liveness to OPMS on its own
+    /// schedule, and keep reporting it while the runner is idle. Without this the
+    /// split runner is invisible to OPMS between tasks, even though the monolith
+    /// it replaces health-checks every 30 seconds.
+    #[tokio::test]
+    async fn reports_liveness_to_opms_while_idle() {
+        let fakes = Arc::new(Fakes::default());
+        let mut params = test_params(1, Duration::from_secs(3600));
+        params.health_check_interval = Duration::from_millis(5);
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            params,
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if fakes.state.lock().unwrap().health_checks >= 3 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("no periodic OPMS health check was sent");
+
+        let _ = tx.send(());
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("run() must return promptly")
+            .expect("orchestrator task panicked");
+
+        // The loop is owned by run(): once it returns, nothing keeps polling OPMS.
+        let after_shutdown = fakes.state.lock().unwrap().health_checks;
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        assert_eq!(
+            fakes.state.lock().unwrap().health_checks,
+            after_shutdown,
+            "health checks must stop when the control plane stops"
+        );
+    }
+
+    /// Liveness reporting must survive a failing health check and a control plane
+    /// still stuck waiting on its executor: those are exactly the situations where
+    /// operators need the runner's health signal, and a loop that aborted on the
+    /// first error — or only started once pre-warm succeeded — would go silent
+    /// precisely then.
+    #[tokio::test]
+    async fn liveness_reporting_survives_failures_and_a_stalled_prewarm() {
+        let fakes = Arc::new(Fakes {
+            fail_health_check: true,
+            // Pre-warm blocks forever, so the main dequeue loop is never reached.
+            block_sync: true,
+            ..Default::default()
+        });
+        let mut params = test_params(1, Duration::from_secs(3600));
+        params.health_check_interval = Duration::from_millis(5);
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            params,
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if fakes.state.lock().unwrap().health_checks >= 3 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("a failing health check must be retried, not abandoned");
+
+        assert_eq!(
+            fakes.state.lock().unwrap().sync_calls,
+            0,
+            "pre-warm is still blocked; health checks must not depend on it"
+        );
+
+        let _ = tx.send(());
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("shutdown during pre-warm must stop the health-check loop too")
+            .expect("orchestrator task panicked");
+    }
+
+    /// A rejected health check is logged, not retried immediately, and the
+    /// server's pacing hint is honored (mirrors the Go loop's use of
+    /// `HealthCheckData.RetryAfter`, which is populated even on error).
+    #[tokio::test]
+    async fn rejected_health_check_is_paced_by_the_server() {
+        let opms = Arc::new(Fakes {
+            health_check_status: 429,
+            ..Default::default()
+        });
+        let (stop, done) = spawn_health_checks(Arc::clone(&opms), Duration::from_millis(5));
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if opms.state.lock().unwrap().health_checks >= 2 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("a rejected health check must be retried on the next tick");
+        stop_health_checks(stop, done).await;
+
+        let mut last_info = None;
+        // A 200 logs at info the first time, then throttles; a rejection always
+        // logs at error. Exercised here so the formatting path cannot panic.
+        log_health_check(
+            &HealthCheck {
+                status: 200,
+                server_time: None,
+                retry_after: None,
+                detail: String::new(),
+            },
+            &mut last_info,
+        );
+        assert!(last_info.is_some());
+        let first = last_info;
+        log_health_check(
+            &HealthCheck {
+                status: 200,
+                server_time: Some("2026-02-03T04:05:06Z".into()),
+                retry_after: None,
+                detail: String::new(),
+            },
+            &mut last_info,
+        );
+        assert_eq!(
+            last_info, first,
+            "a second success inside the log-limit window must not reset it"
+        );
     }
 }

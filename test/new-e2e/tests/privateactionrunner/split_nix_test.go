@@ -77,6 +77,21 @@ func (s *linuxPARSplitSuite) SetupSuite() {
 	s.waitForProcessState(parExecutorProcess, "Stopped", 2*time.Minute)
 }
 
+// TestSplitRunnerReportsLivenessToOPMS proves the always-on control plane runs
+// the runner health-check loop the Go monolith owns via its CommonRunner. In
+// split mode the monolith stands down, so if par-control did not health-check,
+// the only OPMS traffic from an idle host would be task polling and the runner's
+// liveness signal would disappear for every split-mode deployment. The interval
+// is a fixed 30s contract (healthCheckInterval in the Go config constants), so
+// the wait budget covers at least two intervals.
+func (s *linuxPARSplitSuite) TestSplitRunnerReportsLivenessToOPMS() {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		count, err := s.Env().FakeIntake.Client().GetPARHealthCheckCount()
+		assert.NoError(c, err)
+		assert.Greater(c, count, 0, "par-control never sent an OPMS runner health check")
+	}, 90*time.Second, 5*time.Second)
+}
+
 func (s *linuxPARSplitSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	if !s.IsDevMode() {

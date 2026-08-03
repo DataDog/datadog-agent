@@ -38,6 +38,13 @@ pub const DEFAULT_EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 /// The Go runner and enrollment flow always advertise pull mode.
 const DEFAULT_MODE: &str = "pull";
 
+/// Interval between OPMS runner health checks. Deliberately not operator-tunable,
+/// exactly like Go: it is the `healthCheckInterval` constant (30_000 ms) in
+/// `pkg/privateactionrunner/adapters/config/constants.go`. OPMS reasons about
+/// runner liveness from this call, so both deployment modes must report at the
+/// same rate.
+const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(30);
+
 /// PAR flavor string sent to OPMS (matches `flavor.PrivateActionRunner` on the Go side).
 pub const FLAVOR: &str = "private_action_runner";
 
@@ -64,6 +71,8 @@ pub struct Config {
     pub loop_interval: Duration,
     /// Only while an action's result stream is open.
     pub heartbeat_interval: Duration,
+    /// Runner liveness reporting to OPMS, independent of task flow.
+    pub health_check_interval: Duration,
     pub idle_timeout: Duration,
     pub ready_timeout: Duration,
     /// Bounds the initial cold-executor wait for verified RC keys.
@@ -325,6 +334,7 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_EXECUTOR_PROCESS_NAME.to_string()),
             loop_interval: Duration::from_secs(1),
             heartbeat_interval: Duration::from_secs(heartbeat_interval),
+            health_check_interval: HEALTH_CHECK_INTERVAL,
             idle_timeout: Duration::from_secs(par.idle_timeout_seconds.unwrap_or(60)),
             ready_timeout: Duration::from_secs(10),
             key_sync_timeout: Duration::from_secs(120),
@@ -386,6 +396,7 @@ impl Config {
             executor_process_name: effective.executor_process_name,
             loop_interval: Duration::from_secs(1),
             heartbeat_interval: Duration::from_secs(effective.heartbeat_interval_seconds),
+            health_check_interval: HEALTH_CHECK_INTERVAL,
             idle_timeout: Duration::from_secs(effective.idle_timeout_seconds),
             ready_timeout: Duration::from_secs(10),
             key_sync_timeout: Duration::from_secs(120),
@@ -1096,6 +1107,8 @@ private_action_runner:
         assert_eq!(cfg.task_concurrency, 3);
         assert_eq!(cfg.idle_timeout, Duration::from_secs(120));
         assert_eq!(cfg.heartbeat_interval, Duration::from_secs(5));
+        // Liveness reporting is a fixed contract with OPMS, not a knob.
+        assert_eq!(cfg.health_check_interval, Duration::from_secs(30));
         // `modes` is intentionally not deserialized. Enrollment and the Go
         // monolith support pull mode only, so an undocumented YAML key cannot
         // make the runtime advertise a different capability.
@@ -1147,6 +1160,7 @@ private_action_runner:
         assert!(cfg.tls.skip_ssl_validation);
         assert_eq!(cfg.tls.min_tls_version, "tlsv1.3");
         assert_eq!(cfg.modes, ["pull"]);
+        assert_eq!(cfg.health_check_interval, Duration::from_secs(30));
         assert_eq!(cfg.identity.private_key, "resolved-private-key");
     }
 }

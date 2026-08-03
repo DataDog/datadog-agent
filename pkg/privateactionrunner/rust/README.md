@@ -13,10 +13,10 @@ and publishes results back to OPMS. Only the control plane touches OPMS.
 | `identity.rs` | Parse the persisted runner URN + ECDSA P-256 key (Go owns enrollment). |
 | `config.rs` | Load the Go Agent's effective control-plane config snapshot; read the raw YAML only for the launch gate. |
 | `jwt.rs` | `JwtSigner` trait + ES256 signer for the `X-Datadog-OnPrem-JWT` header. |
-| `opms.rs` | `Opms` trait (dequeue/publish/heartbeat) + `HttpOpms` real client. |
+| `opms.rs` | `Opms` trait (dequeue/publish/heartbeat/health-check) + `HttpOpms` real client. |
 | `procmgr.rs` | `ExecutorLifecycle` trait + `dd-procmgrd` gRPC client (Start/Describe/Stop). |
 | `executor.rs` | `Dispatcher` trait + executor gRPC client (Health + RunAction stream). |
-| `orchestrator.rs` | The dequeue → start → ready-gate → dispatch → publish loop, pool-paced. |
+| `orchestrator.rs` | The dequeue → start → ready-gate → dispatch → publish loop, pool-paced, plus the OPMS runner health-check loop. |
 | `proto.rs` | Bazel/cargo dual proto wiring (procmgr + executor prost crates). |
 | `transport.rs` | Lazily-connecting UDS client channel. |
 
@@ -142,7 +142,38 @@ runtime, so each is pinned by a unit test in `config.rs`.
 | `DEFAULT_EXECUTOR_PROCESS_NAME` | the procmgr process-definition name in `pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl` |
 | `private_action_runner.executor.socket_path` | `pkg/config/setup/privateactionrunner_settings.go` (nested key, *not* flat) |
 | `private_action_runner.task_concurrency` | same key and default (5) as the Go runner |
+| `HEALTH_CHECK_INTERVAL` | `healthCheckInterval` (30s) in `pkg/privateactionrunner/adapters/config/constants.go` |
 | `RUNNER_VERSION` | the agent version Go reports as `pkg/version.AgentVersion`, injected as `DD_AGENT_VERSION` by the crate-local `version.bzl` |
+
+## Runner liveness
+
+Besides task flow, par-control runs the runner health-check loop that the Go
+monolith runs in `runners.CommonRunner`: a signed `GET` on
+`/api/v2/on-prem-management-service/runner/health-check` every 30 seconds. In
+split mode the monolith stands down, so if the control plane skipped this, an
+idle split-mode host would emit no liveness signal at all.
+
+The loop deliberately mirrors the Go one:
+
+- it starts before executor pre-warm and is independent of key readiness, so a
+  runner blocked waiting on its executor still reports in;
+- it never aborts — a failing check is logged and retried on the next tick,
+  because giving up would make a working runner look permanently dead;
+- `X-Retry-After-Ms` paces the next check even when the check was *rejected*, so
+  a throttling OPMS is not answered with more traffic (bounded by the same
+  two-minute cap as dequeue);
+- successes log at info at most once per 10 minutes (Go's `LogLimit(1, 10m)`) and
+  at debug otherwise; `X-Server-Time` is logged like Go does.
+
+It is *not* operator-tunable, matching Go: OPMS reasons about runner liveness
+from this call, so both deployment modes must report at one rate.
+
+Statsd parity is still open: the Go loop also emits the non-billable gauges
+`datadog.actions.private_actions.runner.running` and
+`datadog.actions.private_runner.health.check` (see
+`pkg/privateactionrunner/observability/metrics.go`). par-control has no metrics
+sink yet, and the on-demand executor cannot cover them because it is stopped
+while idle — exactly when "is this runner running" matters.
 
 ## Known follow-ups
 
