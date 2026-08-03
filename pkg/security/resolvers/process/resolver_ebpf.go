@@ -1613,15 +1613,12 @@ func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgrou
 	}
 }
 
-// UpdateSID updates the SID of the process matching the provided pid
-func (p *EBPFResolver) UpdateSID(pid uint32, sid uint32) {
+// UpdateSID updates the SID of the given process cache entry
+func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
 	p.Lock()
 	defer p.Unlock()
 
-	entry := p.entryCache[pid]
-	if entry != nil {
-		entry.SID = sid
-	}
+	pce.SID = sid
 }
 
 const (

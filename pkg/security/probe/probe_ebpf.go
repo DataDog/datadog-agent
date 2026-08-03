@@ -1289,7 +1289,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
-				p.Resolvers.ProcessResolver.UpdateSID(entry.Pid, event.PIDContext.SID)
+				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
 			}
 
 			if _, err := entry.HasValidLineage(); err != nil {
