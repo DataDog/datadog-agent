@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -200,6 +201,166 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, settled, disco.called.Load(),
 		"no further probes should fire after the service is removed (started at %d)", settled)
+}
+
+// TestConfigMgr_Discovery_StaleProbeResultSuppressedBySiblingArrivingMidFlight
+// reproduces the DSCVR-626 race: FilterTemplates only runs synchronously when
+// reconcileService runs, so it can't affect a probe that's already in
+// flight. Without a re-check immediately before applying the probe result, a
+// sibling config that arrives for the same service *after* the probe was
+// enqueued but *before* it completes — e.g. an annotation change adding an
+// openmetrics config to the same container — would still get scheduled on
+// top of that sibling, defeating the point of the filtering. This test pins
+// down that applyDiscoveredConfigsLocked re-validates against live filtering
+// state before scheduling.
+func TestConfigMgr_Discovery_StaleProbeResultSuppressedBySiblingArrivingMidFlight(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+
+	probeStarted := make(chan struct{})
+	release := make(chan struct{})
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
+		close(probeStarted)
+		<-release
+		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
+	})
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm.start()
+	t.Cleanup(cm.stop)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	// Mirrors filterTemplatesDiscovery's generic-integration-sibling rule:
+	// drop every discovery template while an openmetrics/prometheus sibling
+	// is present, regardless of Name.
+	svc.filterTemplates = func(configs map[string]integration.Config) {
+		hasGenericSibling := false
+		for _, cfg := range configs {
+			if cfg.Discovery == nil && len(cfg.Instances) > 0 && (cfg.Name == "openmetrics" || cfg.Name == "prometheus") {
+				hasGenericSibling = true
+			}
+		}
+		if !hasGenericSibling {
+			return
+		}
+		for digest, cfg := range configs {
+			if cfg.Discovery != nil {
+				delete(configs, digest)
+			}
+		}
+	}
+
+	_, _ = cm.processNewConfig(tpl)
+	_ = cm.processNewService(svc)
+
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("probe never started")
+	}
+
+	// While the probe is in flight, a sibling openmetrics config for the same
+	// service arrives.
+	sibling := integration.Config{
+		Name:          "openmetrics",
+		ADIdentifiers: []string{"krakend"},
+		Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.1:9091/metrics")},
+	}
+	changes, _ := cm.processNewConfig(sibling)
+	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+
+	// Now let the stale probe complete.
+	close(release)
+
+	select {
+	case discovered := <-cm.discoveredChanges():
+		t.Fatalf("krakend discovery should have been suppressed by the sibling that arrived mid-flight, got: %+v", discovered)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// TestConfigMgr_Discovery_StaleProbeResultSuppressedByStaticConfigArrivingMidFlight
+// covers the host-wide variant: a *static* (non-template) generic-integration
+// config appearing while the probe is in flight — e.g. from a Kubernetes
+// Service's prometheus.io/scrape annotation, or a conf.d file picked up by
+// autoconf_config_files_poll. Crucially, adding a static config never
+// triggers reconcileService for any already-active service (see the
+// processNewConfig comment in configmgr.go) — it only updates the shared
+// StaticConfigIndex — so the apply-time re-check is the *only* thing that can
+// catch this case.
+func TestConfigMgr_Discovery_StaleProbeResultSuppressedByStaticConfigArrivingMidFlight(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	probeStarted := make(chan struct{})
+	release := make(chan struct{})
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
+		close(probeStarted)
+		<-release
+		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
+	})
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, disco, nil).(*reconcilingConfigManager)
+	cm.start()
+	t.Cleanup(cm.stop)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	// Mirrors filterTemplatesDiscovery's static-index rule: drop every
+	// discovery template while a host-wide generic-integration static
+	// config is present in the shared index.
+	svc.filterTemplates = func(configs map[string]integration.Config) {
+		if !idx.Has("openmetrics") && !idx.Has("prometheus") {
+			return
+		}
+		for digest, cfg := range configs {
+			if cfg.Discovery != nil {
+				delete(configs, digest)
+			}
+		}
+	}
+
+	_, _ = cm.processNewConfig(tpl)
+	_ = cm.processNewService(svc)
+
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("probe never started")
+	}
+
+	// A static openmetrics config arrives while the probe is in flight. It is
+	// not a template (no AD identifiers), so it never touches reconcileService
+	// — only the shared index.
+	staticOpenmetrics := integration.Config{
+		Name:      "openmetrics",
+		Instances: []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.2:9091/metrics")},
+	}
+	changes, _ := cm.processNewConfig(staticOpenmetrics)
+	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+	assert.True(t, idx.Has("openmetrics"))
+
+	close(release)
+
+	select {
+	case discovered := <-cm.discoveredChanges():
+		t.Fatalf("krakend discovery should have been suppressed by the static openmetrics config that arrived mid-flight, got: %+v", discovered)
+	case <-time.After(300 * time.Millisecond):
+	}
 }
 
 // makeDiscoveryCM is a small constructor used by the lifecycle tests below.
