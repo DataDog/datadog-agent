@@ -6,7 +6,7 @@
 """Run clang and report declared inputs absent from its dependency file."""
 
 import argparse
-import os
+import posixpath
 import shlex
 import subprocess
 import sys
@@ -18,12 +18,12 @@ def parse_depfile(path: Path) -> set[str]:
     _, separator, prerequisites = content.partition(":")
     if not separator:
         raise ValueError(f"invalid dependency file: {path}")
-    return {os.path.normpath(item) for item in shlex.split(prerequisites)}
+    return {posixpath.normpath(item) for item in shlex.split(prerequisites)}
 
 
 def find_unused_inputs(declared_inputs: list[str], used_inputs: set[str]) -> list[str]:
-    normalized_used_inputs = {os.path.normpath(path) for path in used_inputs}
-    return sorted(path for path in declared_inputs if os.path.normpath(path) not in normalized_used_inputs)
+    normalized_used_inputs = {posixpath.normpath(path) for path in used_inputs}
+    return sorted(path for path in declared_inputs if posixpath.normpath(path) not in normalized_used_inputs)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
