@@ -39,6 +39,7 @@
 /.agents/skills/create-runtime-setting/SKILL.md  @DataDog/agent-runtimes @DataDog/fleet-automation
 /.agents/skills/cws-iouring-coverage/            @DataDog/agent-security
 /.agents/skills/explain-lading-config            @DataDog/single-machine-performance
+/.agents/skills/injector-dev                     @Datadog/container-platform
 /.agents/skills/quality-gate-size-analysis/      @DataDog/agent-build
 /.agents/skills/review-pr-comments/              @DataDog/agent-devx
 /.agents/skills/run-e2e/                         @DataDog/agent-devx
@@ -666,6 +667,7 @@
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
 /pkg/proto/datadog/process              @DataDog/container-experiences
+/pkg/proto/datadog/sds                  @DataDog/sensitive-data-scanner
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
@@ -923,7 +925,6 @@
 /test/fakeintake/aggregator/agenthealthAggregator_test.go @DataDog/fleet-remediation
 /test/fakeintake/client/fixtures/api_v2_agenthealth_response @DataDog/fleet-remediation
 /test/new-e2e/                                 @DataDog/agent-devx
-/test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/system-probe/config/vmconfig-security-agent.json @DataDog/ebpf-platform @DataDog/agent-security
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
@@ -944,6 +945,7 @@
 /test/new-e2e/tests/agent-subcommands/run*           @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/flare*          @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-subcommands/status*         @DataDog/fleet-remediation
+/test/new-e2e/tests/agent-telemetry           @DataDog/fleet-remediation
 /test/new-e2e/tests/autoscaling               @DataDog/container-autoscaling
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/fleet-automation

@@ -113,7 +113,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findMatchingConfig(&payload.DBIdentifier)
+		baseCfg, instance, err := c.resolveBaseConfig(configID, &payload.DBIdentifier)
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -320,6 +320,37 @@ func sameConfig(a, b *integration.Config) bool {
 	return a.Digest() == b.Digest()
 }
 
+// resolveBaseConfig returns the base config a DO check for configID should be derived from.
+//
+// If configID is already active, its previously-resolved base is reused as-is rather than
+// re-derived from the current active set. Once reconcileBases unschedules a base config's
+// targeted instance in favor of a DO check, that instance is no longer present in
+// GetUnresolvedConfigs() (autodiscovery only reports currently-scheduled configs) — so a fresh
+// findMatchingConfig search would instead match the DO component's own previously-scheduled check
+// output, which also satisfies matchesIdentifier and instanceHasDOEnabled. Adopting that as the
+// new "base" corrupts the digest reconcileBases uses to track the true original, causing it to be
+// wrongly restored on this update. Reusing the stored base avoids re-deriving it from a set that
+// may no longer contain it.
+//
+// Falls back to a fresh search if the stored base no longer has an instance matching dbID (e.g.
+// its host genuinely changed between updates).
+func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+	c.activeConfigsMu.Lock()
+	existing, alreadyActive := c.activeConfigs[configID]
+	c.activeConfigsMu.Unlock()
+
+	if alreadyActive {
+		instance, err := c.findMatchingInstance(existing.baseCfg, dbID)
+		if instance != nil {
+			return existing.baseCfg, instance, nil
+		}
+		if err != nil {
+			c.log.Warnf("Stored base config for %s no longer parses cleanly, re-resolving: %v", configID, err)
+		}
+	}
+	return c.findMatchingConfig(dbID)
+}
+
 // findMatchingConfig finds a supported DB integration config that matches the given identifier
 // and has data_observability.enabled: true. Returns the matching config and the already-parsed
 // instance map to avoid re-parsing YAML in callers.
@@ -329,21 +360,12 @@ func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config,
 	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
-		if cfg.Name != "postgres" && cfg.Name != "sap_hana" {
-			c.log.Warnf("DO query action: config %s is not a known DO-supported integration", cfg.Name)
+		instance, err := c.findMatchingInstance(&cfg, dbID)
+		if err != nil {
+			lastParseErr = err
 		}
-
-		for _, instanceData := range cfg.Instances {
-			var instance map[string]any
-			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
-				lastParseErr = err
-				continue
-			}
-
-			if matchesIdentifier(instance, dbID) && instanceHasDOEnabled(instance) {
-				return &cfg, instance, nil
-			}
+		if instance != nil {
+			return &cfg, instance, nil
 		}
 	}
 
@@ -353,6 +375,30 @@ func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config,
 	}
 	return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
+}
+
+// findMatchingInstance searches cfg's instances for one matching dbID with data_observability
+// enabled, returning the first match. Instances whose YAML fails to parse are skipped (logged and
+// recorded as lastErr) rather than aborting the search — a later instance may still match.
+func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdentifier) (map[string]any, error) {
+	if cfg.Name != "postgres" && cfg.Name != "sap_hana" {
+		c.log.Warnf("DO query action: config %s is not a known DO-supported integration", cfg.Name)
+	}
+
+	var lastErr error
+	for _, instanceData := range cfg.Instances {
+		var instance map[string]any
+		if err := yaml.Unmarshal(instanceData, &instance); err != nil {
+			c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
+			lastErr = err
+			continue
+		}
+
+		if matchesIdentifier(instance, dbID) && instanceHasDOEnabled(instance) {
+			return instance, nil
+		}
+	}
+	return nil, lastErr
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
