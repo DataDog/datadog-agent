@@ -89,6 +89,51 @@ func TestReplaceGoTests_ConfiguredTagSets(t *testing.T) {
 	}
 }
 
+func TestReplaceGoTests_NoApplicableTagSetKeepsManualGoTest(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build trivy_no_javadb\n\npackage x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := rule.NewRule("go_test", "pkg_test")
+	orig.SetAttr("srcs", []string{"pkg_test.go"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, nil)
+
+	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_test" {
+		t.Fatalf("expected one go_test, got %v", result.Gen)
+	}
+	if got := result.Gen[0].AttrStrings("tags"); !stringSlicesEqual(got, []string{"manual"}) {
+		t.Errorf("tags = %v, want [manual]", got)
+	}
+	if got := result.Gen[0].AttrStrings("gotags"); !stringSlicesEqual(got, BaseTestTags) {
+		t.Errorf("gotags = %v, want %v", got, BaseTestTags)
+	}
+	if len(result.Empty) != 0 {
+		t.Errorf("expected no empty rules, got %v", result.Empty)
+	}
+}
+
+func TestReplaceGoTests_LinuxBPFStillUsesMacro(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build linux_bpf\n\npackage x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := rule.NewRule("go_test", "pkg_test")
+	orig.SetAttr("srcs", []string{"pkg_test.go"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, nil)
+
+	if len(result.Gen) != 1 || result.Gen[0].Kind() != "dd_agent_go_test" {
+		t.Fatalf("expected one dd_agent_go_test, got %v", result.Gen)
+	}
+	if got := result.Gen[0].AttrStrings("tag_sets"); !stringSlicesEqual(got, []string{"linux_bpf"}) {
+		t.Errorf("tag_sets = %v, want [linux_bpf]", got)
+	}
+	if len(result.Empty) != 1 || result.Empty[0].Kind() != "go_test" {
+		t.Errorf("expected replaced go_test in empty rules, got %v", result.Empty)
+	}
+}
+
 func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig := rule.NewRule("go_test", "mytest")
 	orig.SetAttr("srcs", []string{"mytest.go"})

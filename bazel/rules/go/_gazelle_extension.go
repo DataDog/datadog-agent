@@ -224,11 +224,6 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 				copyAttr(ex, nr, attr)
 			}
 		}
-		// Mark the original go_test for removal regardless of what follows:
-		// we're either replacing it with dd_agent_go_test or dropping the test
-		// entirely.
-		empty = append(empty, rule.NewRule("go_test", r.Name()))
-
 		var embeddedSrcs []string
 		for _, embed := range nr.AttrStrings("embed") {
 			embeddedSrcs = append(embeddedSrcs, librarySrcs[strings.TrimPrefix(embed, ":")]...)
@@ -239,6 +234,13 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 				if existingDd, ok := findRule(file, "dd_agent_go_test", r.Name()); ok {
 					existingDd.Delete()
 				}
+				// Keep unsupported tag modes available for explicit invocation.
+				addStringToListIfMissing(r, "tags", manualTag)
+				for _, tag := range BaseTestTags {
+					addStringToListIfMissing(r, "gotags", tag)
+				}
+				gen = append(gen, r)
+				imports = append(imports, imp)
 				continue
 			}
 			if !includeDefault {
@@ -248,6 +250,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 				nr.SetAttr("tag_sets", tagSets)
 			}
 		}
+		empty = append(empty, rule.NewRule("go_test", r.Name()))
 		gen = append(gen, nr)
 		imports = append(imports, imp)
 	}
