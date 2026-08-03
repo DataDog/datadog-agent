@@ -56,7 +56,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("system_probe_config.telemetry_perf_buffer_emit_per_cpu", false)
 	config.BindEnvAndSetDefault("system_probe_config.health_port", int64(0), "DD_SYSTEM_PROBE_HEALTH_PORT")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.enabled", false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
-	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.site", DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
+	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.site", constants.DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.profile_dd_url", "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.api_key", "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.env", "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENV", "DD_ENV")
@@ -244,7 +244,19 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.use_kprobe_fallback", true, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK")
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.buffer_size", 0, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE")
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.kretprobe_max_active", 512, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE")
-	config.BindEnvAndSetDefault("event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT", "DD_SERVICE", "OTEL_SERVICE_NAME", "CLAUDECODE", "RUNNER_TRACKING_ID"}, "DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE", "DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE")
+	config.BindEnvAndSetDefault("event_monitoring_config.envs_with_value", []string{
+		"LD_PRELOAD",
+		"LD_LIBRARY_PATH",
+		"PATH",
+		"HISTSIZE",
+		"HISTFILESIZE",
+		"GLIBC_TUNABLES",
+		"SSH_CLIENT",
+		"DD_SERVICE",
+		"OTEL_SERVICE_NAME",
+		"CLAUDECODE",
+		"RUNNER_TRACKING_ID",
+	}, "DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE", "DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE")
 	config.BindEnvAndSetDefault("event_monitoring_config.runtime_compilation.enabled", false, "DD_EVENT_MONITORING_CONFIG_RUNTIME_COMPILATION_ENABLED", "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED")
 	config.BindEnvAndSetDefault("event_monitoring_config.network.enabled", true, "DD_EVENT_MONITORING_CONFIG_NETWORK_ENABLED", "DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED")
 	config.BindEnvAndSetDefault("event_monitoring_config.network.ingress.enabled", true, "DD_EVENT_MONITORING_CONFIG_NETWORK_INGRESS_ENABLED", "DD_RUNTIME_SECURITY_CONFIG_NETWORK_INGRESS_ENABLED")
@@ -308,7 +320,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 	config.BindEnvAndSetDefault("discovery.service_collection_batch_size", 500)
 	config.BindEnvAndSetDefault("discovery.service_collection_max_consecutive_timeouts", 5)
-	config.BindEnvAndSetDefault("discovery.service_collection_min_process_age", time.Minute)
+	config.BindEnvAndSetDefault("discovery.service_collection_min_process_age", 1*time.Minute)
 	config.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 	config.BindEnvAndSetDefault("privileged_logs.enabled", false)
 	config.BindEnvAndSetDefault("logon_duration.enabled", false)

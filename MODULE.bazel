@@ -59,7 +59,7 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.5.0")
+bazel_dep(name = "bazel_lib", version = "3.7.1")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.52.2")
@@ -74,7 +74,6 @@ bazel_dep(name = "rules_go", version = "0.61.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_python", version = "2.2.0")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.71.3")
