@@ -198,7 +198,11 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
 	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
-	bindDelegatedAuthConfig(config, "evp_proxy_config")
+	//bindDelegatedAuthConfig(config, "evp_proxy_config")
+	config.BindEnvAndSetDefault("evp_proxy_config.delegated_auth.org_uuid", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.delegated_auth.refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault("evp_proxy_config.delegated_auth.provider", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.delegated_auth.aws.region", "")
 
 	// trace-agent's ol_proxy. Same rationale as evp_proxy above.
 	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
@@ -206,5 +210,10 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
 	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
-	bindDelegatedAuthConfig(config, "ol_proxy_config")
+	//bindDelegatedAuthConfig(config, "ol_proxy_config")
+	config.BindEnvAndSetDefault("ol_proxy_config.delegated_auth.org_uuid", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.delegated_auth.refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault("ol_proxy_config.delegated_auth.provider", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.delegated_auth.aws.region", "")
+
 }

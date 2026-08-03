@@ -615,6 +615,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 //	bindDelegatedAuthConfig(config, "")             // For global api_key
 //	bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
 //	bindDelegatedAuthConfig(config, "apm_config")   // For apm_config.api_key
+/*
 func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	// Build the config key prefix
 	var configPrefix string
@@ -632,6 +633,7 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	// Provider-specific configuration (nested under provider name)
 	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
 }
+*/
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
 func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
@@ -1360,6 +1362,7 @@ func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
 	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
 }
 
+/*
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnvAndSetDefault(prefix+"dd_url", "")
@@ -1383,6 +1386,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
 }
+*/
 
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
