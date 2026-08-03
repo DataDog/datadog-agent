@@ -18,7 +18,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.207 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.2 // indirect
@@ -44,7 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.80.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect

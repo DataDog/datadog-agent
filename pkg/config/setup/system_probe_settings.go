@@ -44,7 +44,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	config.SetDefault("system_probe_config.adjusted", false)
 
-	config.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", getPlatformDefault(map[string]interface{}{
 		"linux":   "${run_path}/sysprobe.sock",
 		"darwin":  "${run_path}/sysprobe.sock",
 		"aix":     "${run_path}/sysprobe.sock",
@@ -161,7 +161,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// authoritative source; deprecateBool only forwards this deprecated alias
 	// when it is explicitly configured.
 	config.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.enabled", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
-	config.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", getPlatformDefault(map[string]interface{}{
 		"windows": true,
 		"other":   false,
 	}))
@@ -244,7 +244,19 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.use_kprobe_fallback", true, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK")
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.buffer_size", 0, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE")
 	config.BindEnvAndSetDefault("event_monitoring_config.event_stream.kretprobe_max_active", 512, "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE", "DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE")
-	config.BindEnvAndSetDefault("event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT", "DD_SERVICE", "OTEL_SERVICE_NAME", "CLAUDECODE", "RUNNER_TRACKING_ID"}, "DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE", "DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE")
+	config.BindEnvAndSetDefault("event_monitoring_config.envs_with_value", []string{
+		"LD_PRELOAD",
+		"LD_LIBRARY_PATH",
+		"PATH",
+		"HISTSIZE",
+		"HISTFILESIZE",
+		"GLIBC_TUNABLES",
+		"SSH_CLIENT",
+		"DD_SERVICE",
+		"OTEL_SERVICE_NAME",
+		"CLAUDECODE",
+		"RUNNER_TRACKING_ID",
+	}, "DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE", "DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE")
 	config.BindEnvAndSetDefault("event_monitoring_config.runtime_compilation.enabled", false, "DD_EVENT_MONITORING_CONFIG_RUNTIME_COMPILATION_ENABLED", "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED")
 	config.BindEnvAndSetDefault("event_monitoring_config.network.enabled", true, "DD_EVENT_MONITORING_CONFIG_NETWORK_ENABLED", "DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED")
 	config.BindEnvAndSetDefault("event_monitoring_config.network.ingress.enabled", true, "DD_EVENT_MONITORING_CONFIG_NETWORK_INGRESS_ENABLED", "DD_RUNTIME_SECURITY_CONFIG_NETWORK_INGRESS_ENABLED")
@@ -295,12 +307,12 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ping.enabled", false)
 	config.BindEnvAndSetDefault("traceroute.enabled", false)
 	config.BindEnvAndSetDefault("ccm_network_config.enabled", false)
-	config.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("discovery.enabled", getPlatformDefault(map[string]interface{}{
 		"fargate": false,
 		"linux":   true,
 		"other":   false,
 	}))
-	config.BindEnvAndSetDefault("discovery.use_system_probe_lite", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("discovery.use_system_probe_lite", getPlatformDefault(map[string]interface{}{
 		"linux": true,
 		"other": false,
 	}))
@@ -308,13 +320,13 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 	config.BindEnvAndSetDefault("discovery.service_collection_batch_size", 500)
 	config.BindEnvAndSetDefault("discovery.service_collection_max_consecutive_timeouts", 5)
-	config.BindEnvAndSetDefault("discovery.service_collection_min_process_age", time.Minute)
+	config.BindEnvAndSetDefault("discovery.service_collection_min_process_age", 1*time.Minute)
 	config.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 	config.BindEnvAndSetDefault("privileged_logs.enabled", false)
 	config.BindEnvAndSetDefault("logon_duration.enabled", false)
 	config.BindEnvAndSetDefault("fleet_policies_dir", "")
 	config.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
-	config.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", false)
+	config.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
 	config.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	config.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
@@ -343,11 +355,11 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 }
 
 func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("runtime_security_config.socket", getPlatformDefault(map[string]interface{}{
 		"windows": "localhost:3335",
 		"other":   "${install_path}/run/runtime-security.sock",
 	}))
-	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", getPlatformDefault(map[string]interface{}{
 		"other":   DefaultRuntimePoliciesDir,
 		"windows": "${conf_path}/runtime-security.d",
 	}))

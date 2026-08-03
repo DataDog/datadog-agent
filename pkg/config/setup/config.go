@@ -43,6 +43,9 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
+
+	// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+	Traces string = "traces"
 )
 
 var (
@@ -90,24 +93,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// ConfigurationProviders helps unmarshalling `config_providers` config param
-type ConfigurationProviders struct {
-	Name                    string `mapstructure:"name"`
-	Polling                 bool   `mapstructure:"polling"`
-	PollInterval            string `mapstructure:"poll_interval"`
-	TemplateURL             string `mapstructure:"template_url"`
-	TemplateDir             string `mapstructure:"template_dir"`
-	Username                string `mapstructure:"username"`
-	Password                string `mapstructure:"password"`
-	CAFile                  string `mapstructure:"ca_file"`
-	CAPath                  string `mapstructure:"ca_path"`
-	CertFile                string `mapstructure:"cert_file"`
-	KeyFile                 string `mapstructure:"key_file"`
-	Token                   string `mapstructure:"token"`
-	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
-	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
-}
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
@@ -1420,37 +1405,7 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
-// IsCLCRunner returns whether the Agent is in cluster check runner mode
-func IsCLCRunner(config pkgconfigmodel.Reader) bool {
-	if !config.GetBool("clc_runner_enabled") {
-		return false
-	}
-
-	var cps []ConfigurationProviders
-	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
-		return false
-	}
-
-	for _, name := range config.GetStringSlice("extra_config_providers") {
-		cps = append(cps, ConfigurationProviders{Name: name})
-	}
-
-	// A cluster check runner is an Agent configured to run clusterchecks only
-	// We want exactly one ConfigProvider named clusterchecks
-	if len(cps) == 0 {
-		return false
-	}
-
-	for _, cp := range cps {
-		if cp.Name != "clusterchecks" {
-			return false
-		}
-	}
-
-	return true
-}
-
-func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+func getPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if pkgconfigenv.IsECSFargate() {
 		if val, found := platformValues["fargate"]; found {
 			return val
