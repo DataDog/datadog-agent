@@ -46,11 +46,7 @@ dd_agent_go_test(
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/logs/tailers/journald",
+        "@com_github_coreos_go_systemd_v22//sdjournal",
         "@com_github_stretchr_testify//assert",
-    ] + select({
-        "@platforms//os:linux": [
-            "@com_github_coreos_go_systemd_v22//sdjournal",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

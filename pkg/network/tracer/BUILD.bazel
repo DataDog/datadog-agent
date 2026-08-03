@@ -175,6 +175,10 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":tracer"],
+    tag_sets = [
+        "linux_bpf",
+        "npm",
+    ],
     deps = [
         "//pkg/config/mock",
         "//pkg/ebpf/bytecode/runtime",

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "maps",
@@ -13,5 +14,22 @@ go_library(
         "//pkg/network/usm",
         "//pkg/util/kernel",
         "@com_github_cilium_ebpf//:ebpf",
+    ],
+)
+
+dd_agent_go_test(
+    name = "maps_test",
+    srcs = [
+        "detector_test.go",
+        "pid_validator_test.go",
+    ],
+    embed = [":maps"],
+    include_default = False,
+    tag_sets = ["linux_bpf"],
+    deps = [
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//require",
     ],
 )

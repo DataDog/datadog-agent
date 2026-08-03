@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "object",
@@ -33,7 +34,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "object_test",
     srcs = [
         "disk_cache_helpers_test.go",
@@ -42,11 +43,9 @@ go_test(
         "fuzz_test.go",
     ],
     embed = [":object"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    tags = ["manual"],  # keep
+    include_default = False,
+    tag_sets = ["linux_bpf"],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/testprogs",

@@ -32,6 +32,7 @@ import (
 
 const extName = "dd_agent_go_test"
 const tagSetsDirective = "go_test_tag_sets"
+const manualTag = "manual"
 
 // Stopping at 12 tags avoids combinatorial explosion and maintains readability.
 const maxEnumeratedAutoTestTags = 12
@@ -86,7 +87,7 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 
 // KnownDirectives registers this extension's directives alongside Go's.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, tagSetsDirective, linuxBPFExtName)
+	return append(l.Language.KnownDirectives(), extName, tagSetsDirective)
 }
 
 // Configure reads the inheritable test conversion and canonical tag-set directives.
@@ -109,7 +110,6 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 		}
 	}
 	c.Exts[extName] = cfg
-	configureLinuxBPF(c, f)
 }
 
 // GenerateRules calls the Go extension's GenerateRules and replaces each go_test
@@ -129,9 +129,6 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 		}
 		result = l.revertDdAgentGoTests(result, args.File)
 	}
-	if linuxBPFEnabled(args.Config) {
-		result = l.applyLinuxBPF(result, args)
-	}
 	return result
 }
 
@@ -143,16 +140,9 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 //     because the user has already chosen a different wrapper for go_test
 //     (e.g. rtloader_go_test that sets up dlopen runfiles) and dd_agent_go_test
 //     doesn't compose with such wrappers.
-//   - dd_linux_bpf is enabled for this package: linux_bpf is not a flavor, and
-//     the two are mutually exclusive, so this wins over an explicit local "on"
-//     directive. A package that wants dd_agent_go_test back must turn
-//     dd_linux_bpf off for itself instead.
 func shouldReplace(c *config.Config) bool {
 	cfg, ok := c.Exts[extName].(ddAgentGoTestConfig)
 	if !ok || !cfg.enabled {
-		return false
-	}
-	if linuxBPFEnabled(c) {
 		return false
 	}
 	if _, mapped := c.KindMap["go_test"]; mapped {

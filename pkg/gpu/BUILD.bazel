@@ -84,6 +84,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":gpu"],
+    tag_sets = ["linux_bpf"],
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/workloadmeta/def",

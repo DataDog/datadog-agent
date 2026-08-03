@@ -79,6 +79,7 @@ dd_agent_go_test(
         "tcp_utils_linux_test.go",
     ],
     embed = [":ebpfless"],
+    tag_sets = ["linux_bpf"],
     deps = [
         "//pkg/network",
         "//pkg/network/config",

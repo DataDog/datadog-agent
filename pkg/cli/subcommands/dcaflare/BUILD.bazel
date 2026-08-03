@@ -34,10 +34,8 @@ dd_agent_go_test(
     name = "dcaflare_test",
     srcs = ["command_test.go"],
     embed = [":dcaflare"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/fxutil",

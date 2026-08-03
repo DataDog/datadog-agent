@@ -15,10 +15,8 @@ dd_agent_go_test(
         "mig_test.go",
     ],
     embed = [":integrationtests"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["nvml"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/gpu/safenvml",

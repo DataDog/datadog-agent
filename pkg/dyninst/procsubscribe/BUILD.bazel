@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "procsubscribe",
@@ -23,17 +24,15 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "procsubscribe_test",
     srcs = [
         "helpers_test.go",
         "remote_config_test.go",
     ],
     embed = [":procsubscribe"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
+    include_default = False,
+    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/config/remote/data",

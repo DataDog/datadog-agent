@@ -34,6 +34,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":workloadfilter"],
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//pkg/util/fxutil",

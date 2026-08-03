@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
@@ -47,7 +48,7 @@ go_stringer(
     types = ["programState"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "actuator_test",
     srcs = [
         "debug_info_test.go",
@@ -64,10 +65,8 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":actuator"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
+    include_default = False,
+    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/dyninsttest",

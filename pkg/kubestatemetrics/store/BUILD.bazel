@@ -23,10 +23,8 @@ dd_agent_go_test(
     name = "store_test",
     srcs = ["store_test.go"],
     embed = [":store"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    include_default = False,
+    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
