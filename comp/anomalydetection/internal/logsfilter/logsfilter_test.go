@@ -6,6 +6,7 @@
 package logsfilter
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,35 @@ func TestPriorityBucketOrdering(t *testing.T) {
 	assert.Less(t, int(WarnPriority), int(ErrorPriority))
 	assert.Less(t, int(ErrorPriority), int(CriticalPriority))
 	assert.Less(t, int(CriticalPriority), int(OffPriority))
+}
+
+func TestRateLimitDiscrepancies(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		low, medium, high float64
+		want              string
+	}{
+		{name: "ordered", low: 1, medium: 2, high: 3},
+		{name: "unlimited high", low: 1, medium: 2, high: -1},
+		{name: "low exceeds medium", low: 2, medium: 1, high: 3, want: "non-decreasing"},
+		{name: "medium exceeds unlimited high", low: 1, medium: -1, high: 3, want: "non-decreasing"},
+		{name: "unsupported negative", low: -2, medium: 1, high: 2, want: "must be -1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			discrepancies := RateLimitDiscrepancies(tc.low, tc.medium, tc.high)
+			if tc.want == "" {
+				assert.Empty(t, discrepancies)
+				return
+			}
+			assert.Contains(t, strings.Join(discrepancies, "\n"), tc.want)
+		})
+	}
+}
+
+func TestRateLimitDiscrepanciesFormatsUnlimitedAsInfinity(t *testing.T) {
+	discrepancies := RateLimitDiscrepancies(-1, 2, 1)
+	assert.Len(t, discrepancies, 1)
+	assert.Contains(t, discrepancies[0], "low=+Inf")
 }
 
 func TestBucketForStatus(t *testing.T) {

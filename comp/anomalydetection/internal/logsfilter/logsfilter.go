@@ -9,10 +9,61 @@
 package logsfilter
 
 import (
+	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
+
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// RateLimitDiscrepancies reports rate-limit settings that would make a less
+// severe log tier more permissive than a more severe one. A configured value
+// of -1 is displayed as +Inf for ordering comparisons. Values below -1 are
+// unsupported, even though the runtime limiter currently treats any negative
+// value as unlimited.
+func RateLimitDiscrepancies(low, medium, high float64) []string {
+	values := []struct {
+		name  string
+		value float64
+	}{
+		{"low", low},
+		{"medium", medium},
+		{"high", high},
+	}
+
+	var discrepancies []string
+	for _, value := range values {
+		if value.value < -1 {
+			discrepancies = append(discrepancies, fmt.Sprintf("max_rate_%s_priority must be -1 or >= 0, got %g", value.name, value.value))
+		}
+	}
+
+	normalizedLow := normalizeRateLimit(low)
+	normalizedMedium := normalizeRateLimit(medium)
+	normalizedHigh := normalizeRateLimit(high)
+	if normalizedLow > normalizedMedium || normalizedMedium > normalizedHigh {
+		discrepancies = append(discrepancies, fmt.Sprintf("max_rate priority limits should be non-decreasing (low=%g, medium=%g, high=%g)", normalizedLow, normalizedMedium, normalizedHigh))
+	}
+	return discrepancies
+}
+
+// WarnRateLimitDiscrepancies emits configuration warnings for a source's
+// priority-tier limits. Each warning includes every fully-qualified key used
+// by the ordering check.
+func WarnRateLimitDiscrepancies(prefix string, low, medium, high float64) {
+	for _, discrepancy := range RateLimitDiscrepancies(low, medium, high) {
+		pkglog.Warnf("config max rates within %s: %s", prefix, discrepancy)
+	}
+}
+
+func normalizeRateLimit(rate float64) float64 {
+	if rate < 0 {
+		return math.Inf(1)
+	}
+	return rate
+}
 
 // RateWindowDuration is the fixed window size used by RateWindow.
 const RateWindowDuration = 10 * time.Second
