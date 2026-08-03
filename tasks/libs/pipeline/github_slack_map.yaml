@@ -81,8 +81,8 @@
     name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#fleet-remediation'
-    id: 'C08U2C0GCMV'
+    name: '#fleet-remediation-reviews'
+    id: 'C0BEJRSH57Z'
 '@datadog/agent-integrations':
   notification:
     name: '#agent-integrations'
