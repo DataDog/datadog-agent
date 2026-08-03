@@ -2,7 +2,7 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "0.1.16"
+VERSION = "0.1.2"
 
 # Define URLs for each architecture. This is used for the Linux build only; Windows and Darwin are not supported yet.
 # When we do those, we can make this parameterized.
@@ -14,7 +14,7 @@ http_archive(
         "LICENSE": "//deps/compile_policy:LICENSE",
         "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
     },
-    sha256 = "c87cf1c639de483634a85ce86c847b6de95f8b409be8ca5452bdc067fe0b9b0d",
+    sha256 = "f32c245da1e0152e981ea6a3531b244bbab42c02666ec9bf37edc52204a96355",
     urls = [
         "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-linux-amd64.tar.gz".format(
             version = VERSION,
@@ -29,7 +29,7 @@ http_archive(
         "LICENSE": "//deps/compile_policy:LICENSE",
         "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
     },
-    sha256 = "92c34a776ee8d042d8fcd9604a7df08326b3de137bd8c75c35d60033597efeeb",
+    sha256 = "1e9447733ac2a623d59b657b689811695738e040a7dd7be22a368c07cbd52842",
     urls = [
         "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-linux-arm64.tar.gz".format(
             version = VERSION,
@@ -44,7 +44,7 @@ http_archive(
         "LICENSE": "//deps/compile_policy:LICENSE",
         "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
     },
-    sha256 = "cec996ab34bfa20e4a3244a6009d70bb905ba3fc54a22b71a835a10dd6716c11",
+    sha256 = "39cabb8dc85e29837be223d389b6c00b715513e7ffc6fa8a0d69db03fdc66f2e",
     urls = [
         "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-windows-x64.zip".format(
             version = VERSION,
