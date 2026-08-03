@@ -62,6 +62,6 @@ type atelFlagSubscriber struct {
 // Handlers returns the flag handlers owned by the agent-telemetry component.
 func (s atelFlagSubscriber) Handlers() []remoteflags.FlagHandler {
 	return []remoteflags.FlagHandler{
-		dataLossFlag{a: s.a},
+		dataLossFlag(s),
 	}
 }

@@ -101,9 +101,9 @@ const (
 type Requires struct {
 	compdef.In
 
-	Log       log.Component
-	Config    config.Component
-	Telemetry telemetry.Component
+	Log         log.Component
+	Config      config.Component
+	Telemetry   telemetry.Component
 	RemoteFlags remoteflagscomp.Component
 
 	Lc compdef.Lifecycle
