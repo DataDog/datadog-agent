@@ -22,8 +22,8 @@ services:
       context: ../..
       dockerfile: tools/host-profiler/Dockerfile
       args:
-        UID: ${UID}
-        GID: ${GID}
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     privileged: true
     pid: "host"
     cgroup: "host"
