@@ -3970,9 +3970,9 @@
   
 
 
-<h1 id="status">Status</h1>
+<h1 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h1>
 <p>Components can register a status provider. When the status command is executed, we will populate the information displayed using all the status providers.</p>
-<h2 id="status-providers">Status Providers</h2>
+<h2 id="status-providers">Status Providers<a class="headerlink" href="#status-providers" title="Permanent link">&para;</a></h2>
 <p>There are two types of status providers:</p>
 <ul>
 <li><strong>Header Providers:</strong> these providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, or metadata.</li>
@@ -3984,7 +3984,7 @@ This flexibility allows you to tailor the output to best suit your component's n
 <p>To guarantee consistent output, we order the status providers internally. The ordering mechanism is different depending on the status provider.
 We order the header providers based on an index using the ascending direction.
 The regular providers are ordered alphabetically based on their names.</p>
-<h3 id="header-providers-interface">Header Providers Interface</h3>
+<h3 id="header-providers-interface">Header Providers Interface<a class="headerlink" href="#header-providers-interface" title="Permanent link">&para;</a></h3>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">HeaderProvider</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="c1">// Index is used to choose the order in which the header information is displayed.</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nx">Index</span><span class="p">()</span><span class="w"> </span><span class="kt">int</span>
@@ -3995,7 +3995,7 @@ The regular providers are ordered alphabetically based on their names.</p>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nx">HTML</span><span class="p">(</span><span class="nx">verbose</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">buffer</span><span class="w"> </span><span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="regular-providers-interface">Regular Providers Interface</h3>
+<h3 id="regular-providers-interface">Regular Providers Interface<a class="headerlink" href="#regular-providers-interface" title="Permanent link">&para;</a></h3>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Provider interface</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Provider</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="c1">// Name is used to sort the status providers alphabetically.</span>
@@ -4008,7 +4008,7 @@ The regular providers are ordered alphabetically based on their names.</p>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nx">HTML</span><span class="p">(</span><span class="nx">verbose</span><span class="w"> </span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="nx">buffer</span><span class="w"> </span><span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="adding-a-status-provider">Adding a status provider</h2>
+<h2 id="adding-a-status-provider">Adding a status provider<a class="headerlink" href="#adding-a-status-provider" title="Permanent link">&para;</a></h2>
 <p>To add a status provider to your component, you need to declare it in the return value of its <code>NewComponent()</code> function.</p>
 <p>The status component provides helper functions to create status providers: <code>NewInformationProvider</code> and <code>NewHeaderInformationProvider</code>.</p>
 <p>Also, the status component has helper functions to render text and HTML output: <code>RenderText</code> and <code>RenderHTML.</code>
@@ -4101,7 +4101,7 @@ The name of the templates do not have any rules, but to keep the same consistenc
 </div>
 </div>
 </div>
-<h2 id="testing">Testing</h2>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <p>A critical part of your component development is ensuring that the status output is displayed as expected is. We highly encourage you to add tests to your components, giving you the confidence that your status output is accurate and reliable.
 For our example above, testing the status output is as easy as testing the result of calling <code>JSON</code>, <code>Text</code> and <code>HTML</code>.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:1"><input checked="checked" id="compcompressionimplcomponent_testgo" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="compcompressionimplcomponent_testgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/impl/component_test.go</label></div>
