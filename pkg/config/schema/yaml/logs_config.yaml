@@ -138,6 +138,7 @@ properties:
     description: The maximum time (in seconds) the Datadog Agent waits to fill each
       batch of logs before sending.
     tags:
+    - generate_const:DefaultBatchWait
     - golang_type:float64
   close_timeout:
     node_type: setting
@@ -208,6 +209,8 @@ properties:
 
       Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
       remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
+    tags:
+    - generate_const:DefaultMaxMessageSizeBytes
     comment: maximum log message size in bytes
   integrations_logs_files_max_size:
     node_type: setting
@@ -290,6 +293,8 @@ properties:
     node_type: setting
     type: integer
     default: 23
+    tags:
+    - generate_const:DefaultAuditorTTL
     comment: in hours
   auto_multi_line:
     node_type: section
@@ -377,18 +382,26 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - generate_const:DefaultBatchMaxConcurrentSend
   batch_max_content_size:
     node_type: setting
     type: integer
     default: 5000000
+    tags:
+    - generate_const:DefaultBatchMaxContentSize
   batch_max_size:
     node_type: setting
     type: integer
     default: 1000
+    tags:
+    - generate_const:DefaultBatchMaxSize
   compression_kind:
     node_type: setting
     type: string
     default: zstd
+    tags:
+    - generate_const:DefaultLogCompressionKind
   connection_reset_interval:
     node_type: setting
     type: integer
@@ -711,6 +724,8 @@ properties:
     node_type: setting
     type: integer
     default: 100
+    tags:
+    - generate_const:DefaultInputChanSize
   integrations_logs_disk_ratio:
     node_type: setting
     type: number
@@ -774,23 +789,28 @@ properties:
     type: number
     default: 1
     tags:
+    - generate_const:DefaultLogsSenderBackoffBase
     - golang_type:float64
   sender_backoff_factor:
     node_type: setting
     type: number
     default: 2
     tags:
+    - generate_const:DefaultLogsSenderBackoffFactor
     - golang_type:float64
   sender_backoff_max:
     node_type: setting
     type: number
     default: 120
     tags:
+    - generate_const:DefaultLogsSenderBackoffMax
     - golang_type:float64
   sender_recovery_interval:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - generate_const:DefaultForwarderRecoveryInterval
   sender_recovery_reset:
     node_type: setting
     type: boolean
@@ -873,4 +893,6 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    tags:
+    - generate_const:DefaultZstdCompressionLevel
 comment: Delegated authentication for logs

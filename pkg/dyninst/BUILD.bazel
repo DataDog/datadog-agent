@@ -558,6 +558,11 @@ go_test(
         "testdata/e2e/rc_tester.json",
         "testdata/e2e/rc_tester_v1.json",
         "testdata/decoded/sample/testCaptureContextImpl.json",
+        "testdata/decoded/sample/testByteSliceInvalidUtf8.json",
+        "testdata/decoded/sample/testByteSliceMultibyteUtf8.json",
+        "testdata/decoded/sample/testInvalidUtf8Strings.json",
+        "testdata/decoded/sample/testMultibyteUtf8String.json",
+        "testdata/decoded/sample/testMultibyteUtf8StringWithSizeLimit.json",
     ],
     gotags = [
         "test",
