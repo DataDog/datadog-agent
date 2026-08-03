@@ -9,18 +9,13 @@
 //! JWT via [`crate::jwt::JwtSigner`] and reproduces the request envelopes,
 //! headers, and status/retry-after handling of the Go `opms.Client`.
 
-use crate::config::FLAVOR;
+use crate::config::{FLAVOR, ProxyConfig};
 use crate::jwt::{JWT_HEADER_NAME, JwtSigner};
 use anyhow::{Context, Result, bail};
-use http_body_util::{BodyExt, Full};
-// Re-export rather than a direct `bytes` dependency (which is not a workspace
-// dependency); same approach as pkg/discovery/module/rust.
-use hyper::Request;
-use hyper::body::Bytes;
-use hyper_util::rt::TokioIo;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::net::TcpStream;
 
 const DEQUEUE_PATH: &str = "/api/v2/on-prem-management-service/workflow-tasks/dequeue";
 const TASK_UPDATE_PATH: &str =
@@ -272,74 +267,30 @@ impl HttpResponse {
     }
 }
 
-/// Where an OPMS base URL points: the pieces needed to open a connection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Endpoint {
-    tls: bool,
-    host: String,
-    port: u16,
-}
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
+const MAX_IDLE_CONNECTIONS_PER_HOST: usize = 5;
 
-impl Endpoint {
-    /// Parse an OPMS base URL (`https://api.datad0g.com`, `http://127.0.0.1:8080`).
-    ///
-    /// Hand-rolled rather than pulling in a URL crate: the input is always an
-    /// agent-configured origin with no path, query, or userinfo.
-    fn parse(base_url: &str) -> Result<Self> {
-        let (tls, rest) = match base_url.split_once("://") {
-            Some(("https", rest)) => (true, rest),
-            Some(("http", rest)) => (false, rest),
-            Some((scheme, _)) => bail!("unsupported OPMS URL scheme {scheme:?} in {base_url:?}"),
-            None => bail!("OPMS URL {base_url:?} has no scheme"),
-        };
-        let authority = rest.trim_end_matches('/');
-        if authority.is_empty() {
-            bail!("OPMS URL {base_url:?} has no host");
-        }
-        // Split host:port from the right so IPv6 literals are not mangled.
-        let (host, port) = match authority.rsplit_once(':') {
-            Some((host, port)) if !host.is_empty() && !host.contains(']') => (
-                host,
-                port.parse::<u16>()
-                    .with_context(|| format!("invalid port in OPMS URL {base_url:?}"))?,
-            ),
-            _ => (authority, if tls { 443 } else { 80 }),
-        };
-        Ok(Endpoint {
-            tls,
-            host: host.to_string(),
-            port,
-        })
-    }
-
-    /// The `Host` header value: the port is omitted when it is the scheme default.
-    fn host_header(&self) -> String {
-        let default_port = if self.tls { 443 } else { 80 };
-        if self.port == default_port {
-            self.host.clone()
-        } else {
-            format!("{}:{}", self.host, self.port)
-        }
-    }
-}
-
-/// Real OPMS client, speaking HTTP/1.1 over hyper with TLS from `native-tls`
-/// (the agent's own OpenSSL, same stack as the control<->executor channel in
-/// `tls.rs`). Server certificates are verified against the system trust store,
-/// which `native-tls` locates at runtime via `openssl-probe`.
-///
-/// A plaintext `http://` base URL is honored for e2e against a fake OPMS.
+/// Real OPMS client backed by reqwest's pooled Hyper transport and native-tls.
+/// It preserves the Agent's proxy routing, including CONNECT tunnels, proxy
+/// authentication, and no-proxy exclusions. A plaintext base URL remains
+/// restricted to the verification-bypass E2E mode by configuration loading.
 pub struct HttpOpms {
-    endpoint: Endpoint,
-    /// Built once and reused: constructing a connector re-reads the trust store.
-    /// `None` for a plaintext endpoint.
-    tls: Option<tokio_native_tls::TlsConnector>,
+    base_url: reqwest::Url,
+    client: reqwest::Client,
     signer: Arc<dyn JwtSigner>,
-    timeout: Duration,
     runner_version: String,
     modes: Vec<String>,
+    extra_headers: HashMap<String, String>,
     runner_started_at: String,
     last_task_received_at: Mutex<Option<String>>,
+}
+
+struct HttpOpmsOptions {
+    runner_version: String,
+    modes: Vec<String>,
+    timeout: Duration,
+    proxy_config: ProxyConfig,
+    extra_headers: HashMap<String, String>,
 }
 
 impl HttpOpms {
@@ -349,29 +300,56 @@ impl HttpOpms {
         runner_version: String,
         modes: Vec<String>,
         timeout: Duration,
+        proxy_config: &ProxyConfig,
+        extra_headers: HashMap<String, String>,
     ) -> Result<Self> {
-        let endpoint = Endpoint::parse(&base_url)?;
-        let tls = if endpoint.tls {
-            let connector = native_tls::TlsConnector::new()
-                .context("building the OPMS TLS connector (no usable TLS backend?)")?;
-            Some(tokio_native_tls::TlsConnector::from(connector))
-        } else {
-            None
-        };
-        Ok(HttpOpms {
-            endpoint,
-            tls,
+        Self::new_with_builder(
+            base_url,
             signer,
-            timeout,
-            runner_version,
-            modes,
+            HttpOpmsOptions {
+                runner_version,
+                modes,
+                timeout,
+                proxy_config: proxy_config.clone(),
+                extra_headers,
+            },
+            reqwest::Client::builder(),
+        )
+    }
+
+    fn new_with_builder(
+        base_url: String,
+        signer: Arc<dyn JwtSigner>,
+        options: HttpOpmsOptions,
+        builder: reqwest::ClientBuilder,
+    ) -> Result<Self> {
+        let base_url = parse_base_url(&base_url)?;
+        let mut builder = builder
+            .timeout(options.timeout)
+            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+            .pool_max_idle_per_host(MAX_IDLE_CONNECTIONS_PER_HOST)
+            .http1_only()
+            // We already merged the Agent's YAML and environment proxy settings;
+            // do not let reqwest independently re-read process environment.
+            .no_proxy();
+        if let Some(proxy) = proxy_for_base_url(&base_url, &options.proxy_config)? {
+            builder = builder.proxy(proxy);
+        }
+        let client = builder.build().context("building the OPMS HTTP client")?;
+        Ok(Self {
+            base_url,
+            client,
+            signer,
+            runner_version: options.runner_version,
+            modes: options.modes,
+            extra_headers: options.extra_headers,
             runner_started_at: now_rfc3339(),
             last_task_received_at: Mutex::new(None),
         })
     }
 
-    fn headers(&self, jwt: String) -> Vec<(&'static str, String)> {
-        vec![
+    fn headers(&self, jwt: String) -> Result<HeaderMap> {
+        let fixed = [
             ("Accept", "application/json".to_string()),
             ("Content-Type", "application/json".to_string()),
             (JWT_HEADER_NAME, jwt),
@@ -384,114 +362,128 @@ impl HttpOpms {
                 "X-Datadog-OnPrem-Containerized",
                 is_containerized().to_string(),
             ),
-        ]
+        ];
+        let mut headers = HeaderMap::new();
+        for (name, value) in fixed {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes()).context("invalid OPMS header name")?,
+                HeaderValue::from_str(&value).context("invalid OPMS header value")?,
+            );
+        }
+        // Match Go's precedence: operator-provided headers are applied last and
+        // may intentionally override a standard routing/diagnostic header.
+        for (name, value) in &self.extra_headers {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes())
+                    .with_context(|| format!("invalid OPMS extra header name {name:?}"))?,
+                HeaderValue::from_str(value)
+                    .with_context(|| format!("invalid value for OPMS extra header {name:?}"))?,
+            );
+        }
+        Ok(headers)
     }
 
     /// POST `body` to `path` with the standard headers + a fresh JWT. Returns the
     /// raw response (status/retry-after/body) without treating a non-2xx status as
     /// an error, so callers can decide (matching Go).
-    ///
-    /// One connection per request: OPMS calls are at most a few per second and a
-    /// pool would add reconnect/staleness handling for no measurable gain.
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<HttpResponse> {
         let jwt = self
             .signer
             .sign()
             .context("failed to sign OPMS request JWT")?;
-
-        let mut builder = Request::builder()
-            .method(hyper::Method::POST)
-            // HTTP/1.1 origin-form: the target is the path, and the authority
-            // travels in the Host header.
-            .uri(path)
-            .header(hyper::header::HOST, self.endpoint.host_header());
-        for (name, value) in self.headers(jwt) {
-            builder = builder.header(name, value);
-        }
-        let request = builder
-            .body(Full::new(Bytes::from(body)))
-            .context("building the OPMS request")?;
-
-        // One timeout over connect + TLS + request + response: a hung connect is
-        // as harmful as a hung read, and the Go client bounds the whole call too.
-        tokio::time::timeout(self.timeout, self.send(request))
+        let url = self
+            .base_url
+            .join(path)
+            .with_context(|| format!("building OPMS request URL for {path}"))?;
+        let response = self
+            .client
+            .post(url)
+            .headers(self.headers(jwt)?)
+            .body(body)
+            .send()
             .await
-            .with_context(|| format!("OPMS request to {path} timed out after {:?}", self.timeout))?
-    }
-
-    /// Connect (optionally wrapping in TLS) and exchange one request/response.
-    async fn send(&self, request: Request<Full<Bytes>>) -> Result<HttpResponse> {
-        let tcp = TcpStream::connect((self.endpoint.host.as_str(), self.endpoint.port))
+            .with_context(|| format!("OPMS request to {path} failed"))?;
+        let status = response.status().as_u16();
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|milliseconds| *milliseconds > 0)
+            .map(|milliseconds| Duration::from_millis(milliseconds).min(MAX_RETRY_AFTER));
+        let body = response
+            .bytes()
             .await
-            .with_context(|| {
-                format!(
-                    "connecting to OPMS at {}:{}",
-                    self.endpoint.host, self.endpoint.port
-                )
-            })?;
-        // Nagle off: these are small request/response pairs where latency matters
-        // more than packet efficiency.
-        let _ = tcp.set_nodelay(true);
-
-        match &self.tls {
-            Some(connector) => {
-                let stream = connector
-                    .connect(&self.endpoint.host, tcp)
-                    .await
-                    .with_context(|| {
-                        format!("TLS handshake with OPMS at {}", self.endpoint.host)
-                    })?;
-                exchange(TokioIo::new(stream), request).await
-            }
-            None => exchange(TokioIo::new(tcp), request).await,
-        }
+            .context("failed to read OPMS response body")?
+            .to_vec();
+        Ok(HttpResponse {
+            status,
+            retry_after,
+            body,
+        })
     }
 }
 
-/// Drive one HTTP/1.1 request/response over an established stream.
-///
-/// Generic over the stream type so the TLS and plaintext paths share it without
-/// boxing or an enum.
-async fn exchange<I>(io: I, request: Request<Full<Bytes>>) -> Result<HttpResponse>
-where
-    I: hyper::rt::Read + hyper::rt::Write + Unpin + Send + 'static,
-{
-    let (mut sender, connection) = hyper::client::conn::http1::handshake(io)
-        .await
-        .context("HTTP handshake with OPMS failed")?;
-    // The connection task pumps the socket; it ends when the response is complete
-    // and the sender is dropped, so it needs no explicit shutdown.
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            log::debug!("OPMS connection closed: {e}");
-        }
-    });
+fn parse_base_url(raw: &str) -> Result<reqwest::Url> {
+    let url = reqwest::Url::parse(raw).context("invalid OPMS URL")?;
+    if !matches!(url.scheme(), "http" | "https") {
+        bail!("unsupported OPMS URL scheme {:?}", url.scheme());
+    }
+    if url.username() != "" || url.password().is_some() {
+        bail!("OPMS URL must not contain credentials");
+    }
+    if url.host_str().is_none() {
+        bail!("OPMS URL has no host");
+    }
+    if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
+        bail!("OPMS URL must be an origin without a path, query, or fragment");
+    }
+    Ok(url)
+}
 
-    let response = sender
-        .send_request(request)
-        .await
-        .context("OPMS request failed")?;
-    let status = response.status().as_u16();
-    let retry_after = response
-        .headers()
-        .get(RETRY_AFTER_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse::<u64>().ok())
-        .filter(|ms| *ms > 0)
-        .map(|ms| Duration::from_millis(ms).min(MAX_RETRY_AFTER));
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .context("failed to read OPMS response body")?
-        .to_bytes()
-        .to_vec();
+fn proxy_for_base_url(
+    base_url: &reqwest::Url,
+    config: &ProxyConfig,
+) -> Result<Option<reqwest::Proxy>> {
+    let raw_proxy = match base_url.scheme() {
+        "https" => config.https.as_deref(),
+        "http" => config.http.as_deref(),
+        _ => None,
+    };
+    let Some(raw_proxy) = raw_proxy else {
+        return Ok(None);
+    };
 
-    Ok(HttpResponse {
-        status,
-        retry_after,
-        body,
-    })
+    let authority = url_authority(base_url);
+    if !config.no_proxy_nonexact_match && config.no_proxy.iter().any(|entry| entry == &authority) {
+        return Ok(None);
+    }
+
+    let proxy = match base_url.scheme() {
+        "https" => reqwest::Proxy::https(raw_proxy),
+        "http" => reqwest::Proxy::http(raw_proxy),
+        _ => unreachable!("base URL scheme was validated"),
+    }
+    .context("invalid Agent proxy URL")?;
+    if config.no_proxy_nonexact_match {
+        let no_proxy = reqwest::NoProxy::from_string(&config.no_proxy.join(","));
+        Ok(Some(proxy.no_proxy(no_proxy)))
+    } else {
+        Ok(Some(proxy))
+    }
+}
+
+fn url_authority(url: &reqwest::Url) -> String {
+    let host = url.host_str().unwrap_or_default();
+    let host = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    };
+    match url.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host,
+    }
 }
 
 impl Opms for HttpOpms {
@@ -567,25 +559,15 @@ mod tests {
     }
 
     #[test]
-    fn parses_endpoints() {
-        let cases = [
-            ("https://api.datad0g.com", true, "api.datad0g.com", 443),
-            ("https://api.datadoghq.com/", true, "api.datadoghq.com", 443),
-            ("http://127.0.0.1:8080", false, "127.0.0.1", 8080),
-            ("http://fake-opms", false, "fake-opms", 80),
-            ("https://opms.internal:8443", true, "opms.internal", 8443),
-        ];
-        for (url, tls, host, port) in cases {
-            let ep = Endpoint::parse(url).unwrap_or_else(|e| panic!("{url}: {e}"));
-            assert_eq!(
-                ep,
-                Endpoint {
-                    tls,
-                    host: host.to_string(),
-                    port
-                },
-                "{url}"
-            );
+    fn parses_base_urls() {
+        for url in [
+            "https://api.datad0g.com",
+            "https://api.datadoghq.com/",
+            "http://127.0.0.1:8080",
+            "http://fake-opms",
+            "https://opms.internal:8443",
+        ] {
+            parse_base_url(url).unwrap_or_else(|error| panic!("{url}: {error}"));
         }
 
         for bad in [
@@ -593,27 +575,62 @@ mod tests {
             "ftp://host",
             "https://",
             "http://h:notaport",
+            "https://api.datadoghq.com/path",
         ] {
-            assert!(Endpoint::parse(bad).is_err(), "{bad} should not parse");
+            assert!(parse_base_url(bad).is_err(), "{bad} should not parse");
         }
     }
 
-    /// The `Host` header carries the port only when it is non-default, matching
-    /// what every other HTTP client sends — OPMS routes on this header.
     #[test]
-    fn host_header_omits_default_ports() {
+    fn url_authority_includes_only_explicit_ports() {
         assert_eq!(
-            Endpoint::parse("https://api.datad0g.com")
-                .unwrap()
-                .host_header(),
+            url_authority(&parse_base_url("https://api.datad0g.com").unwrap()),
             "api.datad0g.com"
         );
         assert_eq!(
-            Endpoint::parse("http://127.0.0.1:8080")
-                .unwrap()
-                .host_header(),
+            url_authority(&parse_base_url("http://127.0.0.1:8080").unwrap()),
             "127.0.0.1:8080"
         );
+    }
+
+    #[test]
+    fn proxy_selection_preserves_agent_legacy_exact_no_proxy() {
+        let base_url = parse_base_url("https://api.datadoghq.com").unwrap();
+        let mut config = ProxyConfig {
+            https: Some("http://proxy.example:3128".to_string()),
+            no_proxy: vec!["api.datadoghq.com".to_string()],
+            ..ProxyConfig::default()
+        };
+        assert!(proxy_for_base_url(&base_url, &config).unwrap().is_none());
+
+        config.no_proxy = vec!["datadoghq.com".to_string()];
+        assert!(proxy_for_base_url(&base_url, &config).unwrap().is_some());
+        config.no_proxy_nonexact_match = true;
+        // Reqwest receives the Agent's standard suffix/CIDR exclusion list.
+        assert!(proxy_for_base_url(&base_url, &config).unwrap().is_some());
+    }
+
+    #[test]
+    fn extra_headers_override_standard_headers() {
+        let opms = HttpOpms::new(
+            "http://localhost:8080".to_string(),
+            Arc::new(crate::jwt::test_support::StaticSigner("jwt".into())),
+            "7.83.0".into(),
+            vec!["pull".into()],
+            Duration::from_secs(10),
+            &ProxyConfig::default(),
+            HashMap::from([
+                (
+                    "X-Datadog-OnPrem-Version".to_string(),
+                    "override".to_string(),
+                ),
+                ("X-Test-Routing".to_string(), "canary".to_string()),
+            ]),
+        )
+        .unwrap();
+        let headers = opms.headers("jwt".to_string()).unwrap();
+        assert_eq!(headers["X-Datadog-OnPrem-Version"], "override");
+        assert_eq!(headers["X-Test-Routing"], "canary");
     }
 
     #[test]
@@ -743,21 +760,21 @@ mod tests {
             String::from_utf8_lossy(&request).to_string()
         });
 
-        let mut opms = HttpOpms::new(
+        let opms = HttpOpms::new_with_builder(
             format!("https://127.0.0.1:{port}"),
             Arc::new(crate::jwt::test_support::StaticSigner("jwt-abc".into())),
-            "7.83.0".into(),
-            vec!["mode-a".into()],
-            Duration::from_secs(10),
+            HttpOpmsOptions {
+                runner_version: "7.83.0".into(),
+                modes: vec!["mode-a".into()],
+                timeout: Duration::from_secs(10),
+                proxy_config: ProxyConfig::default(),
+                extra_headers: HashMap::new(),
+            },
+            reqwest::Client::builder().add_root_certificate(
+                reqwest::Certificate::from_pem(&cert_pem).expect("fixture root certificate"),
+            ),
         )
         .expect("a TLS backend must be compiled in");
-        // The fixture CA is not in the system trust store.
-        opms.tls = Some(tokio_native_tls::TlsConnector::from(
-            native_tls::TlsConnector::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .unwrap(),
-        ));
 
         let dequeued = opms.dequeue().await.expect("dequeue over TLS");
         let task = dequeued.task.expect("a task");
@@ -785,6 +802,97 @@ mod tests {
             request.contains("7.83.0"),
             "missing version header in: {request}"
         );
+    }
+
+    /// Proves Agent HTTPS proxy configuration results in a CONNECT tunnel and
+    /// that proxy credentials are kept on CONNECT rather than sent to OPMS.
+    #[tokio::test]
+    async fn routes_https_through_a_connect_proxy() {
+        let (cert_pem, key_pem) = crate::tls::test_support::generate_self_signed_cert();
+        let identity = native_tls::Identity::from_pkcs8(
+            &cert_pem,
+            &crate::tls::test_support::to_pkcs8(&key_pem),
+        )
+        .expect("server identity");
+        let acceptor = tokio_native_tls::TlsAcceptor::from(
+            native_tls::TlsAcceptor::new(identity).expect("tls acceptor"),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_port = listener.local_addr().unwrap().port();
+
+        let server = tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+            let (mut tcp, _) = listener.accept().await.unwrap();
+            let mut connect = Vec::new();
+            let mut byte = [0_u8; 1];
+            while !connect.ends_with(b"\r\n\r\n") {
+                tcp.read_exact(&mut byte).await.unwrap();
+                connect.push(byte[0]);
+            }
+            tcp.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                .await
+                .unwrap();
+
+            // After CONNECT, reqwest establishes end-to-end TLS to the target.
+            let mut stream = acceptor.accept(tcp).await.expect("target TLS handshake");
+            let mut request = Vec::new();
+            let mut buf = [0_u8; 1024];
+            loop {
+                let n = stream.read(&mut buf).await.unwrap();
+                request.extend_from_slice(&buf[..n]);
+                if n == 0
+                    || (request.windows(4).any(|window| window == b"\r\n\r\n")
+                        && request.ends_with(b"}"))
+                {
+                    break;
+                }
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            (
+                String::from_utf8_lossy(&connect).to_string(),
+                String::from_utf8_lossy(&request).to_string(),
+            )
+        });
+
+        let proxy = ProxyConfig {
+            https: Some(format!(
+                "http://proxy-user:proxy-pass@127.0.0.1:{proxy_port}"
+            )),
+            ..ProxyConfig::default()
+        };
+        let opms = HttpOpms::new_with_builder(
+            "https://localhost".to_string(),
+            Arc::new(crate::jwt::test_support::StaticSigner(
+                "jwt-through-proxy".into(),
+            )),
+            HttpOpmsOptions {
+                runner_version: "7.83.0".into(),
+                modes: vec!["pull".into()],
+                timeout: Duration::from_secs(10),
+                proxy_config: proxy,
+                extra_headers: HashMap::new(),
+            },
+            reqwest::Client::builder().add_root_certificate(
+                reqwest::Certificate::from_pem(&cert_pem).expect("fixture root certificate"),
+            ),
+        )
+        .unwrap();
+
+        let dequeued = opms.dequeue().await.unwrap();
+        assert!(dequeued.task.is_none());
+        let (connect, request) = server.await.unwrap();
+        assert!(connect.starts_with("CONNECT localhost:443 HTTP/1.1"));
+        assert!(
+            connect
+                .to_ascii_lowercase()
+                .contains("proxy-authorization: basic")
+        );
+        assert!(!request.to_ascii_lowercase().contains("proxy-authorization"));
+        assert!(request.contains("jwt-through-proxy"));
     }
 
     /// A rejected OPMS request must carry the server's explanation, bounded, so a

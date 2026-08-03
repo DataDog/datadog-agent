@@ -21,16 +21,13 @@ base64.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 dd-agent-log.workspace = true
-http-body-util.workspace = true
-# native-tls uses the system trust store without rustls/webpki dependencies.
-hyper = { workspace = true, features = ["client", "http1"] }
-hyper-util = { workspace = true, features = ["tokio"] }
 log.workspace = true
 native-tls.workspace = true
 # Used to convert the Agent IPC key from SEC1 to PKCS8 for native-tls.
 openssl.workspace = true
 p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
+reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true

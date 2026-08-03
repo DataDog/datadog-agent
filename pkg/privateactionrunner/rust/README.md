@@ -85,16 +85,19 @@ dda inv install-rust-license-tool   # once
 dda inv generate-rust-licenses
 ```
 
-**TLS:** OPMS is reached with `hyper` + `native-tls` (`opms.rs`), *not* a
-higher-level HTTP client. `rustls`/`ring` are intentionally avoided for
-`cargo-deny`, and `ureq` — the workspace's HTTP client — cannot express what is
-needed: its `native-tls` support is gated on a feature that force-enables
+**TLS and proxying:** OPMS is reached with `reqwest` configured with default
+features disabled and only `native-tls` enabled. This provides pooled HTTP/1.1,
+HTTP CONNECT proxy support, proxy authentication, and stale-connection recovery
+without pulling in rustls/ring/webpki roots. The client receives the Agent's
+resolved YAML/environment proxy settings, including no-proxy behavior.
+
+`ureq` — the workspace's other HTTP client — cannot express what is needed: its
+`native-tls` support is gated on a feature that force-enables
 `native-tls-webpki-roots` (`webpki-root-certs`, CDLA-Permissive-2.0, rejected by
 `cargo-deny`), and with only `native-tls-no-default` every native-tls code path in
-ureq is compiled out, so *any* HTTPS request panics at runtime with "provider is
-... but feature is not enabled". Cargo features are additive, so the webpki roots
-cannot be subtracted. `native-tls` needs no bundled roots anyway: it locates the
-system trust store at runtime via `openssl-probe`.
+ureq is compiled out. Cargo features are additive, so the webpki roots cannot be
+subtracted. `native-tls` needs no bundled roots anyway: it locates the system
+trust store at runtime via `openssl-probe`.
 
 This makes par-control the first Rust component in the agent to make an *outbound*
 HTTPS request — `cmd/ai_prompt_logger` deliberately POSTs plaintext to the local
@@ -139,8 +142,6 @@ runtime, so each is pinned by a unit test in `config.rs`.
 
 - Validate the exact OPMS request envelopes (esp. dequeue JSON:API) against a
   running/fake OPMS; the bodies here are modeled on the Go client.
-- `private_action_runner.opms_extra_headers` is honored by the Go client but
-  ignored here.
 - par-control parses `datadog.yaml` itself and applies the `DD_*` overrides for
   the settings it consumes.
 - Config changes are only picked up on restart: neither the split switch nor the

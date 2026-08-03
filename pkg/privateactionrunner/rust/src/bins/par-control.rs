@@ -83,6 +83,8 @@ async fn main() -> Result<()> {
         config.runner_version.clone(),
         config.modes.clone(),
         config.opms_request_timeout,
+        &config.proxy,
+        config.opms_extra_headers.clone(),
     )?);
     let lifecycle = Arc::new(ProcmgrLifecycle::new(
         &config.procmgr_socket,

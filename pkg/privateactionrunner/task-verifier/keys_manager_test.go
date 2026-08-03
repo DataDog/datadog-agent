@@ -54,12 +54,14 @@ func rawConfig(t *testing.T, key SigningKey) state.RawConfig {
 	}
 }
 
-func TestKeysManagerSeedMakesColdExecutorReady(t *testing.T) {
+func TestKeysManagerSeedDoesNotMakeColdExecutorReady(t *testing.T) {
 	manager := newTestKeysManager()
 	seed := testSigningKey(t, "seed")
 
 	require.NoError(t, manager.Seed([]SigningKey{seed}))
-	require.NoError(t, manager.WaitForReady(context.Background()))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, manager.WaitForReady(ctx), context.Canceled)
 	require.NotNil(t, manager.GetKey(seed.ID))
 
 	snapshot := manager.Snapshot()
@@ -81,6 +83,7 @@ func TestKeysManagerRemoteConfigReplacesSeed(t *testing.T) {
 		},
 	)
 
+	require.NoError(t, manager.WaitForReady(context.Background()))
 	require.Nil(t, manager.GetKey(seed.ID))
 	require.NotNil(t, manager.GetKey(fresh.ID))
 	require.Equal(t, []SigningKey{fresh}, manager.Snapshot())

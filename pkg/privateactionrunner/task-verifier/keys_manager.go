@@ -87,6 +87,8 @@ func (k *keysManager) WaitForReady(ctx context.Context) error {
 
 // Seed installs a cached key snapshot only while this executor is cold. A
 // verified Remote Config callback always wins and replaces the seeded snapshot.
+// The seed deliberately does not satisfy WaitForReady: only a callback from the
+// current executor's Remote Config client proves that the snapshot is fresh.
 func (k *keysManager) Seed(keys []SigningKey) error {
 	if len(keys) == 0 {
 		return nil
@@ -114,7 +116,6 @@ func (k *keysManager) Seed(keys []SigningKey) error {
 	k.keys = decoded
 	k.rawKeys = raw
 	k.seeded = true
-	k.readyOnce.Do(func() { close(k.ready) })
 	return nil
 }
 

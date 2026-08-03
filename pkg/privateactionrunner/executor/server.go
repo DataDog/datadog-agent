@@ -69,8 +69,9 @@ func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthRespo
 	}, nil
 }
 
-// SyncKeys seeds a cold executor, waits until a usable key snapshot exists,
-// then returns the freshest snapshot for the control plane to cache.
+// SyncKeys seeds a cold executor, then waits for this executor's Remote Config
+// client to confirm a fresh key snapshot before enabling dispatch. The seed is
+// usable as an initial cache but never proves freshness by itself.
 func (s *Server) SyncKeys(ctx context.Context, req *pb.SyncKeysRequest) (*pb.SyncKeysResponse, error) {
 	if s.keysManager == nil {
 		return nil, status.Error(codes.FailedPrecondition, "key manager is not configured")

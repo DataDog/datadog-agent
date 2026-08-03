@@ -9,6 +9,7 @@
 
 use crate::identity::Identity;
 use anyhow::{Context, Result, bail};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -67,6 +68,8 @@ pub struct Config {
     /// Bounds the initial cold-executor wait for verified RC keys.
     pub key_sync_timeout: Duration,
     pub opms_request_timeout: Duration,
+    pub opms_extra_headers: HashMap<String, String>,
+    pub proxy: ProxyConfig,
     /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
@@ -84,6 +87,15 @@ pub struct Config {
     pub identity: Identity,
 }
 
+/// Effective Agent proxy settings used for the OPMS request scheme.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProxyConfig {
+    pub http: Option<String>,
+    pub https: Option<String>,
+    pub no_proxy: Vec<String>,
+    pub no_proxy_nonexact_match: bool,
+}
+
 /// Minimal view of `datadog.yaml` — only the fields the control plane reads.
 /// Unknown keys are ignored so the full agent config deserializes cleanly.
 #[derive(serde::Deserialize, Default, Clone)]
@@ -98,7 +110,17 @@ struct RawConfig {
     /// Only used to locate the IPC cert when `ipc_cert_file_path` is unset,
     /// mirroring the Go resolution order.
     auth_token_file_path: Option<String>,
+    proxy: Option<RawProxy>,
+    no_proxy_nonexact_match: Option<bool>,
     private_action_runner: Option<RawPar>,
+}
+
+#[derive(serde::Deserialize, Default, Clone)]
+struct RawProxy {
+    http: Option<String>,
+    https: Option<String>,
+    #[serde(default)]
+    no_proxy: Vec<String>,
 }
 
 #[derive(serde::Deserialize, Default, Clone)]
@@ -126,6 +148,8 @@ struct RawPar {
     heartbeat_interval_seconds: Option<u64>,
     #[serde(default)]
     modes: Vec<String>,
+    #[serde(default)]
+    opms_extra_headers: HashMap<String, String>,
 }
 
 /// The `private_action_runner.executor.*` sub-section.
@@ -205,6 +229,8 @@ impl Config {
         if heartbeat_interval == 0 {
             bail!("private_action_runner.heartbeat_interval_seconds must be greater than zero");
         }
+        let proxy = effective_proxy(&raw);
+        let ipc_cert_file = ipc_cert_file_path(&raw, config_path);
 
         Ok(Config {
             opms_base_url,
@@ -228,6 +254,8 @@ impl Config {
             ready_timeout: Duration::from_secs(10),
             key_sync_timeout: Duration::from_secs(120),
             opms_request_timeout: Duration::from_secs(30),
+            opms_extra_headers: par.opms_extra_headers,
+            proxy,
             // Backoff defaults mirror pkg/privateactionrunner/adapters/config/constants.go.
             min_backoff: Duration::from_secs(1),
             max_backoff: Duration::from_secs(180),
@@ -239,7 +267,7 @@ impl Config {
             } else {
                 par.modes
             },
-            ipc_cert_file: ipc_cert_file_path(&raw, config_path),
+            ipc_cert_file,
             identity,
         })
     }
@@ -370,6 +398,10 @@ where
     }
 }
 
+fn first_env(env: &impl Fn(&str) -> Option<String>, names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| env(name))
+}
+
 fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String>) -> Result<()> {
     raw.site = env("DD_SITE").or(raw.site.take());
     raw.dd_url = env("DD_DD_URL")
@@ -377,6 +409,24 @@ fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String
         .or(raw.dd_url.take());
     raw.ipc_cert_file_path = env("DD_IPC_CERT_FILE_PATH").or(raw.ipc_cert_file_path.take());
     raw.auth_token_file_path = env("DD_AUTH_TOKEN_FILE_PATH").or(raw.auth_token_file_path.take());
+    raw.no_proxy_nonexact_match = env_bool_override(
+        raw.no_proxy_nonexact_match,
+        "DD_NO_PROXY_NONEXACT_MATCH",
+        env,
+    )?;
+
+    let proxy = raw.proxy.get_or_insert_with(RawProxy::default);
+    proxy.http =
+        first_env(env, &["DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy"]).or(proxy.http.take());
+    proxy.https =
+        first_env(env, &["DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy"]).or(proxy.https.take());
+    if let Some(no_proxy) = first_env(env, &["DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy"]) {
+        proxy.no_proxy = no_proxy
+            .split(|c: char| c == ',' || c.is_ascii_whitespace())
+            .filter(|entry| !entry.is_empty())
+            .map(str::to_string)
+            .collect();
+    }
 
     let par = raw
         .private_action_runner
@@ -412,6 +462,11 @@ fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String
         "DD_PRIVATE_ACTION_RUNNER_HEARTBEAT_INTERVAL_SECONDS",
         env,
     )?;
+    if let Some(headers) = env("DD_PRIVATE_ACTION_RUNNER_OPMS_EXTRA_HEADERS") {
+        par.opms_extra_headers = serde_json::from_str(&headers).context(
+            "DD_PRIVATE_ACTION_RUNNER_OPMS_EXTRA_HEADERS must be a JSON object of string values",
+        )?;
+    }
 
     let executor = par.executor.get_or_insert_with(RawParExecutor::default);
     executor.socket_path =
@@ -419,30 +474,78 @@ fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String
     Ok(())
 }
 
+fn effective_proxy(raw: &RawConfig) -> ProxyConfig {
+    let proxy = raw.proxy.clone().unwrap_or_default();
+    ProxyConfig {
+        http: proxy.http.filter(|value| !value.is_empty()),
+        https: proxy.https.filter(|value| !value.is_empty()),
+        no_proxy: proxy.no_proxy,
+        no_proxy_nonexact_match: raw.no_proxy_nonexact_match.unwrap_or(false),
+    }
+}
+
 /// Resolve the production OPMS origin, allowing plaintext only for the existing
-/// verification-bypass E2E mode.
+/// verification-bypass E2E mode. For HTTPS `dd_url`, derive the Datadog site the
+/// same way as the Go runner rather than silently falling back to US1.
 fn resolve_opms_base_url(
     site: Option<&str>,
     dd_url: Option<&str>,
     allow_insecure_opms: bool,
 ) -> Result<String> {
-    if let Some(url) = dd_url
-        && let Some(host) = url.strip_prefix("http://")
-    {
-        if !allow_insecure_opms {
-            bail!("plaintext OPMS requires {SKIP_TASK_VERIFICATION_ENV}=true");
+    if let Some(raw_url) = dd_url.filter(|url| !url.is_empty()) {
+        let url = reqwest::Url::parse(raw_url).context("invalid dd_url")?;
+        if url.scheme() == "http" {
+            if !allow_insecure_opms {
+                bail!("plaintext OPMS requires {SKIP_TASK_VERIFICATION_ENV}=true");
+            }
+            let host = url.host_str().context("dd_url has no host")?;
+            let authority = match url.port() {
+                Some(port) => format!("{host}:{port}"),
+                None => host.to_string(),
+            };
+            return Ok(format!("http://{authority}"));
         }
-        let host = host.trim_end_matches('/');
-        if host.is_empty() {
-            bail!("dd_url has no host");
+        if url.scheme() != "https" {
+            bail!("unsupported dd_url scheme {:?}", url.scheme());
         }
-        return Ok(format!("http://{host}"));
+        let host = url.host_str().context("dd_url has no host")?;
+        let site = extract_datadog_site(host).with_context(|| {
+            format!("cannot derive a Datadog site from HTTPS dd_url {raw_url:?}")
+        })?;
+        return Ok(format!("https://api.{site}"));
     }
-    let site = site.unwrap_or("datadoghq.com");
+
+    let site = site.unwrap_or("datadoghq.com").trim();
     if site.is_empty() {
         bail!("site is empty and no dd_url override provided");
     }
     Ok(format!("https://api.{site}"))
+}
+
+fn extract_datadog_site(host: &str) -> Option<String> {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let labels: Vec<&str> = host.split('.').collect();
+    if labels.len() < 2 {
+        return None;
+    }
+    let domain_start = labels.len() - 2;
+    let recognized_domain = matches!(
+        &labels[domain_start..],
+        ["datadoghq" | "datad0g", "com" | "eu"] | ["ddog-gov", "com"]
+    );
+    if !recognized_domain {
+        return None;
+    }
+
+    let start = domain_start.checked_sub(1).filter(|index| {
+        let dc = labels[*index];
+        let letters = dc.bytes().take_while(u8::is_ascii_lowercase).count();
+        letters >= 2
+            && dc[letters..].len() <= 2
+            && !dc[letters..].is_empty()
+            && dc[letters..].bytes().all(|byte| byte.is_ascii_digit())
+    });
+    Some(labels[start.unwrap_or(domain_start)..].join("."))
 }
 
 /// Identity from the inline `datadog.yaml` keys, if both are present.
@@ -642,6 +745,24 @@ private_action_runner:
     }
 
     #[test]
+    fn https_dd_url_selects_the_matching_datadog_site() {
+        assert_eq!(
+            resolve_opms_base_url(
+                Some("datadoghq.com"),
+                Some("https://app.us3.datadoghq.com"),
+                false,
+            )
+            .unwrap(),
+            "https://api.us3.datadoghq.com"
+        );
+        assert_eq!(
+            resolve_opms_base_url(None, Some("https://api.datad0g.eu."), false).unwrap(),
+            "https://api.datad0g.eu"
+        );
+        assert!(resolve_opms_base_url(None, Some("https://custom.example.com"), false).is_err());
+    }
+
+    #[test]
     fn full_config_honors_environment_overrides() {
         let dir = tempfile::tempdir().unwrap();
         let cfg_path = dir.path().join("datadog.yaml");
@@ -656,6 +777,12 @@ private_action_runner:
             "DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH" => {
                 Some("/tmp/env-executor.sock".to_string())
             }
+            "DD_PROXY_HTTPS" => Some("http://proxy.example:3128".to_string()),
+            "DD_PROXY_NO_PROXY" => Some("localhost, 127.0.0.1".to_string()),
+            "DD_NO_PROXY_NONEXACT_MATCH" => Some("true".to_string()),
+            "DD_PRIVATE_ACTION_RUNNER_OPMS_EXTRA_HEADERS" => {
+                Some(r#"{"X-Test-Routing":"canary"}"#.to_string())
+            }
             _ => None,
         };
 
@@ -668,6 +795,18 @@ private_action_runner:
         assert_eq!(cfg.identity.private_key, "env-key");
         assert_eq!(cfg.task_concurrency, 3);
         assert_eq!(cfg.executor_socket, PathBuf::from("/tmp/env-executor.sock"));
+        assert_eq!(
+            cfg.proxy.https.as_deref(),
+            Some("http://proxy.example:3128")
+        );
+        assert_eq!(cfg.proxy.no_proxy, ["localhost", "127.0.0.1"]);
+        assert!(cfg.proxy.no_proxy_nonexact_match);
+        assert_eq!(
+            cfg.opms_extra_headers
+                .get("X-Test-Routing")
+                .map(String::as_str),
+            Some("canary")
+        );
     }
 
     #[test]
