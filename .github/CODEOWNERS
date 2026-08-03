@@ -945,6 +945,7 @@
 /test/new-e2e/tests/agent-subcommands/run*           @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/flare*          @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-subcommands/status*         @DataDog/fleet-remediation
+/test/new-e2e/tests/agent-telemetry           @DataDog/fleet-remediation
 /test/new-e2e/tests/autoscaling               @DataDog/container-autoscaling
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/fleet-automation
