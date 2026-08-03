@@ -39,7 +39,7 @@ or for instance add it in the `go.testEnvVars` if you are using a VSCode-based I
 ## Test with Local Agent Packages
 
 /// admonition | Limitations
-type: warning
+    type: warning
 
 Local packaging is curently limited to DEB packages, only for Linux and Macos computers.
 This method relies on updating an existing agent package with the local Go binaries. As a consequence, this is incompatible with tests related to the agent packaging or the python integration.
@@ -61,7 +61,7 @@ Make sure to replace `examples` with the package you want to test and to target 
 ## Test with Local Agent Image
 
 /// admonition | Limitations
-type: warning
+    type: warning
 
 This method relies on updating an existing Agent image with the local Go binaries. It only works for Docker images and must be considered as a solution for testing only.
 ///
