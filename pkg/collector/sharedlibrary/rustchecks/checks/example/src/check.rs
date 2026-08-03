@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result};
 
-use core::*;
+use shlib_core::*;
 
 /// Check implementation
 pub fn check(check: &AgentCheck) -> Result<()> {
