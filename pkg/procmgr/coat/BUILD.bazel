@@ -121,7 +121,6 @@ dd_agent_go_test(
         "services_test.go",
     ],
     embed = [":coat"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
