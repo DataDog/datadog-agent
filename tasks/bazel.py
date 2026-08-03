@@ -4,7 +4,6 @@ import json
 import os
 import platform
 import re
-import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -15,9 +14,9 @@ from invoke import task
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 
-REPO_ROOT = Path(__file__).parent.parent
 # Top-level Test* declarations in Go source files — Go side of the parity comparison.
 _TEST_FUNC_RE = re.compile(r'^func (Test\w*)\(', re.MULTILINE)
 # Matches json.decoder.WHITESPACE, an undocumented/unstubbed cpython internal.
@@ -52,7 +51,7 @@ def _chunk_import_paths(import_paths: list[str]) -> list[list[str]]:
     return chunks
 
 
-def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
+def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
     """Return {import_path: {Test* func names}} for the given import paths
     compiled under the given build tags."""
     if not import_paths:
@@ -60,21 +59,20 @@ def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[
     pkgs: dict[str, set[str]] = {}
     decoder = json.JSONDecoder()
     for chunk in _chunk_import_paths(sorted(import_paths)):
-        # shell=False (the default value, which we still pass explicitly) is
-        # required: cmd.exe on Windows has an 8191-char command-line limit.
-        result = subprocess.run(
-            ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *chunk],
-            cwd=REPO_ROOT,
+        text = bazel(
+            ctx,
+            "run",
+            "--@rules_go//go/config:race",  # avoid thrashing the analysis cache right after `bazel test`
+            "//:go",
+            "--",
+            "list",
+            "-json",
+            "-e",
+            f"-tags={','.join(sorted(tags))}",
+            *chunk,
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            shell=False,
         )
-        if result.returncode != 0:
-            # -e reports per-package errors inside the JSON output without failing the
-            # command; a non-zero exit means `go list` itself failed to run at all.
-            raise ChildProcessError(f"go list failed with exit code {result.returncode}: {result.stderr}")
-        text, pos = result.stdout, 0
+        pos = 0
         while pos < len(text):
             pos = _JSON_WHITESPACE_RE.match(text, pos).end()
             if pos >= len(text):
@@ -149,6 +147,35 @@ def _test_xml_funcs(paths: list[Path]) -> set[str]:
     raise FileNotFoundError(f"no readable test.xml found among candidates: {paths}")
 
 
+class _BepContext:
+    """Tracks the workspace/configuration state needed to resolve BEP test.xml paths.
+
+    The convenience symlink `bazel-testlogs` doesn't exist on CI
+    (--noexperimental_convenience_symlinks), so test.xml paths are
+    reconstructed from `localExecRoot` and each configuration's BINDIR
+    instead ("bazel-out/<config-mnemonic>/bin" -> ".../testlogs").
+    """
+
+    def __init__(self):
+        self.local_exec_root: str | None = None
+        self.config_testlogs: dict[str, Path] = {}
+
+    def observe(self, eid: dict, event: dict) -> bool:
+        """Update state from a workspace/configuration event. Returns True if handled."""
+        match eid:
+            case {"workspace": _}:
+                self.local_exec_root = event.get("workspaceInfo", {}).get("localExecRoot")
+                return True
+            case {"configuration": {"id": cfg_id}}:
+                bindir = event.get("configuration", {}).get("makeVariable", {}).get("BINDIR", "")
+                bindir_path = Path(bindir)
+                if bindir_path.name == "bin":
+                    self.config_testlogs[cfg_id] = bindir_path.parent / "testlogs"
+                return True
+            case _:
+                return False
+
+
 def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
     """Parse a Build Event Protocol JSON stream into {import_path: {Test* funcs}}.
 
@@ -157,14 +184,8 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
     `dd_agent_go_test` tag) are ignored.
     """
     dd_agent_labels: set[str] = set()
-    # (uri, config_id) per label so we can recover test.xml even when Bazel
-    # writes only a bytestream:// URI to the BEP. The convenience symlink
-    # `bazel-testlogs` doesn't exist on CI (--noexperimental_convenience_symlinks),
-    # so we reconstruct the absolute path from `localExecRoot` and the
-    # configuration's BINDIR.
     test_action: dict[str, tuple[str, str]] = {}
-    local_exec_root: str | None = None
-    config_testlogs: dict[str, Path] = {}
+    ctx = _BepContext()
 
     with open(bep_path) as fh:
         for line in fh:
@@ -172,17 +193,9 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
                 continue
             event = json.loads(line)
             eid = event.get("id", {})
-            if "workspace" in eid:
-                local_exec_root = event.get("workspaceInfo", {}).get("localExecRoot")
-            elif "configuration" in eid:
-                cfg_id = eid["configuration"].get("id", "")
-                bindir = event.get("configuration", {}).get("makeVariable", {}).get("BINDIR", "")
-                # BINDIR is "bazel-out/<config-mnemonic>/bin"; testlogs lives
-                # alongside as "bazel-out/<config-mnemonic>/testlogs".
-                bindir_path = Path(bindir)
-                if bindir_path.name == "bin":
-                    config_testlogs[cfg_id] = bindir_path.parent / "testlogs"
-            elif "targetConfigured" in eid:
+            if ctx.observe(eid, event):
+                continue
+            if "targetConfigured" in eid:
                 label = eid["targetConfigured"].get("label", "")
                 cfg = event.get("configured", {})
                 if cfg.get("targetKind") != "go_test rule":
@@ -203,7 +216,7 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
         if label not in test_action:
             continue
         uri, cfg_id = test_action[label]
-        funcs = _test_xml_funcs(_test_xml_candidates(label, uri, cfg_id, local_exec_root, config_testlogs))
+        funcs = _test_xml_funcs(_test_xml_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs))
         covered.setdefault(_label_to_import_path(label), set()).update(funcs)
 
     return covered
@@ -271,7 +284,7 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False)
     # by `!race` must be excluded from the expected test set too.
     tags = [*compute_build_tags_for_flavor("unit-tests", None, None, flavor), "race"]
     coverage = _bazel_test_funcs_from_bep(bep_path)
-    test_pkgs = _go_test_packages(tags, set(coverage))
+    test_pkgs = _go_test_packages(ctx, tags, set(coverage))
 
     go_pkgs = set(test_pkgs)
     extra_in_bazel = {p for p, funcs in coverage.items() if funcs} - go_pkgs
@@ -307,8 +320,10 @@ def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
     produced by this specific invocation, and cache_status maps import_path →
     was_cached.
     """
-    xml_paths: list[Path] = []
+    ctx = _BepContext()
+    test_action: dict[str, list[tuple[str, str]]] = {}
     cache_status: dict[str, bool] = {}
+
     with bep_path.open() as f:
         for line in f:
             line = line.strip()
@@ -318,20 +333,29 @@ def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            tr = event.get("testResult")
-            if not tr:
+            eid = event.get("id", {})
+            if ctx.observe(eid, event):
                 continue
-            label = event.get("id", {}).get("testResult", {}).get("label", "")
-            if not label:
-                continue
-            import_path = _label_to_import_path(label)
-            cached = bool(tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely"))
-            cache_status[import_path] = cached
-            for output in tr.get("testActionOutput", []):
-                if output.get("name") == "test.xml":
-                    uri = output.get("uri", "")
-                    if uri.startswith("file://"):
-                        xml_paths.append(Path(uri[len("file://") :]))
+            match eid:
+                case {"testResult": {"label": label}} if label:
+                    tr = event.get("testResult", {})
+                    import_path = _label_to_import_path(label)
+                    cache_status[import_path] = bool(
+                        tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely")
+                    )
+                    cfg_id = eid["testResult"].get("configuration", {}).get("id", "")
+                    for output in tr.get("testActionOutput", []):
+                        if output.get("name") == "test.xml":
+                            test_action.setdefault(label, []).append((output.get("uri", ""), cfg_id))
+                            break
+
+    xml_paths: list[Path] = []
+    for label, actions in test_action.items():
+        for uri, cfg_id in actions:
+            for candidate in _test_xml_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs):
+                if candidate.is_file():
+                    xml_paths.append(candidate)
+                    break
     return xml_paths, cache_status
 
 

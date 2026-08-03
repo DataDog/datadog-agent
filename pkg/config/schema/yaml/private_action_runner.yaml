@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/actions/private_actions/ for more information.
 tags:
 - template_section:PrivateActionRunner
+- full-agent-only:true
 properties:
   enabled:
     node_type: setting
@@ -141,6 +142,7 @@ properties:
         - rshell:*
         items:
           type: string
+        env_parser: json_list_or_comma_separated
       allowed_paths:
         node_type: setting
         type: array
@@ -148,12 +150,13 @@ properties:
         - /
         items:
           type: string
+        env_parser: json_list_or_comma_separated
         comment: |-
           Restricted shell allow-lists are opt-in restrictions layered on top of
           the backend-injected lists. By default, they act as a no-op, allowing
           everything: the backend is the only filter.
 
-          To allow none, use an explicit empty list.
+          To allow no paths or commands, use an explicit empty list.
           Env vars support both CSV and JSON-array forms; the JSON form gives
           env/YAML parity, including the explicit kill-switch via "[]".
 
@@ -162,6 +165,19 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
+      allowed_system_services:
+        node_type: setting
+        type: object
+        default: {}
+        env_parser: json
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The environment variable accepts a JSON object only.
   skip_connection_creation:
     node_type: setting
     type: boolean

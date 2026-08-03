@@ -36,85 +36,16 @@ import (
 )
 
 const (
-	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
-
-	// DefaultNumWorkers default number of workers for our check runner
-	DefaultNumWorkers = 4
-	// MaxNumWorkers maximum number of workers for our check runner
-	MaxNumWorkers = 25
-	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
-	DefaultAPIKeyValidationInterval = 60
-
-	// DefaultForwarderRecoveryInterval is the default recovery interval,
-	// also used if the user-provided value is invalid.
-	DefaultForwarderRecoveryInterval = 2
-
 	megaByte = 1024 * 1024
-
-	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5.0
-
-	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
-
-	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
-
-	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
-
-	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
-	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
-
-	// DefaultAuditorTTL is the default logs auditor TTL in hours
-	DefaultAuditorTTL = 23
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zstd"
-
-	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
-
-	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
-	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
-	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
-
-	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
-
-	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
-
-	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
-
-	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
-	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
-	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 900 * 1000
-
-	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 1000
-
-	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
-	DefaultNetworkPathMaxTTL = 30
-
-	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
-	DefaultNetworkPathStaticPathTracerouteQueries = 3
-
-	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
-	DefaultNetworkPathStaticPathE2eQueries = 50
+	// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+	Traces string = "traces"
 )
 
 var (
@@ -162,24 +93,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// ConfigurationProviders helps unmarshalling `config_providers` config param
-type ConfigurationProviders struct {
-	Name                    string `mapstructure:"name"`
-	Polling                 bool   `mapstructure:"polling"`
-	PollInterval            string `mapstructure:"poll_interval"`
-	TemplateURL             string `mapstructure:"template_url"`
-	TemplateDir             string `mapstructure:"template_dir"`
-	Username                string `mapstructure:"username"`
-	Password                string `mapstructure:"password"`
-	CAFile                  string `mapstructure:"ca_file"`
-	CAPath                  string `mapstructure:"ca_path"`
-	CertFile                string `mapstructure:"cert_file"`
-	KeyFile                 string `mapstructure:"key_file"`
-	Token                   string `mapstructure:"token"`
-	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
-	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
-}
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
@@ -1492,37 +1405,7 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
-// IsCLCRunner returns whether the Agent is in cluster check runner mode
-func IsCLCRunner(config pkgconfigmodel.Reader) bool {
-	if !config.GetBool("clc_runner_enabled") {
-		return false
-	}
-
-	var cps []ConfigurationProviders
-	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
-		return false
-	}
-
-	for _, name := range config.GetStringSlice("extra_config_providers") {
-		cps = append(cps, ConfigurationProviders{Name: name})
-	}
-
-	// A cluster check runner is an Agent configured to run clusterchecks only
-	// We want exactly one ConfigProvider named clusterchecks
-	if len(cps) == 0 {
-		return false
-	}
-
-	for _, cp := range cps {
-		if cp.Name != "clusterchecks" {
-			return false
-		}
-	}
-
-	return true
-}
-
-func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+func getPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if pkgconfigenv.IsECSFargate() {
 		if val, found := platformValues["fargate"]; found {
 			return val
