@@ -4,15 +4,19 @@ go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 

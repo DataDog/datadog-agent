@@ -8,6 +8,8 @@ package log
 import (
 	"os"
 	"runtime"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // Params defines the parameters for this log component.
@@ -102,7 +104,7 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 			return ""
 		}
 		logFile := g.GetString(logFileConfig)
-		if logFile == "" {
+		if logFile == defaultpaths.GetDefaultLogPath() {
 			logFile = defaultLogFile
 		}
 		return logFile
