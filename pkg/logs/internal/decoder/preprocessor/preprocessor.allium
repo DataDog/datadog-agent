@@ -145,12 +145,23 @@ contract Preprocessor {
         -- to process, plus a finite set of well-known marker
         -- bytes introduced by specific stages:
         --   - JSON compaction whitespace elision (JSONAggregator)
-        --   - Escaped-line-feed separator between aggregated lines (Aggregator)
+        --   - Escaped-line-feed separator between combined
+        --     stack-trace lines (StackTraceAggregator, when the
+        --     real fulfiller is wired in; the noop passes content
+        --     through unchanged). Messages emitted by the
+        --     stack-trace stage carry IsMultiLine=true and are
+        --     labelled noAggregate downstream, so the Aggregator
+        --     does not add its own separators on top.
+        --   - Escaped-line-feed separator between aggregated
+        --     lines (Aggregator, for messages the Aggregator
+        --     itself combines)
         --   - Truncation marker on oversize content (Aggregator)
         -- No stage invents content from external sources.
         -- Composes from JSONAggregator.ByteConservation,
         -- Aggregator.ByteConservation, and
-        -- Sampler.ContentBytePassthrough.
+        -- Sampler.ContentBytePassthrough. StackTraceAggregator
+        -- has no Allium contract yet; its byte behaviour is
+        -- described in the @guidance below.
 
     @invariant EndToEndTokenForwarding
         -- The tokens carried on each PreprocessorOutput.tokens
