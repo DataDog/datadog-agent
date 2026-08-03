@@ -24,8 +24,15 @@
 //
 // The counters in telemetry_t quantify each link. This map carries the per-connection detail
 // (which port, which protocol, which TLS content type) that makes a report actionable, for
-// userspace to drain and log. It is an LRU map so a burst displaces older entries rather than
-// wedging the map once full; losing detail is acceptable because the counters are authoritative.
+// userspace to drain and log.
+//
+// Deliberately a plain hash map, NOT an LRU map: BPF_MAP_TYPE_LRU_HASH was added in kernel 4.10,
+// but classification runs from 4.11 down through runtime compilation on far older kernels
+// (classificationMinimumKernel is 4.11, and KMT covers debian_9 / ubuntu_16.04 on 4.9 / 4.4).
+// Runtime compilation uses the host's kernel headers, so referencing the LRU enum there fails to
+// compile outright. A plain hash map does not evict, so userspace deletes every entry it visits
+// on each drain to keep space available; if the map does fill between drains, further events are
+// dropped, which is acceptable because the telemetry_t counters remain authoritative.
 
 
 // Standard Redis ports. Redis serves 6379 by convention (6380 for TLS), 26379 for Sentinel and
@@ -38,7 +45,7 @@
 
 // Bounded deliberately: this is a diagnostic side channel, not a data path. 1024 entries is enough
 // to characterise a problem without meaningful memory cost.
-BPF_LRU_MAP(tls_diag_events, conn_tuple_t, tls_diag_event_t, 1024)
+BPF_HASH_MAP(tls_diag_events, conn_tuple_t, tls_diag_event_t, 1024)
 
 // is_standard_redis_port reports whether either side of the tuple is a port Redis actually serves.
 static __always_inline bool is_standard_redis_port(__u16 sport, __u16 dport) {
@@ -52,8 +59,8 @@ static __always_inline bool is_standard_redis_port(__u16 sport, __u16 dport) {
 // this connection. Keyed by the pre-normalization skb tuple with pid/netns zeroed, so repeated
 // observations of the same connection coalesce into one entry instead of flooding the map.
 //
-// Best-effort by design: a failed insert (map full and nothing evictable) is silently ignored,
-// since the telemetry_t counters remain the authoritative signal.
+// Best-effort by design: a failed insert (map full, since a plain hash map does not evict) is
+// silently ignored, because the telemetry_t counters remain the authoritative signal.
 static __always_inline void record_tls_misclassification_event(conn_tuple_t *tup, tls_diag_reason_t reason, __u16 app_layer_proto, __u8 tls_content_type) {
     conn_tuple_t key = *tup;
     key.pid = 0;
@@ -77,7 +84,6 @@ static __always_inline void record_tls_misclassification_event(conn_tuple_t *tup
     event.app_layer_proto = app_layer_proto;
     event.tls_content_type = tls_content_type;
     event.reason = (__u8)reason;
-    event.logged = 0;
 
     bpf_map_update_elem(&tls_diag_events, &key, &event, BPF_ANY);
 }
