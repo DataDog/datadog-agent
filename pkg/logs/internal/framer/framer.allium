@@ -190,18 +190,14 @@ surface FramerTruncation {
 
     @guarantee FlushEndOfStreamTruncation
         -- At end-of-stream, Framer.Flush() calls the matcher's
-        -- FlushFrame in a loop. For each iteration:
-        --
-        --   - If FlushFrame returns nil, the loop terminates.
-        --   - If FlushFrame returns content with
-        --     rawDataLen >= len(buf), the framer emits that
-        --     content with ParsingExtra.IsTruncated=false
-        --     (the full remaining buffer was consumed).
-        --   - If FlushFrame returns content with
-        --     rawDataLen < len(buf), the framer emits that
-        --     content with ParsingExtra.IsTruncated=true
-        --     (the matcher chose to emit less than the full
-        --     buffer, so something was truncated).
+        -- FlushFrame in a loop. Each returned non-nil content is
+        -- emitted with ParsingExtra.IsTruncated=false, regardless
+        -- of whether rawDataLen equals len(buf). The matcher API
+        -- returns only (content, rawDataLen) with no truncation
+        -- signal, and Flush treats the returned content as the
+        -- final segment: no truncation flag is set even if the
+        -- matcher chose to emit less than the full buffer. If
+        -- FlushFrame returns nil, the loop terminates.
         --
         -- Two matchers produce non-nil Flush-time content:
         --   - syslogFrameMatcher's FlushFrame (always, when

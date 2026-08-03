@@ -471,10 +471,21 @@ surface AdaptiveSampling {
 
     @guarantee TagAugmentationOnly
         -- The Sampler contract's TagAugmentationOnly invariant
-        -- holds: the only tag the AdaptiveSampler may append is
-        -- "adaptive_sampler_sampled_count:N", added by
-        -- EmitMatchingLog when prior_sampled_count > 0. Existing
-        -- tags on the input message are preserved verbatim.
+        -- holds: the AdaptiveSampler only appends tags, never
+        -- modifies or removes existing ones. The tags it may
+        -- append are:
+        --   - "adaptive_sampler_sampled_count:N", added by
+        --     EmitMatchingLog when prior_sampled_count > 0.
+        --   - "noisy_log:true", added by DropMatchingLog when
+        --     detection_only is enabled (rate-limited messages
+        --     are emitted with this tag instead of being
+        --     dropped).
+        --   - "log_hash:<hash>", added alongside "noisy_log:true"
+        --     when tag_pattern_hash is enabled. The hash is
+        --     computed from the matched pattern's canonical
+        --     token sequence.
+        -- Existing tags on the input message are preserved
+        -- verbatim.
 
     @guarantee NoMessageFabrication
         -- The Sampler contract's NoMessageFabrication invariant
