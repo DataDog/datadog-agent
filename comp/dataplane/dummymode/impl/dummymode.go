@@ -76,7 +76,8 @@ var resolveDataPlanePath = defaultpaths.GetDefaultDataPlaneBin
 // ADP.
 var errDataPlaneNotInstalled = errors.New("the Agent Data Plane binary is not installed")
 
-// findDataPlane returns a runnable ADP binary path, or errDataPlaneNotInstalled.
+// findDataPlane returns a runnable ADP binary path, or an error indicating why the binary
+// could not be found.
 func findDataPlane(path string) (string, error) {
 	fi, err := os.Stat(path)
 	switch {
