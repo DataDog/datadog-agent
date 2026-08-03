@@ -1126,6 +1126,20 @@ workflow:
         - pkg/discovery/**/*
       compare_to: $COMPARE_TO_BRANCH
 
+.on_adp_dummy_mode_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/dataplane/dummymode/**/*
+        - test/new-e2e/tests/agent-data-plane/**/*
+        # Dummy mode's eligibility gate lives in the config layer, not in the component:
+        # sanitizeDataPlaneConfig decides whether data_plane.enabled stays at its default
+        # source, which is what makes the pre-flight run at all.
+        - pkg/config/setup/config.go
+        # The pre-flight has nothing to run if ADP stops being packaged.
+        - deps/agent_data_plane/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_amp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:

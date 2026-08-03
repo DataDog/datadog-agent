@@ -653,6 +653,45 @@ new-e2e-amp-adp:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+# Agent Data Plane dummy mode pre-flight (comp/dataplane/dummymode).
+#
+# One job per platform rather than one job running all three: dummy mode's eligibility rules
+# and DogStatsD transport differ per platform, so a shared job would leave it ambiguous which
+# platform regressed. The Windows job lives in .gitlab/windows/test/e2e/windows.yml.
+new-e2e-adp-dummy-mode:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_adp_dummy_mode_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-data-plane/dummy-mode
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "TestDummyModeLinuxSuite"
+
+# macOS runs on a mac1.metal dedicated host, which AWS bills with a 24-hour minimum
+# allocation, and needs a DMG published to the macOS testing bucket. So this one is manual and
+# deploy-pipeline only rather than following .on_adp_dummy_mode_or_e2e_changes like its peers.
+new-e2e-adp-dummy-mode-macos:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    # deploy_dmg_testing-a7_x64 has its own rules and does not exist in every pipeline. This
+    # job is manual-only, so mark the need optional to keep the job valid; if you trigger it
+    # in a pipeline where the DMG was never built, the install fails at runtime. Check the
+    # upstream job is green before clicking.
+    - job: deploy_dmg_testing-a7_x64
+      optional: true
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
+    - !reference [.manual]
+  retry: !reference [.retry_only_infra_failure, retry]
+  variables:
+    TARGETS: ./tests/agent-data-plane/dummy-mode
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "TestDummyModeMacOSSuite"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+
 new-e2e-alp:
   extends: .new_e2e_template
   needs:
