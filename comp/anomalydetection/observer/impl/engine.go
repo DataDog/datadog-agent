@@ -509,6 +509,9 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	// Evict series beyond the storage cap and fan freed refs to detectors.
 	if freed := e.storage.EvictDefault(); len(freed) > 0 {
+		if e.logCounts != nil {
+			e.logCounts.removeSeriesByRefs(freed)
+		}
 		if e.onStorageCapacityHit != nil {
 			e.onStorageCapacityHit()
 		}

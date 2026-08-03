@@ -143,6 +143,46 @@ func TestEngineMaterializesLogCountBucketsBeforeDetection(t *testing.T) {
 	assert.Equal(t, []observerdef.Point{{Timestamp: 5, Value: 2}}, series.Points)
 }
 
+func TestEngineCapacityEvictionDropsIdleBucketizerState(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          1,
+		PointRetentionSecs: 60,
+	})
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{&fixedLogCountExtractor{}},
+		logCountBuckets: LogCountBucketConfig{
+			Enabled:        true,
+			BucketSeconds:  5,
+			IdleTTLSeconds: 20,
+		},
+	})
+
+	e.IngestLog("logs", &logObs{timestampMs: 1_000})
+	e.Advance(5)
+	logTags := canonicalizeTags([]string{"observer_source:logs"})
+	require.NotNil(t, storage.GetSeries(
+		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
+	))
+
+	// A real metric observed later is more active than the log series. The
+	// synthetic zero written at t=10 must not make the log series look newer.
+	storage.Add("native", "metric", 1, 7, nil)
+	e.Advance(10)
+	require.Nil(t, storage.GetSeries(
+		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
+	))
+	require.Empty(t, e.logCounts.series, "capacity eviction must stop scheduled zero buckets")
+
+	// If bucketizer state survived eviction, the next zero would recreate the
+	// series before storage evicted it again.
+	e.Advance(15)
+	assert.Nil(t, storage.GetSeries(
+		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
+	))
+	assert.Equal(t, 1, storage.TotalSeriesCount(""))
+}
+
 func TestLogCountBucketConfigFromAgent(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 anomaly_detection:

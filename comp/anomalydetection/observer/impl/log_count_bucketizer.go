@@ -48,8 +48,12 @@ type logCountBucketSeries struct {
 	tags      []string
 	context   *observerdef.MetricContext
 	anchor    int64
-	values    map[int64]float64
-	intervals []logCountBucketInterval
+	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
+	// not advance it, so storage can evict genuinely idle series first.
+	lastObserved int64
+	storageRef   observerdef.SeriesRef
+	values       map[int64]float64
+	intervals    []logCountBucketInterval
 }
 
 // materializedLogCountBucketizer incrementally turns sparse log occurrences
@@ -99,16 +103,21 @@ func (b *materializedLogCountBucketizer) observe(
 	state := b.series[key]
 	if state == nil {
 		state = &logCountBucketSeries{
-			namespace: namespace,
-			name:      metric.Name,
-			tags:      append([]string(nil), tags...),
-			context:   metric.Context,
-			anchor:    timestamp,
-			values:    make(map[int64]float64),
+			namespace:    namespace,
+			name:         metric.Name,
+			tags:         append([]string(nil), tags...),
+			context:      metric.Context,
+			anchor:       timestamp,
+			lastObserved: timestamp,
+			storageRef:   -1,
+			values:       make(map[int64]float64),
 		}
 		b.series[key] = state
-	} else if metric.Context != nil {
-		state.context = metric.Context
+	} else {
+		state.lastObserved = max(state.lastObserved, timestamp)
+		if metric.Context != nil {
+			state.context = metric.Context
+		}
 	}
 
 	bucketEnd := logCountBucketEnd(timestamp, state.anchor, b.config.BucketSeconds)
@@ -151,8 +160,10 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					storage.SetContext(result.Ref, state.context)
 				}
 				if result.Ref >= 0 {
+					state.storageRef = result.Ref
 					storage.SetSupportedAggregations(result.Ref, observerdef.AggregateAverage)
 					storage.SetSeriesRetention(result.Ref, b.config.RetentionSeconds)
+					storage.SetSeriesActivityTimestamp(result.Ref, state.lastObserved)
 				}
 				delete(state.values, nextEnd)
 				nextEnd += b.config.BucketSeconds
@@ -181,6 +192,21 @@ func (b *materializedLogCountBucketizer) removeMetricName(namespace, name string
 func (b *materializedLogCountBucketizer) removeSeriesByHashes(hashes map[uint64]struct{}) {
 	for hash := range hashes {
 		delete(b.series, hash)
+	}
+}
+
+func (b *materializedLogCountBucketizer) removeSeriesByRefs(refs []observerdef.SeriesRef) {
+	if len(refs) == 0 {
+		return
+	}
+	removed := make(map[observerdef.SeriesRef]struct{}, len(refs))
+	for _, ref := range refs {
+		removed[ref] = struct{}{}
+	}
+	for key, state := range b.series {
+		if _, ok := removed[state.storageRef]; ok {
+			delete(b.series, key)
+		}
 	}
 }
 
