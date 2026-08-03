@@ -562,3 +562,99 @@ func BenchmarkBucket(b *testing.B) {
 		})
 	}
 }
+
+var boolSink bool
+
+// BenchmarkFloor bounds what any compilation strategy could be worth, by
+// measuring `process.comm == "nomatch"` with one layer of machinery added at a
+// time.
+//
+//	inline, the memory access and the comparison    2.1 ns
+//	reached through the context                     2.4 ns
+//	a closure pair (the compiler inlines these)     2.4 ns
+//	the generated accessor's own closure            3.9 ns
+//	SECL's compiled rule, end to end               12.7 ns
+//	cel-go, per predicate in a bucket             ~179 ns
+//
+// The third line is not a real closure call — both closures are defined and
+// called in the same function, so they inline away. The fourth is: the accessor
+// closure comes back from GetEvaluator as an opaque func value, so an indirect
+// call, a pointer chase through the event and a string comparison together cost
+// about 4 ns.
+//
+// Two things follow. Compiling to closures rather than interpreting is worth
+// roughly fourteen times, and needs no machine code — SECL already demonstrates
+// it. And beyond that there is about 9 ns per predicate left between SECL's
+// composed closures and a fused one, which is what generating a closure per
+// field and operator would recover. The hard floor underneath both is 2 ns of
+// memory access that nothing removes.
+
+// How cheap can `process.comm == "nomatch"` possibly be, evaluated against an
+// event through a context? Each step adds one layer of the machinery a compiled
+// rule needs, so the differences bound what any compilation strategy can win.
+func BenchmarkFloor(b *testing.B) {
+	event := scaleEvent()
+	ctx := eval.NewContext(event)
+
+	// 1. the memory access and the comparison, inlined: the hard floor
+	b.Run("inline", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			boolSink = event.BaseEvent.ProcessContext.Process.Comm == "nomatch0"
+		}
+	})
+
+	// 2. reached through the context, as any rule must
+	b.Run("throughContext", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			boolSink = ctx.Event.(*model.Event).BaseEvent.ProcessContext.Process.Comm == "nomatch0"
+		}
+	})
+
+	// 3. as a closure pair, which is SECL's compiled shape
+	b.Run("closurePair", func(b *testing.B) {
+		read := func(c *eval.Context) string {
+			return c.Event.(*model.Event).BaseEvent.ProcessContext.Process.Comm
+		}
+		op := func(a, b string) bool { return a == b }
+		const want = "nomatch0"
+		predicate := func(c *eval.Context) bool { return op(read(c), want) }
+		b.ReportAllocs()
+		for b.Loop() {
+			boolSink = predicate(ctx)
+		}
+	})
+
+	// 4. the generated accessor's own closure, as SECL actually calls it
+	b.Run("accessorClosure", func(b *testing.B) {
+		var m model.Model
+		ev, err := m.GetEvaluator("process.comm", "", 0)
+		if err != nil {
+			b.Fatal(err)
+		}
+		read := ev.(*eval.StringEvaluator).EvalFnc
+		const want = "nomatch0"
+		predicate := func(c *eval.Context) bool { return read(c) == want }
+		b.ReportAllocs()
+		for b.Loop() {
+			boolSink = predicate(ctx)
+		}
+	})
+
+	// 5. SECL's compiled rule, end to end
+	b.Run("seclRule", func(b *testing.B) {
+		var m model.Model
+		rule, err := eval.NewRule("f", `process.comm == "nomatch0"`, ast.NewParsingContext(false), &eval.Opts{})
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := rule.GenEvaluator(&m); err != nil {
+			b.Fatal(err)
+		}
+		b.ReportAllocs()
+		for b.Loop() {
+			boolSink = rule.Eval(ctx)
+		}
+	})
+}
