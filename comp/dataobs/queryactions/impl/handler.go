@@ -468,7 +468,7 @@ func renderDatabaseIdentifierWithLookup(
 		values["port"] = strconv.Itoa(defaultPort)
 	}
 
-	resolvedHostname := host
+	var resolvedHostname string
 	if reportedHostname, ok := instance["reported_hostname"].(string); ok && reportedHostname != "" {
 		resolvedHostname = reportedHostname
 	} else {
