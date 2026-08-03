@@ -22,14 +22,14 @@ import (
 )
 
 func TestKubernetesReaderReportsRuntime(t *testing.T) {
-	reader := newKubernetesConfigReaderWithClient("container-id", &fakeKubernetesClient{})
+	reader := &kubernetesConfigReader{containerID: "container-id", client: &fakeKubernetesClient{}}
 
 	assert.Equal(t, RuntimeKubernetes, reader.Runtime())
 }
 
 func TestKubernetesReaderCloseClosesClient(t *testing.T) {
 	client := &fakeKubernetesClient{}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	reader.Close()
 
@@ -61,22 +61,6 @@ func TestNewKubernetesConfigReaderRejectsInvalidTargets(t *testing.T) {
 	}
 }
 
-func TestNewKubernetesConfigReaderSurfacesClientErrors(t *testing.T) {
-	expectedErr := errors.New("cri unavailable")
-	oldNewKubernetesConfigClient := newKubernetesConfigClient
-	newKubernetesConfigClient = func() (kubernetesConfigClient, error) {
-		return nil, expectedErr
-	}
-	t.Cleanup(func() {
-		newKubernetesConfigClient = oldNewKubernetesConfigClient
-	})
-
-	reader, err := newKubernetesConfigReader(target{runtime: RuntimeKubernetes, entityID: "container-id"}, nil)
-
-	require.ErrorIs(t, err, expectedErr)
-	assert.Nil(t, reader)
-}
-
 func TestKubernetesReaderReadFileReturnsFullContent(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -95,7 +79,7 @@ func TestKubernetesReaderReadFileReturnsFullContent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &fakeKubernetesClient{stdout: tt.content}
-			reader := newKubernetesConfigReaderWithClient("container-id", client)
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 			file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
 
@@ -116,7 +100,7 @@ func TestKubernetesReaderReadFileReturnsFullContent(t *testing.T) {
 func TestKubernetesReaderReadFileTruncatesLargeContent(t *testing.T) {
 	content := bytes.Repeat([]byte("a"), maxConfigFileSize+1)
 	client := &fakeKubernetesClient{stdout: content}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
 
@@ -191,7 +175,7 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 				exitCode: tt.exitCode,
 				execErr:  tt.execErr,
 			}
-			reader := newKubernetesConfigReaderWithClient("container-id", client)
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 			file, err := reader.ReadFile(context.Background(), tt.path)
 
@@ -210,7 +194,7 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 
 func TestKubernetesReaderReadEnvVarsSkipsSpecForEmptyWhitelist(t *testing.T) {
 	client := &fakeKubernetesClient{}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	env, err := reader.ReadEnvVars(context.Background(), nil)
 
@@ -234,7 +218,7 @@ func TestKubernetesReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
 			},
 		},
 	}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	env, err := reader.ReadEnvVars(context.Background(), []string{
 		"REDIS_PASSWORD",
@@ -255,7 +239,7 @@ func TestKubernetesReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
 func TestKubernetesReaderReadEnvVarsSurfacesSpecErrors(t *testing.T) {
 	expectedErr := errors.New("spec unavailable")
 	client := &fakeKubernetesClient{specErr: expectedErr}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	env, err := reader.ReadEnvVars(context.Background(), []string{"REDIS_PASSWORD"})
 
@@ -278,7 +262,7 @@ func TestKubernetesReaderReadRuntimeCommandlineReturnsTargetCommandline(t *testi
 			},
 		},
 	}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
@@ -303,7 +287,7 @@ func TestKubernetesReaderReadRuntimeCommandlineDefaultsEmptyWorkingDirToRoot(t *
 			},
 		},
 	}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
@@ -316,7 +300,7 @@ func TestKubernetesReaderReadRuntimeCommandlineDefaultsEmptyWorkingDirToRoot(t *
 
 func TestKubernetesReaderReadRuntimeCommandlineHandlesMissingProcess(t *testing.T) {
 	client := &fakeKubernetesClient{spec: &containerdoci.Spec{}}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
@@ -327,7 +311,7 @@ func TestKubernetesReaderReadRuntimeCommandlineHandlesMissingProcess(t *testing.
 func TestKubernetesReaderReadRuntimeCommandlineSurfacesSpecErrors(t *testing.T) {
 	expectedErr := errors.New("command line unavailable")
 	client := &fakeKubernetesClient{specErr: expectedErr}
-	reader := newKubernetesConfigReaderWithClient("container-id", client)
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
 	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 

@@ -44,10 +44,6 @@ type dockerConfigReader struct {
 }
 
 func newDockerConfigReader(t target, store workloadmeta.Component) (ConfigReader, error) {
-	return newDockerConfigReaderWithClientFactory(t, store, newDockerConfigClient)
-}
-
-func newDockerConfigReaderWithClientFactory(t target, store workloadmeta.Component, newClient func() (dockerConfigClient, error)) (ConfigReader, error) {
 	if t.runtime != RuntimeDocker {
 		return nil, fmt.Errorf("unsupported runtime %q", t.runtime)
 	}
@@ -55,7 +51,7 @@ func newDockerConfigReaderWithClientFactory(t target, store workloadmeta.Compone
 		return nil, errors.New("empty docker container id")
 	}
 
-	client, err := newClient()
+	client, err := newDockerConfigClient()
 	if err != nil {
 		return nil, err
 	}
@@ -65,13 +61,6 @@ func newDockerConfigReaderWithClientFactory(t target, store workloadmeta.Compone
 		client:      client,
 		store:       store,
 	}, nil
-}
-
-func newDockerConfigReaderWithClient(containerID string, client dockerConfigClient) *dockerConfigReader {
-	return &dockerConfigReader{
-		containerID: containerID,
-		client:      client,
-	}
 }
 
 func (r *dockerConfigReader) Runtime() RuntimeType {

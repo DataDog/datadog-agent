@@ -37,7 +37,7 @@ type kubernetesConfigClient interface {
 	close()
 }
 
-var newKubernetesConfigClient = func() (kubernetesConfigClient, error) {
+func newKubernetesConfigClient() (kubernetesConfigClient, error) {
 	cri, err := criutil.GetUtil()
 	if err != nil {
 		return nil, err
@@ -79,13 +79,6 @@ func newKubernetesConfigReader(t target, store workloadmeta.Component) (ConfigRe
 		client:      client,
 		store:       store,
 	}, nil
-}
-
-func newKubernetesConfigReaderWithClient(containerID string, client kubernetesConfigClient) *kubernetesConfigReader {
-	return &kubernetesConfigReader{
-		containerID: containerID,
-		client:      client,
-	}
 }
 
 func (r *kubernetesConfigReader) Runtime() RuntimeType {
