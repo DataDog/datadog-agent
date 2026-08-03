@@ -70,11 +70,17 @@ type EbpfTracerTelemetryData struct {
 	tcpCloseConnectionFlush     *prometheus.Desc
 	tcpFailedConnections        telemetryComponent.Counter
 	tcpSynRetransmit            *prometheus.Desc
-	ongoingConnectPidCleaned    telemetryComponent.Counter
-	PidCollisions               *telemetryComponent.StatCounterWrapper
-	iterationDups               telemetryComponent.Counter
-	iterationAborts             telemetryComponent.Counter
-	sslCertMissed               telemetryComponent.Counter
+	// TLS/Redis misclassification diagnostics (see jmw/tls-misclassification)
+	tlsRejectRecordExceedsPacket *prometheus.Desc
+	tlsRejectHandshakeInvalid    *prometheus.Desc
+	applayerMatchOnTLSPayload    *prometheus.Desc
+	redisMatchOnNonstandardPort  *prometheus.Desc
+	tlsLockedOutByApplayer       *prometheus.Desc
+	ongoingConnectPidCleaned     telemetryComponent.Counter
+	PidCollisions                *telemetryComponent.StatCounterWrapper
+	iterationDups                telemetryComponent.Counter
+	iterationAborts              telemetryComponent.Counter
+	sslCertMissed                telemetryComponent.Counter
 
 	mu sync.Mutex
 
@@ -91,6 +97,12 @@ type EbpfTracerTelemetryData struct {
 	lastTCPDoneConnectionFlush      int64
 	lastTCPCloseConnectionFlush     int64
 	lastTCPSynRetransmit            int64
+	// TLS/Redis misclassification diagnostics (see jmw/tls-misclassification)
+	lastTLSRejectRecordExceedsPacket int64
+	lastTLSRejectHandshakeInvalid    int64
+	lastApplayerMatchOnTLSPayload    int64
+	lastRedisMatchOnNonstandardPort  int64
+	lastTLSLockedOutByApplayer       int64
 }
 
 // EbpfTracerTelemetry holds telemetry from the EBPF tracer
@@ -109,6 +121,11 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_connection_flush", "Counter measuring the number of connection flushes performed in tcp_close", nil, nil),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tls_reject_record_exceeds_packet", "Counter measuring plausible TLS record headers rejected by is_tls() solely because the record ran past the end of the packet", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tls_reject_handshake_invalid", "Counter measuring TLS handshake records that fit within the packet but were still rejected by is_valid_tls_handshake (non-Hello handshake type, coalesced messages, or a fragmented message)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__applayer_match_on_tls_payload", "Counter measuring db-layer protocol classifications on a buffer that begins with a plausible TLS record header (suspected false positive on ciphertext)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__redis_match_on_nonstandard_port", "Counter measuring Redis classifications on ports Redis does not serve (false positive by definition)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tls_locked_out_by_applayer", "Counter measuring plausible TLS record headers seen on connections whose application layer was already recorded, preventing is_tls() from ever running again", nil, nil),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
@@ -122,6 +139,12 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	0,
 	0,
 	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	// TLS/Redis misclassification diagnostics
 	0,
 	0,
 	0,
@@ -149,7 +172,10 @@ type ebpfTracer struct {
 	ebpfTelemetryMap        *maps.GenericMap[uint32, netebpf.Telemetry]
 	tcpFailuresTelemetryMap *maps.GenericMap[int32, uint64]
 	sslCertInfoMap          *maps.GenericMap[uint32, netebpf.CertItem]
-	config                  *config.Config
+	// tlsDiagEventsMap is the diagnostic side channel for the TLS-reported-as-plaintext
+	// investigation. See jmw/tls-misclassification.
+	tlsDiagEventsMap *maps.GenericMap[netebpf.ConnTuple, netebpf.TLSDiagEvent]
+	config           *config.Config
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
@@ -363,6 +389,11 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		tr.sslCertInfoMap, err = maps.GetMap[uint32, netebpf.CertItem](m.Manager, probes.SSLCertInfoMap)
 		if err != nil {
 			log.Warnf("error retrieving ssl cert info map: %s", err)
+		}
+
+		tr.tlsDiagEventsMap, err = maps.GetMap[netebpf.ConnTuple, netebpf.TLSDiagEvent](m.Manager, probes.TLSDiagEventsMap)
+		if err != nil {
+			log.Warnf("error retrieving TLS diagnostic events map: %s", err)
 		}
 	}
 
@@ -754,6 +785,92 @@ func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
 	return result
 }
 
+// Reasons a TLS-misclassification diagnostic event was recorded. Must stay in sync with
+// tls_diag_reason_t in pkg/network/ebpf/c/protocols/classification/tls-misclassification-diag.h
+const (
+	tlsDiagRecordExceedsPacket  uint8 = 1
+	tlsDiagApplayerOnTLSPayload uint8 = 2
+	tlsDiagRedisNonstandardPort uint8 = 3
+	tlsDiagLockedOutByApplayer  uint8 = 4
+	tlsDiagHandshakeInvalid     uint8 = 5
+)
+
+// tlsDiagMaxLogsPerCollect bounds how many diagnostic lines we emit per telemetry scrape. The
+// counters are the authoritative signal; these logs exist to identify *which* connections are
+// affected, so a handful per scrape is plenty and keeps a broadly-affected host from flooding
+// its own log file.
+const tlsDiagMaxLogsPerCollect = 5
+
+func tlsDiagReasonString(reason uint8) string {
+	switch reason {
+	case tlsDiagRecordExceedsPacket:
+		return "tls_record_exceeds_packet (is_tls rejected a valid header because the record spans segments)"
+	case tlsDiagApplayerOnTLSPayload:
+		return "applayer_match_on_tls_payload (db classifier matched a buffer starting with a TLS record header)"
+	case tlsDiagRedisNonstandardPort:
+		return "redis_match_on_nonstandard_port (Redis classified on a port Redis does not serve)"
+	case tlsDiagLockedOutByApplayer:
+		return "tls_locked_out_by_applayer (TLS header seen but app layer already recorded, is_tls can never run again)"
+	case tlsDiagHandshakeInvalid:
+		return "tls_reject_handshake_invalid (handshake record fit the packet but is_valid_tls_handshake rejected it: non-Hello type, coalesced, or fragmented)"
+	default:
+		return "unknown"
+	}
+}
+
+// logTLSDiagEvents drains the diagnostic side channel populated by the classifier and logs each
+// distinct finding once, at info level, so the data is available on a normal staging build without
+// enabling debug logging fleet-wide.
+//
+// Entries are marked as logged in place rather than deleted, so the hit counter keeps accumulating
+// and a subsequent scrape can show whether a finding is still firing without re-logging it. The map
+// is an LRU, so stale entries age out on their own.
+func (t *ebpfTracer) logTLSDiagEvents() {
+	if t.tlsDiagEventsMap == nil {
+		return
+	}
+
+	var key netebpf.ConnTuple
+	var event netebpf.TLSDiagEvent
+	logged := 0
+	suppressed := 0
+
+	it := t.tlsDiagEventsMap.IterateWithBatchSize(100)
+	for it.Next(&key, &event) {
+		if err := it.Err(); err != nil {
+			log.Warnf("error iterating TLS diagnostic events map: %s", err)
+			return
+		}
+		if event.Logged != 0 {
+			continue
+		}
+		if logged >= tlsDiagMaxLogsPerCollect {
+			suppressed++
+			continue
+		}
+
+		log.Infof("tls-misclassification: %s | %s:%d -> %s:%d | classified_app_proto=%d tls_content_type=0x%02x hits=%d",
+			tlsDiagReasonString(event.Reason),
+			key.SourceAddress(), event.Sport,
+			key.DestAddress(), event.Dport,
+			event.App_layer_proto, event.Tls_content_type, event.Hits)
+		logged++
+
+		event.Logged = 1
+		if err := t.tlsDiagEventsMap.Put(&key, &event); err != nil {
+			// Non-fatal: worst case we log this connection again next scrape.
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("could not mark TLS diagnostic event as logged: %s", err)
+			}
+		}
+	}
+
+	if suppressed > 0 {
+		log.Infof("tls-misclassification: suppressed %d additional diagnostic event(s) this interval (limit %d); see the network_tracer__ebpf counters for totals",
+			suppressed, tlsDiagMaxLogsPerCollect)
+	}
+}
+
 // Describe returns all descriptions of the collector
 func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpSentMiscounts
@@ -768,6 +885,11 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpDoneConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpCloseConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpSynRetransmit
+	ch <- EbpfTracerTelemetry.tlsRejectRecordExceedsPacket
+	ch <- EbpfTracerTelemetry.tlsRejectHandshakeInvalid
+	ch <- EbpfTracerTelemetry.applayerMatchOnTLSPayload
+	ch <- EbpfTracerTelemetry.redisMatchOnNonstandardPort
+	ch <- EbpfTracerTelemetry.tlsLockedOutByApplayer
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -826,6 +948,31 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Tcp_syn_retransmit) - EbpfTracerTelemetry.lastTCPSynRetransmit
 	EbpfTracerTelemetry.lastTCPSynRetransmit = int64(ebpfTelemetry.Tcp_syn_retransmit)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
+
+	// TLS/Redis misclassification diagnostics (see jmw/tls-misclassification)
+	delta = int64(ebpfTelemetry.Tls_reject_record_exceeds_packet) - EbpfTracerTelemetry.lastTLSRejectRecordExceedsPacket
+	EbpfTracerTelemetry.lastTLSRejectRecordExceedsPacket = int64(ebpfTelemetry.Tls_reject_record_exceeds_packet)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tlsRejectRecordExceedsPacket, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tls_reject_handshake_invalid) - EbpfTracerTelemetry.lastTLSRejectHandshakeInvalid
+	EbpfTracerTelemetry.lastTLSRejectHandshakeInvalid = int64(ebpfTelemetry.Tls_reject_handshake_invalid)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tlsRejectHandshakeInvalid, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Applayer_match_on_tls_payload) - EbpfTracerTelemetry.lastApplayerMatchOnTLSPayload
+	EbpfTracerTelemetry.lastApplayerMatchOnTLSPayload = int64(ebpfTelemetry.Applayer_match_on_tls_payload)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.applayerMatchOnTLSPayload, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Redis_match_on_nonstandard_port) - EbpfTracerTelemetry.lastRedisMatchOnNonstandardPort
+	EbpfTracerTelemetry.lastRedisMatchOnNonstandardPort = int64(ebpfTelemetry.Redis_match_on_nonstandard_port)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.redisMatchOnNonstandardPort, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tls_locked_out_by_applayer) - EbpfTracerTelemetry.lastTLSLockedOutByApplayer
+	EbpfTracerTelemetry.lastTLSLockedOutByApplayer = int64(ebpfTelemetry.Tls_locked_out_by_applayer)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tlsLockedOutByApplayer, prometheus.CounterValue, float64(delta))
+
+	// Drain the per-connection diagnostic detail and log it. Rate limited: at most
+	// tlsDiagMaxLogsPerCollect lines per scrape, and each entry is logged only once.
+	t.logTLSDiagEvents()
 
 	// Collect the TCP failure telemetry
 	for k, v := range t.getTCPFailureTelemetry() {
