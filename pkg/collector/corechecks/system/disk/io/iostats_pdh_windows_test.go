@@ -129,6 +129,12 @@ lowercase_device_tag: true
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
+func TestNormalizeWindowsDeviceName(t *testing.T) {
+	require.Equal(t, "C:", normalizeWindowsDeviceName("C:", false))
+	require.Equal(t, "c:", normalizeWindowsDeviceName("C:", true))
+	require.Equal(t, "f:/tlog", normalizeWindowsDeviceName(`F:\Tlog`, false))
+}
+
 func TestIoCheckInstanceAdded(t *testing.T) {
 	pfnGetDriveType = testGetDriveType
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")

@@ -37,13 +37,22 @@ func defaultIgnoreCase() bool {
 }
 
 func baseDeviceName(device string) string {
-	return strings.ToLower(strings.Trim(device, "\\"))
+	return normalizeWindowsDeviceName(device)
 }
 
 // normalizeDeviceTag returns the device name for use in the device: tag.
-// On Windows, strips backslashes and lowercases (legacy behavior for C:\\ -> c:).
+// On Windows, normalizes drive-letter paths, strips surrounding backslashes,
+// and lowercases (legacy behavior for C:\\ -> c:).
 func normalizeDeviceTag(deviceName string) string {
-	return strings.ToLower(strings.Trim(deviceName, "\\"))
+	return normalizeWindowsDeviceName(deviceName)
+}
+
+func normalizeWindowsDeviceName(deviceName string) string {
+	deviceName = strings.Trim(deviceName, "\\")
+	if len(deviceName) >= 2 && deviceName[1] == ':' {
+		deviceName = strings.ReplaceAll(deviceName, "\\", "/")
+	}
+	return strings.ToLower(deviceName)
 }
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {

@@ -133,9 +133,7 @@ func (c *IOCheck) Run() error {
 				}
 				tagbuff.Reset()
 				tagbuff.WriteString("device:")
-				if c.lowercaseDeviceTag {
-					inst = strings.ToLower(inst)
-				}
+				inst = normalizeWindowsDeviceName(inst, c.lowercaseDeviceTag)
 				tagbuff.WriteString(inst)
 				tags := []string{tagbuff.String()}
 
@@ -162,4 +160,16 @@ func (c *IOCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+func normalizeWindowsDeviceName(deviceName string, lowercase bool) string {
+	// Path-based device names must match the lowercase, forward-slash form used
+	// when metric intake normalizes the same value as a regular tag.
+	if len(deviceName) >= 2 && deviceName[1] == ':' && strings.Contains(deviceName, "\\") {
+		return strings.ToLower(strings.ReplaceAll(deviceName, "\\", "/"))
+	}
+	if lowercase {
+		return strings.ToLower(deviceName)
+	}
+	return deviceName
 }
