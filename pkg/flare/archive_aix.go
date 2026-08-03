@@ -13,25 +13,18 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// svmonTimeout bounds the `svmon -P` invocation.
-const svmonTimeout = 10 * time.Second
 
 // getSvmonData captures the AIX virtual memory segment breakdown (heap,
 // stack, text, shared library segments) for the running Agent process, since
 // resource limits are enforced per segment and RSS/VSZ alone don't show which
 // segment is close to its ulimit.
 func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(ctx, svmonTimeout)
-	defer cancelfunc()
-
 	pid := strconv.Itoa(os.Getpid())
-	cmd := exec.CommandContext(cancelctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
+	cmd := exec.CommandContext(ctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
