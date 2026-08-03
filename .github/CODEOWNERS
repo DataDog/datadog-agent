@@ -620,7 +620,6 @@
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-runtimes
 /pkg/config/                            @DataDog/fleet-automation
-/pkg/config/config_template.yaml        @DataDog/fleet-automation @DataDog/documentation
 /pkg/config/settings/runtime_setting_profiling_period*.go  @DataDog/agent-runtimes
 /pkg/config/example/application_monitoring.yaml.example @DataDog/agent-apm
 /pkg/config/autodiscovery/              @DataDog/container-integrations @DataDog/container-platform @DataDog/fleet-automation
