@@ -451,12 +451,7 @@ func Initialize(paths ...string) error {
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
 		err := "could not initialize rtloader: " + C.GoString(C.get_error(rtloader))
-		// init() failed: rtloader is unusable (and may have leaked the GIL). Reset the
-		// global so newStickyLock() correctly short-circuits with ErrNotInitialized
-		// instead of trying to acquire the GIL from a broken interpreter, which can
-		// hang forever. Note: we deliberately don't call C.destroy() here -- Three's
-		// destructor assumes init() completed and unconditionally restores
-		// `_threadState`, which is never set on this failure path.
+		// rtloader failed to initialize, clear the global to avoid trying to use it later
 		rtloader = nil
 		return addExpvarPythonInitErrors(err)
 	}
