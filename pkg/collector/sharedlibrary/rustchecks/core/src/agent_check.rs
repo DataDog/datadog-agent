@@ -262,10 +262,7 @@ impl AgentCheck {
         )
     }
 
-    /// Logs a message through the Agent logger at the given level, the same way
-    /// python checks log via `self.log`. Logging is best effort: a message that
-    /// cannot be converted to a C string (interior NUL byte) is dropped rather
-    /// than surfaced to the caller.
+    /// Logs a message through the Agent logger at the given level.
     pub fn log(&self, level: LogLevel, message: &str) {
         let _ = self.aggregator.log(level, message);
     }

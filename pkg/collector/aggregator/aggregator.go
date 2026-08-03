@@ -163,10 +163,8 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
-// SubmitLog routes a log line emitted by a shared library check through the
-// agent logger, mirroring how python checks log via LogMessage. The level
-// values are the rtloader log_level_t severities (shared cb_log_t contract),
-// matching the core::LogLevel enum on the Rust side.
+// SubmitLog routes a shared library check's log line through the agent logger.
+// Levels must stay in sync with the LogLevel enum in pkg/collector/sharedlibrary/rustchecks/core/src/aggregator.rs.
 //
 //export SubmitLog
 func SubmitLog(message *C.char, level C.int) {

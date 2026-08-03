@@ -27,9 +27,8 @@ pub enum ServiceCheckStatus {
 
 /// Log level of a message routed to the Agent logger.
 ///
-/// The discriminants are the rtloader `log_level_t` values (the `cb_log`
-/// callback shares rtloader's `cb_log_t` type), so they stay compatible with
-/// the numeric levels used by the Go `SubmitLog` handler and python checks.
+/// Enums are the rtloader `log_level_t` values, i.e. the same levels
+/// as python checks use.
 #[repr(C)]
 pub enum LogLevel {
     Trace = 7,
