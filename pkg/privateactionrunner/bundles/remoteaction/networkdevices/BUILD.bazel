@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "networkdevices",
@@ -16,5 +17,16 @@ go_library(
         "//pkg/snmp/gosnmplib",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@org_golang_x_sync//errgroup",
+    ],
+)
+
+dd_agent_go_test(
+    name = "networkdevices_test",
+    srcs = ["connectivity_check_test.go"],
+    embed = [":networkdevices"],
+    deps = [
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//require",
     ],
 )
