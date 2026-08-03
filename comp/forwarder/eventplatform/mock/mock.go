@@ -31,7 +31,7 @@ type mockProvides struct {
 func newMockComponent(reqs mockRequires) mockProvides {
 	return mockProvides{
 		Comp: option.NewPtr[eventplatform.Forwarder](
-			eventplatformimpl.NewNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression),
+			eventplatformimpl.NewNoopEventPlatformForwarder(reqs.Hostname),
 		),
 	}
 }
