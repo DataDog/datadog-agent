@@ -3,6 +3,10 @@
 set -e
 
 install_systemd_unit() {
+  # Must be reset per call: it is only assigned when --workdir is passed, so
+  # without this it would leak into every subsequent unit.
+  local workdir=""
+
   while [[ $# -ge 2 ]]; do
     case $1 in
       --workdir)
@@ -97,7 +101,12 @@ popd
 
 # Install our own services
 ## Node
-install_systemd_unit "node-json-server" "$NVM_DIR/nvm-exec npx json-server --port 8084 /home/ubuntu/e2e-test/node/json-server/db.json" "8084" ""
+# Run from the directory json-server was installed into above. npx resolves the
+# package relative to the working directory, and systemd units default to /,
+# where it is not found; npx then stages a fresh download from the npm registry
+# on every start of the unit, which is slow, network-dependent, and fails
+# outright if the registry is unreachable.
+install_systemd_unit --workdir "/home/ubuntu" "node-json-server" "$NVM_DIR/nvm-exec npx json-server --port 8084 /home/ubuntu/e2e-test/node/json-server/db.json" "8084" ""
 install_systemd_unit "node-instrumented" "$NVM_DIR/nvm-exec node /home/ubuntu/e2e-test/node/instrumented/server.js" "8085" ""
 
 ## Python
