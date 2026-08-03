@@ -1,0 +1,57 @@
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!-- Replaces the WixUI ErrorDlg, whose 205x60 text control clips the messages the custom actions
+       produce. A different Id is required because a dialog from the WixUI library cannot be
+       redefined; the ErrorDialog property below selects this one instead.
+
+       Per the MSI spec, ErrorText must be the first control, the seven buttons must skip the tab
+       order, and nothing else may share their row: the installer moves the ones it displays.
+       https://learn.microsoft.com/en-us/windows/win32/msi/error-dialog -->
+  <Dialog Id="Custom_ErrorDialog" Width="370" Height="140" Title="!(loc.ErrorDlg_Title)"
+      ErrorDialog="yes">
+
+    <Control Id="ErrorText" Type="Text" X="48" Y="15" Width="305" Height="80" TabSkip="no"
+        NoPrefix="yes" Text="!(loc.ErrorDlgErrorText)" />
+
+    <Control Id="ErrorIcon" Type="Icon" X="15" Y="15" Width="24" Height="24"
+        ToolTip="!(loc.ErrorDlgErrorIconTooltip)" FixedSize="yes" IconSize="32"
+        Text="!(loc.ErrorDlgErrorIcon)" />
+
+    <Control Id="Y" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUIYes)">
+        <Publish Event="EndDialog" Value="ErrorYes" />
+    </Control>
+
+    <Control Id="A" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUICancel)">
+        <Publish Event="EndDialog" Value="ErrorAbort" />
+    </Control>
+
+    <Control Id="C" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUICancel)">
+        <Publish Event="EndDialog" Value="ErrorCancel" />
+    </Control>
+
+    <Control Id="I" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUIIgnore)">
+        <Publish Event="EndDialog" Value="ErrorIgnore" />
+    </Control>
+
+    <Control Id="N" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUINo)">
+        <Publish Event="EndDialog" Value="ErrorNo" />
+    </Control>
+
+    <Control Id="O" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUIOK)">
+        <Publish Event="EndDialog" Value="ErrorOk" />
+    </Control>
+
+    <Control Id="R" Type="PushButton" X="157" Y="105" Width="56" Height="17" TabSkip="yes"
+        Text="!(loc.WixUIRetry)">
+        <Publish Event="EndDialog" Value="ErrorRetry" />
+    </Control>
+
+  </Dialog>
+
+  <Property Id="ErrorDialog" Value="Custom_ErrorDialog" />
+</Include>
