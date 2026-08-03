@@ -214,8 +214,8 @@ func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
 
 func TestTimeSamplerDogStatsDClientTelemetryMirrorsOnlyUnfilteredSeries(t *testing.T) {
 	sampler := testTimeSampler(tags.NewStore(true, "test"))
-	clientTelemetry, counters := newTestDogStatsDClientTelemetry()
-	sampler.dogStatsDClientTelemetry = clientTelemetry
+	beforeSent := dogStatsDClientTelemetryCollector.bytesSent.Get()
+	beforeDropped := dogStatsDClientTelemetryCollector.bytesDropped.Get()
 
 	tagMatcher := filterlist.NewNoopTagMatcher()
 	sampler.sample(&metrics.MetricSample{
@@ -238,26 +238,8 @@ func TestTimeSamplerDogStatsDClientTelemetryMirrorsOnlyUnfilteredSeries(t *testi
 
 	require.Len(t, series, 1)
 	assert.Equal(t, dogStatsDClientBytesDroppedMetric, series[0].Name)
-	assert.Zero(t, counters[0].Get())
-	assert.Equal(t, 5.0, counters[1].Get())
-}
-
-func TestTimeSamplerDogStatsDClientTelemetryUpdatesInternalCounter(t *testing.T) {
-	sampler := testTimeSampler(tags.NewStore(true, "test"))
-	before := dogStatsDClientTelemetryCollector.bytesSent.Get()
-
-	sample := &metrics.MetricSample{
-		Name:       dogStatsDClientBytesSentMetric,
-		Value:      7,
-		Mtype:      metrics.CounterType,
-		Tags:       []string{"client:go"},
-		SampleRate: 1,
-	}
-	sampler.sample(sample, 1001, filterlist.NewNoopTagMatcher())
-	series, _ := flushSerie(sampler, 1020, true)
-
-	require.Len(t, series, 1)
-	assert.Equal(t, before+7, dogStatsDClientTelemetryCollector.bytesSent.Get())
+	assert.Equal(t, beforeSent, dogStatsDClientTelemetryCollector.bytesSent.Get())
+	assert.Equal(t, beforeDropped+5, dogStatsDClientTelemetryCollector.bytesDropped.Get())
 }
 
 func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {
