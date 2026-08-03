@@ -20,31 +20,26 @@ type delegatedAuthConfig struct {
 // delegatedAuthKeys list all the "delegated_auth" configuration section.
 // This list is used to fully initialize authentication through cloud provider instead of API key
 var delegatedAuthKeys = []delegatedAuthConfig{
-
 	{
 		apiKeyPath:        "remote_configuration.api_key",
 		delegatedAuthPath: "remote_configuration.delegated_auth",
 		description:       "remote_configuration",
 	},
-
 	{
 		apiKeyPath:        "logs_config.api_key",
 		delegatedAuthPath: "logs_config.delegated_auth",
 		description:       "logs_config",
 	},
-
 	{
 		apiKeyPath:        "api_key",
 		delegatedAuthPath: "delegated_auth",
 		description:       "global",
 	},
-
 	{
 		apiKeyPath:        "evp_proxy_config.api_key",
 		delegatedAuthPath: "evp_proxy_config.delegated_auth",
 		description:       "evp_proxy_config",
 	},
-
 	{
 		apiKeyPath:        "ol_proxy_config.api_key",
 		delegatedAuthPath: "ol_proxy_config.delegated_auth",
