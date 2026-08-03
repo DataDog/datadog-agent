@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mohae/deepcopy"
-
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -100,9 +98,19 @@ func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 	checkStats.statsLock.RLock()
 	defer checkStats.statsLock.RUnlock()
 
-	// Because the returned maps will be used after the lock is released, and
-	// thus when they might be further modified, we must clone them here.
-	return deepcopy.Copy(checkStats.stats).(map[string]map[checkid.ID]*checkstats.Stats)
+	// Because the returned maps will be used after the lock is released, and thus when they
+	// might be further modified, we must clone them here. Each *Stats has its own lock
+	// guarding its fields, so clone it via its own Clone() method rather than a generic
+	// deep-copy, which would reflect over it directly and bypass that lock.
+	result := make(map[string]map[checkid.ID]*checkstats.Stats, len(checkStats.stats))
+	for name, perCheckID := range checkStats.stats {
+		cloned := make(map[checkid.ID]*checkstats.Stats, len(perCheckID))
+		for id, stats := range perCheckID {
+			cloned[id] = stats.Clone()
+		}
+		result[name] = cloned
+	}
+	return result
 }
 
 // AddCheckStats adds runtime stats to the check's expvars

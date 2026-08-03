@@ -284,6 +284,54 @@ func (cs *Stats) SetStateCancelling() {
 	cs.Cancelling = true
 }
 
+// Clone returns a copy of the check stats, safe to read after the lock is released. A raw
+// struct copy or a generic deep-copy (e.g. github.com/mohae/deepcopy) would read the fields
+// directly via reflection, bypassing this lock and racing with Add()/SetStateCancelling();
+// Clone() reads them under the lock instead.
+func (cs *Stats) Clone() *Stats {
+	cs.m.Lock()
+	defer cs.m.Unlock()
+
+	clone := &Stats{
+		CheckName:                cs.CheckName,
+		CheckVersion:             cs.CheckVersion,
+		CheckConfigSource:        cs.CheckConfigSource,
+		CheckLoader:              cs.CheckLoader,
+		CheckID:                  cs.CheckID,
+		Interval:                 cs.Interval,
+		LongRunning:              cs.LongRunning,
+		Cancelling:               cs.Cancelling,
+		TotalRuns:                cs.TotalRuns,
+		TotalErrors:              cs.TotalErrors,
+		TotalWarnings:            cs.TotalWarnings,
+		MetricSamples:            cs.MetricSamples,
+		Events:                   cs.Events,
+		ServiceChecks:            cs.ServiceChecks,
+		HistogramBuckets:         cs.HistogramBuckets,
+		TotalMetricSamples:       cs.TotalMetricSamples,
+		TotalEvents:              cs.TotalEvents,
+		TotalServiceChecks:       cs.TotalServiceChecks,
+		TotalHistogramBuckets:    cs.TotalHistogramBuckets,
+		EventPlatformEvents:      make(map[string]int64, len(cs.EventPlatformEvents)),
+		TotalEventPlatformEvents: make(map[string]int64, len(cs.TotalEventPlatformEvents)),
+		ExecutionTimes:           cs.ExecutionTimes,
+		FirstExecutionTime:       cs.FirstExecutionTime,
+		AverageExecutionTime:     cs.AverageExecutionTime,
+		LastExecutionTime:        cs.LastExecutionTime,
+		LastSuccessDate:          cs.LastSuccessDate,
+		LastError:                cs.LastError,
+		LastDelay:                cs.LastDelay,
+		LastWarnings:             append([]string(nil), cs.LastWarnings...),
+		UpdateTimestamp:          cs.UpdateTimestamp,
+		Telemetry:                cs.Telemetry,
+		HASupported:              cs.HASupported,
+	}
+	maps.Copy(clone.EventPlatformEvents, cs.EventPlatformEvents)
+	maps.Copy(clone.TotalEventPlatformEvents, cs.TotalEventPlatformEvents)
+
+	return clone
+}
+
 type aggStats struct {
 	EventPlatformEvents       map[string]interface{}
 	EventPlatformEventsErrors map[string]interface{}
