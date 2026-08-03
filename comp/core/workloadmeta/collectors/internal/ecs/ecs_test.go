@@ -45,14 +45,18 @@ func (store *fakeWorkloadmetaStore) GetContainer(id string) (*workloadmeta.Conta
 }
 
 type fakev1EcsClient struct {
-	mockGetTasks func(context.Context) ([]v1.Task, error)
+	mockGetTasks    func(context.Context) ([]v1.Task, error)
+	mockGetInstance func(context.Context) (*v1.Instance, error)
 }
 
 func (c *fakev1EcsClient) GetTasks(ctx context.Context) ([]v1.Task, error) {
 	return c.mockGetTasks(ctx)
 }
 
-func (c *fakev1EcsClient) GetInstance(_ context.Context) (*v1.Instance, error) {
+func (c *fakev1EcsClient) GetInstance(ctx context.Context) (*v1.Instance, error) {
+	if c.mockGetInstance != nil {
+		return c.mockGetInstance(ctx)
+	}
 	return nil, errors.New("unimplemented")
 }
 

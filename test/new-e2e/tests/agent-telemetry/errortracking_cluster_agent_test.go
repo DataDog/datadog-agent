@@ -6,12 +6,17 @@
 package agenttelemetry
 
 import (
+	"context"
+	_ "embed"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
@@ -28,47 +33,28 @@ import (
 // the datadog-agent Helm release into.
 const clusterAgentDatadogNamespace = "datadog"
 
-// leaderElectionErrorMessage is logged by KubeASCheck.Run at ERROR level on
-// every check run (~15s, no rate limiter) once leader election is disabled —
-// a deterministic trigger for a binary that runs no Python checks.
+// leaderElectionErrorMessage is logged at ERROR on every check run once
+// leader election is disabled, a deterministic trigger for this suite.
 const leaderElectionErrorMessage = "Leader Election not enabled"
 
-// clusterAgentErrorTrackingEnabledHelmValues disables leader election (to
-// generate a repeating ERROR log) and enables the errortracking pipeline
-// with a fast flush so the wire-shape assertions below run quickly.
-const clusterAgentErrorTrackingEnabledHelmValues = `
-datadog:
-  leaderElection: false
-clusterAgent:
-  envDict:
-    DD_AGENT_TELEMETRY_ENABLED: "true"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_ENABLED: "true"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_FLUSH_INTERVAL_SECONDS: "1"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_BOUNCER_WINDOW_SECONDS: "0"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_STARTUP_JITTER_SECONDS: "0"
-`
+// clusterAgentErrorTrackingEnabledHelmValues disables leader election and
+// enables the errortracking pipeline with a fast flush.
+//
+//go:embed testdata/errortracking-cluster-agent-enabled.yaml
+var clusterAgentErrorTrackingEnabledHelmValues string
 
 // clusterAgentErrorTrackingDisabledHelmValues mirrors the enabled config but
-// omits errortracking.enabled, which defaults to false, while still forcing
-// the leader-election error so the negative assertion is meaningful.
-const clusterAgentErrorTrackingDisabledHelmValues = `
-datadog:
-  leaderElection: false
-clusterAgent:
-  envDict:
-    DD_AGENT_TELEMETRY_ENABLED: "true"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_FLUSH_INTERVAL_SECONDS: "1"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_BOUNCER_WINDOW_SECONDS: "0"
-    DD_AGENT_TELEMETRY_ERRORTRACKING_STARTUP_JITTER_SECONDS: "0"
-`
+// omits errortracking.enabled, which defaults to false.
+//
+//go:embed testdata/errortracking-cluster-agent-disabled.yaml
+var clusterAgentErrorTrackingDisabledHelmValues string
 
 type errorTrackingClusterAgentSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
 // TestErrorTrackingClusterAgentSuite is the cluster-agent variant of
-// TestAgentTelemetryErrorTrackingSuite, exercising the same
-// pkg/util/log/errortracking → comp/core/agenttelemetry pipeline.
+// TestAgentTelemetryErrorTrackingSuite.
 func TestErrorTrackingClusterAgentSuite(t *testing.T) {
 	e2e.Run(t, &errorTrackingClusterAgentSuite{},
 		e2e.WithProvisioner(provkind.Provisioner(
@@ -81,25 +67,41 @@ func TestErrorTrackingClusterAgentSuite(t *testing.T) {
 	)
 }
 
-// getClusterAgentPodName returns the name of the (sole) running cluster-agent pod.
-func (s *errorTrackingClusterAgentSuite) getClusterAgentPodName() string {
+// getClusterAgentPodNames returns the names of all running cluster-agent
+// pods. This suite runs clusterAgent.replicas: 2, so callers must not assume a single pod.
+func (s *errorTrackingClusterAgentSuite) getClusterAgentPodNames() []string {
 	t := s.T()
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(clusterAgentDatadogNamespace).List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-		Limit:         1,
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, pods.Items, "cluster-agent pod not found in datadog namespace")
-	return pods.Items[0].Name
+	require.NotEmpty(t, pods.Items, "no cluster-agent pods found in datadog namespace")
+	names := make([]string, 0, len(pods.Items))
+	for _, pod := range pods.Items {
+		names = append(names, pod.Name)
+	}
+	return names
+}
+
+// getClusterAgentContainerLogs returns the "cluster-agent" container's stdout
+// for podName, restricted to entries logged at or after since.
+func (s *errorTrackingClusterAgentSuite) getClusterAgentContainerLogs(ctx context.Context, podName string, since time.Time) (string, error) {
+	sinceTime := metav1.NewTime(since)
+	stream, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(clusterAgentDatadogNamespace).GetLogs(podName, &corev1.PodLogOptions{
+		Container: "cluster-agent",
+		SinceTime: &sinceTime,
+	}).Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer stream.Close()
+	out, err := io.ReadAll(stream)
+	return string(out), err
 }
 
 // TestPayloadShape verifies the cluster-agent's own leader-election-gated
-// ERROR log reaches FakeIntake with the expected wire shape and an
-// agent.flavor tag identifying the emitter as cluster_agent rather than agent.
+// ERROR log reaches FakeIntake with an agent.flavor tag of cluster_agent.
 func (s *errorTrackingClusterAgentSuite) TestPayloadShape() {
-	// BeforeTest already reset the environment to the suite's original
-	// (enabled) provisioner regardless of run order, and the leader-election
-	// error recurs on every check run, so no re-provisioning is needed here.
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	var logs []*aggregator.AgentTelemetryLog
@@ -115,9 +117,8 @@ func (s *errorTrackingClusterAgentSuite) TestPayloadShape() {
 	}
 }
 
-// TestDisabledByDefault verifies that when the errortracking stanza omits
-// `enabled` (defaulting to false), no agent-logs records reach FakeIntake even
-// though the leader-election error keeps firing locally.
+// TestDisabledByDefault verifies that when errortracking omits `enabled`
+// (defaulting to false), no agent-logs records reach FakeIntake.
 func (s *errorTrackingClusterAgentSuite) TestDisabledByDefault() {
 	s.UpdateEnv(provkind.Provisioner(
 		provkind.WithRunOptions(
@@ -128,29 +129,42 @@ func (s *errorTrackingClusterAgentSuite) TestDisabledByDefault() {
 	))
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	podName := s.getClusterAgentPodName()
+	ctx := s.T().Context()
+	podNames := s.getClusterAgentPodNames()
+	since := time.Now()
 
-	// Clear the log file after resetting FakeIntake so the wait below only matches
-	// an occurrence generated after the reset, not a stale one from before it.
-	_, _, execErr := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-		clusterAgentDatadogNamespace, podName, "cluster-agent",
-		[]string{"sh", "-c", "truncate -s 0 /var/log/datadog/cluster-agent.log"})
-	require.NoError(s.T(), execErr)
+	// Wait until the leader-election error appears in at least one replica's
+	// stdout before asserting it is not forwarded to telemetry.
+	ok := assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		statuses := make([]string, 0, len(podNames))
+		for _, podName := range podNames {
+			out, err := s.getClusterAgentContainerLogs(ctx, podName, since)
+			if err == nil && strings.Contains(out, leaderElectionErrorMessage) {
+				return
+			}
+			if err != nil {
+				statuses = append(statuses, fmt.Sprintf("%s: log fetch error: %v", podName, err))
+			} else {
+				statuses = append(statuses, podName+": message not found")
+			}
+		}
+		assert.Fail(c, "leader-election error not yet found in any cluster-agent replica's log: "+strings.Join(statuses, "; "))
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for leader-election error to appear in cluster-agent log")
 
-	// Wait until the leader-election error appears in the cluster-agent's own
-	// log file, confirming the error is generated locally before asserting it
-	// is not forwarded to telemetry.
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		out, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-			clusterAgentDatadogNamespace, podName, "cluster-agent",
-			[]string{"sh", "-c", "awk '/" + leaderElectionErrorMessage + "/{count++} END{print count+0}' /var/log/datadog/cluster-agent.log"})
-		assert.NoError(c, err)
-		assert.NotEqual(c, "0", strings.TrimSpace(out))
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for leader-election error to appear in cluster-agent log")
+	// On failure, dump each replica's log tail for debugging.
+	if !ok {
+		for _, podName := range podNames {
+			out, err := s.getClusterAgentContainerLogs(ctx, podName, since)
+			if err != nil {
+				s.T().Logf("could not read %s cluster-agent logs: %v", podName, err)
+				continue
+			}
+			s.T().Logf("=== %s cluster-agent log since %s ===\n%s", podName, since, out)
+		}
+		s.T().FailNow()
+	}
 
-	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
-	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would
-	// flush within this window and the assertion would catch it.
+	// Confirm nothing is forwarded across five flush cycles (flush_interval_seconds: 1).
 	assert.Never(s.T(), func() bool {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(s.T(), err)

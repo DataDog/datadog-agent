@@ -37,7 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-devel // indirect
@@ -150,6 +150,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../comp/otelcol/otlp/components/connector/datadogconnector
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig => ../../../comp/otelcol/otlp/components/datadogconfig
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../comp/otelcol/otlp/components/exporter/serializerexporter
