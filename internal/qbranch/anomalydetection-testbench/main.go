@@ -57,6 +57,12 @@ type CLIParams struct {
 	// LogsOnly skips ingesting parquet metrics and trace stats; only log rows are loaded.
 	LogsOnly bool
 
+	// TimeAwareLogCountSeries keeps log occurrence metrics sparse in shared
+	// storage and presents fixed-window counts only to detectors.
+	TimeAwareLogCountSeries bool
+	LogCountWindowSeconds   int64
+	LogCountIdleTTLSeconds  int64
+
 	// ParquetFormat selects the parquet file layout. Empty string = auto-detect.
 	ParquetFormat bench.ParquetFormat
 
@@ -78,6 +84,9 @@ func main() {
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
+	timeAwareLogCountSeries := flag.Bool("time-aware-log-count-series", false, "Keep log occurrence metrics sparse and present a fixed-window count view to detectors")
+	logCountWindowSeconds := flag.Int64("log-count-window-seconds", 5, "Time-aware log count window width; supported values: 1, 5, 10")
+	logCountIdleTTLSeconds := flag.Int64("log-count-idle-ttl-seconds", 300, "Seconds after the latest observed occurrence that virtual zero windows remain active")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
 	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
 	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
@@ -197,18 +206,21 @@ func main() {
 			LogParams:    log.ForOneShot("", "off", true),
 		}),
 		fx.Supply(CLIParams{
-			ScenariosDir:       *scenariosDir,
-			HTTPAddr:           *httpAddr,
-			ComponentSettings:  componentSettings,
-			Headless:           *headless,
-			Output:             *output,
-			Verbose:            *verbose,
-			MemProfile:         *memProfile,
-			SendAnomalyEvent:   *sendAnomalyEvent,
-			SkipDroppedMetrics: *skipDropped,
-			LogsOnly:           *logsOnly,
-			ParquetFormat:      bench.ParquetFormat(*parquetFormat),
-			RetainParquet:      *retainParquet,
+			ScenariosDir:            *scenariosDir,
+			HTTPAddr:                *httpAddr,
+			ComponentSettings:       componentSettings,
+			Headless:                *headless,
+			Output:                  *output,
+			Verbose:                 *verbose,
+			MemProfile:              *memProfile,
+			SendAnomalyEvent:        *sendAnomalyEvent,
+			SkipDroppedMetrics:      *skipDropped,
+			LogsOnly:                *logsOnly,
+			TimeAwareLogCountSeries: *timeAwareLogCountSeries,
+			LogCountWindowSeconds:   *logCountWindowSeconds,
+			LogCountIdleTTLSeconds:  *logCountIdleTTLSeconds,
+			ParquetFormat:           bench.ParquetFormat(*parquetFormat),
+			RetainParquet:           *retainParquet,
 		}),
 	)
 	if err != nil {
@@ -234,15 +246,18 @@ func run(
 	}
 
 	tb, err := bench.New(obs, debug, sseAccess, bench.Config{
-		ScenariosDir:       params.ScenariosDir,
-		HTTPAddr:           params.HTTPAddr,
-		Cfg:                cfg,
-		Logger:             logger,
-		ComponentSettings:  params.ComponentSettings,
-		SkipDroppedMetrics: params.SkipDroppedMetrics,
-		LogsOnly:           params.LogsOnly,
-		ParquetFormat:      params.ParquetFormat,
-		StreamParquet:      params.Headless != "" && !params.RetainParquet,
+		ScenariosDir:            params.ScenariosDir,
+		HTTPAddr:                params.HTTPAddr,
+		Cfg:                     cfg,
+		Logger:                  logger,
+		ComponentSettings:       params.ComponentSettings,
+		SkipDroppedMetrics:      params.SkipDroppedMetrics,
+		LogsOnly:                params.LogsOnly,
+		TimeAwareLogCountSeries: params.TimeAwareLogCountSeries,
+		LogCountWindowSeconds:   params.LogCountWindowSeconds,
+		LogCountIdleTTLSeconds:  params.LogCountIdleTTLSeconds,
+		ParquetFormat:           params.ParquetFormat,
+		StreamParquet:           params.Headless != "" && !params.RetainParquet && !params.TimeAwareLogCountSeries,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
@@ -350,6 +365,15 @@ func run(
 func validateCLIParams(params CLIParams) error {
 	if params.RetainParquet && params.Headless == "" {
 		return fmt.Errorf("--retain-parquet requires --headless")
+	}
+	if params.TimeAwareLogCountSeries &&
+		params.LogCountWindowSeconds != 1 &&
+		params.LogCountWindowSeconds != 5 &&
+		params.LogCountWindowSeconds != 10 {
+		return fmt.Errorf("--log-count-window-seconds must be one of 1, 5, or 10")
+	}
+	if params.LogCountIdleTTLSeconds < 0 {
+		return fmt.Errorf("--log-count-idle-ttl-seconds must be non-negative")
 	}
 	return nil
 }

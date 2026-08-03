@@ -592,6 +592,9 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 		a.lastVisibleCount[ref] = visibleCount
 
 		for _, agg := range a.aggregations {
+			if !supportsSeriesAggregate(storage, ref, agg) {
+				continue
+			}
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
@@ -882,6 +885,19 @@ func (o *observerImpl) ReplayStoredData() {
 // Implements DebugView.
 func (o *observerImpl) StorageReader() observerdef.StorageReader {
 	return o.engine.storage
+}
+
+// ConfigureTestbenchLogCountView enables the detector-only sparse log count
+// view. It is a debug/testbench hook and is never called by production wiring.
+func (o *observerImpl) ConfigureTestbenchLogCountView(config TestbenchLogCountViewConfig) {
+	o.replayMu.Lock()
+	o.engine.configureTestbenchLogCountView(config)
+	o.replayMu.Unlock()
+}
+
+// TestbenchLogCountViewStats returns a snapshot of the active experiment.
+func (o *observerImpl) TestbenchLogCountViewStats() *TestbenchLogCountViewStats {
+	return o.engine.testbenchLogCountViewStats()
 }
 
 // IngestLogForReplay feeds a log directly into the engine without driving any

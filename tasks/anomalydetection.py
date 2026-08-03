@@ -98,6 +98,9 @@ def launch_testbench(
     timeout: int = 0,
     logs_only: bool = False,
     retain_parquet: bool = False,
+    time_aware_log_count_series: bool = False,
+    log_count_window_seconds: int = 5,
+    log_count_idle_ttl_seconds: int = 300,
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -115,7 +118,17 @@ def launch_testbench(
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
         retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
+        time_aware_log_count_series: Keep log occurrence metrics sparse and
+            present fixed-window counts only to detectors.
+        log_count_window_seconds: Virtual count window width (1, 5, or 10 seconds).
+        log_count_idle_ttl_seconds: Forward-only zero window lifetime after the
+            most recent occurrence.
     """
+    if time_aware_log_count_series and log_count_window_seconds not in (1, 5, 10):
+        raise ValueError("log_count_window_seconds must be one of 1, 5, or 10")
+    if log_count_idle_ttl_seconds < 0:
+        raise ValueError("log_count_idle_ttl_seconds must be non-negative")
+
     if build:
         print("Building anomalydetection-testbench...")
         build_testbench(ctx)
@@ -127,6 +140,12 @@ def launch_testbench(
         flags += " --logs-only"
     if retain_parquet:
         flags += " --retain-parquet"
+    if time_aware_log_count_series:
+        flags += (
+            " --time-aware-log-count-series"
+            f" --log-count-window-seconds {int(log_count_window_seconds)}"
+            f" --log-count-idle-ttl-seconds {int(log_count_idle_ttl_seconds)}"
+        )
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:
@@ -189,6 +208,10 @@ def eval_scenarios(
     scenario_output_dir: str = "/tmp",
     timeout: int = 0,
     scenarios: str = "",
+    logs_only: bool = False,
+    time_aware_log_count_series: bool = False,
+    log_count_window_seconds: int = 5,
+    log_count_idle_ttl_seconds: int = 300,
     _logger: StepLogger | None = None,
 ) -> dict:
     """
@@ -220,10 +243,21 @@ def eval_scenarios(
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
         timeout: Per-scenario time budget in seconds (rolling: unused time rolls over). 0 = no limit.
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        logs_only: Pass --logs-only to skip parquet metrics and trace stats.
+        time_aware_log_count_series: Keep log-extractor observations sparse and
+            present a fixed-window count view only to detectors.
+        log_count_window_seconds: Virtual count window width (1, 5, or 10 seconds).
+        log_count_idle_ttl_seconds: Forward-only zero window lifetime after the
+            most recent occurrence.
 
     Returns:
         Main report dict with ``score`` and per-scenario ``metadata``.
     """
+    if time_aware_log_count_series and log_count_window_seconds not in (1, 5, 10):
+        raise ValueError("log_count_window_seconds must be one of 1, 5, or 10")
+    if log_count_idle_ttl_seconds < 0:
+        raise ValueError("log_count_idle_ttl_seconds must be non-negative")
+
     only_flag = ""
     if only:
         components = {name.strip() for name in only.split(",") if name.strip()}
@@ -265,10 +299,18 @@ def eval_scenarios(
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
+        logs_only_part = " --logs-only" if logs_only else ""
+        time_aware_part = " --time-aware-log-count-series" if time_aware_log_count_series else ""
+        log_count_config_part = ""
+        if time_aware_log_count_series:
+            log_count_config_part = (
+                f" --log-count-window-seconds {int(log_count_window_seconds)}"
+                f" --log-count-idle-ttl-seconds {int(log_count_idle_ttl_seconds)}"
+            )
         scenario_start = time.monotonic()
         try:
             ctx.run(
-                f"bin/anomalydetection-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
+                f"bin/anomalydetection-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}{logs_only_part}{time_aware_part}{log_count_config_part}",
                 timeout=None if timeout == 0 else max(1, int(budget_remaining)),
             )
         except Exception as e:
@@ -332,7 +374,15 @@ def eval_scenarios(
 
     f1_scores: list[float] = [float(r["f1"]) for r in results]
     main_score = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
-    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
+    main_report = {
+        "score": main_score,
+        "metadata": {r["name"]: r for r in results},
+        "component_configs": config_obj,
+        "logs_only": logs_only,
+        "time_aware_log_count_series": time_aware_log_count_series,
+        "log_count_window_seconds": log_count_window_seconds if time_aware_log_count_series else None,
+        "log_count_idle_ttl_seconds": log_count_idle_ttl_seconds if time_aware_log_count_series else None,
+    }
     with open(main_report_path, "w") as f:
         json.dump(main_report, f, indent=4)
     print(f"Saved main report to {main_report_path}")
