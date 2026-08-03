@@ -9,6 +9,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/journald",
     visibility = ["//visibility:public"],
+    # keep
     deps = [
         "//comp/core/tagger/def",
         "//comp/logs-library/pipeline",
@@ -21,8 +22,12 @@ go_library(
         "//pkg/logs/tailers/journald",
         "//pkg/util/log",
         "//pkg/util/startstop",
-        "@com_github_coreos_go_systemd_v22//sdjournal",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@com_github_coreos_go_systemd_v22//sdjournal",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -41,7 +46,11 @@ dd_agent_go_test(
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/logs/tailers/journald",
-        "@com_github_coreos_go_systemd_v22//sdjournal",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@com_github_coreos_go_systemd_v22//sdjournal",
+        ],
+        "//conditions:default": [],
+    }),
 )

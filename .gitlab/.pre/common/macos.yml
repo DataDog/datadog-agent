@@ -96,3 +96,12 @@
     - !reference [.macos_runner_maintenance]
     - export GOCACHE="$TMPDIR/go-build"
     - dda inv -- -e install-tools --verbose
+
+.macos_runner_make_workspace_writable:
+  - |
+    # GitLab Runner 18 fails the next job during clear_worktree when the
+    # previous job leaves read-only files in the persistent macOS workspace.
+    # Best-effort only: do not mask the job's real result if cleanup fails.
+    if [ -n "$CI_PROJECT_DIR" ] && [ -d "$CI_PROJECT_DIR" ]; then
+      chmod -R u+w "$CI_PROJECT_DIR" 2>/dev/null || true
+    fi

@@ -67,11 +67,14 @@ func linuxBPFEnabled(c *config.Config) bool {
 // requiresLinuxBPF reports whether a //go:build expression compiles only when
 // linux_bpf is set: satisfiable with the tag, never satisfiable without it.
 // This treats "//go:build linux_bpf" (and e.g. "linux_bpf && linux") as
-// requiring the tag while ignoring "//go:build !linux_bpf". Platform/arch
-// tokens are free variables and go1.N tokens resolve against the toolchain,
-// both handled by canSatisfy (shared with test tag-set analysis).
+// requiring the tag while ignoring "//go:build !linux_bpf". "test" is always
+// assumed true in both checks, since these expressions only ever gate
+// _test.go files. Platform/arch tokens are free variables and go1.N tokens
+// resolve against the toolchain, both handled by canSatisfy (shared with the
+// flavor logic).
 func requiresLinuxBPF(e constraint.Expr) bool {
-	return canSatisfy(e, map[string]bool{linuxBPFTag: true}) && !canSatisfy(e, nil)
+	return canSatisfy(e, map[string]bool{linuxBPFTag: true, "test": true}) &&
+		!canSatisfy(e, map[string]bool{"test": true})
 }
 
 // srcsRequireLinuxBPF reports whether any of srcs carries a //go:build header
@@ -95,8 +98,8 @@ func srcsRequireLinuxBPF(srcs []string, pkgDir string) bool {
 }
 
 // applyLinuxBPF post-processes the generated rules of a linux_bpf-gated package.
-// It runs after test replacement, so dd_agent_go_test rules are left alone:
-// their source-derived linux_bpf tag set handles the test variant.
+// It runs after dd_agent_go_test reversion, so linux_bpf tests are native
+// go_test rules and receive their tags and platform compatibility here.
 //
 // Because tags/gotags/target_compatible_with are not mergeable for the Go kinds,
 // Gazelle's merger keeps an existing occurrence of such an attr verbatim (see
