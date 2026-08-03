@@ -71,7 +71,6 @@ darling,https://github.com/TedDriggs/darling,MIT,Ted Driggs <ted.driggs@outlook.
 darling_core,https://github.com/TedDriggs/darling,MIT,Ted Driggs <ted.driggs@outlook.com>
 darling_macro,https://github.com/TedDriggs/darling,MIT,Ted Driggs <ted.driggs@outlook.com>
 dd-sensitive-data-scanner,https://github.com/DataDog/dd-sensitive-data-scanner,Apache-2.0,The dd-sensitive-data-scanner Authors
-der,https://github.com/RustCrypto/formats,Apache-2.0 OR MIT,RustCrypto Developers
 der,https://github.com/RustCrypto/formats/tree/master/der,Apache-2.0 OR MIT,RustCrypto Developers
 deranged,https://github.com/jhpratt/deranged,MIT OR Apache-2.0,Jacob Pratt <jacob@jhpratt.dev>
 digest,https://github.com/RustCrypto/traits,MIT OR Apache-2.0,RustCrypto Developers
@@ -205,7 +204,6 @@ ordered-float,https://github.com/reem/rust-ordered-float,MIT,"Jonathan Reem <jon
 p256,https://github.com/RustCrypto/elliptic-curves/tree/master/p256,Apache-2.0 OR MIT,RustCrypto Developers
 parking_lot,https://github.com/Amanieu/parking_lot,MIT OR Apache-2.0,Amanieu d'Antras <amanieu@gmail.com>
 parking_lot_core,https://github.com/Amanieu/parking_lot,MIT OR Apache-2.0,Amanieu d'Antras <amanieu@gmail.com>
-pem-rfc7468,https://github.com/RustCrypto/formats,Apache-2.0 OR MIT,RustCrypto Developers
 pem-rfc7468,https://github.com/RustCrypto/formats/tree/master/pem-rfc7468,Apache-2.0 OR MIT,RustCrypto Developers
 percent-encoding,https://github.com/servo/rust-url,MIT OR Apache-2.0,The rust-url developers
 petgraph,https://github.com/petgraph/petgraph,MIT OR Apache-2.0,"bluss, mitchmindtree"
@@ -261,7 +259,6 @@ rmp-serde,https://github.com/3Hren/msgpack-rust,MIT,Evgeny Safronov <division494
 rustc-hex,https://github.com/debris/rustc-hex,MIT OR Apache-2.0,"The Rust Project Developers, debris <marek.kotewicz@gmail.com>, Robert Habermeier"
 rustix,https://github.com/bytecodealliance/rustix,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,"Dan Gohman <dev@sunfishcode.online>, Jakub Konka <kubkon@jakubkonka.com>"
 rustix-linux-procfs,https://github.com/sunfishcode/rustix-linux-procfs,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Dan Gohman <dev@sunfishcode.online>
-rustls-pki-types,https://github.com/rustls/pki-types,MIT OR Apache-2.0,The rustls-pki-types Authors
 rustversion,https://github.com/dtolnay/rustversion,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 ryu,https://github.com/dtolnay/ryu,Apache-2.0 OR BSL-1.0,David Tolnay <dtolnay@gmail.com>
 same-file,https://github.com/BurntSushi/same-file,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
