@@ -138,7 +138,7 @@ def go_build(
         check_deadcode = False
 
     # disable race for unsupported builds
-    if race and (os.getenv("CGO_ENABLED") == "0" or ctx.run("go env GOARCH", env=env).stdout.strip() not in ("amd64", "arm64")):
+    if race and (ctx.run("go env CGO_ENABLED", env=env).stdout.strip() == "0" or ctx.run("go env GOARCH", env=env).stdout.strip() not in ("amd64", "arm64")):
         race = False
 
     # When targeting Windows with a known output path, ensure the parent
