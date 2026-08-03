@@ -4004,14 +4004,14 @@
   
 
 
-<h1 id="developer-environment-reference">Developer environment reference</h1>
+<h1 id="developer-environment-reference">Developer environment reference<a class="headerlink" href="#developer-environment-reference" title="Permanent link">&para;</a></h1>
 <hr />
 <p>The developer environments are <a href="https://github.com/DataDog/datadog-agent-buildimages/tree/main/dev-envs">container images</a> that use the <a href="../builders/">builders</a> as a base image. These images are only intended for use by the <a href="https://datadoghq.dev/datadog-agent-dev/reference/cli/commands/#dda-env-dev"><code>dda env dev</code></a> command group.</p>
 <p>There is currently only one image available:</p>
 <ul>
 <li><a href="https://hub.docker.com/r/datadog/agent-dev-env-linux"><code>datadog/agent-dev-env-linux</code></a>, based on the <a href="../builders/#linux">Linux builder</a></li>
 </ul>
-<h2 id="editors">Editors</h2>
+<h2 id="editors">Editors<a class="headerlink" href="#editors" title="Permanent link">&para;</a></h2>
 <p>Images come with the following editors ready for remote development via SSH.</p>
 <ul>
 <li><a href="https://code.visualstudio.com">Visual Studio Code</a></li>
@@ -4043,7 +4043,7 @@
 </div>
 </div>
 </details>
-<h2 id="tools">Tools</h2>
+<h2 id="tools">Tools<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h2>
 <p>The following is a non-exhaustive list of available tools.</p>
 <ul>
 <li><a href="https://github.com/dalance/amber"><code>ambr</code></a> - find and replace like <code>sed</code> but with interactivity</li>
@@ -4065,7 +4065,7 @@
 <li><a href="https://github.com/BurntSushi/ripgrep"><code>rg</code></a> - search file contents like <code>grep</code></li>
 <li><a href="https://github.com/sxyazi/yazi"><code>yazi</code></a> - file manager UI</li>
 </ul>
-<h2 id="git">Git</h2>
+<h2 id="git">Git<a class="headerlink" href="#git" title="Permanent link">&para;</a></h2>
 <p>Git is configured to use <a href="../../../setup/required/#ssh">SSH</a> for authentication and, upon start, will use the <code>user.name</code> and <code>user.email</code> global settings from your local machine.</p>
 <p>Each of the following subcommands are available via <code>git &lt;subcommand&gt;</code>.</p>
 <ul>
@@ -4077,19 +4077,19 @@
 <li><code>dd-switch</code> - Emulates the behavior of <code>git switch</code> but smart enough to handle shallow clones. The branch name is the only argument.</li>
 </ul>
 <p><a href="https://github.com/dandavison/delta">Delta</a> is the default pager which provides, as an example, syntax highlighting for <code>git diff</code> and <code>git log</code> commands.</p>
-<h2 id="repositories">Repositories</h2>
+<h2 id="repositories">Repositories<a class="headerlink" href="#repositories" title="Permanent link">&para;</a></h2>
 <p>Images assume repositories will be cloned to <code>~/repos</code>. The <a href="#git"><code>dd-clone</code></a> Git extension will clone repositories to this location and <code>gfold</code> is pre-configured to look for repositories in this location.</p>
-<h2 id="shells">Shells</h2>
+<h2 id="shells">Shells<a class="headerlink" href="#shells" title="Permanent link">&para;</a></h2>
 <p>Images come with shells based on their platform e.g. <a href="https://www.zsh.org">Zsh</a> for Linux and <a href="https://github.com/PowerShell/PowerShell">PowerShell</a> for Windows. Every image comes with <a href="https://github.com/nushell/nushell">Nushell</a> as well.</p>
 <p>All shells are pre-configured with <a href="https://github.com/starship/starship">Starship</a> prompt and any local configuration will be copied to the container upon start.</p>
-<h2 id="fonts">Fonts</h2>
+<h2 id="fonts">Fonts<a class="headerlink" href="#fonts" title="Permanent link">&para;</a></h2>
 <p>Images come with the following fonts.</p>
 <ul>
 <li><a href="https://github.com/ryanoasis/nerd-fonts">FiraCode</a></li>
 <li><a href="https://github.com/microsoft/cascadia-code">CascadiaCode</a></li>
 </ul>
 <p>All fonts have <a href="https://www.nerdfonts.com">Nerd Font</a> glyphs, and <a href="https://github.com/googlefonts/noto-emoji">Noto Emoji</a> is installed for emoji support.</p>
-<h2 id="ports">Ports</h2>
+<h2 id="ports">Ports<a class="headerlink" href="#ports" title="Permanent link">&para;</a></h2>
 <p>Images expose the following ports.</p>
 <ul>
 <li><code>22</code> for SSH access</li>
