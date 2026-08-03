@@ -151,8 +151,7 @@ type TLSDiagEvent struct {
 	App_layer_proto  uint16
 	Tls_content_type uint8
 	Reason           uint8
-	Logged           uint8
-	X_pad            [3]uint8
+	X_pad            [4]uint8
 }
 
 type _Ctype_struct_sock uint64

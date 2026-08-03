@@ -203,35 +203,37 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     if (!encryption_layer_known) {
         tls_record_header_t diag_hdr = {0};
         if (is_tls_record_header_plausible(skb, skb_info.data_off, skb_info.data_end, &diag_hdr)) {
-            // Link 1: is_tls() above requires the whole record to fit inside this packet
-            // (read_tls_record_header's final bounds check). Records run to 16 KB while MSS is
-            // ~1460, so genuine TLS reads as "not TLS" and classification falls through to the
-            // app-layer classifiers. This counter measures how often that door is opened.
-            if (skb_info.data_off + sizeof(tls_record_header_t) + diag_hdr.length > skb_info.data_end) {
-                increment_telemetry_count(tls_reject_record_exceeds_packet);
-                record_tls_misclassification_event(&skb_tup, TLS_DIAG_RECORD_EXCEEDS_PACKET, app_layer_proto, diag_hdr.content_type);
-            } else if (diag_hdr.content_type == TLS_HANDSHAKE &&
-                       !is_valid_tls_handshake(skb, skb_info.data_off, skb_info.data_end, &diag_hdr)) {
-                // Link 1, structural variant. The record fits, so the size check above is not the
-                // reason is_tls() failed; is_valid_tls_handshake() rejected it instead. It accepts
-                // ONLY ClientHello and ServerHello, and requires handshake_length + 4 to equal the
-                // record length exactly — so Certificate/ServerKeyExchange/Finished records,
-                // records carrying several coalesced handshake messages, and handshake messages
-                // fragmented across records all land here. This is how a brand-new connection can
-                // be misclassified, without any missed handshake.
-                //
-                // Note this only fires when is_tls() was actually reachable. If the app layer is
-                // already recorded, the gate above skips is_tls() entirely and the lock-out
-                // counter below is the correct attribution instead.
-                increment_telemetry_count(tls_reject_handshake_invalid);
-                record_tls_misclassification_event(&skb_tup, TLS_DIAG_HANDSHAKE_INVALID, app_layer_proto, diag_hdr.content_type);
-            }
-
-            // Link 3: the is_tls() call above is gated on the app layer being UNKNOWN or POSTGRES,
-            // so once any other protocol is recorded is_tls() can never run again for this
-            // connection — the wrong answer is pinned regardless of FLAG_FULLY_CLASSIFIED.
-            // Purely observational; no classification state is modified here.
-            if (app_layer_proto != PROTOCOL_UNKNOWN && app_layer_proto != PROTOCOL_POSTGRES) {
+            // These two branches are mutually exclusive, and the distinction matters for
+            // attribution. The is_tls() call above is gated on the app layer being UNKNOWN or
+            // POSTGRES, so when any other protocol is already recorded is_tls() never ran at all —
+            // nothing was "rejected", and counting a rejection there would over-attribute to
+            // link 1 and inflate its totals.
+            if (app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) {
+                // is_tls() was reachable and, since control reached here, returned false on bytes
+                // that do look like a TLS record. Attribute why.
+                if (skb_info.data_off + sizeof(tls_record_header_t) + diag_hdr.length > skb_info.data_end) {
+                    // Link 1a. read_tls_record_header()'s final bounds check requires the whole
+                    // record to fit inside this packet. Records run to 16 KB while MSS is ~1460,
+                    // so genuine TLS reads as "not TLS" and classification falls through to the
+                    // app-layer classifiers.
+                    increment_telemetry_count(tls_reject_record_exceeds_packet);
+                    record_tls_misclassification_event(&skb_tup, TLS_DIAG_RECORD_EXCEEDS_PACKET, app_layer_proto, diag_hdr.content_type);
+                } else if (diag_hdr.content_type == TLS_HANDSHAKE &&
+                           !is_valid_tls_handshake(skb, skb_info.data_off, skb_info.data_end, &diag_hdr)) {
+                    // Link 1b, structural variant. The record fits, so size is not why is_tls()
+                    // failed; is_valid_tls_handshake() rejected it. That accepts ONLY ClientHello
+                    // and ServerHello and requires handshake_length + 4 == record length, so
+                    // Certificate/ServerKeyExchange/Finished records, records carrying several
+                    // coalesced handshake messages, and fragmented handshake messages all land
+                    // here. This is how a brand-new connection can be misclassified, with no
+                    // missed handshake involved.
+                    increment_telemetry_count(tls_reject_handshake_invalid);
+                    record_tls_misclassification_event(&skb_tup, TLS_DIAG_HANDSHAKE_INVALID, app_layer_proto, diag_hdr.content_type);
+                }
+            } else {
+                // Link 3. The app layer is already recorded, so is_tls() can never run again for
+                // this connection and the wrong answer is pinned regardless of
+                // FLAG_FULLY_CLASSIFIED. Purely observational; no state is modified here.
                 increment_telemetry_count(tls_locked_out_by_applayer);
                 record_tls_misclassification_event(&skb_tup, TLS_DIAG_LOCKED_OUT_BY_APPLAYER, app_layer_proto, diag_hdr.content_type);
             }
