@@ -137,7 +137,8 @@ def go_build(
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
         check_deadcode = False
 
-    if race and (sys.platform == "aix" or os.getenv("GOARCH") == "ppc64" or platform.machine() == "x86" or os.getenv("CGO_ENABLED") == "0"):
+    # disable race for unsupported builds
+    if race and (os.getenv("CGO_ENABLED") == "0" or ctx.run("go env GOARCH", env=env).stdout.strip() not in ("amd64", "arm64")):
         race = False
 
     # When targeting Windows with a known output path, ensure the parent
