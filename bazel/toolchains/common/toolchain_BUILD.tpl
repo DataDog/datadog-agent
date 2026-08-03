@@ -21,8 +21,8 @@ toolchain(
 
 # {TOOL_NAME}_missing_toolchain provides a fallback toolchain so that toolchain
 # resolution can succeed even on platforms that do not have that tool.
-# If this toolchain is selected, the constraint ":have_{TOOL_NAME}" will not be satistifed,
-# so that can be used with with exec_compatible_with clauses.
+# If this toolchain is selected, a rule can examine the valid field to determine
+# if the tool is really available.
 {TOOL_NAME}_toolchain(
     name = "no_{TOOL_NAME}",
 )
