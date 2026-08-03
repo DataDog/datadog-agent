@@ -126,15 +126,18 @@ func TestErrorTrackingOTelAgentSuite(t *testing.T) {
 // getNodeAgentPodName returns the name of the (sole) running node-agent pod.
 // The otel-agent under test runs as the "otel-agent" container within this
 // same pod, alongside the core "agent" container.
-func (s *errorTrackingOTelAgentSuite) getNodeAgentPodName() string {
-	t := s.T()
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(otelAgentDatadogNamespace).List(t.Context(), metav1.ListOptions{
+func (s *errorTrackingOTelAgentSuite) getNodeAgentPodName(ctx context.Context) (string, error) {
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(otelAgentDatadogNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 		Limit:         1,
 	})
-	require.NoError(t, err)
-	require.NotEmpty(t, pods.Items, "node-agent pod not found in datadog namespace")
-	return pods.Items[0].Name
+	if err != nil {
+		return "", err
+	}
+	if len(pods.Items) == 0 {
+		return "", errors.New("node-agent pod not found in datadog namespace")
+	}
+	return pods.Items[0].Name, nil
 }
 
 // getOTelAgentContainerLogs returns the "otel-agent" container's stdout for
@@ -203,7 +206,11 @@ func (s *errorTrackingOTelAgentSuite) TestDisabledByDefault() {
 	// Wait until the scrape error appears in the current node-agent pod's
 	// stdout, re-resolved on every retry since the Helm upgrade rolls it.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		podName := s.getNodeAgentPodName()
+		podName, err := s.getNodeAgentPodName(ctx)
+		if err != nil {
+			assert.Fail(c, fmt.Sprintf("could not resolve node-agent pod: %v", err))
+			return
+		}
 		out, err := s.getOTelAgentContainerLogs(ctx, podName, since)
 		if err != nil {
 			assert.Fail(c, fmt.Sprintf("log fetch error for pod %s: %v", podName, err))
