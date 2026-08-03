@@ -88,7 +88,7 @@ def build_and_upload_fuzz(
     ).stdout.strip()
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     max_pkg_name_length = 50
     for directory, func in search_fuzz_tests(os.getcwd()):

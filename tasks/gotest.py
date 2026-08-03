@@ -636,7 +636,7 @@ def test(
         run_bazel_tests = True
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
@@ -1392,7 +1392,7 @@ def check_otel_build(ctx):
     rename_package(file_path, package_otel, package_main)
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     with ctx.cd("test/otel"):
         # Update dependencies to latest local version
