@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -601,36 +600,6 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	}
 
 	return nil
-}
-
-// bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.
-// This utility function allows any config prefix that has an api_key to also support delegated_auth configuration.
-//
-// Parameters:
-//   - config: The config object to bind keys to
-//   - prefix: The config prefix (e.g., "" for global, "logs_config" for logs, "apm_config" for APM)
-//
-// Example usage:
-//
-//	bindDelegatedAuthConfig(config, "")             // For global api_key
-//	bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
-//	bindDelegatedAuthConfig(config, "apm_config")   // For apm_config.api_key
-func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
-	// Build the config key prefix
-	var configPrefix string
-	if prefix == "" {
-		configPrefix = "delegated_auth"
-	} else {
-		configPrefix = prefix + ".delegated_auth"
-	}
-
-	// Bind all delegated auth config keys
-	config.BindEnvAndSetDefault(configPrefix+".org_uuid", "")
-	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
-	config.BindEnvAndSetDefault(configPrefix+".provider", "")
-
-	// Provider-specific configuration (nested under provider name)
-	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -1358,30 +1327,6 @@ func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
 	// agent runtime decision, so it should be filtered out by views that
 	// strip defaults (e.g. config dumps for diagnostics).
 	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
-}
-
-func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
-	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnvAndSetDefault(prefix+"dd_url", "")
-	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
-	config.BindEnvAndSetDefault(prefix+"use_compression", true)
-	config.BindEnvAndSetDefault(prefix+"compression_kind", constants.DefaultLogCompressionKind)
-	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                          // Default level for the gzip algorithm
-	config.BindEnvAndSetDefault(prefix+"batch_wait", constants.DefaultBatchWait)
-	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
-	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
-	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
-	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", constants.DefaultBatchMaxContentSize)
-	config.BindEnvAndSetDefault(prefix+"batch_max_size", constants.DefaultBatchMaxSize)
-	config.BindEnvAndSetDefault(prefix+"input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
-	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
-	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
-	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-	config.SetDefault(prefix+"dev_mode_no_ssl", false)
 }
 
 // pathExists returns true if the given path exists

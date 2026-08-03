@@ -169,7 +169,29 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
 	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")
 
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	//bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	config.BindEnvAndSetDefault("network_devices.metadata.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("network_devices.metadata.dd_url", "")
+	config.BindEnvAndSetDefault("network_devices.metadata.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.metadata.use_compression", true)
+	config.BindEnvAndSetDefault("network_devices.metadata.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("network_devices.metadata.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("network_devices.metadata.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("network_devices.metadata.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("network_devices.metadata.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("network_devices.metadata.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("network_devices.metadata.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("network_devices.metadata.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("network_devices.metadata.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("network_devices.metadata.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("network_devices.metadata.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("network_devices.metadata.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("network_devices.metadata.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("network_devices.metadata.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("network_devices.metadata.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("network_devices.metadata.use_v2_api", true)
+	config.SetDefault("network_devices.metadata.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
 	config.BindEnvAndSetDefault("snmp_listener.discovery_interval", 3600)
@@ -219,7 +241,29 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", true)
 	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
 
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.forwarder.use_v2_api", true)
+	config.SetDefault("network_devices.snmp_traps.forwarder.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
@@ -239,7 +283,29 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flow_context_ttl", 0)
 	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_port_rollup_threshold", 10)
 	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_rollup_tracker_refresh_interval", 300)
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("network_devices.netflow.forwarder.use_v2_api", true)
+	config.SetDefault("network_devices.netflow.forwarder.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
@@ -272,9 +338,52 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
 	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
 
-	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
+	config.BindEnvAndSetDefault("network_path.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("network_path.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("network_path.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_path.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("network_path.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("network_path.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("network_path.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("network_path.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("network_path.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("network_path.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("network_path.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("network_path.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("network_path.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("network_path.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("network_path.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("network_path.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("network_path.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("network_path.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("network_path.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("network_path.forwarder.use_v2_api", true)
+	config.SetDefault("network_path.forwarder.dev_mode_no_ssl", false)
 
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.config_management.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "network_devices.config_management.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("network_devices.config_management.forwarder.use_v2_api", true)
+	config.SetDefault("network_devices.config_management.forwarder.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("network_devices.config_management.rollback.enabled", false)
 
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
@@ -848,24 +957,129 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
-	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
+	//bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
+	config.BindEnvAndSetDefault("container_lifecycle.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("container_lifecycle.dd_url", "")
+	config.BindEnvAndSetDefault("container_lifecycle.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("container_lifecycle.use_compression", true)
+	config.BindEnvAndSetDefault("container_lifecycle.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("container_lifecycle.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("container_lifecycle.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("container_lifecycle.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("container_lifecycle.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("container_lifecycle.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("container_lifecycle.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("container_lifecycle.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("container_lifecycle.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("container_lifecycle.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("container_lifecycle.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("container_lifecycle.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("container_lifecycle.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("container_lifecycle.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("container_lifecycle.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("container_lifecycle.use_v2_api", true)
+	config.SetDefault("container_lifecycle.dev_mode_no_ssl", false)
 
 	config.BindEnvAndSetDefault("container_image.enabled", true)
-	bindEnvAndSetLogsConfigKeys(config, "container_image.")
+	//bindEnvAndSetLogsConfigKeys(config, "container_image.")
+	config.BindEnvAndSetDefault("container_image.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("container_image.dd_url", "")
+	config.BindEnvAndSetDefault("container_image.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("container_image.use_compression", true)
+	config.BindEnvAndSetDefault("container_image.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("container_image.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("container_image.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("container_image.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("container_image.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("container_image.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("container_image.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("container_image.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("container_image.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("container_image.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("container_image.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("container_image.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("container_image.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("container_image.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("container_image.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("container_image.use_v2_api", true)
+	config.SetDefault("container_image.dev_mode_no_ssl", false)
 
 	// The interval at which processes are collected and sent to the workloadmeta in the core agent if the process
 	// check is disabled.
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", 1*time.Minute)
 
 	config.BindEnvAndSetDefault("sbom.enabled", false)
-	bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	//bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	config.BindEnvAndSetDefault("sbom.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("sbom.dd_url", "")
+	config.BindEnvAndSetDefault("sbom.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("sbom.use_compression", true)
+	config.BindEnvAndSetDefault("sbom.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("sbom.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("sbom.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("sbom.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("sbom.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("sbom.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("sbom.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("sbom.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("sbom.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("sbom.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("sbom.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("sbom.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("sbom.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("sbom.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("sbom.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("sbom.use_v2_api", true)
+	config.SetDefault("sbom.dev_mode_no_ssl", false)
 
-	bindEnvAndSetLogsConfigKeys(config, "genresources.")
+	//bindEnvAndSetLogsConfigKeys(config, "genresources.")
+	config.BindEnvAndSetDefault("genresources.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("genresources.dd_url", "")
+	config.BindEnvAndSetDefault("genresources.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("genresources.use_compression", true)
+	config.BindEnvAndSetDefault("genresources.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("genresources.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("genresources.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("genresources.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("genresources.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("genresources.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("genresources.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("genresources.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("genresources.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("genresources.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("genresources.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("genresources.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("genresources.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("genresources.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("genresources.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("genresources.use_v2_api", true)
+	config.SetDefault("genresources.dev_mode_no_ssl", false)
 
 	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
 	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
 	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
-	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
+	config.BindEnvAndSetDefault("synthetics.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("synthetics.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("synthetics.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("synthetics.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("synthetics.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("synthetics.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("synthetics.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("synthetics.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("synthetics.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("synthetics.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("synthetics.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("synthetics.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("synthetics.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("synthetics.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("synthetics.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("synthetics.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("synthetics.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("synthetics.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("synthetics.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("synthetics.forwarder.use_v2_api", true)
+	config.SetDefault("synthetics.forwarder.dev_mode_no_ssl", false)
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", "${run_path}/sbom-agent")
 	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
@@ -901,7 +1115,28 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("sbom.enrichment.usage.enabled", false)
 
-	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
+	config.BindEnvAndSetDefault("service_discovery.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("service_discovery.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("service_discovery.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("service_discovery.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("service_discovery.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("service_discovery.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("service_discovery.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("service_discovery.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("service_discovery.forwarder.use_v2_api", true)
+	config.SetDefault("service_discovery.forwarder.dev_mode_no_ssl", false)
 
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnvAndSetDefault("process_config.orchestrator_dd_url", "", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
@@ -988,7 +1223,29 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_commands_as", "")
-	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
+	//bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
+	config.BindEnvAndSetDefault("compliance_config.endpoints.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("compliance_config.endpoints.dd_url", "")
+	config.BindEnvAndSetDefault("compliance_config.endpoints.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("compliance_config.endpoints.use_compression", true)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("compliance_config.endpoints.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("compliance_config.endpoints.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("compliance_config.endpoints.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("compliance_config.endpoints.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("compliance_config.endpoints.use_v2_api", true)
+	config.SetDefault("compliance_config.endpoints.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("compliance_config.metrics.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.container_include", []string{})
@@ -1002,8 +1259,52 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	}))
 	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
-	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
-	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
+	//bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "")
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.use_compression", true)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("runtime_security_config.endpoints.use_v2_api", true)
+	config.SetDefault("runtime_security_config.endpoints.dev_mode_no_ssl", false)
+
+	//bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.dd_url", "")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.use_compression", true)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.use_v2_api", true)
+	config.SetDefault("runtime_security_config.activity_dump.remote_storage.endpoints.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
@@ -1065,7 +1366,28 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
-	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+	config.BindEnvAndSetDefault("data_observability.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("data_observability.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("data_observability.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("data_observability.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("data_observability.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("data_observability.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("data_observability.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("data_observability.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("data_observability.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("data_observability.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("data_observability.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("data_observability.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("data_observability.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("data_observability.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("data_observability.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("data_observability.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("data_observability.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("data_observability.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("data_observability.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("data_observability.forwarder.use_v2_api", true)
+	config.SetDefault("data_observability.forwarder.dev_mode_no_ssl", false)
 
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.workers", 10)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.chan_size", 5000)
@@ -1128,7 +1450,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Delegated authentication (global)
 	// Cloud provider and region are auto-detected if not specified
 	// Enabled automatically when org_uuid is specified
-	bindDelegatedAuthConfig(config, "")
+	//bindDelegatedAuthConfig(config, "")
+	// "delegated_auth
+	config.BindEnvAndSetDefault("delegated_auth.org_uuid", "")
+	config.BindEnvAndSetDefault("delegated_auth.refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault("delegated_auth.provider", "")
+	config.BindEnvAndSetDefault("delegated_auth.aws.region", "")
 
 	config.BindEnvAndSetDefault("metric_filterlist", []string{})
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
@@ -1348,7 +1675,29 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
 
 	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
-	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("config_files_discovery.forwarder.use_v2_api", true)
+	config.SetDefault("config_files_discovery.forwarder.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_interval", time.Hour)
 	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_jitter", 10*time.Minute)
 	config.BindEnvAndSetDefault("config_files_discovery.startup_jitter", 1*time.Minute)
@@ -1356,7 +1705,28 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)
 	config.BindEnvAndSetDefault("software_inventory.interval", 10)
-	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
+	config.BindEnvAndSetDefault("software_inventory.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("software_inventory.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("software_inventory.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("software_inventory.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("software_inventory.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("software_inventory.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("software_inventory.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("software_inventory.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("software_inventory.forwarder.use_v2_api", true)
+	config.SetDefault("software_inventory.forwarder.dev_mode_no_ssl", false)
 
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
 
@@ -1364,13 +1734,55 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
-	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+	config.BindEnvAndSetDefault("event_management.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("event_management.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("event_management.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("event_management.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("event_management.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("event_management.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("event_management.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("event_management.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("event_management.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("event_management.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("event_management.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("event_management.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("event_management.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("event_management.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("event_management.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("event_management.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("event_management.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("event_management.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("event_management.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("event_management.forwarder.use_v2_api", true)
+	config.SetDefault("event_management.forwarder.dev_mode_no_ssl", false)
 
 	// Data Security: single enablement flag gating both the autodiscovery provider
 	// and the sds-result event platform pipeline.
 	config.BindEnvAndSetDefault("data_security.enabled", false)
 	// Data Security (sensitive-data-scanner results) event platform forwarder
-	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
+	config.BindEnvAndSetDefault("sds_result.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("sds_result.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("sds_result.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("sds_result.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("sds_result.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("sds_result.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("sds_result.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("sds_result.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("sds_result.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("sds_result.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("sds_result.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("sds_result.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("sds_result.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("sds_result.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("sds_result.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("sds_result.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("sds_result.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("sds_result.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("sds_result.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("sds_result.forwarder.use_v2_api", true)
+	config.SetDefault("sds_result.forwarder.dev_mode_no_ssl", false)
 
 	// The cardinality of tags to send for checks.
 	// Choices are: low, orchestrator, high.
@@ -1453,7 +1865,28 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("kubeactions.enabled", false)
 	// TODO(kubeactions): Update hostnameEndpointPrefix to "kubeops-intake." once provisioned
-	bindEnvAndSetLogsConfigKeys(config, "kubeactions.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "kubeactions.forwarder.")
+	config.BindEnvAndSetDefault("kubeactions.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("kubeactions.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("kubeactions.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("kubeactions.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("kubeactions.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("kubeactions.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("kubeactions.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("kubeactions.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("kubeactions.forwarder.use_v2_api", true)
+	config.SetDefault("kubeactions.forwarder.dev_mode_no_ssl", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1470,7 +1903,12 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.api_key", "")
 	config.BindEnvAndSetDefault("remote_configuration.rc_dd_url", "")
 	// Delegated authentication for remote_configuration
-	bindDelegatedAuthConfig(config, "remote_configuration")
+	//bindDelegatedAuthConfig(config, "remote_configuration")
+	config.BindEnvAndSetDefault("remote_configuration.delegated_auth.org_uuid", "")
+	config.BindEnvAndSetDefault("remote_configuration.delegated_auth.refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault("remote_configuration.delegated_auth.provider", "")
+	config.BindEnvAndSetDefault("remote_configuration.delegated_auth.aws.region", "")
+
 	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
 	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
@@ -1586,7 +2024,29 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
 	// default compression first setup inside the next bindEnvAndSetLogsConfigKeys() function ...
-	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+	//bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+	config.BindEnvAndSetDefault("agent_telemetry.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("agent_telemetry.dd_url", "")
+	config.BindEnvAndSetDefault("agent_telemetry.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
+	config.BindEnvAndSetDefault("agent_telemetry.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("agent_telemetry.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("agent_telemetry.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("agent_telemetry.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("agent_telemetry.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("agent_telemetry.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("agent_telemetry.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("agent_telemetry.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("agent_telemetry.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("agent_telemetry.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("agent_telemetry.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("agent_telemetry.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("agent_telemetry.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("agent_telemetry.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("agent_telemetry.use_v2_api", true)
+	config.SetDefault("agent_telemetry.dev_mode_no_ssl", false)
+
 	// ... and overridden by the following two lines - do not switch these 3 lines order
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
@@ -1874,7 +2334,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// use the `time` field from container log files instead of ingestion time
 	config.BindEnvAndSetDefault("logs_config.use_container_timestamp", false)
 	// Delegated authentication for logs
-	bindDelegatedAuthConfig(config, "logs_config")
+	//bindDelegatedAuthConfig(config, "logs_config")
+	// "logs_config.delegated_auth
+	config.BindEnvAndSetDefault("logs_config.delegated_auth.org_uuid", "")
+	config.BindEnvAndSetDefault("logs_config.delegated_auth.refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault("logs_config.delegated_auth.provider", "")
+	config.BindEnvAndSetDefault("logs_config.delegated_auth.aws.region", "")
 
 	// Duration during which the host tags will be submitted with log events.
 	// duration-formatted string (parsed by `time.ParseDuration`)
@@ -1939,10 +2404,98 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
 	config.BindEnvAndSetDefault("logs_config.http_timeout", 10)
 
-	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	//bindEnvAndSetLogsConfigKeys(config, "logs_config.")
+	config.BindEnvAndSetDefault("logs_config.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("logs_config.dd_url", "")
+	config.BindEnvAndSetDefault("logs_config.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("logs_config.use_compression", true)
+	config.BindEnvAndSetDefault("logs_config.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("logs_config.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("logs_config.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("logs_config.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("logs_config.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("logs_config.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("logs_config.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("logs_config.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("logs_config.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("logs_config.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("logs_config.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("logs_config.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("logs_config.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("logs_config.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("logs_config.use_v2_api", true)
+	config.SetDefault("logs_config.dev_mode_no_ssl", false)
+
+	//bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	config.BindEnvAndSetDefault("database_monitoring.samples.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("database_monitoring.samples.dd_url", "")
+	config.BindEnvAndSetDefault("database_monitoring.samples.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("database_monitoring.samples.use_compression", true)
+	config.BindEnvAndSetDefault("database_monitoring.samples.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("database_monitoring.samples.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("database_monitoring.samples.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("database_monitoring.samples.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("database_monitoring.samples.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("database_monitoring.samples.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("database_monitoring.samples.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("database_monitoring.samples.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("database_monitoring.samples.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("database_monitoring.samples.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("database_monitoring.samples.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("database_monitoring.samples.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("database_monitoring.samples.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("database_monitoring.samples.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("database_monitoring.samples.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("database_monitoring.samples.use_v2_api", true)
+	config.SetDefault("database_monitoring.samples.dev_mode_no_ssl", false)
+
+	//bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
+	config.BindEnvAndSetDefault("database_monitoring.activity.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("database_monitoring.activity.dd_url", "")
+	config.BindEnvAndSetDefault("database_monitoring.activity.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("database_monitoring.activity.use_compression", true)
+	config.BindEnvAndSetDefault("database_monitoring.activity.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("database_monitoring.activity.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("database_monitoring.activity.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("database_monitoring.activity.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("database_monitoring.activity.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("database_monitoring.activity.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("database_monitoring.activity.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("database_monitoring.activity.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("database_monitoring.activity.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("database_monitoring.activity.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("database_monitoring.activity.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("database_monitoring.activity.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("database_monitoring.activity.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("database_monitoring.activity.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("database_monitoring.activity.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("database_monitoring.activity.use_v2_api", true)
+	config.SetDefault("database_monitoring.activity.dev_mode_no_ssl", false)
+
+	//bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	config.BindEnvAndSetDefault("database_monitoring.metrics.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("database_monitoring.metrics.dd_url", "")
+	config.BindEnvAndSetDefault("database_monitoring.metrics.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("database_monitoring.metrics.use_compression", true)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("database_monitoring.metrics.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("database_monitoring.metrics.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("database_monitoring.metrics.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("database_monitoring.metrics.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("database_monitoring.metrics.use_v2_api", true)
+	config.SetDefault("database_monitoring.metrics.dev_mode_no_ssl", false)
+
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
@@ -1958,7 +2511,29 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.dbm_tag", "datadoghq.com/dbm:true")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.global_view_db_tag", "datadoghq.com/global_view_db")
 
-	bindEnvAndSetLogsConfigKeys(config, "data_streams.forwarder.")
+	//bindEnvAndSetLogsConfigKeys(config, "data_streams.forwarder.")
+	config.BindEnvAndSetDefault("data_streams.forwarder.logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("data_streams.forwarder.dd_url", "")
+	config.BindEnvAndSetDefault("data_streams.forwarder.additional_endpoints", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("data_streams.forwarder.use_compression", true)
+	config.BindEnvAndSetDefault("data_streams.forwarder.compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault("data_streams.forwarder.zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault("data_streams.forwarder.compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault("data_streams.forwarder.batch_wait", constants.DefaultBatchWait)
+	config.BindEnvAndSetDefault("data_streams.forwarder.connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("data_streams.forwarder.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("data_streams.forwarder.batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault("data_streams.forwarder.batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault("data_streams.forwarder.batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault("data_streams.forwarder.input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault("data_streams.forwarder.sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault("data_streams.forwarder.sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault("data_streams.forwarder.sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault("data_streams.forwarder.sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("data_streams.forwarder.sender_recovery_reset", false)
+	config.BindEnvAndSetDefault("data_streams.forwarder.use_v2_api", true)
+	config.SetDefault("data_streams.forwarder.dev_mode_no_ssl", false)
+
 	// 100ms for low-latency forwarding
 	config.BindEnvAndSetDefault("data_streams.forwarder.batch_wait", float64(0.1))
 
