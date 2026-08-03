@@ -61,7 +61,7 @@ func HandleRCFlareTask(
 	}
 
 	logFile := cfg.GetString("log_file")
-	if logFile == defaultpaths.GetDefaultLogFile() {
+	if !cfg.IsConfigured("log_file") {
 		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
 

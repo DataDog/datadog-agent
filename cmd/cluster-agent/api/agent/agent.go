@@ -152,14 +152,12 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 
 // resolveDCALogFile returns the log file to bundle in a cluster-agent flare.
 // The cluster-agent doesn't register its own default for "log_file", so an
-// unconfigured value resolves to the generic agent default
-// (defaultpaths.GetDefaultLogFile()), not "".
+// unconfigured value resolves to the generic agent default, not "".
 func resolveDCALogFile(cfg pkgconfigmodel.Reader) string {
-	logFile := cfg.GetString("log_file")
-	if logFile == defaultpaths.GetDefaultLogFile() {
-		logFile = defaultpaths.GetDefaultDCALogFile()
+	if !cfg.IsConfigured("log_file") {
+		return defaultpaths.GetDefaultDCALogFile()
 	}
-	return logFile
+	return cfg.GetString("log_file")
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
