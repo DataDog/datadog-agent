@@ -743,6 +743,8 @@ func ResolveIssue(issueID *C.char, errOut **C.char) {
 		id = C.GoString(issueID)
 	}
 	hp.ResolveIssue(id)
+}
+
 // ParsePrometheusMetrics parses Prometheus/OpenMetrics text format using the Go parser
 // and returns the result as a JSON string.
 //
