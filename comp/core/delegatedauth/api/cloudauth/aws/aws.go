@@ -54,10 +54,11 @@ const (
 type AWSAuth struct {
 	region string
 
-	// lastSource names the credential mechanism that produced the credentials most recently
-	// resolved by resolveCredentials (ex: "DelegatedAuthIMDS"). Read by the status page via
-	// common.CredentialSourceReporter. Credentials are resolved on the delegated-auth refresh
-	// goroutine and read by whoever renders status, so it is atomic.
+	// lastSource names the credential mechanism selected by the most recent resolveCredentials
+	// attempt (ex: "DelegatedAuthIMDS"). It is written before the credentials are fetched, so it
+	// reflects what was attempted rather than what succeeded; see CredentialSourceReporter. Read by
+	// the status page via common.CredentialSourceReporter. Credentials are resolved on the
+	// delegated-auth refresh goroutine and read by whoever renders status, so it is atomic.
 	lastSource atomic.Pointer[string]
 }
 

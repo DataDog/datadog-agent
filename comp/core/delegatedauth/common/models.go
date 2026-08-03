@@ -34,12 +34,18 @@ type Provider interface {
 	GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *AuthConfig) (string, error)
 }
 
-// CredentialSourceReporter is optionally implemented by a Provider that can name the mechanism
-// which produced the credentials it most recently used (ex: "DelegatedAuthIMDS"). The status page
-// surfaces it so an operator can tell which credential source is in play without reading logs,
-// which is the first question when delegated auth misbehaves on a host where several are available.
+// CredentialSourceReporter is optionally implemented by a Provider that can name the credential
+// mechanism it most recently attempted (ex: "DelegatedAuthIMDS"). The status page surfaces it so an
+// operator can tell which credential source is in play without reading logs, which is the first
+// question when delegated auth misbehaves on a host where several are available.
 type CredentialSourceReporter interface {
-	// LastCredentialSource returns the source of the most recently resolved credentials, or ""
-	// if no resolution has succeeded yet.
+	// LastCredentialSource returns the mechanism selected by the most recent resolution attempt, or
+	// "" if nothing has been attempted yet. Because the chain is first-match, this names the single
+	// mechanism the environment selected rather than a list of candidates.
+	//
+	// It is deliberately reported for failed attempts too, which is most of its value: "which
+	// source did it even try" is the first thing to establish when delegated auth works on one
+	// workload and not another. A non-empty value is therefore NOT evidence that credentials were
+	// resolved; pair it with the instance's last error to tell the two apart.
 	LastCredentialSource() string
 }

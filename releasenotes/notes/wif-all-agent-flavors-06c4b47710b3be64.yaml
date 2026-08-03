@@ -10,8 +10,8 @@ features:
   - |
     Agent Cloud Auth (delegated authentication / Workload Identity Federation) on AWS now
     resolves credentials from EKS IRSA, ECS task roles, EKS Pod Identity and EC2 IMDS in the
-    trace-agent, standalone DogStatsD, private action runner, serverless-init, IoT Agent and
-    Heroku Agent. Previously only flavors built with the ``ec2`` build tag (main Agent, Cluster
+    trace-agent, standalone DogStatsD, private action runner, IoT Agent and Heroku Agent.
+    Previously only flavors built with the ``ec2`` build tag (main Agent, Cluster
     Agent, process-agent, security-agent, system-probe, installer) supported those credential
     sources; the others silently disabled the feature. Most notably the trace-agent is now
     covered, so APM no longer requires a statically configured ``api_key`` when Cloud Auth is in
