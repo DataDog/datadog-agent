@@ -6,7 +6,10 @@
 package decoder
 
 import (
+	"fmt"
+	"math"
 	"regexp"
+	"sync"
 	"time"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -240,6 +243,55 @@ func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeven
 	return profiles
 }
 
+// warnSmartSeverityProfileDiscrepancies reports profiles that become less permissive
+// as severity increases. Profiles are validated after source overrides and cascading
+// have been resolved, so the warning describes the values the sampler will use.
+var smartSeverityProfileWarningsOnce sync.Once
+
+func warnSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) {
+	discrepancies := smartSeverityProfileDiscrepancies(profiles)
+	if len(discrepancies) == 0 {
+		return
+	}
+
+	smartSeverityProfileWarningsOnce.Do(func() {
+		for _, discrepancy := range discrepancies {
+			log.Warnf("config adaptive sampler smart severity profiles: %s", discrepancy)
+		}
+	})
+}
+
+func smartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) []string {
+	low := profiles[severityeventsdef.SeverityLow]
+	medium := profiles[severityeventsdef.SeverityMedium]
+	high := profiles[severityeventsdef.SeverityHigh]
+
+	var discrepancies []string
+	lowRateLimit := effectiveProfileLimit(low.RateLimit, low.PassThrough)
+	mediumRateLimit := effectiveProfileLimit(medium.RateLimit, medium.PassThrough)
+	highRateLimit := effectiveProfileLimit(high.RateLimit, high.PassThrough)
+	if lowRateLimit > mediumRateLimit || mediumRateLimit > highRateLimit {
+		discrepancies = append(discrepancies, fmt.Sprintf("rate limits within logs_config.experimental_adaptive_sampling should be non-decreasing (low=%g, medium=%g, high=%g)", lowRateLimit, mediumRateLimit, highRateLimit))
+	}
+	lowBurstSize := effectiveProfileLimit(low.BurstSize, low.PassThrough)
+	mediumBurstSize := effectiveProfileLimit(medium.BurstSize, medium.PassThrough)
+	highBurstSize := effectiveProfileLimit(high.BurstSize, high.PassThrough)
+	if lowBurstSize > mediumBurstSize || mediumBurstSize > highBurstSize {
+		discrepancies = append(discrepancies, fmt.Sprintf("burst sizes within logs_config.experimental_adaptive_sampling should be non-decreasing (low=%g, medium=%g, high=%g)", lowBurstSize, mediumBurstSize, highBurstSize))
+	}
+	if medium.PassThrough && !high.PassThrough {
+		discrepancies = append(discrepancies, fmt.Sprintf("%s enabled but not %s", smartSeverityProfilesMediumPassThroughConfigKey, smartSeverityProfilesHighPassThroughConfigKey))
+	}
+	return discrepancies
+}
+
+func effectiveProfileLimit(value float64, passThrough bool) float64 {
+	if passThrough {
+		return math.Inf(1)
+	}
+	return value
+}
+
 func newDisabledSet() map[string]struct{} {
 	entries := pkgconfigsetup.Datadog().GetStringSlice(disabledSourcesConfigKey)
 	m := make(map[string]struct{}, len(entries))
@@ -332,6 +384,7 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 	c.SmartSeverityProfilesEnabled = pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey)
 	if c.SmartSeverityProfilesEnabled {
 		c.Profiles = resolveSmartSeverityProfiles(preprocessor.SamplerProfile{RateLimit: c.RateLimit, BurstSize: c.BurstSize})
+		warnSmartSeverityProfileDiscrepancies(c.Profiles)
 		c.SeverityProvider = severityprovider.Current
 	}
 

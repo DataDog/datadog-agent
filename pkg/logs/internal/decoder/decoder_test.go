@@ -615,6 +615,55 @@ func TestResolveSamplerMode(t *testing.T) {
 	}
 }
 
+func TestSmartSeverityProfileDiscrepancies(t *testing.T) {
+	profiles := func(low, medium, high preprocessor.SamplerProfile) [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile {
+		return [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile{
+			severityeventsdef.SeverityLow:    low,
+			severityeventsdef.SeverityMedium: medium,
+			severityeventsdef.SeverityHigh:   high,
+		}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile
+		want     string
+	}{
+		{
+			name:     "valid profiles",
+			profiles: profiles(preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1}, preprocessor.SamplerProfile{RateLimit: 2, BurstSize: 2}, preprocessor.SamplerProfile{RateLimit: 3, BurstSize: 3, PassThrough: true}),
+		},
+		{
+			name:     "rate limit regression",
+			profiles: profiles(preprocessor.SamplerProfile{RateLimit: 2}, preprocessor.SamplerProfile{RateLimit: 1}, preprocessor.SamplerProfile{RateLimit: 3}),
+			want:     "rate limits",
+		},
+		{
+			name:     "burst size regression",
+			profiles: profiles(preprocessor.SamplerProfile{BurstSize: 2}, preprocessor.SamplerProfile{BurstSize: 3}, preprocessor.SamplerProfile{BurstSize: 1}),
+			want:     "burst sizes",
+		},
+		{
+			name:     "pass through regression",
+			profiles: profiles(preprocessor.SamplerProfile{}, preprocessor.SamplerProfile{PassThrough: true}, preprocessor.SamplerProfile{}),
+			want:     "pass_through",
+		},
+		{
+			name:     "pass through makes rate and burst unlimited",
+			profiles: profiles(preprocessor.SamplerProfile{RateLimit: 10, BurstSize: 10}, preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true}, preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			discrepancies := smartSeverityProfileDiscrepancies(tc.profiles)
+			if tc.want == "" {
+				assert.Empty(t, discrepancies)
+				return
+			}
+			assert.Contains(t, strings.Join(discrepancies, "\n"), tc.want)
+		})
+	}
+}
+
 func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)
