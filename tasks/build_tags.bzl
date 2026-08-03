@@ -29,11 +29,6 @@ COMMON_TAGS = set([
 ALL_TAGS = set([
     "bundle_installer",
     "clusterchecks",
-    # Compiles the AWS credential providers used by Agent Cloud Auth (delegated auth / Workload
-    # Identity Federation): IRSA web identity, ECS/EKS container credentials and EC2 IMDS. Kept
-    # separate from "ec2" (which gates DBM and EC2 host tagging) so flavors can take one without
-    # the other. Every flavor carrying "ec2" should also carry this, or it loses Cloud Auth.
-    "cloudauth_aws",
     "consul",
     "containerd",
     "cri",
@@ -105,7 +100,6 @@ GAZELLE_BUILD_TAGS = sorted((ALL_TAGS - GAZELLE_OMIT_TAGS) | GAZELLE_EXTRA_TAGS)
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = set([
-    "cloudauth_aws",
     "consul",
     "containerd",
     "cri",
@@ -140,9 +134,6 @@ AGENT_TAGS = set([
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     set([
-        # Heroku dynos offer no AWS workload identity (no IRSA, no ECS task role, no Pod Identity),
-        # so the Cloud Auth credential providers would be dead weight. Same rationale as "ec2" below.
-        "cloudauth_aws",
         "containerd",
         "cri",
         "crio",
@@ -170,7 +161,6 @@ FIPS_TAGS = set(["goexperiment.systemcrypto", "requirefips"])
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = set([
-    "cloudauth_aws",
     "clusterchecks",
     "datadog.no_waf",
     "kubeapiserver",
@@ -188,17 +178,16 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 # no_gogo drops the legacy gogo/protobuf compatibility shim in containerd/typeurl;
 # the containerd metric types dogstatsd unmarshals (cgroups/v3, hcsshim stats) all
 # use the modern google.golang.org/protobuf runtime, so the shim is dead weight.
-DOGSTATSD_TAGS = set(["cloudauth_aws", "containerd", "docker", "kubelet", "no_gogo", "podman", "zlib", "zstd"])
+DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib", "zstd"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib", "zstd"])
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = set(["cloudauth_aws", "ec2"])
+INSTALLER_TAGS = set(["ec2"])
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = set([
-    "cloudauth_aws",
     "containerd",
     "cri",
     "crio",
@@ -224,7 +213,6 @@ PROCESS_AGENT_HEROKU_TAGS = set([
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = set([
-    "cloudauth_aws",
     "netcgo",
     "datadog.no_waf",
     "docker",
@@ -242,11 +230,10 @@ SBOMGEN_TAGS = set([
 ])
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
-SERVERLESS_TAGS = set(["cloudauth_aws", "serverless", "otlp"])
+SERVERLESS_TAGS = set(["serverless", "otlp"])
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = set([
-    "cloudauth_aws",
     "datadog.no_waf",
     "ec2",
     "linux_bpf",
@@ -261,7 +248,6 @@ SYSTEM_PROBE_TAGS = set([
 
 # TRACE_AGENT_TAGS lists the tags necessary to build the trace-agent
 TRACE_AGENT_TAGS = set([
-    "cloudauth_aws",
     "docker",
     "containerd",
     "datadog.no_waf",
@@ -274,7 +260,6 @@ TRACE_AGENT_TAGS = set([
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     set([
-        "cloudauth_aws",
         "containerd",
         "docker",
         "kubeapiserver",
@@ -293,7 +278,7 @@ LOADER_TAGS = set()
 # imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10
 HOST_PROFILER_TAGS = set(["remove_all_sd", "docker", "kubelet"])
 
-PRIVATEACTIONRUNNER_TAGS = set(["cloudauth_aws", "zlib", "zstd"])
+PRIVATEACTIONRUNNER_TAGS = set(["zlib", "zstd"])
 
 SECRET_GENERIC_CONNECTOR_TAGS = set()
 

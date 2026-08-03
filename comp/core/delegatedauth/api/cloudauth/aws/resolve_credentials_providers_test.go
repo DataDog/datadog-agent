@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build cloudauth_aws
-
 package aws
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -476,4 +475,90 @@ func TestContainerProvider_Retrieve_Non200Success(t *testing.T) {
 	got, err := p.Retrieve(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "AKID", got.AccessKeyID)
+}
+
+// TestContainerCredentialsProvider_TokenPrecedence mirrors the endpointcreds contract: when both
+// AWS_CONTAINER_AUTHORIZATION_TOKEN and AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE are set, the file
+// wins, and a failure reading it surfaces rather than silently falling back to the literal token.
+func TestContainerCredentialsProvider_TokenPrecedence(t *testing.T) {
+	t.Run("token file wins over the literal token", func(t *testing.T) {
+		var gotAuth string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("from-file"), 0o600))
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL)
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN", "from-env")
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
+
+		provider, err := containerCredentialsProvider()
+		require.NoError(t, err)
+		p := provider.(*containerProvider)
+		p.client = srv.Client()
+		_, err = p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "from-file", gotAuth)
+	})
+
+	t.Run("an unreadable token file is an error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL)
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN", "from-env")
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", filepath.Join(t.TempDir(), "missing"))
+
+		provider, err := containerCredentialsProvider()
+		require.NoError(t, err)
+		p := provider.(*containerProvider)
+		p.client = srv.Client()
+		_, err = p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read authorization token")
+	})
+}
+
+// TestContainerProvider_Retrieve_ContextCancellation confirms the request honors the caller's
+// context, so a shutdown mid-refresh aborts the fetch instead of blocking on the endpoint.
+func TestContainerProvider_Retrieve_ContextCancellation(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-release
+		w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+	_, err := p.Retrieve(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// TestContainerProvider_Retrieve_ResponseIsBounded confirms the read cap holds. A wedged endpoint
+// streaming without end must fail the parse rather than grow the Agent's heap without limit.
+func TestContainerProvider_Retrieve_ResponseIsBounded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		chunk := bytes.Repeat([]byte("a"), 4096)
+		for i := 0; i < (containerCredentialsMaxResponseBytes/len(chunk))+8; i++ {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+		}
+	}))
+	defer srv.Close()
+
+	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+	_, err := p.Retrieve(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse container credentials response")
 }

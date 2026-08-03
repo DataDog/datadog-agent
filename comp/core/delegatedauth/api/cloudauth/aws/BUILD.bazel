@@ -6,7 +6,6 @@ go_library(
     srcs = [
         "aws.go",
         "resolve_credentials.go",
-        "resolve_credentials_disabled.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws",
     visibility = ["//visibility:public"],

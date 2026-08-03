@@ -759,3 +759,57 @@ func TestStatusPopulateInfo_NoCredentialSourceBeforeFirstAttempt(t *testing.T) {
 	instance := stats["instances"].(map[string]map[string]interface{})["api_key"]
 	assert.Nil(t, instance["CredentialSource"])
 }
+
+// TestInitializeIfNeeded_ConfiguredRegionDoesNotSkipDetection covers the precedence rule between
+// delegated_auth.aws.region and provider auto-detection. Setting only the region must still run
+// detection: a non-nil ProviderConfig means "explicitly configured" and would bypass it, taking the
+// disable reason and the credential-source log with it.
+func TestInitializeIfNeeded_ConfiguredRegionDoesNotSkipDetection(t *testing.T) {
+	// Static env credentials make detection resolve without touching the network.
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
+
+	mockConfig := mock.New(t)
+	mockConfig.Set("delegated_auth.aws.region", "eu-central-1", pkgconfigmodel.SourceFile)
+
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		OrgUUID:         "test-org",
+		APIKeyConfigKey: "api_key",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, providerConfig, "detection should have resolved a provider")
+
+	awsConfig, ok := providerConfig.(*cloudauthconfig.AWSProviderConfig)
+	require.True(t, ok, "expected an AWS provider config, got %T", providerConfig)
+	assert.Equal(t, "eu-central-1", awsConfig.Region, "configured region must win over detection")
+	assert.Equal(t, cloudauthconfig.ProviderAWS, comp.resolvedProvider, "detection must still have run")
+	assert.Empty(t, comp.disabledReason)
+}
+
+// TestInitializeIfNeeded_DetectionFailureIsRecorded is the companion case: with no credential
+// source at all, the component stays disabled and says why, rather than enabling and failing later.
+func TestInitializeIfNeeded_DetectionFailureIsRecorded(t *testing.T) {
+	for _, k := range []string{
+		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+		"AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+	} {
+		t.Setenv(k, "")
+	}
+
+	mockConfig := mock.New(t)
+	// Keep the IMDS probe from stalling the test on a machine with no metadata service.
+	mockConfig.Set("ec2_metadata_timeout", 1, pkgconfigmodel.SourceFile)
+
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		OrgUUID:         "test-org",
+		APIKeyConfigKey: "api_key",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, providerConfig)
+	assert.Contains(t, comp.disabledReason, "no supported cloud provider detected")
+}

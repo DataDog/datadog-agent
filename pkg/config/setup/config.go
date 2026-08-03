@@ -563,13 +563,10 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Region: config.GetString("delegated_auth.aws.region"),
 		}
 	case "":
-		// Empty provider means auto-detect; ProviderConfig stays nil
-		// But if aws config is present, we can still use it when auto-detect picks AWS
-		if awsRegion := config.GetString("delegated_auth.aws.region"); awsRegion != "" {
-			providerConfig = &cloudauthconfig.AWSProviderConfig{
-				Region: awsRegion,
-			}
-		}
+		// Empty provider means auto-detect, so ProviderConfig stays nil even when
+		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
+		// downstream and would skip provider detection entirely. The component reads the configured
+		// region itself once detection picks AWS.
 	}
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled

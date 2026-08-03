@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build cloudauth_aws
-
 package aws
 
 import (
@@ -28,10 +26,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Supported reports whether this build compiled the AWS credential providers, and so whether
-// Agent Cloud Auth can resolve credentials at all. See resolve_credentials_disabled.go.
-const Supported = true
 
 // Container credential endpoint and the hosts the SDK allows for an http
 // AWS_CONTAINER_CREDENTIALS_FULL_URI: loopback plus the link-local ECS and EKS Pod Identity
