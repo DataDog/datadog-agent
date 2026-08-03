@@ -1,20 +1,29 @@
-# Test that non-Go processes are filtered out.
-# Create a Python process - it should never be discovered.
+# A Go binary whose tracer reports another language cannot be instrumented, but
+# it still backs off rather than being written off: the only terminal state is
+# the process exiting.
 - !initialize
   current_time: 0
-  process_delays: [100]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 - !create-process
   pid: 1001
   start_time: 50
   tracer_metadata:
     language: "python"
     service: "python-service"
-- !advance-time {to: 200}
+- !advance-time {to: 100}
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+- !advance-time {to: 130}
 - !scan {}
 ---
 command: !initialize
   current_time: 0
-  process_delays: [100]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 ---
 command: !create-process
   pid: 1001
@@ -23,11 +32,29 @@ command: !create-process
     language: "python"
     service: "python-service"
 ---
-command: !advance-time {to: 200}
+command: !advance-time {to: 100}
 ---
 command: !scan {}
 state:
-  current_time: 200
-  last_scan: 200
-  process_delays: [100]
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1}
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 2, executables_analyzed: 1}
+---
+command: !advance-time {to: 130}
+---
+command: !scan {}
+state:
+  current_time: 130
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 3, executables_analyzed: 1}

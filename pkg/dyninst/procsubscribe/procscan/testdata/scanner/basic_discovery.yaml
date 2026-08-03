@@ -1,8 +1,11 @@
-# Test basic process discovery with watermark algorithm.
-# A process starts at tick 50, time advances to 200, and scan discovers it.
+# Basic discovery: a process that is old enough and has published its tracer
+# metadata is discovered on the next scan, and is not looked at again after
+# that.
 - !initialize
   current_time: 0
-  process_delays: [10]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 - !advance-time {to: 30}
 - !scan {}
 - !create-process
@@ -13,22 +16,26 @@
     service: "my-service"
     version: "1.0.0"
     env: "production"
-- !advance-time {to: 51}
+- !advance-time {to: 55}
 - !scan {}
-- !advance-time {to: 200}
+- !advance-time {to: 60}
+- !scan {}
+# The process is instrumented, so it costs nothing on later scans.
+- !advance-time {to: 70}
 - !scan {}
 ---
 command: !initialize
   current_time: 0
-  process_delays: [10]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 ---
 command: !advance-time {to: 30}
 ---
 command: !scan {}
 state:
   current_time: 30
-  last_scan: 30
-  process_delays: [10]
+  metrics: {}
 ---
 command: !create-process
   pid: 1001
@@ -39,20 +46,29 @@ command: !create-process
     version: "1.0.0"
     env: "production"
 ---
-command: !advance-time {to: 51}
+command: !advance-time {to: 55}
 ---
 command: !scan {}
 state:
-  current_time: 51
-  last_scan: 51
+  current_time: 55
   processes_in_procfs: [1001]
+  metrics: {}
 ---
-command: !advance-time {to: 200}
+command: !advance-time {to: 60}
 ---
 command: !scan {}
-new: [1001]
+new: [{pid: 1001, start_time: 50}]
 state:
-  current_time: 200
-  last_scan: 200
-  live: [1001]
+  current_time: 60
+  live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}
+---
+command: !advance-time {to: 70}
+---
+command: !scan {}
+state:
+  current_time: 70
+  live: [{pid: 1001, start_time: 50}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}

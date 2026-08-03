@@ -1,8 +1,9 @@
 # Test discovering multiple processes in one scan.
-# Create three processes at different times, scan should discover all eligible ones.
 - !initialize
   current_time: 0
-  process_delays: [100]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 - !create-process
   pid: 1001
   start_time: 50
@@ -20,7 +21,9 @@
 ---
 command: !initialize
   current_time: 0
-  process_delays: [100]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 ---
 command: !create-process
   pid: 1001
@@ -40,10 +43,9 @@ command: !create-process
 command: !advance-time {to: 200}
 ---
 command: !scan {}
-new: [1001, 1002, 1003]
+new: [{pid: 1001, start_time: 50}, {pid: 1002, start_time: 60}, {pid: 1003, start_time: 70}]
 state:
   current_time: 200
-  last_scan: 200
-  process_delays: [100]
-  live: [1001, 1002, 1003]
+  live: [{pid: 1001, start_time: 50}, {pid: 1002, start_time: 60}, {pid: 1003, start_time: 70}]
   processes_in_procfs: [1001, 1002, 1003]
+  metrics: {candidates_evaluated: 3, executables_analyzed: 3, discovered: 3}

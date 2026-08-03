@@ -2,7 +2,9 @@
 # Discover a process, then remove it, next scan should report it as removed.
 - !initialize
   current_time: 0
-  process_delays: [100]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 - !create-process
   pid: 1001
   start_time: 50
@@ -17,7 +19,9 @@
 ---
 command: !initialize
   current_time: 0
-  process_delays: [100]
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
 ---
 command: !create-process
   pid: 1001
@@ -29,13 +33,12 @@ command: !create-process
 command: !advance-time {to: 200}
 ---
 command: !scan {}
-new: [1001]
+new: [{pid: 1001, start_time: 50}]
 state:
   current_time: 200
-  last_scan: 200
-  process_delays: [100]
-  live: [1001]
+  live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}
 ---
 command: !remove-process {pid: 1001}
 ---
@@ -45,4 +48,4 @@ command: !scan {}
 removed: [1001]
 state:
   current_time: 300
-  last_scan: 300
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}

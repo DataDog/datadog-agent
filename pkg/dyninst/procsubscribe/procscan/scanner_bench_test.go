@@ -18,21 +18,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// benchProcessDelays and benchScanInterval mirror the values the agent runs
-// with, so that a measured scan is the same amount of work as a production
-// tick and can be expressed as a fraction of a core.
-var benchProcessDelays = []time.Duration{
-	3 * time.Second,
-	100 * time.Second,
-	1000 * time.Second,
-}
-
+// benchScanInterval mirrors the interval the agent runs with, so that a
+// measured scan is the same amount of work as a production tick and can be
+// expressed as a fraction of a core. The scanner itself is built with its
+// defaults, which are the values the agent passes.
 const benchScanInterval = 3 * time.Second
 
 // benchProcessCounts and benchFDCounts describe the hosts we care about: a
@@ -47,7 +40,7 @@ var (
 // changed since the previous tick.
 func BenchmarkScanSteadyState(b *testing.B) {
 	forEachBenchSize(b, func(b *testing.B, tree syntheticProcfs) {
-		s := NewScanner(tree.root, benchProcessDelays...)
+		s := NewScanner(tree.root)
 		// The first scan examines every pre-existing process, which is a
 		// different workload; see BenchmarkScanFirstScan.
 		_, _, err := s.Scan()
@@ -76,7 +69,7 @@ func BenchmarkScanFirstScan(b *testing.B) {
 	forEachBenchSize(b, func(b *testing.B, tree syntheticProcfs) {
 		b.ReportAllocs()
 		for b.Loop() {
-			s := NewScanner(tree.root, benchProcessDelays...)
+			s := NewScanner(tree.root)
 			if _, _, err := s.Scan(); err != nil {
 				b.Fatal(err)
 			}
@@ -115,6 +108,35 @@ func BenchmarkStartTimeRead(b *testing.B) {
 	}
 }
 
+// BenchmarkResolveExecutable calibrates the readlink, open and fstat that every
+// process which is not instrumented yet pays on every scan, since the
+// executable is what the Go binary filter is keyed on.
+func BenchmarkResolveExecutable(b *testing.B) {
+	tree := makeSyntheticProcfs(b, 1, 16)
+	for _, tc := range []struct {
+		name string
+		root string
+		pid  int32
+	}{
+		{name: "real_procfs", root: "/proc", pid: int32(os.Getpid())},
+		{name: "synthetic", root: tree.root, pid: int32(tree.pids[0])},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			exe, err := process.ResolveExecutable(tc.root, tc.pid)
+			require.NoError(b, err)
+			require.NotEmpty(b, exe.Path)
+
+			b.ReportAllocs()
+			for b.Loop() {
+				_, err := process.ResolveExecutable(tc.root, tc.pid)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 // BenchmarkTracerMetadataMiss calibrates the descriptor walk that a process
 // without tracer metadata pays for. The fds metric is the number of
 // descriptors walked, which is what the cost scales with.
@@ -144,12 +166,12 @@ func BenchmarkTracerMetadataMiss(b *testing.B) {
 			// A lookup that fails to open the descriptor directory returns the
 			// same error without walking anything, so the miss must be
 			// confirmed against a directory we know is readable.
-			_, err = tracermetadata.GetTracerMetadata(tc.pid, tc.root)
-			require.ErrorIs(b, err, kernel.ErrMemFdFileNotFound)
+			_, err = readTracerMetadata(tc.root, int32(tc.pid))
+			require.ErrorIs(b, err, errTracerMemfdNotFound)
 
 			b.ReportAllocs()
 			for b.Loop() {
-				_, _ = tracermetadata.GetTracerMetadata(tc.pid, tc.root)
+				_, _ = readTracerMetadata(tc.root, int32(tc.pid))
 			}
 			b.ReportMetric(float64(len(entries)), "fds")
 		})
@@ -160,31 +182,25 @@ func BenchmarkTracerMetadataMiss(b *testing.B) {
 // synthetic tree performs, so that the benchmarks cannot silently measure a
 // scan that skipped everything.
 func TestSyntheticProcfsScanWork(t *testing.T) {
-	const overflow = 76
-	for _, tc := range []struct {
-		name     string
-		numProcs int
-		// steadyStateReads is how many start times a scan after the first one
-		// still has to read from disk, which is one per process that did not
-		// fit in the start time cache.
-		steadyStateReads int
-	}{
-		{name: "cache_fits", numProcs: 64, steadyStateReads: 0},
-		{
-			name:             "cache_overflows",
-			numProcs:         defaultStartTimeCacheSize + overflow,
-			steadyStateReads: overflow,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			tree := makeSyntheticProcfs(t, tc.numProcs, 8)
-			s := NewScanner(tree.root, benchProcessDelays...)
+	// The two sizes bracket the number of processes a per-pid cache could
+	// plausibly hold, so that a scan which stops looking at processes past some
+	// bound cannot pass.
+	for _, numProcs := range []int{64, 1100} {
+		t.Run(fmt.Sprintf("procs=%d", numProcs), func(t *testing.T) {
+			tree := makeSyntheticProcfs(t, numProcs, 8)
+			s := NewScanner(tree.root)
 
-			var startTimeReads, metadataReads int
-			readStartTime, readMetadata := s.readStartTime, s.tracerMetadataReader
+			var startTimeReads, resolutions, metadataReads int
+			readStartTime := s.readStartTime
+			resolveExecutable := s.resolveExecutable
+			readMetadata := s.tracerMetadataReader
 			s.readStartTime = func(pid int32) (ticks, error) {
 				startTimeReads++
 				return readStartTime(pid)
+			}
+			s.resolveExecutable = func(pid int32) (process.Executable, error) {
+				resolutions++
+				return resolveExecutable(pid)
 			}
 			s.tracerMetadataReader = func(pid int32) (model.TracerMetadata, error) {
 				metadataReads++
@@ -195,19 +211,30 @@ func TestSyntheticProcfsScanWork(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, discovered)
 			require.Empty(t, removed)
-			require.Equal(t, tc.numProcs, startTimeReads,
+			require.Equal(t, numProcs, startTimeReads,
 				"first scan reads the start time of every process")
-			require.Equal(t, tc.numProcs, metadataReads,
-				"first scan looks for tracer metadata in every process")
+			require.Equal(t, numProcs, resolutions,
+				"first scan resolves the executable of every process")
+			require.Equal(t, tree.goProcs, metadataReads,
+				"only the processes running a Go binary are searched for "+
+					"tracer metadata")
+			analyzed := s.metrics.executablesAnalyzed.Load()
+			require.NotZero(t, analyzed, "first scan parses the binaries")
 
-			startTimeReads, metadataReads = 0, 0
+			startTimeReads, resolutions, metadataReads = 0, 0, 0
 			discovered, removed, err = s.Scan()
 			require.NoError(t, err)
 			require.Empty(t, discovered)
 			require.Empty(t, removed)
-			require.Equal(t, tc.steadyStateReads, startTimeReads)
+			require.Equal(t, numProcs, startTimeReads,
+				"a later scan reads the start time of every process again")
+			require.Zero(t, resolutions,
+				"a later scan resolves nothing, because every process is "+
+					"backing off after the first")
 			require.Zero(t, metadataReads,
-				"every process is older than the longest window")
+				"the failed reads of the first scan are still backing off")
+			require.Equal(t, analyzed, s.metrics.executablesAnalyzed.Load(),
+				"each distinct binary is parsed once")
 		})
 	}
 }
@@ -220,6 +247,9 @@ type syntheticProcfs struct {
 	pids       []uint32
 	startTimes []ticks
 	fdsPerProc int
+	// goProcs is how many of the processes run a Go binary, and therefore how
+	// many of them a scan looks for tracer metadata in.
+	goProcs int
 }
 
 // makeSyntheticProcfs builds a tree of numProcs processes with fdsPerProc open
@@ -232,9 +262,9 @@ func makeSyntheticProcfs(
 	now, err := nowTicks()
 	require.NoError(tb, err)
 
-	// Every process must be older than the longest discovery window. A younger
-	// one would age into a window partway through a benchmark and turn a
-	// steady-state tick into a discovery tick.
+	// Every process must be old enough that no scan can be the first one to
+	// look at it. A younger one would cross the age floor partway through a
+	// benchmark and turn a steady-state tick into a discovery tick.
 	const minAge = ticks(1010 * clkTck)
 	const ageSpacing = ticks(7)
 	ageSpread := ageSpacing * ticks(numProcs)
@@ -276,6 +306,7 @@ func makeSyntheticProcfs(
 		exe := systemExes[i%len(systemExes)]
 		if i%20 == 0 {
 			exe = selfExe
+			tree.goProcs++
 		}
 		require.NoError(tb, os.Symlink(exe, filepath.Join(procDir, "exe")))
 	}
@@ -303,8 +334,8 @@ func (tree syntheticProcfs) verify(tb testing.TB) {
 		require.NoError(tb, err)
 		require.Len(tb, entries, tree.fdsPerProc)
 
-		_, err = tracermetadata.GetTracerMetadata(int(pid), tree.root)
-		require.ErrorIs(tb, err, kernel.ErrMemFdFileNotFound)
+		_, err = readTracerMetadata(tree.root, int32(pid))
+		require.ErrorIs(tb, err, errTracerMemfdNotFound)
 	}
 }
 

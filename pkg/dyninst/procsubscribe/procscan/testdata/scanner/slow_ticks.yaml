@@ -1,0 +1,93 @@
+# Scans that are far apart do not cost a process any of its attempts. Every scan
+# that finds a retry due performs it, so a process gets one attempt per scan no
+# matter how the scans are spaced, and it is still discovered once its tracer
+# publishes.
+#
+# This is what the window-based algorithm got wrong: a slow scan could swallow
+# two of the three chances a process ever got.
+- !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 5000
+  tracer_metadata: {language: "go", service: "slow-scans"}
+- !scan {}
+- !advance-time {by: 1000}
+- !scan {}
+- !advance-time {by: 1000}
+- !scan {}
+- !advance-time {by: 1000}
+- !scan {}
+- !advance-time {by: 1000}
+- !scan {}
+- !advance-time {by: 1000}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 5000
+  tracer_metadata: {language: "go", service: "slow-scans"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, metadata_not_published: 1}
+---
+command: !advance-time {by: 1000}
+---
+command: !scan {}
+state:
+  current_time: 1100
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 1120}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 2, executables_analyzed: 1, metadata_not_published: 2}
+---
+command: !advance-time {by: 1000}
+---
+command: !scan {}
+state:
+  current_time: 2100
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 2140}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 3, executables_analyzed: 1, metadata_not_published: 3}
+---
+command: !advance-time {by: 1000}
+---
+command: !scan {}
+state:
+  current_time: 3100
+  candidates: [{pid: 1001, start_time: 50, attempts: 4, next_attempt: 3180}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 4, executables_analyzed: 1, metadata_not_published: 4}
+---
+command: !advance-time {by: 1000}
+---
+command: !scan {}
+state:
+  current_time: 4100
+  candidates: [{pid: 1001, start_time: 50, attempts: 5, next_attempt: 4200}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 5, executables_analyzed: 1, metadata_not_published: 5}
+---
+command: !advance-time {by: 1000}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 50}]
+state:
+  current_time: 5100
+  live: [{pid: 1001, start_time: 50}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 6, executables_analyzed: 1, discovered: 1, metadata_not_published: 5}

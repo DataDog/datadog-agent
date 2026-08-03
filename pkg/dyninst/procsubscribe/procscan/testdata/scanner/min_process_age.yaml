@@ -1,0 +1,53 @@
+# A process younger than the age floor is not looked at at all. The floor is
+# there so that we do not attach probes to and extract symbols from a process
+# that is about to exit; it costs nothing in discovery latency because the
+# process is picked up on the first scan after it crosses the floor.
+- !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 95
+  tracer_metadata: {language: "go", service: "just-started"}
+- !scan {}
+- !advance-time {to: 104}
+- !scan {}
+- !advance-time {to: 105}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 95
+  tracer_metadata: {language: "go", service: "just-started"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  processes_in_procfs: [1001]
+  metrics: {}
+---
+command: !advance-time {to: 104}
+---
+command: !scan {}
+state:
+  current_time: 104
+  processes_in_procfs: [1001]
+  metrics: {}
+---
+command: !advance-time {to: 105}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 95}]
+state:
+  current_time: 105
+  live: [{pid: 1001, start_time: 95}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}

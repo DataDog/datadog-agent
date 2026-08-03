@@ -1,0 +1,61 @@
+# The candidate set is bounded, and going over the bound is counted rather than
+# passed over in silence. An evicted candidate loses its retry schedule, not its
+# eligibility: it is evaluated again on the next scan.
+#
+# With room for a single candidate, two silent processes take turns evicting each
+# other, which is why the bound is set far above the number of Go processes on a
+# normal host.
+- !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+  max_candidates: 1
+- !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent-1"}
+- !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent-2"}
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+  max_candidates: 1
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent-1"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent-2"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001, 1002]
+  metrics: {candidates_evaluated: 2, executables_analyzed: 2, metadata_not_published: 2, candidates_evicted: 1}
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 120}]
+  processes_in_procfs: [1001, 1002]
+  metrics: {candidates_evaluated: 4, executables_analyzed: 2, metadata_not_published: 4, candidates_evicted: 3}

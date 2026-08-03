@@ -1,0 +1,43 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux_bpf
+
+package procscan
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// goSections are the ELF sections that the Go toolchain emits. Any one of them
+// is enough to conclude that the binary was built by it.
+var goSections = map[string]struct{}{
+	".gosymtab":     {},
+	".gopclntab":    {},
+	".go.buildinfo": {},
+}
+
+// isGoELFBinary reports whether the file at path is an ELF binary built by the
+// Go toolchain.
+//
+// A file that cannot be opened or parsed is reported as an error rather than as
+// a negative answer, because the answer is cached and a file that happened to be
+// unreadable at one instant must not be written off for the lifetime of the
+// cache entry.
+func isGoELFBinary(path string) (bool, error) {
+	elfFile, err := object.OpenMMappingElfFile(path)
+	if err != nil {
+		return false, err
+	}
+	defer elfFile.Close()
+	for _, section := range elfFile.SectionHeaders() {
+		if _, ok := goSections[section.Name]; ok {
+			return true, nil
+		}
+	}
+	log.Tracef("procscan: %s has no Go sections", path)
+	return false, nil
+}
