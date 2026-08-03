@@ -932,16 +932,6 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 }
 
 func TestResolveSystemdTarget(t *testing.T) {
-	fullHostTarget := interp.SystemdTargetConfig{
-		JournalDirs: []string{
-			"/host/var/log/journal",
-			"/host/run/log/journal",
-		},
-		MachineIDPath:        "/host/etc/machine-id",
-		JournalControlSocket: "/host/run/systemd/journal/io.systemd.journal",
-		ManagerBusSocket:     "/host/run/dbus/system_bus_socket",
-	}
-
 	cases := []struct {
 		name          string
 		containerized bool
@@ -952,42 +942,61 @@ func TestResolveSystemdTarget(t *testing.T) {
 			name: "bare metal uses rshell local defaults",
 		},
 		{
-			name:          "container with all host mounts uses host target",
+			name:          "container with direct run mount uses host target",
 			containerized: true,
 			existing: map[string]bool{
 				"/host/var/log/journal":                        true,
 				"/host/run/log/journal":                        true,
-				"/host/etc/machine-id":                         true,
 				"/host/run/systemd/journal/io.systemd.journal": true,
 				"/host/run/dbus/system_bus_socket":             true,
 			},
-			want: fullHostTarget,
+			want: interp.SystemdTargetConfig{
+				JournalDirs: []string{
+					"/host/var/log/journal",
+					"/host/run/log/journal",
+				},
+				MachineIDPath:        "/host/etc/machine-id",
+				JournalControlSocket: "/host/run/systemd/journal/io.systemd.journal",
+				ManagerBusSocket:     "/host/run/dbus/system_bus_socket",
+			},
 		},
 		{
-			name:          "container without host machine ID keeps explicit host target",
+			name:          "standard Agent container uses var run mount",
 			containerized: true,
 			existing: map[string]bool{
-				"/host/var/log/journal":            true,
-				"/host/run/dbus/system_bus_socket": true,
+				"/host/var/run/log/journal":                        true,
+				"/host/var/run/systemd/journal/io.systemd.journal": true,
+				"/host/var/run/dbus/system_bus_socket":             true,
 			},
 			want: interp.SystemdTargetConfig{
-				JournalDirs:      []string{"/host/var/log/journal"},
-				MachineIDPath:    "/host/etc/machine-id",
-				ManagerBusSocket: "/host/run/dbus/system_bus_socket",
+				JournalDirs:          []string{"/host/var/run/log/journal"},
+				MachineIDPath:        "/host/etc/machine-id",
+				JournalControlSocket: "/host/var/run/systemd/journal/io.systemd.journal",
+				ManagerBusSocket:     "/host/var/run/dbus/system_bus_socket",
 			},
 		},
 		{
-			name:          "partial host target does not mix in local endpoints",
+			name:          "runtime endpoints do not mix across mounts",
 			containerized: true,
 			existing: map[string]bool{
-				"/host/etc/machine-id":             true,
-				"/host/run/log/journal":            true,
-				"/host/run/dbus/system_bus_socket": true,
+				"/host/run/log/journal":                true,
+				"/host/var/run/dbus/system_bus_socket": true,
 			},
 			want: interp.SystemdTargetConfig{
 				JournalDirs:      []string{"/host/run/log/journal"},
 				MachineIDPath:    "/host/etc/machine-id",
-				ManagerBusSocket: "/host/run/dbus/system_bus_socket",
+				ManagerBusSocket: "",
+			},
+		},
+		{
+			name:          "container without runtime mount keeps explicit host target",
+			containerized: true,
+			existing: map[string]bool{
+				"/host/var/log/journal": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:   []string{"/host/var/log/journal"},
+				MachineIDPath: "/host/etc/machine-id",
 			},
 		},
 	}
