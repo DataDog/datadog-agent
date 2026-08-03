@@ -266,6 +266,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
 	// noisy neighbor module
 	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
+	// NUMA monitoring module
+	cfg.BindEnvAndSetDefault("numa_monitoring.enabled", false)
+	cfg.BindEnvAndSetDefault("numa_monitoring.max_resctrl_groups", 16)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps

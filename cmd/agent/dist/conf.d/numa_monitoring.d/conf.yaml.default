@@ -1,0 +1,7 @@
+# Experimental: metric names and behavior may change. This check remains disabled
+# until numa_monitoring.enabled is set in system-probe.yaml.
+ad_identifiers:
+  - _numa_monitoring
+instances:
+  - {}
+init_config:

@@ -1,0 +1,24 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added an experimental ``numa_monitoring`` system-probe module and Agent
+    check that report per-container NUMA placement quality on Linux. When
+    enabled with ``numa_monitoring.enabled: true`` in ``system-probe.yaml``,
+    the check submits scheduler runtime and resident memory distribution
+    across NUMA nodes (``system.numa.cpu.runtime_share``,
+    ``system.numa.memory.resident``), and, where the platform exposes resctrl
+    monitoring, LLC occupancy and memory bandwidth
+    (``system.numa.cache.llc_occupancy``,
+    ``system.numa.memory.bandwidth.*``) plus derived
+    ``system.numa.remote_ratio``, ``system.numa.placement_mismatch``, and
+    ``system.numa.badness_score`` scores. Available features are detected at
+    runtime, so metrics that a host cannot support are omitted rather than
+    reported as zero. Metric names and behavior may change while this feature
+    is experimental.

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_binary")
 exports_files(
     [
         "oom-kill.go",
+        "numa-monitoring.go",
         "tcp-queue-length.go",
         "usm.go",
         "shared-libraries.go",

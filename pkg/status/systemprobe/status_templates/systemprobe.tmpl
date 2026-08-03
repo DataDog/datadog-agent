@@ -54,6 +54,29 @@
     {{- end }}
   {{- end }}
 {{- end }}
+{{- if .numa_monitoring }}
+
+  NUMA Monitoring (Experimental)
+  ==============================
+  {{- if .numa_monitoring.Error }}
+    Status: error
+    Error: {{ .numa_monitoring.Error }}
+  {{- else }}
+    Status: {{ .numa_monitoring.state }}
+    Architecture: {{ .numa_monitoring.architecture }}
+    NUMA Nodes: {{ formatJSON .numa_monitoring.numa_nodes 4 }}
+    Monitor Features: {{ formatJSON .numa_monitoring.monitor_features 4 }}
+    Active Groups: {{ .numa_monitoring.active_groups }} / {{ .numa_monitoring.capacity }}
+    Foreign Task Conflicts: {{ .numa_monitoring.foreign_task_conflicts }}
+    Read Failures: {{ .numa_monitoring.read_failures }}
+    {{- if .numa_monitoring.message }}
+    Message: {{ .numa_monitoring.message }}
+    {{- end }}
+    {{- if .numa_monitoring.last_check }}
+    Last Check: {{ formatUnixTime .numa_monitoring.last_check }}
+    {{- end }}
+  {{- end }}
+{{- end }}
 {{- if .tcp_queue_length_tracer }}
 
   TCP Queue Length
