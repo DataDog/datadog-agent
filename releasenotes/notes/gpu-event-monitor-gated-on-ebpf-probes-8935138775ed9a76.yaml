@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    GPU Monitoring no longer starts the system-probe event monitor when
+    ``gpu_monitoring.enable_ebpf_probes`` is disabled, as only the eBPF probes
+    consume its process events. Hosts running GPU Monitoring through NVML alone
+    no longer load the event monitor's eBPF programs.
