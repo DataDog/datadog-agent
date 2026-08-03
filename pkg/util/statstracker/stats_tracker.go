@@ -178,3 +178,13 @@ func (s *Tracker) Info() []string {
 		fmt.Sprintf("24h Peak Latency: %s", time.Duration(s.MovingPeak())),
 	}
 }
+
+// GoString implements fmt.GoStringer so that printing a *Tracker with %#v (e.g. from a
+// debug dump) goes through the locked accessors instead of reflection reading the
+// fields directly, which would race with Add().
+func (s *Tracker) GoString() string {
+	return fmt.Sprintf(
+		"&statstracker.Tracker{allTimeAvg: %d, allTimePeak: %d, movingAvg: %d, movingPeak: %d}",
+		s.AllTimeAvg(), s.AllTimePeak(), s.MovingAvg(), s.MovingPeak(),
+	)
+}
