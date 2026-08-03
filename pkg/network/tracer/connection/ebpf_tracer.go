@@ -818,13 +818,16 @@ func tlsDiagReasonString(reason uint8) string {
 	}
 }
 
-// logTLSDiagEvents drains the diagnostic side channel populated by the classifier and logs each
-// distinct finding once, at info level, so the data is available on a normal staging build without
-// enabling debug logging fleet-wide.
+// logTLSDiagEvents drains the diagnostic side channel populated by the classifier and logs the
+// findings at info level, so the data is available on a normal build without enabling debug
+// logging fleet-wide.
 //
-// Entries are marked as logged in place rather than deleted, so the hit counter keeps accumulating
-// and a subsequent scrape can show whether a finding is still firing without re-logging it. The map
-// is an LRU, so stale entries age out on their own.
+// Every entry visited is deleted, whether or not it was logged. tls_diag_events is a plain hash
+// map (BPF_MAP_TYPE_LRU_HASH does not exist before kernel 4.10, and classification runs well below
+// that via runtime compilation), so it does not evict: if the drain only removed the entries it
+// logged, a busy host would pin the map at capacity and stop recording anything new. Deleting
+// everything visited keeps space available while the per-scrape log cap keeps the log volume
+// bounded; the telemetry_t counters remain authoritative for magnitude.
 func (t *ebpfTracer) logTLSDiagEvents() {
 	if t.tlsDiagEventsMap == nil {
 		return
@@ -834,33 +837,35 @@ func (t *ebpfTracer) logTLSDiagEvents() {
 	var event netebpf.TLSDiagEvent
 	logged := 0
 	suppressed := 0
+	// Collected and deleted after iteration rather than during it, to avoid mutating the map while
+	// the iterator walks it.
+	drained := make([]netebpf.ConnTuple, 0, 64)
 
 	it := t.tlsDiagEventsMap.IterateWithBatchSize(100)
 	for it.Next(&key, &event) {
 		if err := it.Err(); err != nil {
 			log.Warnf("error iterating TLS diagnostic events map: %s", err)
-			return
+			break
 		}
-		if event.Logged != 0 {
-			continue
-		}
+		drained = append(drained, key)
+
 		if logged >= tlsDiagMaxLogsPerCollect {
 			suppressed++
 			continue
 		}
-
 		log.Infof("tls-misclassification: %s | %s:%d -> %s:%d | classified_app_proto=%d tls_content_type=0x%02x hits=%d",
 			tlsDiagReasonString(event.Reason),
 			key.SourceAddress(), event.Sport,
 			key.DestAddress(), event.Dport,
 			event.App_layer_proto, event.Tls_content_type, event.Hits)
 		logged++
+	}
 
-		event.Logged = 1
-		if err := t.tlsDiagEventsMap.Put(&key, &event); err != nil {
-			// Non-fatal: worst case we log this connection again next scrape.
+	for i := range drained {
+		if err := t.tlsDiagEventsMap.Delete(&drained[i]); err != nil {
+			// Non-fatal: the entry may already be gone, or the map may be under concurrent write.
 			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("could not mark TLS diagnostic event as logged: %s", err)
+				log.Tracef("could not delete TLS diagnostic event: %s", err)
 			}
 		}
 	}

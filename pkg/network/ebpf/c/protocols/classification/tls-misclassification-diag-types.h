@@ -47,9 +47,7 @@ typedef struct {
     __u8 tls_content_type;
     // A tls_diag_reason_t value.
     __u8 reason;
-    // Whether userspace has already logged this entry, so repeat drains stay quiet.
-    __u8 logged;
-    __u8 _pad[3];
+    __u8 _pad[4];
 } tls_diag_event_t;
 
 #endif // __TLS_MISCLASSIFICATION_DIAG_TYPES_H
