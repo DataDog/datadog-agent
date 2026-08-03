@@ -72,8 +72,7 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
 fn rows_to_scan_data(rows: &[Row]) -> ScanData {
     let scanned_row_count = rows.len() as i64;
 
-    // With no rows the query result carries no column metadata, so nothing was
-    // scanned.
+    // TODO(dsec-229): add column metadata when the query returns no rows.
     let Some(first) = rows.first() else {
         return ScanData::default();
     };
