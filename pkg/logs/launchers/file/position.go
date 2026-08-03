@@ -63,41 +63,42 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		filePath = identifier[5:]
 	}
 
-	fingerprintsAlign := true
+	// isSameFile reports whether the file on disk is still the one the stored offset was recorded
+	// against, and therefore whether that offset can be trusted. Two things can rule it out.
+	isSameFile := true
 
+	// The fingerprint recorded for the file no longer matches its current head content, meaning the
+	// file was replaced.
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
-			newFingerprint, err := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
-			if err != nil {
-				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
-				// If fingerprint computation fails, assume fingerprints don't align to be safe
-				fingerprintsAlign = true
+			newFingerprint, ferr := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
+			if ferr != nil {
+				// The fingerprint could not be computed, so keep trusting the stored offset rather
+				// than re-reading the file from the start and sending its contents twice.
+				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, ferr)
 			} else {
-				fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
+				isSameFile = prevFingerprint.Equals(newFingerprint)
 			}
 		}
 	}
 
-	// A stored offset that lies beyond the end of the file means the file was rotated or truncated
-	// while no tailer was watching it, typically across an Agent restart. A running tailer is
-	// protected from this by DidRotate(), but a tailer that is only just starting is not: it would
-	// seek past the end of the file and read nothing. Nothing repairs that afterwards when
-	// fingerprinting is enabled, because the launcher then consults DidRotateViaFingerprint(), which
-	// reports "no rotation" for a file whose head content is unchanged -- so the source would stay at
-	// "Bytes Read: 0" indefinitely.
-	offsetBeyondEOF := false
-	if filePath != "" && value != "" {
+	// Or the stored offset lies beyond the end of the file, meaning it was rotated or truncated while
+	// no tailer was watching it, typically across an Agent restart. A running tailer is protected from
+	// that by DidRotate(), but a tailer that is only just starting is not: it would seek past the end
+	// of the file and read nothing. Nothing repairs it afterwards when fingerprinting is enabled,
+	// because the launcher then consults DidRotateViaFingerprint(), which reports "no rotation" for a
+	// file whose head content is unchanged -- so the source would stay at "Bytes Read: 0" indefinitely.
+	if isSameFile && filePath != "" && value != "" {
 		if storedOffset, perr := strconv.ParseInt(value, 10, 64); perr == nil {
 			beyondEOF, cerr := offsetBeyondEndOfFile(fileOpener, filePath, storedOffset)
 			switch {
 			case cerr != nil:
-				// The offset could not be validated, so leave it alone rather than risk re-reading
-				// the file from the start and sending its contents twice.
+				// Same reasoning as above: an offset that cannot be checked is left alone.
 				log.Warnf("Could not check whether the stored offset for file %s is still within it: %v", filePath, cerr)
 			case beyondEOF:
 				log.Infof("Stored offset %d for file %s is beyond the end of the file, restarting from the beginning of the file", storedOffset, filePath)
-				offsetBeyondEOF = true
+				isSameFile = false
 			}
 		}
 	}
@@ -107,8 +108,9 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
 		offset, whence = 0, io.SeekEnd
-	case value != "" && fingerprintsAlign && !offsetBeyondEOF:
-		// an offset was registered, tailing mode is not forced, fingerprints are disabled or equivalent
+	case value != "" && isSameFile:
+		// an offset was registered, tailing mode is not forced, and the file it was recorded against
+		// is still the one on disk
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
@@ -119,9 +121,8 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				whence = io.SeekStart
 			}
 		}
-	case value != "" && (!fingerprintsAlign || offsetBeyondEOF):
-		// Rotation detected -- either the fingerprints don't align, or the stored offset is beyond
-		// the end of the file. Start from the beginning regardless of mode.
+	case value != "" && !isSameFile:
+		// Rotation detected, start from the beginning regardless of mode
 		offset, whence = 0, io.SeekStart
 	case mode == config.Beginning:
 		offset, whence = 0, io.SeekStart
