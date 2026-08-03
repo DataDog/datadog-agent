@@ -28,7 +28,7 @@ func getUlimitData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 		`echo "=== Soft limits (ulimit -aS) ==="; ulimit -aS; echo; echo "=== Hard limits (ulimit -aH) ==="; ulimit -aH`)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fb.Logf("error running ulimit: %s", err)
+		_ = fb.Logf("error running ulimit: %s", err)
 	}
 
 	return fb.AddFile("ulimit.log", out)

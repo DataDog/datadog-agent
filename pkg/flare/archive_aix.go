@@ -25,7 +25,7 @@ func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	cmd := exec.CommandContext(ctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fb.Logf("error running svmon -P %s: %s", pid, err)
+		_ = fb.Logf("error running svmon -P %s: %s", pid, err)
 	}
 
 	return fb.AddFile("svmon.log", out)
