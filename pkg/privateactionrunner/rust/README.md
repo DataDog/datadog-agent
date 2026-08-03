@@ -153,6 +153,3 @@ runtime, so each is pinned by a unit test in `config.rs`.
 - Review the disabled-hostname posture on the mTLS channel over the local socket
   (`native_tls::Identity::from_pkcs8` rejecting the SEC1 IPC key is handled by
   `tls.rs::to_pkcs8_pem`).
-- Wire a `log` implementation (e.g. `dd-agent-log`) in `main`. Until then the
-  `log::` macros are no-ops and only the launch-path decisions in `main` are
-  visible, via `eprintln!` on the stderr procmgr inherits.

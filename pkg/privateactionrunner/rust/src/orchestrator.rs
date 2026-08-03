@@ -98,8 +98,8 @@ where
         }
     }
 
-    /// Run the loop until `shutdown` resolves, then return (in-flight actions are
-    /// left to finish; graceful drain is slice 5).
+    /// Run the loop until `shutdown` resolves, then stop dequeuing and wait for
+    /// every in-flight action to publish its result.
     pub async fn run<S: Future<Output = ()>>(&self, shutdown: S) {
         let sem = Arc::new(Semaphore::new(self.params.pool_size));
         // Consecutive dequeue-failure count, driving exponential backoff.
@@ -172,7 +172,16 @@ where
                 }
             };
 
-            match self.opms.dequeue().await {
+            let dequeued = tokio::select! {
+                _ = &mut shutdown => {
+                    info!("shutdown requested during dequeue; stopping orchestration loop");
+                    drop(permit);
+                    break;
+                }
+                result = self.opms.dequeue() => result,
+            };
+
+            match dequeued {
                 Ok(dequeued) => {
                     // A successful dequeue (task or empty) resets the backoff.
                     attempt = 1;
@@ -278,6 +287,23 @@ where
                     }
                 }
             }
+        }
+
+        let inflight = self.inflight.load(Ordering::SeqCst);
+        if inflight > 0 {
+            info!("waiting for {inflight} in-flight action(s) to finish");
+        }
+        let drain_permits: u32 = self
+            .params
+            .pool_size
+            .try_into()
+            .expect("executor pool size exceeds semaphore capacity");
+        let _drained = sem
+            .acquire_many(drain_permits)
+            .await
+            .expect("semaphore unexpectedly closed while draining");
+        if inflight > 0 {
+            info!("all in-flight actions finished");
         }
     }
 
@@ -439,6 +465,9 @@ mod tests {
         fail_run: bool,
         // dequeue always errors, driving the loop into backoff.
         fail_dequeue: bool,
+        // Hold dequeue so tests can prove shutdown cancels a long poll.
+        block_dequeue: bool,
+        dequeue_release: tokio::sync::Semaphore,
         // Describe reports the process has exited (crash).
         exited: bool,
         // Hold SyncKeys so tests can prove dequeue waits for pre-warm.
@@ -454,6 +483,8 @@ mod tests {
                 release: tokio::sync::Semaphore::new(0),
                 fail_run: false,
                 fail_dequeue: false,
+                block_dequeue: false,
+                dequeue_release: tokio::sync::Semaphore::new(0),
                 exited: false,
                 block_sync: false,
                 sync_release: tokio::sync::Semaphore::new(0),
@@ -463,6 +494,10 @@ mod tests {
 
     impl Opms for Fakes {
         async fn dequeue(&self) -> anyhow::Result<Dequeued> {
+            if self.block_dequeue {
+                self.state.lock().unwrap().dequeued += 1;
+                let _ = self.dequeue_release.acquire().await.unwrap();
+            }
             let mut s = self.state.lock().unwrap();
             if self.fail_dequeue {
                 s.dequeued += 1;
@@ -730,6 +765,90 @@ mod tests {
     /// timeout expires and SIGKILLs the control plane — potentially mid-action.
     /// Real (unpaused) time on purpose: with paused time a sleep that ignores
     /// shutdown would still complete instantly and the bug would pass unnoticed.
+    #[tokio::test]
+    async fn shutdown_cancels_an_in_progress_dequeue() {
+        let fakes = Arc::new(Fakes {
+            block_dequeue: true,
+            ..Default::default()
+        });
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            test_params(1, Duration::from_secs(3600)),
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        for _ in 0..100 {
+            if fakes.state.lock().unwrap().dequeued > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            fakes.state.lock().unwrap().dequeued > 0,
+            "the loop never started a dequeue"
+        );
+
+        let _ = tx.send(());
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("run() must cancel the in-progress dequeue on shutdown")
+            .expect("orchestrator task panicked");
+    }
+
+    #[tokio::test]
+    async fn shutdown_waits_for_inflight_actions_to_publish() {
+        let fakes = Arc::new(Fakes {
+            tasks_to_serve: 1,
+            ..Default::default()
+        });
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            test_params(1, Duration::from_secs(3600)),
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let mut handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        for _ in 0..100 {
+            if fakes.state.lock().unwrap().concurrent > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(fakes.state.lock().unwrap().concurrent, 1);
+
+        let _ = tx.send(());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut handle)
+                .await
+                .is_err(),
+            "run() returned before its in-flight action finished"
+        );
+
+        fakes.release.add_permits(1);
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("run() did not return after its in-flight action finished")
+            .expect("orchestrator task panicked");
+        assert_eq!(fakes.state.lock().unwrap().published, 1);
+    }
+
     #[tokio::test]
     async fn shutdown_is_not_delayed_by_dequeue_backoff() {
         let fakes = Arc::new(Fakes {
