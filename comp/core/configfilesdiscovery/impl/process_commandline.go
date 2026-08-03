@@ -15,9 +15,10 @@ import (
 
 // readContainerProcessCommandlines returns workloadmeta command-line snapshots
 // for processes associated with the target container. Workloadmeta owns the
-// process lifecycle and metadata; this fallback deliberately avoids direct
-// procfs access because the core Agent may not have permission to inspect the
-// target process.
+// process lifecycle and metadata, so consuming its snapshot here avoids
+// duplicating procfs access and keeps each command line paired with the working
+// directory from the same observation. Fields may be empty when the workloadmeta
+// process collector cannot inspect the target process.
 func readContainerProcessCommandlines(store workloadmeta.Component, containerID string) []TargetCommandline {
 	if store == nil {
 		return nil
