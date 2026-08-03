@@ -3,13 +3,13 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.82.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0-rc.8
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.82.0-rc.9
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0-rc.9
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.82.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.82.0-rc.9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -18,7 +18,7 @@ require (
 	github.com/prometheus/common v0.69.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 )
 
