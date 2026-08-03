@@ -36,26 +36,44 @@ package seclcel
 // resolving a field by joining its path and looking the accessor up by name:
 //
 //	                 SECL              CEL before          CEL now
-//	Comm             177 ns,  2 allocs    672 ns,    6     266 ns,   1
-//	Path             189 ns,  2           846 ns,    8     348 ns,   2
-//	InList           172 ns,  2                          — 287 ns,   1
-//	Regex            360 ns,  2                          — 609 ns,   4
-//	Glob             274 ns,  2                          — 422 ns,   3
-//	Ancestors        6.5 µs, 12          18.8 µs,  178    1.83 µs,   9
-//	DeepAncestors   56.3 µs, 304          150 µs, 1066    45.6 µs, 205
+//	Comm             177 ns,  2 allocs    672 ns,    6     250 ns,   1
+//	Path             189 ns,  2           846 ns,    8     330 ns,   2
+//	InList           172 ns,  2                          — 271 ns,   1
+//	Regex            360 ns,  2                          — 607 ns,   4
+//	Glob             274 ns,  2                          — 404 ns,   3
+//	Ancestors        6.5 µs, 12          18.8 µs,  178    1.70 µs,   9
+//	DeepAncestors   56.3 µs, 304          150 µs, 1066    41.9 µs, 205
 //
 // The three shapes with no before column were added with planningOptions, which
 // is what makes them affordable: unplanned they cost 724 ns, 2847 ns and 736 ns,
 // because the list literal, the regexp and the glob pattern were rebuilt on
 // every event.
 //
-// Decomposing what is left of a scalar read, the 266 ns of Comm: 30 ns is
+// Decomposing what is left of a scalar read, the 250 ns of Comm: 30 ns is
 // resetting the context, which SECL pays too; 47 ns is cel-go evaluating a
 // program that reads nothing at all; 7 ns is the activation handing back a
 // cached root; 47 ns is the reader, of which the struct read is 3 ns and boxing
-// the result 2 ns; and the remaining ~135 ns is cel-go resolving the attribute
+// the result 2 ns; and the remaining ~120 ns is cel-go resolving the attribute
 // and dispatching the comparison. Almost none of it is the model, which is why
 // the readers cannot close the gap on their own.
+//
+// A CPU profile puts the rest of it where nothing here can reach: acquiring and
+// releasing the pooled ExecutionFrame is around a fifth of a scalar evaluation.
+// cel-go will accept a frame passed to Eval instead of taking one from the pool,
+// but its documentation says a frame must not be stored, so that is a question
+// for whoever wires up the rule engine rather than a change to make here.
+//
+// The same profile is what found the type adapter: every read returns a ref.Val
+// already, and the interpreter adapted it anyway, through a type switch dozens
+// of cases long, to produce the same value. seclAdapter is that one case, and
+// it was worth 6% of a scalar read and 8% of an iterated one.
+//
+// Of an iterated evaluation, the fold itself — not the predicate — is most of
+// the cost. Profiling foldIterable: 41% the step (accu || predicate), 28% the
+// condition (!accu, which dispatches through runtime overload matching on every
+// element), and 22% the cursor and the element value. The condition is pure
+// bookkeeping: over a quarter of the work is the comprehension asking itself
+// whether to continue.
 //
 // Path gains more than Comm from binding at planning time because it selects
 // twice, and it is per select that the work went away.

@@ -6,7 +6,11 @@
 package seclcel
 
 import (
+	"net/netip"
+
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 )
 
@@ -59,6 +63,30 @@ const globPatternArg = 1
 // name.
 const VariablesRoot = "vars"
 
+// seclAdapter converts a Go value into a CEL one, ahead of the adapter the
+// network extension installs.
+//
+// It exists for its first case. Every field read returns a ref.Val already, and
+// the interpreter adapts what a qualifier returned before using it — so without
+// this, reading any field runs the network adapter's two misses and then a type
+// switch dozens of cases long in the registry, to turn a value into itself. It
+// measured at a tenth of the cost of evaluating a scalar rule.
+type seclAdapter struct{}
+
+// NativeToValue implements types.Adapter.
+func (seclAdapter) NativeToValue(value any) ref.Val {
+	switch v := value.(type) {
+	case ref.Val:
+		return v
+	case netip.Addr:
+		// What ext.Network's own adapter does, which declaring this one replaces.
+		return ext.IP{Addr: v}
+	case netip.Prefix:
+		return ext.CIDR{Prefix: v}
+	}
+	return types.DefaultTypeAdapter.NativeToValue(value)
+}
+
 // NewEnv returns a CEL environment that declares everything a translated SECL
 // expression can refer to except the event fields, the macros and the
 // variables, which depend on the model and are supplied by the caller through
@@ -79,6 +107,9 @@ func NewEnv(opts ...cel.EnvOption) (*cel.Env, error) {
 		cel.EnableMacroCallTracking(),
 		cel.Variable(VariablesRoot, cel.DynType),
 		cel.Variable(NowVar, cel.IntType),
+		// Declared after ext.Network, whose adapter it replaces — which is why it
+		// carries that adapter's two cases itself.
+		cel.CustomTypeAdapter(seclAdapter{}),
 	}
 
 	// The helpers are declared together with their implementations, so an
