@@ -38,8 +38,6 @@ go_library(
         "//comp/forwarder/orchestrator/def",
         "//comp/haagent/def",
         "//comp/haagent/mock",
-        "//comp/serializer/logscompression/def",
-        "//comp/serializer/logscompression/fx-mock",
         "//comp/serializer/metricscompression/def",
         "//comp/serializer/metricscompression/fx-mock",
         "//pkg/aggregator",
