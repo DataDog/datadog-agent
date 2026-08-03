@@ -32,7 +32,6 @@ run_binary(
 go_library(
     name = "setup",
     srcs = [
-        ":codegen_settings",  # generated *_settings.go files (see above)
         "config.go",
         "config_accessor.go",
         "config_darwin.go",
@@ -42,16 +41,14 @@ go_library(
         "config_test_accessor.go",
         "config_windows.go",
         "fixup_init.go",
-        "ipc_address.go",
         "otlp.go",
         "privateactionrunner.go",
         "process.go",
-        "security_agent.go",
-        "standard_names.go",
         "system_probe.go",
         "test_config_accessor.go",
         "test_helpers.go",
         "unexpectedunicodefinder.go",
+        ":codegen_settings",  # keep: generated *_settings.go files (see above)
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/setup",
     visibility = ["//visibility:public"],
@@ -60,12 +57,10 @@ go_library(
         "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
         "//comp/core/secrets/def",
-        "//pkg/collector/check/defaults",
         "//pkg/config/create",
         "//pkg/config/env",
         "//pkg/config/helper",
         "//pkg/config/model",
-        "//pkg/config/setup/constants",
         "//pkg/config/structure",
         "//pkg/fips",
         "//pkg/util/defaultpaths",
