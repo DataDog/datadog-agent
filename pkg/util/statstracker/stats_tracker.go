@@ -180,11 +180,18 @@ func (s *Tracker) Info() []string {
 }
 
 // GoString implements fmt.GoStringer so that printing a *Tracker with %#v (e.g. from a
-// debug dump) goes through the locked accessors instead of reflection reading the
-// fields directly, which would race with Add().
+// debug dump) reads all fields while holding the lock, instead of via unsynchronized
+// reflection, which would race with Add(). The lock itself is deliberately omitted:
+// a *sync.Mutex's internal state is touched by atomic CAS from any goroutine contending
+// on it, regardless of who currently holds it, so reflecting over it is racy on its own.
 func (s *Tracker) GoString() string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	return fmt.Sprintf(
-		"&statstracker.Tracker{allTimeAvg: %d, allTimePeak: %d, movingAvg: %d, movingPeak: %d}",
-		s.AllTimeAvg(), s.AllTimePeak(), s.MovingAvg(), s.MovingPeak(),
+		"&statstracker.Tracker{allTimeAvg:%#v, allTimePeak:%#v, totalPoints:%#v, timeFrame:%#v, bucketFrame:%#v, avgPointsHead:%#v, peakPointsHead:%#v, aggregatedAvgPoints:%#v, aggregatedPeakPoints:%#v, timeProvider:%#v}",
+		s.allTimeAvg, s.allTimePeak, s.totalPoints, s.timeFrame, s.bucketFrame,
+		s.avgPointsHead, s.peakPointsHead, s.aggregatedAvgPoints, s.aggregatedPeakPoints,
+		s.timeProvider,
 	)
 }
