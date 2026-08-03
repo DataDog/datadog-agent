@@ -9,7 +9,7 @@
 //! JWT via [`crate::jwt::JwtSigner`] and reproduces the request envelopes,
 //! headers, and status/retry-after handling of the Go `opms.Client`.
 
-use crate::config::{FLAVOR, ProxyConfig};
+use crate::config::{FLAVOR, ProxyConfig, TlsConfig};
 use crate::jwt::{JWT_HEADER_NAME, JwtSigner};
 use anyhow::{Context, Result, bail};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -285,42 +285,28 @@ pub struct HttpOpms {
     last_task_received_at: Mutex<Option<String>>,
 }
 
-struct HttpOpmsOptions {
-    runner_version: String,
-    modes: Vec<String>,
-    timeout: Duration,
-    proxy_config: ProxyConfig,
-    extra_headers: HashMap<String, String>,
+pub struct HttpOpmsConfig {
+    pub runner_version: String,
+    pub modes: Vec<String>,
+    pub timeout: Duration,
+    pub proxy: ProxyConfig,
+    pub tls: TlsConfig,
+    pub extra_headers: HashMap<String, String>,
 }
 
 impl HttpOpms {
     pub fn new(
         base_url: String,
         signer: Arc<dyn JwtSigner>,
-        runner_version: String,
-        modes: Vec<String>,
-        timeout: Duration,
-        proxy_config: &ProxyConfig,
-        extra_headers: HashMap<String, String>,
+        config: HttpOpmsConfig,
     ) -> Result<Self> {
-        Self::new_with_builder(
-            base_url,
-            signer,
-            HttpOpmsOptions {
-                runner_version,
-                modes,
-                timeout,
-                proxy_config: proxy_config.clone(),
-                extra_headers,
-            },
-            reqwest::Client::builder(),
-        )
+        Self::new_with_builder(base_url, signer, config, reqwest::Client::builder())
     }
 
     fn new_with_builder(
         base_url: String,
         signer: Arc<dyn JwtSigner>,
-        options: HttpOpmsOptions,
+        options: HttpOpmsConfig,
         builder: reqwest::ClientBuilder,
     ) -> Result<Self> {
         let base_url = parse_base_url(&base_url)?;
@@ -329,10 +315,12 @@ impl HttpOpms {
             .pool_idle_timeout(POOL_IDLE_TIMEOUT)
             .pool_max_idle_per_host(MAX_IDLE_CONNECTIONS_PER_HOST)
             .http1_only()
+            .danger_accept_invalid_certs(options.tls.skip_ssl_validation)
+            .min_tls_version(min_tls_version(&options.tls.min_tls_version))
             // We already merged the Agent's YAML and environment proxy settings;
             // do not let reqwest independently re-read process environment.
             .no_proxy();
-        if let Some(proxy) = proxy_for_base_url(&base_url, &options.proxy_config)? {
+        if let Some(proxy) = proxy_for_base_url(&base_url, &options.proxy)? {
             builder = builder.proxy(proxy);
         }
         let client = builder.build().context("building the OPMS HTTP client")?;
@@ -421,6 +409,17 @@ impl HttpOpms {
             retry_after,
             body,
         })
+    }
+}
+
+fn min_tls_version(raw: &str) -> reqwest::tls::Version {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "tlsv1.0" => reqwest::tls::Version::TLS_1_0,
+        "tlsv1.1" => reqwest::tls::Version::TLS_1_1,
+        "tlsv1.3" => reqwest::tls::Version::TLS_1_3,
+        // Match the Go transport: TLS 1.2 is both the explicit value and the
+        // fallback for an empty or invalid setting.
+        _ => reqwest::tls::Version::TLS_1_2,
     }
 }
 
@@ -559,6 +558,16 @@ mod tests {
     }
 
     #[test]
+    fn agent_tls_minimum_defaults_match_go() {
+        assert_eq!(min_tls_version(""), reqwest::tls::Version::TLS_1_2);
+        assert_eq!(
+            min_tls_version("not-a-version"),
+            reqwest::tls::Version::TLS_1_2
+        );
+        assert_eq!(min_tls_version("TLSv1.3"), reqwest::tls::Version::TLS_1_3);
+    }
+
+    #[test]
     fn parses_base_urls() {
         for url in [
             "https://api.datad0g.com",
@@ -615,17 +624,20 @@ mod tests {
         let opms = HttpOpms::new(
             "http://localhost:8080".to_string(),
             Arc::new(crate::jwt::test_support::StaticSigner("jwt".into())),
-            "7.83.0".into(),
-            vec!["pull".into()],
-            Duration::from_secs(10),
-            &ProxyConfig::default(),
-            HashMap::from([
-                (
-                    "X-Datadog-OnPrem-Version".to_string(),
-                    "override".to_string(),
-                ),
-                ("X-Test-Routing".to_string(), "canary".to_string()),
-            ]),
+            HttpOpmsConfig {
+                runner_version: "7.83.0".into(),
+                modes: vec!["pull".into()],
+                timeout: Duration::from_secs(10),
+                proxy: ProxyConfig::default(),
+                tls: TlsConfig::default(),
+                extra_headers: HashMap::from([
+                    (
+                        "X-Datadog-OnPrem-Version".to_string(),
+                        "override".to_string(),
+                    ),
+                    ("X-Test-Routing".to_string(), "canary".to_string()),
+                ]),
+            },
         )
         .unwrap();
         let headers = opms.headers("jwt".to_string()).unwrap();
@@ -763,11 +775,12 @@ mod tests {
         let opms = HttpOpms::new_with_builder(
             format!("https://127.0.0.1:{port}"),
             Arc::new(crate::jwt::test_support::StaticSigner("jwt-abc".into())),
-            HttpOpmsOptions {
+            HttpOpmsConfig {
                 runner_version: "7.83.0".into(),
                 modes: vec!["mode-a".into()],
                 timeout: Duration::from_secs(10),
-                proxy_config: ProxyConfig::default(),
+                proxy: ProxyConfig::default(),
+                tls: TlsConfig::default(),
                 extra_headers: HashMap::new(),
             },
             reqwest::Client::builder().add_root_certificate(
@@ -869,11 +882,12 @@ mod tests {
             Arc::new(crate::jwt::test_support::StaticSigner(
                 "jwt-through-proxy".into(),
             )),
-            HttpOpmsOptions {
+            HttpOpmsConfig {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_config: proxy,
+                proxy,
+                tls: TlsConfig::default(),
                 extra_headers: HashMap::new(),
             },
             reqwest::Client::builder().add_root_certificate(

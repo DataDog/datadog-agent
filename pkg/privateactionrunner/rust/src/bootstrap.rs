@@ -15,21 +15,23 @@ use log::info;
 use std::path::Path;
 use std::process::Command;
 
-/// Load the control-plane config, running the Go one-shot enroll first if the
-/// runner has no identity yet. `enroll_command` is the argv of the Go enroll
-/// one-shot, which the installed procmgr definition points at
-/// `privateactionrunner rotate-identity --cfgpath <datadog.yaml>`; if empty,
-/// bootstrap does not enroll and an existing identity is required.
+/// Load the control-plane config from the Go Agent's effective-config helper,
+/// running the Go one-shot enroll first if the runner has no identity yet.
+/// `enroll_command` is the argv of the Go enroll one-shot, which the installed
+/// procmgr definition points at `privateactionrunner rotate-identity --cfgpath
+/// <datadog.yaml>`; if empty, bootstrap does not enroll and an existing identity
+/// is required.
 ///
 /// `self_enroll` mirrors `private_action_runner.self_enroll`: an operator who
 /// turned it off provisions the identity out of band, so par-control must not
 /// enroll behind their back — same contract as the Go runner.
 pub fn load_config_with_bootstrap(
     config_path: &Path,
+    config_helper: &Path,
     enroll_command: &[String],
     self_enroll: bool,
 ) -> Result<Config> {
-    if let Some(cfg) = Config::try_from_yaml_file(config_path)? {
+    if let Some(cfg) = Config::try_from_agent_config(config_path, config_helper)? {
         return Ok(cfg);
     }
     if !self_enroll {
@@ -48,7 +50,7 @@ pub fn load_config_with_bootstrap(
     info!("no runner identity found; running one-shot enroll: {enroll_command:?}");
     run_enroll(enroll_command)?;
 
-    Config::try_from_yaml_file(config_path)?
+    Config::try_from_agent_config(config_path, config_helper)?
         .context("runner still has no identity after running the enroll command")
 }
 

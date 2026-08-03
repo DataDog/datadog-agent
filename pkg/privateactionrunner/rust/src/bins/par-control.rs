@@ -14,7 +14,7 @@ use par_control::bootstrap;
 use par_control::config::{LaunchGate, log_level_from_yaml_file};
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
-use par_control::opms::HttpOpms;
+use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
 use std::path::PathBuf;
@@ -25,6 +25,11 @@ use std::sync::Arc;
 struct Cli {
     #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
     config: PathBuf,
+
+    /// Existing Go Private Action Runner binary used to resolve the Agent's
+    /// effective configuration, including secret-backend values.
+    #[arg(long = "config-helper")]
+    config_helper: PathBuf,
 
     /// Go one-shot enrollment command. Must be the last option because it
     /// consumes all remaining arguments.
@@ -68,8 +73,12 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let config =
-        bootstrap::load_config_with_bootstrap(&cli.config, &cli.enroll_command, gate.self_enroll)?;
+    let config = bootstrap::load_config_with_bootstrap(
+        &cli.config,
+        &cli.config_helper,
+        &cli.enroll_command,
+        gate.self_enroll,
+    )?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,
@@ -80,11 +89,14 @@ async fn main() -> Result<()> {
     let opms = Arc::new(HttpOpms::new(
         config.opms_base_url.clone(),
         signer,
-        config.runner_version.clone(),
-        config.modes.clone(),
-        config.opms_request_timeout,
-        &config.proxy,
-        config.opms_extra_headers.clone(),
+        HttpOpmsConfig {
+            runner_version: config.runner_version.clone(),
+            modes: config.modes.clone(),
+            timeout: config.opms_request_timeout,
+            proxy: config.proxy.clone(),
+            tls: config.tls.clone(),
+            extra_headers: config.opms_extra_headers.clone(),
+        },
     )?);
     let lifecycle = Arc::new(ProcmgrLifecycle::new(
         &config.procmgr_socket,

@@ -11,6 +11,7 @@ use crate::identity::Identity;
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::Duration;
 
 const SKIP_TASK_VERIFICATION_ENV: &str = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION";
@@ -70,6 +71,7 @@ pub struct Config {
     pub opms_request_timeout: Duration,
     pub opms_extra_headers: HashMap<String, String>,
     pub proxy: ProxyConfig,
+    pub tls: TlsConfig,
     /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
     pub max_backoff: Duration,
@@ -96,6 +98,13 @@ pub struct ProxyConfig {
     pub no_proxy_nonexact_match: bool,
 }
 
+/// Agent TLS settings used for OPMS connections.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TlsConfig {
+    pub skip_ssl_validation: bool,
+    pub min_tls_version: String,
+}
+
 /// Minimal view of `datadog.yaml` — only the fields the control plane reads.
 /// Unknown keys are ignored so the full agent config deserializes cleanly.
 #[derive(serde::Deserialize, Default, Clone)]
@@ -112,6 +121,8 @@ struct RawConfig {
     auth_token_file_path: Option<String>,
     proxy: Option<RawProxy>,
     no_proxy_nonexact_match: Option<bool>,
+    skip_ssl_validation: Option<bool>,
+    min_tls_version: Option<String>,
     private_action_runner: Option<RawPar>,
 }
 
@@ -147,8 +158,6 @@ struct RawPar {
     idle_timeout_seconds: Option<u64>,
     heartbeat_interval_seconds: Option<u64>,
     #[serde(default)]
-    modes: Vec<String>,
-    #[serde(default)]
     opms_extra_headers: HashMap<String, String>,
 }
 
@@ -156,6 +165,43 @@ struct RawPar {
 #[derive(serde::Deserialize, Default, Clone)]
 struct RawParExecutor {
     socket_path: Option<String>,
+}
+
+/// Versioned JSON contract emitted by the Go `resolve-control-config` command.
+/// Every value has already passed through the Agent's environment precedence,
+/// secret backend, Fleet Policy merge, FIPS handling, and config transforms.
+#[derive(serde::Deserialize)]
+struct EffectiveConfig {
+    schema_version: u32,
+    main_endpoint: String,
+    task_concurrency: usize,
+    executor_socket: String,
+    procmgr_socket: String,
+    executor_process_name: String,
+    idle_timeout_seconds: u64,
+    heartbeat_interval_seconds: u64,
+    #[serde(default)]
+    opms_extra_headers: HashMap<String, String>,
+    #[serde(default)]
+    proxy: EffectiveProxy,
+    no_proxy_nonexact_match: bool,
+    skip_ssl_validation: bool,
+    min_tls_version: String,
+    ipc_cert_file: PathBuf,
+    #[serde(default)]
+    urn: String,
+    #[serde(default)]
+    private_key: String,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct EffectiveProxy {
+    #[serde(default)]
+    http: String,
+    #[serde(default)]
+    https: String,
+    #[serde(default)]
+    no_proxy: Vec<String>,
 }
 
 impl Config {
@@ -172,6 +218,35 @@ impl Config {
     /// the Go one-shot enroll and retry.
     pub fn try_from_yaml_file(path: &std::path::Path) -> Result<Option<Self>> {
         Self::try_from_yaml_file_with_env(path, |name| std::env::var(name).ok())
+    }
+
+    /// Ask the existing Go Private Action Runner binary for a snapshot of the
+    /// Agent's effective config. Capturing stdout keeps resolved credentials in
+    /// memory rather than persisting a second plaintext config file.
+    pub fn try_from_agent_config(path: &Path, helper: &Path) -> Result<Option<Self>> {
+        let output = Command::new(helper)
+            .arg("resolve-control-config")
+            .arg("--cfgpath")
+            .arg(path)
+            .output()
+            .with_context(|| {
+                format!("failed to run effective-config helper {}", helper.display())
+            })?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!(
+                "effective-config helper {} exited with {}: {}",
+                helper.display(),
+                output.status,
+                stderr.trim()
+            );
+        }
+        let effective: EffectiveConfig = serde_json::from_slice(&output.stdout)
+            .context("failed to parse effective config from Go helper")?;
+        Self::try_from_effective(
+            effective,
+            std::env::var(SKIP_TASK_VERIFICATION_ENV).as_deref() == Ok("true"),
+        )
     }
 
     fn try_from_yaml_file_with_env(
@@ -256,20 +331,85 @@ impl Config {
             opms_request_timeout: Duration::from_secs(30),
             opms_extra_headers: par.opms_extra_headers,
             proxy,
+            tls: TlsConfig {
+                skip_ssl_validation: raw.skip_ssl_validation.unwrap_or(false),
+                min_tls_version: raw.min_tls_version.unwrap_or_else(|| "tlsv1.2".to_string()),
+            },
             // Backoff defaults mirror pkg/privateactionrunner/adapters/config/constants.go.
             min_backoff: Duration::from_secs(1),
             max_backoff: Duration::from_secs(180),
             wait_before_retry: Duration::from_secs(300),
             max_attempts: 20,
             runner_version: RUNNER_VERSION.to_string(),
-            modes: if par.modes.is_empty() {
-                vec![DEFAULT_MODE.to_string()]
-            } else {
-                par.modes
-            },
+            modes: vec![DEFAULT_MODE.to_string()],
             ipc_cert_file,
             identity,
         })
+    }
+
+    fn try_from_effective(
+        effective: EffectiveConfig,
+        allow_insecure_opms: bool,
+    ) -> Result<Option<Self>> {
+        if effective.schema_version != 1 {
+            bail!(
+                "unsupported effective-config schema version {}",
+                effective.schema_version
+            );
+        }
+        let inline_identity = match (
+            (!effective.urn.is_empty()).then_some(effective.urn.as_str()),
+            (!effective.private_key.is_empty()).then_some(effective.private_key.as_str()),
+        ) {
+            (Some(urn), Some(key)) => Some(Identity::new(urn.to_string(), key.to_string())?),
+            _ => None,
+        };
+        let Some(identity) = inline_identity else {
+            return Ok(None);
+        };
+        if effective.task_concurrency == 0 {
+            bail!("private_action_runner.task_concurrency must be greater than zero");
+        }
+        if effective.heartbeat_interval_seconds == 0 {
+            bail!("private_action_runner.heartbeat_interval_seconds must be greater than zero");
+        }
+
+        Ok(Some(Config {
+            opms_base_url: resolve_opms_base_url(
+                None,
+                Some(&effective.main_endpoint),
+                allow_insecure_opms,
+            )?,
+            task_concurrency: effective.task_concurrency,
+            executor_socket: PathBuf::from(effective.executor_socket),
+            procmgr_socket: PathBuf::from(effective.procmgr_socket),
+            executor_process_name: effective.executor_process_name,
+            loop_interval: Duration::from_secs(1),
+            heartbeat_interval: Duration::from_secs(effective.heartbeat_interval_seconds),
+            idle_timeout: Duration::from_secs(effective.idle_timeout_seconds),
+            ready_timeout: Duration::from_secs(10),
+            key_sync_timeout: Duration::from_secs(120),
+            opms_request_timeout: Duration::from_secs(30),
+            opms_extra_headers: effective.opms_extra_headers,
+            proxy: ProxyConfig {
+                http: (!effective.proxy.http.is_empty()).then_some(effective.proxy.http),
+                https: (!effective.proxy.https.is_empty()).then_some(effective.proxy.https),
+                no_proxy: effective.proxy.no_proxy,
+                no_proxy_nonexact_match: effective.no_proxy_nonexact_match,
+            },
+            tls: TlsConfig {
+                skip_ssl_validation: effective.skip_ssl_validation,
+                min_tls_version: effective.min_tls_version,
+            },
+            min_backoff: Duration::from_secs(1),
+            max_backoff: Duration::from_secs(180),
+            wait_before_retry: Duration::from_secs(300),
+            max_attempts: 20,
+            runner_version: RUNNER_VERSION.to_string(),
+            modes: vec![DEFAULT_MODE.to_string()],
+            ipc_cert_file: effective.ipc_cert_file,
+            identity,
+        }))
     }
 }
 
@@ -948,7 +1088,7 @@ private_action_runner:
     }
 
     #[test]
-    fn overrides_pool_size_intervals_and_modes() {
+    fn overrides_pool_size_and_intervals_but_always_uses_pull_mode() {
         let yaml = format!(
             "{MIN_YAML}  task_concurrency: 3\n  idle_timeout_seconds: 120\n  heartbeat_interval_seconds: 5\n  modes: [push]\n"
         );
@@ -956,6 +1096,57 @@ private_action_runner:
         assert_eq!(cfg.task_concurrency, 3);
         assert_eq!(cfg.idle_timeout, Duration::from_secs(120));
         assert_eq!(cfg.heartbeat_interval, Duration::from_secs(5));
-        assert_eq!(cfg.modes, vec!["push"]);
+        // `modes` is intentionally not deserialized. Enrollment and the Go
+        // monolith support pull mode only, so an undocumented YAML key cannot
+        // make the runtime advertise a different capability.
+        assert_eq!(cfg.modes, vec!["pull"]);
+    }
+
+    #[test]
+    fn consumes_effective_config_from_go_contract() {
+        let effective: EffectiveConfig = serde_json::from_str(
+            r#"{
+                "schema_version": 1,
+                "main_endpoint": "https://app.us3.datadoghq.com",
+                "task_concurrency": 4,
+                "executor_socket": "/resolved/executor.sock",
+                "procmgr_socket": "/resolved/procmgr.sock",
+                "executor_process_name": "resolved-executor",
+                "idle_timeout_seconds": 90,
+                "heartbeat_interval_seconds": 15,
+                "opms_extra_headers": {"X-Resolved": "secret-value"},
+                "proxy": {
+                    "https": "http://resolved-user:resolved-pass@proxy:3128",
+                    "no_proxy": ["localhost"]
+                },
+                "no_proxy_nonexact_match": true,
+                "skip_ssl_validation": true,
+                "min_tls_version": "tlsv1.3",
+                "ipc_cert_file": "/resolved/ipc.pem",
+                "urn": "urn:dd:apps:on-prem-runner:us3:42:resolved-runner",
+                "private_key": "resolved-private-key"
+            }"#,
+        )
+        .unwrap();
+
+        let cfg = Config::try_from_effective(effective, false)
+            .unwrap()
+            .unwrap();
+        assert_eq!(cfg.opms_base_url, "https://api.us3.datadoghq.com");
+        assert_eq!(cfg.task_concurrency, 4);
+        assert_eq!(
+            cfg.executor_socket,
+            PathBuf::from("/resolved/executor.sock")
+        );
+        assert_eq!(
+            cfg.proxy.https.as_deref(),
+            Some("http://resolved-user:resolved-pass@proxy:3128")
+        );
+        assert_eq!(cfg.proxy.no_proxy, ["localhost"]);
+        assert!(cfg.proxy.no_proxy_nonexact_match);
+        assert!(cfg.tls.skip_ssl_validation);
+        assert_eq!(cfg.tls.min_tls_version, "tlsv1.3");
+        assert_eq!(cfg.modes, ["pull"]);
+        assert_eq!(cfg.identity.private_key, "resolved-private-key");
     }
 }

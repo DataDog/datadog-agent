@@ -11,7 +11,7 @@ and publishes results back to OPMS. Only the control plane touches OPMS.
 | Module | Responsibility |
 | --- | --- |
 | `identity.rs` | Parse the persisted runner URN + ECDSA P-256 key (Go owns enrollment). |
-| `config.rs` | Load the control-plane config subset from `datadog.yaml`. |
+| `config.rs` | Load the Go Agent's effective control-plane config snapshot; read the raw YAML only for the launch gate. |
 | `jwt.rs` | `JwtSigner` trait + ES256 signer for the `X-Datadog-OnPrem-JWT` header. |
 | `opms.rs` | `Opms` trait (dequeue/publish/heartbeat) + `HttpOpms` real client. |
 | `procmgr.rs` | `ExecutorLifecycle` trait + `dd-procmgrd` gRPC client (Start/Describe/Stop). |
@@ -39,11 +39,15 @@ and `isSplitEnabled` in `comp/privateactionrunner/impl/privateactionrunner.go`
 read the same two keys, and the loser exits **0** — a non-zero exit would trip
 procmgr's/systemd's restart limit on every host that never opted in.
 
-Identity bootstrap: in split mode the Go monolith that normally self-enrolls is
-standing down, so the procmgr definition passes
+Effective config and identity bootstrap: in split mode the Go monolith that
+normally loads config and self-enrolls is standing down. The process definition
+passes the existing Go binary as `--config-helper`; par-control invokes its hidden
+`resolve-control-config` subcommand once at startup and consumes the JSON snapshot
+from stdout. This preserves the Agent's environment precedence, secret backend,
+Fleet Policy, FIPS, proxy, and config-transform behavior without persisting a
+second plaintext config file. If no identity is available, par-control runs
 `--enroll-command <privateactionrunner> rotate-identity --cfgpath <datadog.yaml>`
-and par-control runs that one-shot when no identity is persisted yet (honoring
-`private_action_runner.self_enroll`).
+and resolves the snapshot again (honoring `private_action_runner.self_enroll`).
 
 **Windows** ships the process definition for package symmetry, but split mode is
 not supported until `transport.rs` has a named-pipe client. `par-control` exits
@@ -89,7 +93,9 @@ dda inv generate-rust-licenses
 features disabled and only `native-tls` enabled. This provides pooled HTTP/1.1,
 HTTP CONNECT proxy support, proxy authentication, and stale-connection recovery
 without pulling in rustls/ring/webpki roots. The client receives the Agent's
-resolved YAML/environment proxy settings, including no-proxy behavior.
+effective proxy and TLS settings from the Go helper, including secret-backed
+proxy credentials, no-proxy behavior, `skip_ssl_validation`, and
+`min_tls_version`.
 
 `ureq` — the workspace's other HTTP client — cannot express what is needed: its
 `native-tls` support is gated on a feature that force-enables
@@ -119,12 +125,12 @@ the agent IPC cert. par-control reads the combined IPC cert/key file
 stack as the OPMS client. The executor requires a CA-signed client cert.
 
 `ipc_cert_file_path` defaults to empty in the agent and is unset on virtually
-every host, so `config.rs` reproduces Go's fallback chain (`getCertFilepath` in
-`pkg/api/security/cert/cert_getter.go`): explicit setting, else next to
-`auth_token_file_path`, else next to `datadog.yaml`. The connector is rebuilt per
-connection rather than at startup, because par-control is `auto_start: true` and
-can come up before the cert exists — possibly before the very executor it launches,
-which creates the cert when missing.
+every host. The Go effective-config helper resolves the same fallback chain as
+`getCertFilepath` in `pkg/api/security/cert/cert_getter.go`: explicit setting,
+else next to `auth_token_file_path`, else next to `datadog.yaml`. The connector is
+rebuilt per connection rather than at startup, because par-control is
+`auto_start: true` and can come up before the cert exists — possibly before the
+very executor it launches, which creates the cert when missing.
 
 ## Contracts with the Go side (keep in sync)
 
@@ -142,8 +148,9 @@ runtime, so each is pinned by a unit test in `config.rs`.
 
 - Validate the exact OPMS request envelopes (esp. dequeue JSON:API) against a
   running/fake OPMS; the bodies here are modeled on the Go client.
-- par-control parses `datadog.yaml` itself and applies the `DD_*` overrides for
-  the settings it consumes.
+- The launch gate and initial log level are intentionally read directly from
+  `datadog.yaml`/environment before invoking the Go helper; neither requires
+  secret-backed values.
 - Config changes are only picked up on restart: neither the split switch nor the
   control-plane knobs are watched at runtime.
 - Review the disabled-hostname posture on the mTLS channel over the local socket

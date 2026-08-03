@@ -3,6 +3,8 @@ command: '{{.InstallDir}}/bin/agent/par-control.exe'
 args:
   - --config
   - '{{.EtcDir}}/datadog.yaml'
+  - --config-helper
+  - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
   - --enroll-command
   - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
   - rotate-identity

@@ -3,6 +3,8 @@ command: /opt/datadog-agent/embedded/bin/par-control
 args:
   - --config
   - ${DD_CONF_DIR}/datadog.yaml
+  - --config-helper
+  - /opt/datadog-agent/embedded/bin/privateactionrunner
   - --enroll-command
   - /opt/datadog-agent/embedded/bin/privateactionrunner
   - rotate-identity
@@ -11,7 +13,8 @@ args:
 auto_start: true
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180
-condition_path_exists: /opt/datadog-agent/embedded/bin/par-control
+condition_path_exists: >-
+  /opt/datadog-agent/embedded/bin/par-control
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10
