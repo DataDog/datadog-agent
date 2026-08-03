@@ -9,12 +9,12 @@ go_library(
         "dockercompose_tcp_congestion.go",
         "test_helpers.go",
     ],
-    embedsrcs = [
+    data = [
         "config/dockercompose_httpbin.yaml",
         "config/dockercompose_tcp_congestion.yaml",
+        "config/npm.yaml",
         "config/npm-direct.yaml",
         "config/npm-helm-values.yaml",
-        "config/npm.yaml",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/npm",
     visibility = ["//visibility:public"],

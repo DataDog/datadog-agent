@@ -4,7 +4,7 @@ go_library(
     name = "cws",
     srcs = ["common.go"],
     # keep
-    embedsrcs = [
+    data = [
         "//test/new-e2e/tests/cws/config:e2e-security-agent.yaml",
         "//test/new-e2e/tests/cws/config:e2e-system-probe.yaml",
     ],

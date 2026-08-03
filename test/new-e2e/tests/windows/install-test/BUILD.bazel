@@ -9,6 +9,7 @@ go_library(
         "system_file_tester.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/components",

@@ -11,8 +11,8 @@ go_test(
     name = "jmxfetch_test",
     srcs = ["jmxfetch_nix_test.go"],
     data = glob(["testdata/**"]),
+    data = ["testdata/docker-labels.yaml"],
     embed = [":jmxfetch"],
-    embedsrcs = ["testdata/docker-labels.yaml"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/common/config",

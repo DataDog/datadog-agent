@@ -11,7 +11,7 @@ go_test(
         "process_autodiscovery_test.go",
     ],
     data = glob(["testdata/**"]),
-    embedsrcs = [
+    data = [
         "config/helm-values.tmpl",
         "testdata/config/agent_config.yaml",
         "testdata/config/agent_process_autodiscovery.yaml",

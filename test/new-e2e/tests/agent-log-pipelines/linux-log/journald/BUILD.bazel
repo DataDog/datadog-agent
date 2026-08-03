@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "journald_test",
     srcs = ["journald_tailing_test.go"],
-    embedsrcs = [
+    data = [
         "log-config/include.yaml",
         "log-config/logger-service.sh",
         "log-config/python-script.sh",

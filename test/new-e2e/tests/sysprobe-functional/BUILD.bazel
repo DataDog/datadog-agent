@@ -11,7 +11,7 @@ go_test(
         "assets/**",
         "usmtest/**",
     ]),
-    embedsrcs = ["fixtures/system-probe.yaml"],
+    data = ["fixtures/system-probe.yaml"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

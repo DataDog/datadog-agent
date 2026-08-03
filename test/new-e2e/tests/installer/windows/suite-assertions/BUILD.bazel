@@ -4,6 +4,7 @@ go_library(
     name = "suite-assertions",
     srcs = ["suite_assertions.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/components",

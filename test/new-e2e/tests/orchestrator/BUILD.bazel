@@ -15,11 +15,11 @@ go_test(
         "k8s_test.go",
         "util_test.go",
     ],
-    embed = [":orchestrator"],
-    embedsrcs = [
+    data = [
         "agent_api_key_values.yaml",
         "agent_values.yaml",
     ],
+    embed = [":orchestrator"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps/cpustress",

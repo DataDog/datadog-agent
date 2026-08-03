@@ -6,7 +6,7 @@ go_library(
         "client.go",
         "helpers.go",
     ],
-    embedsrcs = [
+    data = [
         "fixtures/secret-resolver.py",
         "fixtures/secret_wrapper.bat",
     ],

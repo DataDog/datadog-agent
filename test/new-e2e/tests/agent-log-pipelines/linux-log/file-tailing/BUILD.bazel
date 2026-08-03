@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "file-tailing_test",
     srcs = ["file_tailing_test.go"],
-    embedsrcs = ["config/config.yaml"],
+    data = ["config/config.yaml"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

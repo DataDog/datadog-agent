@@ -7,6 +7,7 @@ go_test(
         "mutually_exclusive_product_test.go",
     ],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",

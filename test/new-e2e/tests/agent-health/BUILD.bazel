@@ -15,7 +15,7 @@ go_test(
         "resilience_test.go",
     ],
     # keep
-    embedsrcs = [
+    data = [
         "fixtures/admission_probe_helm_values.yaml",
         "fixtures/docker-compose.busybox.yaml",
         "fixtures/docker_permission_agent_config.yaml",

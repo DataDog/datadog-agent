@@ -37,7 +37,7 @@ go_test(
         "vmenv_withami_test.go",
         "vmenv_withos_test.go",
     ],
-    embedsrcs = [
+    data = [
         "testfixtures/custom_logs.yaml",
         "testfixtures/docker-compose.fake-process.yaml",
         "testfixtures/docker-compose.lighttpd.yaml",

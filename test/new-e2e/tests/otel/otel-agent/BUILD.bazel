@@ -19,7 +19,7 @@ go_test(
         "sampling_test.go",
     ],
     data = glob(["testdata/**"]),
-    embedsrcs = [
+    data = [
         "config/complete.yml",
         "config/dogtel-secrets.yml",
         "config/dogtel-standalone.yml",
@@ -30,10 +30,10 @@ go_test(
         "config/logs_tags_as_ddtags.yml",
         "config/minimal.yml",
         "config/no-dd-exporter.yml",
-        "config/sampling-head-based.yml",
         "config/sampling.yml",
-        "testdata/minimal-full-config-datadogextension.yml",
+        "config/sampling-head-based.yml",
         "testdata/minimal-full-config.yml",
+        "testdata/minimal-full-config-datadogextension.yml",
         "testdata/minimal-provided-config.yml",
         "testdata/no-dd-exporter-full-config.yml",
         "testdata/no-dd-exporter-provided-config.yml",

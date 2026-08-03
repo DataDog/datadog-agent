@@ -4,6 +4,7 @@ go_test(
     name = "windows-certificate_test",
     srcs = ["windows_certificate_remote_test.go"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",

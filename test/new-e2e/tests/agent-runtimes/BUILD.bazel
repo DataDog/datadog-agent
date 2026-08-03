@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "agent-runtimes",
     srcs = ["ipc_security_common.go"],
-    embedsrcs = [
+    data = [
         "ipc/fixtures/config.yaml.tmpl",
         "ipc/fixtures/security-agent.yaml",
     ],
@@ -49,8 +49,7 @@ go_test(
         "checks/shared-library/files/libdatadog-agent-no-run-symbol.dll",
         "checks/shared-library/files/libdatadog-agent-no-run-symbol.so",
     ],
-    embed = [":agent-runtimes"],
-    embedsrcs = [
+    data = [
         "auth_artifact/fixtures/config.yaml",
         "auth_artifact/fixtures/security-agent.yaml",
         "checks/shared-library/files/minimal_conf.yaml",
@@ -60,6 +59,7 @@ go_test(
         "rtloader/python-check/multi_pid_check.py",
         "rtloader/python-check/multi_pid_check.yaml",
     ],
+    embed = [":agent-runtimes"],
     gotags = ["test"],
     deps = [
         "//pkg/util/option",

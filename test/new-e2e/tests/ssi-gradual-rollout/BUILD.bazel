@@ -6,7 +6,7 @@ go_library(
         "registry.go",
         "utils.go",
     ],
-    embedsrcs = ["testdata/server.py"],
+    data = ["testdata/server.py"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/ssi-gradual-rollout",
     visibility = ["//visibility:public"],
     deps = [
@@ -27,11 +27,11 @@ go_test(
     name = "ssi-gradual-rollout_test",
     srcs = ["ssi_gradual_rollout_test.go"],
     data = glob(["testdata/**"]),
-    embed = [":ssi-gradual-rollout"],
-    embedsrcs = [
+    data = [
         "testdata/base.yaml",
         "testdata/default_opt_in.yaml",
     ],
+    embed = [":ssi-gradual-rollout"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/common/config",

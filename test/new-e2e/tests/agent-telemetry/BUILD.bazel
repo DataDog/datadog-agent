@@ -4,7 +4,7 @@ go_test(
     name = "agent-telemetry_test",
     srcs = ["errortracking_test.go"],
     data = glob(["testdata/**"]),
-    embedsrcs = [
+    data = [
         "testdata/error_check.py",
         "testdata/error_check.yaml",
         "testdata/errortracking-disabled.yaml",

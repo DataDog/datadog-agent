@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "netflow_test",
     srcs = ["netflow_test.go"],
-    embedsrcs = [
+    data = [
         "compose/netflowCompose.yaml",
         "config/netflowConfig.yaml",
     ],

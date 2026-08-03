@@ -6,7 +6,7 @@ go_test(
         "host_traffic_dynamic_path_test.go",
         "netflow_dynamic_path_test.go",
     ],
-    embedsrcs = [
+    data = [
         "compose/netflow_dynamic_path.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",

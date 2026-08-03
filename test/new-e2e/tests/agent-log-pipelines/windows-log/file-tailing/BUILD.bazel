@@ -3,8 +3,9 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "file-tailing_test",
     srcs = ["file_tailing_test.go"],
-    embedsrcs = ["log-config/config.yaml"],
+    data = ["log-config/config.yaml"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",

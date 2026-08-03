@@ -41,8 +41,7 @@ go_test(
     name = "ssi_test",
     srcs = ["ssi_test.go"],
     data = glob(["testdata/**"]),
-    embed = [":ssi"],
-    embedsrcs = [
+    data = [
         "testdata/base.yaml",
         "testdata/injection_mode.yaml",
         "testdata/local_sdk_injection.yaml",
@@ -50,6 +49,7 @@ go_test(
         "testdata/registry_allow_list.yaml",
         "testdata/workload_selection.yaml",
     ],
+    embed = [":ssi"],
     gotags = ["test"],
     deps = [
         "//pkg/ssi/testutils",

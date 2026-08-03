@@ -9,7 +9,7 @@ go_test(
         "python_test.go",
         "setup_test.go",
     ],
-    embedsrcs = [
+    data = [
         "etc/core_config.yaml",
         "etc/core_config_no_check.yaml",
         "etc/node_server.js",

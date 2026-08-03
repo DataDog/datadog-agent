@@ -7,7 +7,7 @@ go_library(
         "provisioner.go",
         "runtime_installs.go",
     ],
-    embedsrcs = [
+    data = [
         "testdata/config/agent_config.yaml",
         "testdata/config/system_probe_config.yaml",
     ],

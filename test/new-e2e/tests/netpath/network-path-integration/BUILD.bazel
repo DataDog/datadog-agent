@@ -11,7 +11,7 @@ go_test(
         "remote_config_test.go",
         "remote_config_win_test.go",
     ],
-    embedsrcs = [
+    data = [
         "fake-traceroute/datadog_ttl.yaml",
         "fake-traceroute/network_path.yaml",
         "fake-traceroute/rc_local.yaml",

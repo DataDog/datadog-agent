@@ -12,6 +12,7 @@ go_library(
         "remote_windows_service_asserts.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/remote-host-assertions",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/components",

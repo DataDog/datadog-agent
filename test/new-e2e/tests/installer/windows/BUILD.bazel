@@ -16,11 +16,12 @@ go_library(
         "package_version.go",
         "params.go",
     ],
-    embedsrcs = [
+    data = [
         "fixtures/sample_config_disabled",
         "fixtures/sample_config_enabled",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/version",
@@ -74,15 +75,16 @@ go_test(
         "installer_test.go",
         "persisting_extensions_test.go",
     ],
-    embed = [":windows"],
-    embedsrcs = [
+    data = [
         "resources/apm-inject/DummyApp.java",
         "resources/apm-inject/index.aspx",
         "resources/apm-inject/web.config",
         "resources/dotnet/index.aspx",
         "resources/dotnet/web.config",
     ],
+    embed = [":windows"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/activedirectory",

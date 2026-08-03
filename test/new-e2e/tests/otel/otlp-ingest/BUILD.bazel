@@ -10,7 +10,7 @@ go_test(
         "pipelines_test.go",
         "receive_resource_spans_v2_test.go",
     ],
-    embedsrcs = ["compose/otlp_ingest_compose.yaml"],
+    data = ["compose/otlp_ingest_compose.yaml"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps",

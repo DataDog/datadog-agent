@@ -7,7 +7,7 @@ go_library(
         "host.go",
         "systemd.go",
     ],
-    embedsrcs = [
+    data = [
         "fixtures/exit0.sh",
         "fixtures/exit1.sh",
         "fixtures/http_server.py",

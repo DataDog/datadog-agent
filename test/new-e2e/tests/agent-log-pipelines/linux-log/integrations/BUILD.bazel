@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "integrations_test",
     srcs = ["logs_test.go"],
-    embedsrcs = [
+    data = [
         "fixtures/tenLogs.py",
         "fixtures/tenLogs.yaml",
     ],

@@ -4,6 +4,7 @@ go_test(
     name = "domain-test_test",
     srcs = ["domain_test.go"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//test/e2e-framework/components/activedirectory",
         "//test/e2e-framework/scenarios/aws/ec2/windows",

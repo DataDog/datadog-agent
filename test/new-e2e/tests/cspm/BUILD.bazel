@@ -11,7 +11,7 @@ go_test(
         "host_benchmarks_probes_nix_test.go",
     ],
     data = glob(["testdata/**"]),
-    embedsrcs = [
+    data = [
         "testdata/golden/README.md",
         "testdata/golden/cis-al2023.txt",
         "testdata/golden/cis-almalinux9.txt",

@@ -8,7 +8,7 @@ go_library(
         "gui_common.go",
     ],
     # keep
-    embedsrcs = [
+    data = [
         "config-refresh/fixtures/config.yaml.tmpl",
         "config-refresh/fixtures/security-agent.yaml",
     ],
@@ -42,12 +42,12 @@ go_test(
         "sgc_nix_test.go",
         "sgc_win_test.go",
     ],
-    embed = [":agent-configuration"],
     # keep
-    embedsrcs = [
+    data = [
         "secret/fixtures/secret_script.py",
         "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
     ],
+    embed = [":agent-configuration"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

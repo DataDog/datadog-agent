@@ -7,7 +7,7 @@ go_test(
         "haagent_metadata_test.go",
         "haagent_test.go",
     ],
-    embedsrcs = [
+    data = [
         "fixtures/cisco_aci_conf.yaml",
         "fixtures/snmp_conf.yaml",
     ],

@@ -7,7 +7,7 @@ go_test(
         "file_tailing_test.go",
         "helpers_test.go",
     ],
-    embedsrcs = ["long_line_log.txt"],
+    data = ["long_line_log.txt"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps",

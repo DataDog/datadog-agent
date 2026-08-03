@@ -14,12 +14,12 @@ go_test(
         "tracer_test.go",
         "utils_test.go",
     ],
-    embed = [":remote-config"],
-    embedsrcs = [
+    data = [
         "fixtures/rc-enabled.yaml",
         "fixtures/ssl_mismatch.yaml",
         "fixtures/tracer-payload.json",
     ],
+    embed = [":remote-config"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
