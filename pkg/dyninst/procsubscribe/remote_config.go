@@ -15,6 +15,7 @@ import (
 	"math/rand/v2"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -35,37 +36,31 @@ const (
 	rcMaxReconnectDelay     = 30 * time.Second
 
 	defaultScanInterval = 3 * time.Second
+
+	// defaultMaxScanInterval caps how far the interval can be stretched by slow
+	// scans. Without a cap, a single slow scan can put discovery to sleep for
+	// minutes, and the slowest scan is the first one after a restart, when
+	// every pre-existing process is discovered at once.
+	defaultMaxScanInterval = 30 * time.Second
 )
 
-// defaultProcessDelays defines the default delays for process discovery.
-//
-// The 3s delay will capture most processes relatively quickly, but should
-// avoid scanning short-lived processes.
-//
-// The 100s delay will catch processes that start their tracer after 100s which
-// will catch processes that start their tracer after 1 minute.
-//
-// The 1000s will catch extreme outliers that start their tracer really quite
-// late.
-var defaultProcessDelays = []time.Duration{
-	3 * time.Second,
-	100 * time.Second,  // a bit more than 1 minute
-	1000 * time.Second, // quite a while after the process started
-}
-
 type config struct {
-	scanInterval   time.Duration
-	processDelays  []time.Duration
-	processScanner processScanner
-	clk            clock.Clock
-	jitterFactor   float64
-	wait           func(ctx context.Context, duration time.Duration) error
+	scanInterval    time.Duration
+	maxScanInterval time.Duration
+	minProcessAge   time.Duration
+	retryBackoffCap time.Duration
+	processScanner  processScanner
+	clk             clock.Clock
+	jitterFactor    float64
+	wait            func(ctx context.Context, duration time.Duration) error
 }
 
 var defaultConfig = config{
-	scanInterval:  defaultScanInterval,
-	processDelays: defaultProcessDelays,
-	clk:           clock.New(),
+	scanInterval:    defaultScanInterval,
+	maxScanInterval: defaultMaxScanInterval,
+	minProcessAge:   procscan.DefaultMinProcessAge,
+	retryBackoffCap: procscan.DefaultRetryBackoffCap,
+	clk:             clock.New(),
 	wait: func(ctx context.Context, duration time.Duration) error {
 		select {
 		case <-ctx.Done():
@@ -100,15 +95,27 @@ type Subscriber struct {
 		callback        func(process.ProcessesUpdate)
 	}
 
-	scanInterval time.Duration
-	jitterFactor float64
-	wait         func(ctx context.Context, duration time.Duration) error
+	scanInterval    time.Duration
+	maxScanInterval time.Duration
+	jitterFactor    float64
+	wait            func(ctx context.Context, duration time.Duration) error
+
+	stats scannerStats
 
 	start sync.Once
 	stop  sync.Once
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+}
+
+// scannerStats describes the cadence of the scan loop.
+type scannerStats struct {
+	scans atomic.Uint64
+	// scanIntervalMillis is the interval computed after the last scan, which is
+	// the scan interval plus whatever penalty the last scan's duration earned.
+	scanIntervalMillis atomic.Int64
+	scanDurationMillis atomic.Int64
 }
 
 // processScanner is an interface that allows for the discovery of processes.
@@ -131,6 +138,31 @@ type optionFunc func(*config)
 
 func (f optionFunc) apply(c *config) { f(c) }
 
+// WithScanInterval sets the interval between two process scans. It is also the
+// delay before the first retry of a process whose tracer metadata could not be
+// read.
+func WithScanInterval(d time.Duration) Option {
+	return optionFunc(func(c *config) { c.scanInterval = d })
+}
+
+// WithMaxScanInterval caps the interval between two process scans, including
+// the penalty added for slow scans.
+func WithMaxScanInterval(d time.Duration) Option {
+	return optionFunc(func(c *config) { c.maxScanInterval = d })
+}
+
+// WithMinProcessAge sets how long a process must have been alive before the
+// scanner looks at it.
+func WithMinProcessAge(d time.Duration) Option {
+	return optionFunc(func(c *config) { c.minProcessAge = d })
+}
+
+// WithRetryBackoffCap sets the longest delay between two attempts at reading a
+// process' tracer metadata.
+func WithRetryBackoffCap(d time.Duration) Option {
+	return optionFunc(func(c *config) { c.retryBackoffCap = d })
+}
+
 // NewSubscriber creates a Subscriber that sources updates directly from Remote
 // Config.
 func NewSubscriber(
@@ -143,16 +175,22 @@ func NewSubscriber(
 	}
 	scanner := cfg.processScanner
 	if scanner == nil {
-		scanner = procscan.NewScanner(kernel.ProcFSRoot(), cfg.processDelays...)
+		scanner = procscan.NewScanner(
+			kernel.ProcFSRoot(),
+			procscan.WithMinProcessAge(cfg.minProcessAge),
+			// The first retry lands on the next scan, and doubles from there.
+			procscan.WithRetryBackoff(cfg.scanInterval, cfg.retryBackoffCap),
+		)
 	}
 	s := &Subscriber{
-		client:         client,
-		notifyRequests: make(chan struct{}, 1),
-		scanner:        scanner,
-		clk:            cfg.clk,
-		jitterFactor:   cfg.jitterFactor,
-		scanInterval:   cfg.scanInterval,
-		wait:           cfg.wait,
+		client:          client,
+		notifyRequests:  make(chan struct{}, 1),
+		scanner:         scanner,
+		clk:             cfg.clk,
+		jitterFactor:    cfg.jitterFactor,
+		scanInterval:    cfg.scanInterval,
+		maxScanInterval: cfg.maxScanInterval,
+		wait:            cfg.wait,
 	}
 	s.mu.state = makeSubscriberState()
 	return s
@@ -235,13 +273,29 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		// mean we are never scanning for more than 1% of any core time.
 		//
 		// Generally speaking, scanning should be very fast relative to the
-		// interval, so we expect this factor to be small.
+		// interval, so we expect this factor to be small. The cap trades that
+		// guarantee away rather than let one slow scan stop discovery for
+		// minutes.
 		took := s.clk.Since(start)
-		interval := s.scanInterval
-		interval = interval + 100*took
-		jittered := jitter(interval, s.jitterFactor)
-		next = jittered
+		interval := min(s.scanInterval+100*took, s.maxScanInterval)
+		s.stats.scans.Add(1)
+		s.stats.scanDurationMillis.Store(took.Milliseconds())
+		s.stats.scanIntervalMillis.Store(interval.Milliseconds())
+		next = jitter(interval, s.jitterFactor)
 	}
+}
+
+// Stats returns a snapshot of the process discovery counters.
+func (s *Subscriber) Stats() map[string]any {
+	stats := map[string]any{
+		"scans":                s.stats.scans.Load(),
+		"scan_interval_millis": s.stats.scanIntervalMillis.Load(),
+		"scan_duration_millis": s.stats.scanDurationMillis.Load(),
+	}
+	if scanner, ok := s.scanner.(*procscan.Scanner); ok {
+		stats["scanner"] = scanner.Metrics().AsStats()
+	}
+	return stats
 }
 
 func (s *Subscriber) withlocked(fn func(*lockedSubscriber)) {

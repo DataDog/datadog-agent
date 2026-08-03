@@ -10,6 +10,7 @@ package procscan
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -25,6 +26,11 @@ const clkTck = 100
 
 // ticks is a type for representing time in ticks.
 type ticks uint64
+
+// durationToTicks converts a duration to USER_HZ ticks, truncating.
+func durationToTicks(d time.Duration) ticks {
+	return ticks((d.Nanoseconds() * clkTck) / time.Second.Nanoseconds())
+}
 
 // nowTicks returns the current time since boot, expressed in USER_HZ ticks.
 // It prefers CLOCK_BOOTTIME (includes suspend), and falls back to CLOCK_MONOTONIC
