@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/actions/private_actions/ for more information.
 tags:
 - template_section:PrivateActionRunner
+- full-agent-only:true
 properties:
   enabled:
     node_type: setting
@@ -18,7 +19,6 @@ properties:
     visibility: public
     description: Set to true to enable the Private Action Runner.
     example: 'true'
-    comment: Enable/disable private action runner
   self_enroll:
     node_type: setting
     type: boolean
@@ -29,14 +29,12 @@ properties:
       Requires an app_key with Actions API Enable and the following permissions:
         - Connection Write
         - Private Action Write
-    comment: Identity / enrollment configuration
   task_concurrency:
     node_type: setting
     type: integer
     default: 5
     visibility: public
     description: Maximum number of actions that can be executed concurrently.
-    comment: General config
   task_timeout_seconds:
     node_type: setting
     type: integer
@@ -76,7 +74,6 @@ properties:
     visibility: public
     description: Maximum time in seconds for HTTP actions before timing out. Must
       be > 1.
-    comment: HTTP action
   http_allowlist:
     node_type: setting
     type: array
@@ -105,7 +102,9 @@ properties:
       socket_path:
         node_type: setting
         type: string
-        default: ${run_path}/par-executor.sock
+        platform_default:
+          windows: \\.\pipe\dd-par-executor
+          other: ${run_path}/par-executor.sock
   identity_file_path:
     node_type: setting
     type: string
@@ -122,7 +121,6 @@ properties:
     node_type: setting
     type: string
     default: ${log_path}/private-action-runner.log
-    comment: Log file
   opms_extra_headers:
     node_type: setting
     type: object
@@ -144,6 +142,7 @@ properties:
         - rshell:*
         items:
           type: string
+        env_parser: json_list_or_comma_separated
       allowed_paths:
         node_type: setting
         type: array
@@ -151,12 +150,13 @@ properties:
         - /
         items:
           type: string
+        env_parser: json_list_or_comma_separated
         comment: |-
           Restricted shell allow-lists are opt-in restrictions layered on top of
           the backend-injected lists. By default, they act as a no-op, allowing
           everything: the backend is the only filter.
 
-          To allow none, use an explicit empty list.
+          To allow no paths or commands, use an explicit empty list.
           Env vars support both CSV and JSON-array forms; the JSON form gives
           env/YAML parity, including the explicit kill-switch via "[]".
 
@@ -165,6 +165,19 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
+      allowed_system_services:
+        node_type: setting
+        type: object
+        default: {}
+        env_parser: json
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The environment variable accepts a JSON object only.
   skip_connection_creation:
     node_type: setting
     type: boolean

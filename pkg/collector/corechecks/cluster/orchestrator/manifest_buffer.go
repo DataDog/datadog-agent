@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,17 +39,14 @@ func init() {
 	bufferExpVars.Set("BufferFlushed", bufferFlushedTotal)
 }
 
-// ManifestBufferConfig contains information about buffering manifests.
+// ManifestBufferConfig holds buffer tuning knobs. Per-check identity
+// (cluster, agent version, config, ...) lives on ManifestBuffer.chk and is
+// read live at flush time via newFlushContext.
 type ManifestBufferConfig struct {
-	KubeClusterName             string
-	ClusterID                   string
-	MaxPerMessage               int
-	MaxWeightPerMessageBytes    int
 	MsgGroupRef                 *atomic.Int32
 	BufferedManifestEnabled     bool
 	MaxBufferedManifests        int
 	ManifestBufferFlushInterval time.Duration
-	ExtraTags                   []string
 }
 
 // ManifestBuffer is a buffer of manifest sent from all collectors
@@ -59,6 +55,7 @@ type ManifestBufferConfig struct {
 // and gets stopped after the check is done.
 type ManifestBuffer struct {
 	Cfg               *ManifestBufferConfig
+	chk               *OrchestratorCheck
 	ManifestChan      chan interface{}
 	bufferedManifests []interface{}
 	stopCh            chan struct{}
@@ -68,16 +65,12 @@ type ManifestBuffer struct {
 // NewManifestBuffer returns a new ManifestBuffer
 func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 	manifestBuffer := &ManifestBuffer{
+		chk: chk,
 		Cfg: &ManifestBufferConfig{
-			ClusterID:                   chk.clusterID,
-			KubeClusterName:             chk.orchestratorConfig.KubeClusterName,
 			MsgGroupRef:                 chk.groupID,
-			MaxPerMessage:               chk.orchestratorConfig.MaxPerMessage,
-			MaxWeightPerMessageBytes:    chk.orchestratorConfig.MaxWeightPerMessageBytes,
 			BufferedManifestEnabled:     chk.orchestratorConfig.BufferedManifestEnabled,
 			MaxBufferedManifests:        chk.orchestratorConfig.MaxPerMessage,
 			ManifestBufferFlushInterval: chk.orchestratorConfig.ManifestBufferFlushInterval,
-			ExtraTags:                   chk.orchestratorConfig.ExtraTags,
 		},
 		ManifestChan: make(chan interface{}),
 		stopCh:       make(chan struct{}),
@@ -87,23 +80,26 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 	return manifestBuffer
 }
 
+// newFlushContext is the single source of truth for shared per-check fields
+// on the buffered manifest flush path.
+func (cb *ManifestBuffer) newFlushContext() *processors.K8sProcessorContext {
+	return &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:          cb.chk.orchestratorConfig,
+			MsgGroupID:   cb.Cfg.MsgGroupRef.Inc(),
+			ClusterID:    cb.chk.clusterID,
+			AgentVersion: cb.chk.agentVersion,
+		},
+		APIClient: cb.chk.apiClient,
+	}
+}
+
 // flushManifest flushes manifests by chunking them first then sending them to the sender
 func (cb *ManifestBuffer) flushManifest(sender sender.Sender) {
 	manifests := cb.bufferedManifests
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			MsgGroupID: cb.Cfg.MsgGroupRef.Inc(),
-			Cfg: &config.OrchestratorConfig{
-				KubeClusterName:          cb.Cfg.KubeClusterName,
-				MaxPerMessage:            cb.Cfg.MaxPerMessage,
-				MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
-				ExtraTags:                cb.Cfg.ExtraTags,
-			},
-			ClusterID: cb.Cfg.ClusterID,
-		},
-	}
+	ctx := cb.newFlushContext()
 	manifestMessages := processors.ChunkManifest(ctx, common.BaseHandlers{}.BuildManifestMessageBody, manifests)
-	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
+	sender.OrchestratorManifest(manifestMessages, cb.chk.clusterID)
 	setManifestStats(manifests)
 	cb.bufferedManifests = cb.bufferedManifests[:0]
 }

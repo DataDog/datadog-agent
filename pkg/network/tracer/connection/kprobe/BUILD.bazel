@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "kprobe",
@@ -30,27 +30,5 @@ go_library(
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_cilium_ebpf//features",
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
-    ],
-)
-
-go_test(
-    name = "kprobe_test",
-    srcs = [
-        "compile_test.go",
-        "tracer_test.go",
-    ],
-    embed = [":kprobe"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/ebpftest",
-        "//pkg/ebpf/perf",
-        "//pkg/ebpf/prebuilt",
-        "//pkg/network/config",
-        "//pkg/util/kernel",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )
