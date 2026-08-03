@@ -4,14 +4,13 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::{ProcessConfig, RestartPolicy};
-use crate::env::parse_environment_file;
+use crate::env::expand_env_vars;
+use crate::handle::ProcessHandle;
 use crate::platform;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
-use std::process::Stdio;
-use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
 
@@ -93,7 +92,7 @@ pub struct ManagedProcess {
     config: ProcessConfig,
     state: ProcessState,
     pid: Option<u32>,
-    child: Option<Child>,
+    handle: Option<ProcessHandle>,
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
@@ -122,7 +121,7 @@ impl ManagedProcess {
             config,
             state: ProcessState::Created,
             pid: None,
-            child: None,
+            handle: None,
             watcher_handle: None,
             restarts,
             stop_requested: false,
@@ -155,6 +154,11 @@ impl ManagedProcess {
 
     pub fn config(&self) -> &ProcessConfig {
         &self.config
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
+        self.job_object = Some(job);
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -203,6 +207,14 @@ impl ManagedProcess {
                 return false;
             }
         }
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            info!(
+                "[{}] condition_config_any not met: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+            );
+            return false;
+        }
         true
     }
 
@@ -220,18 +232,14 @@ impl ManagedProcess {
     }
 
     fn try_spawn(&mut self) -> Result<()> {
-        // Through CreateProcess: std-handle reads for inherit and handle inheritance
-        // must not race with AttachConsole/FreeConsole on another thread.
+        // On Windows, serialize spawn with console attach/detach and std-handle
+        // inheritance checks (CreateProcess reads inherit flags at spawn time).
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        let mut cmd = self.build_command()?;
+        let handle = platform::spawn_child_handle(self)?;
 
-        let child = cmd
-            .spawn()
-            .with_context(|| format!("[{}] failed to spawn: {}", self.name, self.config.command))?;
-
-        self.pid = child.id();
+        self.pid = handle.id();
         info!(
             "[{}] spawned (pid={}, cmd={})",
             self.name,
@@ -239,52 +247,10 @@ impl ManagedProcess {
             self.config.command
         );
 
-        // Assign the child to a Job Object so TerminateJobObject can kill
-        // the entire descendant tree.  Ideally we would assign the job
-        // *atomically at creation time* via PROC_THREAD_ATTRIBUTE_JOB_LIST,
-        // eliminating the small race window where a very fast child could
-        // fork before assignment.  Rust's CommandExt::raw_attribute() is
-        // nightly-only (rust-lang/rust#114854), so we assign post-spawn
-        // for now.  In practice the window is negligible as managed
-        // processes are long-running services that don't immediately fork.
-        #[cfg(windows)]
-        if let Some(pid) = self.pid {
-            match platform::JobObject::new() {
-                Ok(job) => match job.assign_process(pid) {
-                    Ok(()) => {
-                        self.job_object = Some(job);
-                    }
-                    Err(e) => {
-                        warn!("[{}] failed to assign to job object: {e:#}", self.name);
-                    }
-                },
-                Err(e) => {
-                    warn!("[{}] failed to create job object: {e:#}", self.name);
-                }
-            }
-        }
-
-        self.child = Some(child);
+        self.handle = Some(handle);
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
         Ok(())
-    }
-
-    fn build_command(&self) -> Result<Command> {
-        let mut cmd = Command::new(expand_env_vars(&self.config.command));
-        cmd.args(self.config.args.iter().map(|a| expand_env_vars(a)));
-
-        apply_child_environment(&mut cmd, self.name(), &self.config)?;
-
-        if let Some(ref dir) = self.config.working_dir {
-            cmd.current_dir(expand_env_vars(dir));
-        }
-
-        apply_child_stdio(&mut cmd, &self.config);
-
-        platform::setup_process_group(&mut cmd);
-
-        Ok(cmd)
     }
 
     pub fn is_running(&self) -> bool {
@@ -293,12 +259,12 @@ impl ManagedProcess {
 
     /// Hand the child handle to a watcher task.
     /// The process remains in `Running` state — only the handle moves.
-    pub fn take_child(&mut self) -> Option<Child> {
-        self.child.take()
+    pub fn take_handle(&mut self) -> Option<ProcessHandle> {
+        self.handle.take()
     }
 
     fn has_child_handle(&self) -> bool {
-        self.child.is_some()
+        self.handle.is_some()
     }
 
     pub(crate) fn set_watcher_handle(&mut self, handle: JoinHandle<()>) {
@@ -371,7 +337,7 @@ impl ManagedProcess {
         }
     }
 
-    /// Send a Unix signal to the entire process group (works even after take_child).
+    /// Send a Unix signal to the entire process group (works even after take_handle).
     /// Used by tests that need to send specific signals for cleanup.
     #[cfg(unix)]
     pub fn send_signal(&self, sig: nix::sys::signal::Signal) {
@@ -391,10 +357,13 @@ impl ManagedProcess {
 
     /// Wait for the child to exit. Only works when we still hold the handle.
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {
-        let child = self.child.as_mut().context("no child handle to wait on")?;
-        let status = child.wait().await?;
+        let handle = self
+            .handle
+            .as_mut()
+            .context("no process handle to wait on")?;
+        let status = handle.wait().await?;
         info!("[{}] exited with {status}", self.name);
-        self.child = None;
+        self.handle = None;
         Ok(status)
     }
 
@@ -514,132 +483,11 @@ impl ManagedProcess {
     }
 }
 
-fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
-    cmd.env_clear();
-    #[cfg(windows)]
-    platform::apply_child_baseline_env(cmd);
-
-    if let Some(ref raw_path) = config.environment_file {
-        let raw_path = expand_env_vars(raw_path);
-        let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
-            (true, stripped)
-        } else {
-            (false, raw_path.as_str())
-        };
-        if optional && !std::path::Path::new(path).exists() {
-            info!("[{name}] optional environment file not found, skipping: {path}");
-        } else {
-            let vars = parse_environment_file(path)
-                .with_context(|| format!("[{name}] failed to read environment file: {path}"))?;
-            for (k, v) in &vars {
-                cmd.env(k, v);
-            }
-        }
-    }
-    for (k, v) in &config.env {
-        cmd.env(k, expand_env_vars(v));
-    }
-    Ok(())
-}
-
-/// Expand `${VAR}` references in `input` using dd-procmgr's own environment.
-///
-/// This lets a single process definition be pointed at the stable or experiment configuration
-/// directory by the supervising dd-procmgr, which exports the target directory in its own
-/// environment (the stable and experiment procmgr units export different values). It mirrors how
-/// the datadog-agent stable/experiment units each select their own config directory, so the
-/// experiment collector reads the experiment config while the process definition stays identical.
-/// Unknown variables are left as the literal `${VAR}` and logged, so a misconfiguration surfaces
-/// as a startup failure rather than silently resolving to an empty path.
-fn expand_env_vars(input: &str) -> String {
-    expand_vars_with(input, |name| std::env::var(name).ok())
-}
-
-/// Core of [`expand_env_vars`] with the variable lookup injected, so it can be unit-tested without
-/// mutating the process environment.
-fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut rest = input;
-    while let Some(start) = rest.find("${") {
-        out.push_str(&rest[..start]);
-        let after = &rest[start + 2..];
-        match after.find('}') {
-            Some(end) => {
-                let name = &after[..end];
-                match lookup(name) {
-                    Some(val) => out.push_str(&val),
-                    None => {
-                        warn!(
-                            "process config references unset variable ${{{name}}}, leaving it literal"
-                        );
-                        out.push_str(&rest[start..start + 2 + end + 1]);
-                    }
-                }
-                rest = &after[end + 1..];
-            }
-            None => {
-                // No closing brace: emit the remainder verbatim.
-                out.push_str(&rest[start..]);
-                return out;
-            }
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
-fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
-    #[cfg(windows)]
-    {
-        // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
-        cmd.stdin(Stdio::null());
-    }
-    cmd.stdout(stdio_from_config(
-        &config.stdout,
-        platform::stdout_inheritable(),
-    ));
-    cmd.stderr(stdio_from_config(
-        &config.stderr,
-        platform::stderr_inheritable(),
-    ));
-}
-
-fn stdio_from_path(path: &str) -> Stdio {
-    match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-    {
-        Ok(f) => f.into(),
-        Err(e) => {
-            warn!("failed to open stdio file {path}: {e}, falling back to inherit");
-            Stdio::inherit()
-        }
-    }
-}
-
-fn stdio_from_str(s: &str) -> Stdio {
-    match s {
-        "null" => Stdio::null(),
-        "inherit" | "" => Stdio::inherit(),
-        path => stdio_from_path(path),
-    }
-}
-
-fn stdio_from_config(yaml_value: &str, inheritable: bool) -> Stdio {
-    #[cfg(not(windows))]
-    let _ = inheritable;
-    #[cfg(windows)]
-    if !inheritable && (yaml_value == "inherit" || yaml_value.is_empty()) {
-        return Stdio::null();
-    }
-    stdio_from_str(yaml_value)
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::env::expand_vars_with;
     use crate::test_helpers;
     #[cfg(unix)]
     use nix::sys::signal::Signal;
@@ -735,7 +583,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_state_after_take_child_still_running() {
+    async fn test_state_after_take_handle_still_running() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
@@ -745,25 +593,25 @@ pub mod tests {
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
 
-        let child = proc.take_child();
-        assert!(child.is_some());
+        let handle = proc.take_handle();
+        assert!(handle.is_some());
         assert_eq!(
             proc.state(),
             ProcessState::Running,
-            "state should remain Running after take_child"
+            "state should remain Running after take_handle"
         );
         assert!(proc.is_running());
 
         if let Some(pid) = proc.pid() {
             test_helpers::cleanup_process(pid);
         }
-        let mut child = child.unwrap();
-        let _ = child.wait().await;
+        let mut handle = handle.unwrap();
+        let _ = handle.wait().await;
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_send_signal_works_after_take_child() {
+    async fn test_send_signal_works_after_take_handle() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
@@ -771,13 +619,13 @@ pub mod tests {
             test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
-        let mut child = proc.take_child().unwrap();
+        let mut handle = proc.take_handle().unwrap();
 
         proc.send_signal(Signal::SIGTERM);
-        let status = child.wait().await.unwrap();
+        let status = handle.wait().await.unwrap();
         assert!(
             !status.success(),
-            "signal by stored PID should reach child after take_child"
+            "signal by stored PID should reach handle after take_handle"
         );
     }
 
@@ -822,6 +670,18 @@ pub mod tests {
         assert!(!proc.should_start());
     }
 
+    #[test]
+    fn test_should_start_condition_config_any_not_met() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.condition_config_any = vec![crate::config_gate::ConditionConfigFile {
+            path: "/nonexistent/datadog.yaml".into(),
+            keys: vec!["process_config.enabled".into()],
+        }];
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+        assert!(!proc.should_start());
+    }
+
     // -- spawn tests --
 
     #[tokio::test]
@@ -862,8 +722,8 @@ pub mod tests {
         );
         proc.spawn().unwrap();
         proc.request_stop();
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Stopped);
 
@@ -1223,8 +1083,8 @@ runtime_success_sec: 5
         assert_eq!(proc.state(), ProcessState::Running);
 
         proc.request_stop();
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -1239,15 +1099,15 @@ runtime_success_sec: 5
         proc.spawn().unwrap();
 
         proc.request_stop();
-        let _ = proc.take_child();
+        let _ = proc.take_handle();
         // Mirrors handle_stop: wait_for_stop may call mark_stopped before the exit
         // watcher runs set_last_status, leaving stop_requested set without this clear.
         proc.mark_stopped();
 
         proc.spawn().unwrap();
-        let mut child = proc.take_child().unwrap();
-        child.kill().await.expect("kill child");
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        handle.kill().await.expect("kill handle");
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -1266,8 +1126,8 @@ runtime_success_sec: 5
         proc.spawn().unwrap();
 
         proc.request_stop();
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -1287,8 +1147,8 @@ runtime_success_sec: 5
         );
         proc.spawn().unwrap();
 
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(
@@ -1296,106 +1156,5 @@ runtime_success_sec: 5
             ProcessState::Failed,
             "without stop_requested, non-zero exit should be Failed"
         );
-    }
-
-    // -- stdio_from_str (YAML stdout/stderr: inherit, "", null, file path, unopenable path) --
-
-    #[test]
-    fn test_stdio_from_str_inherit_spawns() {
-        let (cmd, args) = test_helpers::true_cmd();
-        let status = std::process::Command::new(cmd)
-            .args(&args)
-            .stdout(super::stdio_from_str("inherit"))
-            .stderr(super::stdio_from_str("inherit"))
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-
-    #[test]
-    fn test_stdio_from_str_empty_string_matches_inherit() {
-        let (cmd, args) = test_helpers::true_cmd();
-        let status = std::process::Command::new(cmd)
-            .args(&args)
-            .stdout(super::stdio_from_str(""))
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-
-    #[test]
-    fn test_stdio_from_str_null_discards_child_stdout() {
-        let (sh, flag) = test_helpers::shell_cmd();
-        let out = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo hello")
-            .stdout(super::stdio_from_str("null"))
-            .output()
-            .unwrap();
-        assert!(
-            out.stdout.is_empty(),
-            "stdout should be discarded, got {:?}",
-            String::from_utf8_lossy(&out.stdout)
-        );
-    }
-
-    #[test]
-    fn test_stdio_from_str_writable_path_redirect() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("pmgr_stdio_redirect.log");
-        let path_str = path.to_str().unwrap();
-        let (sh, flag) = test_helpers::shell_cmd();
-        let status = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo fileline")
-            .stdout(super::stdio_from_str(path_str))
-            .status()
-            .unwrap();
-        assert!(status.success());
-        let contents = std::fs::read_to_string(&path).unwrap();
-        assert!(
-            contents.contains("fileline"),
-            "expected fileline in log, got {contents:?}"
-        );
-    }
-
-    #[test]
-    fn test_stdio_from_str_path_appends_on_respawn() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("pmgr_stdio_append.log");
-        let path_str = path.to_str().unwrap();
-        let (sh, flag) = test_helpers::shell_cmd();
-        for msg in ["first", "second"] {
-            let status = std::process::Command::new(sh)
-                .arg(flag)
-                .arg(format!("echo {msg}"))
-                .stdout(super::stdio_from_str(path_str))
-                .status()
-                .unwrap();
-            assert!(status.success());
-        }
-        let contents = std::fs::read_to_string(&path).unwrap();
-        assert!(contents.contains("first"), "got {contents:?}");
-        assert!(contents.contains("second"), "got {contents:?}");
-    }
-
-    #[test]
-    fn test_stdio_from_str_unopenable_path_falls_back_to_inherit() {
-        let (sh, flag) = test_helpers::shell_cmd();
-        #[cfg(unix)]
-        let bad_path = "/nonexistent_dir_pmgr_stdio/out.log";
-        #[cfg(windows)]
-        let bad_path = r"C:\nonexistent_dir_pmgr_stdio\out.log";
-        let out = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo fallback_ok")
-            .stdout(super::stdio_from_str(bad_path))
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "spawn with unopenable stdout path should still succeed (falls back to inherit)"
-        );
-        // Child stdout is inherited (not piped), so `out.stdout` is empty; success is the signal.
     }
 }

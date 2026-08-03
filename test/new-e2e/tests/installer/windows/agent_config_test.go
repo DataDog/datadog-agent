@@ -284,27 +284,20 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 	// Start config experiment (restarts the services)
 	s.mustStartConfigExperiment(config)
 
-	// Wait for all services to be running
 	// 30*10 -> 300 seconds (5 minutes)
-	expectedServices := []string{
-		"datadogagent",
-		"datadog-system-probe",
-		"datadog-security-agent",
-		"datadog-process-agent",
-		"ddnpm",
-		"ddprocmon",
-	}
 	retryOpts := []backoff.RetryOption{backoff.WithBackOff(backoff.NewConstantBackOff(30 * time.Second)), backoff.WithMaxTries(10)}
-	err = s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...)
-	s.Require().NoError(err, "Failed waiting for services to start")
+	err = s.WaitForServicesWithBackoff("Running", consts.RunningSCMServices, retryOpts...)
+	s.Require().NoError(err, "Failed waiting for services after config experiment start")
+	err = s.WaitForServicesWithBackoff("Stopped", consts.LegacySCMServices, retryOpts...)
+	s.Require().NoError(err, "legacy SCM services should stay stopped under procmgr")
 
 	// Promote config experiment (restarts the services)
 	s.mustPromoteConfigExperiment(config)
 
-	// Wait for all services to be running
-	// 30*10 -> 300 seconds (5 minutes)
-	err = s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...)
-	s.Require().NoError(err, "Failed waiting for services to start")
+	err = s.WaitForServicesWithBackoff("Running", consts.RunningSCMServices, retryOpts...)
+	s.Require().NoError(err, "Failed waiting for services after config experiment promote")
+	err = s.WaitForServicesWithBackoff("Stopped", consts.LegacySCMServices, retryOpts...)
+	s.Require().NoError(err, "legacy SCM services should stay stopped under procmgr")
 }
 
 // TestRevertsConfigExperimentWhenServiceDies tests that the watchdog will revert

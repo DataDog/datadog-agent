@@ -13,6 +13,8 @@ import (
 )
 
 func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
+	// Non-default env bindings for keys used by procmgr config gates are mirrored in
+	// pkg/procmgr/rust/src/config_gate/env_bindings.rs.
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
 	config.BindEnvAndSetDefault("go_core_dump", false)
 	config.BindEnvAndSetDefault("system_probe_config.disable_thp", true)

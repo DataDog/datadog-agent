@@ -14,6 +14,7 @@ import (
 )
 
 func setupProcesses(config pkgconfigmodel.Setup) {
+	// Env bindings below are mirrored in pkg/procmgr/rust/src/config_gate/env_bindings.rs.
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	//
