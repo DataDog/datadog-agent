@@ -12,6 +12,8 @@ use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+const SKIP_TASK_VERIFICATION_ENV: &str = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION";
+
 /// Default local sockets. The executor socket must match the Go executor's
 /// `private_action_runner.executor.socket_path` platform default; the procmgr
 /// socket must match dd-procmgrd's own default (`pkg/procmgr/rust/src/transport/`).
@@ -145,19 +147,30 @@ impl Config {
     /// otherwise valid yet no runner identity is present, so the caller can run
     /// the Go one-shot enroll and retry.
     pub fn try_from_yaml_file(path: &std::path::Path) -> Result<Option<Self>> {
+        Self::try_from_yaml_file_with_env(path, |name| std::env::var(name).ok())
+    }
+
+    fn try_from_yaml_file_with_env(
+        path: &Path,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Option<Self>> {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read config file: {}", path.display()))?;
-        let raw: RawConfig =
+        let mut raw: RawConfig =
             serde_yaml::from_str(&contents).context("failed to parse datadog.yaml")?;
+        apply_env_overrides(&mut raw, &env)?;
 
-        // Resolve identity from inline config keys, else the persisted identity
-        // file (explicit path, else next to datadog.yaml) that Go enrollment writes.
         let identity = match inline_identity(raw.private_action_runner.as_ref())? {
             Some(id) => Some(id),
             None => Identity::from_file(&identity_file_path(&raw, path))?,
         };
         match identity {
-            Some(identity) => Ok(Some(Self::build(raw, identity, path)?)),
+            Some(identity) => Ok(Some(Self::build(
+                raw,
+                identity,
+                path,
+                env(SKIP_TASK_VERIFICATION_ENV).as_deref() == Some("true"),
+            )?)),
             None => Ok(None),
         }
     }
@@ -169,18 +182,33 @@ impl Config {
         let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
         let identity = inline_identity(raw.private_action_runner.as_ref())?
             .context("private_action_runner identity is not set")?;
-        Self::build(raw, identity, Path::new("datadog.yaml"))
+        Self::build(raw, identity, Path::new("datadog.yaml"), false)
     }
 
-    fn build(raw: RawConfig, identity: Identity, config_path: &Path) -> Result<Self> {
+    fn build(
+        raw: RawConfig,
+        identity: Identity,
+        config_path: &Path,
+        allow_insecure_opms: bool,
+    ) -> Result<Self> {
         let par = raw.private_action_runner.clone().unwrap_or_default();
-        let opms_base_url = resolve_opms_base_url(raw.site.as_deref(), raw.dd_url.as_deref())?;
+        let opms_base_url = resolve_opms_base_url(
+            raw.site.as_deref(),
+            raw.dd_url.as_deref(),
+            allow_insecure_opms,
+        )?;
+        let task_concurrency = par.task_concurrency.unwrap_or(5);
+        if task_concurrency == 0 {
+            bail!("private_action_runner.task_concurrency must be greater than zero");
+        }
+        let heartbeat_interval = par.heartbeat_interval_seconds.unwrap_or(20);
+        if heartbeat_interval == 0 {
+            bail!("private_action_runner.heartbeat_interval_seconds must be greater than zero");
+        }
 
         Ok(Config {
             opms_base_url,
-            // Default 5 matches the Go `private_action_runner.task_concurrency`
-            // default in pkg/config/setup/privateactionrunner_settings.go.
-            task_concurrency: par.task_concurrency.filter(|n| *n > 0).unwrap_or(5),
+            task_concurrency,
             executor_socket: PathBuf::from(
                 par.executor
                     .and_then(|e| e.socket_path)
@@ -195,7 +223,7 @@ impl Config {
                 .executor_process_name
                 .unwrap_or_else(|| DEFAULT_EXECUTOR_PROCESS_NAME.to_string()),
             loop_interval: Duration::from_secs(1),
-            heartbeat_interval: Duration::from_secs(par.heartbeat_interval_seconds.unwrap_or(20)),
+            heartbeat_interval: Duration::from_secs(heartbeat_interval),
             idle_timeout: Duration::from_secs(par.idle_timeout_seconds.unwrap_or(60)),
             ready_timeout: Duration::from_secs(10),
             key_sync_timeout: Duration::from_secs(120),
@@ -245,10 +273,14 @@ pub struct LaunchGate {
 /// to the default level and lets the subsequent [`LaunchGate::from_yaml_file`]
 /// surface the real error.
 pub fn log_level_from_yaml_file(path: &Path) -> log::Level {
-    std::fs::read_to_string(path)
+    std::env::var("DD_LOG_LEVEL")
         .ok()
-        .and_then(|contents| serde_yaml::from_str::<RawConfig>(&contents).ok())
-        .and_then(|raw| raw.log_level)
+        .or_else(|| {
+            std::fs::read_to_string(path)
+                .ok()
+                .and_then(|contents| serde_yaml::from_str::<RawConfig>(&contents).ok())
+                .and_then(|raw| raw.log_level)
+        })
         .as_deref()
         .map(parse_log_level)
         .unwrap_or(log::Level::Info)
@@ -303,8 +335,6 @@ impl LaunchGate {
     }
 }
 
-/// Apply the same DD_ environment precedence as the Go config layer for the
-/// launch keys shared by the monolithic and split processes.
 fn env_bool_override(
     yaml_value: Option<bool>,
     name: &str,
@@ -321,14 +351,92 @@ fn env_bool_override(
     Ok(Some(value))
 }
 
-/// Resolve the OPMS base URL. Production uses `https://api.<site>`. A `dd_url`
-/// starting with `http://` is honored verbatim so e2e tests can point at a
-/// plaintext fake OPMS (mirrors the Go client's endpointURL behavior).
-fn resolve_opms_base_url(site: Option<&str>, dd_url: Option<&str>) -> Result<String> {
+fn env_override<T>(
+    current: Option<T>,
+    name: &str,
+    env: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<T>>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    match env(name) {
+        Some(raw) => raw
+            .trim()
+            .parse()
+            .map(Some)
+            .map_err(|e| anyhow::anyhow!("invalid value for {name}: {e}")),
+        None => Ok(current),
+    }
+}
+
+fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String>) -> Result<()> {
+    raw.site = env("DD_SITE").or(raw.site.take());
+    raw.dd_url = env("DD_DD_URL")
+        .or_else(|| env("DD_URL"))
+        .or(raw.dd_url.take());
+    raw.ipc_cert_file_path = env("DD_IPC_CERT_FILE_PATH").or(raw.ipc_cert_file_path.take());
+    raw.auth_token_file_path = env("DD_AUTH_TOKEN_FILE_PATH").or(raw.auth_token_file_path.take());
+
+    let par = raw
+        .private_action_runner
+        .get_or_insert_with(RawPar::default);
+    par.enabled = env_bool_override(par.enabled, "DD_PRIVATE_ACTION_RUNNER_ENABLED", env)?;
+    par.split_enabled = env_bool_override(
+        par.split_enabled,
+        "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
+        env,
+    )?;
+    par.self_enroll =
+        env_bool_override(par.self_enroll, "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL", env)?;
+    par.urn = env("DD_PRIVATE_ACTION_RUNNER_URN").or(par.urn.take());
+    par.private_key = env("DD_PRIVATE_ACTION_RUNNER_PRIVATE_KEY").or(par.private_key.take());
+    par.identity_file_path =
+        env("DD_PRIVATE_ACTION_RUNNER_IDENTITY_FILE_PATH").or(par.identity_file_path.take());
+    par.task_concurrency = env_override(
+        par.task_concurrency,
+        "DD_PRIVATE_ACTION_RUNNER_TASK_CONCURRENCY",
+        env,
+    )?;
+    par.procmgr_socket_path =
+        env("DD_PRIVATE_ACTION_RUNNER_PROCMGR_SOCKET_PATH").or(par.procmgr_socket_path.take());
+    par.executor_process_name =
+        env("DD_PRIVATE_ACTION_RUNNER_EXECUTOR_PROCESS_NAME").or(par.executor_process_name.take());
+    par.idle_timeout_seconds = env_override(
+        par.idle_timeout_seconds,
+        "DD_PRIVATE_ACTION_RUNNER_IDLE_TIMEOUT_SECONDS",
+        env,
+    )?;
+    par.heartbeat_interval_seconds = env_override(
+        par.heartbeat_interval_seconds,
+        "DD_PRIVATE_ACTION_RUNNER_HEARTBEAT_INTERVAL_SECONDS",
+        env,
+    )?;
+
+    let executor = par.executor.get_or_insert_with(RawParExecutor::default);
+    executor.socket_path =
+        env("DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH").or(executor.socket_path.take());
+    Ok(())
+}
+
+/// Resolve the production OPMS origin, allowing plaintext only for the existing
+/// verification-bypass E2E mode.
+fn resolve_opms_base_url(
+    site: Option<&str>,
+    dd_url: Option<&str>,
+    allow_insecure_opms: bool,
+) -> Result<String> {
     if let Some(url) = dd_url
         && let Some(host) = url.strip_prefix("http://")
     {
-        return Ok(format!("http://{}", host.trim_end_matches('/')));
+        if !allow_insecure_opms {
+            bail!("plaintext OPMS requires {SKIP_TASK_VERIFICATION_ENV}=true");
+        }
+        let host = host.trim_end_matches('/');
+        if host.is_empty() {
+            bail!("dd_url has no host");
+        }
+        return Ok(format!("http://{host}"));
     }
     let site = site.unwrap_or("datadoghq.com");
     if site.is_empty() {
@@ -369,7 +477,11 @@ fn ipc_cert_file_path(raw: &RawConfig, config_path: &Path) -> PathBuf {
     if let Some(explicit) = raw.ipc_cert_file_path.as_deref().filter(|s| !s.is_empty()) {
         return PathBuf::from(explicit);
     }
-    if let Some(auth_token) = raw.auth_token_file_path.as_deref().filter(|s| !s.is_empty()) {
+    if let Some(auth_token) = raw
+        .auth_token_file_path
+        .as_deref()
+        .filter(|s| !s.is_empty())
+    {
         return Path::new(auth_token)
             .parent()
             .unwrap_or_else(|| Path::new("."))
@@ -429,8 +541,7 @@ private_action_runner:
     /// executor can never disagree about which socket to use.
     #[test]
     fn reads_nested_executor_socket_path() {
-        let yaml =
-            format!("{MIN_YAML}  executor:\n    socket_path: /tmp/custom-executor.sock\n");
+        let yaml = format!("{MIN_YAML}  executor:\n    socket_path: /tmp/custom-executor.sock\n");
         let cfg = Config::from_yaml_str(&yaml).unwrap();
         assert_eq!(
             cfg.executor_socket,
@@ -444,8 +555,7 @@ private_action_runner:
     #[test]
     #[cfg(bazel)]
     fn runner_version_is_the_injected_agent_version() {
-        let injected = option_env!("DD_AGENT_VERSION")
-            .expect("Bazel must inject DD_AGENT_VERSION via rustc_env");
+        let injected = env!("DD_AGENT_VERSION");
         assert_eq!(RUNNER_VERSION, injected);
         assert_ne!(
             RUNNER_VERSION,
@@ -523,10 +633,50 @@ private_action_runner:
     }
 
     #[test]
-    fn honors_http_dd_url_override() {
-        let yaml = format!("dd_url: \"http://fake-opms:8080\"\n{MIN_YAML}");
-        let cfg = Config::from_yaml_str(&yaml).unwrap();
-        assert_eq!(cfg.opms_base_url, "http://fake-opms:8080");
+    fn plaintext_opms_requires_test_bypass() {
+        assert_eq!(
+            resolve_opms_base_url(None, Some("http://fake-opms:8080"), true).unwrap(),
+            "http://fake-opms:8080"
+        );
+        assert!(resolve_opms_base_url(None, Some("http://fake-opms:8080"), false).is_err());
+    }
+
+    #[test]
+    fn full_config_honors_environment_overrides() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg_path = dir.path().join("datadog.yaml");
+        std::fs::write(&cfg_path, MIN_YAML).unwrap();
+        let env = |name: &str| match name {
+            "DD_SITE" => Some("datadoghq.eu".to_string()),
+            "DD_PRIVATE_ACTION_RUNNER_URN" => {
+                Some("urn:dd:apps:on-prem-runner:eu1:7:env-runner".to_string())
+            }
+            "DD_PRIVATE_ACTION_RUNNER_PRIVATE_KEY" => Some("env-key".to_string()),
+            "DD_PRIVATE_ACTION_RUNNER_TASK_CONCURRENCY" => Some("3".to_string()),
+            "DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH" => {
+                Some("/tmp/env-executor.sock".to_string())
+            }
+            _ => None,
+        };
+
+        let cfg = Config::try_from_yaml_file_with_env(&cfg_path, env)
+            .unwrap()
+            .unwrap();
+        assert_eq!(cfg.opms_base_url, "https://api.datadoghq.eu");
+        assert_eq!(cfg.identity.org_id, 7);
+        assert_eq!(cfg.identity.runner_id, "env-runner");
+        assert_eq!(cfg.identity.private_key, "env-key");
+        assert_eq!(cfg.task_concurrency, 3);
+        assert_eq!(cfg.executor_socket, PathBuf::from("/tmp/env-executor.sock"));
+    }
+
+    #[test]
+    fn rejects_zero_concurrency_and_heartbeat_interval() {
+        let concurrency = format!("{MIN_YAML}  task_concurrency: 0\n");
+        assert!(Config::from_yaml_str(&concurrency).is_err());
+
+        let heartbeat = format!("{MIN_YAML}  heartbeat_interval_seconds: 0\n");
+        assert!(Config::from_yaml_str(&heartbeat).is_err());
     }
 
     #[test]

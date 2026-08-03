@@ -26,12 +26,8 @@ struct Cli {
     #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
     config: PathBuf,
 
-    /// Command (argv) to run the Go one-shot enroll when no identity is persisted
-    /// yet, e.g. `--enroll-command privateactionrunner rotate-identity --cfgpath
-    /// /etc/datadog-agent/datadog.yaml`. Consumes every remaining argument,
-    /// including ones starting with `-` (the enrolled command has its own flags),
-    /// so it must be the last option on the command line. If omitted, an existing
-    /// identity is required.
+    /// Go one-shot enrollment command. Must be the last option because it
+    /// consumes all remaining arguments.
     #[arg(long = "enroll-command", num_args = 1.., allow_hyphen_values = true)]
     enroll_command: Vec<String>,
 }
@@ -40,15 +36,8 @@ struct Cli {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Wire the shared agent logger (the one dd-procmgrd also uses) before doing
-    // anything else, so the `log` macros throughout the orchestration loop
-    // actually emit. It writes to stdout, which the process manager inherits
-    // (`stdout: inherit` in the process definition).
-    //
-    // The level comes from the agent's own `log_level` key, read straight from
-    // the YAML: this runs before the config/identity load so that a stand-down
-    // decision or a config error is itself logged. A logger init failure is not
-    // fatal — a control plane running without logs beats one refusing to run.
+    // Initialize logging before the launch gate so clean exits and config errors
+    // are visible. Logging failure does not prevent the runner from starting.
     if let Err(e) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
         level: log_level_from_yaml_file(&cli.config),
@@ -57,11 +46,7 @@ async fn main() -> Result<()> {
         eprintln!("par-control: could not initialize the logger: {e}");
     }
 
-    // The procmgr definition that starts par-control is installed unconditionally,
-    // so this process decides for itself whether the split deployment is active.
-    // Exit 0 (not an error) when it is not: `restart: on-failure` then leaves the
-    // process alone instead of hitting the restart limit on every host that has
-    // never opted in.
+    // The process definition is installed unconditionally; inactive hosts exit 0.
     let gate = LaunchGate::from_yaml_file(&cli.config)?;
     if !gate.split_mode {
         log::info!(
@@ -72,10 +57,8 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     if cfg!(windows) {
-        // par-control's local transport is Unix-socket only (see transport.rs).
-        // On Windows it can reach OPMS but can neither start nor dispatch to the
-        // executor, so it would dequeue real tasks and fail every one of them.
-        // Refuse up front instead, and exit 0 so procmgr does not restart-loop.
+        // Named-pipe transport is not implemented. The Go monolith remains active
+        // on Windows even when split_enabled is set.
         log::error!(
             "the split deployment model is not supported on Windows yet \
              (named-pipe transport to dd-procmgrd and the executor is not implemented); \
@@ -105,9 +88,7 @@ async fn main() -> Result<()> {
         &config.procmgr_socket,
         config.executor_process_name.clone(),
     ));
-    // Secure the control<->executor channel with mTLS via the agent IPC cert. The
-    // cert is read on each connection, not now: it may not exist yet (see
-    // transport::connect_lazy_tls).
+    // The IPC certificate is loaded lazily because the executor may create it.
     let dispatcher = Arc::new(ExecutorDispatcher::new(
         &config.executor_socket,
         Some(&config.ipc_cert_file),

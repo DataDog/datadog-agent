@@ -10,7 +10,7 @@
 //! An already-enrolled runner is used as-is with no re-enrollment.
 
 use crate::config::Config;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log::info;
 use std::path::Path;
 use std::process::Command;

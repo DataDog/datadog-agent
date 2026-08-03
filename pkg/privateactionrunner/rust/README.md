@@ -6,9 +6,6 @@ drives the on-demand Go executor's lifecycle via the Rust process manager
 (`dd-procmgrd`), dispatches actions over the local control↔executor gRPC service,
 and publishes results back to OPMS. Only the control plane touches OPMS.
 
-See `.scratch/par-rss-split/prd.md` for the full design and
-`.scratch/par-rss-split/issues/01-tracer-happy-path-dispatch.md` for this slice.
-
 ## Layout
 
 | Module | Responsibility |
@@ -35,7 +32,7 @@ host that ships the binary, so the *binary* owns the decision to run:
 | --- | --- | --- |
 | `enabled: false` | exits 0 | exits 0 |
 | `enabled: true` (default) | exits 0 | runs (monolithic) |
-| `enabled: true`, `split_enabled: true` | runs (control plane) | exits 0 |
+| `enabled: true`, `split_enabled: true` | runs (control plane) | exits 0 on supported platforms |
 
 Both halves dequeue from OPMS, so exactly one may run: `config.rs::LaunchGate`
 and `isSplitEnabled` in `comp/privateactionrunner/impl/privateactionrunner.go`
@@ -48,16 +45,16 @@ standing down, so the procmgr definition passes
 and par-control runs that one-shot when no identity is persisted yet (honoring
 `private_action_runner.self_enroll`).
 
-**Windows** ships the process definition for symmetry, but par-control refuses
-to run in split mode there and exits 0: `transport.rs` has no named-pipe client
-yet, so it could reach OPMS and dequeue tasks it can never dispatch.
+**Windows** ships the process definition for package symmetry, but split mode is
+not supported until `transport.rs` has a named-pipe client. `par-control` exits
+without polling and the Go monolith remains active.
 
 ## Build prerequisites (IMPORTANT)
 
 The crate is Linux/Windows-only (`target_compatible_with`), so on a macOS
 workstation build it inside the Linux dev container rather than on the host:
 
-```
+```bash
 dda env dev run -- bash -lc 'cd /repos/datadog-agent && \
   bazel test //pkg/privateactionrunner/rust:par-control_test'
 dda env dev run -- bash -lc 'cd /repos/datadog-agent && \
@@ -73,7 +70,7 @@ file — Bazel enforces `validate_lockfile = true`. Use a command that performs 
 *minimal* resolution, which adds the missing crates while leaving every existing
 pin untouched:
 
-```
+```bash
 cargo metadata --format-version 1 >/dev/null   # from repo root, needs registry access
 ```
 
@@ -83,7 +80,7 @@ with //pkg/procmgr/rust, //pkg/discovery/module/rust and others.
 
 After touching dependencies, also regenerate the license inventory (CI checks it):
 
-```
+```bash
 dda inv install-rust-license-tool   # once
 dda inv generate-rust-licenses
 ```
@@ -144,11 +141,8 @@ runtime, so each is pinned by a unit test in `config.rs`.
   running/fake OPMS; the bodies here are modeled on the Go client.
 - `private_action_runner.opms_extra_headers` is honored by the Go client but
   ignored here.
-- par-control parses `datadog.yaml` itself. Its launch gate honors
-  `DD_PRIVATE_ACTION_RUNNER_ENABLED`, `DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`,
-  and `DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL` so env-only activation cannot leave
-  both control planes stopped. Other `DD_*` overrides bound by
-  `pkg/config/setup/privateactionrunner_settings.go` are not yet applied.
+- par-control parses `datadog.yaml` itself and applies the `DD_*` overrides for
+  the settings it consumes.
 - Config changes are only picked up on restart: neither the split switch nor the
   control-plane knobs are watched at runtime.
 - Review the disabled-hostname posture on the mTLS channel over the local socket

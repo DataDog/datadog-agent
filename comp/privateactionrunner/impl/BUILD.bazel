@@ -48,7 +48,6 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/log/mock",
         "//comp/privateactionrunner/def",
         "//pkg/config/mock",
         "@com_github_datadog_datadog_go_v5//statsd",

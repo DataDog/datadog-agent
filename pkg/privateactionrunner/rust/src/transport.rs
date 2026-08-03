@@ -47,8 +47,8 @@ pub fn connect_lazy_tls(path: &Path, ipc_cert_file: &Path) -> tonic::transport::
             let p = path.clone();
             let cert = ipc_cert_file.clone();
             async move {
-                let connector = crate::tls::build_ipc_client_connector(&cert)
-                    .map_err(std::io::Error::other)?;
+                let connector =
+                    crate::tls::build_ipc_client_connector(&cert).map_err(std::io::Error::other)?;
                 let stream = connect_stream(p).await?;
                 // Domain is ignored: hostname verification is disabled for the
                 // local socket (see tls::build_ipc_client_connector).

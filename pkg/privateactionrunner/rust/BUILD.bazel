@@ -13,7 +13,6 @@ _RUSTC_ENV = {"DD_AGENT_VERSION": par_control_agent_version()}
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
     "@platforms//os:windows": [],
-    "@platforms//os:macos": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
 

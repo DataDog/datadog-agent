@@ -149,11 +149,7 @@ properties:
     platform_default:
       windows: \\.\pipe\datadog-procmgrd
       other: /var/run/datadog-procmgrd/dd-procmgrd.sock
-    comment: |-
-      Control-plane knobs, read by par-control. par-control parses datadog.yaml
-      directly and therefore does *not* honor the DD_ env vars bound here; the
-      keys are registered so they are schema-documented and validated, and so
-      their defaults live next to the rest of the runner's settings.
+    comment: Control-plane settings consumed by par-control.
   restricted_shell:
     node_type: section
     type: object
@@ -210,11 +206,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: |-
-      Split deployment model. When enabled, the always-on Rust control plane
-      (par-control) owns OPMS polling and starts this binary on demand as
-      `privateactionrunner run-executor` through dd-procmgrd, so the monolithic
-      `privateactionrunner run` stands down and only one process talks to OPMS.
+    comment: Enables the Rust control plane and on-demand Go executor on supported
+      platforms.
   urn:
     node_type: setting
     type: string

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -58,12 +59,12 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-// isSplitEnabled reports whether the split deployment model is active, i.e. the
-// par-control control plane polls OPMS and drives this binary as an on-demand
-// executor. Only the monolithic runner consults this: the executor itself is
-// started by par-control and must run regardless.
+func splitDeploymentEnabled(cfg config.Component, goos string) bool {
+	return goos != "windows" && cfg.GetBool(privateactionrunner.PARSplitEnabled)
+}
+
 func isSplitEnabled(cfg config.Component) bool {
-	return cfg.GetBool(privateactionrunner.PARSplitEnabled)
+	return splitDeploymentEnabled(cfg, runtime.GOOS)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -123,7 +124,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 	if isSplitEnabled(reqs.Config) {
-		reqs.Log.Info("private_action_runner.split_enabled is true: the par-control control plane polls OPMS and starts this binary on demand as `run-executor`. The monolithic runner is standing down to avoid two processes dequeuing the same tasks.")
+		reqs.Log.Info("Split deployment is enabled; the monolithic runner is standing down")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrSplitDeployment
 	}
@@ -268,7 +269,7 @@ func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
-	// Detached from ctx's deadline: the server must run until Stop(), not until the fx start timeout.
+	// The server runs until Stop, independently of the Fx startup deadline.
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	p.cancelStart = cancel
 	defer p.logger.Flush()

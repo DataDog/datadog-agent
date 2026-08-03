@@ -20,29 +20,14 @@ anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
-# Shared agent logger (same one dd-procmgrd uses), so the `log` macros actually
-# emit: par-control's stdout is inherited by the process manager.
 dd-agent-log.workspace = true
 http-body-util.workspace = true
-# OPMS client: hyper + native-tls, i.e. real HTTPS on the system OpenSSL, avoiding
-# rustls/ring for cargo-deny, with OPMS trust coming from the system store.
-#
-# That is what the workspace `ureq` was originally configured for, but ureq cannot
-# express it: its native-tls support is gated on the `native-tls` feature, which
-# force-enables `native-tls-webpki-roots` (`webpki-root-certs`,
-# CDLA-Permissive-2.0, rejected by cargo-deny). Selecting only
-# `native-tls-no-default` pulls the native-tls *library* in but compiles out every
-# native-tls code path in ureq, so any https:// request panics at runtime. Cargo
-# features are additive, so the webpki roots cannot be subtracted. native-tls needs
-# no bundled roots anyway — it finds the system store via openssl-probe.
+# native-tls uses the system trust store without rustls/webpki dependencies.
 hyper = { workspace = true, features = ["client", "http1"] }
 hyper-util = { workspace = true, features = ["tokio"] }
 log.workspace = true
 native-tls.workspace = true
-# Already fully resolved/linked as a native-tls dependency (same system OpenSSL,
-# no new C library); this just makes it directly importable so tls.rs can
-# re-encode the IPC key's SEC1 PEM as PKCS8 before native_tls::Identity::from_pkcs8,
-# which requires the PKCS8 header. See tls.rs.
+# Used to convert the Agent IPC key from SEC1 to PKCS8 for native-tls.
 openssl.workspace = true
 p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true

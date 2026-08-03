@@ -9,9 +9,7 @@
 //! dispatches actions over the local control<->executor gRPC service, forwards
 //! heartbeats, and publishes results back to OPMS.
 //!
-//! Only the control plane touches OPMS; the executor only verifies and runs a
-//! single action and streams the outcome back. See
-//! `.scratch/par-rss-split/prd.md` for the full design.
+//! Only the control plane touches OPMS; the executor verifies and runs actions.
 
 pub mod bootstrap;
 pub mod config;

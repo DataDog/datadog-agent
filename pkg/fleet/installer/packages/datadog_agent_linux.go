@@ -278,15 +278,8 @@ const (
 	parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
 )
 
-// writePARProcmgrConfigs installs the processes.d definitions for the split PAR
-// deployment: the always-on control plane (par-control) and the on-demand
-// executor it starts.
-//
-// Both are written unconditionally, even though the split model is opt-in: the
-// binaries decide for themselves whether to run (par-control exits cleanly, and
-// the monolithic runner stands down, based on
-// private_action_runner.split_enabled). That keeps flipping the switch a config
-// change plus a restart instead of a reinstall.
+// writePARProcmgrConfigs installs the split control-plane and executor definitions.
+// They are unconditional so split mode can be enabled without reinstalling.
 func writePARProcmgrConfigs(installRoot string) error {
 	return errors.Join(
 		writePARProcmgrConfig(installRoot, parControlProcmgrConfigName, embedded.PARControlProcessConfig),

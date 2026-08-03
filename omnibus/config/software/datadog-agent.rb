@@ -196,7 +196,7 @@ build do
     # par-control (private action runner control plane, Rust). Installs into
     # embedded/bin on Linux and bin/agent on Windows (see the pkg_install target).
     if linux_target? || windows_target?
-      command "bazel run #{bazel_flags} //pkg/privateactionrunner/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
 

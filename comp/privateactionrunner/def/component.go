@@ -17,11 +17,7 @@ type Component interface {
 // ErrNotEnabled is returned when the private action runner is not enabled
 var ErrNotEnabled = errors.New("private action runner is not enabled")
 
-// ErrSplitDeployment is returned by the monolithic runner when the split
-// deployment model is enabled. In that mode the par-control control plane owns
-// OPMS polling and starts this binary on demand as `run-executor`, so the
-// always-on monolithic runner must stand down instead of polling OPMS in
-// parallel. Callers treat it as a clean, expected exit.
+// ErrSplitDeployment tells the monolithic runner to exit while par-control owns polling.
 var ErrSplitDeployment = errors.New("private action runner is running in split deployment mode")
 
 // Configuration keys for the private action runner.

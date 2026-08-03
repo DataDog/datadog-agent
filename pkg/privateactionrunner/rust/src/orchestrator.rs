@@ -3,26 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! The control-plane orchestration loop: pace dequeue to the runner pool size,
-//! spawn the executor on demand and gate dispatch on its readiness, run each
-//! action over gRPC, and publish the outcome to OPMS. Concurrency is bounded by
-//! a semaphore sized to the pool: a slot is acquired *before* dequeuing and
-//! released when the action's result stream completes, so the control plane
-//! never dequeues more work than it can run (PRD control-plane responsibilities).
-//!
-//! Heartbeats (slice 4), full drain/idle semantics (slice 5), and crash
-//! fail-and-report via `Describe` (slice 6) build on this spine.
+//! Dequeues tasks up to the configured concurrency, starts the executor on
+//! demand, dispatches over gRPC, and publishes outcomes to OPMS.
 
 use crate::config::Config;
 use crate::executor::{Dispatcher, SigningKey};
-use crate::opms::{Opms, Outcome, Task};
+use crate::opms::{HeartbeatResult, Opms, Outcome, PublishResult, Task};
 use crate::procmgr::ExecutorLifecycle;
 use log::{debug, error, info, warn};
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::{Mutex as AsyncMutex, RwLock, Semaphore};
 
 /// `INTERNAL_ERROR` from the ActionPlatformErrorCode proto; used when dispatch
 /// itself fails (e.g. the stream breaks) so the workflow does not hang.
@@ -44,6 +37,11 @@ pub struct Params {
     pub max_backoff: Duration,
     pub wait_before_retry: Duration,
     pub max_attempts: u32,
+    pub publish_max_attempts: u32,
+    pub publish_min_backoff: Duration,
+    pub publish_max_backoff: Duration,
+    /// Must remain shorter than par-control's process-manager stop timeout.
+    pub drain_timeout: Duration,
 }
 
 impl Params {
@@ -59,6 +57,13 @@ impl Params {
             max_backoff: config.max_backoff,
             wait_before_retry: config.wait_before_retry,
             max_attempts: config.max_attempts,
+            publish_max_attempts: 3,
+            publish_min_backoff: Duration::from_secs(1),
+            publish_max_backoff: Duration::from_secs(5),
+            // The process definition allows 180 seconds. This covers the default
+            // 60-second action timeout plus three 30-second publication attempts
+            // and their backoff, while leaving procmgr time to reap us cleanly.
+            drain_timeout: Duration::from_secs(170),
         }
     }
 }
@@ -106,11 +111,7 @@ where
         let mut attempt: u32 = 1;
         tokio::pin!(shutdown);
 
-        // Sleep, but wake immediately on shutdown. Without this a stop is delayed
-        // by however long the current backoff has to run — up to `wait_before_retry`
-        // (5 minutes by default), which is far past the process manager's stop
-        // timeout, so the control plane would be SIGKILLed instead of stopping
-        // cleanly. Every wait in this loop must go through here.
+        // All loop sleeps must remain interruptible by shutdown.
         macro_rules! sleep_or_shutdown {
             ($duration:expr) => {
                 tokio::select! {
@@ -123,9 +124,7 @@ where
             };
         }
 
-        // Populate the long-lived key cache before dequeuing anything. A cold
-        // executor may need roughly a minute for its first verified RC update;
-        // paying that cost here means no OPMS lease is held while it waits.
+        // Pre-warm keys before leasing work from OPMS.
         info!("pre-warming executor signing-key cache");
         loop {
             let prewarm = tokio::select! {
@@ -137,12 +136,7 @@ where
             };
             match prewarm {
                 Ok(()) => {
-                    let key_count = self
-                        .key_cache
-                        .read()
-                        .await
-                        .as_ref()
-                        .map_or(0, Vec::len);
+                    let key_count = self.key_cache.read().await.as_ref().map_or(0, Vec::len);
                     info!("executor signing-key cache ready ({key_count} keys)");
                     break;
                 }
@@ -156,12 +150,10 @@ where
                 _ = tokio::time::sleep(self.params.min_backoff) => {}
             }
         }
-        let mut idle_since = Instant::now();
+        let idle_since = Arc::new(AsyncMutex::new(Instant::now()));
 
         loop {
-            // Acquire a pool slot *before* dequeuing so we never hold OPMS leases
-            // for work we cannot run. When the pool is full this future is
-            // pending, which naturally pauses dequeuing.
+            // Acquire capacity before leasing work from OPMS.
             let permit = tokio::select! {
                 _ = &mut shutdown => {
                     info!("shutdown requested; stopping orchestration loop");
@@ -187,22 +179,50 @@ where
                     attempt = 1;
                     let Some(task) = dequeued.task else {
                         drop(permit);
-                        self.maybe_stop_idle_executor(&mut idle_since).await;
+                        self.maybe_stop_idle_executor(&idle_since).await;
                         // Honor a server-requested poll delay, else the idle interval.
                         let delay = dequeued.retry_after.unwrap_or(self.params.loop_interval);
                         debug!("no task available; next poll in {delay:?}");
                         sleep_or_shutdown!(delay);
                         continue;
                     };
-                    idle_since = Instant::now();
+                    *idle_since.lock().await = Instant::now();
                     info!(
                         "dequeued task {} ({}) for job {}",
                         task.task_id, task.action_fqn, task.job_id
                     );
-                    if let Err(e) = self.ensure_ready().await {
+                    let ready = tokio::select! {
+                        _ = &mut shutdown => {
+                            info!("shutdown requested before task {} could be dispatched", task.task_id);
+                            let outcome = dispatch_failure("runner stopped before dispatch");
+                            if let Err(e) = publish_with_retry(
+                                Arc::clone(&self.opms),
+                                &task,
+                                &outcome,
+                                self.params.publish_max_attempts,
+                                self.params.publish_min_backoff,
+                                self.params.publish_max_backoff,
+                            ).await {
+                                error!("failed to publish shutdown failure for task {}: {e:#}", task.task_id);
+                            }
+                            drop(permit);
+                            break;
+                        }
+                        result = self.ensure_ready() => result,
+                    };
+                    if let Err(e) = ready {
                         error!("executor did not become ready: {e:#}");
                         let outcome = dispatch_failure(&format!("executor unavailable: {e}"));
-                        if let Err(pe) = self.opms.publish(&task, &outcome).await {
+                        if let Err(pe) = publish_with_retry(
+                            Arc::clone(&self.opms),
+                            &task,
+                            &outcome,
+                            self.params.publish_max_attempts,
+                            self.params.publish_min_backoff,
+                            self.params.publish_max_backoff,
+                        )
+                        .await
+                        {
                             error!("failed to publish executor-unavailable failure: {pe:#}");
                         }
                         drop(permit);
@@ -215,10 +235,12 @@ where
                     let lifecycle = Arc::clone(&self.lifecycle);
                     let inflight = Arc::clone(&self.inflight);
                     let heartbeat_interval = self.params.heartbeat_interval;
+                    let publish_max_attempts = self.params.publish_max_attempts;
+                    let publish_min_backoff = self.params.publish_min_backoff;
+                    let publish_max_backoff = self.params.publish_max_backoff;
+                    let idle_since = Arc::clone(&idle_since);
                     tokio::spawn(async move {
-                        // Slice 4: keep the task's OPMS lease alive with heartbeats
-                        // for as long as its result stream is open. Ownership lives
-                        // entirely here; the executor never heartbeats.
+                        // The control plane owns heartbeats while the executor stream is open.
                         let (stop_hb, hb_done) =
                             spawn_heartbeats(Arc::clone(&opms), task.clone(), heartbeat_interval);
 
@@ -241,9 +263,8 @@ where
                             }
                             Err(e) => {
                                 warn!("run_action failed for task {}: {e:#}", task.task_id);
-                                // Slice 6: a broken stream plus an exited process is a
-                                // crash — report a failure, never silently retry. A
-                                // fresh executor is started on the next dequeue.
+                                // Do not retry a task after a possible executor crash: the
+                                // action may already have changed external state.
                                 match lifecycle.has_exited().await {
                                     Ok(true) => {
                                         error!("executor crashed during task {}", task.task_id);
@@ -254,12 +275,22 @@ where
                             }
                         };
 
-                        let _ = stop_hb.send(());
-                        let _ = hb_done.await;
-
-                        if let Err(e) = opms.publish(&task, &outcome).await {
+                        if let Err(e) = publish_with_retry(
+                            Arc::clone(&opms),
+                            &task,
+                            &outcome,
+                            publish_max_attempts,
+                            publish_min_backoff,
+                            publish_max_backoff,
+                        )
+                        .await
+                        {
                             error!("failed to publish result for task {}: {e:#}", task.task_id);
                         }
+
+                        let _ = stop_hb.send(());
+                        let _ = hb_done.await;
+                        *idle_since.lock().await = Instant::now();
                         inflight.fetch_sub(1, Ordering::SeqCst);
                         drop(permit);
                     });
@@ -267,8 +298,7 @@ where
                 Err(e) => {
                     error!("dequeue failed (attempt {attempt}): {e:#}");
                     drop(permit);
-                    // Circuit breaker: exponential backoff, and after max_attempts
-                    // consecutive failures pause for a longer cool-off, then reset.
+                    // Use a longer cool-off after repeated dequeue failures.
                     if attempt >= self.params.max_attempts {
                         warn!(
                             "dequeue circuit breaker tripped after {} attempts; waiting {:?}",
@@ -298,12 +328,15 @@ where
             .pool_size
             .try_into()
             .expect("executor pool size exceeds semaphore capacity");
-        let _drained = sem
-            .acquire_many(drain_permits)
-            .await
-            .expect("semaphore unexpectedly closed while draining");
-        if inflight > 0 {
-            info!("all in-flight actions finished");
+        match tokio::time::timeout(self.params.drain_timeout, sem.acquire_many(drain_permits)).await
+        {
+            Ok(Ok(_drained)) if inflight > 0 => info!("all in-flight actions finished"),
+            Ok(Ok(_drained)) => {}
+            Ok(Err(_)) => error!("semaphore unexpectedly closed while draining"),
+            Err(_) => error!(
+                "graceful drain exceeded {:?}; forcing control-plane shutdown before procmgr's stop deadline",
+                self.params.drain_timeout
+            ),
         }
     }
 
@@ -360,14 +393,13 @@ where
         }
     }
 
-    /// Stop the executor after an idle period with no in-flight work, making the
-    /// control plane the single termination authority.
-    async fn maybe_stop_idle_executor(&self, idle_since: &mut Instant) {
+    /// Stop the executor after the configured idle period.
+    async fn maybe_stop_idle_executor(&self, idle_since: &AsyncMutex<Instant>) {
         if self.inflight.load(Ordering::SeqCst) != 0 {
-            *idle_since = Instant::now();
+            *idle_since.lock().await = Instant::now();
             return;
         }
-        if idle_since.elapsed() < self.params.idle_timeout {
+        if idle_since.lock().await.elapsed() < self.params.idle_timeout {
             return;
         }
         match self.lifecycle.is_running().await {
@@ -379,7 +411,7 @@ where
                 if let Err(e) = self.lifecycle.stop().await {
                     warn!("failed to stop idle executor: {e:#}");
                 }
-                *idle_since = Instant::now();
+                *idle_since.lock().await = Instant::now();
             }
             Ok(false) => {}
             Err(e) => warn!("failed to check executor liveness: {e:#}"),
@@ -395,14 +427,49 @@ fn dispatch_failure(detail: &str) -> Outcome {
     }
 }
 
-/// Failure published when the executor process exited mid-action (a crash). The
-/// action is never auto-retried — a mutating action must not run twice.
+/// Failure published when the executor exits mid-action.
 fn crash_failure() -> Outcome {
     Outcome::Failure {
         error_code: INTERNAL_ERROR,
         message: "executor process exited before the action completed".to_string(),
         external_message: "The action was interrupted because the executor stopped unexpectedly."
             .to_string(),
+    }
+}
+
+/// Publish a terminal result, retrying transport and retryable HTTP failures.
+/// A client rejection is terminal: retrying the same invalid request cannot help.
+async fn publish_with_retry<O: Opms + 'static>(
+    opms: Arc<O>,
+    task: &Task,
+    outcome: &Outcome,
+    max_attempts: u32,
+    min_backoff: Duration,
+    max_backoff: Duration,
+) -> anyhow::Result<PublishResult> {
+    let max_attempts = max_attempts.max(1);
+    let mut attempt = 1;
+    loop {
+        match opms.publish(task, outcome).await {
+            Ok(PublishResult::Published) => return Ok(PublishResult::Published),
+            Ok(PublishResult::Rejected { status, detail }) => {
+                error!(
+                    "OPMS rejected terminal result for task {} with status {status}: {detail}",
+                    task.task_id
+                );
+                return Ok(PublishResult::Rejected { status, detail });
+            }
+            Err(error) if attempt < max_attempts => {
+                let delay = backoff_delay(attempt, min_backoff, max_backoff);
+                warn!(
+                    "publishing task {} failed (attempt {attempt}/{max_attempts}); retrying in {delay:?}: {error:#}",
+                    task.task_id
+                );
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            }
+            Err(error) => return Err(error),
+        }
     }
 }
 
@@ -425,8 +492,13 @@ fn spawn_heartbeats<O: Opms + 'static>(
             tokio::select! {
                 _ = &mut stop_rx => return,
                 _ = ticker.tick() => {
-                    if let Err(e) = opms.heartbeat(&task).await {
-                        warn!("heartbeat failed for task {}: {e:#}", task.task_id);
+                    match opms.heartbeat(&task).await {
+                        Ok(HeartbeatResult::Alive) => {}
+                        Ok(HeartbeatResult::NotFound) => {
+                            info!("task {} is no longer known to OPMS; stopping heartbeats", task.task_id);
+                            return;
+                        }
+                        Err(e) => warn!("heartbeat failed for task {}: {e:#}", task.task_id),
                     }
                 }
             }
@@ -445,6 +517,8 @@ mod tests {
     #[derive(Default)]
     struct FakeState {
         dequeued: usize,
+        publish_attempts: usize,
+        publish_failures_remaining: usize,
         published: usize,
         failures: usize,
         heartbeats: usize,
@@ -473,6 +547,8 @@ mod tests {
         // Hold SyncKeys so tests can prove dequeue waits for pre-warm.
         block_sync: bool,
         sync_release: tokio::sync::Semaphore,
+        // Simulate OPMS forgetting a task on its first heartbeat.
+        heartbeat_not_found: bool,
     }
 
     impl Default for Fakes {
@@ -488,6 +564,7 @@ mod tests {
                 exited: false,
                 block_sync: false,
                 sync_release: tokio::sync::Semaphore::new(0),
+                heartbeat_not_found: false,
             }
         }
     }
@@ -520,18 +597,26 @@ mod tests {
             })
         }
 
-        async fn publish(&self, _task: &Task, outcome: &Outcome) -> anyhow::Result<()> {
+        async fn publish(&self, _task: &Task, outcome: &Outcome) -> anyhow::Result<PublishResult> {
             let mut s = self.state.lock().unwrap();
+            s.publish_attempts += 1;
+            if s.publish_failures_remaining > 0 {
+                s.publish_failures_remaining -= 1;
+                anyhow::bail!("simulated publish outage");
+            }
             s.published += 1;
             if matches!(outcome, Outcome::Failure { .. }) {
                 s.failures += 1;
             }
-            Ok(())
+            Ok(PublishResult::Published)
         }
 
-        async fn heartbeat(&self, _task: &Task) -> anyhow::Result<()> {
+        async fn heartbeat(&self, _task: &Task) -> anyhow::Result<HeartbeatResult> {
             self.state.lock().unwrap().heartbeats += 1;
-            Ok(())
+            if self.heartbeat_not_found {
+                return Ok(HeartbeatResult::NotFound);
+            }
+            Ok(HeartbeatResult::Alive)
         }
     }
 
@@ -558,12 +643,9 @@ mod tests {
             })
         }
 
-        async fn sync_keys(
-            &self,
-            keys: Vec<SigningKey>,
-        ) -> anyhow::Result<Vec<SigningKey>> {
+        async fn sync_keys(&self, keys: Vec<SigningKey>) -> anyhow::Result<Vec<SigningKey>> {
             if self.block_sync {
-                let _ = self.sync_release.acquire().await.unwrap();
+                self.sync_release.acquire().await.unwrap().forget();
             }
             let mut state = self.state.lock().unwrap();
             state.sync_calls += 1;
@@ -588,7 +670,7 @@ mod tests {
                 s.max_concurrent = s.max_concurrent.max(s.concurrent);
             }
             // Block until the test releases, so multiple actions overlap.
-            let _ = self.release.acquire().await.unwrap();
+            self.release.acquire().await.unwrap().forget();
             self.state.lock().unwrap().concurrent -= 1;
             Ok(Outcome::Success {
                 output_json: b"{}".to_vec(),
@@ -608,6 +690,10 @@ mod tests {
             max_backoff: Duration::from_millis(10),
             wait_before_retry: Duration::from_millis(20),
             max_attempts: 5,
+            publish_max_attempts: 3,
+            publish_min_backoff: Duration::from_millis(1),
+            publish_max_backoff: Duration::from_millis(5),
+            drain_timeout: Duration::from_secs(1),
         }
     }
 
@@ -650,10 +736,11 @@ mod tests {
         .await
         .unwrap();
 
-        let state = fake.state.lock().unwrap();
-        assert_eq!(state.sync_calls, 2);
-        assert_eq!(state.sync_calls_with_seed, 1);
-        drop(state);
+        {
+            let state = fake.state.lock().unwrap();
+            assert_eq!(state.sync_calls, 2);
+            assert_eq!(state.sync_calls_with_seed, 1);
+        }
         let _ = shutdown_tx.send(());
         run.await.unwrap();
     }
@@ -667,6 +754,43 @@ mod tests {
         assert_eq!(backoff_delay(4, min, max), Duration::from_secs(8));
         assert_eq!(backoff_delay(6, min, max), Duration::from_secs(30)); // capped
         assert_eq!(backoff_delay(100, min, max), Duration::from_secs(30)); // no overflow
+    }
+
+    #[tokio::test]
+    async fn terminal_publication_retries_transient_failures() {
+        let fakes = Arc::new(Fakes {
+            state: Mutex::new(FakeState {
+                publish_failures_remaining: 2,
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let task = Task {
+            raw: Vec::new(),
+            task_id: "task-1".into(),
+            job_id: "job-1".into(),
+            action_fqn: "bundle.action".into(),
+            client: 1,
+        };
+        let outcome = Outcome::Success {
+            output_json: b"{}".to_vec(),
+        };
+
+        let result = publish_with_retry(
+            Arc::clone(&fakes),
+            &task,
+            &outcome,
+            3,
+            Duration::from_millis(1),
+            Duration::from_millis(2),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result, PublishResult::Published);
+        let state = fakes.state.lock().unwrap();
+        assert_eq!(state.publish_attempts, 3);
+        assert_eq!(state.published, 1);
     }
 
     #[tokio::test]
@@ -759,12 +883,30 @@ mod tests {
         let _ = handle.await;
     }
 
-    /// A stop must not wait out the current backoff. OPMS being unreachable puts
-    /// the loop into a `wait_before_retry` sleep (5 minutes in production), and a
-    /// sleep that ignores the shutdown signal means the process manager's stop
-    /// timeout expires and SIGKILLs the control plane — potentially mid-action.
-    /// Real (unpaused) time on purpose: with paused time a sleep that ignores
-    /// shutdown would still complete instantly and the bug would pass unnoticed.
+    /// Uses real time because paused time would hide an uninterruptible sleep.
+    #[tokio::test]
+    async fn heartbeat_not_found_stops_the_heartbeat_loop() {
+        let fakes = Arc::new(Fakes {
+            heartbeat_not_found: true,
+            ..Default::default()
+        });
+        let task = Task {
+            raw: Vec::new(),
+            task_id: "t1".into(),
+            job_id: "j1".into(),
+            action_fqn: "bundle.action".into(),
+            client: 1,
+        };
+
+        let (_stop, done) = spawn_heartbeats(Arc::clone(&fakes), task, Duration::from_millis(1));
+        tokio::time::timeout(Duration::from_millis(100), done)
+            .await
+            .expect("heartbeat loop did not stop after OPMS returned not found")
+            .expect("heartbeat task panicked");
+
+        assert_eq!(fakes.state.lock().unwrap().heartbeats, 1);
+    }
+
     #[tokio::test]
     async fn shutdown_cancels_an_in_progress_dequeue() {
         let fakes = Arc::new(Fakes {
@@ -802,6 +944,46 @@ mod tests {
             .await
             .expect("run() must cancel the in-progress dequeue on shutdown")
             .expect("orchestrator task panicked");
+    }
+
+    #[tokio::test]
+    async fn shutdown_cancels_readiness_and_reports_dequeued_task() {
+        let fakes = Arc::new(Fakes {
+            tasks_to_serve: 1,
+            block_sync: true,
+            ..Default::default()
+        });
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            test_params(1, Duration::from_secs(3600)),
+        );
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        fakes.sync_release.add_permits(1);
+        for _ in 0..100 {
+            if fakes.state.lock().unwrap().dequeued > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(fakes.state.lock().unwrap().dequeued, 1);
+
+        let _ = tx.send(());
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("shutdown must cancel executor readiness")
+            .expect("orchestrator task panicked");
+        let state = fakes.state.lock().unwrap();
+        assert_eq!(state.published, 1);
+        assert_eq!(state.failures, 1);
     }
 
     #[tokio::test]
@@ -847,6 +1029,48 @@ mod tests {
             .expect("run() did not return after its in-flight action finished")
             .expect("orchestrator task panicked");
         assert_eq!(fakes.state.lock().unwrap().published, 1);
+    }
+
+    #[tokio::test]
+    async fn shutdown_drain_is_bounded() {
+        let fakes = Arc::new(Fakes {
+            tasks_to_serve: 1,
+            release: tokio::sync::Semaphore::new(0),
+            ..Default::default()
+        });
+        let mut params = test_params(1, Duration::from_secs(1));
+        params.drain_timeout = Duration::from_millis(20);
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            params,
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if fakes.state.lock().unwrap().concurrent == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .expect("task did not start");
+
+        tx.send(()).unwrap();
+        tokio::time::timeout(Duration::from_millis(100), handle)
+            .await
+            .expect("run() exceeded its configured drain budget")
+            .expect("orchestrator task panicked");
     }
 
     #[tokio::test]

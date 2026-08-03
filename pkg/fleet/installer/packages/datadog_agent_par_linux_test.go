@@ -36,6 +36,7 @@ func TestWritePARProcmgrConfigs(t *testing.T) {
 	// starts it with the Agent and restarts it if it crashes. It exits 0 when
 	// private_action_runner.split_enabled is unset, which on-failure ignores.
 	assert.Contains(t, control, "auto_start: true")
+	assert.Contains(t, control, "stop_timeout: 180")
 	assert.Contains(t, control, "restart: on-failure")
 	// Identity bootstrap delegates to the Go one-shot enroll; without it a
 	// never-enrolled host in split mode could never obtain an identity, since

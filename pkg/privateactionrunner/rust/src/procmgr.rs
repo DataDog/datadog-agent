@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Executor lifecycle, delegated to the existing Rust process manager
-//! (`dd-procmgrd`) over its gRPC API. The control plane owns on-demand start and
-//! graceful stop; the executor's process definition is registered out-of-band
-//! (packaging is out of scope) with auto-start disabled and no auto-restart.
+//! Executor lifecycle through the existing `dd-procmgrd` gRPC API.
 
 use crate::proto::procmgr;
 use crate::proto::procmgr::process_manager_client::ProcessManagerClient;

@@ -34,17 +34,10 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"other":   "${run_path}/par-executor.sock",
 	}))
 
-	// Split deployment model. When enabled, the always-on Rust control plane
-	// (par-control) owns OPMS polling and starts this binary on demand as
-	// `privateactionrunner run-executor` through dd-procmgrd, so the monolithic
-	// `privateactionrunner run` stands down and only one process talks to OPMS.
+	// Enables the Rust control plane and on-demand Go executor on supported platforms.
 	config.BindEnvAndSetDefault("private_action_runner.split_enabled", false)
 
-	// Control-plane knobs, read by par-control. par-control parses datadog.yaml
-	// directly; it honors DD_ overrides for the shared launch-gate keys above,
-	// but not yet for these tuning knobs. The keys are registered so they are
-	// schema-documented and validated, and so their defaults live next to the
-	// rest of the runner's settings.
+	// Control-plane settings consumed by par-control.
 	config.BindEnvAndSetDefault("private_action_runner.procmgr_socket_path", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\datadog-procmgrd`,
 		"other":   "/var/run/datadog-procmgrd/dd-procmgrd.sock",

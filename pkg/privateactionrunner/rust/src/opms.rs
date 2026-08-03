@@ -106,6 +106,25 @@ pub enum Outcome {
     },
 }
 
+/// Result of a terminal-outcome publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PublishResult {
+    Published,
+    /// OPMS rejected the update with a non-retryable client response.
+    Rejected {
+        status: u16,
+        detail: String,
+    },
+}
+
+/// Result of a heartbeat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeartbeatResult {
+    Alive,
+    /// OPMS no longer knows the job, so further heartbeats are pointless.
+    NotFound,
+}
+
 /// The OPMS operations the control plane performs. Async trait (edition 2024);
 /// implementors must be `Send + Sync` so the orchestrator can share and spawn.
 pub trait Opms: Send + Sync {
@@ -117,10 +136,13 @@ pub trait Opms: Send + Sync {
         &self,
         task: &Task,
         outcome: &Outcome,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    ) -> impl std::future::Future<Output = Result<PublishResult>> + Send;
 
     /// Send a heartbeat to keep the task's lease alive.
-    fn heartbeat(&self, task: &Task) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn heartbeat(
+        &self,
+        task: &Task,
+    ) -> impl std::future::Future<Output = Result<HeartbeatResult>> + Send;
 }
 
 /// Build the JSON:API dequeue request body (client mode: `type` + attributes, no id),
@@ -498,33 +520,35 @@ impl Opms for HttpOpms {
         })
     }
 
-    async fn publish(&self, task: &Task, outcome: &Outcome) -> Result<()> {
-        // The Go client does not gate publish on status; mirror that (best effort).
-        // A rejected publish still means a lost action result, so log it loudly
-        // rather than swallowing it silently as the status-agnostic return would.
+    async fn publish(&self, task: &Task, outcome: &Outcome) -> Result<PublishResult> {
         let body = publish_body(task, outcome)?;
         let resp = self.post(TASK_UPDATE_PATH, body).await?;
-        if resp.status != 200 {
-            log::error!(
-                "publishing task {} returned status {}: {}",
+        match resp.status {
+            200 => Ok(PublishResult::Published),
+            408 | 425 | 429 | 500..=599 => bail!(
+                "publishing task {} returned retryable status {}: {}",
                 task.task_id,
                 resp.status,
                 resp.error_detail()
-            );
+            ),
+            status => Ok(PublishResult::Rejected {
+                status,
+                detail: resp.error_detail(),
+            }),
         }
-        Ok(())
     }
 
-    async fn heartbeat(&self, task: &Task) -> Result<()> {
+    async fn heartbeat(&self, task: &Task) -> Result<HeartbeatResult> {
         let resp = self.post(HEARTBEAT_PATH, heartbeat_body(task)).await?;
-        if resp.status != 200 {
-            bail!(
+        match resp.status {
+            200 => Ok(HeartbeatResult::Alive),
+            404 => Ok(HeartbeatResult::NotFound),
+            _ => bail!(
                 "heartbeat failed with status {}: {}",
                 resp.status,
                 resp.error_detail()
-            );
+            ),
         }
-        Ok(())
     }
 }
 
@@ -564,7 +588,12 @@ mod tests {
             );
         }
 
-        for bad in ["api.datad0g.com", "ftp://host", "https://", "http://h:notaport"] {
+        for bad in [
+            "api.datad0g.com",
+            "ftp://host",
+            "https://",
+            "http://h:notaport",
+        ] {
             assert!(Endpoint::parse(bad).is_err(), "{bad} should not parse");
         }
     }
@@ -695,7 +724,8 @@ mod tests {
                 request.extend_from_slice(&buf[..n]);
                 // The body length is known from the fixture, so stop once the head
                 // plus a non-empty body have arrived.
-                if n == 0 || (request.windows(4).any(|w| w == b"\r\n\r\n") && request.ends_with(b"}"))
+                if n == 0
+                    || (request.windows(4).any(|w| w == b"\r\n\r\n") && request.ends_with(b"}"))
                 {
                     break;
                 }
@@ -742,7 +772,11 @@ mod tests {
             request.starts_with(&format!("POST {DEQUEUE_PATH} HTTP/1.1")),
             "unexpected request line in: {request}"
         );
-        assert!(request.contains(&format!("host: 127.0.0.1:{port}")) || request.contains(&format!("Host: 127.0.0.1:{port}")), "missing Host header in: {request}");
+        assert!(
+            request.contains(&format!("host: 127.0.0.1:{port}"))
+                || request.contains(&format!("Host: 127.0.0.1:{port}")),
+            "missing Host header in: {request}"
+        );
         assert!(
             request.contains("jwt-abc"),
             "missing JWT header in: {request}"
