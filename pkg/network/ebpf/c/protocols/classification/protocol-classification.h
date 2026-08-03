@@ -200,7 +200,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     // TLS/Redis misclassification diagnostics (see jmw/tls-misclassification).
     //
-    if (!encryption_layer_known) {
+    if (is_tls_diag_enabled() && !encryption_layer_known) {
         tls_record_header_t diag_hdr = {0};
         if (is_tls_record_header_plausible(skb, skb_info.data_off, skb_info.data_end, &diag_hdr)) {
             // These two branches are mutually exclusive, and the distinction matters for
@@ -353,7 +353,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     //      definition rather than a heuristic judgement.
     //
     // Both are observational only — the classification below is left exactly as it was.
-    {
+    if (is_tls_diag_enabled()) {
         tls_record_header_t diag_hdr = {0};
         bool looks_like_tls = is_tls_record_header_plausible(skb, classification_ctx->skb_info.data_off, classification_ctx->skb_info.data_end, &diag_hdr);
         if (looks_like_tls) {

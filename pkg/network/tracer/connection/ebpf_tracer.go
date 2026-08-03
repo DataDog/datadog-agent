@@ -391,9 +391,14 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			log.Warnf("error retrieving ssl cert info map: %s", err)
 		}
 
-		tr.tlsDiagEventsMap, err = maps.GetMap[netebpf.ConnTuple, netebpf.TLSDiagEvent](m.Manager, probes.TLSDiagEventsMap)
-		if err != nil {
-			log.Warnf("error retrieving TLS diagnostic events map: %s", err)
+		// Only wire up the diagnostic map when the eBPF side is actually populating it. Leaving the
+		// handle nil makes logTLSDiagEvents() a no-op rather than iterating an always-empty map on
+		// every telemetry scrape.
+		if util.TLSDiagnosticsSupported() {
+			tr.tlsDiagEventsMap, err = maps.GetMap[netebpf.ConnTuple, netebpf.TLSDiagEvent](m.Manager, probes.TLSDiagEventsMap)
+			if err != nil {
+				log.Warnf("error retrieving TLS diagnostic events map: %s", err)
+			}
 		}
 	}
 

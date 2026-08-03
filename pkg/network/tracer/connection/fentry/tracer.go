@@ -163,6 +163,8 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	// Protocol classification setup
 	var closeProtocolClassifierSocketFilterFn func()
 	util.AddBoolConst(&o, "protocol_classification_enabled", isClassificationSupported)
+	// Gated on kernel version: when false the verifier prunes the diagnostic branches entirely.
+	util.AddBoolConst(&o, "tls_diag_enabled", isClassificationSupported && util.TLSDiagnosticsSupported())
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if isClassificationSupported {

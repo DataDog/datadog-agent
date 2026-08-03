@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // toPowerOf2 converts a number to its nearest power of 2
@@ -79,4 +80,34 @@ func ConnTupleToEBPFTuple(c *network.ConnectionTuple, tup *netebpf.ConnTuple) {
 	if c.Dest.IsValid() {
 		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
 	}
+}
+
+// tlsDiagMinimumKernel is the lowest kernel on which the TLS-misclassification diagnostics are
+// enabled. The threshold is deliberately conservative.
+//
+// The functional boundary is 5.2, where both BPF_MAXINSNS and the verifier's complexity limit jump
+// from 4,096 / 131,072 to 1,000,000. Below that, older verifiers do far less path pruning, and the
+// diagnostics' extra branches were enough to stop socket__classifier_entry loading in the prebuilt
+// object on 4.18 (KMT: ubuntu_18.04, amazon_4.14 — TLS classification silently disabled, while the
+// runtime-compiled tracer passed because host-specific compilation drops the version-gated branches
+// that make the prebuilt object more complex).
+//
+// 6.0 is used rather than 5.2 because these diagnostics are a temporary investigation aid only ever
+// deployed to 6.x staging hosts, so there is no reason to carry any risk on older kernels.
+var tlsDiagMinimumKernel = kernel.VersionCode(6, 0, 0)
+
+// TLSDiagnosticsSupported reports whether the TLS-misclassification diagnostics should be active.
+//
+// Gating matters for more than tidiness: the constant is patched into the program before load, so
+// when it is false the verifier sees a known-zero scalar and prunes the diagnostic branches
+// entirely, returning the classifier programs to their baseline complexity. Note it does NOT reduce
+// program size — the dead instructions still count against BPF_MAXINSNS — so this only helps with
+// complexity, which is what the pre-5.2 failure was.
+func TLSDiagnosticsSupported() bool {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		// Fail closed: without a version we cannot rule out an old verifier.
+		return false
+	}
+	return kv >= tlsDiagMinimumKernel
 }
