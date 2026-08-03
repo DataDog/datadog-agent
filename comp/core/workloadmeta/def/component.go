@@ -74,6 +74,13 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
+	// the entity with kind KindKubernetesNode and the given node name as ID.
+	GetKubernetesNode(name string) (*KubernetesNode, error)
+
+	// ListKubernetesNodes returns metadata about all known Kubernetes nodes.
+	ListKubernetesNodes() []*KubernetesNode
+
 	// GetKubernetesKueueQueue returns metadata about a Kubernetes Kueue queue. It fetches
 	// the entity with kind KindKubernetesKueueQueue and the given ID. The ID includes
 	// the queue type, so LocalQueue and ClusterQueue entities are distinct.
