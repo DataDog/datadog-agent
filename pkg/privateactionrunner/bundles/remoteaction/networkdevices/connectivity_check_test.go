@@ -15,49 +15,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-func makeConnectivityTask(inputs map[string]any) *types.Task {
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{Inputs: inputs}
-	return task
-}
-
 func TestConnectivityCheckHandlerRun(t *testing.T) {
 	cases := []struct {
-		name    string
-		inputs  map[string]any
-		wantErr string
+		name            string
+		taskInputs      map[string]any
+		expectedResults interface{}
+		expectedErr     string
 	}{
 		{
 			name: "fails when inputs are malformed",
-			inputs: map[string]any{
+			taskInputs: map[string]any{
 				"targetIPs": "not-a-list",
 			},
-			wantErr: "failed to parse connectivityCheck inputs",
+			expectedErr: "failed to parse connectivityCheck inputs",
 		},
 		{
 			name: "fails when ping options are missing",
-			inputs: map[string]any{
+			taskInputs: map[string]any{
 				"targetIPs": []string{"10.0.0.1"},
 				"checks":    []string{"ping"},
 			},
-			wantErr: "failed to run connectivity checks",
+			expectedErr: "failed to run connectivity checks",
 		},
 		{
 			name: "fails when snmp options are missing",
-			inputs: map[string]any{
+			taskInputs: map[string]any{
 				"targetIPs": []string{"10.0.0.1"},
 				"checks":    []string{"snmp"},
 			},
-			wantErr: "failed to run connectivity checks",
+			expectedErr: "failed to run connectivity checks",
 		},
 		{
 			name: "fails when secret inputs cannot be decrypted",
-			inputs: map[string]any{
+			taskInputs: map[string]any{
 				"targetIPs":            []string{},
 				"checks":               []string{},
 				"encryptedCredentials": "not-decryptable",
 			},
-			wantErr: "failed to decrypt secret inputs",
+			expectedErr: "failed to decrypt secret inputs",
 		},
 	}
 
@@ -65,10 +60,15 @@ func TestConnectivityCheckHandlerRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore())
 
-			output, err := handler.Run(context.Background(), makeConnectivityTask(tc.inputs), nil)
-
-			require.ErrorContains(t, err, tc.wantErr)
-			require.Nil(t, output)
+			res, err := handler.Run(context.Background(), makeConnectivityTask(tc.taskInputs), nil)
+			require.Equal(t, tc.expectedResults, res)
+			require.ErrorContains(t, err, tc.expectedErr)
 		})
 	}
+}
+
+func makeConnectivityTask(taskInputs map[string]any) *types.Task {
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{Inputs: taskInputs}
+	return task
 }
