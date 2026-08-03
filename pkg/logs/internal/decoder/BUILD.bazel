@@ -31,9 +31,11 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/core/telemetry/def",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
+        "//comp/logs/severityprovider/def",
         "//pkg/config/setup",
         "//pkg/config/structure",
         "//pkg/logs/internal/decoder/preprocessor",
@@ -65,6 +67,7 @@ dd_agent_go_test(
     ],
     embed = [":decoder"],
     deps = [
+        "//comp/anomalydetection/severityevents/def",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/config/model",

@@ -116,6 +116,39 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsEmptyEnv(t *testing.T)
 	assert.Equal(t, []string{"rshell:*"}, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }
 
+func TestPrivateActionRunnerRestrictedShellAllowedSystemServicesUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedSystemServices))
+	assert.Empty(t, cfg.GetStringMapStringSlice(PARRestrictedShellAllowedSystemServices))
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedSystemServicesFromEnv(t *testing.T) {
+	t.Setenv(
+		"DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES",
+		`{"mysql.service":["read","restart"],"nginx.service":["read"]}`,
+	)
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedSystemServices))
+	assert.Equal(t, map[string][]string{
+		"mysql.service": {"read", "restart"},
+		"nginx.service": {"read"},
+	}, cfg.GetStringMapStringSlice(PARRestrictedShellAllowedSystemServices))
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedSystemServicesEmptyEnvMap(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES", `{}`)
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedSystemServices))
+	services := cfg.GetStringMapStringSlice(PARRestrictedShellAllowedSystemServices)
+	assert.NotNil(t, services)
+	assert.Empty(t, services)
+}
+
 // TestPrivateActionRunnerRestrictedShellAllowedPathsJSONArrayEnv covers the
 // JSON-array form for env vars, which gives parity with YAML and
 // — crucially — lets operators express the kill-switch via "[]".

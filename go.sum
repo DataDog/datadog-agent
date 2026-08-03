@@ -2528,8 +2528,8 @@ github.com/CycloneDX/cyclonedx-go v0.11.0 h1:GokP8FiRC+foiuwWhSSLpSD5H4hSWtGnR3w
 github.com/CycloneDX/cyclonedx-go v0.11.0/go.mod h1:vUvbCXQsEm48OI6oOlanxstwNByXjCZ2wuleUlwGEO8=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.205 h1:7+ZNser6vX1ptlZWO1UnYQ1trKoYmYFMvt1/ZIw3iD0=
-github.com/DataDog/agent-payload/v5 v5.0.205/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
+github.com/DataDog/agent-payload/v5 v5.0.207 h1:3x5Tv8krDgeYdmd1H4ovkv9d2yKPBGwUu9YaWOSGEB8=
+github.com/DataDog/agent-payload/v5 v5.0.207/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9 h1:SqGEmv63IrjqqDmXf49ZjlZnyBiHiBbF/1AVaM3q+wI=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9/go.mod h1:UmLcF4Qcn6yaiqp5xrsVwEfeBSD2YTWkWLv69SIlvtE=
 github.com/DataDog/cast v1.8.0 h1:uooY8bMzq+cjgiNP1VTquCWve5emgk8fRspZojJwQa8=
@@ -2579,8 +2579,8 @@ github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxD
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260716114726-2881ad5a60c8 h1:qvg4+w5Y2kPn2/pTYrv74di2tOojk1WM8vM4S+tcaqY=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260716114726-2881ad5a60c8/go.mod h1:YHZoUQvsqL7aWSIBMHE2zVQU2VSEVzEIIR7t8sX1x0w=
-github.com/DataDog/rshell v0.0.23 h1:SswT3UUSHu3wFZIcWiV1sBze3JC8bROUG9B1seB5oYE=
-github.com/DataDog/rshell v0.0.23/go.mod h1:DOG14otU3LPZ7P0L9Kdk4nWEbQMMpgk21C9vEdGI/bg=
+github.com/DataDog/rshell v0.0.24-0.20260728155059-5ae5b682b379 h1:fWGYySu4T/Tz15idab5XrIyHY+4rCONsDmEH3u1G9Nc=
+github.com/DataDog/rshell v0.0.24-0.20260728155059-5ae5b682b379/go.mod h1:W2510i1HIStWElv0jIh0JLNFU65kTdn9fcO2BVmneF8=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/trivy v0.0.0-20260519102929-2926d6041e57 h1:NjLZ7nbzMN1MsTotfQ6/W5a9WpHTREEB2acJOauyoQE=

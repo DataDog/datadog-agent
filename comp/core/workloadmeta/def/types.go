@@ -49,6 +49,7 @@ const (
 	KindKubeletMetrics                Kind = "kubelet_metrics"
 	KindKubeCapabilities              Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment          Kind = "kubernetes_deployment"
+	KindKubernetesNode                Kind = "kubernetes_node"
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
 	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
@@ -1202,6 +1203,66 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 
 	return merge(m, mm)
 }
+
+// KubernetesNodeStatus contains status information for a Kubernetes node.
+// Field names mirror the json tags of corev1.NodeSystemInfo for wire compatibility.
+type KubernetesNodeStatus struct {
+	KubeletVersion          string `json:"kubeletVersion"`
+	KernelVersion           string `json:"kernelVersion"`
+	OSImage                 string `json:"osImage"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	Architecture            string `json:"architecture"`
+	OperatingSystem         string `json:"operatingSystem"`
+}
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+	Status KubernetesNodeStatus
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String.
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Node Status -----------")
+		_, _ = fmt.Fprintln(&sb, "KubeletVersion:", n.Status.KubeletVersion)
+		_, _ = fmt.Fprintln(&sb, "KernelVersion:", n.Status.KernelVersion)
+		_, _ = fmt.Fprintln(&sb, "OSImage:", n.Status.OSImage)
+		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
+		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
+		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+	}
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
 
 // KubeletMetrics contains collection-level metrics from the kubelet
 type KubeletMetrics struct {

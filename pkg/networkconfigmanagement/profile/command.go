@@ -9,6 +9,8 @@ package profile
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 // Validator contains rules for validating the output of a command - requiring
@@ -30,6 +32,17 @@ func (v *Validator) Validate(text string) error {
 		}
 	}
 	return nil
+}
+
+// ValidateResult is a no-op if c.Error is already set, otherwise it runs v on
+// c.Output and saves the result in c.Error.
+func (v *Validator) ValidateResult(c *types.CommandResult) {
+	if c.Error != "" {
+		return
+	}
+	if err := v.Validate(c.Output); err != nil {
+		c.Error = err.Error()
+	}
 }
 
 type Command interface {

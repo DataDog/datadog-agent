@@ -128,10 +128,10 @@ func TestSubscribe(t *testing.T) {
 		},
 	}
 
-	testNodeMetadata := wmdef.KubernetesMetadata{
+	testNodeMetadata := wmdef.KubernetesNode{
 		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
+			Kind: wmdef.KindKubernetesNode,
+			ID:   "test-node",
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name: "test-node",
@@ -141,10 +141,6 @@ func TestSubscribe(t *testing.T) {
 			Annotations: map[string]string{
 				"test-annotation": "test-value",
 			},
-		},
-		GVR: &schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "nodes",
 		},
 	}
 
@@ -638,24 +634,16 @@ func TestSubscribe(t *testing.T) {
 						Source: fooSource,
 						// Notice that this unset event does not contain the
 						// full entity.
-						Entity: &wmdef.KubernetesMetadata{
+						Entity: &wmdef.KubernetesNode{
 							EntityID: wmdef.EntityID{
-								Kind: wmdef.KindKubernetesMetadata,
+								Kind: wmdef.KindKubernetesNode,
 								ID:   testNodeMetadata.ID,
 							},
 						},
 					},
 				},
 			},
-			filter: wmdef.NewFilterBuilder().AddKindWithEntityFilter(
-				wmdef.KindKubernetesMetadata,
-				func(entity wmdef.Entity) bool {
-					metadata := entity.(*wmdef.KubernetesMetadata)
-					// Notice that this filter relies on data that is not
-					// available in the unset event.
-					return wmdef.IsNodeMetadata(metadata)
-				},
-			).Build(),
+			filter: wmdef.NewFilterBuilder().AddKind(wmdef.KindKubernetesNode).Build(),
 			expected: []wmdef.EventBundle{
 				{},
 				{
@@ -1806,22 +1794,6 @@ func TestGetKubernetesNodeByName(t *testing.T) {
 func TestListKubernetesMetadata(t *testing.T) {
 	wmeta := newWorkloadmetaObject(t)
 
-	nodeMetadata := wmdef.KubernetesMetadata{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
-		},
-		EntityMeta: wmdef.EntityMeta{
-			Name:        "node1",
-			Annotations: map[string]string{"a1": "v1"},
-			Labels:      map[string]string{"l1": "v2"},
-		},
-		GVR: &schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "nodes",
-		},
-	}
-
 	deploymentMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
@@ -1840,11 +1812,23 @@ func TestListKubernetesMetadata(t *testing.T) {
 		},
 	}
 
+	nodeEntity := wmdef.KubernetesNode{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesNode,
+			ID:   "node1",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+	}
+
 	wmeta.handleEvents([]wmdef.CollectorEvent{
 		{
 			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
-			Entity: &nodeMetadata,
+			Entity: &nodeEntity,
 		},
 		{
 			Type:   wmdef.EventTypeSet,
@@ -1853,7 +1837,8 @@ func TestListKubernetesMetadata(t *testing.T) {
 		},
 	})
 
-	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&nodeMetadata}, wmeta.ListKubernetesMetadata(wmdef.IsNodeMetadata))
+	assert.ElementsMatch(t, []*wmdef.KubernetesNode{&nodeEntity}, wmeta.ListKubernetesNodes())
+	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&deploymentMetadata}, wmeta.ListKubernetesMetadata(nil))
 }
 
 func TestReset(t *testing.T) {

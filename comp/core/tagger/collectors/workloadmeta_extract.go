@@ -130,14 +130,15 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		entity := ev.Entity
 		entityID := entity.GetID()
 
+		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+			entityID.Kind == workloadmeta.KindKubelet ||
+			entityID.Kind == workloadmeta.KindKubernetesNode {
+			// No tags. Ignore
+			continue
+		}
+
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-				entityID.Kind == workloadmeta.KindKubelet {
-				// No tags. Ignore
-				continue
-			}
-
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous

@@ -4082,6 +4082,45 @@ func TestHandleDelete(t *testing.T) {
 	assert.Empty(t, collector.children)
 }
 
+func TestHandleDeleteKubernetesNode(t *testing.T) {
+	// KubernetesNode entities carry no tags and are excluded from tagging in
+	// processEvents. Deleting one must not panic by falling through to
+	// common.BuildTaggerEntityID, which has no case for KindKubernetesNode.
+
+	node := &workloadmeta.KubernetesNode{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   "node-foobar",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "node-foobar",
+		},
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	eventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: node,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	assert.NotPanics(t, func() {
+		collector.processEvents(eventBundle)
+	})
+}
+
 type fakeProcessor struct {
 	ch chan []*types.TagInfo
 }

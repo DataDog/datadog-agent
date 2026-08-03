@@ -10,9 +10,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
-const Traces string = "traces"
-
 func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", true, "DD_APM_SOCKET_ACTIVATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.socket_activation.handle_tcp_probe", true, "DD_APM_SOCKET_ACTIVATION_HANDLE_TCP_PROBE")
@@ -102,11 +99,13 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.decoder_timeout", 1000, "DD_APM_DECODER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.log_file", "", "DD_APM_LOG_FILE")
 	config.BindEnvAndSetDefault("apm_config.max_events_per_second", float64(200), "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", float64(10), "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
+	// deprecated
+	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", float64(10), "DD_APM_MAX_TPS", "DD_MAX_TPS")
 	config.BindEnvAndSetDefault("apm_config.target_traces_per_second", float64(10), "DD_APM_TARGET_TPS")
 	config.BindEnvAndSetDefault("apm_config.errors_per_second", float64(10), "DD_APM_ERROR_TPS")
 	config.BindEnvAndSetDefault("apm_config.enable_rare_sampler", false, "DD_APM_ENABLE_RARE_SAMPLER")
-	config.BindEnvAndSetDefault("apm_config.disable_rare_sampler", false, "DD_APM_DISABLE_RARE_SAMPLER") // Deprecated
+	// deprecated
+	config.BindEnvAndSetDefault("apm_config.disable_rare_sampler", false, "DD_APM_DISABLE_RARE_SAMPLER")
 	config.BindEnvAndSetDefault("apm_config.max_remote_traces_per_second", float64(100), "DD_APM_MAX_REMOTE_TPS")
 	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.enabled", false, "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.sampling_percentage", float64(0), "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")

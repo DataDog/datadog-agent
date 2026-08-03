@@ -98,14 +98,6 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-scorer-helper"))
 }
 
-// sendHelperGauge sends one DogStatsD gauge over UDP to the local agent.
-func (s *scorerHelperSuite) sendHelperGauge(name string, value float64) {
-	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
-	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
-		s.T().Logf("sendHelperGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
-	}
-}
-
 // TestScorerHelperEmitsSeverityTransitionOnMultiSeriesSpike sends a stable baseline
 // on 20 metric series then spikes all 20 simultaneously. CUSUM fires on every analysis
 // cycle while the spike is active (continuous re-emission), so the scorer EWMA rises
@@ -150,7 +142,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			default:
 			}
 			for n := 0; n < seriesCount; n++ {
-				s.sendHelperGauge(fmt.Sprintf("%s%d", metricPrefix, n), baseline)
+				sendGauge(s, fmt.Sprintf("%s%d", metricPrefix, n), baseline)
 			}
 			if (i+1)%5 == 0 {
 				s.T().Logf("baseline: tick %d/%d", i+1, baselinePoints)
@@ -172,7 +164,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			default:
 			}
 			for n := 0; n < seriesCount; n++ {
-				s.sendHelperGauge(fmt.Sprintf("%s%d", metricPrefix, n), spike)
+				sendGauge(s, fmt.Sprintf("%s%d", metricPrefix, n), spike)
 			}
 			if (i+1)%5 == 0 {
 				s.T().Logf("spike: tick %d/%d", i+1, spikePoints)

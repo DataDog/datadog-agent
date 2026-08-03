@@ -7,7 +7,9 @@
 package agentperformance
 
 import (
+	"math"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -27,6 +29,8 @@ const (
 	MemoryUsage = "memory_usage"
 	// MemoryLimit is the metric name for container runtime memory limits.
 	MemoryLimit = "memory_limit"
+	// CPUUsage is the metric name for container runtime CPU cores used.
+	CPUUsage = "cpu_usage"
 
 	nodeAgentComponent                  = "agent"
 	datadogComponentLabelKey            = "agent.datadoghq.com/component"
@@ -46,6 +50,16 @@ type Recorder struct {
 	containersTerminated telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
+	cpuUsage             telemetry.Gauge
+
+	runtimeSnapshotMu  sync.Mutex
+	previousCPUSamples map[string]cpuSample
+	currentCPUSamples  map[string]cpuSample
+}
+
+type cpuSample struct {
+	total     float64
+	timestamp time.Time
 }
 
 // NewRecorder returns the shared COAT recorder for Datadog Agent pods.
@@ -82,12 +96,75 @@ func newRecorder(tm telemetry.Component) *Recorder {
 			[]string{kindTag, tags.KubePod},
 			"Sum of container runtime memory limits for Datadog Agent pods",
 		),
+		cpuUsage: tm.NewGauge(
+			subsystem,
+			CPUUsage,
+			[]string{kindTag, tags.KubePod},
+			"Sum of CPU cores used by Datadog Agent pod containers, derived from cumulative CPU time",
+		),
+		previousCPUSamples: make(map[string]cpuSample),
+		currentCPUSamples:  make(map[string]cpuSample),
 	}
 }
 
-// ResetRuntimeMetrics clears runtime-sourced memory aggregates.
-func (t *Recorder) ResetRuntimeMetrics() {
+// WithRuntimeMetrics runs callback within an exclusive runtime metrics snapshot transaction.
+func (t *Recorder) WithRuntimeMetrics(callback func() error) error {
+	t.runtimeSnapshotMu.Lock()
+	defer t.runtimeSnapshotMu.Unlock()
+
 	t.resetRuntimeMetrics()
+	defer t.completeRuntimeMetrics()
+
+	return callback()
+}
+
+func (t *Recorder) completeRuntimeMetrics() {
+	t.previousCPUSamples, t.currentCPUSamples = t.currentCPUSamples, t.previousCPUSamples
+}
+
+// MarkCPUContainerPresent retains the prior CPU sample for a listed container without a new sample.
+// It must be called from a WithRuntimeMetrics callback.
+func (t *Recorder) MarkCPUContainerPresent(containerID string) {
+	if containerID == "" {
+		return
+	}
+
+	if previousSample, ok := t.previousCPUSamples[containerID]; ok {
+		t.currentCPUSamples[containerID] = previousSample
+	}
+}
+
+// RecordCPUUsage adds a container's delta-derived CPU cores to its eligible Agent pod aggregate.
+// It must be called from a WithRuntimeMetrics callback.
+func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp time.Time, pod *workloadmeta.KubernetesPod) {
+	t.MarkCPUContainerPresent(containerID)
+	if containerID == "" || total == nil {
+		return
+	}
+
+	if *total < 0 || math.IsNaN(*total) || math.IsInf(*total, 0) {
+		return
+	}
+
+	currentSample := cpuSample{total: *total, timestamp: timestamp}
+	t.currentCPUSamples[containerID] = currentSample
+
+	previousSample, ok := t.previousCPUSamples[containerID]
+	if !ok || timestamp.IsZero() || previousSample.timestamp.IsZero() || *total <= previousSample.total {
+		return
+	}
+
+	elapsed := timestamp.Sub(previousSample.timestamp)
+	if elapsed <= 0 {
+		return
+	}
+
+	kind, ok := agentPodKind(pod)
+	if !ok || pod.Name == "" {
+		return
+	}
+
+	t.cpuUsage.Add((*total-previousSample.total)/float64(elapsed), kind, pod.Name)
 }
 
 // ResetKubeletMetrics clears kubelet-sourced state aggregates.
@@ -118,7 +195,10 @@ func (t *Recorder) resetRuntimeMetrics() {
 		match := map[string]string{kindTag: kind}
 		t.memoryUsage.DeletePartialMatch(match)
 		t.memoryLimits.DeletePartialMatch(match)
+		t.cpuUsage.DeletePartialMatch(match)
 	}
+
+	clear(t.currentCPUSamples)
 }
 
 func (t *Recorder) resetKubeletMetrics() {

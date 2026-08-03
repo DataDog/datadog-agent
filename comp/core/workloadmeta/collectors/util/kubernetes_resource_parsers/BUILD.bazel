@@ -8,6 +8,7 @@ go_library(
         "deployment.go",
         "kueue.go",
         "metadata.go",
+        "node.go",
         "parser.go",
         "pod.go",
         "utils.go",
