@@ -106,16 +106,16 @@ func (manager *resctrlManager) removeOwnedGroup(group string, tasks []int) error
 			return err
 		}
 	}
-	if err := os.Remove(group); err == nil || errors.Is(err, fs.ErrNotExist) {
-		return nil
-	} else {
-		// Regular-directory fake filesystems do not implement resctrl's virtual
-		// rmdir behavior. Remove only known files below an Agent-owned fixture.
-		if removeErr := removeOwnedFixture(group); removeErr != nil {
-			return errors.Join(err, removeErr)
-		}
+	err := os.Remove(group)
+	if err == nil || errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
+	// Regular-directory fake filesystems do not implement resctrl's virtual
+	// rmdir behavior. Remove only known files below an Agent-owned fixture.
+	if removeErr := removeOwnedFixture(group); removeErr != nil {
+		return errors.Join(err, removeErr)
+	}
+	return nil
 }
 
 func (manager *resctrlManager) clearPrevious(cgroupID uint64) {

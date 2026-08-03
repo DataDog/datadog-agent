@@ -8,7 +8,6 @@
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/numa-monitoring-kern.c pkg/ebpf/bytecode/build/runtime/numa-monitoring.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/numa-monitoring.c pkg/ebpf/bytecode/runtime/numa-monitoring.go runtime
 
-// Package numamonitoring implements capability-driven NUMA monitoring.
 package numamonitoring
 
 import (

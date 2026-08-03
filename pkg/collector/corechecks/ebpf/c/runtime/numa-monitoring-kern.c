@@ -7,7 +7,7 @@
 #define MAX_NUMA_RUNTIME_ENTRIES 16384
 
 BPF_PERCPU_HASH_MAP(numa_runtime, numa_runtime_key_t, numa_runtime_value_t, MAX_NUMA_RUNTIME_ENTRIES)
-BPF_PERCPU_ARRAY(last_switch_ns, __u32, __u64, 1)
+BPF_PERCPU_ARRAY_MAP(last_switch_ns, __u64, 1)
 
 SEC("tracepoint/sched/sched_switch")
 int tracepoint_numa_sched_switch(void *ctx) {
