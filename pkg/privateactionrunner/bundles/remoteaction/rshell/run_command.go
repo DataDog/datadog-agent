@@ -34,15 +34,15 @@ import (
 )
 
 const (
-	defaultProcPath                    = "/proc"
-	defaultRunPath                     = "/run"
-	defaultVarRunPath                  = "/var/run"
-	defaultPersistentJournalPath       = "/var/log/journal"
-	defaultRuntimeJournalPath          = "/run/log/journal"
-	defaultMachineIDPath               = "/etc/machine-id"
-	defaultJournalControlSocketPath    = "/run/systemd/journal/io.systemd.journal"
-	defaultSystemdManagerBusSocketPath = "/run/dbus/system_bus_socket"
-	containerizedPathPrefix            = "/host"
+	defaultProcPath              = "/proc"
+	defaultRunPath               = "/run"
+	defaultVarRunPath            = "/var/run"
+	defaultPersistentJournalPath = "/var/log/journal"
+	defaultMachineIDPath         = "/etc/machine-id"
+	runtimeJournalPath           = "log/journal"
+	journalControlSocketPath     = "systemd/journal/io.systemd.journal"
+	systemdManagerBusSocketPath  = "dbus/system_bus_socket"
+	containerizedPathPrefix      = "/host"
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -338,73 +338,62 @@ func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (comma
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		if hostProc, ok := resolveMountedHostPath(defaultProcPath); ok {
+		if hostProc := resolveMountedHostPath(defaultProcPath); hostProc != "" {
 			return hostProc
 		}
 	}
 	return defaultProcPath
 }
 
-// resolveSystemdTarget returns the trusted systemd target for the current
-// environment. A zero config lets rshell use its coherent local defaults. A
-// container always receives an explicit host target so a missing mount cannot
-// make rshell fall back to container-local systemd endpoints.
+// Bare metal uses rshell's local defaults. Containers always receive an
+// explicit host machine-ID path so missing mounts cannot fall back to
+// container-local systemd endpoints.
 func resolveSystemdTarget() interp.SystemdTargetConfig {
 	if !env.IsContainerized() {
 		return interp.SystemdTargetConfig{}
 	}
 
 	target := interp.SystemdTargetConfig{MachineIDPath: containerizedHostPath(defaultMachineIDPath)}
-	if hostPath, ok := resolveMountedHostPath(defaultPersistentJournalPath); ok {
+	if hostPath := resolveMountedHostPath(defaultPersistentJournalPath); hostPath != "" {
 		target.JournalDirs = append(target.JournalDirs, hostPath)
 	}
-
-	runtimePath := resolveSystemdRuntimePath()
-	if runtimePath == "" {
-		return target
-	}
-	if journalPath, ok := resolveMountedPath(systemdRuntimeEndpoint(runtimePath, defaultRuntimeJournalPath)); ok {
-		target.JournalDirs = append(target.JournalDirs, journalPath)
-	}
-	target.JournalControlSocket, _ = resolveMountedPath(systemdRuntimeEndpoint(runtimePath, defaultJournalControlSocketPath))
-	target.ManagerBusSocket, _ = resolveMountedPath(systemdRuntimeEndpoint(runtimePath, defaultSystemdManagerBusSocketPath))
+	resolveSystemdRuntimePaths(&target)
 	return target
 }
 
-func resolveMountedHostPath(defaultPath string) (string, bool) {
+func resolveMountedHostPath(defaultPath string) string {
 	return resolveMountedPath(containerizedHostPath(defaultPath))
 }
 
-func resolveMountedPath(candidatePath string) (string, bool) {
+func resolveMountedPath(candidatePath string) string {
 	if _, err := statFn(candidatePath); err != nil {
-		return "", false
+		return ""
 	}
-	return candidatePath, true
+	return candidatePath
 }
 
-// resolveSystemdRuntimePath selects one container-visible runtime root for all
+// resolveSystemdRuntimePaths selects one container-visible runtime root for all
 // systemd endpoints. /host/run supports direct /run and full-host-root mounts;
 // /host/var/run matches the standard Agent container manifests.
-func resolveSystemdRuntimePath() string {
+func resolveSystemdRuntimePaths(target *interp.SystemdTargetConfig) {
 	for _, runtimePath := range []string{
 		containerizedHostPath(defaultRunPath),
 		containerizedHostPath(defaultVarRunPath),
 	} {
-		for _, endpoint := range []string{
-			defaultRuntimeJournalPath,
-			defaultJournalControlSocketPath,
-			defaultSystemdManagerBusSocketPath,
-		} {
-			if _, ok := resolveMountedPath(systemdRuntimeEndpoint(runtimePath, endpoint)); ok {
-				return runtimePath
-			}
+		runtimeJournal := resolveMountedPath(path.Join(runtimePath, runtimeJournalPath))
+		journalControlSocket := resolveMountedPath(path.Join(runtimePath, journalControlSocketPath))
+		managerBusSocket := resolveMountedPath(path.Join(runtimePath, systemdManagerBusSocketPath))
+		if runtimeJournal == "" && journalControlSocket == "" && managerBusSocket == "" {
+			continue
 		}
-	}
-	return ""
-}
 
-func systemdRuntimeEndpoint(runtimePath, defaultPath string) string {
-	return path.Join(runtimePath, strings.TrimPrefix(defaultPath, defaultRunPath+"/"))
+		if runtimeJournal != "" {
+			target.JournalDirs = append(target.JournalDirs, runtimeJournal)
+		}
+		target.JournalControlSocket = journalControlSocket
+		target.ManagerBusSocket = managerBusSocket
+		return
+	}
 }
 
 func containerizedHostPath(defaultPath string) string {

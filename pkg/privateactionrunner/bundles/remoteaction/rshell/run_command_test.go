@@ -932,18 +932,19 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 }
 
 func TestResolveSystemdTarget(t *testing.T) {
+	t.Run("bare metal uses rshell local defaults", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "")
+		assert.Equal(t, interp.SystemdTargetConfig{}, resolveSystemdTarget())
+	})
+
+	t.Setenv("DOCKER_DD_AGENT", "true")
 	cases := []struct {
-		name          string
-		containerized bool
-		existing      map[string]bool
-		want          interp.SystemdTargetConfig
+		name     string
+		existing map[string]bool
+		want     interp.SystemdTargetConfig
 	}{
 		{
-			name: "bare metal uses rshell local defaults",
-		},
-		{
-			name:          "container with direct run mount uses host target",
-			containerized: true,
+			name: "container with direct run mount uses host target",
 			existing: map[string]bool{
 				"/host/var/log/journal":                        true,
 				"/host/run/log/journal":                        true,
@@ -961,8 +962,7 @@ func TestResolveSystemdTarget(t *testing.T) {
 			},
 		},
 		{
-			name:          "standard Agent container uses var run mount",
-			containerized: true,
+			name: "standard Agent container uses var run mount",
 			existing: map[string]bool{
 				"/host/var/run/log/journal":                        true,
 				"/host/var/run/systemd/journal/io.systemd.journal": true,
@@ -976,21 +976,18 @@ func TestResolveSystemdTarget(t *testing.T) {
 			},
 		},
 		{
-			name:          "runtime endpoints do not mix across mounts",
-			containerized: true,
+			name: "runtime endpoints do not mix across mounts",
 			existing: map[string]bool{
 				"/host/run/log/journal":                true,
 				"/host/var/run/dbus/system_bus_socket": true,
 			},
 			want: interp.SystemdTargetConfig{
-				JournalDirs:      []string{"/host/run/log/journal"},
-				MachineIDPath:    "/host/etc/machine-id",
-				ManagerBusSocket: "",
+				JournalDirs:   []string{"/host/run/log/journal"},
+				MachineIDPath: "/host/etc/machine-id",
 			},
 		},
 		{
-			name:          "container without runtime mount keeps explicit host target",
-			containerized: true,
+			name: "container without runtime mount keeps explicit host target",
 			existing: map[string]bool{
 				"/host/var/log/journal": true,
 			},
@@ -1003,11 +1000,6 @@ func TestResolveSystemdTarget(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.containerized {
-				t.Setenv("DOCKER_DD_AGENT", "true")
-			} else {
-				t.Setenv("DOCKER_DD_AGENT", "")
-			}
 			overrideStatFn(t, mockStatFn(tc.existing))
 
 			assert.Equal(t, tc.want, resolveSystemdTarget())
