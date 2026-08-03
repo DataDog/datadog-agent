@@ -215,7 +215,8 @@ func TestPagerCommand(t *testing.T) {
 
 	result, err := ExecuteCommand(context.Background(), client, cmd)
 	require.NoError(t, err)
-	assert.Equal(t, config, result)
+	assert.Empty(t, result.Error)
+	assert.Equal(t, config, result.Output)
 	assert.Equal(t, []string{"terminal pager 0\nmore system:running-config"}, srv.Received())
 }
 
