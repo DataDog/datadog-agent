@@ -60,7 +60,14 @@ After you apply the values, Helm rolls out an OpenTelemetry Collector DaemonSet 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## AppArmor (optional)
+## Additional settings
+
+The following optional settings are available if needed:
+
+- [AppArmor](#apparmor) adds security hardening.
+- [Selective deployment](#selective-deployment) controls which nodes run the Host Profiler.
+
+### AppArmor
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
 
@@ -78,22 +85,19 @@ securityContext:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective Deployment (optional)
+### Selective deployment
 
-By default, the DaemonSet deployment schedules the Host Profiler on every node in the cluster. Use one of the following options in [`helm/collector-values.yaml`](helm/collector-values.yaml) to limit it to a subset of nodes.
+The DaemonSet runs the Host Profiler on every node by default. Add one of the following settings to [`helm/collector-values.yaml`](helm/collector-values.yaml) to schedule it on selected nodes.
 
-1. nodeSelector
-
-This option matches nodes by exact label value:
+- **`nodeSelector`** matches exact label values:
 
 ```yaml
 nodeSelector:
   eks.amazonaws.com/nodegroup: ng1
 ```
 
-2. affinity.nodeAffinity
+- **`affinity.nodeAffinity`** supports `In` and `NotIn` matching, multiple label conditions, and soft preferences:
 
-Use this instead of nodeSelector when you need In/NotIn matching, multiple label conditions, or a soft preference rather than a hard requirement:
 ```yaml
 affinity:
   nodeAffinity:
@@ -106,9 +110,8 @@ affinity:
                 - ng1
 ```
 
-3. Taints and tolerations
+- **Taints and tolerations** allow scheduling on tainted nodes. Taint the nodes first, then add a matching toleration:
 
-The OpenTelemetry Collector Helm chart supports taints and tolerations. Taint the nodes first, then add a matching toleration:
 ```yaml
 tolerations:
   - key: dedicated
@@ -117,4 +120,4 @@ tolerations:
     effect: NoSchedule
 ```
 
-See the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml) for the full field list.
+See the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml) for the complete field list.

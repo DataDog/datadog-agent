@@ -55,7 +55,14 @@ After you apply the updated values, Helm rolls out a new Agent DaemonSet revisio
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## AppArmor (optional)
+## Additional settings
+
+The following optional settings are available if needed:
+
+- [AppArmor](#apparmor) adds security hardening.
+- [Selective deployment](#selective-deployment) controls which nodes run the Host Profiler.
+
+### AppArmor
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
 
@@ -71,13 +78,11 @@ datadog:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective Deployment (optional)
+### Selective deployment
 
-By default, the Datadog Agent DaemonSet (therefore the Host Profiler) is scheduled on every node in the cluster. Use one of the following options in your `values.yaml` to limit the Agent DaemonSet to a subset of nodes.
+The Datadog Agent DaemonSet, including the Host Profiler, runs on every node by default. Add one of the following settings to `values.yaml` to schedule it on selected nodes.
 
-1. `agents.nodeSelector`
-
-This option matches nodes by exact label value:
+- **`agents.nodeSelector`** matches exact label values:
 
 ```yaml
 agents:
@@ -85,9 +90,7 @@ agents:
     eks.amazonaws.com/nodegroup: ng1
 ```
 
-2. `agents.affinity.nodeAffinity`
-
-Use this instead of `nodeSelector` when you need In/NotIn matching, multiple label conditions, or a soft preference rather than a hard requirement:
+- **`agents.affinity.nodeAffinity`** supports `In` and `NotIn` matching, multiple label conditions, and soft preferences:
 
 ```yaml
 agents:
@@ -101,9 +104,7 @@ agents:
                 values: [ng1]
 ```
 
-3. `agents.tolerations`
-
-The Datadog Helm chart supports taints and tolerations. Taint the nodes first, then add a matching toleration:
+- **`agents.tolerations`** allows scheduling on tainted nodes. Taint the nodes first, then add a matching toleration:
 
 ```yaml
 agents:
@@ -114,11 +115,11 @@ agents:
       effect: NoSchedule
 ```
 
-### Deploying a second, node-scoped Agent release
+#### Deploy a second, node-scoped Agent release
 
-If you already run the Datadog Agent cluster-wide and want a second Helm release dedicated to the Host Profiler, scope the second release to a subset of nodes with `nodeSelector` or `affinity` above, and make sure your primary release's Agent DaemonSet does not also schedule on those same nodes (for example, by excluding them with `agents.affinity.nodeAffinity` on the primary release). Also, only one Datadog Agent release in the cluster can run the Cluster Agent and the Datadog Operator. In the second release's `values.yaml`:
+If a cluster-wide Agent release already runs, create a second Helm release for the Host Profiler and scope it to the target nodes with `nodeSelector` or `affinity`. Prevent the primary release from scheduling its DaemonSet on those nodes, for example by excluding them with `agents.affinity.nodeAffinity`.
 
-- Disable the Cluster Agent and Datadog Operator so the second release does not deploy duplicates:
+Only one Agent release can run the Cluster Agent and Datadog Operator. In the second release's `values.yaml`, disable both components:
 
 ```yaml
 datadog:
@@ -128,7 +129,7 @@ clusterAgent:
   enabled: false
 ```
 
-- Point the second release at the existing Cluster Agent from your primary release instead:
+Point the second release to the Cluster Agent from the primary release:
 
 ```yaml
 existingClusterAgent:
@@ -137,4 +138,4 @@ existingClusterAgent:
   tokenSecretName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
 ```
 
-See the [Datadog Helm chart values](https://github.com/DataDog/helm-charts/blob/main/charts/datadog/values.yaml) for the full field list.
+See the [Datadog Helm chart values](https://github.com/DataDog/helm-charts/blob/main/charts/datadog/values.yaml) for the complete field list.
