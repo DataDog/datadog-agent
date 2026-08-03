@@ -62,18 +62,23 @@ type PidTs struct {
 	Timestamp uint64
 }
 type Telemetry struct {
-	Tcp_sent_miscounts              uint64
-	Udp_sends_processed             uint64
-	Udp_sends_missed                uint64
-	Udp_dropped_conns               uint64
-	Tcp_done_missing_pid            uint64
-	Tcp_connect_failed_tuple        uint64
-	Tcp_done_failed_tuple           uint64
-	Tcp_finish_connect_failed_tuple uint64
-	Tcp_close_target_failures       uint64
-	Tcp_done_connection_flush       uint64
-	Tcp_close_connection_flush      uint64
-	Tcp_syn_retransmit              uint64
+	Tcp_sent_miscounts               uint64
+	Udp_sends_processed              uint64
+	Udp_sends_missed                 uint64
+	Udp_dropped_conns                uint64
+	Tcp_done_missing_pid             uint64
+	Tcp_connect_failed_tuple         uint64
+	Tcp_done_failed_tuple            uint64
+	Tcp_finish_connect_failed_tuple  uint64
+	Tcp_close_target_failures        uint64
+	Tcp_done_connection_flush        uint64
+	Tcp_close_connection_flush       uint64
+	Tcp_syn_retransmit               uint64
+	Tls_reject_record_exceeds_packet uint64
+	Tls_reject_handshake_invalid     uint64
+	Applayer_match_on_tls_payload    uint64
+	Redis_match_on_nonstandard_port  uint64
+	Tls_locked_out_by_applayer       uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -137,6 +142,17 @@ type SSLHandshakeState struct {
 	Item      CertItem
 	Id        uint32
 	Pad_cgo_0 [4]byte
+}
+type TLSDiagEvent struct {
+	Timestamp        uint64
+	Hits             uint32
+	Sport            uint16
+	Dport            uint16
+	App_layer_proto  uint16
+	Tls_content_type uint8
+	Reason           uint8
+	Logged           uint8
+	X_pad            [3]uint8
 }
 
 type _Ctype_struct_sock uint64
