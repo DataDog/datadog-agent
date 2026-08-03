@@ -179,6 +179,9 @@ dd_agent_go_test(
         "linux_bpf",
         "npm",
     ],
+    # keep: the linux_bpf variant needs a privileged host with a live kernel;
+    # it runs in the system-probe lane, not under wildcard builds.
+    tags = ["manual"],
     deps = [
         "//pkg/config/mock",
         "//pkg/ebpf/bytecode/runtime",

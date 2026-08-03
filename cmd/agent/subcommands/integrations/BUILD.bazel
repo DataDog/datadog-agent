@@ -39,6 +39,8 @@ dd_agent_go_test(
         "command_test.go",
         "integrations_test.go",
     ],
+    # keep: the wheel fixtures are reached through a relative path built at runtime.
+    data = ["//cmd/testdata/integrations:wheel_fixtures"],
     embed = [":integrations"],
     include_default = False,
     tag_sets = ["python"],
