@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strings"
 
@@ -43,11 +44,14 @@ func resolveConfigPath(configPath string, workingDir string) (string, bool) {
 }
 
 // findConfigPath tries the runtime-native command first, then falls back to
-// command lines discovered from live processes.
+// command lines discovered from live processes. Returns the resolved path and
+// whether an explicit config argument was found.
 func findConfigPath(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader, findConfigArg func([]string) (string, bool)) (string, bool, error) {
 	commandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
+	matched := false
 	if runtimeErr == nil {
-		if configArg, matched := findConfigArg(commandline.Args); matched {
+		if configArg, found := findConfigArg(commandline.Args); found {
+			matched = true
 			if configPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
 				return configPath, true, nil
 			}
@@ -56,21 +60,65 @@ func findConfigPath(ctx context.Context, reader configfilesdiscoveryimpl.ConfigR
 
 	var configPath string
 	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
-		configArg, matched := findConfigArg(commandline.Args)
-		if !matched {
+		configArg, found := findConfigArg(commandline.Args)
+		if !found {
 			continue
 		}
+		matched = true
 		resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
 		if !resolved {
-			return "", false, runtimeErr
+			return "", true, runtimeErr
 		}
 		if configPath != "" && configPath != resolvedPath {
-			return "", false, runtimeErr
+			return "", true, runtimeErr
 		}
 		configPath = resolvedPath
 	}
 	if configPath != "" {
 		return configPath, true, nil
 	}
-	return "", false, runtimeErr
+	return "", matched, runtimeErr
+}
+
+// readConfigFile discovers and reads an explicit config file, or falls back to
+// default paths when no explicit config argument is found. Returns the
+// file and whether exactly one file was selected.
+func readConfigFile(
+	ctx context.Context,
+	reader configfilesdiscoveryimpl.ConfigReader,
+	findConfigArg func([]string) (string, bool),
+	defaultPaths []string,
+) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
+	configPath, matched, commandlineErr := findConfigPath(ctx, reader, findConfigArg)
+	if configPath != "" {
+		file, err := reader.ReadFile(ctx, configPath)
+		if err != nil {
+			return configfilesdiscoveryimpl.ConfigFile{}, false, fmt.Errorf("read explicit config file %q: %w", configPath, err)
+		}
+		return file, true, nil
+	}
+	if matched {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+	}
+
+	files := make([]configfilesdiscoveryimpl.ConfigFile, 0, len(defaultPaths))
+	for _, path := range defaultPaths {
+		file, err := reader.ReadFile(ctx, path)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+			}
+			continue
+		}
+		files = append(files, file)
+	}
+
+	switch len(files) {
+	case 0:
+		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+	case 1:
+		return files[0], true, nil
+	default:
+		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+	}
 }

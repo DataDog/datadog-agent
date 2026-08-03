@@ -29,22 +29,32 @@ import (
 )
 
 const (
-	agentDiscoveryEndpoint                    = "/api/v2/agentdiscovery"
-	configFilesDiscoveryRedisConfigDir        = "/tmp/configfilesdiscovery-redis"
-	configFilesDiscoveryRedisContainerName    = "redis-configfilesdiscovery"
-	configFilesDiscoveryRedisContainerPath    = "/usr/local/etc/redis/redis.conf"
-	configFilesDiscoveryRedisConfigFileName   = "redis.conf"
-	configFilesDiscoveryRedisStartFileName    = "start"
-	configFilesDiscoveryRedisStartScriptName  = "start-redis.sh"
-	configFilesDiscoveryRedisConfigSentinel   = "configfilesdiscovery-e2e-sentinel"
-	configFilesDiscoveryRedisIntegrationName  = "redisdb"
-	configFilesDiscoveryRedisContainerRuntime = "docker"
+	agentDiscoveryEndpoint                          = "/api/v2/agentdiscovery"
+	configFilesDiscoveryRedisConfigDir              = "/tmp/configfilesdiscovery-redis"
+	configFilesDiscoveryRedisExplicitContainerName  = "redis-configfilesdiscovery-explicit"
+	configFilesDiscoveryRedisDefaultContainerName   = "redis-configfilesdiscovery-default"
+	configFilesDiscoveryRedisExplicitContainerPath  = "/configfilesdiscovery/redis-explicit.conf"
+	configFilesDiscoveryRedisDefaultContainerPath   = "/etc/redis/redis.conf"
+	configFilesDiscoveryRedisExplicitConfigFileName = "redis-explicit.conf"
+	configFilesDiscoveryRedisDefaultConfigFileName  = "redis-default.conf"
+	configFilesDiscoveryRedisStartFileName          = "start"
+	configFilesDiscoveryRedisStartScriptName        = "start-redis.sh"
+	configFilesDiscoveryRedisExplicitConfigSentinel = "configfilesdiscovery-explicit-e2e-sentinel"
+	configFilesDiscoveryRedisDefaultConfigSentinel  = "configfilesdiscovery-default-e2e-sentinel"
+	configFilesDiscoveryRedisIntegrationName        = "redisdb"
+	configFilesDiscoveryRedisContainerRuntime       = "docker"
 )
 
-const configFilesDiscoveryRedisConfig = `port 6379
+const configFilesDiscoveryRedisExplicitConfig = `port 6379
 appendonly no
 maxmemory-policy allkeys-lru
-# configfilesdiscovery-e2e-sentinel
+# configfilesdiscovery-explicit-e2e-sentinel
+`
+
+const configFilesDiscoveryRedisDefaultConfig = `port 6379
+appendonly no
+maxmemory-policy allkeys-lru
+# configfilesdiscovery-default-e2e-sentinel
 `
 
 const configFilesDiscoveryRedisStartScript = `#!/bin/sh
@@ -54,14 +64,14 @@ while [ ! -f /configfilesdiscovery/start ]; do
   sleep 1
 done
 
-exec redis-server /usr/local/etc/redis/redis.conf
+exec redis-server /configfilesdiscovery/redis-explicit.conf
 `
 
 const configFilesDiscoveryRedisCompose = `version: "3.9"
 services:
-  redis-configfilesdiscovery:
+  redis-configfilesdiscovery-explicit:
     image: ghcr.io/datadog/redis:{APPS_VERSION}
-    container_name: redis-configfilesdiscovery
+    container_name: redis-configfilesdiscovery-explicit
     command:
       - /bin/sh
       - /configfilesdiscovery/start-redis.sh
@@ -79,7 +89,29 @@ services:
         }
     volumes:
       - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}:/configfilesdiscovery:ro
-      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}/redis.conf:/usr/local/etc/redis/redis.conf:ro
+
+  redis-configfilesdiscovery-default:
+    image: ghcr.io/datadog/redis:{APPS_VERSION}
+    container_name: redis-configfilesdiscovery-default
+    command:
+      - redis-server
+      - --save
+      - "60"
+      - "1"
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "redisdb": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 6379
+              }
+            ]
+          }
+        }
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}/redis-default.conf:/etc/redis/redis.conf:ro
 `
 
 type configFilesDiscoveryDockerSuite struct {
@@ -118,11 +150,21 @@ func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host
 		return nil, err
 	}
 
-	configPath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisConfigFileName)
-	configFile, err := fileManager.CopyInlineFile(
-		pulumi.String(configFilesDiscoveryRedisConfig),
-		configPath,
+	explicitConfigPath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisExplicitConfigFileName)
+	explicitConfigFile, err := fileManager.CopyInlineFile(
+		pulumi.String(configFilesDiscoveryRedisExplicitConfig),
+		explicitConfigPath,
 		utils.PulumiDependsOn(createDir),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultConfigPath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisDefaultConfigFileName)
+	defaultConfigFile, err := fileManager.CopyInlineFile(
+		pulumi.String(configFilesDiscoveryRedisDefaultConfig),
+		defaultConfigPath,
+		utils.PulumiDependsOn(explicitConfigFile),
 	)
 	if err != nil {
 		return nil, err
@@ -132,7 +174,7 @@ func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host
 	startScript, err := fileManager.CopyInlineFile(
 		pulumi.String(configFilesDiscoveryRedisStartScript),
 		startScriptPath,
-		utils.PulumiDependsOn(configFile),
+		utils.PulumiDependsOn(defaultConfigFile),
 	)
 	if err != nil {
 		return nil, err
@@ -140,7 +182,7 @@ func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host
 	return startScript, nil
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFileDiscoveredAfterProcessStartsAndHeartbeatSentToEventPlatform() {
+func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeartbeatsSentToEventPlatform() {
 	t := s.T()
 	host := s.Env().RemoteHost
 	startFilePath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisStartFileName)
@@ -149,11 +191,11 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFileDiscoveredAfterProc
 		if _, cleanupErr := host.Execute("sudo rm -f " + startFilePath); cleanupErr != nil {
 			t.Logf("failed to remove redis start file: %v", cleanupErr)
 		}
-		if _, cleanupErr := host.Execute("sudo docker restart " + configFilesDiscoveryRedisContainerName); cleanupErr != nil {
-			t.Logf("failed to return redis container to its waiting state: %v", cleanupErr)
+		if _, cleanupErr := host.Execute("sudo docker restart " + configFilesDiscoveryRedisExplicitContainerName + " " + configFilesDiscoveryRedisDefaultContainerName); cleanupErr != nil {
+			t.Logf("failed to restart redis containers: %v", cleanupErr)
 		}
 	})
-	_, err := host.Execute("sudo docker stop " + configFilesDiscoveryRedisContainerName)
+	_, err := host.Execute("sudo docker stop " + configFilesDiscoveryRedisExplicitContainerName + " " + configFilesDiscoveryRedisDefaultContainerName)
 	require.NoError(t, err)
 	_, err = host.Execute("sudo rm -f " + startFilePath)
 	require.NoError(t, err)
@@ -163,12 +205,12 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFileDiscoveredAfterProc
 	}, time.Minute, time.Second, "redis AD config remained scheduled after the container stopped")
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	_, err = host.Execute("sudo docker start " + configFilesDiscoveryRedisContainerName)
+	_, err = host.Execute("sudo docker start " + configFilesDiscoveryRedisExplicitContainerName + " " + configFilesDiscoveryRedisDefaultContainerName)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		// Docker needs the PID column to map the ps output back to container processes,
 		// even though this assertion only inspects the command arguments.
-		processes, processErr := host.Execute("sudo docker top " + configFilesDiscoveryRedisContainerName + " -eo pid,args")
+		processes, processErr := host.Execute("sudo docker top " + configFilesDiscoveryRedisExplicitContainerName + " -eo pid,args")
 		if !assert.NoError(c, processErr) {
 			return
 		}
@@ -189,24 +231,42 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFileDiscoveredAfterProc
 			return
 		}
 
-		redisPayloads := findRedisConfigPayloads(payloads)
-		assert.GreaterOrEqual(c, len(redisPayloads), 2, "fewer than two redis config payloads found in %+v", payloads)
-		if len(redisPayloads) < 2 {
-			return
+		tests := []struct {
+			path     string
+			content  string
+			sentinel string
+		}{
+			{
+				path:     configFilesDiscoveryRedisExplicitContainerPath,
+				content:  configFilesDiscoveryRedisExplicitConfig,
+				sentinel: configFilesDiscoveryRedisExplicitConfigSentinel,
+			},
+			{
+				path:     configFilesDiscoveryRedisDefaultContainerPath,
+				content:  configFilesDiscoveryRedisDefaultConfig,
+				sentinel: configFilesDiscoveryRedisDefaultConfigSentinel,
+			},
 		}
+		for _, tt := range tests {
+			redisPayloads := findRedisConfigPayloads(payloads, tt.path)
+			assert.GreaterOrEqual(c, len(redisPayloads), 2, "fewer than two redis config payloads for %q found in %+v", tt.path, payloads)
+			if len(redisPayloads) < 2 {
+				continue
+			}
 
-		for _, redisPayload := range redisPayloads {
-			assert.Equal(c, configFilesDiscoveryRedisIntegrationName, redisPayload.payload.Integration)
-			assert.Equal(c, configFilesDiscoveryRedisContainerRuntime, redisPayload.payload.Runtime)
-			assert.NotEmpty(c, redisPayload.payload.HostID)
-			assert.NotEmpty(c, redisPayload.payload.RuntimeID)
-			assert.False(c, redisPayload.payload.IngestionTimestamp.IsZero())
+			for _, redisPayload := range redisPayloads {
+				assert.Equal(c, configFilesDiscoveryRedisIntegrationName, redisPayload.payload.Integration)
+				assert.Equal(c, configFilesDiscoveryRedisContainerRuntime, redisPayload.payload.Runtime)
+				assert.NotEmpty(c, redisPayload.payload.HostID)
+				assert.NotEmpty(c, redisPayload.payload.RuntimeID)
+				assert.False(c, redisPayload.payload.IngestionTimestamp.IsZero())
 
-			assert.Equal(c, configFilesDiscoveryRedisContainerPath, redisPayload.config.Path)
-			assert.Equal(c, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, redisPayload.config.PayloadFormat)
-			assert.False(c, redisPayload.config.Truncated)
-			assert.Equal(c, configFilesDiscoveryRedisConfig, string(redisPayload.config.Content))
-			assert.Contains(c, string(redisPayload.config.Content), configFilesDiscoveryRedisConfigSentinel)
+				assert.Equal(c, tt.path, redisPayload.config.Path)
+				assert.Equal(c, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, redisPayload.config.PayloadFormat)
+				assert.False(c, redisPayload.config.Truncated)
+				assert.Equal(c, tt.content, string(redisPayload.config.Content))
+				assert.Contains(c, string(redisPayload.config.Content), tt.sentinel)
+			}
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for config files discovery payload")
 
@@ -220,14 +280,14 @@ type redisConfigPayload struct {
 	config  aggregator.AgentDiscoveryConfigFile
 }
 
-func findRedisConfigPayloads(payloads []*aggregator.AgentDiscoveryPayload) []redisConfigPayload {
+func findRedisConfigPayloads(payloads []*aggregator.AgentDiscoveryPayload, configPath string) []redisConfigPayload {
 	var redisPayloads []redisConfigPayload
 	for _, payload := range payloads {
 		if payload.Integration != configFilesDiscoveryRedisIntegrationName {
 			continue
 		}
 		for _, config := range payload.ConfigFiles {
-			if config.Path == configFilesDiscoveryRedisContainerPath {
+			if config.Path == configPath {
 				redisPayloads = append(redisPayloads, redisConfigPayload{
 					payload: payload,
 					config:  config,

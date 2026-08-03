@@ -20,6 +20,16 @@ const (
 	kafkaConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
 )
 
+var kafkaDefaultConfigPaths = []string{
+	"/opt/kafka/config/server.properties",
+	"/opt/kafka/config/kraft/server.properties",
+	"/etc/kafka/kafka.properties",
+	"/etc/kafka/server.properties",
+	"/etc/kafka/kraft/server.properties",
+	"/opt/bitnami/kafka/config/server.properties",
+	"/tmp/strimzi.properties",
+}
+
 type kafkaConfigCollector struct{}
 
 func NewKafka() configfilesdiscoveryimpl.ConfigCollector {
@@ -38,19 +48,15 @@ func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	configPath, ok, err := findConfigPath(ctx, reader, kafkaGetConfigArgFromCommandline)
+	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaDefaultConfigPaths)
 	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka command lines: %w", err)
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}
 	if !ok {
-		log.Debugf("config files discovery skipped kafka config collection: no explicit broker properties file path detected")
+		log.Debugf("config files discovery skipped kafka config collection: no unique broker properties file path detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
-	file, err := reader.ReadFile(ctx, configPath)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka config file %q: %w", configPath, err)
-	}
 	file.PayloadFormat = kafkaConfigPayloadFormat
 
 	return configfilesdiscoveryimpl.CollectedConfig{

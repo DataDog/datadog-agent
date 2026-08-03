@@ -209,7 +209,7 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	assert.Empty(t, collected.EnvVars)
 }
 
-func TestKafkaCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
+func TestKafkaCollectorSkipsWhenNoDefaultConfigExists(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"kafka-server-start.sh", "--override", "broker.id=1"},
@@ -220,9 +220,32 @@ func TestKafkaCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
-	assert.Empty(t, reader.readFileCalls)
+	assert.Equal(t, kafkaDefaultConfigPaths, reader.readFileCalls)
 	assert.Empty(t, collected.ConfigFiles)
 	assert.Empty(t, collected.EnvVars)
+}
+
+func TestKafkaCollectorReadsDefaultConfig(t *testing.T) {
+	reader := &kafkaCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/etc/kafka/docker/run"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/opt/bitnami/kafka/config/server.properties",
+			Content: []byte("broker.id=1\n"),
+		},
+	}
+
+	collected, err := NewKafka().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, kafkaDefaultConfigPaths, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
+		Path:          "/opt/bitnami/kafka/config/server.properties",
+		Content:       []byte("broker.id=1\n"),
+		PayloadFormat: kafkaConfigPayloadFormat,
+	}, collected.ConfigFiles[0])
 }
 
 func TestKafkaCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
@@ -370,7 +393,10 @@ func (r *kafkaCollectorTestReader) ReadFile(_ context.Context, path string) (con
 	if r.readFileErr != nil {
 		return configfilesdiscoveryimpl.ConfigFile{}, r.readFileErr
 	}
-	return r.file, nil
+	if r.file.Path == path {
+		return r.file, nil
+	}
+	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
 func (r *kafkaCollectorTestReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
