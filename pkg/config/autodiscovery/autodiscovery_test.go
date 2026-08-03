@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -49,7 +50,7 @@ prometheus_http_sd:
 	})
 }
 
-func containsProvider(providers []pkgconfigsetup.ConfigurationProviders, name string) bool {
+func containsProvider(providers []constants.ConfigurationProviders, name string) bool {
 	for _, p := range providers {
 		if p.Name == name {
 			return true

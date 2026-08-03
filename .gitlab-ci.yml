@@ -291,25 +291,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v125663755-498a6dee
+  CI_IMAGE_BTF_GEN: v126430166-27084be1
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_X64: v126430166-27084be1
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_ARM64: v126430166-27084be1
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v125663755-498a6dee
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v126430166-27084be1
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v125663755-498a6dee
+  CI_IMAGE_LINUX: v126430166-27084be1
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v125663755-498a6dee
+  CI_IMAGE_RPM_X64: v126430166-27084be1
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v125663755-498a6dee
+  CI_IMAGE_RPM_ARM64: v126430166-27084be1
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v125663755-498a6dee
+  CI_IMAGE_RPM_ARMHF: v126430166-27084be1
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2022_X64: v126430166-27084be1
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2025_X64: v126430166-27084be1
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -771,6 +771,12 @@ workflow:
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
+  - changes:
+      paths:
+        - pkg/fleet/installer/packages/**/*
+        - omnibus/package-scripts/agent-*/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 # Specific rules for each e2e test type
 .on_install_script_tests:
@@ -1010,7 +1016,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/tests/agent-devx/pre-test/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
