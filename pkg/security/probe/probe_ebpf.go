@@ -929,7 +929,7 @@ func (p *EBPFProbe) ReplayEvents() {
 // (process, mmaped file) pair, which the pool never gets to recycle.
 type replayEntry struct {
 	event       *model.Event
-	mmapedFiles []model.SnapshottedMmapedFile
+	mmapedFiles []procfs.MmapedFile
 }
 
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
@@ -947,12 +947,12 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		event.AddToFlags(model.EventFlagsFromReplay)
 
-		var mmapedFiles []model.SnapshottedMmapedFile
+		var mmapedFiles []procfs.MmapedFile
 
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
 			var err error
-			if mmapedFiles, err = procfs.GetMmapedFiles(int32(entry.Pid)); err != nil {
+			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
 			}
 		}
@@ -984,8 +984,8 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	for _, re := range entries {
 		p.DispatchEvent(re.event, notifyConsumers)
 
-		for _, f := range re.mmapedFiles {
-			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, f)
+		for _, file := range re.mmapedFiles {
+			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
 			openEvent.Source = model.EventSourceReplay
 			p.DispatchEvent(openEvent, notifyConsumers)
 			p.putBackPoolEvent(openEvent)
@@ -3980,7 +3980,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 	event.LoadModule.File.SetPathnameStr(modulePath)
 	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
 
-	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	// Best-effort file metadata.
 	var fileStats unix.Statx_t
 	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
 		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -4000,7 +4000,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 }
 
 // newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
-func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile procfs.MmapedFile) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
 	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
@@ -4014,24 +4014,7 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
 	event.Open.File.IsBasenameStrResolved = true
-
-	// Try to stat the file to get basic metadata (best effort)
-	// This helps with file resolution and enrichment
-	var fileStats unix.Statx_t
-	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
-	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
-		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
-		event.Open.File.FileFields.Inode = fileStats.Ino
-		event.Open.File.FileFields.UID = fileStats.Uid
-		event.Open.File.FileFields.GID = fileStats.Gid
-		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
-		event.Open.File.Mode = fileStats.Mode
-		event.Open.File.Inode = fileStats.Ino
-		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
-		event.Open.File.NLink = fileStats.Nlink
-		event.Open.File.MountID = uint32(fileStats.Mnt_id)
-	}
+	event.Open.File.FileFields = snapshottedFile.FileFields
 
 	return event
 }
