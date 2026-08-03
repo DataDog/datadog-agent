@@ -57,7 +57,7 @@ def build(
         ctx,
         f"{REPO_PATH}/cmd/trace-agent",
         mod=go_mod,
-        race=race,
+        race=True,
         rebuild=rebuild,
         build_tags=build_tags,
         bin_path=agent_bin,

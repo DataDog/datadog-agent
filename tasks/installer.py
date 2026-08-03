@@ -76,7 +76,7 @@ def build(
         ctx,
         f"{REPO_PATH}/cmd/installer",
         mod=go_mod,
-        race=race,
+        race=True,
         rebuild=rebuild,
         gcflags=gcflags,
         ldflags=ldflags,

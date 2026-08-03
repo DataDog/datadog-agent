@@ -287,7 +287,7 @@ def build_sysprobe_binary(
         ctx,
         f"{REPO_PATH}/cmd/system-probe",
         mod=go_mod,
-        race=race,
+        race=True,
         rebuild=rebuild,
         build_tags=build_tags,
         bin_path=binary,

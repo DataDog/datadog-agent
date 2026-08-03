@@ -54,7 +54,7 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
         ctx,
         f"{REPO_PATH}/cmd/systray",
         mod=go_mod,
-        race=race,
+        race=True,
         rebuild=rebuild,
         bin_path=os.path.join(BIN_PATH, bin_name("ddtray")),
         ldflags=ldflags,

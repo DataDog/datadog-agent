@@ -45,7 +45,7 @@ def build_common(
         ctx,
         f"{REPO_PATH}/cmd/cluster-agent{bin_suffix}",
         mod=go_mod,
-        race=race,
+        race=True,
         rebuild=rebuild,
         gcflags=gcflags,
         ldflags=ldflags,

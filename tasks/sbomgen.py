@@ -38,6 +38,7 @@ def build(
         ctx,
         f"{REPO_PATH}/cmd/sbomgen",
         mod="readonly",
+        race=True,
         gcflags=gcflags,
         ldflags=ldflags,
         build_tags=build_tags,

@@ -96,7 +96,7 @@ def build(
         ctx,
         f"{REPO_PATH}/cmd/security-agent",
         mod=go_mod,
-        race=race,
+        race=True,
         rebuild=rebuild,
         gcflags=gcflags,
         ldflags=ldflags,

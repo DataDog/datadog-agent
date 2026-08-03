@@ -137,6 +137,10 @@ def go_build(
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
         check_deadcode = False
 
+    # aix and linux 32 bits don't support the -race flag
+    if race and (sys.platform == "aix" or platform.machine() == "x86"):
+        race = False
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
