@@ -1273,8 +1273,8 @@ properties:
     type: object
     visibility: public
     description: |-
-      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
-      per-process GPU metrics on Linux hosts (kernel 5.8+).
+      Configuration for the GPU Monitoring module, which collects per-process GPU
+      metrics on Linux hosts.
       Required for GPU monitoring on non-containerized Linux hosts alongside
       gpu.enabled: true in datadog.yaml.
     tags: []
@@ -1285,8 +1285,8 @@ properties:
         default: false
         visibility: public
         description: |-
-          Set to true to enable the GPU Monitoring module. This loads the eBPF programs
-          that collect per-process GPU utilization, memory, and performance metrics.
+          Set to true to enable the GPU Monitoring module, which collects per-process
+          GPU utilization, memory, and performance metrics through NVML.
           Must be used together with gpu.enabled: true in datadog.yaml.
       attacher_detailed_logs:
         node_type: setting
@@ -1318,6 +1318,11 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        visibility: public
+        description: |-
+          Set to true to additionally load the GPU Monitoring eBPF probes, which collect
+          the gpu.process.core.usage metric. Requires Linux kernel 5.8 or later.
+          These probes are deprecated and are disabled by default.
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
