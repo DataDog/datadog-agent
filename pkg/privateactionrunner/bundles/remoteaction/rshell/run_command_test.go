@@ -931,6 +931,81 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	assert.Equal(t, "/proc", result)
 }
 
+func TestResolveSystemdTarget(t *testing.T) {
+	fullHostTarget := interp.SystemdTargetConfig{
+		JournalDirs: []string{
+			"/host/var/log/journal",
+			"/host/run/log/journal",
+		},
+		MachineIDPath:        "/host/etc/machine-id",
+		JournalControlSocket: "/host/run/systemd/journal/io.systemd.journal",
+		ManagerBusSocket:     "/host/run/dbus/system_bus_socket",
+	}
+
+	cases := []struct {
+		name          string
+		containerized bool
+		existing      map[string]bool
+		want          interp.SystemdTargetConfig
+	}{
+		{
+			name: "bare metal uses rshell local defaults",
+		},
+		{
+			name:          "container with all host mounts uses host target",
+			containerized: true,
+			existing: map[string]bool{
+				"/host/var/log/journal":                        true,
+				"/host/run/log/journal":                        true,
+				"/host/etc/machine-id":                         true,
+				"/host/run/systemd/journal/io.systemd.journal": true,
+				"/host/run/dbus/system_bus_socket":             true,
+			},
+			want: fullHostTarget,
+		},
+		{
+			name:          "container without host machine ID keeps explicit host target",
+			containerized: true,
+			existing: map[string]bool{
+				"/host/var/log/journal":            true,
+				"/host/run/dbus/system_bus_socket": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:      []string{"/host/var/log/journal"},
+				MachineIDPath:    "/host/etc/machine-id",
+				ManagerBusSocket: "/host/run/dbus/system_bus_socket",
+			},
+		},
+		{
+			name:          "partial host target does not mix in local endpoints",
+			containerized: true,
+			existing: map[string]bool{
+				"/host/etc/machine-id":             true,
+				"/host/run/log/journal":            true,
+				"/host/run/dbus/system_bus_socket": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:      []string{"/host/run/log/journal"},
+				MachineIDPath:    "/host/etc/machine-id",
+				ManagerBusSocket: "/host/run/dbus/system_bus_socket",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.containerized {
+				t.Setenv("DOCKER_DD_AGENT", "true")
+			} else {
+				t.Setenv("DOCKER_DD_AGENT", "")
+			}
+			overrideStatFn(t, mockStatFn(tc.existing))
+
+			assert.Equal(t, tc.want, resolveSystemdTarget())
+		})
+	}
+}
+
 // --- runRemediationCommand ---
 
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both

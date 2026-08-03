@@ -16,6 +16,7 @@ import (
 	"maps"
 	"os"
 	"path"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -33,8 +34,13 @@ import (
 )
 
 const (
-	defaultProcPath         = "/proc"
-	containerizedPathPrefix = "/host"
+	defaultProcPath                    = "/proc"
+	defaultPersistentJournalPath       = "/var/log/journal"
+	defaultRuntimeJournalPath          = "/run/log/journal"
+	defaultMachineIDPath               = "/etc/machine-id"
+	defaultJournalControlSocketPath    = "/run/systemd/journal/io.systemd.journal"
+	defaultSystemdManagerBusSocketPath = "/run/dbus/system_bus_socket"
+	containerizedPathPrefix            = "/host"
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -277,7 +283,7 @@ func (h *RunCommandHandler) Run(
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
 	// read the messages back via runner.Warnings() into SandboxWarnings.
-	runner, err := interp.New(
+	runnerOptions := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
 		interp.AllowedPaths(effectiveAllowedPaths),
@@ -285,7 +291,11 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
-	)
+	}
+	if runtime.GOOS == "linux" {
+		runnerOptions = append(runnerOptions, interp.WithSystemdTarget(resolveSystemdTarget()))
+	}
+	runner, err := interp.New(runnerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
@@ -326,10 +336,41 @@ func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (comma
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
-		if _, err := statFn(hostProc); err == nil {
+		if hostProc, ok := resolveMountedHostPath(defaultProcPath); ok {
 			return hostProc
 		}
 	}
 	return defaultProcPath
+}
+
+// resolveSystemdTarget returns the trusted systemd target for the current
+// environment. A zero config lets rshell use its coherent local defaults. A
+// container always receives an explicit host target so a missing mount cannot
+// make rshell fall back to container-local systemd endpoints.
+func resolveSystemdTarget() interp.SystemdTargetConfig {
+	if !env.IsContainerized() {
+		return interp.SystemdTargetConfig{}
+	}
+
+	target := interp.SystemdTargetConfig{MachineIDPath: containerizedHostPath(defaultMachineIDPath)}
+	for _, journalPath := range []string{defaultPersistentJournalPath, defaultRuntimeJournalPath} {
+		if hostPath, ok := resolveMountedHostPath(journalPath); ok {
+			target.JournalDirs = append(target.JournalDirs, hostPath)
+		}
+	}
+	target.JournalControlSocket, _ = resolveMountedHostPath(defaultJournalControlSocketPath)
+	target.ManagerBusSocket, _ = resolveMountedHostPath(defaultSystemdManagerBusSocketPath)
+	return target
+}
+
+func resolveMountedHostPath(defaultPath string) (string, bool) {
+	hostPath := containerizedHostPath(defaultPath)
+	if _, err := statFn(hostPath); err != nil {
+		return "", false
+	}
+	return hostPath, true
+}
+
+func containerizedHostPath(defaultPath string) string {
+	return path.Join(containerizedPathPrefix, defaultPath)
 }
