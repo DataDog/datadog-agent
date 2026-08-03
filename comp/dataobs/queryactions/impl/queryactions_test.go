@@ -189,8 +189,8 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name: "postgres",
 		Instances: []integration.Data{
-			integration.Data("host: localhost\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
-			integration.Data("host: localhost\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: db-a.internal\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: db-b.internal\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
 		},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
@@ -205,10 +205,10 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 
 	// Update 1: schedule cfg-A. Drain it to simulate autodiscovery processing it —
 	// cfg-A is now "in autodiscovery".
-	payload1 := buildPayloadJSON(t, "cfg-A", "localhost", singleQuery)
+	payload1 := buildPayloadJSON(t, "cfg-A", "db-a.internal", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payload1}}, noStatus)
 	update1 := <-outCh
-	require.Len(t, update1.Schedule, 1, "update 1 should schedule cfg-A")
+	require.Len(t, update1.Schedule, 2, "update 1 should schedule cfg-A and the db-b remainder")
 
 	// Update 2: remove cfg-A (empty queries = disable). Channel is now empty — writes directly.
 	// Disabling produces: Unschedule=[cfg-A DO config], Schedule=[base config restoration].
@@ -220,13 +220,13 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	// sendChanges must drain the full channel and merge update 2's Unschedule into update 3.
 	// Only Unschedule from the dropped update is preserved; dropped Schedule (base config
 	// restoration) is discarded since the new snapshot is authoritative.
-	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", singleQuery)
+	payload3 := buildPayloadJSON(t, "cfg-B", "db-b.internal", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
 	select {
 	case changes := <-outCh:
-		require.Len(t, changes.Schedule, 1, "should contain only cfg-B schedule (dropped base restoration is discarded)")
-		require.Len(t, changes.Unschedule, 2, "should contain cfg-A Unschedule from dropped + cfg-B's base config Unschedule")
+		require.Len(t, changes.Schedule, 2, "should contain cfg-B and its remainder (dropped base restoration is discarded)")
+		require.Len(t, changes.Unschedule, 3, "should contain cfg-A and remainder Unschedules from dropped + cfg-B's base config Unschedule")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for merged ConfigChanges")
 	}

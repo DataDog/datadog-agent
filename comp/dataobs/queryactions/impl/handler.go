@@ -6,6 +6,7 @@
 package queryactionsimpl
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -36,10 +37,15 @@ const defaultPostgresPort = 5432
 // was derived from and the instance identity it targets, so reconcileBases can rebuild the set of
 // postgres instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
-	checkConfig integration.Config
-	baseCfg     *integration.Config // the original matched postgres config (full, all instances)
-	matchHost   string              // resolved instanceIdentity (host:port) of the instance this DO config targets
+	checkConfig   integration.Config
+	baseCfg       *integration.Config    // the original matched postgres config (full, all instances)
+	matchInstance instanceConfigIdentity // exact source instance this DO config targets
 }
+
+// instanceConfigIdentity identifies the exact integration.Data entry selected from a base
+// config. Endpoint-derived identities are not sufficient: two instances may share host and port
+// while using different database_identifier templates or tags.
+type instanceConfigIdentity [sha256.Size]byte
 
 // managedBaseEntry tracks a base postgres config that has at least one instance targeted by a
 // DO query action. A DO query action only injects data_observability.queries into the targeted
@@ -122,7 +128,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.resolveBaseConfig(configID, &payload.DBIdentifier)
+		baseCfg, instance, matchInstance, err := c.resolveBaseConfig(configID, &payload.DBIdentifier)
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -148,14 +154,9 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
-			checkConfig: checkConfig,
-			baseCfg:     baseCfg,
-			// Use the resolved identity of the instance findMatchingConfig actually selected
-			// rather than payload.DBIdentifier.Host verbatim: the payload host can be a bare
-			// host shared by several instances on different ports, and matching buildRemainder
-			// against that bare string would exclude every sibling instance on that host, not
-			// just the one selected here.
-			matchHost: instanceIdentity(instance),
+			checkConfig:   checkConfig,
+			baseCfg:       baseCfg,
+			matchInstance: matchInstance,
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -222,25 +223,25 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	defer c.activeConfigsMu.Unlock()
 
-	// Group the instance identities targeted by active DO configs per base config digest.
+	// Group the exact source instances targeted by active DO configs per base config digest.
 	type baseGroup struct {
-		original integration.Config
-		hosts    map[string]bool
+		original  integration.Config
+		instances map[instanceConfigIdentity]bool
 	}
 	desired := make(map[string]*baseGroup)
 	for _, entry := range c.activeConfigs {
 		digest := entry.baseCfg.Digest()
 		g := desired[digest]
 		if g == nil {
-			g = &baseGroup{original: *entry.baseCfg, hosts: make(map[string]bool)}
+			g = &baseGroup{original: *entry.baseCfg, instances: make(map[instanceConfigIdentity]bool)}
 			desired[digest] = g
 		}
-		g.hosts[entry.matchHost] = true
+		g.instances[entry.matchInstance] = true
 	}
 
 	// Newly-managed or changed bases.
 	for digest, g := range desired {
-		remainder := buildRemainder(&g.original, g.hosts)
+		remainder := buildRemainder(&g.original, g.instances)
 		managed, exists := c.managedBases[digest]
 		if !exists {
 			// First DO config to target this base: unschedule the original, schedule the remainder.
@@ -279,26 +280,13 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	}
 }
 
-// buildRemainder returns a copy of base containing only the instances NOT targeted by any host in
-// matchedHosts. It returns nil when every instance is DO-managed. Instances whose YAML
-// cannot be parsed are kept, so a config we cannot classify is never silently dropped.
-//
-// Matching compares each instance's own resolved instanceIdentity against matchedHosts by exact
-// string equality, not the raw DBIdentifier.Host from the RC payload and not the looser
-// host-or-host:port matching instanceMatchesHost does for that payload host. A payload host can
-// be bare and shared by several instances on different ports (e.g. two postgres instances both on
-// "dbhost"), and a loose match against that bare string — or against the resolved identity of a
-// portless matched instance — would incorrectly exclude sibling instances that do have a port,
-// instead of only the one actually selected as the DO check.
-func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
+// buildRemainder returns a copy of base containing only instances that were not selected by a DO
+// config. It returns nil when every instance is DO-managed. Matching the exact source YAML entry
+// preserves siblings even when they share an endpoint but render different database identifiers.
+func buildRemainder(base *integration.Config, matchedInstances map[instanceConfigIdentity]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
 	for _, instanceData := range base.Instances {
-		var instance map[string]any
-		if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-			kept = append(kept, instanceData)
-			continue
-		}
-		if instanceTargeted(instance, matchedHosts) {
+		if matchedInstances[identifyInstanceConfig(instanceData)] {
 			continue
 		}
 		kept = append(kept, instanceData)
@@ -311,14 +299,8 @@ func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *int
 	return &remainder
 }
 
-// instanceTargeted reports whether this instance is the exact instance a DO config resolved to,
-// by comparing its own instanceIdentity against matchedHosts. Exact identity equality — rather
-// than the looser bare-or-host:port matching used to resolve a payload host to an instance in the
-// first place — ensures a portless matched identity (e.g. "dbhost") can never accidentally match a
-// sibling instance that does have a port (e.g. "dbhost" host with port 5433): that sibling's own
-// identity is "dbhost:5433", which is exactly equal to nothing but itself.
-func instanceTargeted(instance map[string]any, matchedHosts map[string]bool) bool {
-	return matchedHosts[instanceIdentity(instance)]
+func identifyInstanceConfig(instanceData integration.Data) instanceConfigIdentity {
+	return sha256.Sum256(instanceData)
 }
 
 // sameConfig reports whether two optional configs are equivalent by autodiscovery digest.
@@ -343,15 +325,15 @@ func sameConfig(a, b *integration.Config) bool {
 //
 // Falls back to a fresh search if the stored base no longer has an instance matching dbID (e.g.
 // its host genuinely changed between updates).
-func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier) (*integration.Config, map[string]any, instanceConfigIdentity, error) {
 	c.activeConfigsMu.Lock()
 	existing, alreadyActive := c.activeConfigs[configID]
 	c.activeConfigsMu.Unlock()
 
 	if alreadyActive {
-		instance, err := c.findMatchingInstance(existing.baseCfg, dbID)
+		instance, identity, err := c.findMatchingInstance(existing.baseCfg, dbID)
 		if instance != nil {
-			return existing.baseCfg, instance, nil
+			return existing.baseCfg, instance, identity, nil
 		}
 		if err != nil {
 			c.log.Warnf("Stored base config for %s no longer parses cleanly, re-resolving: %v", configID, err)
@@ -363,33 +345,33 @@ func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier) (*int
 // findMatchingConfig finds a supported DB integration config that matches the given identifier
 // and has data_observability.enabled: true. Returns the matching config and the already-parsed
 // instance map to avoid re-parsing YAML in callers.
-func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, instanceConfigIdentity, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
-		instance, err := c.findMatchingInstance(&cfg, dbID)
+		instance, identity, err := c.findMatchingInstance(&cfg, dbID)
 		if err != nil {
 			lastParseErr = err
 		}
 		if instance != nil {
-			return &cfg, instance, nil
+			return &cfg, instance, identity, nil
 		}
 	}
 
 	if lastParseErr != nil {
-		return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
+		return nil, nil, instanceConfigIdentity{}, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
 			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s",
+	return nil, nil, instanceConfigIdentity{}, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
 }
 
 // findMatchingInstance searches cfg's instances for one matching dbID with data_observability
 // enabled, returning the first match. Instances whose YAML fails to parse are skipped (logged and
 // recorded as lastErr) rather than aborting the search — a later instance may still match.
-func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdentifier) (map[string]any, error) {
+func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdentifier) (map[string]any, instanceConfigIdentity, error) {
 	if cfg.Name != "postgres" && cfg.Name != "sap_hana" {
 		c.log.Warnf("DO query action: config %s is not a known DO-supported integration", cfg.Name)
 	}
@@ -404,10 +386,10 @@ func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdenti
 		}
 
 		if instanceMatchesIdentifier(instance, *dbID, cfg.Name) && instanceHasDOEnabled(instance) {
-			return instance, nil
+			return instance, identifyInstanceConfig(instanceData), nil
 		}
 	}
-	return nil, lastErr
+	return nil, instanceConfigIdentity{}, lastErr
 }
 
 // matchesIdentifier checks if a Postgres instance matches the given DB identifier. It uses the
@@ -450,6 +432,15 @@ func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier,
 // renderDatabaseIdentifier renders a database_identifier template using the same inputs as the
 // Postgres check. Unknown variables stay in the result, matching Python's safe_substitute.
 func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTemplate string, defaultPort int) (string, bool) {
+	return renderDatabaseIdentifierWithLookup(instance, agentHostname, defaultTemplate, defaultPort, net.LookupHost)
+}
+
+func renderDatabaseIdentifierWithLookup(
+	instance map[string]any,
+	agentHostname, defaultTemplate string,
+	defaultPort int,
+	lookupHost func(string) ([]string, error),
+) (string, bool) {
 	template := defaultTemplate
 	if configuredIdentifier, exists := instance["database_identifier"]; exists {
 		databaseIdentifier, ok := configuredIdentifier.(map[string]any)
@@ -480,12 +471,56 @@ func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTem
 	resolvedHostname := host
 	if reportedHostname, ok := instance["reported_hostname"].(string); ok && reportedHostname != "" {
 		resolvedHostname = reportedHostname
-	} else if isLocalDBHost(host) && agentHostname != "" {
-		resolvedHostname = agentHostname
+	} else {
+		resolvedHostname = resolveDatabaseHostname(host, agentHostname, lookupHost)
 	}
 	values["resolved_hostname"] = resolvedHostname
 
 	return safeSubstitute(template, values), true
+}
+
+// resolveDatabaseHostname mirrors the Postgres check's resolve_db_host behavior used to build
+// $resolved_hostname. Besides local and socket hosts, the check reports the Agent hostname when
+// the database host and Agent hostname resolve to the same IPv4 address.
+func resolveDatabaseHostname(host, agentHostname string, lookupHost func(string) ([]string, error)) string {
+	if strings.HasSuffix(host, ".local") {
+		return host
+	}
+	if isLocalDBHost(host) {
+		if agentHostname != "" {
+			return agentHostname
+		}
+		return host
+	}
+	if agentHostname == "" {
+		return host
+	}
+
+	hostAddresses, err := lookupHost(host)
+	if err != nil {
+		return host
+	}
+	agentAddresses, err := lookupHost(agentHostname)
+	if err != nil {
+		return host
+	}
+	hostIPv4, hostOK := firstIPv4Address(hostAddresses)
+	agentIPv4, agentOK := firstIPv4Address(agentAddresses)
+	if hostOK && agentOK && hostIPv4 == agentIPv4 {
+		return agentHostname
+	}
+	return host
+}
+
+func firstIPv4Address(addresses []string) (string, bool) {
+	for _, address := range addresses {
+		if ip := net.ParseIP(address); ip != nil {
+			if ipv4 := ip.To4(); ipv4 != nil {
+				return ipv4.String(), true
+			}
+		}
+	}
+	return "", false
 }
 
 // templateTagValues exposes each key:value instance tag as a template variable. Duplicate keys
@@ -563,17 +598,6 @@ func instancePort(instance map[string]any) (int, bool) {
 		return port, err == nil
 	}
 	return 0, false
-}
-
-// instanceIdentity returns a canonical "host:port" identity for an instance, falling back to the
-// bare host when no port is present. Unlike matching against a possibly-bare payload host, this
-// always disambiguates instances that share a host but differ by port.
-func instanceIdentity(instance map[string]any) string {
-	host := instanceHost(instance)
-	if port, ok := instancePort(instance); ok {
-		return fmt.Sprintf("%s:%d", host, port)
-	}
-	return host
 }
 
 // buildCheckConfig creates a check config with data_observability queries injected.

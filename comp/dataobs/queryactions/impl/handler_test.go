@@ -139,6 +139,33 @@ func TestMatchesIdentifier_DatabaseIdentifierTemplateUsesTags(t *testing.T) {
 	assert.True(t, matchesIdentifier(instance, dbID))
 }
 
+func TestRenderDatabaseIdentifier_UsesAgentHostnameForSameResolvedIPv4(t *testing.T) {
+	instance := map[string]any{
+		"host": "postgres.internal",
+		"database_identifier": map[string]any{
+			"template": "$resolved_hostname:$port",
+		},
+	}
+	lookup := func(host string) ([]string, error) {
+		addresses := map[string][]string{
+			"postgres.internal": {"10.20.30.40"},
+			"agent.internal":    {"10.20.30.40"},
+		}
+		return addresses[host], nil
+	}
+
+	identifier, ok := renderDatabaseIdentifierWithLookup(
+		instance,
+		"agent.internal",
+		"$resolved_hostname",
+		defaultPostgresPort,
+		lookup,
+	)
+
+	require.True(t, ok)
+	assert.Equal(t, "agent.internal:5432", identifier)
+}
+
 func TestMatchesIdentifier_RDS(t *testing.T) {
 	instance := map[string]any{"host": "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
 	dbID := &DBIdentifier{Type: "rds", Host: "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
@@ -453,9 +480,9 @@ func TestRemoveActiveConfig_Found(t *testing.T) {
 	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
 	c := newTestComponent(t)
 	c.activeConfigs["my-config"] = activeConfigEntry{
-		checkConfig: doCheckConfig,
-		baseCfg:     baseCfg,
-		matchHost:   "localhost",
+		checkConfig:   doCheckConfig,
+		baseCfg:       baseCfg,
+		matchInstance: identifyInstanceConfig(integration.Data("host: localhost\n")),
 	}
 	changes := integration.ConfigChanges{}
 
@@ -678,12 +705,10 @@ func TestBuildRemainder_SapHanaServerKey(t *testing.T) {
 			integration.Data(fmt.Sprintf("server: %s\nport: %d\n", siblingServer, port)),
 		},
 	}
-	// matchedHosts contains the resolved "host:port" identity for sap_hana.
-	targetedHostPort := fmt.Sprintf("%s:%d", targetedServer, port)
-	siblingHostPort := fmt.Sprintf("%s:%d", siblingServer, port)
-
 	t.Run("targeted server excluded, sibling kept", func(t *testing.T) {
-		remainder := buildRemainder(base, map[string]bool{targetedHostPort: true})
+		remainder := buildRemainder(base, map[instanceConfigIdentity]bool{
+			identifyInstanceConfig(base.Instances[0]): true,
+		})
 		require.NotNil(t, remainder, "sibling instance must keep the remainder alive")
 		require.Len(t, remainder.Instances, 1, "targeted server must be excluded from the remainder")
 		var instance map[string]any
@@ -692,7 +717,10 @@ func TestBuildRemainder_SapHanaServerKey(t *testing.T) {
 	})
 
 	t.Run("all servers targeted yields nil remainder", func(t *testing.T) {
-		remainder := buildRemainder(base, map[string]bool{targetedHostPort: true, siblingHostPort: true})
+		remainder := buildRemainder(base, map[instanceConfigIdentity]bool{
+			identifyInstanceConfig(base.Instances[0]): true,
+			identifyInstanceConfig(base.Instances[1]): true,
+		})
 		assert.Nil(t, remainder, "no instances should remain when every sap_hana server is DO-managed")
 	})
 }
@@ -710,7 +738,7 @@ func TestFindMatchingConfig_TemplatedIdentifiersDistinguishPorts(t *testing.T) {
 
 	for _, port := range []int{5432, 5433} {
 		t.Run(strconv.Itoa(port), func(t *testing.T) {
-			_, instance, err := c.findMatchingConfig(&DBIdentifier{
+			_, instance, _, err := c.findMatchingConfig(&DBIdentifier{
 				Type:          "self-hosted",
 				Host:          fmt.Sprintf("do-test-postgres-staging:%d", port),
 				AgentHostname: "do-test-postgres-staging",
@@ -730,7 +758,9 @@ func TestBuildRemainder_TemplatedIdentifierExcludesOnlyTargetPort(t *testing.T) 
 			integration.Data("host: localhost\nport: 5433\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\n"),
 		},
 	}
-	remainder := buildRemainder(base, map[string]bool{"localhost:5432": true})
+	remainder := buildRemainder(base, map[instanceConfigIdentity]bool{
+		identifyInstanceConfig(base.Instances[0]): true,
+	})
 	require.NotNil(t, remainder)
 	require.Len(t, remainder.Instances, 1)
 	var instance map[string]any
@@ -872,6 +902,48 @@ func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testin
 
 	assert.Equal(t, []int{targetedPort}, portsOf(*doCfg), "DO check should carry only the targeted port")
 	assert.Equal(t, []int{siblingPort}, portsOf(*remainder), "remainder must keep the untargeted sibling port")
+}
+
+// Two instances can share host and port while custom templates and tags give them distinct
+// database identifiers. Selecting one must not prune the other from the base remainder.
+func TestOnRCUpdate_SameEndpointDifferentIdentifiers_KeepsSiblingInRemainder(t *testing.T) {
+	const sharedHost = "dbhost"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: dbhost\nport: 5432\ntags:\n  - env:staging\ndatabase_identifier:\n  template: '$env-$host:$port'\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: dbhost\nport: 5432\ntags:\n  - env:prod\ndatabase_identifier:\n  template: '$env-$host:$port'\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+	payloadJSON, err := json.Marshal(DOQueryPayload{
+		ConfigID:     "cfg-prod",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "prod-" + sharedHost + ":5432"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	})
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-prod": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-prod"].State)
+	require.Len(t, changes.Schedule, 2)
+
+	var remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; !hasQueries {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, remainder)
+	require.Len(t, remainder.Instances, 1)
+	var sibling map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &sibling))
+	assert.Equal(t, []any{"env:staging"}, sibling["tags"])
 }
 
 // TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder is a regression test for a
