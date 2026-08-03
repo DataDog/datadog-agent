@@ -22,6 +22,9 @@ profiles:
       - name: checks.max_returned_metrics_reached
         preserve_tags:
           - check_name
+      - name: checks.max_returned_metrics_dropped
+        preserve_tags:
+          - check_name
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:
