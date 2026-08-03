@@ -1,6 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_linux_bpf on
 
 exports_files([
     "c_types_linux.go",
@@ -22,6 +23,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
@@ -42,11 +44,12 @@ go_library(
 # Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 # and cannot coexist in the same rule's deps.
 
-dd_agent_go_test(
+go_test(
     name = "oomkill_types_test",
     # keep: split from oomkill_test; see comment above.
     srcs = ["c_types_linux_test.go"],
     embed = [":oomkill"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
     deps = select({
@@ -60,11 +63,16 @@ dd_agent_go_test(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "oomkill_test",
     # keep: split from oomkill_types_test; see comment above.
     srcs = ["oom_kill_test.go"],
     embed = [":oomkill"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [

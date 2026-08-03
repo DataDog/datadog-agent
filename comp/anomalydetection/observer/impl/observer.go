@@ -265,8 +265,8 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
-	// enabled so the live observer gets full telemetry while the testbench
-	// replay keeps using the parameterless path.
+	// enabled so the live observer gets full telemetry. Replay enables the same
+	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
 	if rawScorer != nil {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
@@ -450,7 +450,7 @@ type observerImpl struct {
 	metricFilter         *metricsFilterRules
 
 	// replayMu serialises engine access between the run() dispatch loop and
-	// the testbench's direct-ingest path (IngestTestbenchLog, IngestMetricSync).
+	// the testbench's direct-ingest path (IngestLogForReplay, IngestMetricSync).
 	// In production these methods are never called so this mutex is always
 	// uncontended. In the testbench it prevents a data race between the
 	// agent-internal-log observer (which can post to obsCh while run() is
@@ -771,6 +771,12 @@ func (o *observerImpl) Flush() {
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
 	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	// Catalog scorers are unwatched standalone instances. Replay needs the same
+	// transition watcher as the live observer so scorer correlation episodes open
+	// and close as severity changes; telemetry gauges are optional here.
+	if scorer != nil {
+		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
+	}
 	o.replayMu.Lock()
 	o.metricFilter.muted.Store(nil)
 	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
@@ -878,20 +884,13 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 	return o.engine.storage
 }
 
-// IngestTestbenchLog feeds a log directly into the engine without driving any
-// scheduler-triggered advances. Implements DebugView. Used during batch
-// pre-loading in the testbench replay path so that extractor state is built up
+// IngestLogForReplay feeds a log directly into the engine without driving any
+// scheduler-triggered advances. Implements DebugView. Used while pre-loading
+// retained data so that extractor state is built up
 // and log metrics are written to storage, but detector/correlator advances are
 // deferred to the subsequent ReplayStoredData call.
-func (o *observerImpl) IngestTestbenchLog(source string, msg observerdef.LogView) {
-	timestampMs := msg.GetTimestampUnixMilli()
-	lo := &logObs{
-		content:     msg.GetContent(),
-		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
-		hostname:    msg.GetHostname(),
-		timestampMs: timestampMs,
-	}
+func (o *observerImpl) IngestLogForReplay(source string, msg observerdef.LogView) {
+	lo := logObsFromView(msg)
 	o.replayMu.Lock()
 	// Advance requests are intentionally discarded.
 	_ = o.engine.IngestLog(source, lo)
@@ -901,6 +900,42 @@ func (o *observerImpl) IngestTestbenchLog(source string, msg observerdef.LogView
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
+}
+
+// IngestLogAndAdvance feeds a log directly into the engine and executes any
+// scheduler-triggered advances before returning. Implements DebugView.
+func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogView) {
+	lo := logObsFromView(msg)
+	o.replayMu.Lock()
+	requests := o.engine.IngestLog(source, lo)
+	for _, req := range requests {
+		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.engine.replayAdvances.Add(1)
+	}
+	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
+	if o.telemetry != nil {
+		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
+		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+	}
+	o.replayMu.Unlock()
+}
+
+// FinishReplayStream flushes the scheduler at end-of-input without resetting
+// the analysis state accumulated by synchronous ingestion. Implements DebugView.
+func (o *observerImpl) FinishReplayStream() {
+	o.replayMu.Lock()
+	o.engine.FinishReplayStream()
+	o.replayMu.Unlock()
+}
+
+func logObsFromView(msg observerdef.LogView) *logObs {
+	return &logObs{
+		content:     msg.GetContent(),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.Tags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: msg.GetTimestampUnixMilli(),
+	}
 }
 
 func normalizeMetricSource(name, source string) string {
@@ -955,7 +990,9 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 	requests := o.engine.IngestMetric(decision.source, decision.metric)
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.engine.replayAdvances.Add(1)
 	}
+	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}

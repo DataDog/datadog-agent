@@ -138,6 +138,7 @@ properties:
     description: The maximum time (in seconds) the Datadog Agent waits to fill each
       batch of logs before sending.
     tags:
+    - generate_const:DefaultBatchWait
     - golang_type:float64
   close_timeout:
     node_type: setting
@@ -208,6 +209,8 @@ properties:
 
       Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
       remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
+    tags:
+    - generate_const:DefaultMaxMessageSizeBytes
     comment: maximum log message size in bytes
   integrations_logs_files_max_size:
     node_type: setting
@@ -281,13 +284,17 @@ properties:
   atomic_registry_write:
     node_type: setting
     type: boolean
-    default: true
+    platform_default:
+      fargate: false
+      other: true
     comment: If true, then the registry file will be written atomically. This behavior
       is not supported on ECS Fargate.
   auditor_ttl:
     node_type: setting
     type: integer
     default: 23
+    tags:
+    - generate_const:DefaultAuditorTTL
     comment: in hours
   auto_multi_line:
     node_type: section
@@ -375,18 +382,26 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - generate_const:DefaultBatchMaxConcurrentSend
   batch_max_content_size:
     node_type: setting
     type: integer
     default: 5000000
+    tags:
+    - generate_const:DefaultBatchMaxContentSize
   batch_max_size:
     node_type: setting
     type: integer
     default: 1000
+    tags:
+    - generate_const:DefaultBatchMaxSize
   compression_kind:
     node_type: setting
     type: string
     default: zstd
+    tags:
+    - generate_const:DefaultLogCompressionKind
   connection_reset_interval:
     node_type: setting
     type: integer
@@ -500,7 +515,6 @@ properties:
     tags:
     - golang_type:duration
     comment: |-
-      Delegated authentication for logs
       Duration during which the host tags will be submitted with log events.
       duration-formatted string (parsed by `time.ParseDuration`)
   experimental_adaptive_sampling:
@@ -662,19 +676,32 @@ properties:
         node_type: setting
         type: integer
         default: 0
-        comment: default fingerprint configuration
+        comment: DefaultFingerprintingCount refers to the number of lines or bytes
+          to use for fingerprinting
       count_to_skip:
         node_type: setting
         type: integer
         default: 0
+        comment: |-
+          The default number of lines (or bytes) to skip when reading a file.
+          Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
       fingerprint_strategy:
         node_type: setting
         type: string
         default: disabled
+        comment: |-
+          DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+          Options are:
+          - "line_checksum": compute the fingerprint by lines
+          - "byte_checksum": compute the fingerprint by bytes
+          - "disabled": disable fingerprinting
       max_bytes:
         node_type: setting
         type: integer
         default: 100000
+        comment: |-
+          The maximum number of bytes that will be used to generate a checksum fingerprint;
+          used in cases where the line to hash is too large or if the fingerprinting maxLines=0
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean
@@ -697,6 +724,8 @@ properties:
     node_type: setting
     type: integer
     default: 100
+    tags:
+    - generate_const:DefaultInputChanSize
   integrations_logs_disk_ratio:
     node_type: setting
     type: number
@@ -760,23 +789,28 @@ properties:
     type: number
     default: 1
     tags:
+    - generate_const:DefaultLogsSenderBackoffBase
     - golang_type:float64
   sender_backoff_factor:
     node_type: setting
     type: number
     default: 2
     tags:
+    - generate_const:DefaultLogsSenderBackoffFactor
     - golang_type:float64
   sender_backoff_max:
     node_type: setting
     type: number
     default: 120
     tags:
+    - generate_const:DefaultLogsSenderBackoffMax
     - golang_type:float64
   sender_recovery_interval:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - generate_const:DefaultForwarderRecoveryInterval
   sender_recovery_reset:
     node_type: setting
     type: boolean
@@ -859,3 +893,6 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    tags:
+    - generate_const:DefaultZstdCompressionLevel
+comment: Delegated authentication for logs

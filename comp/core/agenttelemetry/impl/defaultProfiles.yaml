@@ -33,21 +33,14 @@ profiles:
       zero_metric: true
     metrics:
       - name: dogstatsd.udp_packets_bytes
-        preserve_tags:
-          - emitter
       - name: dogstatsd.uds_packets_bytes
-        preserve_tags:
-          - emitter
       - name: logs.bytes_missed
       - name: logs.bytes_sent
-        preserve_tags:
-          - emitter
         aggregate_total: true
       - name: logs.decoded
       - name: logs.dropped
       - name: logs.encoded_bytes_sent
         preserve_tags:
-          - emitter
           - compression_kind
         aggregate_total: true
       - name: logs.http_connectivity_check
@@ -77,16 +70,18 @@ profiles:
       - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
       - name: point.sent
-        aggregate_tags:
+        preserve_tags:
           - domain
-          - remote_agent
       - name: point.dropped
-        aggregate_tags:
+        preserve_tags:
           - domain
-          - remote_agent
       - name: transactions.input_count
+        preserve_tags:
+          - domain
+          - endpoint
       - name: transactions.input_bytes
-        aggregate_tags:
+        preserve_tags:
+          - domain
           - endpoint
       - name: transactions.requeued
       - name: transactions.retries
@@ -117,6 +112,10 @@ profiles:
           - kind
           - pod_name
       - name: agent_performance.memory_limit
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.cpu_usage
         preserve_tags:
           - kind
           - pod_name

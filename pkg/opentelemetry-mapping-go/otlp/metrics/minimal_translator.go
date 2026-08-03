@@ -34,6 +34,7 @@ type minimalTranslator struct {
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               mapper
+	unitMapper           *attributes.UnitMapper
 }
 
 // NewMinimalTranslator creates a new minimal translator for OTLP metrics.
@@ -71,6 +72,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
 		mapper:               newLossLessMapper(cfg, logger),
+		unitMapper:           attributes.NewUnitMapper(),
 	}, nil
 }
 
@@ -189,6 +191,11 @@ func (t *minimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originProduct:       t.cfg.originProduct,
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
+	}
+	if t.cfg.withUnits {
+		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
+			baseDims.unit = unit
+		}
 	}
 	if isUnsupportedMetric(md) {
 		// Skip unsupported metrics (cumulative monotonic sums, cumulative histograms)

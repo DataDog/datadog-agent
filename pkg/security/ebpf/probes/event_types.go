@@ -214,6 +214,38 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		}
 	}
 
+	mkdirIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		mkdirIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_mkdirat"),
+				hookFunc("rethook_do_mkdirat"),
+			}},
+			// Since 7.0, do_mkdirat was removed from the kernel so we need to hook the filename_mkdirat function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_mkdirat"),
+				hookFunc("rethook_filename_mkdirat"),
+			}},
+		}
+	}
+
+	renameIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		renameIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_renameat2"),
+				hookFunc("rethook_do_renameat2"),
+			}},
+			// Since 7.0, do_renameat2 was removed from the kernel so we need to hook the filename_renameat2 function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_renameat2"),
+				hookFunc("rethook_filename_renameat2"),
+			}},
+		}
+	}
+
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -369,12 +401,8 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rename", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: append(
-				[]manager.ProbesSelector{
-					hookFunc("hook_do_renameat2"),
-					hookFunc("rethook_do_renameat2"),
-				},
-				ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", hasFentry, EntryAndExit)...)},
+			&manager.BestEffort{Selectors: renameIOUringProbes},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", hasFentry, EntryAndExit)},
 
 			// unlink rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -478,10 +506,7 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdir", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdirat", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_mkdirat"),
-				hookFunc("rethook_do_mkdirat"),
-			}}},
+			&manager.BestEffort{Selectors: mkdirIOUringProbes}},
 
 		// List of probes required to capture removexattr events
 		"removexattr": {

@@ -1,101 +1,116 @@
 """Set a binary's rpath to the provided value."""
 
+load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
-def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
-    """Registers a patchelf action to rewrite the rpath of all shared libraries inside a directory.
+_RPATH_REWRITER_TOOLCHAIN = "//bazel/toolchains/rpath_rewriter"
+
+def _path_segments(path):
+    """Returns normalized path segments, ignoring the leading slash."""
+    return [segment for segment in paths.normalize(path).split("/") if segment]
+
+def _relative_dir(to_dir, from_dir):
+    """Returns the relative path from from_dir to to_dir.
+
+    Returns an empty path if the directory is the same."""
+    if not (paths.is_absolute(to_dir) and paths.is_absolute(from_dir)):
+        fail("Cannot compute relative path between '{}' and '{}', they both must be absolute paths".format(from_dir, to_dir))
+
+    to_segments = _path_segments(to_dir)
+    from_segments = _path_segments(from_dir)
+
+    common_segments = 0
+    for i in range(min(len(to_segments), len(from_segments))):
+        if to_segments[i] != from_segments[i]:
+            break
+        common_segments += 1
+
+    relative = [".."] * (len(from_segments) - common_segments) + to_segments[common_segments:]
+    return "/".join(relative) if relative else ""
+
+def relative_rpath(input, rpath):
+    """Returns the appropriate relative rpath from the input to the given rpath."""
+    from_dir = input.destination if input.target.is_directory else paths.dirname(input.destination)
+    return "./" + _relative_dir(rpath, from_dir)
+
+def rewrite_rpaths(ctx, inputs, rpath, relative = False):
+    """Creates actions to apply an rpath rewriter to files and TreeArtifacts.
+
+    The selected rpath rewriter toolchain provides separate tools for regular
+    files and TreeArtifacts. A `None` tool means rpath rewriting is not
+    applicable for that artifact kind on the target platform; in that case, the
+    original input is returned unchanged and no copy action is registered.
 
     Args:
       ctx: the rule context.
-      input_dir: the source directory artifact to patch.
-      output_dir: the output directory artifact to write.
-      rpath: the rpath string to set.
-    """
-    toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
-    patchelf = toolchain.label[DefaultInfo].files_to_run
-    ctx.actions.run_shell(
-        inputs = [input_dir],
-        tools = [patchelf],
-        outputs = [output_dir],
-        # /. copies the contents of input rather than nesting it under output
-        # (Bazel pre-creates output via declare_directory). chmod restores
-        # owner-write so patchelf can rewrite files installed as 0555.
-        command = (
-            "cp -rL '{input}/.' '{output}' && " +
-            "chmod -R u+w '{output}' && " +
-            "find '{output}' -type f \\( -name '*.so' -o -name '*.so.*' \\) " +
-            "-exec '{patchelf}' --set-rpath '{rpath}' --force-rpath {{}} \\;"
-        ).format(
-            input = input_dir.path,
-            output = output_dir.path,
-            patchelf = patchelf.executable.path,
-            rpath = rpath,
-        ),
-    )
-
-def otool_dir_action(ctx, input_dir, output_dir, rpath):
-    """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory.
-
-    Args:
-      ctx: the rule context.
-      input_dir: the source directory artifact to patch.
-      output_dir: the output directory artifact to write.
-      rpath: the rpath string to set.
-    """
-    otool = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
-    args = ctx.actions.args()
-    args.add(ctx.file._script.path)
-    args.add(ctx.executable._install_name_tool.path)
-    args.add(otool.path)
-    args.add(rpath)
-    args.add(input_dir.path)
-    args.add(output_dir.path)
-    ctx.actions.run(
-        inputs = [input_dir, ctx.file._script],
-        tools = [ctx.executable._install_name_tool],
-        outputs = [output_dir],
-        executable = ctx.file._dir_script,
-        arguments = [args],
-    )
-
-def rewrite_rpaths_for_files(ctx, inputs, rpath):
-    """Creates actions to apply an rpath rewriter to the inputs.
-
-    Args:
-      ctx: the rule context.
-      inputs: the files to patch.
-      rpath: the rpath to set.
+      inputs: list of structs with:
+         - target: the file or TreeArtifact to patch.
+         - destination: the path where the file/TreeArtifact will be shipped.
+           This is used to calculate the relative path when `relative` is True.
+           For TreeArtifacts, this is the destination directory of the tree root;
+           the rewriter tool adjusts for each file's depth within the tree.
+      rpath: the rpath to set. When `relative` is True, this must be expressed
+        in the same path namespace as each input's destination.
+      relative: whether the rpath must be set relative to the patched file.
+        Relative rpaths are passed to toolchain scripts with a leading `./`;
+        those scripts substitute the platform-specific origin token.
 
     Returns:
-      A list of the generated outputs
+      A list of rewritten outputs, in the same order as inputs. Rewritten
+      artifacts preserve the input basename. On platforms where rewriting is a
+      no-op, some or all entries may be the original inputs.
     """
-    toolchain = ctx.toolchains["//bazel/toolchains/rpath_rewriter"]
-
-    # No-op: just pass the inputs through.
-    if toolchain.rewriter_tool == None:
-        return inputs
+    toolchain = ctx.toolchains[_RPATH_REWRITER_TOOLCHAIN]
 
     outputs = []
     for input in inputs:
-        output = ctx.actions.declare_file("patched/" + input.basename)
+        target = input.target
+        tool = toolchain.tree_rewriter_tool if target.is_directory else toolchain.rewriter_tool
+
+        # No-op: just pass this input through.
+        if tool == None:
+            outputs.append(target)
+            continue
+
+        if target.is_directory:
+            output = ctx.actions.declare_directory("patched_dirs/" + target.basename)
+        else:
+            output = ctx.actions.declare_file("patched/" + target.basename)
+
+        resolved_rpath = relative_rpath(input, rpath) if relative else rpath
+
         args = ctx.actions.args()
-        args.add(input)
-        args.add(rpath)
-        args.add(output)
+        args.add(target.path)
+        args.add(resolved_rpath)
+        args.add(output.path)
         ctx.actions.run(
-            inputs = [input],
+            inputs = [target],
             outputs = [output],
             arguments = [args],
-            executable = toolchain.rewriter_tool,
-            toolchain = "//bazel/toolchains/rpath_rewriter",
+            executable = tool,
+            toolchain = _RPATH_REWRITER_TOOLCHAIN,
         )
         outputs.append(output)
 
     return outputs
 
 def _rewrite_rpath_impl(ctx):
-    rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
-    return DefaultInfo(files = depset(rewrite_rpaths_for_files(ctx, inputs = ctx.files.inputs, rpath = rpath)))
+    install_dir = ctx.attr._install_dir[BuildSettingInfo].value
+    rpath = ctx.attr.rpath.format(install_dir = install_dir)
+    destination = ctx.attr.destination.format(install_dir = install_dir)
+    inputs = [
+        struct(
+            target = input,
+            destination = paths.join(destination, input.basename),
+        )
+        for input in ctx.files.inputs
+    ]
+    return DefaultInfo(files = depset(rewrite_rpaths(
+        ctx,
+        inputs = inputs,
+        rpath = rpath,
+        relative = ctx.attr.use_relative_rpaths,
+    )))
 
 rewrite_rpath = rule(
     implementation = _rewrite_rpath_impl,
@@ -112,10 +127,19 @@ rewrite_rpath = rule(
             Supports '{install_dir}' variable.""",
             default = "{install_dir}/embedded/lib",
         ),
+        "destination": attr.string(
+            doc = """Directory where the inputs will be installed.
+            Supports '{install_dir}' variable and is used only when relative rpaths are enabled.""",
+            default = "{install_dir}/embedded/lib",
+        ),
+        "use_relative_rpaths": attr.bool(
+            doc = "Whether rpaths should be relative.",
+            mandatory = True,
+        ),
         "_install_dir": attr.label(
-            doc = "Private label used for the default rpath",
+            doc = "Private label used for the default rpath and destination",
             default = "@@//:install_dir",
         ),
     },
-    toolchains = ["//bazel/toolchains/rpath_rewriter"],
+    toolchains = [_RPATH_REWRITER_TOOLCHAIN],
 )

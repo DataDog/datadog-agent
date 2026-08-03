@@ -64,10 +64,25 @@ func MkRedaction(regex string, opts ...RedactionOption) RedactionRule {
 	return r
 }
 
+// Names of the built-in NCM device profiles in DefaultProfiles.
+const (
+	ProfileAOSCX    ProfileName = "aoscx"
+	ProfileAOSW     ProfileName = "aosw"
+	ProfileCiscoASA ProfileName = "cisco-asa"
+	ProfileCiscoIOS ProfileName = "cisco-ios"
+	ProfileDellOS10 ProfileName = "dellos10"
+	ProfileEOS      ProfileName = "eos"
+	ProfileFortiOS  ProfileName = "fortios"
+	ProfileJunos    ProfileName = "junos"
+	ProfileNXOS     ProfileName = "nxos"
+	ProfilePanOS    ProfileName = "pan-os"
+	ProfileTMOS     ProfileName = "tmos"
+)
+
 // DefaultProfiles is the built-in set of NCM device profiles, keyed by profile name.
 var DefaultProfiles = Map{
-	"aoscx": {
-		Name: "aoscx",
+	ProfileAOSCX: {
+		Name: ProfileAOSCX,
 		Commands: CommandSet{
 			Verify:     MkCommand("show system", Expect(`(AOS|ArubaOS)-CX Version`)),
 			GetRunning: MkCommand("show running-config", Expect(`!Version (.*)?`)),
@@ -88,8 +103,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"aosw": {
-		Name: "aosw",
+	ProfileAOSW: {
+		Name: ProfileAOSW,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect(`(Alcatel-Lucent Operating System-Wireless|AOS-W|AOS-10)`)),
 			GetRunning: MkCommand("show running-config", Expect(`Building Configuration...`)),
@@ -121,8 +136,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"cisco-asa": {
-		Name: "cisco-asa",
+	ProfileCiscoASA: {
+		Name: ProfileCiscoASA,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect("Cisco Adaptive Security Appliance Software Version")),
 			GetRunning: MkCommand("more system:running-config", Expect(`ASA Version \d+\.\d+\(\d+\)`)),
@@ -145,20 +160,20 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"cisco-ios": {
-		Name: "cisco-ios",
+	ProfileCiscoIOS: {
+		Name: ProfileCiscoIOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect(`(Cisco IOS|Cisco Internetwork Operating System)`)),
 			GetRunning: MkCommand("show running-config", Expect(`Building configuration...`), Expect(`Current configuration :`)),
 			GetStartup: MkCommand("show startup-config", Expect(`Using (.*?) out of (.*?) bytes`)),
 			GetVersion: MkCommand("show version"),
-			PushConfig: []Command{
-				&SCPCommand{
+			PushConfig: &PushConfig{
+				Copy: &SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "flash:/dd-rollback-config",
 				},
-				MkCommand("configure replace flash:/dd-rollback-config force", Expect("Rollback Done")),
-				MkCommand("write", Expect("[OK]")),
+				SetRunning: MkCommand("configure replace flash:/dd-rollback-config force", Expect("Rollback Done")),
+				SetStartup: MkCommand("write", Expect("[OK]")),
 			},
 		},
 		Preprocessing: []RedactionRule{
@@ -212,8 +227,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"dellos10": {
-		Name: "dellos10",
+	ProfileDellOS10: {
+		Name: ProfileDellOS10,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect(`(Dell EMC Networking|Dell Application Software)`)),
 			GetRunning: MkCommand("show running-configuration", Expect(`! Version (.*)?`)),
@@ -235,19 +250,19 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"eos": {
-		Name: "eos",
+	ProfileEOS: {
+		Name: ProfileEOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect(`Arista .*`)),
 			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", Expect(`! Command: show running-config`)),
 			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", Expect(`! Command: show startup-config`)),
-			PushConfig: []Command{
-				&SCPCommand{
+			PushConfig: &PushConfig{
+				Copy: &SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "/tmp/dd-rollback-config",
 				},
-				MkCommand("configure replace file:/tmp/dd-rollback-config", ExpectNot("%")),
-				MkCommand("write", Expect(`Copy completed successfully`)),
+				SetRunning: MkCommand("configure replace file:/tmp/dd-rollback-config", ExpectNot("%")),
+				SetStartup: MkCommand("write", Expect(`Copy completed successfully`)),
 				// TODO should we be deleting the file after?
 				// MkCommand("delete file:/tmp/dd-rollback-config"),
 			},
@@ -282,8 +297,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"fortios": {
-		Name: "fortios",
+	ProfileFortiOS: {
+		Name: ProfileFortiOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("get system status", Expect(`Version: FortiGate`)),
 			GetRunning: MkCommand("show full-configuration", Expect(`config (system|global|vdom)`)),
@@ -300,12 +315,20 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"junos": {
-		Name: "junos",
+	ProfileJunos: {
+		Name: ProfileJunos,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect(`Junos:`)),
 			GetRunning: MkCommand("show configuration | display omit", Expect(`version \d+\.\d+[^;]*;`)),
 			GetVersion: MkCommand("show version"),
+			// untested
+			// PushConfig: &PushConfig{
+			// 	Copy: &SCPCommand{
+			// 		RemoteCommand: "scp",
+			// 		Filepath:      "/tmp/dd-rollback-config",
+			// 	},
+			// 	SetRunning: MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", Expect(`commit complete`)),
+			// },
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(\s*community) (\S+) (\{)`, WithReplacement("$1 <secret hidden> {")),
@@ -324,8 +347,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"nxos": {
-		Name: "nxos",
+	ProfileNXOS: {
+		Name: ProfileNXOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("show version", Expect(`Cisco Nexus Operating System`)),
 			GetRunning: MkCommand("show running-config", Expect(`!Command: show running-config`)),
@@ -362,8 +385,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"pan-os": {
-		Name: "pan-os",
+	ProfilePanOS: {
+		Name: ProfilePanOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
 			GetRunning: MkCommand("show config running", Expect(`(?s)<config.*</config>`)),
@@ -374,8 +397,8 @@ var DefaultProfiles = Map{
 		},
 	},
 
-	"tmos": {
-		Name: "tmos",
+	ProfileTMOS: {
+		Name: ProfileTMOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("cat /config/partitions/*/bigip*.conf", Expect(`(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`)),
 			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", Expect(`(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`)),

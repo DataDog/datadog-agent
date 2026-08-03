@@ -31,6 +31,7 @@ import (
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -49,10 +50,20 @@ ip address 192.168.1.1 255.255.255.0`
 	versionOutput = `Cisco Device Version 1.0`
 )
 
+type result = types.CommandResult
+
+func ok(msg string) *result {
+	return &result{Output: msg}
+}
+
+func fail(errMsg string) *result {
+	return &result{Error: errMsg}
+}
+
 func newMockConnection() *MockConnection {
 	// Set up mock remote client
 	return &MockConnection{
-		OutputMap: map[string]result{
+		OutputMap: map[string]*result{
 			"show running-config": ok(runningOutput),
 			"show startup-config": ok(startupOutput),
 			"show version":        ok(versionOutput),
@@ -61,22 +72,9 @@ func newMockConnection() *MockConnection {
 	}
 }
 
-type result struct {
-	response string
-	err      error
-}
-
-func ok(msg string) result {
-	return result{response: msg}
-}
-
-func fail(err error) result {
-	return result{err: err}
-}
-
 // MockConnection simulates a Connection
 type MockConnection struct {
-	OutputMap map[string]result // cmd -> output
+	OutputMap map[string]*result // cmd -> output
 	Opened    bool
 	Closed    bool
 	Calls     []string
@@ -85,26 +83,25 @@ type MockConnection struct {
 
 var _ ncmremote.Connection = (*MockConnection)(nil)
 
-func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
-	r := fail(errors.New("unsupported command"))
+func (m *MockConnection) execute(cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	r := fail("unsupported command")
 	if cmd != nil {
 		var ok bool
 		r, ok = m.OutputMap[cmd.Command]
 		if !ok {
-			r = fail(fmt.Errorf("unknown command %q", cmd.Command))
+			r = fail(fmt.Sprintf("unknown command %q", cmd.Command))
 		}
-		if r.err == nil {
-			r.err = cmd.Validator.Validate(r.response)
-		}
+		r.CommandStr = cmd.Command
+		cmd.Validator.ValidateResult(r)
 	}
-	return []byte(r.response), r.err
+	return r, r.FormattedError()
 }
 
-func (m *MockConnection) RetrieveRunningConfig(_ context.Context) ([]byte, error) {
+func (m *MockConnection) RetrieveRunningConfig(_ context.Context) (*result, error) {
 	return m.execute(m.Profile.Commands.GetRunning)
 }
 
-func (m *MockConnection) RetrieveStartupConfig(_ context.Context) ([]byte, error) {
+func (m *MockConnection) RetrieveStartupConfig(_ context.Context) (*result, error) {
 	return m.execute(m.Profile.Commands.GetStartup)
 }
 
@@ -113,8 +110,8 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) error {
-	return errors.New("not implemented")
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.RollbackError) {
+	return nil, types.InternalError(errors.New("not implemented"))
 }
 
 func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
@@ -252,26 +249,28 @@ func TestCheck_Run_Success(t *testing.T) {
 		Namespace: "default",
 		Configs: []report.NetworkDeviceConfig{
 			{
-				DeviceID:     "default:10.0.0.1",
-				DeviceIP:     "10.0.0.1",
-				ConfigType:   "running",
-				ConfigSource: "cli",
-				Timestamp:    1754043600,
-				Tags:         expectedTags,
-				Content:      runningOutput,
-				ID:           "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				ConfigHash:   hashConfigForTest(runningOutput),
+				DeviceID:      "default:10.0.0.1",
+				DeviceIP:      "10.0.0.1",
+				ConfigType:    "running",
+				ConfigSource:  "cli",
+				ConfigProfile: "p2",
+				Timestamp:     1754043600,
+				Tags:          expectedTags,
+				Content:       runningOutput,
+				ID:            "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				ConfigHash:    hashConfigForTest(runningOutput),
 			},
 			{
-				DeviceID:     "default:10.0.0.1",
-				DeviceIP:     "10.0.0.1",
-				ConfigType:   "startup",
-				ConfigSource: "cli",
-				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
-				Tags:         expectedTags,
-				Content:      startupOutput,
-				ID:           "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				ConfigHash:   hashConfigForTest(startupOutput),
+				DeviceID:      "default:10.0.0.1",
+				DeviceIP:      "10.0.0.1",
+				ConfigType:    "startup",
+				ConfigSource:  "cli",
+				ConfigProfile: "p2",
+				Timestamp:     1754043600, // timestamp taken from agent collection (could not be extracted from config)
+				Tags:          expectedTags,
+				Content:       startupOutput,
+				ID:            "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				ConfigHash:    hashConfigForTest(startupOutput),
 			},
 		},
 		Inventories: []report.InventoryEntry{
@@ -423,7 +422,7 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	assert.True(t, reqs.connFactory.conn.Closed)
 
 	if assert.NotNil(t, dc.profile) {
-		assert.Equal(t, "p2", dc.profile.Name, "Device profile should be detected as p2")
+		assert.Equal(t, "p2", string(dc.profile.Name), "Device profile should be detected as p2")
 	}
 
 	t.Run("reloading config resets detected profile", func(t *testing.T) {
@@ -447,13 +446,13 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	actual, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.True(t, ok)
 	if assert.NotNil(t, actual) {
-		assert.Equal(t, "p2", actual.Name)
+		assert.Equal(t, "p2", string(actual.Name))
 	}
 }
 
 func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	reqs.connFactory.conn.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
+	reqs.connFactory.conn.OutputMap["show running-config"] = fail("command execution failed")
 	device := createTestDevice()
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)

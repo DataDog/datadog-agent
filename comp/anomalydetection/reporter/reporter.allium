@@ -137,10 +137,10 @@ external entity ChangeEvent {
 --   kind = CorrelationDetected  — a new pattern first-seen (or recurrence
 --       after inactivity) in the correlator's active set; triggers a
 --       ChangeEvent publication.
---   kind = EpisodeStarted       — the anomaly scorer's EWMA crossed the
---       High threshold, opening a new episode.
---   kind = EpisodeEnded         — the scorer's EWMA dropped below the High
---       threshold, closing the active episode.
+--   kind = EpisodeStarted       — the anomaly scorer's EWMA crossed its
+--       configured episode threshold, opening a new episode.
+--   kind = EpisodeEnded         — the scorer's EWMA dropped below its
+--       configured episode threshold, closing the active episode.
 --
 -- Episode events carry a Correlation snapshot that records the scorer
 -- state at the transition time; the correlation object is immutable from

@@ -27,7 +27,6 @@ import (
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"        // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"          // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"     // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
@@ -41,7 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-health fleet-remediation
+// team: fleet-remediation
 
 // Bundle defines the fx options for the health platform bundle.
 func Bundle() fxutil.BundleOptions {

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "tailers",
@@ -24,11 +25,12 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "tailers_test",
     srcs = ["tailer_test.go"],
     embed = [":tailers"],
-    gotags = ["test"],
+    # Only do base becuase other flavors do not build with the needed kubelet tags.
+    flavors = ["base"],  # keep
     deps = [
         "//pkg/logs/tailers/container",
         "@com_github_stretchr_testify//require",
