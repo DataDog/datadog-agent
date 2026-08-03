@@ -6,10 +6,10 @@
 package file
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -217,7 +217,7 @@ func TestPositionOffsetBeyondFileSize(t *testing.T) {
 			identifier, _ := setup(t, tc.fileSize)
 
 			registry := auditorMock.NewMockRegistry()
-			registry.SetOffset(identifier, fmt.Sprintf("%d", tc.storedOffset))
+			registry.SetOffset(identifier, strconv.FormatInt(tc.storedOffset, 10))
 			if tc.storedFP != nil {
 				registry.SetFingerprint(tc.storedFP)
 			}
