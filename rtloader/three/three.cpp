@@ -124,7 +124,11 @@ bool Three::init()
     if (PyStatus_Exception(status)) {
         setError("Failed to initialize Python" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
         PyConfig_Clear(&_config);
-        return false;
+        // Py_InitializeFromConfig may have already created the GIL and implicitly
+        // granted it to this thread before failing later in the init sequence (e.g.
+        // while importing `encodings`). Route through the same cleanup as every
+        // other failure path so the GIL is released instead of leaked forever.
+        goto done;
     }
 
     // Clean up the configuration
