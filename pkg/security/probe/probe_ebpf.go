@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -924,10 +923,19 @@ func (p *EBPFProbe) ReplayEvents() {
 	}
 }
 
+// replayEntry is a process event to replay, along with the memory-mapped files
+// to replay right after it. The open events are built during the dispatch loop
+// rather than upfront: materializing them all would hold one pooled event per
+// (process, mmaped file) pair, which the pool never gets to recycle.
+type replayEntry struct {
+	event       *model.Event
+	mmapedFiles []model.SnapshottedMmapedFile
+}
+
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
-	var events []*model.Event
+	var entries []replayEntry
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
@@ -939,38 +947,30 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		event.AddToFlags(model.EventFlagsFromReplay)
 
-		events = append(events, event)
+		var mmapedFiles []model.SnapshottedMmapedFile
 
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
-			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
-			if err != nil {
-				return
-			}
-
-			mmapedFiles, err := procfs.GetMmapedFiles(proc)
-			if err != nil {
+			var err error
+			if mmapedFiles, err = procfs.GetMmapedFiles(int32(entry.Pid)); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
-				return
-			}
-
-			for _, f := range mmapedFiles {
-				openEvent := p.newOpenEventFromReplay(entry, f)
-				openEvent.Source = model.EventSourceReplay
-				events = append(events, openEvent)
 			}
 		}
+
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
 	}
 
 	p.Walk(entryToEvent)
 
 	// replay synthetic load_module events for every entry in /proc/modules.
-	events = append(events, p.snapshotLoadedModules()...)
+	for _, event := range p.snapshotLoadedModules() {
+		entries = append(entries, replayEntry{event: event})
+	}
 
 	// order events so that they're dispatched in creation time order
-	sort.Slice(events, func(i, j int) bool {
-		eventA := events[i]
-		eventB := events[j]
+	sort.Slice(entries, func(i, j int) bool {
+		eventA := entries[i].event
+		eventB := entries[j].event
 
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
@@ -981,9 +981,17 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		return tsA.Before(tsB)
 	})
 
-	for _, event := range events {
-		p.DispatchEvent(event, notifyConsumers)
-		p.putBackPoolEvent(event)
+	for _, re := range entries {
+		p.DispatchEvent(re.event, notifyConsumers)
+
+		for _, f := range re.mmapedFiles {
+			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, f)
+			openEvent.Source = model.EventSourceReplay
+			p.DispatchEvent(openEvent, notifyConsumers)
+			p.putBackPoolEvent(openEvent)
+		}
+
+		p.putBackPoolEvent(re.event)
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()

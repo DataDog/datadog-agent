@@ -9,16 +9,14 @@
 package procfs
 
 import (
-	"github.com/shirou/gopsutil/v4/process"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // GetMmapedFiles returns the list of executable memory-mapped files for a given process
 // Uses the shared GetMappedFiles utility with FilterExecutableRegularFiles
-func GetMmapedFiles(p *process.Process) ([]model.SnapshottedMmapedFile, error) {
+func GetMmapedFiles(pid int32) ([]model.SnapshottedMmapedFile, error) {
 	// Use shared parsing utilities to get executable regular files (not [vdso], [stack], etc.)
-	paths, err := GetMappedFiles(int32(p.Pid), MaxMmapedFilesPerProcess, FilterExecutableRegularFiles)
+	paths, err := GetMappedFiles(pid, MaxMmapedFilesPerProcess, FilterExecutableRegularFiles)
 	if err != nil {
 		return nil, err
 	}
