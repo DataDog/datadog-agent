@@ -43,9 +43,8 @@ def build(ctx):
     """
     Build the fake intake
     """
-    with ctx.cd("test/fakeintake"):
-        go_build(ctx, "cmd/server/main.go", bin_path="build/fakeintake")
-        go_build(ctx, "cmd/client/main.go", bin_path="build/fakeintakectl")
+    go_build(ctx, "test/fakeintake/cmd/server/main.go", bin_path="test/fakeintake/build/fakeintake")
+    go_build(ctx, "test/fakeintake/cmd/client/main.go", bin_path="test/fakeintake/build/fakeintakectl")
 
 
 @task

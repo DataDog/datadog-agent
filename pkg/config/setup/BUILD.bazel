@@ -62,6 +62,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/helper",
         "//pkg/config/model",
+        "//pkg/config/setup/constants",
         "//pkg/config/structure",
         "//pkg/fips",
         "//pkg/util/defaultpaths",
