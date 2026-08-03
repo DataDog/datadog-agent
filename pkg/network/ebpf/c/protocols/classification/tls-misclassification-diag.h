@@ -6,6 +6,7 @@
 #include "conn_tuple.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/tls-misclassification-diag-types.h"
+#include "compiler.h"
 
 // Diagnostics for the suspected TLS-reported-as-plaintext root cause.
 // See the investigation notes on branch jmw/tls-misclassification.
@@ -34,6 +35,19 @@
 // on each drain to keep space available; if the map does fill between drains, further events are
 // dropped, which is acceptable because the telemetry_t counters remain authoritative.
 
+
+// is_tls_diag_enabled reports whether these diagnostics are active. The value is patched in by
+// userspace (see util.TLSDiagnosticsSupported) before the program is loaded, so at verification time
+// it is a known constant and the verifier prunes every guarded branch when it is false. That is what
+// keeps the classifier's complexity at baseline on older kernels, whose verifiers prune far less
+// aggressively and rejected socket__classifier_entry with these branches present.
+//
+// Note this does not reduce program size — the dead instructions still count toward BPF_MAXINSNS.
+static __always_inline bool is_tls_diag_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("tls_diag_enabled", val);
+    return val > 0;
+}
 
 // Standard Redis ports. Redis serves 6379 by convention (6380 for TLS), 26379 for Sentinel and
 // 16379 for the cluster bus. A Redis classification on anything else is not credible.
