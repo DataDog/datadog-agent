@@ -246,8 +246,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.netflow_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.remote_config.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
-	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
-	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
+	config.BindEnvAndSetDefault("network_path.collector.timeout", constants.DefaultNetworkPathTimeout)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", constants.DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 1000)
@@ -266,8 +266,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
 	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
-	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
-	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
+	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", constants.DefaultNetworkPathStaticPathTracerouteQueries)
+	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", constants.DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
 	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
@@ -963,7 +963,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
-	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", constants.DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.profile_dd_url", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.api_key", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.env", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENV", "DD_ENV")
@@ -1164,7 +1164,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("api_key", "")
-	config.BindEnvAndSetDefault("site", DefaultSite)
+	config.BindEnvAndSetDefault("site", constants.DefaultSite)
 	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
 	config.BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
@@ -1519,7 +1519,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_include_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	// in hours
-	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1)
+	config.BindEnvAndSetDefault("container_exclude_stopped_age", constants.DefaultAuditorTTL-1)
 	// in seconds
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))
 	// in seconds, 0 means disabled
@@ -1612,8 +1612,8 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
-	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
-	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_compressor_kind", constants.DefaultCompressorKind)
+	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", constants.DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.endpoints", []string{})
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
@@ -1667,7 +1667,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)
 	// in minutes
-	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval)
+	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", constants.DefaultAPIKeyValidationInterval)
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
 	// forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
@@ -1678,7 +1678,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
-	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("forwarder_recovery_interval", constants.DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	config.BindEnvAndSetDefault("forwarder_storage_path", "${run_path}/transactions_to_retry")
@@ -1884,7 +1884,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// maximum log message size in bytes
-	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 
 	// Increase the number of files that can be tailed in parallel:
 	// The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
@@ -2070,7 +2070,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
 
 	// in hours
-	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL)
+	config.BindEnvAndSetDefault("logs_config.auditor_ttl", constants.DefaultAuditorTTL)
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
 	// It may be useful to increase it when logs writing is slowed down, that
