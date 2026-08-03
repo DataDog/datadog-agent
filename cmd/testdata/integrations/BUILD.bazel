@@ -1,0 +1,5 @@
+filegroup(
+    name = "testdata",
+    srcs = glob(["**"]),
+    visibility = ["//cmd/agent/subcommands/integrations:__pkg__"],
+)

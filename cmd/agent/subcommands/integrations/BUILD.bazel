@@ -39,6 +39,7 @@ dd_agent_go_test(
         "command_test.go",
         "integrations_test.go",
     ],
+    data = ["//cmd/testdata/integrations:testdata"],
     embed = [":integrations"],
     flavors = [
         "base",
