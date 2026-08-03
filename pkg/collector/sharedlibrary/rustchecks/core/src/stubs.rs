@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::ffi::{c_char, c_double, c_float, c_int, c_longlong};
 
 use crate::agent_check::AgentCheck;
-use crate::aggregator::{Aggregator, Event, MetricType, ServiceCheckStatus};
+use crate::aggregator::{Aggregator, Event, LogLevel, MetricType, ServiceCheckStatus};
 use crate::config::Config;
 use crate::cstring::to_rust_string;
 
@@ -61,6 +61,13 @@ pub struct RecordedEventPlatformEvent {
     pub event_type: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecordedLog {
+    pub message: String,
+    /// Raw rtloader `log_level_t` value (see [`crate::LogLevel`]).
+    pub level: c_int,
+}
+
 #[derive(Default)]
 struct Recorded {
     metrics: Vec<RecordedMetric>,
@@ -68,6 +75,7 @@ struct Recorded {
     events: Vec<RecordedEvent>,
     histogram_buckets: Vec<RecordedHistogramBucket>,
     event_platform_events: Vec<RecordedEventPlatformEvent>,
+    logs: Vec<RecordedLog>,
 }
 
 thread_local! {
@@ -214,6 +222,14 @@ extern "C" fn record_event_platform_event(
     RECORDED.with(|r| r.borrow_mut().event_platform_events.push(recorded));
 }
 
+extern "C" fn log_msg(message: *mut c_char, level: c_int) {
+    let recorded = RecordedLog {
+        message: read_cstr(message),
+        level,
+    };
+    RECORDED.with(|r| r.borrow_mut().logs.push(recorded));
+}
+
 /// Records everything a check submits and exposes assertions over it.
 pub struct AggregatorStub {
     check_id: String,
@@ -242,6 +258,7 @@ impl AggregatorStub {
             record_event,
             record_histogram_bucket,
             record_event_platform_event,
+            log_msg,
         );
         AgentCheck::new(
             self.check_id.clone(),
@@ -274,6 +291,10 @@ impl AggregatorStub {
 
     pub fn event_platform_events(&self) -> Vec<RecordedEventPlatformEvent> {
         RECORDED.with(|r| r.borrow().event_platform_events.clone())
+    }
+
+    pub fn logs(&self) -> Vec<RecordedLog> {
+        RECORDED.with(|r| r.borrow().logs.clone())
     }
 
     /// Asserts a metric with `name` and `value` was submitted (any type/tags).
@@ -349,6 +370,20 @@ impl AggregatorStub {
             found,
             "expected an event title={title:?} text={text:?}, but got: {:#?}",
             self.events()
+        );
+    }
+
+    /// Asserts a log line with `level` and `message` was emitted.
+    pub fn assert_log(&self, level: LogLevel, message: &str) {
+        let level = level as c_int;
+        let found = self
+            .logs()
+            .iter()
+            .any(|l| l.level == level && l.message == message);
+        assert!(
+            found,
+            "expected a log level={level} message={message:?}, but got: {:#?}",
+            self.logs()
         );
     }
 }

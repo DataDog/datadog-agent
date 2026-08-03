@@ -20,5 +20,5 @@ pub use cstring::to_rust_string;
 pub mod stubs;
 pub use stubs::{
     AggregatorStub, RecordedEvent, RecordedEventPlatformEvent, RecordedHistogramBucket,
-    RecordedMetric, RecordedServiceCheck,
+    RecordedLog, RecordedMetric, RecordedServiceCheck,
 };

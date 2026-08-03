@@ -35,7 +35,7 @@ mod tests {
     use super::check;
 
     use core::stubs::{AggregatorStub, RecordedEvent};
-    use core::{MetricType, ServiceCheckStatus};
+    use core::{LogLevel, MetricType, ServiceCheckStatus};
 
     fn run_check() -> AggregatorStub {
         let aggregator = AggregatorStub::new();
@@ -53,6 +53,13 @@ mod tests {
         aggregator.assert_metric("hello.gauge", 1.0);
         aggregator.assert_metric_with_type("hello.gauge", MetricType::Gauge, 1.0);
         aggregator.assert_metric_count("hello.gauge", 1);
+    }
+
+    #[test]
+    fn emits_hello_log() {
+        let aggregator = run_check();
+
+        aggregator.assert_log(LogLevel::Info, "hello: example check running");
     }
 
     #[test]
@@ -90,6 +97,7 @@ mod tests {
         assert_eq!(aggregator.metrics().len(), 1);
         assert_eq!(aggregator.service_checks().len(), 1);
         assert_eq!(aggregator.events().len(), 1);
+        assert_eq!(aggregator.logs().len(), 1);
         assert!(aggregator.histogram_buckets().is_empty());
         assert!(aggregator.event_platform_events().is_empty());
     }
