@@ -91,3 +91,7 @@ func TestCgoAlignment_CertValidity(t *testing.T) {
 func TestCgoAlignment_SSLHandshakeState(t *testing.T) {
 	ebpftest.TestCgoAlignment[SSLHandshakeState](t)
 }
+
+func TestCgoAlignment_TLSDiagEvent(t *testing.T) {
+	ebpftest.TestCgoAlignment[TLSDiagEvent](t)
+}

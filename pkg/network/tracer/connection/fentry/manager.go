@@ -28,6 +28,7 @@ func initManager(mgr *ddebpf.Manager) {
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
 		{Name: probes.ConnectionProtocolMap},
+		{Name: probes.TLSDiagEventsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.EnhancedTLSTagsMap},
 		{Name: probes.ConnectionTupleToSocketSKBConnMap},

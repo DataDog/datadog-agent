@@ -26,6 +26,12 @@ enum telemetry_counter {
     tcp_done_connection_flush,
     tcp_close_connection_flush,
     tcp_syn_retransmit,
+    // TLS-vs-Redis misclassification diagnostics (see jmw/tls-misclassification)
+    tls_reject_record_exceeds_packet,
+    tls_reject_handshake_invalid,
+    applayer_match_on_tls_payload,
+    redis_match_on_nonstandard_port,
+    tls_locked_out_by_applayer,
 };
 
 static __always_inline void __increment_telemetry_count(enum telemetry_counter counter_name, int times) {
@@ -69,6 +75,21 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
         break;
     case tcp_syn_retransmit:
         __sync_fetch_and_add(&val->tcp_syn_retransmit, times);
+        break;
+    case tls_reject_record_exceeds_packet:
+        __sync_fetch_and_add(&val->tls_reject_record_exceeds_packet, times);
+        break;
+    case tls_reject_handshake_invalid:
+        __sync_fetch_and_add(&val->tls_reject_handshake_invalid, times);
+        break;
+    case applayer_match_on_tls_payload:
+        __sync_fetch_and_add(&val->applayer_match_on_tls_payload, times);
+        break;
+    case redis_match_on_nonstandard_port:
+        __sync_fetch_and_add(&val->redis_match_on_nonstandard_port, times);
+        break;
+    case tls_locked_out_by_applayer:
+        __sync_fetch_and_add(&val->tls_locked_out_by_applayer, times);
         break;
     }
 }

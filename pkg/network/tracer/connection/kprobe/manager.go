@@ -72,6 +72,7 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
 		{Name: probes.ConnectionProtocolMap},
+		{Name: probes.TLSDiagEventsMap},
 		{Name: probes.TCPSendMsgArgsMap},
 		{Name: probes.TCPSendPageArgsMap},
 		{Name: probes.UDPSendPageArgsMap},

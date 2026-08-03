@@ -254,6 +254,10 @@ const (
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	// EnhancedTLSTagsMap is the map storing additional tags for TLS connections (version, cipher, etc.)
 	EnhancedTLSTagsMap BPFMapName = "tls_enhanced_tags"
+	// TLSDiagEventsMap is the diagnostic side channel for the TLS-reported-as-plaintext
+	// investigation: per-connection detail about suspected protocol misclassifications.
+	// See pkg/network/ebpf/c/protocols/classification/tls-misclassification-diag.h
+	TLSDiagEventsMap BPFMapName = "tls_diag_events"
 	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
 )

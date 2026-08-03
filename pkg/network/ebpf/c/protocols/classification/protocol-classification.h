@@ -24,6 +24,9 @@
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
 #include "protocols/tls/tls.h"
+// TLS/Redis misclassification diagnostics: increment_telemetry_count + the diag event map.
+#include "tracer/telemetry.h"
+#include "protocols/classification/tls-misclassification-diag.h"
 
 // Some considerations about multiple protocol classification:
 //
@@ -195,6 +198,46 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // TLS/Redis misclassification diagnostics (see jmw/tls-misclassification).
+    //
+    if (!encryption_layer_known) {
+        tls_record_header_t diag_hdr = {0};
+        if (is_tls_record_header_plausible(skb, skb_info.data_off, skb_info.data_end, &diag_hdr)) {
+            // Link 1: is_tls() above requires the whole record to fit inside this packet
+            // (read_tls_record_header's final bounds check). Records run to 16 KB while MSS is
+            // ~1460, so genuine TLS reads as "not TLS" and classification falls through to the
+            // app-layer classifiers. This counter measures how often that door is opened.
+            if (skb_info.data_off + sizeof(tls_record_header_t) + diag_hdr.length > skb_info.data_end) {
+                increment_telemetry_count(tls_reject_record_exceeds_packet);
+                record_tls_misclassification_event(&skb_tup, TLS_DIAG_RECORD_EXCEEDS_PACKET, app_layer_proto, diag_hdr.content_type);
+            } else if (diag_hdr.content_type == TLS_HANDSHAKE &&
+                       !is_valid_tls_handshake(skb, skb_info.data_off, skb_info.data_end, &diag_hdr)) {
+                // Link 1, structural variant. The record fits, so the size check above is not the
+                // reason is_tls() failed; is_valid_tls_handshake() rejected it instead. It accepts
+                // ONLY ClientHello and ServerHello, and requires handshake_length + 4 to equal the
+                // record length exactly — so Certificate/ServerKeyExchange/Finished records,
+                // records carrying several coalesced handshake messages, and handshake messages
+                // fragmented across records all land here. This is how a brand-new connection can
+                // be misclassified, without any missed handshake.
+                //
+                // Note this only fires when is_tls() was actually reachable. If the app layer is
+                // already recorded, the gate above skips is_tls() entirely and the lock-out
+                // counter below is the correct attribution instead.
+                increment_telemetry_count(tls_reject_handshake_invalid);
+                record_tls_misclassification_event(&skb_tup, TLS_DIAG_HANDSHAKE_INVALID, app_layer_proto, diag_hdr.content_type);
+            }
+
+            // Link 3: the is_tls() call above is gated on the app layer being UNKNOWN or POSTGRES,
+            // so once any other protocol is recorded is_tls() can never run again for this
+            // connection — the wrong answer is pinned regardless of FLAG_FULLY_CLASSIFIED.
+            // Purely observational; no classification state is modified here.
+            if (app_layer_proto != PROTOCOL_UNKNOWN && app_layer_proto != PROTOCOL_POSTGRES) {
+                increment_telemetry_count(tls_locked_out_by_applayer);
+                record_tls_misclassification_event(&skb_tup, TLS_DIAG_LOCKED_OUT_BY_APPLAYER, app_layer_proto, diag_hdr.content_type);
+            }
+        }
+    }
+
     // If we have already classified the encryption layer, we can skip the rest of the classification
     if (encryption_layer_known) {
         return;
@@ -292,6 +335,34 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     protocol_t cur_fragment_protocol = classify_db_protocols(&classification_ctx->tuple, buffer, classification_ctx->buffer.size);
     if (!cur_fragment_protocol) {
         goto next_program;
+    }
+
+    // TLS/Redis misclassification diagnostics (see jmw/tls-misclassification and
+    // protocols/classification/tls-misclassification-diag.h).
+    //
+    // Link 2 of the suspected chain. is_redis() accepts a buffer on the strength of a single byte
+    // matching one of 14 RESP type markers, so it matches arbitrary ciphertext roughly 5.5% of the
+    // time. Two independent signals that a match here is spurious:
+    //
+    //   a) the buffer begins with a plausible TLS record header — near-conclusive, since no real
+    //      RESP frame starts with a valid content_type plus TLS version; and
+    //   b) Redis was matched on a port Redis never serves. Classification is purely content-based
+    //      (there are no port heuristics anywhere in it), so this is a false positive by
+    //      definition rather than a heuristic judgement.
+    //
+    // Both are observational only — the classification below is left exactly as it was.
+    {
+        tls_record_header_t diag_hdr = {0};
+        bool looks_like_tls = is_tls_record_header_plausible(skb, classification_ctx->skb_info.data_off, classification_ctx->skb_info.data_end, &diag_hdr);
+        if (looks_like_tls) {
+            increment_telemetry_count(applayer_match_on_tls_payload);
+            record_tls_misclassification_event(&classification_ctx->tuple, TLS_DIAG_APPLAYER_ON_TLS_PAYLOAD, cur_fragment_protocol, diag_hdr.content_type);
+        }
+        if (cur_fragment_protocol == PROTOCOL_REDIS &&
+            !is_standard_redis_port(classification_ctx->tuple.sport, classification_ctx->tuple.dport)) {
+            increment_telemetry_count(redis_match_on_nonstandard_port);
+            record_tls_misclassification_event(&classification_ctx->tuple, TLS_DIAG_REDIS_NONSTANDARD_PORT, cur_fragment_protocol, looks_like_tls ? diag_hdr.content_type : 0);
+        }
     }
 
     protocol_stack_t *protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
