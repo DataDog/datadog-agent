@@ -1168,7 +1168,7 @@ properties:
     default: false
     env_vars:
     - DD_APM_DISABLE_RARE_SAMPLER
-    comment: Deprecated
+    comment: deprecated
   enable_container_tags_buffer:
     node_type: setting
     type: boolean

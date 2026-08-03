@@ -1,9 +1,11 @@
 use anyhow::{Context, Result, anyhow};
-use core::*;
-use serde_json::Value;
+use shlib_core::*;
 
+use crate::backend;
 use crate::config::{CheckConfig, SubTask};
-use crate::payload::ScanEventPayload;
+use crate::constants::SDS_RESULT_EVENT_TYPE;
+use crate::proto::{self, Status as ScanStatus};
+use crate::result::{ScanOutcome, build_sds_result};
 use crate::scanning::Scanner;
 
 /// Check entrypoint.
@@ -41,48 +43,51 @@ fn run_sub_task(
     sub_task: &SubTask,
 ) -> Result<()> {
     println!(
-        "datasecurity: running sub task (sub_task_id={})",
-        sub_task.sub_task_id
+        "datasecurity: running sub task (sub_task_id={}, platform={})",
+        sub_task.sub_task_id, sub_task.entity.platform
     );
 
-    // TODO(DSEC-139): fetch the rows from postgres.
-    let data = fetch_data(sub_task);
-    let matches = scanner
-        .scan(&data)
-        .context("failed to scan sub task data")?;
-
-    let payload = ScanEventPayload {
-        task_id: config.task_id.clone(),
-        sub_task_id: sub_task.sub_task_id.clone(),
-        matches,
+    // TODO(DSEC-180): time the scan and populate task metadata started_at / ended_at
+    // A sub task failure is reported inside the payload (status=ERROR) rather
+    // than aborting the check, so every sub task produces exactly one event.
+    let (status, failure_reason, outcome) = match run_scan(scanner, sub_task) {
+        Ok(outcome) => {
+            println!(
+                "datasecurity: sub task succeeded ({} match(es))",
+                outcome.matches.len()
+            );
+            (ScanStatus::Success, String::new(), outcome)
+        }
+        Err(err) => {
+            let reason = format!("{err:#}");
+            eprintln!(
+                "datasecurity: sub task {} failed: {reason}",
+                sub_task.sub_task_id
+            );
+            (ScanStatus::Error, reason, ScanOutcome::default())
+        }
     };
 
-    println!(
-        "datasecurity: built scaffold event payload ({} match(es))",
-        payload.matches.len()
-    );
+    // Build the SDS result protobuf for this sub task.
+    let payload = build_sds_result(config, sub_task, status, &failure_reason, outcome);
 
-    // TODO(DSEC-140): send sdsresult rather than an event
-    let payload_json =
-        serde_json::to_string(&payload).context("failed to serialize scan event payload")?;
-    check.event(
-        "datasecurity scan result",
-        &payload_json,
-        0,
-        "normal",
-        "",
-        &[],
-        "info",
-        "",
-        "datasecurity",
-        "",
-    )?;
+    // Emit the protobuf on the `sds-result` event platform track.
+    check.event_platform_event_bytes(&proto::encode(&payload), SDS_RESULT_EVENT_TYPE)?;
 
     Ok(())
 }
 
-/// Mimics a postgres fetch by returning the sub task's placeholder response.
-// TODO(DSEC-139): replace with a real postgres query.
-fn fetch_data(sub_task: &SubTask) -> Value {
-    sub_task.placeholder_response.clone()
+/// Fetches the sub task's data and scans it, returning the matches and the
+/// scanned-table statistics.
+/// TODO(dsec-161): add tests for the scan.
+fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<ScanOutcome> {
+    let data = backend::fetch_data(sub_task).context("fetching sub task data")?;
+    let matches = scanner
+        .scan(data.columns)
+        .context("scanning sub task data")?;
+    Ok(ScanOutcome {
+        matches,
+        scanned_columns: data.scanned_columns,
+        scanned_row_count: data.scanned_row_count,
+    })
 }

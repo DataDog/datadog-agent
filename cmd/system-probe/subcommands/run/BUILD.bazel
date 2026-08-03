@@ -17,6 +17,7 @@ go_library(
         "//cmd/system-probe/common",
         "//comp/agent/autoexit/def",
         "//comp/agent/autoexit/fx",
+        "//comp/core/agenttelemetry/fx",
         "//comp/core/config",
         "//comp/core/configstreamconsumer/def",
         "//comp/core/configstreamconsumer/fx",

@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .on_schema_paths_changed:
   - changes:
       paths:
@@ -57,11 +54,12 @@ generate_config_schema-macos:
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output
   tags: ["macos:sonoma-amd64", "specific:true"]
-  needs: ["go_deps", "go_tools_deps"]
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
     - bash $CI_PROJECT_DIR/tasks/schema/check_config_templates.sh $CI_PROJECT_DIR
+  after_script:
+    - !reference [.macos_runner_make_workspace_writable]
   artifacts:
     when: always
     expire_in: 2 weeks

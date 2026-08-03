@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "file",
     srcs = [
@@ -52,7 +50,7 @@ dd_agent_go_test(
         "//comp/logs/agent/config",
         "//comp/logs/auditor/mock",
         "//pkg/config/mock",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/message",
         "//pkg/logs/sources",

@@ -25,6 +25,20 @@ pub enum ServiceCheckStatus {
     UNKNOWN = 3,
 }
 
+/// Log level of a message routed to the Agent logger.
+///
+/// Enums are the rtloader `log_level_t` values, i.e. the same levels
+/// as python checks use.
+#[repr(C)]
+pub enum LogLevel {
+    Trace = 7,
+    Debug = 10,
+    Info = 20,
+    Warn = 30,
+    Error = 40,
+    Critical = 50,
+}
+
 /// Replica of the Agent event struct
 #[repr(C)]
 pub struct Event {
@@ -88,6 +102,12 @@ type SubmitEventPlatformEvent = extern "C" fn(
     *mut c_char, // event type
 );
 
+/// Signature of the log function
+type LogMsg = extern "C" fn(
+    *mut c_char, // message
+    c_int,       // level
+);
+
 /// Aggregator stores Go callbacks for submissions
 ///
 /// The check stores a pointer to the Aggregator structure declared in Cgo
@@ -99,6 +119,7 @@ pub struct Aggregator {
     cb_submit_event: SubmitEvent,
     cb_submit_histogram_bucket: SubmitHistogramBucket,
     cb_submit_event_platform_event: SubmitEventPlatformEvent,
+    cb_log_msg: LogMsg,
 }
 
 impl Aggregator {
@@ -108,6 +129,7 @@ impl Aggregator {
         cb_submit_event: SubmitEvent,
         cb_submit_histogram_bucket: SubmitHistogramBucket,
         cb_submit_event_platform_event: SubmitEventPlatformEvent,
+        cb_log_msg: LogMsg,
     ) -> Self {
         Self {
             cb_submit_metric,
@@ -115,6 +137,7 @@ impl Aggregator {
             cb_submit_event,
             cb_submit_histogram_bucket,
             cb_submit_event_platform_event,
+            cb_log_msg,
         }
     }
 
@@ -284,6 +307,41 @@ impl Aggregator {
             cstr_event_type.as_ptr(),
         );
 
+        Ok(())
+    }
+
+    // TODO(dsec-157): refactor so submit_event_platform_event depends on
+    // submit_event_platform_event_bytes.
+    pub fn submit_event_platform_event_bytes(
+        &self,
+        check_id: &str,
+        raw_event: &[u8],
+        raw_event_size: c_int,
+        event_type: &str,
+    ) -> Result<()> {
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_event_type = CStringGuard::new(event_type)?;
+
+        // `raw_event` needs no guard: it is borrowed (not allocated here) and the
+        // Go callback copies it synchronously via `C.GoBytes`, so there is nothing
+        // to free. A `CString` wouldn't work, as protobuf bytes may contain NULs.
+        let raw_event_ptr = raw_event.as_ptr() as *mut c_char;
+
+        (self.cb_submit_event_platform_event)(
+            cstr_check_id.as_ptr(),
+            raw_event_ptr,
+            raw_event_size,
+            cstr_event_type.as_ptr(),
+        );
+
+        Ok(())
+    }
+
+    /// Routes a log line through the Agent logger.
+    pub fn log(&self, level: LogLevel, message: &str) -> Result<()> {
+        let cstr_message = CStringGuard::new(message)?;
+        (self.cb_log_msg)(cstr_message.as_ptr(), level as c_int);
         Ok(())
     }
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -394,6 +395,56 @@ func (s *procmgrWindowsSuite) TestADPProcessRunning() {
 	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(
 		joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe"),
 	))
+}
+
+func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
+	s.requireCLI()
+	s.waitWindowsADPRunning(90 * time.Second)
+
+	// The COAT reporter refreshes periodically, so wait for its snapshot to include
+	// the ADP process state already confirmed through dd-procmgr.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__procmgr_process_running", map[string]string{
+			"process": adpProcessName,
+		}), "ADP procmgr running gauge should be emitted: %s", output)
+		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__agent_service_installed", map[string]string{
+			"service": "agent-data-plane",
+		}), "ADP installed gauge should be emitted: %s", output)
+		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__agent_service_procmgr_configured", map[string]string{
+			"service": "agent-data-plane",
+		}), "ADP configured gauge should be emitted: %s", output)
+		assert.True(ct, telemetryGaugeIsTrue(output, "runtime__agent_service_management_mode", map[string]string{
+			"service": "agent-data-plane",
+			"mode":    "procmgr",
+		}), "ADP procmgr management-mode gauge should be emitted: %s", output)
+	}, 7*time.Minute, 10*time.Second)
+}
+
+func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, metric) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
+			continue
+		}
+
+		allLabelsMatch := true
+		for key, value := range labels {
+			if !strings.Contains(line, key+`="`+value+`"`) {
+				allLabelsMatch = false
+				break
+			}
+		}
+		if allLabelsMatch {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {

@@ -10,7 +10,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.enabled", false)
 
@@ -30,7 +29,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.actions_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.actions_allowlist")
 	config.BindEnvAndSetDefault("private_action_runner.default_actions_enabled", true)
-	config.BindEnvAndSetDefault("private_action_runner.executor.socket_path", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("private_action_runner.executor.socket_path", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\dd-par-executor`,
 		"other":   "${run_path}/par-executor.sock",
 	}))
@@ -44,7 +43,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// the backend-injected lists. By default, they act as a no-op, allowing
 	// everything: the backend is the only filter.
 	//
-	// To allow none, use an explicit empty list.
+	// To allow no paths or commands, use an explicit empty list.
 	// Env vars support both CSV and JSON-array forms; the JSON form gives
 	// env/YAML parity, including the explicit kill-switch via "[]".
 	//
@@ -56,8 +55,15 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_paths", []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_paths", config)
 
-	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{RShellCommandAllowAllWildcard})
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_commands", []string{"rshell:*"})
 	pkgconfighelper.ParseEnvJSONOrComma("private_action_runner.restricted_shell.allowed_commands", config)
+
+	// Optional local restriction on backend system-service grants. When
+	// unset, backend grants pass through; an explicit empty map denies all.
+	// The "*" action admits every backend-granted action for an exact service.
+	// The environment variable accepts a JSON object only.
+	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
+	config.ParseEnvJSON("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 
 	config.BindEnvAndSetDefault("private_action_runner.opms_extra_headers", map[string]string{})
 }
