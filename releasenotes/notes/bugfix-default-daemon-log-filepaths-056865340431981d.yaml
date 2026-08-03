@@ -9,4 +9,4 @@
 fixes:
   - |
     Keep daemon specific default log filepaths now that the core agent's
-    `log_file` configuration is populated.
+    ``log_file`` configuration is populated.
