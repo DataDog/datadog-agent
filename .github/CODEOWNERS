@@ -931,6 +931,7 @@
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
 /test/new-e2e/tests/agent-platform/tests/macos*      @DataDog/windows-products
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-data-plane          @DataDog/agent-data-plane
 /test/new-e2e/tests/agent-configuration       @DataDog/fleet-automation
 /test/new-e2e/tests/agent-health              @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
