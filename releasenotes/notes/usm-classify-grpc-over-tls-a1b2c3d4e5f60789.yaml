@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    USM now identifies gRPC traffic served over TLS. Previously gRPC was only
-    classified on unencrypted connections, so encrypted gRPC services were
-    reported as plain HTTP/2 and did not appear in ``universal.grpc.*`` metrics.
+    USM now classifies gRPC served over TLS. Previously gRPC was detected only on
+    unencrypted connections, so a TLS-encrypted gRPC connection was reported with a
+    protocol stack of HTTP/2 and no gRPC API layer.
