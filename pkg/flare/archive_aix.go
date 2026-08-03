@@ -21,6 +21,10 @@ import (
 // resource limits are enforced per segment and RSS/VSZ alone don't show which
 // segment is close to its ulimit.
 func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	if fb.IsLocal() {
+		return nil
+	}
+
 	pid := strconv.Itoa(os.Getpid())
 	cmd := exec.CommandContext(ctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
 	out, err := cmd.CombinedOutput()

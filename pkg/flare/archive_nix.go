@@ -24,6 +24,10 @@ func getWindowsData(_ context.Context, _ flaretypes.FlareBuilder) error {
 // output reflects the Agent's actual limits, not an unrelated login shell's.
 // Both the soft (currently enforced) and hard (ceiling) limits are captured.
 func getUlimitData(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	if fb.IsLocal() {
+		return nil
+	}
+
 	cmd := exec.CommandContext(ctx, "sh", "-c",
 		`echo "=== Soft limits (ulimit -aS) ==="; ulimit -aS; echo; echo "=== Hard limits (ulimit -aH) ==="; ulimit -aH`)
 	out, err := cmd.CombinedOutput()
