@@ -8,8 +8,6 @@ package log
 import (
 	"os"
 	"runtime"
-
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // Params defines the parameters for this log component.
@@ -51,6 +49,7 @@ type Params struct {
 type configGetter interface {
 	GetString(key string) string
 	GetBool(key string) bool
+	IsConfigured(key string) bool
 }
 
 // ForOneShot sets up logging parameters for a one-shot app.
@@ -104,7 +103,7 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 			return ""
 		}
 		logFile := g.GetString(logFileConfig)
-		if logFile == defaultpaths.GetDefaultLogFile() {
+		if !g.IsConfigured(logFileConfig) {
 			logFile = defaultLogFile
 		}
 		return logFile
