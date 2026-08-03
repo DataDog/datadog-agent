@@ -40,6 +40,12 @@ const (
 	backoffRandomizationFactor = 0.10
 )
 
+// detectAWSCredentialSource is a seam for tests. The real detection probes IMDS as its last step,
+// which succeeds on an AWS CI runner, so a test asserting the "no credential source" path cannot
+// force a failure through configuration alone. The URLs it probes live in
+// pkg/util/aws/creds/internal, which this package cannot import.
+var detectAWSCredentialSource = creds.DetectAWSCredentialSource
+
 // authInstance holds the state for a single delegated auth configuration (one API key target).
 type authInstance struct {
 	apiKey          *string
@@ -149,7 +155,7 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", resolvedProvider)
 	} else {
 		// Auto-detect cloud provider (network I/O happens here, outside any lock)
-		source, err := creds.DetectAWSCredentialSource(ctx)
+		source, err := detectAWSCredentialSource(ctx)
 		if err != nil {
 			// No supported cloud provider detected, so delegated auth stays disabled. This is only
 			// reached when the operator asked for delegated auth (AddInstance is only called for a

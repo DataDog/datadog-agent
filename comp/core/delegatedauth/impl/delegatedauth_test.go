@@ -791,17 +791,17 @@ func TestInitializeIfNeeded_ConfiguredRegionDoesNotSkipDetection(t *testing.T) {
 // TestInitializeIfNeeded_DetectionFailureIsRecorded is the companion case: with no credential
 // source at all, the component stays disabled and says why, rather than enabling and failing later.
 func TestInitializeIfNeeded_DetectionFailureIsRecorded(t *testing.T) {
-	for _, k := range []string{
-		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
-		"AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
-		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-	} {
-		t.Setenv(k, "")
+	// Stub detection rather than starving it of environment and relying on a short IMDS timeout:
+	// on a CI runner in EC2 the metadata service answers, detection would resolve a provider, and
+	// the assertions below would fail.
+	original := detectAWSCredentialSource
+	detectAWSCredentialSource = func(context.Context) (string, error) {
+		return "", errors.New("no AWS credentials found: checked AWS_ACCESS_KEY_ID, " +
+			"AWS_WEB_IDENTITY_TOKEN_FILE, AWS_CONTAINER_CREDENTIALS_RELATIVE_URI, IMDS")
 	}
+	t.Cleanup(func() { detectAWSCredentialSource = original })
 
 	mockConfig := mock.New(t)
-	// Keep the IMDS probe from stalling the test on a machine with no metadata service.
-	mockConfig.Set("ec2_metadata_timeout", 1, pkgconfigmodel.SourceFile)
 
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{

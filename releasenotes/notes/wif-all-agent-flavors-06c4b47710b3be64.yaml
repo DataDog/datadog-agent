@@ -9,12 +9,14 @@
 features:
   - |
     Agent Cloud Auth (delegated authentication / Workload Identity Federation) on AWS now
-    resolves credentials from EKS IRSA, ECS task roles, EKS Pod Identity and EC2 IMDS in every
-    Agent flavor. Previously only flavors built with the ``ec2`` build tag (main Agent, Cluster
+    resolves credentials from EKS IRSA, ECS task roles, EKS Pod Identity and EC2 IMDS in the
+    trace-agent, standalone DogStatsD, private action runner, serverless-init, IoT Agent and
+    Heroku Agent. Previously only flavors built with the ``ec2`` build tag (main Agent, Cluster
     Agent, process-agent, security-agent, system-probe, installer) supported those credential
     sources; the others silently disabled the feature. Most notably the trace-agent is now
     covered, so APM no longer requires a statically configured ``api_key`` when Cloud Auth is in
-    use.
+    use. OpenTelemetry Collector (DDOT / ``otel-agent``) is not covered: it does not load the
+    delegated authentication component, and still requires a statically configured ``api_key``.
   - |
     Setting ``delegated_auth.aws.region`` without ``delegated_auth.provider`` no longer skips
     cloud provider auto-detection. The configured region is now applied to the auto-detected
