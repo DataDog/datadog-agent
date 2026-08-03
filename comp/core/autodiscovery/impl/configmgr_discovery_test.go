@@ -227,6 +227,24 @@ func TestConfigMgr_Discovery_StaleProbeResultSuppressedBySiblingArrivingMidFligh
 	cm.start()
 	t.Cleanup(cm.stop)
 
+	// Wrap the worker callback so the test can wait deterministically for the
+	// released probe result to be fully processed (scheduled or dropped)
+	// before checking discoveredChanges() — a fixed sleep could pass even if
+	// the callback hadn't run yet under a slow/stalled scheduler.
+	processed := make(chan struct{})
+	cm.discoveryWorker.Stop()
+	cm.discoveryWorker = discoverer.NewWorker(
+		disco,
+		cmServiceLookup{cm},
+		func(svcID, tplDigest string, configs []integration.Config) {
+			cm.onDiscoveryResult(svcID, tplDigest, configs)
+			close(processed)
+		},
+		discoverer.Config{},
+		nil,
+	)
+	cm.discoveryWorker.Start()
+
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
@@ -276,13 +294,21 @@ func TestConfigMgr_Discovery_StaleProbeResultSuppressedBySiblingArrivingMidFligh
 	changes, _ := cm.processNewConfig(sibling)
 	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
 
-	// Now let the stale probe complete.
+	// Let the stale probe complete, and wait deterministically for the
+	// wrapped callback to finish running (it closes `processed` synchronously
+	// after onDiscoveryResult returns, so any delivery to discoveredChanges()
+	// has already happened by then) before checking the channel.
 	close(release)
+	select {
+	case <-processed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("discovery callback never processed the released probe result")
+	}
 
 	select {
 	case discovered := <-cm.discoveredChanges():
 		t.Fatalf("krakend discovery should have been suppressed by the sibling that arrived mid-flight, got: %+v", discovered)
-	case <-time.After(300 * time.Millisecond):
+	default:
 	}
 }
 
@@ -309,6 +335,24 @@ func TestConfigMgr_Discovery_StaleProbeResultSuppressedByStaticConfigArrivingMid
 	cm := newReconcilingConfigManager(&mockResolver, nil, idx, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
+
+	// Wrap the worker callback so the test can wait deterministically for the
+	// released probe result to be fully processed (scheduled or dropped)
+	// before checking discoveredChanges() — a fixed sleep could pass even if
+	// the callback hadn't run yet under a slow/stalled scheduler.
+	processed := make(chan struct{})
+	cm.discoveryWorker.Stop()
+	cm.discoveryWorker = discoverer.NewWorker(
+		disco,
+		cmServiceLookup{cm},
+		func(svcID, tplDigest string, configs []integration.Config) {
+			cm.onDiscoveryResult(svcID, tplDigest, configs)
+			close(processed)
+		},
+		discoverer.Config{},
+		nil,
+	)
+	cm.discoveryWorker.Start()
 
 	tpl := integration.Config{
 		Name:          "krakend",
@@ -354,12 +398,21 @@ func TestConfigMgr_Discovery_StaleProbeResultSuppressedByStaticConfigArrivingMid
 	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
 	assert.True(t, idx.Has("openmetrics"))
 
+	// Let the stale probe complete, and wait deterministically for the
+	// wrapped callback to finish running (it closes `processed` synchronously
+	// after onDiscoveryResult returns, so any delivery to discoveredChanges()
+	// has already happened by then) before checking the channel.
 	close(release)
+	select {
+	case <-processed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("discovery callback never processed the released probe result")
+	}
 
 	select {
 	case discovered := <-cm.discoveredChanges():
 		t.Fatalf("krakend discovery should have been suppressed by the static openmetrics config that arrived mid-flight, got: %+v", discovered)
-	case <-time.After(300 * time.Millisecond):
+	default:
 	}
 }
 
