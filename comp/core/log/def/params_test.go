@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 type getter struct {
@@ -161,6 +163,38 @@ func TestForDaemon_linux(t *testing.T) {
 		require.Equal(t, true, params.logSyslogRFCFn(g))
 		require.Equal(t, false, params.logToConsoleFn(g))
 		require.Equal(t, true, params.logFormatJSONFn(g))
+	})
+}
+
+func TestForDaemon_logFile(t *testing.T) {
+	makeGetter := func() *getter {
+		return &getter{
+			strs: map[string]string{
+				"log_level": "trace",
+			},
+			bools: map[string]bool{
+				"disable_file_logging": false,
+			},
+		}
+	}
+
+	t.Run("unconfigured log_file falls back to the daemon's default log file", func(t *testing.T) {
+		// This mirrors how the config default for a daemon's log_file setting is
+		// actually registered, e.g. BindEnvAndSetDefault("log_file", "${log_path}/agent.log"),
+		// which resolves to defaultpaths.GetDefaultLogFile() rather than an empty string.
+		params := ForDaemon("TEST", "log_file", "/default/daemon.log")
+		g := makeGetter()
+		g.strs["log_file"] = defaultpaths.GetDefaultLogFile()
+
+		require.Equal(t, "/default/daemon.log", params.logFileFn(g))
+	})
+
+	t.Run("explicitly configured log_file is preserved", func(t *testing.T) {
+		params := ForDaemon("TEST", "log_file", "/default/daemon.log")
+		g := makeGetter()
+		g.strs["log_file"] = "/custom/path.log"
+
+		require.Equal(t, "/custom/path.log", params.logFileFn(g))
 	})
 }
 

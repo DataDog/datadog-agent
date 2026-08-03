@@ -104,7 +104,7 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 			return ""
 		}
 		logFile := g.GetString(logFileConfig)
-		if logFile == defaultpaths.GetDefaultLogPath() {
+		if logFile == defaultpaths.GetDefaultLogFile() {
 			logFile = defaultLogFile
 		}
 		return logFile

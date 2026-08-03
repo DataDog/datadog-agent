@@ -16,5 +16,8 @@ dd_agent_go_test(
     name = "def_test",
     srcs = ["params_test.go"],
     embed = [":def"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        "//pkg/util/defaultpaths",
+        "@com_github_stretchr_testify//require",
+    ],
 )

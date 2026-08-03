@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -149,6 +150,18 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Write(j)
 }
 
+// resolveDCALogFile returns the log file to bundle in a cluster-agent flare.
+// The cluster-agent doesn't register its own default for "log_file", so an
+// unconfigured value resolves to the generic agent default
+// (defaultpaths.GetDefaultLogFile()), not "".
+func resolveDCALogFile(cfg pkgconfigmodel.Reader) string {
+	logFile := cfg.GetString("log_file")
+	if logFile == defaultpaths.GetDefaultLogFile() {
+		logFile = defaultpaths.GetDefaultDCALogFile()
+	}
+	return logFile
+}
+
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := hostname.Get(r.Context())
@@ -183,10 +196,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		}
 	}
 
-	logFile := pkgconfigsetup.Datadog().GetString("log_file")
-	if logFile == "" {
-		logFile = defaultpaths.GetDefaultDCALogFile()
-	}
+	logFile := resolveDCALogFile(pkgconfigsetup.Datadog())
 	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, flaretypes.FlareArgs{}, statusComponent, diagnoseComponent, ipc)
 	if err != nil || filePath == "" {
 		if err != nil {
