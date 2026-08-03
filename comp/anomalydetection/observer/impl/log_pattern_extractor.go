@@ -106,8 +106,9 @@ type LogPatternExtractor struct {
 	registry                  *TagGroupByKeyRegistry
 	NextGarbageCollectionTime int64
 	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
-	config    LogPatternExtractorConfig
-	telemetry *observerTelemetry
+	config                  LogPatternExtractorConfig
+	telemetry               *observerTelemetry
+	emitPatternObservations bool
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -176,6 +177,10 @@ func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	e.telemetry = t
 }
 
+func (e *LogPatternExtractor) SetPatternObservationEnabled(enabled bool) {
+	e.emitPatternObservations = enabled
+}
+
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	logUnixSec := log.GetTimestampUnixMilli() / 1000
@@ -210,6 +215,27 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if !ok {
 		return result
 	}
+	metricName := ""
+	group := TagGroupByKey{}
+	groupLoaded := false
+	if e.emitPatternObservations && isErrorLogStatus(log.GetStatus()) {
+		metricName = "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
+		group, _ = e.registry.Lookup(groupHash)
+		groupLoaded = true
+		sourceID := logSourceIDForView(log, group.Source)
+		if sourceID != "" {
+			result.PatternObservations = []observerdef.LogPatternObservation{{
+				SourceID:   sourceID,
+				Extractor:  e.Name(),
+				MetricName: metricName,
+				Pattern:    cluster.PatternString(),
+				Example:    truncate(message, 160),
+				Timestamp:  logUnixSec,
+				Tags:       log.Tags(),
+				IsError:    true,
+			}}
+		}
+	}
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
 	if cluster.Count == e.config.MinClusterSizeBeforeEmit && e.telemetry != nil {
@@ -217,10 +243,13 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
 		return result
 	}
+	if metricName == "" {
+		metricName = "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
+	}
+	if !groupLoaded {
+		group, _ = e.registry.Lookup(groupHash)
+	}
 
-	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
-
-	group, _ := e.registry.Lookup(groupHash)
 	result.Metrics = []observerdef.MetricOutput{{
 		Name:  metricName,
 		Value: 1,

@@ -60,9 +60,10 @@ type Provides struct {
 
 // observation is a message sent from handles to the observer.
 type observation struct {
-	source string
-	metric *metricObs
-	log    *logObs
+	source          string
+	metric          *metricObs
+	log             *logObs
+	logSourceHealth *observerdef.LogSourceHealthObservation
 	// flush, when non-nil, is closed by the dispatch loop once this observation
 	// is reached, signalling that all prior observations have been processed.
 	flush chan struct{}
@@ -105,6 +106,7 @@ type logObs struct {
 	tags        []string
 	hostname    string
 	timestampMs int64
+	sourceID    string
 }
 
 // Ensure logObs implements observerdef.LogView
@@ -130,6 +132,9 @@ func (l *logObs) GetHostname() string {
 func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
+
+// GetLogSourceID implements observerdef.LogSourceIDView.
+func (l *logObs) GetLogSourceID() string { return l.sourceID }
 
 // settingsFromAgentConfig reads component configuration from the agent config
 // system (datadog.yaml). Keys follow the pattern:
@@ -400,9 +405,17 @@ func NewComponent(deps Requires) (Provides, error) {
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
 		}, logsRules)
+		var stopAgentLogSourceHealth func()
+		if cfg.GetBool("anomaly_detection.detectors.log_pattern_cold_start.enabled") {
+			interval := cfg.GetDuration("anomaly_detection.detectors.log_pattern_cold_start.source_health_interval")
+			stopAgentLogSourceHealth = startAgentLogSourceHealth(obs, interval)
+		}
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				pkglog.SetLogObserver(nil)
+				if stopAgentLogSourceHealth != nil {
+					stopAgentLogSourceHealth()
+				}
 				return nil
 			},
 		})
@@ -476,6 +489,9 @@ func (o *observerImpl) run() {
 			if o.telemetry != nil {
 				o.telemetry.decrementLogsInFlight(classifyLogSource(obs.source, obs.log.tags))
 			}
+		}
+		if obs.logSourceHealth != nil {
+			o.engine.ObserveLogSourceHealth(*obs.logSourceHealth)
 		}
 		for _, req := range requests {
 			_ = o.engine.advanceWithReason(req.upToSec, req.reason)
@@ -651,6 +667,16 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 	pkglog.Infof("[observer] getting handle for %s", name)
 	return o.handleFunc(name)
+}
+
+// ObserveLogSourceHealth queues one source-health observation for stateful log
+// detectors. Health transitions are delivered reliably: dropping an unhealthy
+// sample could incorrectly preserve a source's continuous-health interval.
+func (o *observerImpl) ObserveLogSourceHealth(source observerdef.LogSourceHealthObservation) {
+	if source.SourceID == "" || source.Timestamp < 0 {
+		return
+	}
+	o.obsCh <- observation{logSourceHealth: &source}
 }
 
 // innerHandle creates the base handle for a named source. When
@@ -929,13 +955,17 @@ func (o *observerImpl) FinishReplayStream() {
 }
 
 func logObsFromView(msg observerdef.LogView) *logObs {
-	return &logObs{
+	obs := &logObs{
 		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.Tags()),
 		hostname:    msg.GetHostname(),
 		timestampMs: msg.GetTimestampUnixMilli(),
 	}
+	if identified, ok := msg.(observerdef.LogSourceIDView); ok {
+		obs.sourceID = identified.GetLogSourceID()
+	}
+	return obs
 }
 
 func normalizeMetricSource(name, source string) string {
@@ -1058,6 +1088,10 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		h.telemetry.incrementLogsInFlight(logSource)
 	}
 
+	var sourceID string
+	if identified, ok := msg.(observerdef.LogSourceIDView); ok {
+		sourceID = identified.GetLogSourceID()
+	}
 	obs := observation{
 		source: h.source,
 		log: &logObs{
@@ -1066,6 +1100,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			tags:        tags,
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
+			sourceID:    sourceID,
 		},
 	}
 
@@ -1096,3 +1131,4 @@ func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
+func (v *logView) GetLogSourceID() string       { return v.obs.sourceID }

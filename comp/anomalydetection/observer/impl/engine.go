@@ -54,7 +54,9 @@ type engine struct {
 
 	// logObservers are detectors that also implement LogObserver.
 	// Cached at construction time to avoid repeated type assertions.
-	logObservers []observerdef.LogObserver
+	logObservers             []observerdef.LogObserver
+	logPatternObservers      []logPatternObservationConsumer
+	logSourceHealthObservers []logSourceHealthConsumer
 
 	// lastAnalyzedDataTime is the data timestamp up to which detection has run.
 	lastAnalyzedDataTime int64
@@ -181,12 +183,7 @@ func newEngine(cfg engineConfig) *engine {
 		e.baseline = newBaselineController(cfg.baseline)
 	}
 
-	// Cache log observers from detectors.
-	for _, d := range e.detectors {
-		if lo, ok := d.(observerdef.LogObserver); ok {
-			e.logObservers = append(e.logObservers, lo)
-		}
-	}
+	e.refreshLogDetectorObservers()
 
 	return e
 }
@@ -309,6 +306,11 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	for _, extractor := range e.extractors {
 		out := extractor.ProcessLog(view)
 		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
+		for _, observation := range out.PatternObservations {
+			for _, consumer := range e.logPatternObservers {
+				consumer.ObserveLogPattern(observation)
+			}
+		}
 		for _, m := range out.Metrics {
 			// Avoid copying m.Tags when sourceTag is already present: storage.Add
 			// performs its own deep copy on first-write of a series via
@@ -340,6 +342,16 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	dataTimeSec := l.timestampMs / 1000
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
+}
+
+// ObserveLogSourceHealth forwards explicit lifecycle evidence to detectors
+// that use source continuity. It deliberately does not advance scheduling:
+// health observations are eligibility evidence, not anomaly signals by
+// themselves.
+func (e *engine) ObserveLogSourceHealth(observation observerdef.LogSourceHealthObservation) {
+	for _, consumer := range e.logSourceHealthObservers {
+		consumer.ObserveLogSourceHealth(observation)
+	}
 }
 
 func sliceContains(items []string, want string) bool {
@@ -859,10 +871,32 @@ func (e *engine) SetDetectors(detectors []observerdef.Detector) {
 	defer e.mu.Unlock()
 
 	e.detectors = detectors
+	e.refreshLogDetectorObservers()
+}
+
+func (e *engine) refreshLogDetectorObservers() {
 	e.logObservers = nil
+	e.logPatternObservers = nil
+	e.logSourceHealthObservers = nil
 	for _, d := range e.detectors {
 		if lo, ok := d.(observerdef.LogObserver); ok {
 			e.logObservers = append(e.logObservers, lo)
+		}
+		if observer, ok := d.(logPatternObservationConsumer); ok {
+			e.logPatternObservers = append(e.logPatternObservers, observer)
+		}
+		if observer, ok := d.(logSourceHealthConsumer); ok {
+			e.logSourceHealthObservers = append(e.logSourceHealthObservers, observer)
+		}
+	}
+	e.configurePatternObservationExtraction()
+}
+
+func (e *engine) configurePatternObservationExtraction() {
+	enabled := len(e.logPatternObservers) > 0
+	for _, extractor := range e.extractors {
+		if producer, ok := extractor.(logPatternObservationProducer); ok {
+			producer.SetPatternObservationEnabled(enabled)
 		}
 	}
 }
@@ -884,6 +918,7 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
+	e.configurePatternObservationExtraction()
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
