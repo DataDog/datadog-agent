@@ -4,6 +4,7 @@ go_library(
     name = "fips-compliance",
     srcs = ["common.go"],
     data = ["fixtures/e2e_fips_test.py"],
+    embedsrcs = ["fixtures/e2e_fips_test.py"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fips-compliance",
     visibility = ["//visibility:public"],
     deps = [
@@ -34,6 +35,14 @@ go_test(
         "fixtures/system-probe.yaml",
     ],
     embed = [":fips-compliance"],
+    embedsrcs = [
+        "fixtures/docker-compose-cluster-agent.yaml",
+        "fixtures/docker-compose-fips-server.yaml",
+        "fixtures/docker-compose.yaml",
+        "fixtures/openssl-default.cnf",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

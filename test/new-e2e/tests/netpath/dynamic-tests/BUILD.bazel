@@ -14,6 +14,14 @@ go_test(
         "config/netflow_dynamic_path_disabled.yaml",
         "fixtures/host_traffic_dns.py",
     ],
+    embedsrcs = [
+        "compose/netflow_dynamic_path.yaml",
+        "config/host_traffic_dynamic_path.yaml",
+        "config/host_traffic_system_probe.yaml",
+        "config/netflow_dynamic_path.yaml",
+        "config/netflow_dynamic_path_disabled.yaml",
+        "fixtures/host_traffic_dns.py",
+    ],
     gotags = ["test"],
     deps = [
         "//pkg/networkpath/payload",

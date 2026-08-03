@@ -2,11 +2,23 @@ load("@rules_go//go:def.bzl", "go_test")
 
 go_test(
     name = "agent-telemetry_test",
-    srcs = ["errortracking_test.go"],
-    data = glob(["testdata/**"]),
+    srcs = [
+        "errortracking_cluster_agent_test.go",
+        "errortracking_test.go",
+    ],
     data = [
         "testdata/error_check.py",
         "testdata/error_check.yaml",
+        "testdata/errortracking-disabled.yaml",
+        "testdata/errortracking-enabled.yaml",
+        "testdata/errortracking-security-agent.yaml",
+        "testdata/errortracking-system-probe.yaml",
+    ],
+    embedsrcs = [
+        "testdata/error_check.py",
+        "testdata/error_check.yaml",
+        "testdata/errortracking-cluster-agent-disabled.yaml",
+        "testdata/errortracking-cluster-agent-enabled.yaml",
         "testdata/errortracking-disabled.yaml",
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-security-agent.yaml",
@@ -16,13 +28,19 @@ go_test(
     deps = [
         "//pkg/util/flavor",
         "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
         "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/kindvm",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/fields",
     ],
 )

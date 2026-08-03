@@ -21,6 +21,10 @@ go_test(
         "fixtures/docker_permission_agent_config.yaml",
         "fixtures/resilience_agent_config.yaml",
     ],
+    embedsrcs = [
+        "fixtures/admission_probe_helm_values.yaml",
+        "fixtures/resilience_agent_config.yaml",
+    ],
     gotags = ["test"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health",
     tags = ["manual"],  # need pulumi installed.

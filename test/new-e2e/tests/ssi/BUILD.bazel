@@ -40,7 +40,6 @@ go_library(
 go_test(
     name = "ssi_test",
     srcs = ["ssi_test.go"],
-    data = glob(["testdata/**"]),
     data = [
         "testdata/base.yaml",
         "testdata/injection_mode.yaml",
@@ -50,6 +49,14 @@ go_test(
         "testdata/workload_selection.yaml",
     ],
     embed = [":ssi"],
+    embedsrcs = [
+        "testdata/base.yaml",
+        "testdata/injection_mode.yaml",
+        "testdata/local_sdk_injection.yaml",
+        "testdata/namespace_selection.yaml",
+        "testdata/registry_allow_list.yaml",
+        "testdata/workload_selection.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//pkg/ssi/testutils",

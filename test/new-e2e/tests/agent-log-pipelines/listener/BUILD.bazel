@@ -6,8 +6,14 @@ go_test(
         "listener_test.go",
         "syslog_test.go",
     ],
-    data = glob(["testdata/**"]),
     data = [
+        "testdata/syslog-tcp-compose.yaml",
+        "testdata/syslog-tls-compose.yaml",
+        "testdata/syslog-udp-compose.yaml",
+        "testdata/tcp-compose.yaml",
+        "testdata/udp-compose.yaml",
+    ],
+    embedsrcs = [
         "testdata/syslog-tcp-compose.yaml",
         "testdata/syslog-tls-compose.yaml",
         "testdata/syslog-udp-compose.yaml",

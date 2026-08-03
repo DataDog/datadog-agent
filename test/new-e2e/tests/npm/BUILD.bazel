@@ -16,6 +16,13 @@ go_library(
         "config/npm-direct.yaml",
         "config/npm-helm-values.yaml",
     ],
+    embedsrcs = [
+        "config/dockercompose_httpbin.yaml",
+        "config/dockercompose_tcp_congestion.yaml",
+        "config/npm-direct.yaml",
+        "config/npm-helm-values.yaml",
+        "config/npm.yaml",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/npm",
     visibility = ["//visibility:public"],
     deps = [

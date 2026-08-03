@@ -17,6 +17,17 @@ go_library(
         "config/process_discovery_check.yaml",
         "config/system_probe.yaml",
     ],
+    embedsrcs = [
+        "compose/fake-process-compose.yaml",
+        "config/core_agent_refresh_nix.yaml",
+        "config/discovery_disabled.yaml",
+        "config/language_detection.yaml",
+        "config/npm.yaml",
+        "config/process_agent_refresh_win.yaml",
+        "config/process_check.yaml",
+        "config/process_discovery_check.yaml",
+        "config/system_probe.yaml",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/process",
     visibility = ["//visibility:public"],
     deps = [
@@ -42,6 +53,7 @@ go_test(
     ],
     data = ["config/helm-template.tmpl"],
     embed = [":process"],
+    embedsrcs = ["config/helm-template.tmpl"],
     gotags = ["test"],
     deps = [
         "//pkg/util/testutil/flake",

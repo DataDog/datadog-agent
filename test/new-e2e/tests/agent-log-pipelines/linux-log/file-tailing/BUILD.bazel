@@ -4,6 +4,7 @@ go_test(
     name = "file-tailing_test",
     srcs = ["file_tailing_test.go"],
     data = ["config/config.yaml"],
+    embedsrcs = ["config/config.yaml"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

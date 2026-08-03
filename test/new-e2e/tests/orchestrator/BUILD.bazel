@@ -20,6 +20,10 @@ go_test(
         "agent_values.yaml",
     ],
     embed = [":orchestrator"],
+    embedsrcs = [
+        "agent_api_key_values.yaml",
+        "agent_values.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps/cpustress",

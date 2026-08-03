@@ -20,6 +20,11 @@ go_test(
         "fixtures/tracer-payload.json",
     ],
     embed = [":remote-config"],
+    embedsrcs = [
+        "fixtures/rc-enabled.yaml",
+        "fixtures/ssl_mismatch.yaml",
+        "fixtures/tracer-payload.json",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

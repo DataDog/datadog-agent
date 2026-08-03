@@ -11,6 +11,7 @@ go_test(
         "receive_resource_spans_v2_test.go",
     ],
     data = ["compose/otlp_ingest_compose.yaml"],
+    embedsrcs = ["compose/otlp_ingest_compose.yaml"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps",

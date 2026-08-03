@@ -7,6 +7,10 @@ go_test(
         "fixtures/tenLogs.py",
         "fixtures/tenLogs.yaml",
     ],
+    embedsrcs = [
+        "fixtures/tenLogs.py",
+        "fixtures/tenLogs.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

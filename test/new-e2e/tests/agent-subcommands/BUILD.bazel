@@ -50,6 +50,13 @@ go_test(
         "//test/new-e2e/tests/agent-subcommands/flare:fixtures/security-agent.yaml",
         "//test/new-e2e/tests/agent-subcommands/flare:fixtures/system-probe.yaml",
     ],
+    embedsrcs = [
+        "check/fixtures/hello.py",
+        "check/fixtures/hello.yaml",
+        "dogstatsdreplay/fixtures/metrics_capture.zstd",
+        "status/fixtures/custom_check.py",
+        "status/fixtures/custom_check.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

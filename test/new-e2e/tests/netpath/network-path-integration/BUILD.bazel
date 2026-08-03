@@ -21,6 +21,16 @@ go_test(
         "fixtures/network_path_windows.yaml",
         "fixtures/system-probe.yaml",
     ],
+    embedsrcs = [
+        "fake-traceroute/datadog_ttl.yaml",
+        "fake-traceroute/network_path.yaml",
+        "fake-traceroute/rc_local.yaml",
+        "fake-traceroute/router_setup.sh",
+        "fake-traceroute/router_teardown.sh",
+        "fixtures/network_path.yaml",
+        "fixtures/network_path_windows.yaml",
+        "fixtures/system-probe.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//pkg/networkpath/payload",

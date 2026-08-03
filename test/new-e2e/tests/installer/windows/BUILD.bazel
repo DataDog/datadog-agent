@@ -20,6 +20,10 @@ go_library(
         "fixtures/sample_config_disabled",
         "fixtures/sample_config_enabled",
     ],
+    embedsrcs = [
+        "fixtures/sample_config_disabled",
+        "fixtures/sample_config_enabled",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows",
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
@@ -53,6 +57,7 @@ go_test(
         "agent_domain_test.go",
         "agent_gmsa_test.go",
         "agent_install_test.go",
+        "agent_keep_rights_fleet_test.go",
         "agent_upgrade_test.go",
         "apm_inject_injector_stats_test.go",
         "apm_inject_install_script_test.go",
@@ -83,6 +88,13 @@ go_test(
         "resources/dotnet/web.config",
     ],
     embed = [":windows"],
+    embedsrcs = [
+        "resources/apm-inject/DummyApp.java",
+        "resources/apm-inject/index.aspx",
+        "resources/apm-inject/web.config",
+        "resources/dotnet/index.aspx",
+        "resources/dotnet/web.config",
+    ],
     gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [

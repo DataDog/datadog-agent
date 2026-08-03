@@ -11,6 +11,10 @@ go_library(
         "testdata/config/agent_config.yaml",
         "testdata/config/system_probe_config.yaml",
     ],
+    embedsrcs = [
+        "testdata/config/agent_config.yaml",
+        "testdata/config/system_probe_config.yaml",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/gpu",
     visibility = ["//visibility:public"],
     deps = [

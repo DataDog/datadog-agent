@@ -27,6 +27,7 @@ go_library(
         "version.go",
     ],
     data = ["fixtures/get-acl-helpers.ps1"],
+    embedsrcs = ["fixtures/get-acl-helpers.ps1"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common",
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],

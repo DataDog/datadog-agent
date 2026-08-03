@@ -11,6 +11,10 @@ go_test(
         "fixtures/cisco_aci_conf.yaml",
         "fixtures/snmp_conf.yaml",
     ],
+    embedsrcs = [
+        "fixtures/cisco_aci_conf.yaml",
+        "fixtures/snmp_conf.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",

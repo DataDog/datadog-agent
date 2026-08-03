@@ -8,6 +8,11 @@ go_test(
         "log-config/logger-service.sh",
         "log-config/python-script.sh",
     ],
+    embedsrcs = [
+        "log-config/include.yaml",
+        "log-config/logger-service.sh",
+        "log-config/python-script.sh",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

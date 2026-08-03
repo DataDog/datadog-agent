@@ -25,6 +25,18 @@ go_test(
         "fixtures/system-probe-nofim.yaml",
     ],
     embed = [":service-test"],
+    embedsrcs = [
+        "fixtures/datadog-di-disabled.yaml",
+        "fixtures/datadog-pa-disabled.yaml",
+        "fixtures/datadog-rc-enabled.yaml",
+        "fixtures/datadog-ta-disabled.yaml",
+        "fixtures/datadog.yaml",
+        "fixtures/security-agent-disabled.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe-disabled.yaml",
+        "fixtures/system-probe-nofim.yaml",
+        "fixtures/system-probe.yaml",
+    ],
     gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [

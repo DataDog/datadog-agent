@@ -16,6 +16,13 @@ go_test(
         "etc/process_config.yaml",
         "etc/process_config_no_check.yaml",
     ],
+    embedsrcs = [
+        "etc/core_config.yaml",
+        "etc/core_config_no_check.yaml",
+        "etc/node_server.js",
+        "etc/process_config.yaml",
+        "etc/process_config_no_check.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

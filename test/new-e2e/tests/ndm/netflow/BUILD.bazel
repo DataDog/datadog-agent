@@ -7,6 +7,10 @@ go_test(
         "compose/netflowCompose.yaml",
         "config/netflowConfig.yaml",
     ],
+    embedsrcs = [
+        "compose/netflowCompose.yaml",
+        "config/netflowConfig.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",

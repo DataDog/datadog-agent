@@ -12,6 +12,10 @@ go_library(
         "config-refresh/fixtures/config.yaml.tmpl",
         "config-refresh/fixtures/security-agent.yaml",
     ],
+    embedsrcs = [
+        "config-refresh/fixtures/config.yaml.tmpl",
+        "config-refresh/fixtures/security-agent.yaml",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration",
     visibility = ["//visibility:public"],
     deps = [
@@ -48,6 +52,7 @@ go_test(
         "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
     ],
     embed = [":agent-configuration"],
+    embedsrcs = ["secret/fixtures/secret_script.py"],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",

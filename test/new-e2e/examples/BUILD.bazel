@@ -44,6 +44,13 @@ go_test(
         "testfixtures/lighttpd.conf",
         "testfixtures/lighttpd_integration.conf.yaml",
     ],
+    embedsrcs = [
+        "testfixtures/custom_logs.yaml",
+        "testfixtures/docker-compose.fake-process.yaml",
+        "testfixtures/docker-compose.lighttpd.yaml",
+        "testfixtures/lighttpd.conf",
+        "testfixtures/lighttpd_integration.conf.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/common/config",

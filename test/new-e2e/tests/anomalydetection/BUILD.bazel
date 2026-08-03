@@ -8,6 +8,7 @@ go_test(
         "defaults_nix_test.go",
         "helpers_test.go",
         "scorer_helper_nix_test.go",
+        "smart_adaptive_log_sampling_nix_test.go",
     ],
     gotags = ["test"],
     deps = [
@@ -17,6 +18,9 @@ go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
+        "//test/new-e2e/tests/agent-log-pipelines/utils",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

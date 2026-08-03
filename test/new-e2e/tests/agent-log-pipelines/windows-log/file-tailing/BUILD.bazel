@@ -4,6 +4,7 @@ go_test(
     name = "file-tailing_test",
     srcs = ["file_tailing_test.go"],
     data = ["log-config/config.yaml"],
+    embedsrcs = ["log-config/config.yaml"],
     gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
