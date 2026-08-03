@@ -114,6 +114,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -300,8 +301,9 @@ func BenchmarkCEL(b *testing.B) {
 //
 // So the cost of CEL is roughly 200 ns per rule evaluated, not per predicate.
 // Whether that is affordable depends on how many rules a bucket holds and how
-// many events reach it, and the two levers on it are to reuse the execution
-// frame and to evaluate a bucket as one program rather than one per rule.
+// many events reach it — BenchmarkBucket measures that shape, and shows that
+// merging a bucket into one program recovers only a quarter of the difference,
+// because most of it is the predicate rather than the Eval around it.
 var scalePredicates = []string{
 	`process.comm == "sh"`,
 	`process.uid == 1000`,
@@ -410,5 +412,153 @@ func BenchmarkScale(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+// BenchmarkBucket measures the shape production actually has: a bucket of rules
+// evaluated against one event, none of them matching. BenchmarkScale measures
+// one rule; this measures a rule set.
+//
+// PerRule is the current architecture, one program and one Eval per rule.
+// OneProgram is the same rules as a single disjunction, one Eval for the bucket.
+//
+// Measured (ns/op for the whole bucket, no rule matching):
+//
+//	rules    SECL per-rule   CEL per-rule   SECL one   CEL one
+//	10           219            2196           209       1785
+//	50          1150           11516          1040       8674
+//	200         6335           48936          5766      35796
+//
+// CEL is 8 to 10 times dearer, and the ratio holds as the bucket grows. Per
+// rule that is 220 ns against 22 ns at ten rules, 245 against 32 at two hundred.
+// CEL also allocates once per rule where SECL allocates nothing, so a bucket of
+// 200 costs 3.2 kB per event.
+//
+// Evaluating the bucket as one disjunction saves 66 ns per rule — a quarter —
+// and no more. That is worth knowing because it bounds the idea: what it removes
+// is the per-Eval scaffolding, the pooled execution frame and the rest of
+// prog.Eval. What is left is the predicate itself, and a predicate costs cel-go
+// about 179 ns wherever it sits, against 29 ns for the closure SECL compiles it
+// into. Merging rules does not make a predicate cheaper.
+//
+// Note how the per predicate figures differ from BenchmarkScale's: there every
+// predicate held, and a SECL comparison that holds appends to the context's
+// matching subexpression list, which costs it two allocations and takes it from
+// 29 ns to about 105. A predicate that fails — what nearly all of them do — is
+// where SECL is furthest ahead.
+func bucketRules(r int) []string {
+	rules := make([]string, r)
+	for i := range rules {
+		rules[i] = fmt.Sprintf(`process.comm == "nomatch%d" && process.uid == %d && process.file.name == "x%d"`, i, i, i)
+	}
+	return rules
+}
+
+func BenchmarkBucket(b *testing.B) {
+	for _, r := range []int{10, 50, 200} {
+		rules := bucketRules(r)
+		event := scaleEvent()
+
+		// shape A: one program per rule, one Eval per rule
+		b.Run(fmt.Sprintf("CEL/PerRule/%d", r), func(b *testing.B) {
+			env, err := NewModelEnv()
+			if err != nil {
+				b.Fatal(err)
+			}
+			programs := make([]cel.Program, 0, r)
+			for _, rule := range rules {
+				p, err := Program(env, rule, ModelFieldTypes{})
+				if err != nil {
+					b.Fatal(err)
+				}
+				programs = append(programs, p)
+			}
+			ctx := eval.NewContext(event)
+			activation := NewActivation(ctx)
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				for _, p := range programs {
+					out, _, err := p.Eval(activation)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if out == types.True {
+						b.Fatal("no rule should match")
+					}
+				}
+			}
+		})
+
+		// shape B: the bucket as one disjunction, one Eval
+		b.Run(fmt.Sprintf("CEL/OneProgram/%d", r), func(b *testing.B) {
+			env, err := NewModelEnv()
+			if err != nil {
+				b.Fatal(err)
+			}
+			expr := "(" + strings.Join(rules, ") || (") + ")"
+			p, err := Program(env, expr, ModelFieldTypes{})
+			if err != nil {
+				b.Fatal(err)
+			}
+			ctx := eval.NewContext(event)
+			activation := NewActivation(ctx)
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				out, _, err := p.Eval(activation)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if out == types.True {
+					b.Fatal("no rule should match")
+				}
+			}
+		})
+
+		b.Run(fmt.Sprintf("SECL/PerRule/%d", r), func(b *testing.B) {
+			var m model.Model
+			compiled := make([]*eval.Rule, 0, r)
+			for i, rule := range rules {
+				cr, err := eval.NewRule(fmt.Sprintf("r%d", i), rule, ast.NewParsingContext(false), &eval.Opts{})
+				if err != nil {
+					b.Fatal(err)
+				}
+				if err := cr.GenEvaluator(&m); err != nil {
+					b.Fatal(err)
+				}
+				compiled = append(compiled, cr)
+			}
+			ctx := eval.NewContext(event)
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				for _, cr := range compiled {
+					if cr.Eval(ctx) {
+						b.Fatal("no rule should match")
+					}
+				}
+			}
+		})
+
+		b.Run(fmt.Sprintf("SECL/OneProgram/%d", r), func(b *testing.B) {
+			var m model.Model
+			expr := "(" + strings.Join(rules, ") || (") + ")"
+			cr, err := eval.NewRule("all", expr, ast.NewParsingContext(false), &eval.Opts{})
+			if err != nil {
+				b.Fatal(err)
+			}
+			if err := cr.GenEvaluator(&m); err != nil {
+				b.Fatal(err)
+			}
+			ctx := eval.NewContext(event)
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				if cr.Eval(ctx) {
+					b.Fatal("no rule should match")
+				}
+			}
+		})
 	}
 }
