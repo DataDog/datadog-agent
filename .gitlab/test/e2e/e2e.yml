@@ -464,7 +464,7 @@ new-e2e-agent-telemetry:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-telemetry
-    TEAM: agent-runtimes
+    TEAM: fleet-remediation
 
 new-e2e-privateactionrunner:
   extends: .new_e2e_template
