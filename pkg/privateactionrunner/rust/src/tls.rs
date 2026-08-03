@@ -43,6 +43,10 @@ pub fn build_ipc_client_connector(ipc_cert_file: &Path) -> Result<tokio_native_t
     let connector = native_tls::TlsConnector::builder()
         .identity(identity)
         .add_root_certificate(root)
+        // tonic speaks HTTP/2. Unlike tonic's built-in TLS transport, a custom
+        // native-tls connector does not request the h2 ALPN protocol implicitly;
+        // without it, Go's gRPC server completes TLS and then closes the stream.
+        .request_alpns(&["h2"])
         // Local socket: no meaningful hostname to verify. Authentication is by the
         // shared IPC CA and (server-side) the required client certificate.
         .danger_accept_invalid_hostnames(true)

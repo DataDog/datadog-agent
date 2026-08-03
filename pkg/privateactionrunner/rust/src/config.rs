@@ -59,6 +59,8 @@ pub struct Config {
     pub heartbeat_interval: Duration,
     pub idle_timeout: Duration,
     pub ready_timeout: Duration,
+    /// Bounds the initial cold-executor wait for verified RC keys.
+    pub key_sync_timeout: Duration,
     pub opms_request_timeout: Duration,
     /// Mirrors the Go circuit breaker.
     pub min_backoff: Duration,
@@ -193,6 +195,7 @@ impl Config {
             heartbeat_interval: Duration::from_secs(par.heartbeat_interval_seconds.unwrap_or(20)),
             idle_timeout: Duration::from_secs(par.idle_timeout_seconds.unwrap_or(60)),
             ready_timeout: Duration::from_secs(10),
+            key_sync_timeout: Duration::from_secs(120),
             opms_request_timeout: Duration::from_secs(30),
             // Backoff defaults mirror pkg/privateactionrunner/adapters/config/constants.go.
             min_backoff: Duration::from_secs(1),

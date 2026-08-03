@@ -296,12 +296,14 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.encryptionStore = encryptioncontext.NewStore()
 	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore)
 
-	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
+	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion, keysManager)
 
 	go p.encryptionStore.Start()
 	keysManager.Start(runCtx)
 	go func() {
-		keysManager.WaitForReady()
+		if err := keysManager.WaitForReady(runCtx); err != nil {
+			return
+		}
 		p.executorServer.SetReady(true)
 		p.logger.Info("Private action runner executor ready to accept actions")
 	}()

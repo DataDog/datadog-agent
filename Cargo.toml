@@ -42,7 +42,7 @@ protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
 lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
-native-tls = "0.2"
+native-tls = { version = "0.2", features = ["alpn"] }
 nom = "8.0"
 openssl = "0.10"
 normalize-path = "0.2"

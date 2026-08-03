@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Executor_RunAction_FullMethodName = "/datadog.privateactionrunner.executor.Executor/RunAction"
 	Executor_Health_FullMethodName    = "/datadog.privateactionrunner.executor.Executor/Health"
+	Executor_SyncKeys_FullMethodName  = "/datadog.privateactionrunner.executor.Executor/SyncKeys"
 )
 
 // ExecutorClient is the client API for Executor service.
@@ -31,6 +32,9 @@ type ExecutorClient interface {
 	RunAction(ctx context.Context, in *RunActionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RunActionResponse], error)
 	// Health reports executor readiness and liveness; used to gate dispatch.
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
+	// SyncKeys exchanges public verification keys before dispatch. With an empty
+	// seed, the call waits for the executor's first verified RC key snapshot.
+	SyncKeys(ctx context.Context, in *SyncKeysRequest, opts ...grpc.CallOption) (*SyncKeysResponse, error)
 }
 
 type executorClient struct {
@@ -70,6 +74,16 @@ func (c *executorClient) Health(ctx context.Context, in *HealthRequest, opts ...
 	return out, nil
 }
 
+func (c *executorClient) SyncKeys(ctx context.Context, in *SyncKeysRequest, opts ...grpc.CallOption) (*SyncKeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncKeysResponse)
+	err := c.cc.Invoke(ctx, Executor_SyncKeys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ExecutorServer is the server API for Executor service.
 // All implementations must embed UnimplementedExecutorServer
 // for forward compatibility.
@@ -78,6 +92,9 @@ type ExecutorServer interface {
 	RunAction(*RunActionRequest, grpc.ServerStreamingServer[RunActionResponse]) error
 	// Health reports executor readiness and liveness; used to gate dispatch.
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
+	// SyncKeys exchanges public verification keys before dispatch. With an empty
+	// seed, the call waits for the executor's first verified RC key snapshot.
+	SyncKeys(context.Context, *SyncKeysRequest) (*SyncKeysResponse, error)
 	mustEmbedUnimplementedExecutorServer()
 }
 
@@ -93,6 +110,9 @@ func (UnimplementedExecutorServer) RunAction(*RunActionRequest, grpc.ServerStrea
 }
 func (UnimplementedExecutorServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
+}
+func (UnimplementedExecutorServer) SyncKeys(context.Context, *SyncKeysRequest) (*SyncKeysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncKeys not implemented")
 }
 func (UnimplementedExecutorServer) mustEmbedUnimplementedExecutorServer() {}
 func (UnimplementedExecutorServer) testEmbeddedByValue()                  {}
@@ -144,6 +164,24 @@ func _Executor_Health_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Executor_SyncKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutorServer).SyncKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Executor_SyncKeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutorServer).SyncKeys(ctx, req.(*SyncKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Executor_ServiceDesc is the grpc.ServiceDesc for Executor service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -154,6 +192,10 @@ var Executor_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Health",
 			Handler:    _Executor_Health_Handler,
+		},
+		{
+			MethodName: "SyncKeys",
+			Handler:    _Executor_SyncKeys_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

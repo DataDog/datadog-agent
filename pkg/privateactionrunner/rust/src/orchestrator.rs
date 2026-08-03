@@ -14,7 +14,7 @@
 //! fail-and-report via `Describe` (slice 6) build on this spine.
 
 use crate::config::Config;
-use crate::executor::Dispatcher;
+use crate::executor::{Dispatcher, SigningKey};
 use crate::opms::{Opms, Outcome, Task};
 use crate::procmgr::ExecutorLifecycle;
 use log::{debug, error, info, warn};
@@ -22,7 +22,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-use tokio::sync::Semaphore;
+use tokio::sync::{RwLock, Semaphore};
 
 /// `INTERNAL_ERROR` from the ActionPlatformErrorCode proto; used when dispatch
 /// itself fails (e.g. the stream breaks) so the workflow does not hang.
@@ -35,6 +35,7 @@ pub struct Params {
     pub pool_size: usize,
     pub loop_interval: Duration,
     pub ready_timeout: Duration,
+    pub key_sync_timeout: Duration,
     pub idle_timeout: Duration,
     /// Only while an action's result stream is open.
     pub heartbeat_interval: Duration,
@@ -51,6 +52,7 @@ impl Params {
             pool_size: config.task_concurrency,
             loop_interval: config.loop_interval,
             ready_timeout: config.ready_timeout,
+            key_sync_timeout: config.key_sync_timeout,
             idle_timeout: config.idle_timeout,
             heartbeat_interval: config.heartbeat_interval,
             min_backoff: config.min_backoff,
@@ -76,6 +78,7 @@ pub struct Orchestrator<O, L, D> {
     dispatcher: Arc<D>,
     params: Params,
     inflight: Arc<AtomicUsize>,
+    key_cache: RwLock<Option<Vec<SigningKey>>>,
 }
 
 impl<O, L, D> Orchestrator<O, L, D>
@@ -91,6 +94,7 @@ where
             dispatcher,
             params,
             inflight: Arc::new(AtomicUsize::new(0)),
+            key_cache: RwLock::new(None),
         }
     }
 
@@ -98,7 +102,6 @@ where
     /// left to finish; graceful drain is slice 5).
     pub async fn run<S: Future<Output = ()>>(&self, shutdown: S) {
         let sem = Arc::new(Semaphore::new(self.params.pool_size));
-        let mut idle_since = Instant::now();
         // Consecutive dequeue-failure count, driving exponential backoff.
         let mut attempt: u32 = 1;
         tokio::pin!(shutdown);
@@ -119,6 +122,41 @@ where
                 }
             };
         }
+
+        // Populate the long-lived key cache before dequeuing anything. A cold
+        // executor may need roughly a minute for its first verified RC update;
+        // paying that cost here means no OPMS lease is held while it waits.
+        info!("pre-warming executor signing-key cache");
+        loop {
+            let prewarm = tokio::select! {
+                _ = &mut shutdown => {
+                    info!("shutdown requested during executor pre-warm");
+                    return;
+                }
+                result = self.ensure_ready() => result,
+            };
+            match prewarm {
+                Ok(()) => {
+                    let key_count = self
+                        .key_cache
+                        .read()
+                        .await
+                        .as_ref()
+                        .map_or(0, Vec::len);
+                    info!("executor signing-key cache ready ({key_count} keys)");
+                    break;
+                }
+                Err(e) => warn!("executor pre-warm failed; retrying: {e:#}"),
+            }
+            tokio::select! {
+                _ = &mut shutdown => {
+                    info!("shutdown requested during executor pre-warm backoff");
+                    return;
+                }
+                _ = tokio::time::sleep(self.params.min_backoff) => {}
+            }
+        }
+        let mut idle_since = Instant::now();
 
         loop {
             // Acquire a pool slot *before* dequeuing so we never hold OPMS leases
@@ -246,10 +284,36 @@ where
     /// Ensure the executor is started and reports ready, bounded by `ready_timeout`.
     async fn ensure_ready(&self) -> anyhow::Result<()> {
         self.lifecycle.ensure_started().await?;
+        self.wait_for_health(false).await?;
+
+        let seed = self
+            .key_cache
+            .read()
+            .await
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        let snapshot = tokio::time::timeout(
+            self.params.key_sync_timeout,
+            self.dispatcher.sync_keys(seed),
+        )
+        .await
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "executor key synchronization timed out after {:?}",
+                self.params.key_sync_timeout
+            )
+        })??;
+        *self.key_cache.write().await = Some(snapshot);
+
+        self.wait_for_health(true).await
+    }
+
+    async fn wait_for_health(&self, require_ready: bool) -> anyhow::Result<()> {
         let deadline = Instant::now() + self.params.ready_timeout;
         loop {
             match self.dispatcher.health().await {
-                Ok(health) if health.ready => return Ok(()),
+                Ok(health) if !require_ready || health.ready => return Ok(()),
                 Ok(health) => debug!(
                     "executor is up but not ready yet ({} active actions)",
                     health.active_actions
@@ -260,7 +324,11 @@ where
                 Err(e) => debug!("executor health check failed: {e:#}"),
             }
             if Instant::now() >= deadline {
-                anyhow::bail!("executor not ready within {:?}", self.params.ready_timeout);
+                let state = if require_ready { "ready" } else { "live" };
+                anyhow::bail!(
+                    "executor not {state} within {:?}",
+                    self.params.ready_timeout
+                );
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
@@ -356,6 +424,8 @@ mod tests {
         heartbeats: usize,
         max_concurrent: usize,
         concurrent: usize,
+        sync_calls: usize,
+        sync_calls_with_seed: usize,
     }
 
     struct Fakes {
@@ -371,6 +441,9 @@ mod tests {
         fail_dequeue: bool,
         // Describe reports the process has exited (crash).
         exited: bool,
+        // Hold SyncKeys so tests can prove dequeue waits for pre-warm.
+        block_sync: bool,
+        sync_release: tokio::sync::Semaphore,
     }
 
     impl Default for Fakes {
@@ -382,6 +455,8 @@ mod tests {
                 fail_run: false,
                 fail_dequeue: false,
                 exited: false,
+                block_sync: false,
+                sync_release: tokio::sync::Semaphore::new(0),
             }
         }
     }
@@ -448,6 +523,26 @@ mod tests {
             })
         }
 
+        async fn sync_keys(
+            &self,
+            keys: Vec<SigningKey>,
+        ) -> anyhow::Result<Vec<SigningKey>> {
+            if self.block_sync {
+                let _ = self.sync_release.acquire().await.unwrap();
+            }
+            let mut state = self.state.lock().unwrap();
+            state.sync_calls += 1;
+            if !keys.is_empty() {
+                state.sync_calls_with_seed += 1;
+                return Ok(keys);
+            }
+            Ok(vec![SigningKey {
+                id: "key-1".into(),
+                key_type: "ED25519".into(),
+                key: b"pem".to_vec(),
+            }])
+        }
+
         async fn run_action(&self, _raw: Vec<u8>) -> anyhow::Result<Outcome> {
             if self.fail_run {
                 anyhow::bail!("simulated broken stream");
@@ -471,6 +566,7 @@ mod tests {
             pool_size,
             loop_interval: Duration::from_millis(5),
             ready_timeout: Duration::from_secs(1),
+            key_sync_timeout: Duration::from_secs(1),
             idle_timeout: Duration::from_secs(3600),
             heartbeat_interval,
             min_backoff: Duration::from_millis(1),
@@ -478,6 +574,53 @@ mod tests {
             wait_before_retry: Duration::from_millis(20),
             max_attempts: 5,
         }
+    }
+
+    #[tokio::test]
+    async fn prewarm_populates_key_cache_before_dequeue() {
+        let fake = Arc::new(Fakes {
+            tasks_to_serve: 1,
+            block_sync: true,
+            ..Default::default()
+        });
+        let orch = Orchestrator::new(
+            Arc::clone(&fake),
+            Arc::clone(&fake),
+            Arc::clone(&fake),
+            test_params(1, Duration::from_millis(10)),
+        );
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let run = tokio::spawn(async move {
+            orch.run(async {
+                let _ = shutdown_rx.await;
+            })
+            .await;
+        });
+
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert_eq!(fake.state.lock().unwrap().dequeued, 0);
+
+        // One permit completes startup pre-warm; the second lets the first task
+        // refresh the cache before dispatch.
+        fake.sync_release.add_permits(2);
+        fake.release.add_permits(1);
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if fake.state.lock().unwrap().published == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        let state = fake.state.lock().unwrap();
+        assert_eq!(state.sync_calls, 2);
+        assert_eq!(state.sync_calls_with_seed, 1);
+        drop(state);
+        let _ = shutdown_tx.send(());
+        run.await.unwrap();
     }
 
     #[test]

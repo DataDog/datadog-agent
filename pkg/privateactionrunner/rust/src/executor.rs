@@ -23,10 +23,22 @@ pub struct Health {
     pub active_actions: i32,
 }
 
+/// Public task-signing key cached by the control plane between executor runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SigningKey {
+    pub id: String,
+    pub key_type: String,
+    pub key: Vec<u8>,
+}
+
 /// Dispatch operations against the executor. A trait so the orchestrator can be
 /// tested without a real executor gRPC server.
 pub trait Dispatcher: Send + Sync + 'static {
     fn health(&self) -> impl std::future::Future<Output = Result<Health>> + Send;
+    fn sync_keys(
+        &self,
+        keys: Vec<SigningKey>,
+    ) -> impl std::future::Future<Output = Result<Vec<SigningKey>>> + Send;
     fn run_action(&self, raw: Vec<u8>)
     -> impl std::future::Future<Output = Result<Outcome>> + Send;
 }
@@ -68,6 +80,33 @@ impl Dispatcher for ExecutorDispatcher {
             ready: resp.ready,
             active_actions: resp.active_actions,
         })
+    }
+
+    async fn sync_keys(&self, keys: Vec<SigningKey>) -> Result<Vec<SigningKey>> {
+        let mut client = self.client.clone();
+        let response = client
+            .sync_keys(pb::SyncKeysRequest {
+                keys: keys
+                    .into_iter()
+                    .map(|key| pb::SigningKey {
+                        id: key.id,
+                        key_type: key.key_type,
+                        key: key.key,
+                    })
+                    .collect(),
+            })
+            .await
+            .context("executor SyncKeys failed")?
+            .into_inner();
+        Ok(response
+            .keys
+            .into_iter()
+            .map(|key| SigningKey {
+                id: key.id,
+                key_type: key.key_type,
+                key: key.key,
+            })
+            .collect())
     }
 
     async fn run_action(&self, raw: Vec<u8>) -> Result<Outcome> {
