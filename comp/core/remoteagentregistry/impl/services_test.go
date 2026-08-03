@@ -220,6 +220,47 @@ func TestGetTelemetry(t *testing.T) {
 	}, protocmp.Transform()))
 }
 
+func TestGetTelemetryCollectsADPClientByteCounters(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	promText := `
+# TYPE dogstatsd_client__bytes_sent counter
+dogstatsd_client__bytes_sent 100
+# TYPE dogstatsd_client__bytes_dropped counter
+dogstatsd_client__bytes_dropped 7
+# TYPE dogstatsd_client__bytes_dropped_queue counter
+dogstatsd_client__bytes_dropped_queue 5
+# TYPE dogstatsd_client__bytes_dropped_writer counter
+dogstatsd_client__bytes_dropped_writer 2
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "agent-data-plane", "Agent Data Plane", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricsByName := make(map[string]*io_prometheus_client.MetricFamily, len(metrics))
+	for _, metric := range metrics {
+		metricsByName[metric.GetName()] = metric
+	}
+
+	for metricName, expectedValue := range map[string]float64{
+		"dogstatsd_client__bytes_sent":           100,
+		"dogstatsd_client__bytes_dropped":        7,
+		"dogstatsd_client__bytes_dropped_queue":  5,
+		"dogstatsd_client__bytes_dropped_writer": 2,
+	} {
+		metricFamily := metricsByName[metricName]
+		require.NotNil(t, metricFamily, metricName)
+		assert.Equal(t, io_prometheus_client.MetricType_COUNTER, metricFamily.GetType(), metricName)
+		require.Len(t, metricFamily.GetMetric(), 1, metricName)
+		assert.Equal(t, expectedValue, metricFamily.GetMetric()[0].GetCounter().GetValue(), metricName)
+		assert.Equal(t, "agent-data-plane", metricFamily.GetMetric()[0].GetLabel()[0].GetValue(), metricName)
+	}
+}
+
 func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
 	testCases := []struct {
 		name               string
