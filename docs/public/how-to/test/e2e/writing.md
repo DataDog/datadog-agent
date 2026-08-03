@@ -27,7 +27,7 @@ type vmSuite struct {
 
 func TestVMSuite(t *testing.T) {
     suiteParams := []e2e.SuiteOption{
-        e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake()),
+        e2e.WithProvisioner(awshost.Provisioner()),
     }
 
     e2e.Run(t, &vmSuite{}, suiteParams...)
