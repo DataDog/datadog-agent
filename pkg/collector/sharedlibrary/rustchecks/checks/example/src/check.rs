@@ -4,7 +4,7 @@ use core::*;
 
 /// Check implementation
 pub fn check(check: &AgentCheck) -> Result<()> {
-    check.log_info("hello: example check running");
+    check.log(LogLevel::Info, "hello: example check running");
 
     check.gauge("hello.gauge", 1.0, &Vec::new(), "", false)?;
     check.service_check(

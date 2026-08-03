@@ -163,11 +163,12 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
-// SubmitLog routes a shared library check's log line through the agent logger.
+// LogMsg routes a shared library check's log line through the agent logger.
 // Levels must stay in sync with the LogLevel enum in pkg/collector/sharedlibrary/rustchecks/core/src/aggregator.rs.
+// Not named LogMessage to avoid a cgo symbol collision with pkg/collector/python's LogMessage export.
 //
-//export SubmitLog
-func SubmitLog(message *C.char, level C.int) {
+//export LogMsg
+func LogMsg(message *C.char, level C.int) {
 	msg := C.GoString(message)
 
 	switch level {

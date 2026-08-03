@@ -266,34 +266,4 @@ impl AgentCheck {
     pub fn log(&self, level: LogLevel, message: &str) {
         let _ = self.aggregator.log(level, message);
     }
-
-    /// Logs at the TRACE level.
-    pub fn log_trace(&self, message: &str) {
-        self.log(LogLevel::Trace, message);
-    }
-
-    /// Logs at the DEBUG level.
-    pub fn log_debug(&self, message: &str) {
-        self.log(LogLevel::Debug, message);
-    }
-
-    /// Logs at the INFO level.
-    pub fn log_info(&self, message: &str) {
-        self.log(LogLevel::Info, message);
-    }
-
-    /// Logs at the WARN level.
-    pub fn log_warn(&self, message: &str) {
-        self.log(LogLevel::Warn, message);
-    }
-
-    /// Logs at the ERROR level.
-    pub fn log_error(&self, message: &str) {
-        self.log(LogLevel::Error, message);
-    }
-
-    /// Logs at the CRITICAL level.
-    pub fn log_critical(&self, message: &str) {
-        self.log(LogLevel::Critical, message);
-    }
 }

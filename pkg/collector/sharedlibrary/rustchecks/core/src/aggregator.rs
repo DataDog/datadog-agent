@@ -103,7 +103,7 @@ type SubmitEventPlatformEvent = extern "C" fn(
 );
 
 /// Signature of the log function
-type SubmitLog = extern "C" fn(
+type LogMsg = extern "C" fn(
     *mut c_char, // message
     c_int,       // level
 );
@@ -119,7 +119,7 @@ pub struct Aggregator {
     cb_submit_event: SubmitEvent,
     cb_submit_histogram_bucket: SubmitHistogramBucket,
     cb_submit_event_platform_event: SubmitEventPlatformEvent,
-    cb_log: SubmitLog,
+    cb_log_msg: LogMsg,
 }
 
 impl Aggregator {
@@ -129,7 +129,7 @@ impl Aggregator {
         cb_submit_event: SubmitEvent,
         cb_submit_histogram_bucket: SubmitHistogramBucket,
         cb_submit_event_platform_event: SubmitEventPlatformEvent,
-        cb_log: SubmitLog,
+        cb_log_msg: LogMsg,
     ) -> Self {
         Self {
             cb_submit_metric,
@@ -137,7 +137,7 @@ impl Aggregator {
             cb_submit_event,
             cb_submit_histogram_bucket,
             cb_submit_event_platform_event,
-            cb_log,
+            cb_log_msg,
         }
     }
 
@@ -341,7 +341,7 @@ impl Aggregator {
     /// Routes a log line through the Agent logger.
     pub fn log(&self, level: LogLevel, message: &str) -> Result<()> {
         let cstr_message = CStringGuard::new(message)?;
-        (self.cb_log)(cstr_message.as_ptr(), level as c_int);
+        (self.cb_log_msg)(cstr_message.as_ptr(), level as c_int);
         Ok(())
     }
 }

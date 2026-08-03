@@ -38,7 +38,7 @@ const aggregator_t *build_aggregator(void *m, void *sc, void *e, void *h, void *
 	aggregator.cb_submit_event = (cb_submit_event_t)e;
 	aggregator.cb_submit_histogram_bucket = (cb_submit_histogram_bucket_t)h;
 	aggregator.cb_submit_event_platform_event = (cb_submit_event_platform_event_t)ep;
-	aggregator.cb_log = (cb_log_t)l;
+	aggregator.cb_log_msg = (cb_log_t)l;
 	return &aggregator;
 }
 */
@@ -211,7 +211,7 @@ func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
 	cb := aggregator.GetCallbacks()
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
-		aggregator: C.build_aggregator(cb.Metric, cb.ServiceCheck, cb.Event, cb.HistogramBucket, cb.EventPlatformEvent, cb.Log),
+		aggregator: C.build_aggregator(cb.Metric, cb.ServiceCheck, cb.Event, cb.HistogramBucket, cb.EventPlatformEvent, cb.LogMsg),
 		permission: permission,
 	}, nil
 }
