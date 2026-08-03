@@ -28,6 +28,7 @@ go_test(
     srcs = [
         "list_pids_test.go",
         "proc_stat_reader_test.go",
+        "scanner_bench_test.go",
         "scanner_test.go",
         "start_time_cache_test.go",
     ],
@@ -55,8 +56,10 @@ go_test(
     ],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
+        "//pkg/discovery/tracermetadata",
         "//pkg/discovery/tracermetadata/model",
         "//pkg/dyninst/process",
+        "//pkg/util/kernel",
         "@com_github_goccy_go_yaml//:go-yaml",
         "@com_github_goccy_go_yaml//ast",
         "@com_github_goccy_go_yaml//lexer",
