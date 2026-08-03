@@ -111,7 +111,10 @@ package seclcel
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/google/cel-go/common/types"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -160,7 +163,7 @@ func benchEvent() *model.Event {
 		comms[i] = fmt.Sprintf("proc%d", i)
 		uids[i] = uint32(i)
 	}
-	comms[1] = "sshd"
+	comms[benchAncestry-1] = "sshd"
 
 	ancestry(event, comms, uids)
 	return event
@@ -257,5 +260,155 @@ func BenchmarkCEL(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkScale answers the question the migration turns on: whether the gap
+// between the engines is a fixed cost per rule or grows with the size of the
+// rule. A production rule set is a large number of rules, each a boolean
+// expression, evaluated against every event of its type — so the two scale
+// differently and the answer is two numbers, not one.
+//
+// AllTrue evaluates every predicate. ShortCircuit fails on the first, which is
+// what nearly every rule does on nearly every event.
+//
+// Measured (ns/op, both including the ~30 ns context reset):
+//
+//	n        SECL All   CEL All    SECL short   CEL short
+//	1          164        251          45          249
+//	2          257        387          46          255
+//	4          421        660          46          260
+//	8          852       1214          45          266
+//	16        1733       2369          47          271
+//
+// Two readings:
+//
+//   - Per predicate the engines are close. The slopes over 1..16 are 105 ns for
+//     SECL and 141 ns for CEL: CEL costs about 36 ns more per predicate, 1.34x,
+//     and it does not degrade as the expression grows. On allocations CEL is
+//     ahead — 1 per predicate against SECL's 2, because SECL appends to its
+//     matching subexpression list on every comparison that holds.
+//
+//   - Per rule they are not close. A rule that short circuits on its first
+//     predicate costs SECL 15 ns of evaluation and CEL 220 ns, and that gap is
+//     paid by every rule in the bucket on every event, matching or not. It is
+//     the interpreter's own scaffolding: acquiring and releasing the pooled
+//     ExecutionFrame is about 50 ns of it, the rest is attribute resolution and
+//     dispatch. Growing the expression barely moves it — 249 ns at one
+//     predicate, 271 ns at sixteen — because the skipped predicates cost about
+//     1 ns each.
+//
+// So the cost of CEL is roughly 200 ns per rule evaluated, not per predicate.
+// Whether that is affordable depends on how many rules a bucket holds and how
+// many events reach it, and the two levers on it are to reuse the execution
+// frame and to evaluate a bucket as one program rather than one per rule.
+var scalePredicates = []string{
+	`process.comm == "sh"`,
+	`process.uid == 1000`,
+	`process.gid == 1001`,
+	`process.euid == 1002`,
+	`process.egid == 1003`,
+	`process.fsuid == 1004`,
+	`process.fsgid == 1005`,
+	`process.user == "u"`,
+	`process.group == "g"`,
+	`process.euser == "eu"`,
+	`process.egroup == "eg"`,
+	`process.fsuser == "fu"`,
+	`process.fsgroup == "fg"`,
+	`process.pid == 42`,
+	`process.tid == 43`,
+	`process.ppid == 44`,
+	`process.file.name == "bash"`,
+	`process.file.path == "/usr/bin/bash"`,
+	`process.file.uid == 7`,
+	`process.file.gid == 8`,
+	`process.file.inode == 9`,
+	`process.file.mode == 10`,
+}
+
+func scaleEvent() *model.Event {
+	e := model.NewFakeEvent()
+	p := &e.BaseEvent.ProcessContext.Process
+	p.Comm = "sh"
+	p.Credentials.UID, p.Credentials.GID = 1000, 1001
+	p.Credentials.EUID, p.Credentials.EGID = 1002, 1003
+	p.Credentials.FSUID, p.Credentials.FSGID = 1004, 1005
+	p.Credentials.User, p.Credentials.Group = "u", "g"
+	p.Credentials.EUser, p.Credentials.EGroup = "eu", "eg"
+	p.Credentials.FSUser, p.Credentials.FSGroup = "fu", "fg"
+	p.PIDContext.Pid, p.PIDContext.Tid = 42, 43
+	p.PPid = 44
+	p.FileEvent.BasenameStr = "bash"
+	p.FileEvent.PathnameStr = "/usr/bin/bash"
+	p.FileEvent.FileFields.UID, p.FileEvent.FileFields.GID = 7, 8
+	p.FileEvent.FileFields.Inode, p.FileEvent.FileFields.Mode = 9, 10
+	return e
+}
+
+// all n predicates hold, so all n are evaluated
+func andOf(n int) string { return strings.Join(scalePredicates[:n], " && ") }
+
+// the first fails, so the rest are short circuited: what a rule costs when it
+// does not match, which is the common case in production
+func shortCircuit(n int) string {
+	return `process.comm == "zzz" && ` + strings.Join(scalePredicates[:n], " && ")
+}
+
+func BenchmarkScale(b *testing.B) {
+	for _, n := range []int{1, 2, 4, 8, 16, 22} {
+		for _, shape := range []struct {
+			name  string
+			expr  string
+			match bool
+		}{
+			{"AllTrue", andOf(n), true},
+			{"ShortCircuit", shortCircuit(n), false},
+		} {
+			b.Run(fmt.Sprintf("SECL/%s/%d", shape.name, n), func(b *testing.B) {
+				var m model.Model
+				rule, err := eval.NewRule("s", shape.expr, ast.NewParsingContext(false), &eval.Opts{})
+				if err != nil {
+					b.Fatal(err)
+				}
+				if err := rule.GenEvaluator(&m); err != nil {
+					b.Fatal(err)
+				}
+				event := scaleEvent()
+				ctx := eval.NewContext(event)
+				b.ReportAllocs()
+				for b.Loop() {
+					resetContext(ctx, event)
+					if rule.Eval(ctx) != shape.match {
+						b.Fatal("wrong verdict")
+					}
+				}
+			})
+
+			b.Run(fmt.Sprintf("CEL/%s/%d", shape.name, n), func(b *testing.B) {
+				env, err := NewModelEnv()
+				if err != nil {
+					b.Fatal(err)
+				}
+				program, err := Program(env, shape.expr, ModelFieldTypes{})
+				if err != nil {
+					b.Fatal(err)
+				}
+				event := scaleEvent()
+				ctx := eval.NewContext(event)
+				activation := NewActivation(ctx)
+				b.ReportAllocs()
+				for b.Loop() {
+					resetContext(ctx, event)
+					out, _, err := program.Eval(activation)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if (out == types.True) != shape.match {
+						b.Fatal("wrong verdict")
+					}
+				}
+			})
+		}
 	}
 }
