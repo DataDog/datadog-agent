@@ -8,7 +8,6 @@
 package flare
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -25,12 +24,10 @@ import (
 func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	pid := strconv.Itoa(os.Getpid())
 	cmd := exec.CommandContext(ctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	if err := cmd.Run(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		log.Errorf("error running svmon -P %s: %s", pid, err)
 	}
 
-	return fb.AddFile("svmon.log", out.Bytes())
+	return fb.AddFile("svmon.log", out)
 }

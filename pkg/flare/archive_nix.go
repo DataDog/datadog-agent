@@ -8,7 +8,6 @@
 package flare
 
 import (
-	"bytes"
 	"context"
 	"os/exec"
 
@@ -26,12 +25,10 @@ func getWindowsData(_ context.Context, _ flaretypes.FlareBuilder) error {
 // output reflects the Agent's actual limits, not an unrelated login shell's.
 func getUlimitData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	cmd := exec.CommandContext(ctx, "sh", "-c", "ulimit -a")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	if err := cmd.Run(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		log.Errorf("error running ulimit -a: %s", err)
 	}
 
-	return fb.AddFile("ulimit.log", out.Bytes())
+	return fb.AddFile("ulimit.log", out)
 }
