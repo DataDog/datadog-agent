@@ -181,7 +181,12 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensure config/run/log/package directories are created and have the correct permissions
+	// 2. Write procmgr processes (ownership enforced next step)
+	if err = agentService.WriteProcesses(ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to write processes: %s", err)
+	}
+
+	// 3. Ensure config/run/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -195,12 +200,8 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = agentRunPath.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create run directory: %v", err)
 	}
-	processesDir := file.Directory{Path: filepath.Join(ctx.PackagePath, "processes.d"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
-	if err = processesDir.Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to create processes.d directory: %v", err)
-	}
 
-	// 3. Create symlinks
+	// 4. Create symlinks
 	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
@@ -208,22 +209,22 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
-	// 4. Set up SELinux permissions
+	// 5. Set up SELinux permissions
 	if err = selinux.SetAgentPermissions(ctx, "/etc/datadog-agent", ctx.PackagePath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
 
-	// 5. Handle install info
+	// 6. Handle install info
 	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
-	// 6. Remove old installer units if they exist
+	// 7. Remove old installer units if they exist
 	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
 
-	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
+	// 8. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
 		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
 	}
@@ -339,9 +340,6 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
-	}
-	if err := agentService.WriteProcesses(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write procmgr processes: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -730,6 +728,10 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 
 // WriteProcesses writes the processes for the given package path
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
+	// Delete existing processes regardless of the service manager to delete old processes if the service manager changes
+	if err := os.RemoveAll(procmgr.ConfigDir(packagePath)); err != nil {
+		return fmt.Errorf("failed to delete procmgr processes directory: %v", err)
+	}
 	switch service.GetServiceManagerType(packagePath) {
 	case service.ProcmgrType:
 		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)

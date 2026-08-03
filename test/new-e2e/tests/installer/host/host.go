@@ -7,6 +7,8 @@
 package host
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -71,6 +73,97 @@ func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor
 // GetPkgManager returns the package manager of the host.
 func (h *Host) GetPkgManager() string {
 	return h.pkgManager
+}
+
+// Procmgr enabled returns true if the procmgr is enabled on the host, ie if the folder processes.d exists
+func (h *Host) ProcmgrEnabled() bool {
+	_, err := h.remote.ReadDir("/opt/datadog-packages/datadog-agent/stable/processes.d")
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	require.NoError(h.t(), err)
+	return true
+}
+
+// procmgr COAT telemetry gauge names, reported via `datadog-agent diagnose show-metadata agent-full-telemetry`.
+const (
+	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
+	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
+	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
+	metricAgentServiceInstalled         = "runtime__agent_service_installed"
+	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
+	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
+	procmgrManagementModeProcmgr        = "procmgr"
+)
+
+// AssertProcmgrTelemetry verifies the agent's COAT gauges report serviceID/processName as managed
+// by dd-procmgrd. Call this after the process is confirmed running so procmgr is reachable.
+func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName string) {
+	t.Helper()
+
+	// The procmgr reporter refreshes every 5 minutes; poll until gauges reflect the current state.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, err := h.remote.Execute("sudo datadog-agent diagnose show-metadata agent-full-telemetry")
+		require.NoError(c, err)
+
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReachable, nil)
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
+		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessRunning, map[string]string{
+			"process": processName,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceInstalled, map[string]string{
+			"service": serviceID,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceProcmgrConfigured, map[string]string{
+			"service": serviceID,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceManagementMode, map[string]string{
+			"service": serviceID,
+			"mode":    procmgrManagementModeProcmgr,
+		})
+	}, 7*time.Minute, 10*time.Second, "procmgr telemetry gauges should be emitted")
+}
+
+func assertTelemetryGaugeTrue(c *assert.CollectT, output, metric string, labels map[string]string) {
+	c.Helper()
+
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if !strings.HasPrefix(trimmed, metric) {
+			continue
+		}
+
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+		value := fields[len(fields)-1]
+		if value != "1" && value != "1.0" {
+			continue
+		}
+
+		missingLabel := false
+		for key, val := range labels {
+			if !strings.Contains(trimmed, key+`="`+val+`"`) {
+				missingLabel = true
+				break
+			}
+		}
+		if missingLabel {
+			continue
+		}
+
+		return
+	}
+
+	if len(labels) == 0 {
+		assert.Failf(c, "telemetry gauge not found", "expected %s with value 1", metric)
+		return
+	}
+	assert.Failf(c, "telemetry gauge not found", "expected %s with labels %v and value 1", metric, labels)
 }
 
 func (h *Host) setSystemdVersion() {
@@ -231,6 +324,44 @@ func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	}
 }
 
+// WaitForUnitDead waits for a systemd unit to settle into an inactive/dead substate. Useful for a
+// unit that is expected to never successfully start because it is BindsTo= a unit that fails fast
+// (e.g. a missing config file): the failure needs a moment to crash-loop through its restart limit
+// and propagate the BindsTo teardown before the substate can be read reliably.
+func (h *Host) WaitForUnitDead(t *testing.T, units ...string) {
+	for _, unit := range units {
+		assert.Eventually(t, func() bool {
+			out, err := h.remote.Execute("systemctl show -p SubState --value " + unit)
+			return err == nil && strings.TrimSpace(out) == string(Dead)
+		}, time.Second*90, time.Second*2, "unit %s did not settle into a dead state. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+	}
+}
+
+// WaitForProcessesRunning waits for procmgr-supervised processes to report a Running state.
+// Unlike State.AssertProcessesRunning (a static snapshot check with no retry), this polls
+// dd-procmgrd directly: becoming Running takes a few extra hops after the hosting systemd unit
+// itself is active (daemon init, processes.d read, condition_path_exists check, process spawn), so
+// a plain WaitForUnitActive on the procmgr unit is not enough to avoid a race with State().
+func (h *Host) WaitForProcessesRunning(t *testing.T, names ...string) {
+	const procmgrBin = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
+	for _, rawName := range names {
+		name := processName(rawName)
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			out, err := h.remote.Execute("sudo -u dd-agent " + procmgrBin + " describe --json " + name)
+			if !assert.NoError(c, err, "dd-procmgr describe failed for process %s", name) {
+				return
+			}
+			var detail struct {
+				State string `json:"state"`
+			}
+			if !assert.NoError(c, json.Unmarshal([]byte(out), &detail), "failed to parse dd-procmgr describe output for %s", name) {
+				return
+			}
+			assert.Equal(c, "Running", detail.State, "process %s is not running", name)
+		}, 2*time.Minute, 5*time.Second)
+	}
+}
+
 // WaitForUnitActivating waits for a systemd unit to be activating
 func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
@@ -384,11 +515,12 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 // State returns the state of the host.
 func (h *Host) State() State {
 	return State{
-		t:      h.t(),
-		Users:  h.users(),
-		Groups: h.groups(),
-		FS:     h.fs(),
-		Units:  h.getSystemdUnitInfo(),
+		t:         h.t(),
+		Users:     h.users(),
+		Groups:    h.groups(),
+		FS:        h.fs(),
+		Units:     h.getSystemdUnitInfo(),
+		Processes: h.getProcessesUnitInfo(),
 	}
 }
 
@@ -539,6 +671,54 @@ func (h *Host) getSystemdUnitInfo() map[string]SystemdUnitInfo {
 	return units
 }
 
+func (h *Host) getProcessesUnitInfo() map[string]ProcessesUnitInfo {
+	processes := make(map[string]ProcessesUnitInfo)
+	if !h.ProcmgrEnabled() {
+		return processes
+	}
+
+	const procmgrBin = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
+	listOutput := h.remote.MustExecute("sudo -u dd-agent " + procmgrBin + " list --json")
+
+	var entries []struct {
+		Name         string   `json:"name"`
+		UUID         string   `json:"uuid"`
+		State        string   `json:"state"`
+		PID          int      `json:"pid"`
+		Command      string   `json:"command"`
+		Args         []string `json:"args"`
+		RestartCount int      `json:"restart_count"`
+		LastExitCode *int     `json:"last_exit_code"`
+		LastSignal   *int     `json:"last_signal"`
+	}
+	require.NoError(h.t(), json.Unmarshal([]byte(listOutput), &entries))
+
+	for _, e := range entries {
+		info := ProcessesUnitInfo{
+			Name:         e.Name,
+			UUID:         e.UUID,
+			State:        ProcessState(e.State),
+			PID:          e.PID,
+			Command:      e.Command,
+			Args:         e.Args,
+			RestartCount: e.RestartCount,
+			LastExitCode: e.LastExitCode,
+			LastSignal:   e.LastSignal,
+		}
+
+		describeOutput := h.remote.MustExecute("sudo -u dd-agent " + procmgrBin + " describe --json " + e.Name)
+		var detail struct {
+			AutoStart bool `json:"auto_start"`
+		}
+		require.NoError(h.t(), json.Unmarshal([]byte(describeOutput), &detail))
+		info.AutoStart = detail.AutoStart
+
+		processes[e.Name] = info
+	}
+
+	return processes
+}
+
 // SetUmask set the default umask for commands
 func (h *Host) SetUmask(mask string) (oldmask string) {
 	oldmask = strings.TrimSpace(h.remote.MustExecute("umask"))
@@ -624,6 +804,9 @@ const (
 	Dead SubState = "dead"
 )
 
+// ProcessState is the state of a process managed by procmgr.
+type ProcessState string
+
 // SystemdUnitInfo is the info of a systemd unit.
 type SystemdUnitInfo struct {
 	Name      string
@@ -631,6 +814,20 @@ type SystemdUnitInfo struct {
 	Enabled   string
 	SubState  SubState
 	LoadState LoadState
+}
+
+// ProcessesUnitInfo is the info of a process managed by procmgr.
+type ProcessesUnitInfo struct {
+	Name         string
+	UUID         string
+	State        ProcessState
+	PID          int
+	Command      string
+	Args         []string
+	RestartCount int
+	LastExitCode *int
+	LastSignal   *int
+	AutoStart    bool
 }
 
 // FileInfo struct mimics os.FileInfo
@@ -648,11 +845,12 @@ type FileInfo struct {
 
 // State is the state of a remote host.
 type State struct {
-	t      *testing.T
-	Users  []user.User
-	Groups []user.Group
-	FS     map[string]FileInfo
-	Units  map[string]SystemdUnitInfo
+	t         *testing.T
+	Users     []user.User
+	Groups    []user.Group
+	FS        map[string]FileInfo
+	Units     map[string]SystemdUnitInfo
+	Processes map[string]ProcessesUnitInfo
 }
 
 // Stat returns the FileInfo of a path on the host.
@@ -869,5 +1067,69 @@ func (s *State) AssertUnitsDead(names ...string) {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
+	}
+}
+
+// processName strips a trailing ".yaml" suffix, allowing callers to pass either the process
+// name (e.g. "datadog-agent-ddot") or its processes.d config filename (e.g. "datadog-agent-ddot.yaml").
+func processName(name string) string {
+	return strings.TrimSuffix(name, ".yaml")
+}
+
+// AssertProcessesLoaded asserts that processes are loaded (registered) by procmgr.
+func (s *State) AssertProcessesLoaded(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		_, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+	}
+}
+
+// AssertProcessesNotLoaded asserts that processes are not loaded (registered) by procmgr.
+func (s *State) AssertProcessesNotLoaded(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		_, ok := s.Processes[name]
+		assert.False(s.t, ok, "process %v is loaded", name)
+	}
+}
+
+// AssertProcessesEnabled asserts that processes are configured to auto-start under procmgr.
+func (s *State) AssertProcessesEnabled(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.True(s.t, process.AutoStart, "process %v is not enabled (auto_start)", name)
+	}
+}
+
+// AssertProcessesNotEnabled asserts that processes are loaded but not configured to auto-start.
+func (s *State) AssertProcessesNotEnabled(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.False(s.t, process.AutoStart, "process %v is enabled (auto_start)", name)
+	}
+}
+
+// AssertProcessesRunning asserts that processes are running under procmgr.
+func (s *State) AssertProcessesRunning(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.Equal(s.t, "Running", process.State, "process %v is not running", name)
+	}
+}
+
+// AssertProcessesDead asserts that processes are not running under procmgr (stopped, exited, crashed or failed).
+func (s *State) AssertProcessesDead(names ...string) {
+	for _, name := range names {
+		name := processName(name)
+		process, ok := s.Processes[name]
+		assert.True(s.t, ok, "process %v is not loaded", name)
+		assert.NotEqual(s.t, "Running", process.State, "process %v is running", name)
 	}
 }

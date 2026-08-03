@@ -137,12 +137,10 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err = enableOTelCollectorConfigInDatadogYAML(ctx, datadogYamlPath); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
-
 	// Restart agent to pick up otelcollector config changes
 	if err = agentService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart agent after enabling otelcollector: %v", err)
 	}
-
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}

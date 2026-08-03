@@ -18,7 +18,6 @@ import (
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
@@ -647,7 +646,7 @@ func (s *configSuite) assertCollectorConfigPath(experiment bool) {
 	if experiment {
 		want = "/etc/datadog-agent-exp/otel-config.yaml"
 	}
-	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	s.Host.AssertProcessRunning(s.T(), ddotProcessName)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(`sudo ps -eo args | grep '[o]tel-agent' | grep -o -- '--config [^ ]*' | head -1`)
 		assert.NoError(c, err)
