@@ -37,8 +37,6 @@ mod tests {
     use core::stubs::{AggregatorStub, RecordedEvent};
     use core::{MetricType, ServiceCheckStatus};
 
-    /// Runs the check against a recording stub and returns it, mirroring the
-    /// `aggregator` fixture used in integrations-core check tests.
     fn run_check() -> AggregatorStub {
         let aggregator = AggregatorStub::new();
         let agent_check = aggregator.agent_check_default();
