@@ -3,8 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "cws",
     srcs = ["common.go"],
-    # keep
-    data = [
+    embedsrcs = [
         "//test/new-e2e/tests/cws/config:e2e-security-agent.yaml",
         "//test/new-e2e/tests/cws/config:e2e-system-probe.yaml",
     ],

@@ -49,10 +49,12 @@ go_test(
     # keep
     data = [
         "secret/fixtures/secret_script.py",
-        "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
     ],
     embed = [":agent-configuration"],
-    embedsrcs = ["secret/fixtures/secret_script.py"],
+    embedsrcs = [
+        "secret/fixtures/secret_script.py",
+        "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
