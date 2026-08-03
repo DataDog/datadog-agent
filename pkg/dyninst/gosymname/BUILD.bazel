@@ -1,4 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Unlike most of pkg/dyninst, this package is plain Go with no linux_bpf-gated
+# sources, so it opts back into flavored tests.
+# gazelle:dd_linux_bpf off
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "gosymname",
@@ -16,7 +22,7 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "gosymname_test",
     srcs = [
         "benchmark_test.go",
@@ -28,7 +34,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":gosymname"],
-    gotags = ["test"],
     deps = [
         "@com_github_goccy_go_yaml//:go-yaml",
         "@com_github_stretchr_testify//assert",
