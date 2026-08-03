@@ -41,9 +41,10 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.split_enabled", false)
 
 	// Control-plane knobs, read by par-control. par-control parses datadog.yaml
-	// directly and therefore does *not* honor the DD_ env vars bound here; the
-	// keys are registered so they are schema-documented and validated, and so
-	// their defaults live next to the rest of the runner's settings.
+	// directly; it honors DD_ overrides for the shared launch-gate keys above,
+	// but not yet for these tuning knobs. The keys are registered so they are
+	// schema-documented and validated, and so their defaults live next to the
+	// rest of the runner's settings.
 	config.BindEnvAndSetDefault("private_action_runner.procmgr_socket_path", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\datadog-procmgrd`,
 		"other":   "/var/run/datadog-procmgrd/dd-procmgrd.sock",

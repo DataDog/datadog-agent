@@ -31,6 +31,9 @@ pub const DEFAULT_PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
 /// Start/Describe/Stop RPC fails with an unknown-process error.
 pub const DEFAULT_EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 
+/// The Go runner and enrollment flow always advertise pull mode.
+const DEFAULT_MODE: &str = "pull";
+
 /// PAR flavor string sent to OPMS (matches `flavor.PrivateActionRunner` on the Go side).
 pub const FLAVOR: &str = "private_action_runner";
 
@@ -203,7 +206,11 @@ impl Config {
             wait_before_retry: Duration::from_secs(300),
             max_attempts: 20,
             runner_version: RUNNER_VERSION.to_string(),
-            modes: par.modes,
+            modes: if par.modes.is_empty() {
+                vec![DEFAULT_MODE.to_string()]
+            } else {
+                par.modes
+            },
             ipc_cert_file: ipc_cert_file_path(&raw, config_path),
             identity,
         })
@@ -268,17 +275,50 @@ impl LaunchGate {
     pub fn from_yaml_file(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read config file: {}", path.display()))?;
-        Self::from_yaml_str(&contents)
+        Self::from_yaml_str_with_env(&contents, |name| std::env::var(name).ok())
     }
 
     pub fn from_yaml_str(yaml: &str) -> Result<Self> {
+        Self::from_yaml_str_with_env(yaml, |_| None)
+    }
+
+    fn from_yaml_str_with_env(yaml: &str, env: impl Fn(&str) -> Option<String>) -> Result<Self> {
         let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
         let par = raw.private_action_runner.unwrap_or_default();
+        let enabled = env_bool_override(par.enabled, "DD_PRIVATE_ACTION_RUNNER_ENABLED", &env)?;
+        let split_enabled = env_bool_override(
+            par.split_enabled,
+            "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
+            &env,
+        )?;
+        let self_enroll = env_bool_override(
+            par.self_enroll,
+            "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL",
+            &env,
+        )?;
         Ok(Self {
-            split_mode: par.enabled.unwrap_or(false) && par.split_enabled.unwrap_or(false),
-            self_enroll: par.self_enroll.unwrap_or(true),
+            split_mode: enabled.unwrap_or(false) && split_enabled.unwrap_or(false),
+            self_enroll: self_enroll.unwrap_or(true),
         })
     }
+}
+
+/// Apply the same DD_ environment precedence as the Go config layer for the
+/// launch keys shared by the monolithic and split processes.
+fn env_bool_override(
+    yaml_value: Option<bool>,
+    name: &str,
+    env: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<bool>> {
+    let Some(raw) = env(name) else {
+        return Ok(yaml_value);
+    };
+    let value = match raw.trim().to_ascii_lowercase().as_str() {
+        "1" | "t" | "true" | "y" | "yes" => true,
+        "0" | "f" | "false" | "n" | "no" => false,
+        _ => bail!("invalid boolean value for {name}: {raw:?}"),
+    };
+    Ok(Some(value))
 }
 
 /// Resolve the OPMS base URL. Production uses `https://api.<site>`. A `dd_url`
@@ -376,12 +416,10 @@ private_action_runner:
         assert_eq!(cfg.task_concurrency, 5);
         assert_eq!(cfg.identity.org_id, 42);
         assert_eq!(cfg.identity.runner_id, "runner-1");
+        assert_eq!(cfg.modes, vec!["pull"]);
         // Must match the procmgr process-definition name installed by the
         // installer, else Start/Describe/Stop fail against dd-procmgrd.
-        assert_eq!(
-            cfg.executor_process_name,
-            "datadog-agent-action-executor"
-        );
+        assert_eq!(cfg.executor_process_name, "datadog-agent-action-executor");
         assert_eq!(cfg.executor_socket, PathBuf::from(DEFAULT_EXECUTOR_SOCKET));
     }
 
@@ -548,6 +586,31 @@ private_action_runner:
         }
     }
 
+    #[test]
+    fn launch_gate_environment_overrides_yaml() {
+        let env = |name: &str| match name {
+            "DD_PRIVATE_ACTION_RUNNER_ENABLED" => Some("true".to_string()),
+            "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => Some("1".to_string()),
+            "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL" => Some("false".to_string()),
+            _ => None,
+        };
+        let gate = LaunchGate::from_yaml_str_with_env(
+            "private_action_runner:\n  enabled: false\n  split_enabled: false\n",
+            env,
+        )
+        .unwrap();
+        assert!(gate.split_mode);
+        assert!(!gate.self_enroll);
+    }
+
+    #[test]
+    fn launch_gate_rejects_invalid_environment_boolean() {
+        let result = LaunchGate::from_yaml_str_with_env("", |name| {
+            (name == "DD_PRIVATE_ACTION_RUNNER_ENABLED").then(|| "sometimes".to_string())
+        });
+        assert!(result.is_err());
+    }
+
     /// The gate must resolve without an identity: it is read before bootstrap so
     /// a not-yet-enrolled host can still decide whether to enroll at all.
     #[test]
@@ -596,13 +659,14 @@ private_action_runner:
     }
 
     #[test]
-    fn overrides_pool_size_and_intervals() {
+    fn overrides_pool_size_intervals_and_modes() {
         let yaml = format!(
-            "{MIN_YAML}  task_concurrency: 3\n  idle_timeout_seconds: 120\n  heartbeat_interval_seconds: 5\n"
+            "{MIN_YAML}  task_concurrency: 3\n  idle_timeout_seconds: 120\n  heartbeat_interval_seconds: 5\n  modes: [push]\n"
         );
         let cfg = Config::from_yaml_str(&yaml).unwrap();
         assert_eq!(cfg.task_concurrency, 3);
         assert_eq!(cfg.idle_timeout, Duration::from_secs(120));
         assert_eq!(cfg.heartbeat_interval, Duration::from_secs(5));
+        assert_eq!(cfg.modes, vec!["push"]);
     }
 }

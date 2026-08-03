@@ -144,10 +144,11 @@ runtime, so each is pinned by a unit test in `config.rs`.
   running/fake OPMS; the bodies here are modeled on the Go client.
 - `private_action_runner.opms_extra_headers` is honored by the Go client but
   ignored here.
-- par-control parses `datadog.yaml` itself, so it honors none of the `DD_*`
-  environment variables bound by `pkg/config/setup/privateactionrunner_settings.go`
-  (including `DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`) — a container-style
-  env-only configuration will not reach the control plane.
+- par-control parses `datadog.yaml` itself. Its launch gate honors
+  `DD_PRIVATE_ACTION_RUNNER_ENABLED`, `DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`,
+  and `DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL` so env-only activation cannot leave
+  both control planes stopped. Other `DD_*` overrides bound by
+  `pkg/config/setup/privateactionrunner_settings.go` are not yet applied.
 - Config changes are only picked up on restart: neither the split switch nor the
   control-plane knobs are watched at runtime.
 - Review the disabled-hostname posture on the mTLS channel over the local socket
