@@ -23,8 +23,10 @@ func getWindowsData(_ context.Context, _ flaretypes.FlareBuilder) error {
 // process. `ulimit` is a shell builtin, so a subshell is spawned to run it;
 // that subshell inherits the Agent process' own limits via fork(), so the
 // output reflects the Agent's actual limits, not an unrelated login shell's.
+// Both the soft (currently enforced) and hard (ceiling) limits are captured.
 func getUlimitData(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	cmd := exec.CommandContext(ctx, "sh", "-c", "ulimit -a")
+	cmd := exec.CommandContext(ctx, "sh", "-c",
+		`echo "=== Soft limits (ulimit -aS) ==="; ulimit -aS; echo; echo "=== Hard limits (ulimit -aH) ==="; ulimit -aH`)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("error running ulimit -a: %s", err)
