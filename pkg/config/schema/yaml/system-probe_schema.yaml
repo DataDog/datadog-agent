@@ -1730,16 +1730,31 @@ properties:
             default: false
   numa_monitoring:
     node_type: section
+    title: System Probe NUMA Monitoring
     type: object
+    visibility: public
+    description: |-
+      [Experimental] Capability-driven NUMA placement and resctrl monitoring on Linux.
+      Metric names and behavior may change while this feature is experimental.
+    tags: []
     properties:
       enabled:
         node_type: setting
         type: boolean
         default: false
+        env_vars:
+        - DD_NUMA_MONITORING_ENABLED
+        visibility: public
+        description: Enables experimental scheduler runtime and resident-memory distribution
+          monitoring.
       max_resctrl_groups:
         node_type: setting
         type: integer
         default: 16
+        env_vars:
+        - DD_NUMA_MONITORING_MAX_RESCTRL_GROUPS
+        visibility: public
+        description: Maximum number of top container cgroups monitored through resctrl.
   privileged_logs:
     node_type: section
     type: object

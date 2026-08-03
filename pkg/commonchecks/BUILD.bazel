@@ -44,6 +44,7 @@ go_library(
         "//pkg/collector/corechecks/discovery",
         "//pkg/collector/corechecks/ebpf",
         "//pkg/collector/corechecks/ebpf/noisyneighbor",
+        "//pkg/collector/corechecks/ebpf/numamonitoring",
         "//pkg/collector/corechecks/ebpf/oomkill",
         "//pkg/collector/corechecks/ebpf/tcpqueuelength",
         "//pkg/collector/corechecks/embed/apm",

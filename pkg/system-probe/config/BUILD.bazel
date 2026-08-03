@@ -51,6 +51,7 @@ dd_agent_go_test(
         "adjust_npm_test.go",
         "config_linux_bpf_test.go",
         "config_test.go",
+        "numa_monitoring_test.go",
     ],
     embed = [":config"],
     deps = [

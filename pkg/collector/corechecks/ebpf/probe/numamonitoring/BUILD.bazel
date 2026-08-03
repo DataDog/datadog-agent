@@ -1,6 +1,7 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+# gazelle:dd_linux_bpf on
 
 exports_files([
     "ebpf_types_linux.go",
@@ -12,4 +13,52 @@ cgo_godefs(
     src = "ebpf_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "numamonitoring",
+    srcs = [
+        "calculations.go",
+        "doc.go",
+        "ebpf_types_linux.go",
+        "numa_maps.go",
+        "probe.go",
+        "resctrl.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/numamonitoring",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/numamonitoring/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/bytecode/runtime",
+        "//pkg/ebpf/telemetry",
+        "//pkg/util/cgroups",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+go_test(
+    name = "numamonitoring_test",
+    srcs = [
+        "calculations_test.go",
+        "ebpf_types_linux_test.go",
+        "probe_test.go",
+        "resctrl_test.go",
+    ],
+    embed = [":numamonitoring"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/ebpftest",
+        "@com_github_stretchr_testify//require",
+    ],
 )
