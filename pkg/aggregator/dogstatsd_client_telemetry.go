@@ -79,8 +79,6 @@ func (t *dogStatsDClientTelemetry) observe(serie *metrics.Serie) {
 
 func bytesAreValidCounterDelta(bytes float64) bool {
 	return bytes >= 0 &&
-		!math.IsNaN(bytes) &&
-		!math.IsInf(bytes, 0) &&
 		bytes == math.Trunc(bytes) &&
 		bytes < float64(^uint64(0))
 }
