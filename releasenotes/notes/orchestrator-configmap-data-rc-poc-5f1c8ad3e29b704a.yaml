@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    The Cluster Agent can opt specific ConfigMaps into full ``data`` collection through remote
+    configuration instead of stripping their values from the emitted manifest. This is a staging
+    proof of concept, disabled unless
+    ``DD_ORCHESTRATOR_EXPLORER_CONFIGMAP_DATA_RC_POC_ENABLED`` is set to ``true``. Collected values
+    are scrubbed with the default replacers plus
+    ``orchestrator_explorer.custom_sensitive_words``, and ``binaryData`` is emitted as it is.

@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -23,8 +24,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/configmapdata"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+// allowConfigMapData opts the given ConfigMaps of the test cluster into full data collection, as
+// remote config would, and restores the empty allow-list afterwards.
+func allowConfigMapData(t *testing.T, ctx *processors.K8sProcessorContext, clusterID string, namespacedNames ...[2]string) {
+	entries := make([]configmapdata.Entry, 0, len(namespacedNames))
+	for _, nn := range namespacedNames {
+		entries = append(entries, configmapdata.Entry{ClusterID: clusterID, Namespace: nn[0], Name: nn[1]})
+	}
+	configmapdata.Get().Replace(entries)
+	t.Cleanup(func() { configmapdata.Get().Replace(nil) })
+
+	if ctx != nil {
+		ctx.ConfigMapAllowSet = configmapdata.Get().Snapshot(ctx.ClusterID)
+	}
+}
 
 func createTestConfigMap(name string) *corev1.ConfigMap {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
@@ -193,6 +210,132 @@ func TestConfigMapHandlers_ScrubBeforeMarshalling(t *testing.T) {
 	assert.Nil(t, cm.ManagedFields)
 }
 
+func TestConfigMapHandlers_ScrubBeforeMarshallingDataCollected(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("test-cm")
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+	allowConfigMapData(t, ctx, ctx.ClusterID, [2]string{cm.Namespace, cm.Name})
+
+	handlers.ScrubBeforeMarshalling(ctx, cm)
+
+	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, cm.Data)
+	assert.NotEmpty(t, cm.BinaryData)
+	assert.Nil(t, cm.ManagedFields, "managedFields is stripped even when data is collected")
+}
+
+func TestConfigMapHandlers_ScrubBeforeMarshallingScrubsCollectedData(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("test-cm")
+	cm.Data = map[string]string{
+		"app.conf": "# a comment\n\nlisten = 8080\napi_key: abcdef0123456789abcdef0123456789\n",
+	}
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+	allowConfigMapData(t, ctx, ctx.ClusterID, [2]string{cm.Namespace, cm.Name})
+
+	handlers.ScrubBeforeMarshalling(ctx, cm)
+
+	scrubbed := cm.Data["app.conf"]
+	assert.NotContains(t, scrubbed, "abcdef0123456789abcdef0123456789")
+	// Scrubbing must not rewrite the parts it does not redact: line-oriented scrubbing would drop
+	// the comment and collapse the blank line.
+	assert.Contains(t, scrubbed, "# a comment")
+	assert.Contains(t, scrubbed, "\n\n")
+	assert.Contains(t, scrubbed, "listen = 8080")
+}
+
+func TestConfigMapHandlers_ScrubBeforeMarshallingOtherCluster(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("test-cm")
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+	// Same namespace and name, different cluster: remote config configs are org-scoped, so this must
+	// not opt the local ConfigMap in.
+	allowConfigMapData(t, ctx, "other-cluster-id", [2]string{cm.Namespace, cm.Name})
+
+	handlers.ScrubBeforeMarshalling(ctx, cm)
+
+	assert.Nil(t, cm.Data)
+	assert.Nil(t, cm.BinaryData)
+	assert.Nil(t, cm.ManagedFields)
+}
+
+func TestConfigMapHandlers_ResourceVersionDataCollected(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("test-cm")
+	cm.ResourceVersion = "1234"
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+	allowConfigMapData(t, ctx, ctx.ClusterID, [2]string{cm.Namespace, cm.Name})
+
+	version := handlers.ResourceVersion(ctx, cm, nil)
+
+	// The version the caches compare must be tagged so that the opt-in looks like a change, and it
+	// must stay a base-10 uint64 because the backend parses it as one.
+	assert.Equal(t, handlers.ResourceVersionFromRaw(ctx, cm), version, "the cached and emitted versions must agree")
+	assert.NotEqual(t, cm.ResourceVersion, version)
+
+	parsed, err := strconv.ParseUint(version, 10, 64)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, parsed, uint64(1)<<63)
+	assert.Equal(t, uint64(1234), parsed&^(uint64(1)<<63), "masking the tag off recovers the etcd version")
+}
+
+func TestConfigMapHandlers_ResourceVersionNotCollected(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("test-cm")
+	cm.ResourceVersion = "1234"
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+
+	assert.Equal(t, "1234", handlers.ResourceVersion(ctx, cm, nil))
+	assert.Equal(t, "1234", handlers.ResourceVersionFromRaw(ctx, cm))
+}
+
+func TestConfigMapHandlers_ResourceVersionOpaqueDataCollected(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("test-cm")
+	// A resource version is opaque per the Kubernetes API contract, so a non-numeric one is passed
+	// through rather than mangled into something the backend would fail to parse.
+	cm.ResourceVersion = "not-a-number"
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+	allowConfigMapData(t, ctx, ctx.ClusterID, [2]string{cm.Namespace, cm.Name})
+
+	assert.Equal(t, "not-a-number", handlers.ResourceVersion(ctx, cm, nil))
+	assert.Equal(t, "not-a-number", handlers.ResourceVersionFromRaw(ctx, cm))
+}
+
+func TestConfigMapHandlers_ResourceListSnapshotsTheAllowList(t *testing.T) {
+	handlers := NewConfigMapHandlers()
+
+	cm := createTestConfigMap("cm-1")
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := newConfigMapProcessorContext(cfg)
+	allowConfigMapData(t, nil, ctx.ClusterID, [2]string{cm.Namespace, cm.Name})
+
+	handlers.ResourceList(ctx, []*corev1.ConfigMap{cm})
+	assert.True(t, ctx.ConfigMapAllowSet.IsAllowed(cm.Namespace, cm.Name))
+
+	// A remote config update landing mid-tick must not change the answer for the rest of the tick.
+	configmapdata.Get().Replace(nil)
+	assert.True(t, ctx.ConfigMapAllowSet.IsAllowed(cm.Namespace, cm.Name))
+}
+
 func TestConfigMapHandlers_CloneResource(t *testing.T) {
 	handlers := NewConfigMapHandlers()
 
@@ -302,4 +445,54 @@ func TestConfigMapProcessor_Process(t *testing.T) {
 	// Verify the informer cache is unaffected: the originals still have their data.
 	assert.NotEmpty(t, cm1.Data)
 	assert.NotEmpty(t, cm1.BinaryData)
+}
+
+func TestConfigMapProcessor_ProcessDataCollected(t *testing.T) {
+	// The resource cache is process-global and keyed on UID, so use UIDs no other test has seen.
+	cm1 := createTestConfigMap("cm-1")
+	cm1.UID = types.UID("a1b2c3d4-0749-11e8-a2b8-000c29dea401")
+	cm1.ResourceVersion = "1203"
+
+	cm2 := createTestConfigMap("cm-2")
+	cm2.UID = types.UID("a1b2c3d4-0749-11e8-a2b8-000c29dea402")
+	cm2.ResourceVersion = "1303"
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	cfg.KubeClusterName = "test-cluster"
+	ctx := newConfigMapProcessorContext(cfg)
+	// Only cm-1 is opted in. The snapshot is taken by ResourceList, so it is not set here.
+	allowConfigMapData(t, nil, ctx.ClusterID, [2]string{cm1.Namespace, cm1.Name})
+
+	processor := processors.NewProcessor(NewConfigMapHandlers())
+	result, _, processed := processor.Process(ctx, []*corev1.ConfigMap{cm1, cm2})
+	assert.Equal(t, 2, processed)
+
+	collectorMsg := result.ManifestMessages[0].(*model.CollectorManifest)
+	assert.Len(t, collectorMsg.Manifests, 2)
+
+	manifest1, manifest2 := collectorMsg.Manifests[0], collectorMsg.Manifests[1]
+
+	// The opted-in ConfigMap keeps its data and carries the tagged version, so that neither the agent
+	// cache nor the backend last-seen caches dedupe the opt-in away.
+	tagged, err := strconv.ParseUint(manifest1.ResourceVersion, 10, 64)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1203)|(uint64(1)<<63), tagged)
+
+	var parsed1 map[string]interface{}
+	assert.NoError(t, yaml.Unmarshal(manifest1.Content, &parsed1))
+	assert.Contains(t, parsed1, "data")
+	assert.Contains(t, parsed1, "binaryData")
+
+	metadata1 := parsed1["metadata"].(map[string]interface{})
+	assert.NotContains(t, metadata1, "managedFields", "managedFields is stripped even when data is collected")
+	// The tag applies to the payload envelope only: the manifest body keeps the real etcd version.
+	assert.Equal(t, "1203", metadata1["resourceVersion"])
+
+	// The ConfigMap that was not opted in is unaffected.
+	assert.Equal(t, "1303", manifest2.ResourceVersion)
+
+	var parsed2 map[string]interface{}
+	assert.NoError(t, yaml.Unmarshal(manifest2.Content, &parsed2))
+	assert.NotContains(t, parsed2, "data")
+	assert.NotContains(t, parsed2, "binaryData")
 }
