@@ -50,7 +50,7 @@ dd_agent_go_test(
         "//comp/logs/agent/config",
         "//comp/logs/auditor/mock",
         "//pkg/config/mock",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/message",
         "//pkg/logs/sources",

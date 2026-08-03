@@ -119,8 +119,6 @@ properties:
         default: /var/tmp/datadog-agent/system-probe/btf
         env_vars:
         - DD_SYSTEM_PROBE_BTF_OUTPUT_DIR
-        tags:
-        - generate_const:defaultBTFOutputDir
       btf_path:
         node_type: setting
         type: string
@@ -412,8 +410,6 @@ properties:
         node_type: setting
         type: integer
         default: 600
-        tags:
-        - generate_const:defaultConnsMessageBatchSize
       max_dns_stats:
         node_type: setting
         type: integer
@@ -453,7 +449,6 @@ properties:
         type: integer
         default: 400
         tags:
-        - generate_const:defaultOffsetThreshold
         - golang_type:int64
       process_config:
         node_type: section
@@ -495,8 +490,6 @@ properties:
         default: /var/tmp/datadog-agent/system-probe/build
         env_vars:
         - DD_RUNTIME_COMPILER_OUTPUT_DIR
-        tags:
-        - generate_const:defaultRuntimeCompilerOutputDir
       source_excludes:
         node_type: setting
         type: object
@@ -1546,8 +1539,6 @@ properties:
             node_type: setting
             type: string
             default: ${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info
-            tags:
-            - generate_const:defaultDynamicInstrumentationDebugInfoDir
           enabled:
             node_type: setting
             type: boolean

@@ -36,7 +36,6 @@ PLATFORM_ENTRY_RE = re.compile(r'^"(?P<platform>\w+)"\s*:\s*(?P<value>.+?),?$')
 GENERATE_CONST_PREFIX = "generate_const:"
 
 generate_const_settings = {
-    "dynamic_instrumentation.debug_info_disk_cache.dir": "defaultDynamicInstrumentationDebugInfoDir",
     "forwarder_apikey_validation_interval": "DefaultAPIKeyValidationInterval",
     "forwarder_recovery_interval": "DefaultForwarderRecoveryInterval",
     "logs_config.auditor_ttl": "DefaultAuditorTTL",
@@ -49,13 +48,8 @@ generate_const_settings = {
     "security_agent.internal_profiling.site": "DefaultSite",
     "serializer_compressor_kind": "DefaultCompressorKind",
     "serializer_zstd_compressor_level": "DefaultZstdCompressionLevel",
-    "service_monitoring_config.tls.istio.envoy_path": "defaultEnvoyPath",
     "site": "DefaultSite",
-    "system_probe_config.btf_output_dir": "defaultBTFOutputDir",
     "system_probe_config.internal_profiling.site": "DefaultSite",
-    "system_probe_config.max_conns_per_message": "defaultConnsMessageBatchSize",
-    "system_probe_config.offset_guess_threshold": "defaultOffsetThreshold",
-    "system_probe_config.runtime_compiler_output_dir": "defaultRuntimeCompilerOutputDir",
     "logs_config.compression_kind": "DefaultLogCompressionKind",
     "logs_config.zstd_compression_level": "DefaultZstdCompressionLevel",
     "logs_config.batch_wait": "DefaultBatchWait",
