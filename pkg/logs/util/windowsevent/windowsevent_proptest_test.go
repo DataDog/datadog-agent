@@ -267,26 +267,23 @@ func TestWindowsEvent_MarkerScanShortStringNotDetected_Property(t *testing.T) {
 	})
 }
 
-// TestWindowsEvent_RetroactiveDetection_Property anchors:
+// TestWindowsEvent_SetsIsTruncatedFlag_Property anchors:
 //
 //	surface WindowsEventTruncation (windows_event_truncation.allium)
-//	    @guarantee RetroactiveDetection — IsTruncated is determined
-//	                                       NOT by tracking whether
-//	                                       SetMessage truncated,
-//	                                       but by SCANNING the
-//	                                       stored message field
-//	                                       for the marker at the
-//	                                       time of message
-//	                                       construction.
+//	    @guarantee SetsIsTruncatedFlag — the IsTruncated flag is
+//	                                      set by scanning the
+//	                                      stored message field
+//	                                      for the marker at
+//	                                      construction time,
+//	                                      rather than by tracking
+//	                                      whether the write side
+//	                                      applied truncation.
 //
-// LOAD-BEARING for the refactor safety net. If the refactor
-// changed detection to state-tracking (e.g., a per-Map "did we
-// truncate?" boolean), behaviour would diverge for messages
-// whose content naturally contains the marker substring at a
-// boundary. This test injects the marker into under-limit
-// content and verifies the resulting message is still detected
-// as truncated.
-func TestWindowsEvent_RetroactiveDetection_Property(t *testing.T) {
+// Injects the marker into under-limit content and verifies the
+// resulting message is still detected as truncated. If detection
+// changed to state-tracking, this case would silently pass
+// through as IsTruncated=false.
+func TestWindowsEvent_SetsIsTruncatedFlag_Property(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		// Under-limit content with the marker artificially
 		// placed at the tail boundary. SetMessage does NOT
@@ -307,7 +304,7 @@ func TestWindowsEvent_RetroactiveDetection_Property(t *testing.T) {
 		// regardless of whether SetMessage actually applied
 		// truncation logic (it didn't, since len < limit).
 		if !hasTruncatedFlag(m.GetMessage()) {
-			t.Fatalf("RetroactiveDetection violated: marker present in stored content but hasTruncatedFlag returned false (detection should be marker-scan-based, not state-tracked); content=%q", m.GetMessage())
+			t.Fatalf("SetsIsTruncatedFlag violated: marker present in stored content but hasTruncatedFlag returned false (detection should be marker-scan-based, not state-tracked); content=%q", m.GetMessage())
 		}
 	})
 }
