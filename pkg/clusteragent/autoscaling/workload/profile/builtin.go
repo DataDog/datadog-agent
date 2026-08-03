@@ -48,7 +48,7 @@ var (
 					ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-							StabilizationWindowSeconds: 300,
+							StabilizationWindowSeconds: 190,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -76,6 +76,16 @@ var (
 							},
 						},
 					},
+					// Currently this is defaulted in CRD Def, we need to keep it here to not break hash-based reconciliation
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled:   true,
+							Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+							Triggers: datadoghq.HorizontalFallbackTriggers{
+								StaleRecommendationThresholdSeconds: 600,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -91,7 +101,7 @@ var (
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 							Strategy:                   &strategyMax,
-							StabilizationWindowSeconds: 600,
+							StabilizationWindowSeconds: 130,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -119,6 +129,16 @@ var (
 							},
 						},
 					},
+					// Currently this is defaulted in CRD Def, we need to keep it here to not break hash-based reconciliation
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled:   true,
+							Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+							Triggers: datadoghq.HorizontalFallbackTriggers{
+								StaleRecommendationThresholdSeconds: 600,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -134,7 +154,7 @@ var (
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 							Strategy:                   &strategyMax,
-							StabilizationWindowSeconds: 900,
+							StabilizationWindowSeconds: 70,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -159,6 +179,16 @@ var (
 									Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 									Utilization: pointer.Ptr[int32](60),
 								},
+							},
+						},
+					},
+					// Currently this is defaulted in CRD Def, we need to keep it here to not break hash-based reconciliation
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled:   true,
+							Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+							Triggers: datadoghq.HorizontalFallbackTriggers{
+								StaleRecommendationThresholdSeconds: 600,
 							},
 						},
 					},

@@ -7,6 +7,10 @@ vendor/
 bin/
 /dev/
 /site/
+# Remote content fetched while building the documentation.
+/.docs-cache/
+# Link check results remembered between runs.
+/.lycheecache
 __pycache__
 .pytest_cache
 venv*/
@@ -88,7 +92,7 @@ auth_token
 /test/e2e/scripts/setup-instance/ignition.json
 /test/e2e/containers/fake_datadog/venv/
 /e2e-output
-/pkg/logs/pipeline/registry.json
+/comp/logs-library/pipeline/registry.json
 
 # local copy of device signing cert
 platform.pk8
@@ -159,7 +163,7 @@ devenv/packer_cache
 test_output*.json
 module_test_output.json
 e2e_test_output.json
-e2e_test_output.json.*.part
+e2e_test_output*.json.*.part
 junit-out-AgentFlavor.base-*.xml
 
 # doxygen doc & error log
@@ -202,8 +206,6 @@ tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
 # e2e test intake generated binary
 test/fakeintake/build/*
 
-# dev container
-.devcontainer/
 
 # Allow Single Machine Performance material to ignore excludes
 !test/regression/**
@@ -215,7 +217,7 @@ test/new-e2e/system-probe/test-runner/test-runner
 test/new-e2e/start-microvms
 
 # trace-agent generates install.json files during tests
-pkg/serverless/trace/install.json
+pkg/serverless/trace/**/install.json
 
 # Files used for eBPF complexity analysis
 ebpf-calculator
@@ -228,7 +230,7 @@ flake-finder-gitlab-ci.yml
 go.work.sum
 
 
-#### Cursor related files
+#### AI agents related files
 
 # Personal rules
 **/.cursor/rules/personal/
@@ -240,12 +242,27 @@ CLAUDE_PERSONAL.md
 **/.claude/settings.local.json
 **/CLAUDE.local.md
 
-# Claude Code auto-jira work tracking (local only, never commit)
+# auto-jira work tracking (local only, never commit)
 AUTO_JIRA.md
-.claude/skills/auto-jira/SKILL.notes.md
+.agents/skills/auto-jira/SKILL.notes.md
 
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
-# Zed config
-.zed
+# Codex (commit the shared MCP config; ignore everything else Codex writes)
+.codex/*
+!.codex/config.toml
+
+# Zed config (commit the shared MCP config; ignore everything else)
+.zed/*
+!.zed/settings.json
+
+# Devcontainer
+.devcontainer/
+!.devcontainer/datadog/default
+
+# Ignoring compressed schema
+pkg/config/schema/compressed/*.zstd
+.python-nix-home
+.venv-nix
+flake.lock

@@ -36,6 +36,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 )
 
+type countingLogger struct {
+	errors []string
+}
+
+func (l *countingLogger) Infof(_ string, _ ...interface{})  {}
+func (l *countingLogger) Tracef(_ string, _ ...interface{}) {}
+func (l *countingLogger) Warnf(_ string, _ ...interface{})  {}
+func (l *countingLogger) Debugf(_ string, _ ...interface{}) {}
+func (l *countingLogger) Errorf(format string, params ...interface{}) {
+	l.errors = append(l.errors, fmt.Sprintf(format, params...))
+}
+func (l *countingLogger) IsTracing() bool { return false }
+
 func savePolicy(filename string, testPolicy *PolicyDef) error {
 	yamlBytes, err := yaml.Marshal(testPolicy)
 	if err != nil {
@@ -642,61 +655,87 @@ func TestActionSetVariableSize(t *testing.T) {
 }
 
 func TestActionSetEmptyScope(t *testing.T) {
-	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{
-				{
-					Set: &SetDefinition{
-						Name:   "scopedvar1",
-						Append: true,
-						Value:  "bar",
-						Size:   1,
-						Scope:  "process",
+	for _, tc := range []struct {
+		name          string
+		scope         Scope
+		variableName  string
+		variableStore string
+	}{
+		{
+			name:          "process",
+			scope:         ScopeProcess,
+			variableName:  "scopedvar1",
+			variableStore: "process.scopedvar1",
+		},
+		{
+			name:          "cgroup",
+			scope:         ScopeCGroup,
+			variableName:  "scopedvar1",
+			variableStore: "cgroup.scopedvar1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: `open.file.path == "/tmp/test"`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:   tc.variableName,
+								Append: true,
+								Value:  "bar",
+								Size:   1,
+								Scope:  tc.scope,
+							},
+						},
 					},
-				},
-			},
-		}},
+				}},
+			}
+
+			tmpDir := t.TempDir()
+
+			if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+				t.Fatal(err)
+			}
+
+			provider, err := NewPoliciesDirProvider(tmpDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loader := NewPolicyLoader(provider)
+
+			rs := newRuleSet()
+			logger := &countingLogger{}
+			rs.logger = logger
+			if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+				t.Error(err)
+			}
+
+			opts := rs.evalOpts
+
+			existingScopedVariable := opts.VariableStore.Get(tc.variableStore)
+			assert.NotNil(t, existingScopedVariable)
+			stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+			assert.NotNil(t, stringArrayScopedVar)
+			assert.True(t, ok)
+
+			event := model.NewFakeEvent()
+			event.Type = uint32(model.FileOpenEventType)
+			event.SetFieldValue("open.file.path", "/tmp/test")
+
+			ctx := eval.NewContext(event)
+			if !rs.Evaluate(event) {
+				t.Errorf("Expected event to match rule")
+			}
+
+			assert.Empty(t, logger.errors)
+
+			value, set := stringArrayScopedVar.GetValue(ctx, false)
+			assert.Nil(t, value)
+			assert.False(t, set)
+		})
 	}
-
-	tmpDir := t.TempDir()
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	provider, err := NewPoliciesDirProvider(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	loader := NewPolicyLoader(provider)
-
-	rs := newRuleSet()
-	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
-		t.Error(err)
-	}
-
-	opts := rs.evalOpts
-
-	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	assert.NotNil(t, existingScopedVariable)
-	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, stringArrayScopedVar)
-	assert.True(t, ok)
-
-	event := model.NewFakeEvent()
-	event.Type = uint32(model.FileOpenEventType)
-	event.SetFieldValue("open.file.path", "/tmp/test")
-
-	ctx := eval.NewContext(event)
-	if !rs.Evaluate(event) {
-		t.Errorf("Expected event to match rule")
-	}
-
-	value, set := stringArrayScopedVar.GetValue(ctx, false)
-	assert.Nil(t, value)
-	assert.False(t, set)
 }
 
 func TestVariableFieldConflictProtection(t *testing.T) {
@@ -1751,6 +1790,295 @@ func TestActionSetVariableExpression(t *testing.T) {
 		IP:   net.IPv4(192, 168, 1, 0).To4(),
 		Mask: connectIP.Mask,
 	}}, value)
+}
+
+func TestActionSetVariableCapture(t *testing.T) {
+	capturePolicy := func(name string, field string, capture string, isAppend bool) *PolicyDef {
+		return &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:      name,
+						Scope:     ScopeProcess,
+						Inherited: true,
+						Field:     field,
+						Capture:   capture,
+						Append:    isAppend,
+					},
+				}},
+			}},
+		}
+	}
+
+	t.Run("string-field", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("ssm_command_id", "open.file.path", "/orchestration/([^/]+)/", false), PolicyLoaderOpts{})
+		assert.NoError(t, errs.ErrorOrNil())
+	})
+
+	t.Run("array-field", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("run_id", "process.envp", "^GITHUB_RUN_ID=(.+)$", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' is not supported on array field")
+	})
+
+	t.Run("array-field-with-append", func(t *testing.T) {
+		// 'append' makes the pre-existing array check pass, so capture has to reject it
+		// on its own or it would silently store nothing
+		_, errs := loadPolicy(t, capturePolicy("run_id", "process.envp", "^GITHUB_RUN_ID=(.+)$", true), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' is not supported on array field")
+	})
+
+	t.Run("non-string-field", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("some_pid", "process.pid", "([0-9]+)", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' is only supported on string fields")
+	})
+
+	t.Run("malformed-pattern", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("ssm_command_id", "open.file.path", "/orchestration/([^/]+", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "capture `/orchestration/([^/]+` error")
+	})
+
+	t.Run("no-capture-group", func(t *testing.T) {
+		_, errs := loadPolicy(t, capturePolicy("ssm_command_id", "open.file.path", "/orchestration/[^/]+/", false), PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "no capture group")
+	})
+
+	t.Run("without-field", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:    "ssm_command_id",
+						Value:   "not_a_field",
+						Capture: "/orchestration/([^/]+)/",
+					},
+				}},
+			}},
+		}
+
+		_, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		assert.Contains(t, errs.Error(), "'capture' can only be used along with 'field'")
+	})
+
+	t.Run("per-action-matcher", func(t *testing.T) {
+		// two rules capturing different patterns out of the very same field: the
+		// compiled matcher has to live on the action, not in a per-field cache
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "capture_ssm",
+					Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:    "ssm_command_id",
+							Scope:   ScopeProcess,
+							Field:   "open.file.path",
+							Capture: "/orchestration/([^/]+)/",
+						},
+					}},
+				},
+				{
+					ID:         "capture_ecs",
+					Expression: `open.file.path =~ "/var/lib/ecs/*"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:    "ecs_task_id",
+							Scope:   ScopeProcess,
+							Field:   "open.file.path",
+							Capture: "/ecs/([0-9a-f-]+)/",
+						},
+					}},
+				},
+			},
+		}
+
+		rs, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		patterns := make(map[string]string)
+		for _, rule := range rs.GetRules() {
+			for _, action := range rule.PolicyRule.Actions {
+				if action.CaptureMatcher != nil {
+					patterns[rule.ID] = action.CaptureMatcher.String()
+				}
+			}
+		}
+
+		assert.Equal(t, "/orchestration/([^/]+)/", patterns["capture_ssm"])
+		assert.Equal(t, "/ecs/([0-9a-f-]+)/", patterns["capture_ecs"])
+	})
+}
+
+func TestActionSetVariableCaptureRuntime(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			// matched on the file name so that the test doesn't depend on how patterns
+			// treat path separators: what matters here is the capture, not the match
+			ID:         "capture_rule",
+			Expression: `open.file.name == "awsrunShellScript"`,
+			Actions: []*ActionDefinition{{
+				Set: &SetDefinition{
+					Name:      "ssm_command_id",
+					Scope:     ScopeProcess,
+					Inherited: true,
+					Field:     "open.file.path",
+					Capture:   "/orchestration/([^/]+)/",
+				},
+			}},
+		}, {
+			// only matches if the captured value is the command id alone, and not the
+			// whole path the capture was extracted from
+			ID:         "assert_rule",
+			Expression: `open.file.path == "/tmp/check" && ${process.ssm_command_id} == "a1b2c3d4"`,
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err.ErrorOrNil() != nil {
+		t.Fatal(err)
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+	event.SetFieldValue("open.flags", syscall.O_RDONLY)
+
+	// the fake field handlers don't derive the basename from the path, so both have to
+	// be set
+	open := func(path string) {
+		if err := event.SetFieldValue("open.file.path", path); err != nil {
+			t.Fatal(err)
+		}
+		if err := event.SetFieldValue("open.file.name", filepath.Base(path)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// nothing has been captured yet
+	open("/tmp/check")
+	if rs.Evaluate(event) {
+		t.Error("expected event to match no rule")
+	}
+
+	// capture the command id out of the orchestration directory
+	open("/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
+	if !rs.Evaluate(event) {
+		t.Error("expected event to match the capture rule")
+	}
+
+	open("/tmp/check")
+	if !rs.Evaluate(event) {
+		t.Error("expected the captured value to be the command id alone")
+	}
+
+	// the rule matches but the capture pattern doesn't: the variable has to keep its
+	// previous value rather than being overwritten or cleared
+	open("/var/lib/amazon/ssm/i-0abc/document/session/awsrunShellScript")
+	if !rs.Evaluate(event) {
+		t.Error("expected event to match the capture rule")
+	}
+
+	open("/tmp/check")
+	if !rs.Evaluate(event) {
+		t.Error("expected a capture miss to leave the variable untouched")
+	}
+}
+
+func BenchmarkRunSetActions(b *testing.B) {
+	bench := func(b *testing.B, set *SetDefinition) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "bench_rule",
+				Expression: `open.file.path =~ "/var/lib/amazon/ssm/*"`,
+				Actions:    []*ActionDefinition{{Set: set}},
+			}},
+		}
+
+		tmpDir := b.TempDir()
+
+		if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+			b.Fatal(err)
+		}
+
+		provider, err := NewPoliciesDirProvider(tmpDir)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		rs := newRuleSet()
+		if _, errs := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
+			b.Fatal(errs)
+		}
+
+		rule := rs.GetRuleByID("bench_rule")
+		if rule == nil {
+			b.Fatal("failed to find bench_rule in ruleset")
+		}
+
+		event := model.NewFakeEvent()
+		event.Type = uint32(model.FileOpenEventType)
+		event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+		event.SetFieldValue("open.flags", syscall.O_RDONLY)
+		event.SetFieldValue("open.file.path", "/var/lib/amazon/ssm/i-0abc/document/orchestration/a1b2c3d4/awsrunShellScript")
+		event.SetFieldValue("open.file.name", "awsrunShellScript")
+
+		ctx := rs.pool.Get(event)
+		defer rs.pool.Put(ctx)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if err := rs.runSetActions(event, ctx, rule); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	b.Run("without capture", func(b *testing.B) {
+		bench(b, &SetDefinition{
+			Name:  "ssm_command_id",
+			Scope: ScopeProcess,
+			Field: "open.file.path",
+		})
+	})
+
+	b.Run("with capture", func(b *testing.B) {
+		bench(b, &SetDefinition{
+			Name:    "ssm_command_id",
+			Scope:   ScopeProcess,
+			Field:   "open.file.path",
+			Capture: "/orchestration/([^/]+)/",
+		})
+	})
+
+	b.Run("with capture, no match", func(b *testing.B) {
+		bench(b, &SetDefinition{
+			Name:    "ssm_command_id",
+			Scope:   ScopeProcess,
+			Field:   "open.file.path",
+			Capture: "/this-never-matches/([^/]+)/",
+		})
+	})
 }
 
 func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
@@ -3372,6 +3700,16 @@ rules:
           append: true
           size: 10
           ttl: 10s
+  - id: with_set_action_with_capture
+    description: Rule with a set action capturing part of an event field
+    expression: open.file.path =~ "/var/lib/amazon/ssm/*/document/orchestration/*"
+    actions:
+      - set:
+          name: ssm_command_id
+          scope: process
+          inherited: true
+          field: open.file.path
+          capture: "/orchestration/([^/]+)/"
   - id: with_set_action_with_value
     description: Rule with a set action using a value
     expression: exec.file.name == "foo"

@@ -8,15 +8,15 @@ package metrics
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var (
-	tlmMetricSamplePoolGet = telemetry.NewGauge("dogstatsd", "metric_sample_pool_get",
+	tlmMetricSamplePoolGet = telemetryimpl.GetCompatComponent().NewGauge("dogstatsd", "metric_sample_pool_get",
 		nil, "Amount of sample gotten from the metric sample pool")
-	tlmMetricSamplePoolPut = telemetry.NewGauge("dogstatsd", "metric_sample_pool_put",
+	tlmMetricSamplePoolPut = telemetryimpl.GetCompatComponent().NewGauge("dogstatsd", "metric_sample_pool_put",
 		nil, "Amount of sample put in the metric sample pool")
-	tlmMetricSamplePool = telemetry.NewGauge("dogstatsd", "metric_sample_pool",
+	tlmMetricSamplePool = telemetryimpl.GetCompatComponent().NewGauge("dogstatsd", "metric_sample_pool",
 		nil, "Usage of the metric sample pool in dogstatsd")
 )
 
@@ -28,7 +28,8 @@ type MetricSampleBatch []MetricSample
 
 // MetricSamplePool is a pool of metrics sample
 type MetricSamplePool struct {
-	pool *sync.Pool
+	pool      *sync.Pool
+	batchSize int
 	// telemetry
 	tlmEnabled bool
 }
@@ -41,6 +42,7 @@ func NewMetricSamplePool(batchSize int, isTelemetryEnabled bool) *MetricSamplePo
 				return make(MetricSampleBatch, batchSize)
 			},
 		},
+		batchSize: batchSize,
 		// telemetry
 		tlmEnabled: isTelemetryEnabled,
 	}
@@ -58,9 +60,14 @@ func (m *MetricSamplePool) GetBatch() MetricSampleBatch {
 	return m.pool.Get().(MetricSampleBatch)
 }
 
-// PutBatch puts a batch back into the pool
+// PutBatch puts a batch back into the pool.
+// Batches not originating from the pool (wrong capacity) are silently dropped
+// to prevent poisoning GetBatch callers with undersized slices.
 func (m *MetricSamplePool) PutBatch(batch MetricSampleBatch) {
 	if m == nil {
+		return
+	}
+	if cap(batch) != m.batchSize {
 		return
 	}
 	if m.tlmEnabled {

@@ -1,0 +1,67 @@
+---
+services:
+
+  # Long-running + healthcheck (instead of a one-shot service) so the
+  # framework's `docker-compose up --wait` reliably gates on cert readiness
+  # across Compose versions, matching the pattern used by other e2e suites.
+  cert-init:
+    image: public.ecr.aws/docker/library/alpine:3.20.3
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssl >/dev/null 2>&1
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+          -keyout /certs/server.key -out /certs/server.crt \
+          -days 1 -nodes -subj '/CN=agent' -addext 'subjectAltName=DNS:agent'
+        chmod 644 /certs/server.key /certs/server.crt
+        exec sleep infinity
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /certs/server.crt && test -f /certs/server.key"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    volumes:
+      - certs:/certs
+
+  syslog-sender:
+    image: public.ecr.aws/docker/library/alpine:3.20.3
+    container_name: syslog-sender
+    entrypoint: ["sh", "-c", "apk add --no-cache openssl >/dev/null 2>&1 && exec sleep infinity"]
+    depends_on:
+      cert-init:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    volumes:
+      - certs:/certs:ro
+    labels:
+      com.datadoghq.ad.logs: |
+        [
+          {
+            "type": "tcp",
+            "port": 10516,
+            "format": "syslog",
+            "source": "syslog-e2e",
+            "service": "syslog-e2e",
+            "debug_attr_parsing": true,
+            "tls": {
+              "cert_file": "/certs/server.crt",
+              "key_file": "/certs/server.key"
+            }
+          }
+        ]
+
+  agent:
+    depends_on:
+      cert-init:
+        condition: service_healthy
+    volumes:
+      - certs:/certs:ro
+    environment:
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: false
+      DD_LOGS_CONFIG_BATCH_WAIT: 1
+      DD_LOG_LEVEL: info
+
+volumes:
+  certs:

@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "statusimpl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/privateactionrunner.tmpl",
+        "status_templates/privateactionrunnerHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//comp/privateactionrunner/def",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "statusimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":statusimpl"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/util/flavor",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

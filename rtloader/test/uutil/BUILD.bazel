@@ -16,5 +16,6 @@ rtloader_go_test(
     name = "uutil_test",
     srcs = ["uutil_test.go"],
     embed = [":uutil"],
+    gotags = ["test"],
     deps = ["//rtloader/test/helpers"],
 )

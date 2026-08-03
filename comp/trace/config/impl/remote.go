@@ -12,6 +12,7 @@ import (
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -27,14 +28,14 @@ const (
 	rcClientPollInterval = time.Second * 5
 )
 
-func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component) (config.RemoteClient, error) {
+func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component, products []string) (config.RemoteClient, error) {
 	return rc.NewGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		ipc.GetAuthToken(), // TODO IPC: GRPC client will be provided by the IPC component
 		ipc.GetTLSClientConfig(),
 		rc.WithAgent(rcClientName, version.AgentVersion),
-		rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
+		rc.WithProducts(products...),
 		rc.WithPollInterval(rcClientPollInterval),
 		rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
 	)
@@ -43,7 +44,7 @@ func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component) (conf
 func mrfRemoteClient(ipcAddress string, ipc ipc.Component) (config.RemoteClient, error) {
 	return rc.NewUnverifiedMRFGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		ipc.GetAuthToken(), // TODO IPC: GRPC client will be provided by the IPC component
 		ipc.GetTLSClientConfig(),
 		rc.WithAgent(rcClientName, version.AgentVersion),

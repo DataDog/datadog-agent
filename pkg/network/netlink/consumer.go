@@ -19,9 +19,9 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -114,17 +114,17 @@ func (e *Event) Done() {
 
 // Telemetry
 var consumerTelemetry = struct {
-	enobufs     telemetry.Counter
-	throttles   telemetry.Counter
-	samplingPct telemetry.Gauge
-	readErrors  telemetry.Counter
-	msgErrors   telemetry.Counter
+	enobufs     telemetryComp.Counter
+	throttles   telemetryComp.Counter
+	samplingPct telemetryComp.Gauge
+	readErrors  telemetryComp.Counter
+	msgErrors   telemetryComp.Counter
 }{
-	telemetry.NewCounter(telemetryModuleName, "enobufs", []string{}, "Counter measuring the number of consumer enobufs"),
-	telemetry.NewCounter(telemetryModuleName, "throttles", []string{}, "Counter measuring the number of consumer throttles"),
-	telemetry.NewGauge(telemetryModuleName, "sampling_pct", []string{}, "Gauge measuring the percent of events sampled by the consumer"),
-	telemetry.NewCounter(telemetryModuleName, "read_errors", []string{}, "Counter measuring the number of consumer read errors"),
-	telemetry.NewCounter(telemetryModuleName, "msg_errors", []string{}, "Counter measuring the number of consumer message errors"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "enobufs", []string{}, "Counter measuring the number of consumer enobufs"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "throttles", []string{}, "Counter measuring the number of consumer throttles"),
+	telemetryimpl.GetCompatComponent().NewGauge(telemetryModuleName, "sampling_pct", []string{}, "Gauge measuring the percent of events sampled by the consumer"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "read_errors", []string{}, "Counter measuring the number of consumer read errors"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "msg_errors", []string{}, "Counter measuring the number of consumer message errors"),
 }
 
 // NewConsumer creates a new Conntrack event consumer.

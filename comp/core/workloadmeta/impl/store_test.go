@@ -38,7 +38,7 @@ func newWorkloadmetaObject(t *testing.T) *workloadmeta {
 		Params: wmdef.NewParams(),
 	}
 
-	return NewWorkloadMeta(deps).Comp.(*workloadmeta)
+	return NewComponent(deps).Comp.(*workloadmeta)
 }
 
 func TestHandleEvents(t *testing.T) {
@@ -128,10 +128,10 @@ func TestSubscribe(t *testing.T) {
 		},
 	}
 
-	testNodeMetadata := wmdef.KubernetesMetadata{
+	testNodeMetadata := wmdef.KubernetesNode{
 		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
+			Kind: wmdef.KindKubernetesNode,
+			ID:   "test-node",
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name: "test-node",
@@ -141,10 +141,6 @@ func TestSubscribe(t *testing.T) {
 			Annotations: map[string]string{
 				"test-annotation": "test-value",
 			},
-		},
-		GVR: &schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "nodes",
 		},
 	}
 
@@ -638,24 +634,16 @@ func TestSubscribe(t *testing.T) {
 						Source: fooSource,
 						// Notice that this unset event does not contain the
 						// full entity.
-						Entity: &wmdef.KubernetesMetadata{
+						Entity: &wmdef.KubernetesNode{
 							EntityID: wmdef.EntityID{
-								Kind: wmdef.KindKubernetesMetadata,
+								Kind: wmdef.KindKubernetesNode,
 								ID:   testNodeMetadata.ID,
 							},
 						},
 					},
 				},
 			},
-			filter: wmdef.NewFilterBuilder().AddKindWithEntityFilter(
-				wmdef.KindKubernetesMetadata,
-				func(entity wmdef.Entity) bool {
-					metadata := entity.(*wmdef.KubernetesMetadata)
-					// Notice that this filter relies on data that is not
-					// available in the unset event.
-					return wmdef.IsNodeMetadata(metadata)
-				},
-			).Build(),
+			filter: wmdef.NewFilterBuilder().AddKind(wmdef.KindKubernetesNode).Build(),
 			expected: []wmdef.EventBundle{
 				{},
 				{
@@ -1806,22 +1794,6 @@ func TestGetKubernetesNodeByName(t *testing.T) {
 func TestListKubernetesMetadata(t *testing.T) {
 	wmeta := newWorkloadmetaObject(t)
 
-	nodeMetadata := wmdef.KubernetesMetadata{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
-		},
-		EntityMeta: wmdef.EntityMeta{
-			Name:        "node1",
-			Annotations: map[string]string{"a1": "v1"},
-			Labels:      map[string]string{"l1": "v2"},
-		},
-		GVR: &schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "nodes",
-		},
-	}
-
 	deploymentMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
@@ -1840,11 +1812,23 @@ func TestListKubernetesMetadata(t *testing.T) {
 		},
 	}
 
+	nodeEntity := wmdef.KubernetesNode{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesNode,
+			ID:   "node1",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+	}
+
 	wmeta.handleEvents([]wmdef.CollectorEvent{
 		{
 			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
-			Entity: &nodeMetadata,
+			Entity: &nodeEntity,
 		},
 		{
 			Type:   wmdef.EventTypeSet,
@@ -1853,7 +1837,8 @@ func TestListKubernetesMetadata(t *testing.T) {
 		},
 	})
 
-	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&nodeMetadata}, wmeta.ListKubernetesMetadata(wmdef.IsNodeMetadata))
+	assert.ElementsMatch(t, []*wmdef.KubernetesNode{&nodeEntity}, wmeta.ListKubernetesNodes())
+	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&deploymentMetadata}, wmeta.ListKubernetesMetadata(nil))
 }
 
 func TestReset(t *testing.T) {
@@ -2140,7 +2125,11 @@ func TestPushEvents(t *testing.T) {
 	}
 }
 
-func TestIsComplete_Kubernetes(t *testing.T) {
+// TestHandleEvents_completeness verifies that IsComplete is set correctly on
+// events dispatched to subscribers. This only tests the wiring. The
+// per-environment expected-sources logic is covered by unit tests in
+// completeness_test.go.
+func TestHandleEvents_completeness(t *testing.T) {
 	// Enable Kubernetes and Containerd features to simulate a Kubernetes environment
 	env.SetFeatures(t, env.Kubernetes, env.Containerd)
 
@@ -2228,105 +2217,6 @@ func TestIsComplete_Kubernetes(t *testing.T) {
 					Type:       wmdef.EventTypeSet,
 					Entity:     container,
 					IsComplete: true, // Both runtime and kubelet reported
-				},
-			},
-		},
-		{
-			Events: []wmdef.Event{
-				{
-					Type:       wmdef.EventTypeSet,
-					Entity:     pod,
-					IsComplete: false, // Only kubelet reported, kubemetadata not yet
-				},
-			},
-		},
-		{
-			Events: []wmdef.Event{
-				{
-					Type:       wmdef.EventTypeSet,
-					Entity:     pod,
-					IsComplete: true, // Both kubelet and kubemetadata reported
-				},
-			},
-		},
-	}
-
-	assert.Equal(t, expected, actual)
-}
-
-// This test checks completeness in Kubernetes environments when the container
-// runtime is not accessible
-func TestIsComplete_KubernetesContainerRuntimeNotAccessible(t *testing.T) {
-	// Set Kubernetes feature, but no container runtime
-	env.SetFeatures(t, env.Kubernetes)
-
-	s := newWorkloadmetaObject(t)
-
-	container := &wmdef.Container{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindContainer,
-			ID:   "test-container",
-		},
-	}
-
-	pod := &wmdef.KubernetesPod{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesPod,
-			ID:   "test-pod",
-		},
-	}
-
-	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
-	var actual []wmdef.EventBundle
-
-	doneCh := make(chan struct{})
-	go func() {
-		for bundle := range ch {
-			close(bundle.Ch)
-			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
-		}
-		close(doneCh)
-	}()
-
-	// Container reported by kubelet (complete because container runtime not
-	// accessible so will not report)
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: wmdef.SourceNodeOrchestrator,
-			Entity: container,
-		},
-	})
-
-	// Pod reported by kubelet only (incomplete)
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: wmdef.SourceNodeOrchestrator,
-			Entity: pod,
-		},
-	})
-
-	// Pod also reported by kubemetadata (now complete)
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: wmdef.SourceClusterOrchestrator,
-			Entity: pod,
-		},
-	})
-
-	s.Unsubscribe(ch)
-	<-doneCh
-
-	expected := []wmdef.EventBundle{
-		{}, // Initial empty bundle
-		{
-			Events: []wmdef.Event{
-				{
-					Type:       wmdef.EventTypeSet,
-					Entity:     container,
-					IsComplete: true, // Kubelet reported, container runtime not expected to report
 				},
 			},
 		},

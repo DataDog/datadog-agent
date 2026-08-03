@@ -40,11 +40,13 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 }
 
 /// Command + args for sleeping `secs` seconds.
+/// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
+/// minimal Windows CI containers.
 #[cfg(windows)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     (
-        "cmd.exe",
-        vec!["/C".into(), format!("timeout /t {secs} /nobreak >nul")],
+        "ping.exe",
+        vec!["-n".into(), (secs + 1).to_string(), "127.0.0.1".into()],
     )
 }
 
@@ -77,9 +79,11 @@ pub fn sleep_config_yaml() -> &'static str {
 }
 
 /// YAML config snippet for a process that sleeps for a long time.
+/// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
+/// minimal Windows CI containers.
 #[cfg(windows)]
 pub fn sleep_config_yaml() -> &'static str {
-    "command: cmd.exe\nargs:\n  - '/C'\n  - 'timeout /t 300 /nobreak >nul'\n"
+    "command: ping.exe\nargs:\n  - '-n'\n  - '301'\n  - '127.0.0.1'\n"
 }
 
 /// YAML for a process that exits successfully and never restarts.
@@ -155,6 +159,62 @@ pub fn exit_cmd(code: i32) -> (&'static str, Vec<String>) {
     let (sh, flag) = shell_cmd();
     (sh, vec![flag.to_string(), format!("exit {code}")])
 }
+
+// ---------------------------------------------------------------------------
+// YAML config builders
+// ---------------------------------------------------------------------------
+
+/// Build a YAML config from a command, args, and extra options.
+pub fn cmd_yaml(cmd: &str, args: &[String], extra: &str) -> String {
+    let mut yaml = format!("command: {cmd}\n");
+    if !args.is_empty() {
+        yaml.push_str("args:\n");
+        for arg in args {
+            yaml.push_str(&format!("  - '{}'\n", arg));
+        }
+    }
+    yaml.push_str(extra);
+    yaml
+}
+
+/// Sleep config with extra options appended.
+pub fn sleep_config_with(extra: &str) -> String {
+    let (cmd, args) = sleep_cmd(300);
+    cmd_yaml(cmd, &args, extra)
+}
+
+/// True-command config with extra options (NO default restart policy).
+pub fn true_config_with(extra: &str) -> String {
+    let (cmd, args) = true_cmd();
+    cmd_yaml(cmd, &args, extra)
+}
+
+/// False-command config with extra options (NO default restart policy).
+pub fn false_config_with(extra: &str) -> String {
+    let (cmd, args) = false_cmd();
+    cmd_yaml(cmd, &args, extra)
+}
+
+/// The args for the platform's sleep command as a JSON value (for assertions).
+pub fn sleep_args_json() -> serde_json::Value {
+    let (_, args) = sleep_cmd(300);
+    serde_json::json!(args)
+}
+
+/// The args for the platform's sleep command joined for display (for assertions).
+pub fn sleep_args_display() -> String {
+    let (_, args) = sleep_cmd(300);
+    args.join(" ")
+}
+
+/// Cross-platform temp directory path string.
+pub fn temp_dir_str() -> String {
+    std::env::temp_dir().display().to_string()
+}
+
+// ---------------------------------------------------------------------------
+// Misc
+// ---------------------------------------------------------------------------
 
 /// Fixed UUID for deterministic tests.
 pub fn test_uuid() -> String {

@@ -10,10 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net"
 	"os"
-	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,123 +36,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
-// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
-// Using a map ensures each prefix is only registered once.
-// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
-var (
-	registeredDelegatedAuthConfigs   = make(map[string]string)
-	registeredDelegatedAuthConfigsMu sync.Mutex
-)
-
 const (
-
-	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
-	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 100000
-
-	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
-	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
-	DefaultLinesOrBytesToSkip = 0
-
-	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
-	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
-	// value based on the configured fingerprint_strategy.
-	DefaultFingerprintingCount = 0
-
-	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
-	// Options are:
-	// - "line_checksum": compute the fingerprint by lines
-	// - "byte_checksum": compute the fingerprint by bytes
-	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "disabled"
-
-	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
-
-	// DefaultNumWorkers default number of workers for our check runner
-	DefaultNumWorkers = 4
-	// MaxNumWorkers maximum number of workers for our check runner
-	MaxNumWorkers = 25
-	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
-	DefaultAPIKeyValidationInterval = 60
-
-	// DefaultForwarderRecoveryInterval is the default recovery interval,
-	// also used if the user-provided value is invalid.
-	DefaultForwarderRecoveryInterval = 2
-
 	megaByte = 1024 * 1024
-
-	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5.0
-
-	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
-
-	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
-
-	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
-
-	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
-	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
-
-	// DefaultAuditorTTL is the default logs auditor TTL in hours
-	DefaultAuditorTTL = 23
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zstd"
-
-	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
-
-	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
-	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
-	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
-
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
-	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
-
-	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
-
-	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
-
-	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
-	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
-	// in the core agent if the process check is disabled.
-	DefaultLocalProcessCollectorInterval = 1 * time.Minute
-
-	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
-	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 900 * 1000
-
-	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 1000
-
-	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
-	DefaultNetworkPathMaxTTL = 30
-
-	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
-	DefaultNetworkPathStaticPathTracerouteQueries = 3
-
-	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
-	DefaultNetworkPathStaticPathE2eQueries = 50
+	// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+	Traces string = "traces"
 )
 
 var (
@@ -188,10 +82,8 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 }
 
 func init() {
-	osinit()
-
 	// init default for code that access the config before it initialized
-	InitConfigObjects("", "")
+	InitConfigObjects()
 }
 
 // Variables to initialize at start time
@@ -202,24 +94,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// ConfigurationProviders helps unmarshalling `config_providers` config param
-type ConfigurationProviders struct {
-	Name                    string `mapstructure:"name"`
-	Polling                 bool   `mapstructure:"polling"`
-	PollInterval            string `mapstructure:"poll_interval"`
-	TemplateURL             string `mapstructure:"template_url"`
-	TemplateDir             string `mapstructure:"template_dir"`
-	Username                string `mapstructure:"username"`
-	Password                string `mapstructure:"password"`
-	CAFile                  string `mapstructure:"ca_file"`
-	CAPath                  string `mapstructure:"ca_path"`
-	CertFile                string `mapstructure:"cert_file"`
-	KeyFile                 string `mapstructure:"key_file"`
-	Token                   string `mapstructure:"token"`
-	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
-	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
-}
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
@@ -276,81 +150,66 @@ var commonConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-type configLibBackend struct {
-	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
-}
-
-func resolveConfigLibType(cliPath string, defaultDir string) string {
-	configPath := ""
-	for _, path := range []string{cliPath, defaultDir} {
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-		}
-	}
-
-	if configPath == "" {
-		return ""
-	}
-
-	yamlFile, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-
-	conf := configLibBackend{}
-	err = yaml.Unmarshal(yamlFile, &conf)
-	if err != nil {
-		return ""
-	}
-	return conf.ConfNodeTreeModel
-}
-
 // InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
 // but from the main.
-func InitConfigObjects(cliPath string, defaultDir string) {
-	// We first load the configuration to see which config library should be used.
-	configLib := resolveConfigLibType(cliPath, defaultDir)
-
+func InitConfigObjects() {
 	// Assign the config globals, using locks to make the tests happy
-	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
-	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
+	SetDatadog(create.NewConfig("datadog"))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe")) // nolint: forbidigo // legitimate use of SetDatadog
 
-	// Configuration defaults
+	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
 
+	// Post-init fixups, custom logic to tweak certain settings
+	fixupInitConfig()
+
+	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
-
-	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
-	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs = make(map[string]string)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// -------------------------------------------------------------
 	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
 	// Add them to common_settings.go instead
 	// -------------------------------------------------------------
 
-	// Settings that are shared in common between serverless and core-agent, split up by feature / product
+	// Settings that are shared in common between serverless and the full agent, split up by feature / product
 	initCommonConfigComponents(config)
-	// Settings just for the core-agent in general
+	// Settings just for the full agent in general
 	initCoreAgentFull(config)
+	// Settings associated with a feature / product that only appear in the full agent, not in serverless
+	initFullAgentOnlyComponents(config)
+
+	additionalAgentSetup(config)
 }
 
+// settings shared by full agent and serverless
 func initCommonConfigComponents(config pkgconfigmodel.Setup) {
 	for _, f := range commonConfigComponents {
 		f(config)
 	}
+}
+
+// settings that are only initialized by the full agent, not serverless
+func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
+	comps := []func(pkgconfigmodel.Setup){
+		setupProcesses,
+		setupPrivateActionRunner,
+		remoteflags,
+		anomalyDetection,
+	}
+	for _, f := range comps {
+		f(config)
+	}
+}
+
+func additionalAgentSetup(_ pkgconfigmodel.Setup) {
+	processesAddOverrideOnce.Do(func() {
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
@@ -389,44 +248,33 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		return value, found
 	}
 
-	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
-	if isSet = config.IsSet("proxy"); isSet {
-		if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
-			isSet = false
-			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
-		}
+	if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
+		log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 	}
 
 	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
-		isSet = true
 		p.HTTP = HTTP
 	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
-		isSet = true
 		p.HTTP = HTTP
 	}
 
 	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	}
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
 			return r == ',' || r == ' '
 		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
 	if !config.GetBool("use_proxy_for_cloud_metadata") {
 		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
-		isSet = true
 		p.NoProxy = append(p.NoProxy,
 			"169.254.169.254", // Azure, EC2, GCE
 			"100.100.100.200", // Alibaba
@@ -435,9 +283,9 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
-	if isSet {
-		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceAgentRuntime)
-		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceAgentRuntime)
+	if p.HTTPS != "" || p.HTTP != "" || len(p.NoProxy) > 0 {
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -446,7 +294,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceConfigPostInit)
 	}
 }
 
@@ -682,6 +530,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
+	SanitizeDataPlaneConfig(config)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -727,34 +576,15 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
-	// Copy the registered configs map while holding the lock to avoid races during iteration
-	registeredDelegatedAuthConfigsMu.Lock()
-	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for prefix, apiKeyConfigKey := range configsCopy {
-		// Build the config key prefix for delegated_auth settings
-		var configPrefix string
-		if prefix == "" {
-			configPrefix = "delegated_auth"
-		} else {
-			configPrefix = prefix + ".delegated_auth"
-		}
-
+	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		// Build description for logging
-		description := "global"
-		if prefix != "" {
-			description = prefix
-		}
-
-		log.Infof("Configuring delegated authentication for '%s'", description)
+		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
@@ -762,11 +592,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			APIKeyConfigKey: apiKeyConfigKey,
+			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey: section.apiKeyPath,
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
@@ -801,21 +631,6 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 
 	// Provider-specific configuration (nested under provider name)
 	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
-
-	// Register this prefix for use in configureDelegatedAuth
-	// Build the API key config key
-	var apiKeyConfigKey string
-	if prefix == "" {
-		apiKeyConfigKey = "api_key"
-	} else {
-		apiKeyConfigKey = prefix + ".api_key"
-	}
-
-	// Map automatically handles duplicates - repeated registrations just overwrite with same value
-	// Use mutex to protect concurrent access during tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
-	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -927,25 +742,21 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
+	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
+	// setting in pkg/config/schema/yaml/.
 
-	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
-	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	config.Set("logs_config.use_http", true, pkgconfigmodel.SourceAgentRuntime)
 
-	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
 	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
-	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
-	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
 	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
@@ -956,22 +767,31 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
-	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
-	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
-	// Compliance
 	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
 
 	return nil
 }
 
 func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// ResolveSecrets merges all the secret values from origin into config. Secret values
+// are identified by a value of the form "ENC[key]" where key is the secret key.
+// See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+//
+// It is the exported counterpart of resolveSecrets and may be called by agent
+// binaries that build the config before starting the FX graph (e.g. the otel-agent
+// in standalone mode, where secrets must be resolved so that ENC[] handles in env
+// vars such as DD_HOSTNAME are processed before components like hostnameimpl read
+// the config).
+func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
+	return resolveSecrets(config, secretResolver, origin)
 }
 
 // resolveSecrets merges all the secret values from origin into config. Secret values
@@ -979,11 +799,18 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	log.Info("Starting to resolve secrets")
+
+	var multiBackends map[string]secrets.SecretBackendConfig
+	if err := structure.UnmarshalKey(config, "multi_secret_backends", &multiBackends); err != nil {
+		log.Warnf("multi_secret_backends: %v", err)
+	}
+
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
 		Type:                         config.GetString("secret_backend_type"),
 		Config:                       config.GetStringMap("secret_backend_config"),
+		MultiBackends:                multiBackends,
 		Command:                      config.GetString("secret_backend_command"),
 		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                      config.GetInt("secret_backend_timeout"),
@@ -1000,7 +827,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
-	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(multiBackends) > 0 {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before
@@ -1033,7 +860,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceSecret)
 		return nil
 	}
 
@@ -1147,7 +974,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecret)
 	return nil
 }
 
@@ -1170,6 +997,62 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 		return
 	}
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// is false, this function always installs a SourceAgentRuntime override of
+// false, which beats file and fleet-policy sources and prevents them from
+// re-enabling ADP after this call returns. A warning is emitted only when the
+// value was explicitly set to true at call time.
+//
+// Windows ADP runs only under dd-procmgr (via processes.d); dd-procmgr-service is
+// started by the core Agent only when process_manager.enabled is true.
+//
+// The goos parameter is the target OS string (normally runtime.GOOS). It is
+// exposed as a parameter so that tests can exercise both branches without
+// needing to cross-compile.
+//
+// The envLookup parameter is normally os.Getenv. It is exposed as a parameter
+// so tests can inject a stub without touching global state.
+// When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
+// is intended for local development on unsupported platforms only.
+func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
+	if envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+		return
+	}
+
+	switch {
+	case goos == "linux", goos == "darwin", goos == "aix":
+		return
+	case goos == "windows":
+		if config.GetBool("process_manager.enabled") {
+			// LoadDatadog may have locked data_plane.enabled=false before fleet policies
+			// were merged; SourceAgentRuntime outranks SourceFleetPolicies, so clear the
+			// stale runtime override once process manager is enabled.
+			if config.GetSource(DataPlaneEnabled) == pkgconfigmodel.SourceAgentRuntime {
+				config.UnsetForSource(DataPlaneEnabled, pkgconfigmodel.SourceAgentRuntime)
+			}
+			return
+		}
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s requires process_manager.enabled on Windows and will be ignored", DataPlaneEnabled)
+		}
+	default:
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		}
+	}
+
+	config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// SanitizeDataPlaneConfig applies sanitizeDataPlaneConfig for the current host.
+// It is also called after fleet policy merging because fleet policies may set
+// process_manager.enabled or data_plane.enabled after the initial LoadDatadog pass.
+func SanitizeDataPlaneConfig(config pkgconfigmodel.Config) {
+	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1412,24 +1295,16 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 			{"match_domain": "claude.ai", "type": "include"},
 		}
 
-		// Append user-defined filters to the defaults
-		if userFilters := config.Get("network_path.collector.filters"); userFilters != nil {
-			if userFiltersList, ok := userFilters.([]interface{}); ok {
-				for _, f := range userFiltersList {
-					if filterMap, ok := f.(map[string]interface{}); ok {
-						converted := make(map[string]string)
-						for k, v := range filterMap {
-							if strVal, ok := v.(string); ok {
-								converted[k] = strVal
-							}
-						}
-						// Always append the user defined filters to the defaults at the end of the list to get the higher priority than the default configuration
-						defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, converted)
-					}
-				}
-			}
+		// Append user-defined filters after the defaults so they win (last matching filter wins).
+		// On unmarshal error, skip the override entirely: the user's (malformed) config is left
+		// in place so downstream surfaces it, rather than silently replacing it with defaults.
+		var userFilters []map[string]string
+		if err := structure.UnmarshalKey(config, "network_path.collector.filters", &userFilters); err != nil {
+			log.Errorf("Failed to unmarshal network_path.collector.filters, skipping EUDM filter override: %v", err)
+		} else {
+			defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, userFilters...)
+			config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 		}
-		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
@@ -1438,28 +1313,72 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
+// ApplyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
+// ComputeDataPlaneStopTimeout is a post-load override that, when the user has
+// not explicitly set data_plane.stop_timeout, recomputes it from
+// aggregator_stop_timeout + forwarder_stop_timeout. The Agent Data Plane reads
+// this value via the config stream to size its topology graceful-shutdown
+// budget; computing the sum here keeps that budget aligned with the documented
+// core-agent shutdown window even when users customize the component
+// timeouts.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
+	if config.GetSource("data_plane.stop_timeout") != pkgconfigmodel.SourceDefault {
+		return
+	}
+	sum := config.GetInt("aggregator_stop_timeout") + config.GetInt("forwarder_stop_timeout")
+	// Keep the source as default: the value is a derived default, not an
+	// agent runtime decision, so it should be filtered out by views that
+	// strip defaults (e.g. config dumps for diagnostics).
+	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
-	config.BindEnv(prefix + "logs_dd_url")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv(prefix + "additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault(prefix+"dd_url", "")
+	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
-	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
-	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
-	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
+	config.BindEnvAndSetDefault(prefix+"compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"batch_wait", constants.DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
-	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
-	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
-	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
-	config.BindEnvAndSetDefault(prefix+"input_chan_size", DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", DefaultLogsSenderBackoffBase)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
-	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault(prefix+"batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault(prefix+"input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
@@ -1487,32 +1406,22 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
-// IsCLCRunner returns whether the Agent is in cluster check runner mode
-func IsCLCRunner(config pkgconfigmodel.Reader) bool {
-	if !config.GetBool("clc_runner_enabled") {
-		return false
-	}
-
-	var cps []ConfigurationProviders
-	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
-		return false
-	}
-
-	for _, name := range config.GetStringSlice("extra_config_providers") {
-		cps = append(cps, ConfigurationProviders{Name: name})
-	}
-
-	// A cluster check runner is an Agent configured to run clusterchecks only
-	// We want exactly one ConfigProvider named clusterchecks
-	if len(cps) == 0 {
-		return false
-	}
-
-	for _, cp := range cps {
-		if cp.Name != "clusterchecks" {
-			return false
+func getPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if pkgconfigenv.IsECSFargate() {
+		if val, found := platformValues["fargate"]; found {
+			return val
 		}
 	}
-
-	return true
+	if pkgconfigenv.IsContainerized() {
+		if val, found := platformValues["container"]; found {
+			return val
+		}
+	}
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
 }

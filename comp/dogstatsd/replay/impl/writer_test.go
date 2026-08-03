@@ -21,8 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -49,7 +49,7 @@ func writerTest(t *testing.T, z bool) {
 
 	// register pools
 
-	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
+	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg, cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
 	oobManager := packets.NewPoolManager[[]byte](ddsync.NewSlicePool[byte](32, 32))
 
 	require.NoError(t, writer.RegisterSharedPoolManager(manager))

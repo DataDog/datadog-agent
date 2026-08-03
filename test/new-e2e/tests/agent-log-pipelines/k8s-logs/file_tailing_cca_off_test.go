@@ -7,8 +7,11 @@ package k8sfiletailing
 
 import (
 	"context"
-	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
+	"slices"
 	"testing"
+
+	apps "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -18,9 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	k8sutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s"
 )
 
 type k8sCCAOffSuite struct {
@@ -38,7 +41,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 	var backOffLimit int32 = 4
 	testLogMessage := "Annotations pod"
 
-	jobSpcec := &batchv1.Job{
+	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "annotations-job",
 			Namespace: "default",
@@ -54,7 +57,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 					Containers: []corev1.Container{
 						{
 							Name:  "annotations-job",
-							Image: "ubuntu",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
@@ -67,19 +70,34 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 		},
 	}
 
-	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not start autodiscovery job")
+	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
+	require.NoError(v.T(), err, "Could not create autodiscovery job")
+
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "annotations-job", jobPodStartTimeout)
+	if err != nil {
+		require.Fail(v.T(), "Annotations job pod failed to start",
+			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "annotations-job"))
+	}
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
-		assert.NoError(c, err, "Error starting job")
+		if !assert.NoError(c, err, "Error getting log service names") {
+			return
+		}
 
-		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
-			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
-			assert.NoError(c, err, "Error filtering logs")
-			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
-				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
-			}
+		if !slices.Contains(logsServiceNames, "apps-alpine") {
+			assert.Fail(c, "Alpine service not found",
+				"Known services: %q\n%s",
+				logsServiceNames, fakeintakeRouteStats(v.Env().FakeIntake))
+			return
+		}
+
+		filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("apps-alpine")
+		if !assert.NoError(c, err, "Error filtering logs") {
+			return
+		}
+		if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+			assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
 		}
 	}, 1*time.Minute, 10*time.Second)
 }
@@ -90,7 +108,7 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 	var backOffLimit int32 = 4
 	testLogMessage := "Test pod"
 
-	jobSpcec := &batchv1.Job{
+	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cca-off-job",
 			Namespace: "default",
@@ -101,7 +119,7 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 					Containers: []corev1.Container{
 						{
 							Name:  "cca-off-job",
-							Image: "ubuntu",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
@@ -114,12 +132,27 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 		},
 	}
 
-	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not start job")
+	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
+	require.NoError(v.T(), err, "Could not create CCA-off job")
+
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "cca-off-job", jobPodStartTimeout)
+	if err != nil {
+		require.Fail(v.T(), "CCA-off job pod failed to start",
+			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "cca-off-job"))
+	}
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
-		assert.NoError(c, err, "Error starting job")
-		assert.NotContains(c, logsServiceNames, "ubuntu", "Ubuntu service found with container collect all off")
+		if !assert.NoError(c, err, "Error getting log service names") {
+			return
+		}
+		assert.NotContains(c, logsServiceNames, "apps-alpine", "Alpine service found with container collect all off")
 	}, 1*time.Minute, 10*time.Second)
+}
+
+func (v *k8sCCAOffSuite) AfterTest(suiteName, testName string) {
+	if v.T().Failed() {
+		v.T().Log(fakeintakeRouteStats(v.Env().FakeIntake))
+	}
+	v.BaseSuite.AfterTest(suiteName, testName)
 }

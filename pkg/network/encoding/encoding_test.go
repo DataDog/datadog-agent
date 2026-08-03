@@ -11,13 +11,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"runtime"
 	"slices"
 	"sort"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -93,7 +93,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				LastRetransmits:    201,
 				LastTcpEstablished: 1,
 				LastTcpClosed:      1,
-				Pid:                int32(6000),
+				Pid:                math.MaxInt32,
 				NetNS:              7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
@@ -206,7 +206,7 @@ func TestSerialization(t *testing.T) {
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),
 					Dest:      util.AddressFromString("10.2.2.2"),
-					Pid:       6000,
+					Pid:       math.MaxInt32,
 					NetNS:     7,
 					SPort:     1000,
 					DPort:     9000,
@@ -331,23 +331,18 @@ func TestSerialization(t *testing.T) {
 			): httpReqStats,
 		}
 	}
-	httpOut := &model.HTTPAggregations{
-		EndpointAggregations: []*model.HTTPStats{
-			{
-				Path:              "/testpath",
-				Method:            model.HTTPMethod_Get,
-				FullPath:          true,
-				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
-			},
-		},
-	}
-
-	httpOutBlob, err := proto.Marshal(httpOut)
-	require.NoError(t, err)
+	var httpOutBuf bytes.Buffer
+	httpOutBuilder := model.NewHTTPAggregationsBuilder(&httpOutBuf)
+	httpOutBuilder.AddEndpointAggregations(func(s *model.HTTPStatsBuilder) {
+		s.SetPath("/testpath")
+		s.SetMethod(uint64(model.HTTPMethod_Get))
+		s.SetFullPath(true)
+	})
+	httpOutBlob := httpOutBuf.Bytes()
 
 	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
 		configmock.NewSystemProbe(t)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		pkgconfigsetup.SystemProbe().SetInTest("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		blobWriter := getBlobWriter(t, assert, in, "application/json")
@@ -370,8 +365,8 @@ func TestSerialization(t *testing.T) {
 
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
 		configmock.NewSystemProbe(t)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", true)
+		pkgconfigsetup.SystemProbe().SetInTest("system_probe_config.collect_dns_domains", false)
+		pkgconfigsetup.SystemProbe().SetInTest("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 
@@ -395,7 +390,7 @@ func TestSerialization(t *testing.T) {
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
 		configmock.NewSystemProbe(t)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		pkgconfigsetup.SystemProbe().SetInTest("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 
@@ -428,7 +423,7 @@ func TestSerialization(t *testing.T) {
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
 		configmock.NewSystemProbe(t)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		pkgconfigsetup.SystemProbe().SetInTest("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -486,7 +481,7 @@ func TestSerialization(t *testing.T) {
 
 	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
 		configmock.NewSystemProbe(t)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		pkgconfigsetup.SystemProbe().SetInTest("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -502,8 +497,8 @@ func TestSerialization(t *testing.T) {
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
 		configmock.NewSystemProbe(t)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
-		pkgconfigsetup.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", true)
+		pkgconfigsetup.SystemProbe().SetInTest("system_probe_config.collect_dns_domains", false)
+		pkgconfigsetup.SystemProbe().SetInTest("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)
@@ -577,19 +572,14 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 		in.USMData.HTTP[httpKeyWin] = httpReqStats
 	}
 
-	httpOut := &model.HTTPAggregations{
-		EndpointAggregations: []*model.HTTPStats{
-			{
-				Path:              "/testpath",
-				Method:            model.HTTPMethod_Get,
-				FullPath:          true,
-				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
-			},
-		},
-	}
-
-	httpOutBlob, err := proto.Marshal(httpOut)
-	require.NoError(t, err)
+	var httpOutBuf bytes.Buffer
+	httpOutBuilder := model.NewHTTPAggregationsBuilder(&httpOutBuf)
+	httpOutBuilder.AddEndpointAggregations(func(s *model.HTTPStatsBuilder) {
+		s.SetPath("/testpath")
+		s.SetMethod(uint64(model.HTTPMethod_Get))
+		s.SetFullPath(true)
+	})
+	httpOutBlob := httpOutBuf.Bytes()
 
 	out := &model.Connections{
 		Conns: []*model.Connection{
@@ -643,8 +633,8 @@ func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 		// the workaround is to check for protobuf equality, and then set actual.Conns[i] == expected.Conns[i]
 		// so actual.Conns and expected.Conns can be compared.
 		var expectedHTTP, actualHTTP model.HTTPAggregations
-		require.NoError(t, proto.Unmarshal(expectedRawHTTP, &expectedHTTP))
-		require.NoError(t, proto.Unmarshal(actualRawHTTP, &actualHTTP))
+		require.NoError(t, expectedHTTP.Unmarshal(expectedRawHTTP))
+		require.NoError(t, actualHTTP.Unmarshal(actualRawHTTP))
 		require.Equalf(t, expectedHTTP, actualHTTP, "HTTP connection %d was not equal", i)
 		actual.Conns[i].HttpAggregations = expected.Conns[i].HttpAggregations
 	}
@@ -692,7 +682,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		}
 
 		httpOut := new(model.HTTPAggregations)
-		err = proto.Unmarshal(httpBlob, httpOut)
+		err = httpOut.Unmarshal(httpBlob)
 		require.NoError(t, err)
 		return httpOut
 	}

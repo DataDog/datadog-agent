@@ -31,7 +31,7 @@ func TestLoad_FakeCheck(t *testing.T) {
 		Source:    "fake_check:/path/to/conf/fake_check.yaml",
 	}
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -45,7 +45,7 @@ func TestLoad_FakeCheck(t *testing.T) {
 
 	assert.Equal(t, "fake_check", check.(*Check).name)
 	assert.Equal(t, "noop_version", check.(*Check).version)
-	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*Check).source)
+	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml[1]", check.(*Check).source)
 
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)
@@ -57,15 +57,50 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 		Instances: []integration.Data{{}},
 	}
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	sharedLibraryLoader := ffi.NewSharedLibraryLoader("/library/folder/path/")
+	sharedLibraryLoader, err := ffi.NewSharedLibraryLoader("/library/folder/path/")
+	require.NoError(t, err)
 
 	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	require.NoError(t, err)
 
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)
 	assert.Error(t, err)
+}
+
+func TestLoad_RejectsPathTraversalName(t *testing.T) {
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	sharedLibraryLoader, err := ffi.NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
+
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
+	require.NoError(t, err)
+
+	cases := []string{
+		"",
+		"foo/../../tmp/baz",
+		"../baz",
+		"foo/bar",
+		`foo\bar`,
+		`..\baz`,
+		"/etc/passwd",
+		"foo\x00bar",
+	}
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			conf := integration.Config{
+				Name:      name,
+				Instances: []integration.Data{{}},
+			}
+
+			_, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
+			require.Error(t, err)
+		})
+	}
 }

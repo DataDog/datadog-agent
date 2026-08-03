@@ -3,6 +3,7 @@ load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 
 def _foreign_cc_shared_wrapper_impl(ctx):
     cc_info = ctx.attr.input[CcInfo]
+    lib_filter = ctx.attr.lib_filter
 
     # rules_foreign_cc's configure_make carries the full transitive CcInfo of all
     # its own deps.  We only want the linker_input that is owned by the target itself
@@ -16,7 +17,30 @@ def _foreign_cc_shared_wrapper_impl(ctx):
     if selected_input == None:
         fail("No linker input owned by `{}` found".format(ctx.attr.input.label))
 
+    if lib_filter:
+        filtered_libs = [
+            lib
+            for lib in selected_input.libraries
+            if lib.dynamic_library != None and (
+                lib.dynamic_library.basename.startswith(lib_filter + ".") or
+                lib.dynamic_library.basename.startswith(lib_filter + "-")
+            )
+        ]
+        if not filtered_libs:
+            fail("No library matching '{}.'' found in `{}`".format(lib_filter, ctx.attr.input.label))
+        selected_input = cc_common.create_linker_input(
+            owner = selected_input.owner,
+            libraries = depset(filtered_libs),
+        )
+
+    shared_libs = depset([
+        lib.dynamic_library
+        for lib in selected_input.libraries
+        if lib.dynamic_library != None
+    ])
+
     return [
+        DefaultInfo(files = shared_libs),
         CcInfo(
             compilation_context = cc_info.compilation_context,
             linking_context = cc_common.create_linking_context(
@@ -24,7 +48,7 @@ def _foreign_cc_shared_wrapper_impl(ctx):
             ),
         ),
         CcSharedLibraryInfo(
-            exports = [ctx.attr.input.label],
+            exports = [],
             linker_input = selected_input,
             link_once_static_libs = [],
             dynamic_deps = depset([], order = "topological"),
@@ -38,6 +62,10 @@ foreign_cc_shared_wrapper = rule(
             mandatory = True,
             providers = [CcInfo],
             doc = "A rules_foreign_cc target (e.g. configure_make) to wrap.",
+        ),
+        "lib_filter": attr.string(
+            default = "",
+            doc = "If set, expose only the dynamic library whose basename starts with this prefix followed by '.'.",
         ),
     },
     doc = """Wraps a rules_foreign_cc shared-library target into native Bazel CC providers.

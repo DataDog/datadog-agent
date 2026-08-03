@@ -1,0 +1,37 @@
+---
+# No ddTraceVersions: cluster-agent injects every default language at its latest major
+# tag (mutable, so the gradual rollout resolver applies to each).
+clusterAgent:
+  volumes:
+    - name: mock-registry-ca
+      secret:
+        secretName: mock-registry-ca
+  volumeMounts:
+    - name: mock-registry-ca
+      mountPath: /etc/ssl/certs/mock-registry-ca.crt
+      subPath: ca.crt
+      readOnly: true
+  env:
+    # Framework defaults (kubernetes_helm.go) set this to "false". Helm list-replace
+    # already drops their entry when this env list overrides it, so the resolver ran
+    # implicitly — but we set it explicitly so the test's intent doesn't depend on
+    # that side effect.
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
+      value: "true"
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY
+      value: "mock-registry.mock-registry.svc.cluster.local:5000"
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_DEFAULT_DD_REGISTRIES
+      value: '["mock-registry.mock-registry.svc.cluster.local:5000"]'
+
+datadog:
+  apm:
+    instrumentation:
+      enabled: true
+      injector:
+        imageTag: "0.54.0"
+      enabledNamespaces: []
+      targets:
+        - name: "python-apps"
+          namespaceSelector:
+            matchNames:
+              - "gradual-rollout-default"

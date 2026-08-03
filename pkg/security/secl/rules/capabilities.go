@@ -29,6 +29,7 @@ type FieldCapability struct {
 	TypeBitmask            eval.FieldValueType
 	ValidateFnc            func(FilterValue) bool
 	FilterWeight           int
+	FilterWeightFnc        func(FilterValue) int
 	FilterMode             FilterMode
 	RangeFilterValue       *RangeFilterValue
 	HandleNotApproverValue func(valueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool)
@@ -46,9 +47,7 @@ func (fc FieldCapability) Validate(filterValue FilterValue) bool {
 	}
 
 	if fc.ValidateFnc != nil {
-		if !fc.ValidateFnc(filterValue) {
-			return false
-		}
+		return fc.ValidateFnc(filterValue)
 	}
 
 	return true

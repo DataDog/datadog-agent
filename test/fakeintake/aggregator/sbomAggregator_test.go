@@ -24,6 +24,12 @@ func TestNewSBOMPayloads(t *testing.T) {
 		require.Empty(t, payloads)
 	})
 
+	t.Run("parseSbomPayload non SBOM body should be skipped", func(t *testing.T) {
+		payloads, err := ParseSbomPayload(api.Payload{Data: []byte("{}"), Encoding: encodingEmpty})
+		require.NoError(t, err)
+		require.Empty(t, payloads)
+	})
+
 	t.Run("parseSbomPayload valid body should parse payloads", func(t *testing.T) {
 		payloads, err := ParseSbomPayload(api.Payload{Data: SBOMData, Encoding: encodingGzip})
 		require.NoError(t, err)

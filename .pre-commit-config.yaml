@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 9daf4ccb1f73e83c75517076bc2c1aafde20a082 # frozen: 2.1.6
+  rev: 38980559e3a605691d6579f96222c30778e5a69e # frozen: 3.0.0
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
@@ -52,6 +52,14 @@ repos:
       language: system
       require_serial: true
       files: \.py$
+      pass_filenames: false
+    - id: docs-links
+      name: docs-links
+      description: checks that developer docs link to the repository through the `repo` macro
+      entry: 'dda inv linter.docs-links'
+      language: system
+      require_serial: true
+      files: ^docs/public/.*\.md$
       pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
@@ -140,7 +148,15 @@ repos:
       entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version|.*protobuf\.py)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*\.proto|.*protobuf\.py)$
+    - id: cws-go-generate
+      name: validate-cws-generated-files
+      description: Validate that the generated CWS files (SECL accessors, BPF map names, docs, ...) are up to date
+      entry: 'dda inv security-agent.cws-go-generate'
+      language: system
+      pass_filenames: false
+      stages: [pre-push]
+      files: ^(pkg/security/.*|docs/cloud-workload-security/.*|bazel/rules/cws_codegen/.*)$
     - id: experiment-systemd-units
       name: validate-experiment-systemd-units
       description: Validate that the generated systemd experimrent units are up to date
@@ -152,6 +168,13 @@ repos:
       name: rst-releasenotes
       description: Check release notes for RST formatting issues (Markdown syntax detected)
       entry: bash -c 'dda inv linter.rst-releasenotes --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true
+    - id: releasenote-unique-ids
+      name: releasenote-unique-ids
+      description: Check that release note UIDs are unique (prevents MQ collisions)
+      entry: bash -c 'dda inv linter.releasenote-unique-ids --files="$(echo "$@" | tr " " ",")"' --
       language: system
       files: ^releasenotes(-dca)?/notes/.*\.yaml$
       pass_filenames: true

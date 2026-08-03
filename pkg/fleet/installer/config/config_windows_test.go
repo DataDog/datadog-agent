@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
@@ -217,6 +218,105 @@ func TestSecureCreateTargetDirectoryWithSourcePermissions(t *testing.T) {
 	sourceSD, err := windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	assert.NoError(t, err)
 	assert.Equal(t, sourceSD.String(), targetSD.String())
+}
+
+// everyoneCanRead reports whether path's DACL contains an allow ACE granting read access
+// to the Everyone group (S-1-1-0).
+func everyoneCanRead(t *testing.T, path string) bool {
+	t.Helper()
+	everyone, err := windows.CreateWellKnownSid(windows.WinWorldSid)
+	assert.NoError(t, err)
+
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	assert.NoError(t, err)
+	dacl, _, err := sd.DACL()
+	assert.NoError(t, err)
+
+	const (
+		genericRead  = 0x80000000 // GENERIC_READ, if not mapped to file-specific rights
+		fileReadData = 0x1        // FILE_READ_DATA, set when GENERIC_READ is mapped to FILE_GENERIC_READ
+	)
+	for i := 0; i < int(dacl.AceCount); i++ {
+		var ace *windows.ACCESS_ALLOWED_ACE
+		assert.NoError(t, windows.GetAce(dacl, uint32(i), &ace))
+		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE {
+			continue
+		}
+		sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+		if sid.Equals(everyone) && ace.Mask&(genericRead|fileReadData) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// TestOperationApply_ApplicationMonitoringEveryoneRead verifies the world-readable config file
+// (mode 0644 on Linux) gets an Everyone-read ACL on Windows, so non-admin identities such as
+// IIS App Pool can read it.
+func TestOperationApply_ApplicationMonitoringEveryoneRead(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "application_monitoring.yaml")
+	assert.NoError(t, os.WriteFile(filePath, []byte("enabled: true\n"), 0600))
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/application_monitoring.yaml",
+		Patch:             []byte(`[{"op": "replace", "path": "/enabled", "value": false}]`),
+	}
+	assert.NoError(t, op.apply(context.Background(), root))
+
+	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should grant Everyone read")
+}
+
+// TestOperationApply_RestrictedFileNoEveryoneRead verifies a restricted config file (mode 0640
+// on Linux) does NOT get an Everyone-read ACL on Windows.
+func TestOperationApply_RestrictedFileNoEveryoneRead(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	assert.NoError(t, os.WriteFile(filePath, []byte("log_level: info\n"), 0600))
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationMergePatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(`{"log_level":"debug"}`),
+	}
+	assert.NoError(t, op.apply(context.Background(), root))
+
+	assert.False(t, everyoneCanRead(t, filePath), "datadog.yaml (0640) should not grant Everyone read")
+}
+
+func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := t.TempDir()
+	filePath := filepath.Join(stablePath, "application_monitoring.yaml")
+	assert.NoError(t, os.WriteFile(filePath, []byte("enabled: true\n"), 0600))
+	assert.NoError(t, paths.SetFileReadableByEveryone(filePath))
+	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should start with Everyone read")
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "delete-application-monitoring",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationDelete, FilePath: "/application_monitoring.yaml"},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NoFileExists(t, filePath)
+
+	assert.NoError(t, dirs.RemoveExperiment(context.Background()))
+	assert.FileExists(t, filePath)
+	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should regain Everyone read after rollback restore")
 }
 
 // TestDeploymentIDAfterRollback reproduces the bug where RemoveExperiment incorrectly

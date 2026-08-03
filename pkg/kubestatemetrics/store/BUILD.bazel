@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "store",
+    srcs = [
+        "event_callbacks.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_kube_state_metrics_v2//pkg/metric",
+    ],
+)
+
+dd_agent_go_test(
+    name = "store_test",
+    srcs = ["store_test.go"],
+    embed = [":store"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_kube_state_metrics_v2//pkg/metric",
+    ],
+)

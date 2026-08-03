@@ -16,10 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
@@ -33,14 +33,14 @@ var (
 	expvarsTotalLockTime     = expvar.Int{}
 	expvarsSerializationTime = expvar.Int{}
 
-	tlmTotalCalls             = telemetry.NewCounter("jsonstream", "total_calls", nil, "Total calls to the jsontream serializer")
-	tlmTotalItems             = telemetry.NewCounter("jsonstream", "total_items", nil, "Total items in the jsonstream serializer")
-	tlmItemDrops              = telemetry.NewCounter("jsonstream", "item_drops", nil, "Items dropped in the jsonstream serializer")
-	tlmWriteItemErrors        = telemetry.NewCounter("jsonstream", "write_item_errors", nil, "Count of 'write item errors' in the jsonstream serializer")
-	tlmPayloadFull            = telemetry.NewCounter("jsonstream", "payload_full", nil, "How many times we've hit a 'payload is full' in the jsonstream serializer")
-	tlmCompressorLocks        = telemetry.NewGauge("jsonstream", "blocking_goroutines", nil, "Number of blocked goroutines waiting for a compressor to be available")
-	tlmTotalLockTime          = telemetry.NewCounter("jsonstream", "blocked_time", nil, "Total time spent waiting for the compressor to be available")
-	tlmTotalSerializationTime = telemetry.NewCounter("jsonstream", "serialization_time", nil, "Total time spent serializing and compressing payloads")
+	tlmTotalCalls             = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "total_calls", nil, "Total calls to the jsontream serializer")
+	tlmTotalItems             = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "total_items", nil, "Total items in the jsonstream serializer")
+	tlmItemDrops              = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "item_drops", nil, "Items dropped in the jsonstream serializer")
+	tlmWriteItemErrors        = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "write_item_errors", nil, "Count of 'write item errors' in the jsonstream serializer")
+	tlmPayloadFull            = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "payload_full", nil, "How many times we've hit a 'payload is full' in the jsonstream serializer")
+	tlmCompressorLocks        = telemetryimpl.GetCompatComponent().NewGauge("jsonstream", "blocking_goroutines", nil, "Number of blocked goroutines waiting for a compressor to be available")
+	tlmTotalLockTime          = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "blocked_time", nil, "Total time spent waiting for the compressor to be available")
+	tlmTotalSerializationTime = telemetryimpl.GetCompatComponent().NewCounter("jsonstream", "serialization_time", nil, "Total time spent serializing and compressing payloads")
 )
 
 var jsonConfig = jsoniter.Config{

@@ -10,13 +10,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 // Type exports the internal metadata type for easy reference
@@ -28,11 +26,6 @@ type ddExtensionFactory struct {
 	log        corelog.Component
 }
 
-// NewFactory creates a factory for Datadog Profiling Extension for use with OCB and OSS Collector
-func NewFactory() extension.Factory {
-	return &ddExtensionFactory{}
-}
-
 // NewFactoryForAgent creates a factory for Datadog Profiling Extension for use with Agent
 func NewFactoryForAgent(traceAgent traceagent.Component, log corelog.Component) extension.Factory {
 	return &ddExtensionFactory{
@@ -41,22 +34,18 @@ func NewFactoryForAgent(traceAgent traceagent.Component, log corelog.Component) 
 	}
 }
 
+// NewFactory creates a factory for Datadog Profiling Extension for standalone use with local agent running.
+func NewFactory() extension.Factory {
+	return &ddExtensionFactory{}
+}
+
 // Create creates a new instance of the Datadog Profiling Extension
 func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
 		return nil, errors.New("invalid ddprofiling extension config")
 	}
-	var sourceProvider source.Provider
-	if f.traceAgent == nil {
-		var err error
-		sourceProvider, err = hostmetadata.GetSourceProvider(set.TelemetrySettings, "", 0)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log, sourceProvider)
+	return NewComponent(config, set.BuildInfo, f.traceAgent, f.log)
 }
 
 // Stability returns the stability level of the component

@@ -1,0 +1,143 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "cri",
+    srcs = [
+        "common.go",
+        "diagnosis.go",
+        "metadata.go",
+        "metadata_no_cri.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/cri",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+        "@io_k8s_cri_client//pkg/util",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)
+
+dd_agent_go_test(
+    name = "cri_test",
+    srcs = ["util_test.go"],
+    embed = [":cri"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+            "@io_k8s_cri_client//pkg/fake",
+            "@org_golang_google_grpc//:grpc",
+        ],
+        "//conditions:default": [],
+    }),
+)

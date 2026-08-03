@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build !windows && !freebsd && !darwin
+//go:build !windows && !freebsd && !darwin && !aix
 
 package filehandles
 
@@ -48,7 +48,7 @@ func TestFhCheckLinux(t *testing.T) {
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
-	mock := mocksender.NewMockSender("")
+	mock := mocksender.NewMockSender(t, "")
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)

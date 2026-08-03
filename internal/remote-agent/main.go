@@ -10,14 +10,16 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"time"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -120,10 +122,10 @@ func newRemoteAgentServer() *remoteAgentServer {
 }
 
 // registerWithAgent handles the registration logic with the Core Agent
-func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker, cert tls.Certificate) (string, pbcore.AgentSecureClient, error) {
+func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker, cert tls.Certificate) (string, pbcore.RemoteAgentClient, error) {
 	log.Println("Session ID is empty, entering registration loop")
 
-	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken, cert)
+	agentClient, err := newRemoteAgentClient(agentIpcAddress, agentAuthToken, cert)
 	if err != nil {
 		log.Printf("failed to create agent client: %v", err)
 		return "", nil, err
@@ -156,7 +158,7 @@ func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName
 }
 
 // refreshRegistration handles the refresh logic with the Core Agent
-func refreshRegistration(agentClient pbcore.AgentSecureClient, sessionID string) error {
+func refreshRegistration(agentClient pbcore.RemoteAgentClient, sessionID string) error {
 	_, err := agentClient.RefreshRemoteAgent(context.Background(), &pbcore.RefreshRemoteAgentRequest{SessionId: sessionID})
 	if err != nil {
 		return err
@@ -164,6 +166,53 @@ func refreshRegistration(agentClient pbcore.AgentSecureClient, sessionID string)
 
 	log.Println("Refreshed registration with Core Agent.")
 	return nil
+}
+
+// streamConfigEvents subscribes to the Core Agent config stream and logs received events.
+// It runs until ctx is cancelled or the stream closes/errors.
+func streamConfigEvents(ctx context.Context, agentIpcAddress, agentAuthToken, agentFlavor, sessionID string, cert tls.Certificate) {
+	tlsCreds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		// Test client: no server name verification needed.
+		InsecureSkipVerify: true, //nolint:gosec
+	})
+	conn, err := grpc.NewClient(agentIpcAddress,
+		grpc.WithTransportCredentials(tlsCreds),
+		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(agentAuthToken)),
+	)
+	if err != nil {
+		log.Printf("config stream: failed to connect: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	client := pbcore.NewAgentSecureClient(conn)
+	md := metadata.New(map[string]string{"session_id": sessionID})
+	ctxWithMD := metadata.NewOutgoingContext(ctx, md)
+
+	stream, err := client.StreamConfigEvents(ctxWithMD, &pbcore.ConfigStreamRequest{Name: agentFlavor})
+	if err != nil {
+		log.Printf("config stream: failed to start: %v", err)
+		return
+	}
+	log.Println("Config stream established.")
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF || ctx.Err() != nil {
+				log.Println("Config stream closed.")
+				return
+			}
+			log.Printf("Config stream receive error: %v", err)
+			return
+		}
+		switch e := event.Event.(type) {
+		case *pbcore.ConfigEvent_Snapshot:
+			log.Printf("Config snapshot received: %d settings (seq=%d)", len(e.Snapshot.GetSettings()), e.Snapshot.GetSequenceId())
+		case *pbcore.ConfigEvent_Update:
+			log.Printf("Config update received: seq=%d", e.Update.GetSequenceId())
+		}
+	}
 }
 
 func main() {
@@ -175,7 +224,7 @@ func main() {
 	var agentAuthTokenFilePath string
 	var agentIPCCertFilePath string
 	var sessionID string
-	var agentClient pbcore.AgentSecureClient
+	var agentClient pbcore.RemoteAgentClient
 
 	flag.StringVar(&agentFlavor, "agent-flavor", "", "Agent Flavor")
 	flag.StringVar(&displayName, "display-name", "", "Display name to register with")
@@ -213,14 +262,22 @@ func main() {
 	log.Printf("Spawned remote agent gRPC server on %s.", listenAddr)
 
 	// Wait forever, periodically refreshing our registration.
+	var streamCancel context.CancelFunc
 	refreshTicker := time.NewTicker(1 * time.Second)
 	for range refreshTicker.C {
 		if sessionID == "" {
+			if streamCancel != nil {
+				streamCancel()
+				streamCancel = nil
+			}
 			var err error
 			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, refreshTicker, tlsCert)
 			if err != nil {
 				continue
 			}
+			var streamCtx context.Context
+			streamCtx, streamCancel = context.WithCancel(context.Background())
+			go streamConfigEvents(streamCtx, agentIpcAddress, agentAuthToken, agentFlavor, sessionID, tlsCert)
 		} else {
 			err := refreshRegistration(agentClient, sessionID)
 			if err != nil {
@@ -245,21 +302,21 @@ func getAgentCert(path string) (tls.Certificate, error) {
 	block, rest := pem.Decode(rawFile)
 
 	if block == nil || block.Type != "CERTIFICATE" {
-		return cert, fmt.Errorf("failed to decode PEM block containing certificate")
+		return cert, errors.New("failed to decode PEM block containing certificate")
 	}
 	rawCert := pem.EncodeToMemory(block)
 
 	block, _ = pem.Decode(rest)
 
 	if block == nil || block.Type != "EC PRIVATE KEY" {
-		return cert, fmt.Errorf("failed to decode PEM block containing key")
+		return cert, errors.New("failed to decode PEM block containing key")
 	}
 
 	rawKey := pem.EncodeToMemory(block)
 
 	tlsCert, err := tls.X509KeyPair(rawCert, rawKey)
 	if err != nil {
-		return cert, fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+		return cert, errors.New("unable to generate x509 cert from PEM IPC cert and key")
 	}
 	return tlsCert, nil
 }
@@ -299,7 +356,7 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 	return nil
 }
 
-func newAgentSecureClient(ipcAddress string, agentAuthToken string, cert tls.Certificate) (pbcore.AgentSecureClient, error) {
+func newRemoteAgentClient(ipcAddress string, agentAuthToken string, cert tls.Certificate) (pbcore.RemoteAgentClient, error) {
 	tlsCreds := credentials.NewTLS(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		// We don't need to verify the certificate for this test client
@@ -314,7 +371,7 @@ func newAgentSecureClient(ipcAddress string, agentAuthToken string, cert tls.Cer
 		return nil, err
 	}
 
-	return pbcore.NewAgentSecureClient(conn), nil
+	return pbcore.NewRemoteAgentClient(conn), nil
 }
 
 // Create session ID interceptor that adds session_id to response metadata

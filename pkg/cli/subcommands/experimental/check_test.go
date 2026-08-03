@@ -196,7 +196,7 @@ func TestValidSiteRe(t *testing.T) {
 }
 
 func TestValidateAPIKey(t *testing.T) {
-	t.Run("valid 32-char hex key returns OK message with HideKeyExceptLastFourChars", func(t *testing.T) {
+	t.Run("valid 32-char hex key returns OK message with HideKeyExceptLastChars", func(t *testing.T) {
 		msg, err := validateAPIKey("abcdef1234567890abcdef1234567890")
 		require.NoError(t, err)
 		assert.Contains(t, msg, "7890", "should show last 4 chars")

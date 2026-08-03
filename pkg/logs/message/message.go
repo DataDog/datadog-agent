@@ -9,6 +9,7 @@ package message
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -77,14 +78,12 @@ type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
 	Status             string
-	IngestionTimestamp int64
+	IngestionTimestamp int64 // In nanoseconds
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
 	// This is also used to track the original content size before the message is processed and encoded later
 	// in the pipeline.
 	RawDataLen int
-	// Tags added on processing
-	ProcessingTags []string
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -141,6 +140,59 @@ const (
 	// StateEncoded means the MessageContent passed through the encoder (e.g. json encoder, proto encoder, ...)
 	StateEncoded
 )
+
+// HasContent reports whether the message carries meaningful data.
+// For structured messages, content lives in metadata fields (e.g. "siem",
+// "journald"), so the message has content even when the "message" key is empty.
+// For unstructured messages, content is present only when the raw bytes are
+// non-empty.
+func (m *MessageContent) HasContent() bool {
+	if m.State == StateStructured {
+		return m.structuredContent != nil
+	}
+	return len(m.content) > 0
+}
+
+// GetStructuredAttribute retrieves a dot-delimited attribute from structured
+// content. For example, "siem.device_vendor" walks Data["siem"] ->
+// map["device_vendor"]. Returns the string value and true if found.
+// Non-string leaf types (int, float64, bool) are converted via strconv.
+func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
+	if m.State != StateStructured {
+		return "", false
+	}
+	return m.structuredContent.GetAttribute(path)
+}
+
+// splitEscapedPath splits a dot-delimited attribute path while respecting
+// backslash escapes: \. represents a literal dot, \\ represents a literal
+// backslash. Segments are unescaped after splitting.
+func splitEscapedPath(s string) []string {
+	var parts []string
+	var seg []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case '.':
+				seg = append(seg, '.')
+			case '\\':
+				seg = append(seg, '\\')
+			default:
+				seg = append(seg, '\\', s[i+1])
+			}
+			i++
+			continue
+		}
+		if s[i] == '.' {
+			parts = append(parts, string(seg))
+			seg = seg[:0]
+			continue
+		}
+		seg = append(seg, s[i])
+	}
+	parts = append(parts, string(seg))
+	return parts
+}
 
 // GetContent returns the bytes array containing only the message content
 // E.g. from a structured log:
@@ -301,6 +353,18 @@ func (m *Message) Render() ([]byte, error) {
 	}
 }
 
+// Methods implementing observer.LogView for read-only observation.
+
+// GetHostname returns the message hostname.
+func (m *Message) GetHostname() string {
+	return m.Hostname
+}
+
+// GetTimestampUnixMilli returns the message ingestion timestamp in Unix milliseconds.
+func (m *Message) GetTimestampUnixMilli() int64 {
+	return m.IngestionTimestamp / 1000000
+}
+
 // StructuredContent stores enough information from a tailer to manipulate a
 // structured log message (from journald or windowsevents) and to render it to
 // be encoded later on in the pipeline.
@@ -308,6 +372,9 @@ type StructuredContent interface {
 	Render() ([]byte, error)
 	GetContent() []byte
 	SetContent([]byte)
+	// GetAttribute retrieves a dot-delimited attribute (e.g. "syslog.hostname").
+	// Returns the string value and true if found, or ("", false) otherwise.
+	GetAttribute(path string) (string, bool)
 }
 
 // BasicStructuredContent is used by tailers creating structured logs
@@ -341,6 +408,35 @@ func (m *BasicStructuredContent) SetContent(content []byte) {
 	m.Data["message"] = string(content)
 }
 
+// GetAttribute walks a dot-delimited path through the nested Data map.
+// Non-string leaf types (int, float64, bool) are converted to strings.
+func (m *BasicStructuredContent) GetAttribute(path string) (string, bool) {
+	parts := splitEscapedPath(path)
+	var current interface{} = m.Data
+	for _, key := range parts {
+		obj, ok := current.(map[string]interface{})
+		if !ok {
+			return "", false
+		}
+		current, ok = obj[key]
+		if !ok {
+			return "", false
+		}
+	}
+	switch v := current.(type) {
+	case string:
+		return v, true
+	case int:
+		return strconv.Itoa(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
+}
+
 // GetStatus gets the status of the message.
 // if status is not set, StatusInfo will be returned.
 func (m *MessageMetadata) GetStatus() string {
@@ -357,12 +453,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 
 // Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
-	return m.Origin.Tags(m.ProcessingTags)
+	return m.Origin.Tags()
 }
 
 // TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
-	return m.Origin.TagsToString(m.ProcessingTags)
+	return m.Origin.TagsToString()
 }
 
 // Count returns the number of messages

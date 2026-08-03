@@ -16,5 +16,6 @@ rtloader_go_test(
     name = "kubeutil_test",
     srcs = ["kubeutil_test.go"],
     embed = [":kubeutil"],
+    gotags = ["test"],
     deps = ["//rtloader/test/helpers"],
 )

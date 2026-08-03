@@ -165,8 +165,8 @@ func rebalance(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) err
 	fmt.Printf("%d cluster checks rebalanced successfully\n", len(checksMoved))
 
 	for _, check := range checksMoved {
-		fmt.Printf("Check %s with weight %d moved from node %s to %s. source diff: %d, dest diff: %d\n",
-			check.CheckID, check.CheckWeight, check.SourceNodeName, check.DestNodeName, check.SourceDiff, check.DestDiff)
+		fmt.Printf("Config %s (%s) with weight %d moved from node %s to %s. source diff: %d, dest diff: %d\n",
+			check.Digest, check.CheckName, check.CheckWeight, check.SourceNodeName, check.DestNodeName, check.SourceDiff, check.DestDiff)
 	}
 
 	return nil

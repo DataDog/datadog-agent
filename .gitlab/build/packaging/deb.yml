@@ -27,7 +27,6 @@ include:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
-    DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
 
 .package_deb_arm64:
@@ -35,7 +34,6 @@ include:
   tags: ["arch:arm64", "specific:true"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: arm64
 
 agent_deb-x64-a7:
   extends: [.package_deb_common, .package_deb_x86]
@@ -171,7 +169,6 @@ iot_agent_deb-armhf:
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
-    DD_PKG_ARCH: "arm64"
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_armhf"
   script:

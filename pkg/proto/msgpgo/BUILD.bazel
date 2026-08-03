@@ -1,4 +1,13 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
+
+go_msgp(
+    name = "key_gen",
+    src = "key.go",
+    out = "key_gen.go",
+    out_test = "key_gen_test.go",
+)
 
 go_library(
     name = "msgpgo",
@@ -11,7 +20,7 @@ go_library(
     deps = ["@com_github_tinylib_msgp//msgp"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "msgpgo_test",
     srcs = ["key_gen_test.go"],
     embed = [":msgpgo"],

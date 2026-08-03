@@ -8,13 +8,14 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
@@ -107,6 +108,30 @@ func (a *Agent) InstallIntegration(name string) error {
 	return err
 }
 
+// InstallIntegrationAs installs a custom integration running the agent CLI as the specified
+// Unix user (e.g. "root" or "dd-agent"). Linux-only.
+func (a *Agent) InstallIntegrationAs(user, name string) error {
+	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return errors.New("InstallIntegrationAs is only supported on Linux")
+	}
+	// --allow-root is required when running as root: the CLI rejects root execution by
+	// default to prevent root-owned integration files. Tests use it deliberately to cover
+	// the adversarial case where an operator force-installs as root.
+	allowRoot := ""
+	if user == "root" {
+		allowRoot = "--allow-root "
+	}
+	_, err := a.host.RemoteHost.Execute(
+		fmt.Sprintf("sudo -u %s datadog-agent integration install %s-t %s", user, allowRoot, name),
+	)
+	return err
+}
+
+// IntegrationShow runs integration show for the given integration name and returns its output.
+func (a *Agent) IntegrationShow(name string) (string, error) {
+	return a.runCommand("integration", "show", name)
+}
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string
@@ -119,10 +144,10 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 		return "", fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
 
-	err := retry.Do(func() error {
+	_, err := backoff.Retry(a.t().Context(), func() (struct{}, error) {
 		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
-		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+		return struct{}{}, err
+	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}

@@ -7,7 +7,7 @@ package program
 
 import (
 	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	legacy "github.com/DataDog/datadog-agent/comp/core/workloadfilter/legacy"
 )
 
 // AnnotationsProgram is a structure that holds two sharable CEL programs:
@@ -21,7 +21,7 @@ var _ FilterProgram = &AnnotationsProgram{}
 
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
 func (p AnnotationsProgram) Evaluate(entity filterdef.Filterable) filterdef.Result {
-	isExcluded := containers.IsExcludedByAnnotationInner(entity.GetAnnotations(), entity.GetName(), p.ExcludePrefix)
+	isExcluded := legacy.IsExcludedByAnnotationInner(entity.GetAnnotations(), entity.GetName(), p.ExcludePrefix)
 	if isExcluded {
 		return filterdef.Excluded
 	}

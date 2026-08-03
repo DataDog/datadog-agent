@@ -25,7 +25,7 @@ const (
 const (
 	ctaTupleIP    = 1
 	ctaTupleProto = 2
-	ctaTupleZone  = 3 //nolint:deadcode
+	ctaTupleZone  = 3 //nolint:unused
 )
 
 const (

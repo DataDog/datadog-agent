@@ -27,39 +27,39 @@ func TestCheckProcMountHidePid(t *testing.T) {
 		},
 		{
 			name:        "hidepid without groups",
-			file:        "./tests/proc-mounts-hidepid-2",
+			file:        "./testdata/proc-mounts-hidepid-2",
 			groups:      []int{1, 2, 3},
-			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2 (options=defaults,hidepid=2) - proc fs inspection may not work (uid=1001, groups=[1,2,3])",
+			expectError: "hidepid=2 option detected in ./testdata/proc-mounts-hidepid-2 (options=defaults,hidepid=2) - proc fs inspection may not work (uid=1001, groups=[1,2,3])",
 		},
 		{
 			name:        "hidepid=invisible without groups",
-			file:        "./tests/proc-mounts-hidepid-invisible",
+			file:        "./testdata/proc-mounts-hidepid-invisible",
 			groups:      []int{1, 2, 3},
-			expectError: "hidepid=invisible option detected in ./tests/proc-mounts-hidepid-invisible (options=defaults,hidepid=invisible) - proc fs inspection may not work (uid=1001, groups=[1,2,3])",
+			expectError: "hidepid=invisible option detected in ./testdata/proc-mounts-hidepid-invisible (options=defaults,hidepid=invisible) - proc fs inspection may not work (uid=1001, groups=[1,2,3])",
 		},
 		{
 			name:   "hidepid without groups user has root group",
-			file:   "./tests/proc-mounts-hidepid-2",
+			file:   "./testdata/proc-mounts-hidepid-2",
 			groups: []int{0},
 		},
 		{
 			name:   "hidepid=invisible without groups user has root group",
-			file:   "./tests/proc-mounts-hidepid-invisible",
+			file:   "./testdata/proc-mounts-hidepid-invisible",
 			groups: []int{0},
 		},
 		{
 			name:   "hidepid and groups",
-			file:   "./tests/proc-mounts-hidepid-2-groups",
+			file:   "./testdata/proc-mounts-hidepid-2-groups",
 			groups: []int{234, 4242},
 		},
 		{
 			name:   "hidepid=invisible and groups",
-			file:   "./tests/proc-mounts-hidepid-invisible-groups",
+			file:   "./testdata/proc-mounts-hidepid-invisible-groups",
 			groups: []int{234, 4242},
 		},
 		{
 			name: "no hidepid",
-			file: "./tests/proc-mounts-no-hidepid",
+			file: "./testdata/proc-mounts-no-hidepid",
 		},
 	}
 

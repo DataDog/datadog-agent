@@ -45,6 +45,14 @@ func TestConvertCBatteryInfo(t *testing.T) {
 	assert.Equal(t, -12000.0, chargeRate) // -1000 * 12000 / 1000
 
 	assert.Contains(t, info.powerState, "power_state:battery_discharging")
+	assert.NotContains(t, info.powerState, "power_state:battery_critical")
+}
+
+func TestConvertCBatteryInfo_Critical(t *testing.T) {
+	info := convertCBatteryInfo(testCBatteryInfoCritical)
+
+	// A degraded battery health condition surfaces as the critical power state.
+	assert.Contains(t, info.powerState, "power_state:battery_critical")
 }
 
 func TestConvertCBatteryInfo_MissingVoltage(t *testing.T) {

@@ -39,11 +39,11 @@ var (
 		"python": "v4",
 		"ruby":   "v2",
 		"dotnet": "v3",
-		"js":     "v5",
+		"js":     "v6",
 		"php":    "v1",
 	}
 
-	// TODO: Add new entry when a new language is supported
+	// Default bundle library image versions.
 	defaultLibImageVersions = map[language]string{
 		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
 		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
@@ -75,7 +75,7 @@ func TestNewTargetMutator(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -88,7 +88,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -171,6 +171,21 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectNoChange: true,
 		},
+		// CSI mode has no init container, so the guard relies on the instrumentation volume that
+		// every mode adds. Without this, a webhook reinvocation (e.g. on GKE Autopilot) would
+		// re-mutate the pod and append the injector to LD_PRELOAD twice.
+		"re-admission with CSI mode instrumentation volume already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: func() *corev1.Pod {
+				pod := mutatecommon.FakePodWithNamespace("foo-service", "application")
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: libraryinjection.InstrumentationVolumeName})
+				return pod
+			}(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
 		"tracer configs get applied": {
 			configPath: "testdata/filter_simple_configs.yaml",
 			in: mutatecommon.WithLabels(
@@ -226,7 +241,7 @@ func TestMutatePod(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -244,7 +259,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -331,7 +346,7 @@ func TestShouldMutatePod(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -349,7 +364,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -417,7 +432,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -435,7 +450,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -445,6 +460,24 @@ func TestIsNamespaceEligible(t *testing.T) {
 			require.Equal(t, test.expected, actual)
 		})
 	}
+}
+
+func TestIsNamespaceEligibleFailsClosedWhenNamespaceMetadataIsUnavailable(t *testing.T) {
+	const cfg = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "namespace-label-target"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+      - name: "fallback"
+`
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, cfg, wmeta)
+
+	require.False(t, m.IsNamespaceEligible("temporarily-unavailable"))
 }
 
 func TestGetTargetFromAnnotation(t *testing.T) {
@@ -496,13 +529,100 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: nil,
 		},
+		"a pod with a lib annotation and tracer-configs gets env vars": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+				envVars: []corev1.EnvVar{
+					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+					{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"a pod with the inject-all annotation and tracer-configs gets env vars": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version":           "latest",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				envVars: []corev1.EnvVar{
+					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"tracer-configs entries without a DD_ prefix are skipped": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"NOT_DD","value":"true"},{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+				envVars: []corev1.EnvVar{
+					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"malformed tracer-configs json is ignored": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `not json`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -515,7 +635,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -526,7 +646,13 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				require.NotNil(t, actual.target)
+				// Some cases (e.g. inject-all) populate libVersions with the default
+				// libraries, which we don't assert on here; only check when set.
+				if test.expected.libVersions != nil {
+					require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				}
+				require.Equal(t, test.expected.envVars, actual.target.envVars)
 			}
 		})
 	}
@@ -690,7 +816,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -746,7 +872,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -760,7 +886,7 @@ func TestGetTargetLibraries(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -778,7 +904,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageResolver)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -798,8 +924,10 @@ func TestGetTargetLibraries(t *testing.T) {
 func TestLanguageDetection(t *testing.T) {
 	tests := map[string]struct {
 		config                     map[string]any
+		configYAML                 string
 		pod                        *corev1.Pod
 		deployments                []mutatecommon.MockDeployment
+		expectNoMutation           bool
 		expectedInitContainerNames []string
 	}{
 		"default target uses language detection when enabled": {
@@ -851,6 +979,41 @@ func TestLanguageDetection(t *testing.T) {
 				"datadog-lib-python-init",
 			},
 		},
+		"fallback target is not used when namespace metadata is unavailable": {
+			configYAML: `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "namespace-label-target"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          java: "default"
+      - name: "fallback"
+language_detection:
+  enabled: true
+  reporting:
+    enabled: true
+admission_controller:
+  auto_instrumentation:
+    inject_auto_detected_libraries: true
+`,
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectNoMutation: true,
+		},
 		"default target does not use language detection when disabled": {
 			config: map[string]interface{}{
 				"apm_config.instrumentation.enabled":                                       true,
@@ -886,8 +1049,11 @@ func TestLanguageDetection(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.New(t)
+			if test.configYAML != "" {
+				mockConfig = configmock.NewFromYAML(t, test.configYAML)
+			}
 			for k, v := range test.config {
-				mockConfig.SetWithoutSource(k, v)
+				mockConfig.SetInTest(k, v)
 			}
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
@@ -896,12 +1062,16 @@ func TestLanguageDetection(t *testing.T) {
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.
 			mutated, err := m.MutatePod(test.pod, test.pod.Namespace, nil)
 			require.NoError(t, err)
+			if test.expectNoMutation {
+				require.False(t, mutated)
+				return
+			}
 			require.True(t, mutated)
 
 			// Ensure the init containers match.

@@ -21,7 +21,27 @@ var (
 	procCertGetCRLContextProperty         = crypt32.NewProc("CertGetCRLContextProperty")
 	procCertGetCertificateContextProperty = crypt32.NewProc("CertGetCertificateContextProperty")
 	procCertNameToStr                     = crypt32.NewProc("CertNameToStrW")
+	procCryptFindOIDInfo                  = crypt32.NewProc("CryptFindOIDInfo")
 )
+
+const (
+	// CryptOIDInfoOIDKey treats pvKey as a null-terminated ASCII OID string.
+	CryptOIDInfoOIDKey = 1
+
+	// CryptTemplateOIDGroupID scopes the lookup to certificate-template OIDs
+	// (CRYPT_TEMPLATE_OID_GROUP_ID).
+	CryptTemplateOIDGroupID = 9
+)
+
+// cryptOIDInfo mirrors the prefix of CRYPT_OID_INFO through the pwszName
+// field.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-crypt_oid_info
+type cryptOIDInfo struct {
+	cbSize   uint32 // nolint:unused
+	pszOID   *byte  // nolint:unused
+	pwszName *uint16
+}
 
 // CRLContext contains both the encoded and decoded representations of a certificate revocation list (CRL).
 //
@@ -148,4 +168,28 @@ func CertNameToStrW(dwCertEncodingType uint32, pName *windows.CertNameBlob, dwSt
 	}
 
 	return windows.UTF16ToString(psz), 0, nil
+}
+
+// CryptFindOIDInfo looks up the display name registered for an OID in the
+// local CryptoAPI OID database.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-cryptfindoidinfo
+func CryptFindOIDInfo(keyType uint32, oid string, groupID uint32) (string, error) {
+	oidPtr, err := windows.BytePtrFromString(oid)
+	if err != nil {
+		return "", err
+	}
+	r0, _, _ := procCryptFindOIDInfo.Call(
+		uintptr(keyType),
+		uintptr(unsafe.Pointer(oidPtr)),
+		uintptr(groupID),
+	)
+	if r0 == 0 {
+		return "", nil
+	}
+	info := (*cryptOIDInfo)(unsafe.Pointer(r0)) //nolint:govet
+	if info == nil || info.pwszName == nil {
+		return "", nil
+	}
+	return windows.UTF16PtrToString(info.pwszName), nil
 }

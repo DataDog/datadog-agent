@@ -14,22 +14,25 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/content"
-	"github.com/containerd/containerd/images/archive"
-	"github.com/containerd/containerd/mount"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/core/images/archive"
+	"github.com/containerd/containerd/v2/core/mount"
+	"github.com/containerd/containerd/v2/core/snapshots"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	refdocker "github.com/distribution/reference"
-	"github.com/docker/docker/api/types/container"
-	dimage "github.com/docker/docker/api/types/image"
-	dclient "github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
+	dimage "github.com/moby/moby/api/types/image"
+	dclient "github.com/moby/moby/client"
 	"github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/identity"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/samber/lo"
 
@@ -38,6 +41,12 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// errLayerChainMismatch fires when the snapshotter's parent chain for an
+// image's top chainID does not match the chain we computed from
+// rootfs.diff_ids. We refuse to scan rather than silently pair the wrong
+// path with each DiffID.
+var errLayerChainMismatch = errors.New("snapshotter chain does not match image config")
 
 // ContainerdCollector defines the conttainerd collector name
 const ContainerdCollector = "containerd"
@@ -64,7 +73,7 @@ func (n familiarNamed) String() string {
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
-	return func(ctx context.Context, ref []string, _ ...dclient.ImageSaveOption) (io.ReadCloser, error) {
+	return func(ctx context.Context, ref []string, _ ...dclient.ImageSaveOption) (dclient.ImageSaveResult, error) {
 		if len(ref) < 1 {
 			return nil, errors.New("no image reference")
 		}
@@ -156,9 +165,9 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		})
 	}
 
-	portSet := make(nat.PortSet)
+	portSet := make(map[string]struct{})
 	for k := range imgConfig.Config.ExposedPorts {
-		portSet[nat.Port(k)] = struct{}{}
+		portSet[k] = struct{}{}
 	}
 	created := ""
 	if lastHistory.Created != nil {
@@ -172,15 +181,17 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		Comment:     lastHistory.Comment,
 		Created:     created,
 		Author:      lastHistory.Author,
-		ContainerConfig: &container.Config{
-			User:         imgConfig.Config.User,
-			ExposedPorts: portSet,
-			Env:          imgConfig.Config.Env,
-			Cmd:          imgConfig.Config.Cmd,
-			Volumes:      imgConfig.Config.Volumes,
-			WorkingDir:   imgConfig.Config.WorkingDir,
-			Entrypoint:   imgConfig.Config.Entrypoint,
-			Labels:       imgConfig.Config.Labels,
+		Config: &dockerspec.DockerOCIImageConfig{
+			ImageConfig: ocispec.ImageConfig{
+				User:         imgConfig.Config.User,
+				ExposedPorts: portSet,
+				Env:          imgConfig.Config.Env,
+				Cmd:          imgConfig.Config.Cmd,
+				Volumes:      imgConfig.Config.Volumes,
+				WorkingDir:   imgConfig.Config.WorkingDir,
+				Entrypoint:   imgConfig.Config.Entrypoint,
+				Labels:       imgConfig.Config.Labels,
+			},
 		},
 		Architecture: imgConfig.Architecture,
 		Os:           imgConfig.OS,
@@ -236,7 +247,12 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	}
 	imageID := imgMeta.ID
 
-	mounts, cleanLease, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
+	// img.RootFS, images.Manifest and SnapshotService all read from the
+	// content store and snapshotter, which containerd indexes per
+	// namespace. The outer ctx may not yet carry one.
+	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
+
+	mounts, snapshotter, cleanLease, err := client.MountsWithSnapshotter(ctx, expiration, imgMeta.Namespace, img)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
@@ -246,26 +262,57 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		}
 	}()
 
-	layers := extractLayersFromOverlayFSMounts(mounts)
-	if len(layers) == 0 {
-		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
-	}
-
-	fakeContainer, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
+	diffIDs, err := img.RootFS(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read diff_ids for image %s: %w", imgMeta.ID, err)
+	}
+	manifest, err := images.Manifest(ctx, img.ContentStore(), img.Target(), img.Platform())
+	if err != nil {
+		return nil, fmt.Errorf("unable to read manifest for image %s: %w", imgMeta.ID, err)
+	}
+	layers, err := buildContainerdLayerPaths(ctx, client.RawClient().SnapshotService(snapshotter), img.Name(), diffIDs, manifest, mounts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to pair layer paths for image %s: %w", imgMeta.ID, err)
 	}
 
-	report, err := c.scanOverlayFS(ctx, layers, &fakeContainerdContainer{
+	report, err := c.scanOverlayFS(ctx, lo.Map(layers, func(l ftypes.LayerPath, _ int) string { return l.Path }), &fakeContainerdContainer{
 		image:         fanalImage,
-		fakeContainer: fakeContainer,
+		fakeContainer: newFakeContainer(layers, imgMeta),
 	}, imgMeta, scanOptions)
 
 	return report, err
 }
 
+// verifyLayersInContentStore returns an error when any layer of img is missing
+// from the content store. Exporting the image to a tarball needs every layer
+// present. A remote snapshotter such as nydus keeps them elsewhere, so this is
+// how we tell that an export cannot succeed without attempting it first.
+func verifyLayersInContentStore(ctx context.Context, img containerd.Image) error {
+	manifest, err := images.Manifest(ctx, img.ContentStore(), img.Target(), img.Platform())
+	if err != nil {
+		return fmt.Errorf("read manifest: %w", err)
+	}
+	store := img.ContentStore()
+	for _, layer := range manifest.Layers {
+		if _, err := store.Info(ctx, layer.Digest); err != nil {
+			return fmt.Errorf("layer %s not in content store: %w", layer.Digest, err)
+		}
+	}
+	return nil
+}
+
 // ScanContainerdImage scans containerd image by exporting it and scanning the tarball
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	// Exporting the image to a tarball reads every layer blob from the content
+	// store. Images unpacked by a remote snapshotter (nydus, stargz, soci, ...)
+	// keep their layers outside it, so the export fails on a missing blob. Detect
+	// that up front and refuse as a terminal error rather than stream the whole
+	// image only to fail, which the scanner would otherwise retry forever.
+	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
+	if err := verifyLayersInContentStore(ctx, img); err != nil {
+		return nil, fmt.Errorf("%w: image %s: %v", sbom.ErrScanNotSupported, imgMeta.ID, err)
+	}
+
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
 		defer cleanup()
@@ -318,15 +365,107 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 
 func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {
 	var layers []string
-	for _, mount := range mounts {
-		for _, opt := range mount.Options {
+	for _, mnt := range mounts {
+		var fromOverlay bool
+		for _, opt := range mnt.Options {
 			for _, prefix := range []string{"upperdir=", "lowerdir="} {
 				trimmedOpt := strings.TrimPrefix(opt, prefix)
 				if trimmedOpt != opt {
 					layers = append(layers, strings.Split(trimmedOpt, ":")...)
+					fromOverlay = true
 				}
 			}
 		}
+		// A single-layer image is exposed by containerd as a single bind mount
+		// (no lowerdir/upperdir overlay options); its only layer is the source.
+		if !fromOverlay && mnt.Type == "bind" && mnt.Source != "" {
+			layers = append(layers, mnt.Source)
+		}
 	}
 	return layers
+}
+
+// computeChainIDs returns the chainID at each level of diffIDs, in
+// image-config (bottom-up) order. It copies first because
+// identity.ChainIDs mutates its argument in place.
+func computeChainIDs(diffIDs []digest.Digest) []digest.Digest {
+	if len(diffIDs) == 0 {
+		return nil
+	}
+	out := slices.Clone(diffIDs)
+	identity.ChainIDs(out)
+	return out
+}
+
+// snapshotterStat is the slice of snapshots.Snapshotter we use, kept
+// small so tests can stub it without the whole snapshotter surface.
+type snapshotterStat interface {
+	Stat(ctx context.Context, key string) (snapshots.Info, error)
+}
+
+// verifyChainAgainstSnapshotter confirms the snapshotter's stored parent
+// chain matches chainIDs, catching a snapshotter / image-config
+// disagreement before we pair LayerPaths off it.
+func verifyChainAgainstSnapshotter(ctx context.Context, s snapshotterStat, chainIDs []digest.Digest) error {
+	for i := len(chainIDs) - 1; i >= 0; i-- {
+		info, err := s.Stat(ctx, chainIDs[i].String())
+		if err != nil {
+			return fmt.Errorf("snapshotter stat for %s: %w", chainIDs[i], err)
+		}
+		var wantParent string
+		if i > 0 {
+			wantParent = chainIDs[i-1].String()
+		}
+		if info.Parent != wantParent {
+			return fmt.Errorf("%w: chainID %s has Parent=%q, expected %q",
+				errLayerChainMismatch, chainIDs[i], info.Parent, wantParent)
+		}
+	}
+	return nil
+}
+
+// buildContainerdLayerPaths returns one LayerPath per layer in
+// image-config (bottom-up) order. It takes resolved OCI inputs rather
+// than a containerd.Image so it stays testable. The manifest can
+// legally have a different length than diff_ids; when it does, Digest
+// is left empty rather than risk pairing a wrong one.
+func buildContainerdLayerPaths(
+	ctx context.Context,
+	s snapshotterStat,
+	imgName string,
+	diffIDs []digest.Digest,
+	manifest ocispec.Manifest,
+	mounts []mount.Mount,
+) ([]ftypes.LayerPath, error) {
+	if len(diffIDs) == 0 {
+		return nil, fmt.Errorf("image %s has no diff_ids", imgName)
+	}
+	if err := verifyChainAgainstSnapshotter(ctx, s, computeChainIDs(diffIDs)); err != nil {
+		return nil, err
+	}
+
+	topDown := extractLayersFromOverlayFSMounts(mounts)
+	if len(topDown) != len(diffIDs) {
+		return nil, fmt.Errorf("%w: %d paths vs %d diff_ids", errLayerCountMismatch, len(topDown), len(diffIDs))
+	}
+
+	digestsAligned := len(manifest.Layers) == len(diffIDs)
+	if !digestsAligned {
+		log.Warnf("image %s: manifest has %d layers, diff_ids has %d; emitting SBOM without LayerDigest",
+			imgName, len(manifest.Layers), len(diffIDs))
+	}
+
+	out := make([]ftypes.LayerPath, len(diffIDs))
+	for i := range diffIDs {
+		lp := ftypes.LayerPath{
+			DiffID: diffIDs[i].String(),
+			// overlay lowerdir is top-down; flip to image-config bottom-up.
+			Path: topDown[len(topDown)-1-i],
+		}
+		if digestsAligned {
+			lp.Digest = manifest.Layers[i].Digest.String()
+		}
+		out[i] = lp
+	}
+	return out, nil
 }

@@ -10,13 +10,10 @@ package nvidia
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -122,7 +119,7 @@ func TestEbpfCollectorCollect(t *testing.T) {
 }
 
 func testCollectWithInvalidCache(t *testing.T) {
-	dev := createMockDevice(t, testutil.DefaultGpuUUID)
+	dev := setupMockDevice(t)
 	cache := NewSystemProbeCache()
 
 	collector, err := newEbpfCollector(dev, cache)
@@ -138,7 +135,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe}})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -202,7 +199,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -258,7 +255,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 5, Cmdline: exe, Command: exe, Exe: exe}})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -325,7 +322,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	device1UUID := "device-1-uuid"
 	device2UUID := "device-2-uuid"
 
-	device := createMockDevice(t, device1UUID)
+	device := setupMockDevice(t, testutil.WithDeviceUUIDs([]string{device1UUID, device2UUID}))
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -383,7 +380,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -467,7 +464,7 @@ func testCollectEmitsSmActiveMetrics(t *testing.T) {
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe}})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -511,7 +508,7 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := &SystemProbeCache{
 		stats: &model.GPUStats{
 			ProcessMetrics: []model.ProcessStatsTuple{
@@ -593,7 +590,7 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 	})
 	kernel.WithFakeProcFS(t, procRoot)
 
-	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	device := setupMockDevice(t)
 	cache := &SystemProbeCache{
 		stats: &model.GPUStats{},
 	}
@@ -622,32 +619,6 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 
 // Helper functions
 
-func createMockDevice(t *testing.T, deviceUUID string) ddnvml.Device {
-	nvmlMock := &nvmlmock.Interface{
-		DeviceGetCountFunc: func() (int, nvml.Return) {
-			return 1, nvml.SUCCESS
-		},
-		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-			mockDevice := testutil.GetDeviceMock(index)
-			// Override UUID if different from default
-			if deviceUUID != testutil.DefaultGpuUUID {
-				mockDevice.GetUUIDFunc = func() (string, nvml.Return) {
-					return deviceUUID, nvml.SUCCESS
-				}
-			}
-			return mockDevice, nvml.SUCCESS
-		},
-	}
-	ddnvml.WithMockNVML(t, nvmlMock)
-
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
-	require.Len(t, devices, 1)
-
-	return devices[0]
-}
-
 func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProbeCache {
 	cache := NewSystemProbeCache()
 	cache.stats = &model.GPUStats{
@@ -656,17 +627,17 @@ func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProb
 	return cache
 }
 
-func findMetric(metrics []Metric, name string) *Metric {
+func findMetric(metrics []*Metric, name string) *Metric {
 	for _, metric := range metrics {
 		if metric.Name == name {
-			return &metric
+			return metric
 		}
 	}
 	return nil
 }
 
-func findAllMetricsWithName(metrics []Metric, name string) []Metric {
-	var result []Metric
+func findAllMetricsWithName(metrics []*Metric, name string) []*Metric {
+	var result []*Metric
 	for _, metric := range metrics {
 		if metric.Name == name {
 			result = append(result, metric)

@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add a Prometheus HTTP Service Discovery (HTTP SD) provider for the Cluster
+    Agent. The provider polls Prometheus-compatible HTTP SD endpoints and 
+    generates check configurations for each discovered target. Configure
+    endpoints under ``prometheus_http_sd.configs``, each providing its own 
+    ``url`` and ``check_template``.

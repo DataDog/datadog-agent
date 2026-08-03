@@ -1,0 +1,17 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed the SBOM runtime usage enrichment ("package in use") not being reported
+    for some binaries on usr-merged Linux distributions (for example ``mount`` and
+    ``su`` on Debian/Ubuntu). The package database records these under their
+    pre-merge path such as ``/bin/mount`` while the kernel resolves the executed
+    path to ``/usr/bin/mount``. The resolver now normalizes both the ``/bin`` and
+    ``/usr/bin`` layouts, so the affected packages' ``HasSetSuidBit`` and
+    ``LastSeenRunning`` properties are populated correctly.

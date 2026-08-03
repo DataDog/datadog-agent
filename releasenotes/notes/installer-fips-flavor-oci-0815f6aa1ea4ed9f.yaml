@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The fleet installer's ``agent-package`` OCI index now contains a
+    FIPS-flavored sibling manifest for each platform, distinguished by the
+    OCI ``Platform.Variant`` field. When ``DD_FIPS_MODE=true`` is set, the
+    installer downloads the FIPS manifest; otherwise it downloads the base
+    manifest. The package URL is unchanged in both cases.

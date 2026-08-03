@@ -1719,3 +1719,93 @@ func cloneAnyValue(src *idx.AnyValue) *idx.AnyValue {
 		return nil
 	}
 }
+
+func TestMarshalAgentPayload_WithContainerDebug(t *testing.T) {
+	ap := &AgentPayload{
+		HostName:     "test-host",
+		AgentVersion: "7.50.0",
+		IdxTracerPayloads: []*idx.TracerPayload{
+			{
+				Strings:        []string{"", "container-1", "resolution timeout", "timeout"},
+				ContainerIDRef: 1,
+				ContainerDebug: &idx.ContainerDebug{
+					ErrorRef:                2,
+					LatencyMs:               150,
+					WasBuffered:             true,
+					BufferMs:                200,
+					BufferEvictionReasonRef: 3,
+				},
+			},
+		},
+	}
+
+	data, err := MarshalAgentPayload(ap)
+	require.NoError(t, err)
+
+	decoded := &AgentPayload{}
+	err = proto.Unmarshal(data, decoded)
+	require.NoError(t, err)
+
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	tp := decoded.IdxTracerPayloads[0]
+	require.NotNil(t, tp.ContainerDebug)
+	assert.Equal(t, "resolution timeout", tp.Strings[tp.ContainerDebug.ErrorRef])
+	assert.Equal(t, int64(150), tp.ContainerDebug.LatencyMs)
+	assert.True(t, tp.ContainerDebug.WasBuffered)
+	assert.Equal(t, int64(200), tp.ContainerDebug.BufferMs)
+	assert.Equal(t, "timeout", tp.Strings[tp.ContainerDebug.BufferEvictionReasonRef])
+}
+
+func TestMarshalAgentPayload_WithContainerDebugNil(t *testing.T) {
+	ap := &AgentPayload{
+		HostName: "test-host",
+		IdxTracerPayloads: []*idx.TracerPayload{
+			{
+				Strings:        []string{"", "container-1"},
+				ContainerIDRef: 1,
+			},
+		},
+	}
+
+	data, err := MarshalAgentPayload(ap)
+	require.NoError(t, err)
+
+	decoded := &AgentPayload{}
+	err = proto.Unmarshal(data, decoded)
+	require.NoError(t, err)
+
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	assert.Nil(t, decoded.IdxTracerPayloads[0].ContainerDebug)
+}
+
+func TestMarshalAgentPayload_WithContainerDebugPartialFields(t *testing.T) {
+	ap := &AgentPayload{
+		HostName: "test-host",
+		IdxTracerPayloads: []*idx.TracerPayload{
+			{
+				Strings:        []string{"", "container-1"},
+				ContainerIDRef: 1,
+				ContainerDebug: &idx.ContainerDebug{
+					WasBuffered: true,
+					BufferMs:    50,
+				},
+			},
+		},
+	}
+
+	data, err := MarshalAgentPayload(ap)
+	require.NoError(t, err)
+
+	decoded := &AgentPayload{}
+	err = proto.Unmarshal(data, decoded)
+	require.NoError(t, err)
+
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	cd := decoded.IdxTracerPayloads[0].ContainerDebug
+	require.NotNil(t, cd)
+	assert.Equal(t, uint32(0), cd.ErrorRef)
+	assert.Equal(t, int64(0), cd.LatencyMs)
+	assert.True(t, cd.WasBuffered)
+	assert.Equal(t, int64(50), cd.BufferMs)
+	assert.Equal(t, uint32(0), cd.BufferEvictionReasonRef)
+}

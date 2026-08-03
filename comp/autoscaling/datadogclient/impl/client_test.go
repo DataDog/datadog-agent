@@ -37,15 +37,8 @@ func TestNewFallbackClient(t *testing.T) {
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
-	cfg.SetWithoutSource(metricsRedundantEndpointConfig,
-		[]map[string]interface{}{
-			{
-				"site":    "api.datadoghq.eu",
-				"url":     "https://api.datadoghq.eu",
-				"api_key": "12345",
-				"app_key": "67890",
-			},
-		})
+	cfg.SetInTest(metricsRedundantEndpointConfig, []map[string]interface{}{{"site": "api.datadoghq.eu", "url": "https://api.datadoghq.eu", "api_key": "12345", "app_key": "67890"}})
+
 	assert.True(t, cfg.IsConfigured(metricsRedundantEndpointConfig))
 	datadogClient, err := createDatadogClient(cfg, logger)
 	assert.NoError(t, err)
@@ -70,7 +63,7 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("external_metrics_provider.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
-	cfg.SetWithoutSource(metricsEndpointConfig, ts.URL)
+	cfg.SetInTest(metricsEndpointConfig, ts.URL)
 	datadogClientProvides, err := NewComponent(Requires{Config: cfg, Log: logger})
 	// test component creation
 	datadogClientComp := datadogClientProvides.Comp

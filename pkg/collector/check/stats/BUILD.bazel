@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "stats",
+    srcs = [
+        "stats.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/stats",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//comp/haagent/def",
+        "//pkg/collector/check/id",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/log",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
+    ],
+)
+
+dd_agent_go_test(
+    name = "stats_test",
+    srcs = [
+        "stats_test.go",
+        "util_test.go",
+    ],
+    embed = [":stats"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//comp/haagent/mock",
+        "//pkg/collector/check/id",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

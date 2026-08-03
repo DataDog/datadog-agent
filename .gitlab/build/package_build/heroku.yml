@@ -20,7 +20,6 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     KUBERNETES_CPU_REQUEST: 16
-    DD_PKG_ARCH: "x86_64"
     PACKAGE_ARCH: "amd64"
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"

@@ -6,6 +6,7 @@
   {{- if .Enabled }}
     URN: {{ .URN }}<br>
     Self Enroll: {{ .SelfEnroll }}<br>
+    Default Actions Enabled: {{ .DefaultActionsEnabled }}<br>
     Actions Allowlist: {{- if .ActionsAllowlist }} {{ .ActionsAllowlist }}{{else}} (none){{end}}<br>
   {{- end }}
   </span>

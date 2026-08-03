@@ -10,7 +10,7 @@ package compliance
 import (
 	"context"
 
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 )
 
 func newDockerClient(_ context.Context) (docker.APIClient, error) {

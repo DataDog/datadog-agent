@@ -1,3 +1,4 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -171,7 +172,7 @@ var Syscalls = map[SyscallKey]string{
 	{"amd64", 153}: "vhangup",
 	{"amd64", 154}: "modify_ldt",
 	{"amd64", 155}: "pivot_root",
-	{"amd64", 156}: "sysctl",
+	{"amd64", 156}: "_sysctl",
 	{"amd64", 157}: "prctl",
 	{"amd64", 158}: "arch_prctl",
 	{"amd64", 159}: "adjtimex",
@@ -350,6 +351,7 @@ var Syscalls = map[SyscallKey]string{
 	{"amd64", 332}: "statx",
 	{"amd64", 333}: "io_pgetevents",
 	{"amd64", 334}: "rseq",
+	{"amd64", 335}: "uretprobe",
 	{"amd64", 424}: "pidfd_send_signal",
 	{"amd64", 425}: "io_uring_setup",
 	{"amd64", 426}: "io_uring_enter",
@@ -389,6 +391,10 @@ var Syscalls = map[SyscallKey]string{
 	{"amd64", 460}: "lsm_set_self_attr",
 	{"amd64", 461}: "lsm_list_modules",
 	{"amd64", 462}: "mseal",
+	{"amd64", 463}: "setxattrat",
+	{"amd64", 464}: "getxattrat",
+	{"amd64", 465}: "listxattrat",
+	{"amd64", 466}: "removexattrat",
 
 	// arm64 syscalls
 	{"arm64", 0}:   "io_setup",
@@ -730,4 +736,9 @@ var Syscalls = map[SyscallKey]string{
 	{"arm64", 460}: "lsm_set_self_attr",
 	{"arm64", 461}: "lsm_list_modules",
 	{"arm64", 462}: "mseal",
+	{"arm64", 463}: "setxattrat",
+	{"arm64", 464}: "getxattrat",
+	{"arm64", 465}: "listxattrat",
+	{"arm64", 466}: "removexattrat",
+	{"arm64", 467}: "syscalls",
 }

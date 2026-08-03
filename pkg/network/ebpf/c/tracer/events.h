@@ -36,23 +36,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline bool is_batching_enabled() {
-    __u64 batching_enabled = 0;
-    LOAD_CONSTANT("batching_enabled", batching_enabled);
-    return batching_enabled != 0;
-}
-
-static __always_inline __u16 get_batch_flush_size() {
-    __u64 size = CONN_CLOSED_BATCH_SIZE;
-    LOAD_CONSTANT("conn_closed_batch_size", size);
-    return (__u16)size;
-}
-
 __maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
-    if (is_batching_enabled()) {
-        return 0;
-    }
-
     __u64 ringbuffer_wakeup_size = 0;
     LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
     if (ringbuffer_wakeup_size == 0) {
@@ -165,95 +149,10 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
     // the conn_stats_ts_t object up to now. we re-use this field
     // for the duration since we would overrun stack size limits
     // if we added another field
-    __u64 start_ns = convert_ms_to_ns(conn.conn_stats.duration_ms);
-    __u64 delta_ns = bpf_ktime_get_ns() - start_ns;
-    conn.conn_stats.duration_ms = convert_ns_to_ms(delta_ns);
+    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
 
-    if (is_batching_enabled()) {
-        // Batch TCP closed connections before generating a perf event
-        batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-        if (batch_ptr == NULL) {
-            return -1;
-        }
-
-        __u16 flush_size = get_batch_flush_size();
-        switch (batch_ptr->len) {
-        case 0:
-            batch_ptr->c0 = conn;
-            batch_ptr->len++;
-            return 0;
-        case 1:
-            batch_ptr->c1 = conn;
-            batch_ptr->len++;
-            return 0;
-        case 2:
-            batch_ptr->c2 = conn;
-            batch_ptr->len++;
-            // flush_size is 3 on the perf buffer path (older kernels)
-            if (flush_size == 3) {
-                return 0; // defer flush to kretprobe
-            }
-            return 0;
-        case 3:
-            if (flush_size == 3) {
-                // Perf path: batch is full (3 conns) but kretprobe hasn't
-                // flushed yet due to interleaved tcp_close calls (tcp_close
-                // can sleep on lock_sock). Don't write c3 — the perf copy
-                // only sends 3 conns. Fall through to unbatched path.
-                break;
-            }
-            batch_ptr->c3 = conn;
-            batch_ptr->len++;
-            // flush_size is 4 on the ringbuf path (modern kernels)
-            return 0;
-        }
-    }
-
-    // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // We send the connection outside of a batch anyway. This is likely not as
-    // frequent of a case to cause performance issues and avoid cases where
-    // we drop whole connections, which impacts things USM connection matching.
     submit_closed_conn_event(ctx, cpu, &conn, sizeof(conn_t));
-    if (is_batching_enabled()) {
-        if (is_tcp) {
-            increment_telemetry_count(unbatched_tcp_close);
-        }
-        if (is_udp) {
-            increment_telemetry_count(unbatched_udp_close);
-        }
-    }
     return 0;
-}
-
-static __always_inline void flush_conn_close_if_full(void *ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
-    batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    __u16 flush_size = get_batch_flush_size();
-    if (!batch_ptr || batch_ptr->len < flush_size) {
-        return;
-    }
-
-    __u64 ringbuffers_enabled = 0;
-    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
-
-    if (ringbuffers_enabled > 0) {
-        // Ring buffer: pass map pointer directly — no stack copy needed.
-        // bpf_ringbuf_output copies the data internally.
-        bpf_ringbuf_output(&conn_close_event, batch_ptr, sizeof(batch_t),
-                           get_ringbuf_flags(sizeof(batch_t)));
-    } else {
-        // Perf buffer: stack copy required for older kernels that can't write
-        // a map entry directly to the perf buffer. We copy only the metadata
-        // prefix + 3 connections (PERF_BATCH_COPY_SIZE ≈ 460 bytes) to stay
-        // within the 512-byte BPF stack limit.
-        char batch_copy[PERF_BATCH_COPY_SIZE] = {};
-        bpf_memcpy(batch_copy, batch_ptr, PERF_BATCH_COPY_SIZE);
-        bpf_perf_event_output(ctx, &conn_close_event, cpu,
-                              batch_copy, PERF_BATCH_COPY_SIZE);
-    }
-
-    batch_ptr->len = 0;
-    batch_ptr->id++;
 }
 
 #endif // __TRACER_EVENTS_H

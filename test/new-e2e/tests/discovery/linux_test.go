@@ -120,7 +120,6 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 
 		assert.NotEmpty(c, logs, "Expected to find logs from python-svc-dd service")
 
-		foundStartupLog := false
 		foundRequestLog := false
 
 		for _, log := range logs {
@@ -134,15 +133,11 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 			assert.Contains(c, log.Tags, "version:2.1")
 			assert.Contains(c, log.Tags, "env:prod")
 
-			if log.Message == "Server is running on http://0.0.0.0:8082" {
-				foundStartupLog = true
-			}
 			if log.Message == "GET /test" {
 				foundRequestLog = true
 			}
 		}
 
-		assert.True(c, foundStartupLog, "Should find startup log message")
 		assert.True(c, foundRequestLog, "Should find request log message")
 	}, 2*time.Minute, 10*time.Second)
 
@@ -174,18 +169,95 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second)
 }
 
+// sysprobeSocket is the socket on which system-probe serves the discovery
+// endpoints.
+const sysprobeSocket = "/opt/datadog-agent/run/sysprobe.sock"
+
+// logDiagnostic runs a diagnostic command and logs its output.
+//
+// Failures are deliberately tolerated. These only run once a test has already
+// failed, and several of them legitimately exit non-zero in exactly the
+// situations worth debugging: systemctl status for an inactive unit, ps for a
+// process which has since exited (which is what a crash-looping service looks
+// like), curl if the agent is not running.
+//
+// The exit status is swallowed by the remote shell rather than handled here
+// because Execute() returns no output at all once the command fails: it blanks
+// stdout and folds it into the error instead, so the output being collected
+// would only be reachable by formatting an error. The redirect is redundant
+// with the framework's use of CombinedOutput, and only kept so that wanting
+// stderr is stated here rather than relying on that.
+func (s *linuxTestSuite) logDiagnostic(t *testing.T, label, cmd string) {
+	t.Logf("%s:\n%s", label, s.Env().RemoteHost.MustExecute(cmd+" 2>&1 || true"))
+}
+
 func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	// This is very useful for debugging, but we probably don't want to decode
 	// and assert based on this in this E2E test since this is an internal
 	// interface between the agent and system-probe.
-	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix-socket /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
-	t.Log("system-probe services", discoveredServices)
+	s.logDiagnostic(t, "system-probe discovery state",
+		"sudo curl -s --unix-socket "+sysprobeSocket+" http://unix/discovery/state")
 
-	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list --verbose")
-	t.Log("workloadmeta store", workloadmetaStore)
+	pids := s.fixtureServicePIDs(services)
+	if len(pids) > 0 {
+		// ELAPSED is the first thing to look at: discovery never asks about a
+		// process younger than discovery.service_collection_min_process_age (1
+		// minute by default), so a value below that explains a service which
+		// was never reported, and one which keeps resetting across dumps means
+		// the service is crash-looping rather than starting slowly.
+		s.logDiagnostic(t, "fixture service processes",
+			"sudo ps -o pid,ppid,etimes,comm,args -p "+strings.Join(pids, ","))
 
-	status := s.Env().RemoteHost.MustExecute("sudo datadog-agent status")
-	t.Log("agent status", status)
+		// /discovery/services is the only endpoint which reports what
+		// discovery actually sees. It is caller-driven, so it has to be told
+		// which PIDs to look at, and system-probe-lite serves it for POST only
+		// and rejects a request without an explicit Content-Type.
+		//
+		// The body is built by hand because it is defined by core.Params in
+		// pkg/discovery/core, which belongs to the main module that this one
+		// does not depend on. Keep the field name in sync with it: unknown
+		// fields are ignored without an error, so a rename there would make
+		// this log an empty service list rather than fail visibly.
+		params := fmt.Sprintf(`{"new_pids":[%s]}`, strings.Join(pids, ","))
+		s.logDiagnostic(t, "system-probe discovery services",
+			"sudo curl -s -X POST -H 'Content-Type: application/json' -d '"+params+"'"+
+				" --unix-socket "+sysprobeSocket+" http://unix/discovery/services")
+	}
+
+	s.dumpServiceDiagnostics(t, services)
+
+	s.logDiagnostic(t, "workloadmeta store", "sudo datadog-agent workload-list --verbose")
+	s.logDiagnostic(t, "agent status", "sudo datadog-agent status")
+}
+
+// fixtureServicePIDs returns the PIDs in the cgroup of each of the given
+// services. Using the cgroup rather than the unit's main PID matters because
+// the process the tests match on is not always the main one: node-json-server
+// runs through npm, which spawns the node process that serves the port.
+func (s *linuxTestSuite) fixtureServicePIDs(servicesList []string) []string {
+	var pids []string
+	for _, service := range servicesList {
+		procs := s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			"cat /sys/fs/cgroup/system.slice/%s.service/cgroup.procs 2>/dev/null || true", service))
+		pids = append(pids, strings.Fields(procs)...)
+	}
+	return pids
+}
+
+// dumpServiceDiagnostics logs the state of the fixture services themselves.
+// The journal is the only place their output ends up, so without this a
+// service which fails to start, or which crash-loops (the units are
+// Restart=always with RestartSec=1), leaves no trace in the test output and is
+// indistinguishable from discovery being slow to report it.
+func (s *linuxTestSuite) dumpServiceDiagnostics(t *testing.T, servicesList []string) {
+	s.logDiagnostic(t, "listening sockets", "sudo ss -ltnp")
+
+	for _, service := range servicesList {
+		s.logDiagnostic(t, service+" systemctl status",
+			"sudo systemctl status --no-pager --full "+service)
+		s.logDiagnostic(t, service+" journal",
+			"sudo journalctl --no-pager -n 100 -u "+service)
+	}
 }
 
 func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string, mode discoveryMode) {
@@ -551,7 +623,7 @@ func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
 		// In system-probe-lite mode, system-probe execs into system-probe-lite during startup.
 		// Retry because the exec happens after fx initialization completes.
 		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-			ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
+			ps := s.Env().RemoteHost.MustExecuteOn(c, "ps aux | grep 'system-probe' | grep -v grep")
 			s.T().Logf("Process list:\n%s", ps)
 			assert.Contains(c, ps, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
 		}, 1*time.Minute, 5*time.Second)

@@ -62,6 +62,7 @@ type SNMPListener struct {
 	services       map[string]*SNMPService
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
+	workerFunc     snmpWorkerFunc
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -93,6 +94,8 @@ type snmpJob struct {
 	currentIP net.IP
 }
 
+type snmpWorkerFunc func(l *SNMPListener, jobs <-chan snmpJob)
+
 type deviceCache struct {
 	IP        net.IP `json:"ip"`
 	AuthIndex int    `json:"auth_index"`
@@ -111,6 +114,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 		config:         snmpConfig,
 		deviceDeduper:  devicededuper.NewDeviceDeduper(snmpConfig),
 		sessionFactory: newGosnmpSession,
+		workerFunc:     defaultWorker,
 	}, nil
 }
 
@@ -198,8 +202,7 @@ func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
 	}
 }
 
-// Don't make it a method, to be overridden in tests
-var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+var defaultWorker snmpWorkerFunc = func(l *SNMPListener, jobs <-chan snmpJob) {
 	for {
 		select {
 		case <-l.stop:
@@ -426,7 +429,12 @@ func (l *SNMPListener) checkDevices() {
 
 	jobs := make(chan snmpJob)
 	for w := 0; w < l.config.Workers; w++ {
-		go worker(l, jobs)
+		workerFunc := l.workerFunc
+		if workerFunc == nil {
+			// Fallback to defaultWorker if l.workerFunc isn't set
+			workerFunc = defaultWorker
+		}
+		go workerFunc(l, jobs)
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)

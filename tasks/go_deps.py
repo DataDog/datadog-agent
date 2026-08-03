@@ -23,7 +23,7 @@ METRIC_GO_DEPS_EXTERNAL_NAME = "datadog.agent.go_dependencies.external"
 BINARIES: dict[str, dict] = {
     "agent": {
         "entrypoint": "cmd/agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
     },
     "iot-agent": {
         "build": "agent",
@@ -71,7 +71,7 @@ BINARIES: dict[str, dict] = {
     },
     "trace-agent": {
         "entrypoint": "cmd/trace-agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
     },
     "heroku-trace-agent": {
         "build": "trace-agent",
@@ -176,7 +176,7 @@ def diff(
                                 "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
                             }
                             promise = ctx.run(
-                                f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}",
+                                f"{dep_cmd} -tags \"{','.join(build_tags)}\" > {depsfile}",
                                 env=env,
                                 asynchronous=True,
                             )
@@ -535,7 +535,7 @@ def graph(
 
     cmd = f"goda graph {stdarg} {clusterarg} \"{expr}\""
 
-    env = {"GOOS": os, "GOARCH": arch}
+    env = {"GOOS": os, "GOARCH": arch, "CGO_ENABLED": "1"}
     res = ctx.run(cmd, env=env, hide='out')
     assert res
 

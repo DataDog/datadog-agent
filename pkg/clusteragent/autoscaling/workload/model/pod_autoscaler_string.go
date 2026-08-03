@@ -39,6 +39,11 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 	if p.IsProfileManaged() {
 		_, _ = fmt.Fprintln(&sb, "Profile:", p.ProfileName())
 	}
+	if p.IsBurstable() {
+		_, _ = fmt.Fprintln(&sb, "Burstable: true (CPU limit will be removed from containers)")
+	} else {
+		_, _ = fmt.Fprintln(&sb, "Burstable: false")
+	}
 	_, _ = fmt.Fprintln(&sb)
 
 	if p.Spec() != nil {

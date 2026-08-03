@@ -6,7 +6,10 @@
 package workloadmetaimpl
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -24,7 +27,7 @@ with workloadmeta to dump its state.
 
 // sbomFlareProvider will add the SBOMs of all the images in the flare archive.
 // Note that the generated file uncompressed can be very large
-func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
+func (w *workloadmeta) sbomFlareProvider(_ context.Context, fb flaretypes.FlareBuilder) error {
 	images := w.ListImages()
 	names := make(map[string]int)
 
@@ -60,4 +63,22 @@ var invalidChars = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 func idToFileSafe(id string) string {
 	// replace invalid characters with underscores
 	return invalidChars.ReplaceAllString(id, "_")
+}
+
+func (w *workloadmeta) workloadListFlareProvider(_ context.Context, fb flaretypes.FlareBuilder) error {
+	dump := w.Dump(true)
+	var buf bytes.Buffer
+	dump.Write(&buf)
+	return fb.AddFile("workload-list.log", buf.Bytes())
+}
+
+// fillFlare collects workloadmeta data for the flare archive.
+func (w *workloadmeta) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	// workloadListFlareProvider runs first: it is fast (in-memory dump) and
+	// must not be starved by sbomFlareProvider, which can be slow when many
+	// or large image SBOMs are present and may exhaust the provider timeout.
+	return errors.Join(
+		w.workloadListFlareProvider(ctx, fb),
+		w.sbomFlareProvider(ctx, fb),
+	)
 }

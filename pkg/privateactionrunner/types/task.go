@@ -34,6 +34,11 @@ type Attributes struct {
 	JobId                 string                                          `json:"job_id"`
 	SignedEnvelope        *privateactionspb.RemoteConfigSignatureEnvelope `json:"signed_envelope"`
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
+	TraceId               uint64                                          `json:"trace_id,omitempty"`
+	SpanId                uint64                                          `json:"span_id,omitempty"`
+	// SystemInputs carries backend-resolved policy and other backend-provided
+	// inputs, separate from user-provided action inputs.
+	SystemInputs *privateactionspb.SystemInputs `json:"system_inputs,omitempty"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32

@@ -13,7 +13,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
-	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
+	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 )
 

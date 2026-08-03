@@ -21,6 +21,10 @@ deploy_packages_windows-x64-7:
       --include "datadog-installer-*-1-x86_64.zip"
       --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
+    # Symbol-server layout for agent-release-management to publish
+    - $S3_CP_CMD
+      --recursive
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/symbols $S3_RELEASE_ARTIFACTS_URI/symbols/
     # TODO: When this snippet is removed, change upload destination in agent-release-management https://github.com/DataDog/agent-release-management/blob/27bcd404709e4e7aaea3b1d5f272fab5be999a57/ci/libraries/msi.sh#L862-L869
     - $S3_CP_CMD
       --recursive
@@ -82,6 +86,12 @@ deploy_packages_windows-x64-7-fips:
       --include "datadog-fips-agent-7*.msi"
       --include "datadog-fips-agent-7*.debug.zip"
       $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
+    # Symbol-server layout for agent-release-management to publish. FIPS PDBs
+    # have distinct GUIDs from the base agent, so they merge into the shared
+    # symbols/ prefix without collision.
+    - $S3_CP_CMD
+      --recursive
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/symbols $S3_RELEASE_ARTIFACTS_URI/symbols/
   artifacts:
     paths:
       - $OMNIBUS_PACKAGE_DIR

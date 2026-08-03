@@ -23,6 +23,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -31,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -98,9 +99,11 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp      taggerdef.Component
-	Processor option.Option[taggerdef.Processor]
-	Endpoint  api.AgentEndpointProvider
+	Comp                taggerdef.Component
+	Processor           option.Option[taggerdef.Processor]
+	GlobalTagsRefresher option.Option[func(context.Context)]
+	Endpoint            api.AgentEndpointProvider
+	FlareProvider       flaretypes.Provider
 }
 
 // NewComponent returns a new tagger client
@@ -137,8 +140,10 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp:      taggerInstance,
-		Processor: option.New[taggerdef.Processor](taggerInstance.tagStore),
+		Comp:                taggerInstance,
+		Processor:           option.New[taggerdef.Processor](taggerInstance.tagStore),
+		GlobalTagsRefresher: option.New(taggerInstance.RefreshGlobalTags),
+		FlareProvider:       flaretypes.NewProvider(taggerInstance.fillFlare),
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
 			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)
@@ -152,6 +157,15 @@ func NewComponent(req Requires) (Provides, error) {
 			}
 		}, "/tagger-list", "GET"),
 	}, nil
+}
+
+func (t *localTagger) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	response := t.List()
+	jsonTags, err := json.MarshalIndent(response, "", "\t")
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("tagger-list.json", jsonTags)
 }
 
 func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (*localTagger, error) {
@@ -372,6 +386,13 @@ func (t *localTagger) AgentTags(cardinality types.TagCardinality) ([]string, err
 
 	entityID := types.NewEntityID(types.ContainerID, ctrID)
 	return t.Tag(entityID, cardinality)
+}
+
+// RefreshGlobalTags forces the tagger to recompute global tags
+func (t *localTagger) RefreshGlobalTags(ctx context.Context) {
+	if t.collector != nil {
+		t.collector.RefreshGlobalTags(ctx)
+	}
 }
 
 // GlobalTags queries global tags that should apply to all data coming from the

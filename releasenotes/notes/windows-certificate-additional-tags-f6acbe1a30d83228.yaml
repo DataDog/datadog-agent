@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add six opt-in tag flags to the Windows Certificate Store integration:
+    ``certificate_template_tag``, ``enhanced_key_usage_tag``, ``friendly_name_tag``,
+    ``subject_alternative_names_tag``, ``issuer_tag``, and ``signature_algorithm_tag``.
+    When enabled, each certificate's metrics and service checks are tagged with the
+    corresponding X.509 or Windows certificate property. All flags default to ``false``.

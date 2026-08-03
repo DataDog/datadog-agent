@@ -21,7 +21,7 @@ const (
 	PolicyModeDeny
 
 	// need to be aligned with the kernel size
-	BasenameFilterSize = 256
+	BasenameFilterSize = 32 // including \0
 )
 
 func (m PolicyMode) String() string {

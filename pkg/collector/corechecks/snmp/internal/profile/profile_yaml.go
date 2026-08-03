@@ -7,6 +7,7 @@ package profile
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,6 +80,10 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 		haveLegacyProfile = haveLegacyProfile || isLegacyProfile
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
+			errMsg := err.Error()
+			profileExpVar.Set(profileName, expvar.Func(func() interface{} {
+				return errMsg
+			}))
 			continue
 		}
 		if definition.Name == "" {

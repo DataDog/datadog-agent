@@ -14,8 +14,10 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 )
 
 type ddConverter struct {
@@ -40,6 +42,7 @@ var (
 type Requires struct {
 	Conf     config.Component
 	Hostname hostnameinterface.Component
+	Log      corelog.Component // ensures the agent logger is initialized before this component
 }
 
 // NewFactory returns a new converter factory.
@@ -53,11 +56,12 @@ func newConverter(set confmap.ConverterSettings) confmap.Converter {
 	}
 }
 
-// NewConverterForAgent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
-func NewConverterForAgent(reqs Requires) (converter.Component, error) {
+// NewComponent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+func NewComponent(reqs Requires) (converter.Component, error) {
 	return &ddConverter{
 		coreConfig: reqs.Conf,
 		hostname:   reqs.Hostname,
+		logger:     zap.New(zapAgent.NewZapCore()),
 	}, nil
 }
 

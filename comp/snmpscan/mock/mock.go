@@ -35,6 +35,15 @@ func (m *SnmpScanMock) RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string
 	return args.Error(0)
 }
 
+// RunSnmpWalkAll is a mock function
+func (m *SnmpScanMock) RunSnmpWalkAll(snmpConnection *gosnmp.GoSNMP, firstOid string) ([]gosnmp.SnmpPDU, error) {
+	args := m.Called(snmpConnection, firstOid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]gosnmp.SnmpPDU), args.Error(1)
+}
+
 // ScanDeviceAndSendData is a mock function
 func (m *SnmpScanMock) ScanDeviceAndSendData(ctx context.Context, connParams *snmpparse.SNMPConfig, namespace string, scanParams snmpscan.ScanParams) error {
 	args := m.Called(ctx, connParams, namespace, scanParams)

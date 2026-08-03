@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tests",
+    srcs = ["utils.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/tests",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/ebpf",
+        "//pkg/network/ebpf/probes",
+        "//pkg/network/protocols",
+        "//pkg/network/tracer",
+        "@com_github_stretchr_testify//require",
+    ],
+)

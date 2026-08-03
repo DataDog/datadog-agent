@@ -9,9 +9,9 @@ import (
 	"bytes"
 	"time"
 
+	metrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	metrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // SingleLineHandler takes care of tracking the line length

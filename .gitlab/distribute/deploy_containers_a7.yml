@@ -174,7 +174,12 @@ deploy_containers-a7-fips_internal:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION=$(yq -r '.current_milestone' release.json); fi
+    - |
+      if [[ -z "${PREVIEW_NUMBER}" ]]; then
+        echo "PREVIEW_NUMBER must be set before running deploy_containers-host-profiler-preview" >&2
+        exit 1
+      fi
+    - if [[ "$VERSION" == "" ]]; then VERSION=$(jq -r '.current_milestone' release.json); fi
     - export IMG_SOURCES="${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64"
     - export IMG_DESTINATIONS="ddot-ebpf:${VERSION}-preview-host-profiler-${PREVIEW_NUMBER}"
 
@@ -186,4 +191,5 @@ deploy_containers-host-profiler-preview:
       allow_failure: true
   # Update manually in branches that trigger preview image.
   variables:
+    IMG_REGISTRIES: default
     PREVIEW_NUMBER: ""

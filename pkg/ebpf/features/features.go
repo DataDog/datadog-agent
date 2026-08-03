@@ -9,6 +9,8 @@
 package features
 
 import (
+	"errors"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
@@ -17,15 +19,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 )
 
-// SupportsFentry returns true if the kernel supports fentry/fexit functions and has no known related bugs.
-func SupportsFentry(funcName string) bool {
-	if features.HaveProgramType(ebpf.Tracing) != nil {
-		return false
+// SupportsFexit returns nil if the kernel supports fexit functions and has no known related bugs.
+func SupportsFexit(funcName string) error {
+	return supportFentryFexit(funcName, ebpf.AttachTraceFExit)
+}
+
+// SupportsFentry returns nil if the kernel supports fentry/fexit functions and has no known related bugs.
+func SupportsFentry(funcName string) error {
+	return supportFentryFexit(funcName, ebpf.AttachTraceFEntry)
+}
+
+func supportFentryFexit(funcName string, attachType ebpf.AttachType) error {
+	if err := features.HaveProgramType(ebpf.Tracing); err != nil {
+		return err
 	}
 
 	spec := &ebpf.ProgramSpec{
 		Type:       ebpf.Tracing,
-		AttachType: ebpf.AttachTraceFEntry,
+		AttachType: attachType,
 		AttachTo:   funcName,
 		Instructions: asm.Instructions{
 			asm.LoadImm(asm.R0, 0, asm.DWord),
@@ -36,24 +47,26 @@ func SupportsFentry(funcName string) bool {
 		LogDisabled: true,
 	})
 	if err != nil {
-		return false
+		return err
 	}
 	defer prog.Close()
 
 	// deadlock check must come before attach, since deadlock is upon detach
 	hasPotentialFentryDeadlock, err := kernelbugs.HasTasksRCUExitLockSymbol()
-	if hasPotentialFentryDeadlock || (err != nil) {
+	if err != nil {
 		// in case of error, let's be safe and assume the bug is present
-		return false
+		return err
+	} else if hasPotentialFentryDeadlock {
+		return errors.New("has potential fentry deadlock")
 	}
 
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program: prog,
 	})
 	if err != nil {
-		return false
+		return err
 	}
 	defer l.Close()
 
-	return true
+	return nil
 }

@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "nodetreemodel",
+    srcs = [
+        "assert.go",
+        "assert_testonly.go",
+        "config.go",
+        "debug_string.go",
+        "debug_string_testonly.go",
+        "getter.go",
+        "helpers.go",
+        "node.go",
+        "read_config_file.go",
+        "reflection_node.go",
+        "relative_path.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/nodetreemodel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/basic",
+        "//pkg/config/model",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/log",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@com_github_spf13_cast//:cast",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "nodetreemodel_test",
+    srcs = [
+        "compatibility_test.go",
+        "config_test.go",
+        "getter_test.go",
+        "inner_node_test.go",
+        "node_test.go",
+        "read_config_file_test.go",
+        "reflection_node_test.go",
+        "relative_path_test.go",
+    ],
+    embed = [":nodetreemodel"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/defaultpaths",
+        "@com_github_spf13_cast//:cast",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

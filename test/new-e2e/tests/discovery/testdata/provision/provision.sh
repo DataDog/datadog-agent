@@ -63,7 +63,7 @@ apt-get install -y \
 
 
 # Install Python deps
-pip install ddtrace
+pip install ddtrace==4.7.1
 
 # Install Node
 if [ ! -d "${HOME}/.nvm" ]; then
@@ -74,9 +74,9 @@ export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 source "${NVM_DIR}/nvm.sh"
 # Retry a few times since occasional failures have been seen
-nvm install 20 || nvm install 20 || nvm install 20
+nvm install 20.20.1 || nvm install 20.20.1 || nvm install 20.20.1
 
-npm install json-server || npm install json-server
+npm install json-server@1.0.0-beta.15 || npm install json-server@1.0.0-beta.15
 npm install /home/ubuntu/e2e-test/node/instrumented
 
 # Install Ruby

@@ -10,7 +10,6 @@ exclude = [
     ".github",
     "chocolatey",
     "Dockerfiles",
-    "docs",
     "omnibus",
     "releasenotes",
     "vendor",
@@ -34,6 +33,9 @@ unfixable = [
     "UP033", # Don't fix the lru_cache yet
     "UP017", # Don't fix datetime.UTC yet
 ]
+
+[tool.ruff.lint.isort]
+known-third-party = ["packaging"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

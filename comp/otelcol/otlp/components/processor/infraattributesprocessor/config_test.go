@@ -19,6 +19,36 @@ import (
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
+// TestValidateContainerTagPromotion checks that Config.Validate accepts the
+// empty value (treated as off) plus the three documented modes, and rejects any
+// other value with a self-describing error.
+func TestValidateContainerTagPromotion(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        ContainerTagPromotionMode
+		wantErr     bool
+		errContains string
+	}{
+		{name: "empty (default off)", mode: ""},
+		{name: "off", mode: ContainerTagPromotionOff},
+		{name: "duplicate", mode: ContainerTagPromotionDuplicate},
+		{name: "rename", mode: ContainerTagPromotionRename},
+		{name: "invalid", mode: "foo", wantErr: true, errContains: "invalid trace_container_tag_promotion"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{TraceContainerTagPromotion: tt.mode}
+			err := cfg.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestLoadingConfigStrictLogs tests loading testdata/logs_strict.yaml
 func TestLoadingConfigStrictLogs(t *testing.T) {
 	cm, err := confmaptest.LoadConf(filepath.Join("testdata", "logs_strict.yaml"))
@@ -30,7 +60,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 	}{
 		{
 			id:       component.MustNewIDWithName("filter", "empty"),
-			expected: &Config{},
+			expected: &Config{TraceContainerTagPromotion: ContainerTagPromotionOff},
 		},
 	}
 

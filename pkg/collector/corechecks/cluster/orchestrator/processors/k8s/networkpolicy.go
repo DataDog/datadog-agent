@@ -35,10 +35,10 @@ func NewNetworkPolicyHandlers(tagger tagger.Component) *NetworkPolicyHandlers {
 	return &NetworkPolicyHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *NetworkPolicyHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *NetworkPolicyHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*netv1.NetworkPolicy)
 	m := resourceModel.(*model.NetworkPolicy)
 
@@ -113,10 +113,24 @@ func (h *NetworkPolicyHandlers) ResourceList(ctx processors.ProcessorContext, li
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *NetworkPolicyHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*netv1.NetworkPolicy).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *NetworkPolicyHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*netv1.NetworkPolicy).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

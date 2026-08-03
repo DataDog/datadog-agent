@@ -371,7 +371,7 @@ func FakeConfigWithValues(t *testing.T, values map[string]interface{}) model.Bui
 			setInstrumentationTargets(t, v)
 			continue
 		}
-		mockConfig.SetWithoutSource(k, v)
+		mockConfig.SetInTest(k, v)
 	}
 	return mockConfig
 }

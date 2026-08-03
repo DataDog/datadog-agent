@@ -2,7 +2,7 @@ version: '3.9'
 
 services:
   lighttpd:
-    image: ghcr.io/rtsp/docker-lighttpd:1.4.73
+    image: ${DD_REGISTRY:-ghcr.io}/rtsp/lighttpd:1.4.73
     ports:
       - "9449:9449"
     volumes:

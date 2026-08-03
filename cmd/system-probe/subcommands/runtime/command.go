@@ -149,7 +149,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
@@ -366,7 +366,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{discardersCmd}
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
@@ -457,7 +457,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	})
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
@@ -558,6 +558,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if err != nil {
 		return err
 	}
+	defer res.Body.Close()
 
 	resBytes, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -567,7 +568,6 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if res.StatusCode != 200 {
 		return fmt.Errorf("failed to download policies: %s (error code %d)", string(resBytes), res.StatusCode)
 	}
-	defer res.Body.Close()
 
 	// Unzip the downloaded file containing both default and custom policies
 	reader, err := zip.NewReader(bytes.NewReader(resBytes), int64(len(resBytes)))
@@ -662,7 +662,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	return err
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {

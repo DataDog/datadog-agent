@@ -58,18 +58,18 @@ func TestParsePortsNetstat(t *testing.T) {
 	for _, loopBack := range [...]bool{false, true} {
 		t.Run(fmt.Sprintf("loopback_%v", loopBack), func(t *testing.T) {
 			want := List{
-				{"tcp", 23, "", 0},
-				{"tcp", 24, "", 0},
-				{"udp", 104, "", 0},
-				{"udp", 106, "", 0},
-				{"udp", 146, "", 0},
-				{"tcp", 8185, "", 0}, // but not 8186, 8187, 8188 on localhost, when loopback is false
+				{Proto: "tcp", Port: 23},
+				{Proto: "tcp", Port: 24},
+				{Proto: "udp", Port: 104},
+				{Proto: "udp", Port: 106},
+				{Proto: "udp", Port: 146},
+				{Proto: "tcp", Port: 8185}, // but not 8186, 8187, 8188 on localhost, when loopback is false
 			}
 			if loopBack {
 				want = append(want,
-					Port{"tcp", 8186, "", 0},
-					Port{"tcp", 8187, "", 0},
-					Port{"tcp", 8188, "", 0},
+					Port{Proto: "tcp", Port: 8186},
+					Port{Proto: "tcp", Port: 8187},
+					Port{Proto: "tcp", Port: 8188},
 				)
 			}
 			pl, err := appendParsePortsNetstat(nil, bufio.NewReader(strings.NewReader(netstatOutput)), loopBack)

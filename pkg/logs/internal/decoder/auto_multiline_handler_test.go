@@ -31,7 +31,7 @@ func newCombiningHandler(outputChan chan *message.Message, maxContentSize int, f
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewCombiningAggregator(maxContentSize, false, false, tailerInfo)
 	jsonAgg := preprocessor.NewJSONAggregator(false, maxContentSize)
-	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout, 0)
+	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, jsonAgg, preprocessor.NewNoopStackTraceAggregator(), flushTimeout, 0)
 }
 
 // newDetectingHandler creates an auto multiline handler in detection-only mode.
@@ -42,7 +42,7 @@ func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout t
 	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewDetectingAggregator(tailerInfo, 1000, false, false)
-	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, 0)
+	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, 0)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
@@ -182,7 +182,7 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewCombiningAggregator(1000, false, false, tailerInfo)
-	handler := newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), 10*time.Second, 0)
+	handler := newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), 10*time.Second, 0)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -246,11 +246,11 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MultilineTagged(t *testing.T) {
 	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_detected:true", "First line should be tagged")
 
 	msg2 := <-outputChan
-	assert.Equal(t, []byte(`  at com.example.MyClass.method1(MyClass.java:123)`), msg2.GetContent())
+	assert.Equal(t, []byte(`at com.example.MyClass.method1(MyClass.java:123)`), msg2.GetContent())
 	assert.Empty(t, msg2.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	msg3 := <-outputChan
-	assert.Equal(t, []byte(`  at com.example.MyClass.method2(MyClass.java:456)`), msg3.GetContent())
+	assert.Equal(t, []byte(`at com.example.MyClass.method2(MyClass.java:456)`), msg3.GetContent())
 	assert.Empty(t, msg3.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	// Next single-line log should not be tagged
@@ -274,7 +274,7 @@ func TestAutoMultilineHandler_DetectionOnlyMode_TwoLineGroup(t *testing.T) {
 	assert.Contains(t, msg1.ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	msg2 := <-outputChan
-	assert.Equal(t, []byte(`  continuation line`), msg2.GetContent())
+	assert.Equal(t, []byte(`continuation line`), msg2.GetContent())
 	assert.Empty(t, msg2.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	// Verify no more messages
@@ -307,7 +307,7 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MixedLogs(t *testing.T) {
 	assert.Contains(t, msg2.ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	msg3 := <-outputChan
-	assert.Equal(t, []byte(`  continuation`), msg3.GetContent())
+	assert.Equal(t, []byte(`continuation`), msg3.GetContent())
 	assert.Empty(t, msg3.ParsingExtra.Tags, "Continuation line should not have tags")
 
 	// Second single line - not tagged

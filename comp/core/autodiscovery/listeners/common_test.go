@@ -202,8 +202,8 @@ func TestGetPrometheusIncludeAnnotations(t *testing.T) {
 			assert.Equal(t, val, "")
 
 			confBytes, _ := json.Marshal(tt.config)
-			mockConfig.SetWithoutSource("prometheus_scrape.checks", string(confBytes))
-			defer mockConfig.SetWithoutSource("prometheus_scrape.checks", "")
+			mockConfig.SetInTest("prometheus_scrape.checks", string(confBytes))
+			defer mockConfig.SetInTest("prometheus_scrape.checks", "")
 
 			assert.EqualValues(t, tt.want, getPrometheusIncludeAnnotations())
 		})

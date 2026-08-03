@@ -19,9 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -88,7 +88,8 @@ func TestStatus(t *testing.T) {
 			"install-method": null,
 			"proxy-info": null,
 			"otlp": null,
-			"fips_mode": false
+			"fips_mode": false,
+			"fips_proxy_enabled": false
 			}
 		},
 		"expvars": {
@@ -140,9 +141,9 @@ func TestStatus(t *testing.T) {
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.cmd_port", 8082)
+	cfg.SetInTest("process_config.cmd_port", 8082)
 
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(cfg)
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(cfg)
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("https://%s/agent/status", addressPort)
 
@@ -158,8 +159,8 @@ func TestNotRunning(t *testing.T) {
 // a connection error
 func TestError(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
-	_, ipcError := pkgconfigsetup.GetIPCAddress(cfg)
+	cfg.SetInTest("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	_, ipcError := pkgconfighelper.GetIPCAddress(cfg)
 
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()

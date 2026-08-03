@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "irprinter",
+    srcs = [
+        "doc.go",
+        "json.go",
+        "yaml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/irprinter",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/ir",
+        "@com_github_go_json_experiment_json//:json",
+        "@com_github_go_json_experiment_json//jsontext",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+go_test(
+    name = "irprinter_test",
+    srcs = ["example_test.go"],
+    embed = [":irprinter"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//pkg/dyninst/ir"],
+)

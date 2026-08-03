@@ -14,6 +14,7 @@ import (
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -39,6 +40,7 @@ func runAgentSidekicks(ag component) error {
 	if err != nil {
 		return err
 	}
+	ag.Agent.Receiver.StartOPMFetch(ag.ctx, time.Second)
 
 	defer watchdog.LogOnPanic(ag.Statsd)
 
@@ -153,11 +155,11 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 }
 
 func newConfigFetcher(ipc ipc.Component) (rc.ConfigFetcher, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()), ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
 }

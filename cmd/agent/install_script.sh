@@ -107,7 +107,7 @@ Troubleshooting and basic usage information for the %s are available at:
     fi
 
     case $site in
-        *"ddog-gov.com"| *"ddog-gov.mil")
+        *"ddog-gov.com")
         fallback_msg
         exit 1;
         ;;

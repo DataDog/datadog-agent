@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v5"
+	backoffticker "github.com/cenkalti/backoff/v7"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -264,12 +264,12 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 		if rsa.secInfoReporter == nil {
 			return
 		}
-		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.GetHostname(), evt.Timestamp.AsTime(), evt.GetTags()...)
 	} else {
 		if rsa.reporter == nil {
 			return
 		}
-		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetHostname(), evt.Timestamp.AsTime(), evt.GetTags()...)
 
 		log.Tracef("runtime message report : %s", string(evt.GetData()))
 	}
@@ -315,7 +315,7 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 	}
 }
 
-//nolint:unused,deadcode
+//nolint:unused
 func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 	if pkgconfigsetup.Datadog().GetString("runtime_security_config.event_grpc_server") == "security-agent" {
 		socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")

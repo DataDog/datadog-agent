@@ -28,16 +28,11 @@ const (
 	// tagOrigin specifies the origin of the trace.
 	// DEPRECATED: Origin is now specified as a TraceChunk field.
 	tagOrigin = "_dd.origin"
-	// tagSamplingPriority specifies the sampling priority of the trace.
-	// DEPRECATED: Priority is now specified as a TraceChunk field.
-	tagSamplingPriority = "_sampling_priority_v1"
 )
 
 var (
 	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
-	// normalizerRegistry is the semantic registry used for tag lookups in span normalization.
-	normalizerRegistry = semantics.DefaultRegistry()
 )
 
 // normalizeService handles service normalization for both pb.Span and idx.InternalSpan
@@ -234,16 +229,17 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
+	reg := semantics.DefaultRegistry()
 	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
-	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
+	if pSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
 		s.Meta[string(semantics.ConceptPeerService)] = a.normalizePeerService(ts, pSvc)
 	}
-	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
+	if bSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
 		s.Meta[string(semantics.ConceptDDBaseService)] = a.normalizeBaseService(ts, bSvc)
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptComponent); v != "" {
+		if v := semantics.LookupString(reg, spanAccessor, semantics.ConceptComponent); v != "" {
 			s.Name = v
 		}
 	}
@@ -266,7 +262,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 
 	s.Type = a.validateAndFixType(ts, s.Type)
 
-	if env, ok := s.Meta["env"]; ok {
+	if env := semantics.LookupString(reg, spanAccessor, semantics.ConceptDDEnv); env != "" {
 		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 
@@ -295,11 +291,12 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	svc, _ := a.normalizeService(ts, s.Service(), ts.Lang)
 	s.SetService(svc)
 
+	reg := semantics.DefaultRegistry()
 	spanAccessorV1 := semantics.NewDDSpanAccessorV1(s)
-	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
+	if pSvc := semantics.LookupString(reg, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
 		s.SetStringAttribute(string(semantics.ConceptPeerService), a.normalizePeerService(ts, pSvc))
 	}
-	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
+	if bSvc := semantics.LookupString(reg, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
 		s.SetStringAttribute(string(semantics.ConceptDDBaseService), a.normalizeBaseService(ts, bSvc))
 	}
 
@@ -353,14 +350,15 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 // * populates Priority field if it wasn't populated
 // * promotes the decision maker found in any internal span to a chunk tag
 func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
+	reg := semantics.DefaultRegistry()
 	// check if priority is already populated
 	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
-		if p, ok := root.Metrics[tagSamplingPriority]; ok {
+		if p, ok := semantics.LookupFloat64(reg, semantics.NewMetricsMapAccessor(root.Metrics), semantics.ConceptSamplingPriority); ok {
 			chunk.Priority = int32(p)
 		} else {
 			for _, s := range chunk.Spans {
-				if p, ok := s.Metrics[tagSamplingPriority]; ok {
+				if p, ok := semantics.LookupFloat64(reg, semantics.NewMetricsMapAccessor(s.Metrics), semantics.ConceptSamplingPriority); ok {
 					chunk.Priority = int32(p)
 					break
 				}
@@ -369,7 +367,7 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 	if chunk.Origin == "" && root.Meta != nil {
 		// Older tracers set origin in the root span.
-		chunk.Origin = root.Meta[tagOrigin]
+		chunk.Origin = semantics.LookupString(reg, semantics.NewStringMapAccessor(root.Meta), semantics.ConceptDDOrigin)
 	}
 
 	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
@@ -439,16 +437,22 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
-	spanIDs := make(map[uint64]struct{})
-	firstSpan := t.Spans[0]
+	// Normalize the TraceID to exactly 16 bytes once here so every downstream slice is
+	// bounds-safe. The TraceID is a big-endian 128-bit value, so a short ID is
+	// right-aligned (missing high-order bytes are zero) and an over-long ID keeps its
+	// low-order 16 bytes.
+	if len(t.TraceID) != 16 {
+		var buf [16]byte
+		if len(t.TraceID) > 16 {
+			copy(buf[:], t.TraceID[len(t.TraceID)-16:])
+		} else {
+			copy(buf[16-len(t.TraceID):], t.TraceID)
+		}
+		t.TraceID = buf[:]
+	}
 
+	spanIDs := make(map[uint64]struct{})
 	for _, span := range t.Spans {
-		if span == nil {
-			continue
-		}
-		if firstSpan == nil {
-			firstSpan = span
-		}
 		if err := a.normalizeV1(ts, span); err != nil {
 			return err
 		}

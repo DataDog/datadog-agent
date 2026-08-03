@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-noop",
+    srcs = ["fx_noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/recorder/def",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

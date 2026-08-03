@@ -46,3 +46,25 @@ type RegistrationData struct {
 	APIEndpointURI   string
 	Services         []string
 }
+
+// EventDetails is implemented by each remote agent event detail variant. It mirrors the `details` oneof in the
+// RemoteAgent protobuf definition: consumers type-assert the concrete variant (e.g. *InvalidAPIKey) to handle a
+// specific kind of event, or call EventType for a stable string identifier without casting.
+type EventDetails interface {
+	// EventType returns a stable string identifier for the kind of event.
+	EventType() string
+}
+
+// InvalidAPIKey indicates a remote agent detected an invalid API key when forwarding.
+type InvalidAPIKey struct{}
+
+// EventType implements EventDetails.
+func (*InvalidAPIKey) EventType() string { return "invalid_api_key" }
+
+// RemoteAgentEvent is a single discrete event reported by a remote agent.
+type RemoteAgentEvent struct {
+	// Message is a simple human-friendly description of the event.
+	Message string
+	// Details carries the type-specific details of the event, or nil if the event carried no recognized details.
+	Details EventDetails
+}

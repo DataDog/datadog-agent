@@ -1,32 +1,39 @@
-import os
+import getpass
 from pathlib import Path
 
+from invoke.context import Context
+
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.tool import ask, warn
+from tasks.e2e_framework.setup.ssh_keys import add_key_to_ssh_agent, default_key_paths, generate_keypair_with_passphrase
+from tasks.e2e_framework.tool import info
 
 
-def setup_azure_config(config: Config):
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
+def setup_azure_config(ctx: Context, config: Config):
     if config.configParams.azure is None:
         config.configParams.azure = Config.Params.Azure(publicKeyPath=None)
 
-    # azure public key path
-    if config.configParams.azure.publicKeyPath is None:
-        config.configParams.azure.publicKeyPath = str(Path.home().joinpath(".ssh", "id_ed25519.pub").absolute())
-    default_public_key_path = config.configParams.azure.publicKeyPath
-    while True:
-        config.configParams.azure.publicKeyPath = default_public_key_path
-        public_key_path = ask(
-            f"🔑 Path to your Azure public ssh key: (default: [{config.configParams.azure.publicKeyPath}])"
-        )
-        if public_key_path:
-            config.configParams.azure.publicKeyPath = public_key_path
+    azure = config.configParams.azure
+    user = getpass.getuser()
 
-        if os.path.isfile(config.configParams.azure.publicKeyPath):
-            break
-        warn(f"{config.configParams.azure.publicKeyPath} is not a valid ssh key")
+    if not azure.account:
+        azure.account = "agent-sandbox"
+    info(f"✓ Azure account: {azure.account}")
 
-    default_account = ask(f"🔑 Default account to use, default [{config.configParams.azure.account}]: ")
-    if default_account:
-        config.configParams.azure.account = default_account
+    default_priv, default_pub = default_key_paths(azure.account, user, provider="azure", key_type="ed25519")
+
+    if not azure.privateKeyPath:
+        azure.privateKeyPath = str(default_priv)
+    if not azure.publicKeyPath:
+        azure.publicKeyPath = str(default_pub)
+
+    private_path = Path(azure.privateKeyPath).expanduser()
+    public_path = Path(azure.publicKeyPath).expanduser()
+
+    if not private_path.is_file():
+        info(f"🔑 Generating Azure SSH keypair → {private_path}")
+        passphrase = generate_keypair_with_passphrase(ctx, str(private_path), str(public_path), key_type="ed25519")
+        azure.privateKeyPassword = passphrase
+        info("✓ Azure SSH key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
+        add_key_to_ssh_agent(ctx, str(private_path), passphrase)
+    else:
+        info(f"✓ Azure SSH keypair present: {private_path}")

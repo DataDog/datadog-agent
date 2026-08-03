@@ -8,6 +8,7 @@
 package filterlistimpl
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,9 +33,12 @@ func TestNewTagMatcher(t *testing.T) {
 		},
 	}, logmock.New(t))
 
+	metric1Tags := []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")}
+	slices.Sort(metric1Tags)
+
 	assert.NotNil(t, matcher)
 	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
+		tags:   metric1Tags,
 		action: exclude,
 	})
 

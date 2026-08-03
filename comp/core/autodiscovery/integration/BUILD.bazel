@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "integration",
+    srcs = [
+        "config.go",
+        "matching_program.go",
+        "matching_program_noop.go",
+        "response.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/log/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/celprogram",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@com_github_google_cel_go//cel:go_default_library",
+        "@com_github_twmb_murmur3//:murmur3",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "integration_test",
+    srcs = [
+        "config_test.go",
+        "matching_program_test.go",
+    ],
+    embed = [":integration"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/workloadfilter/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

@@ -1,4 +1,7 @@
 datadog:
+  # Exposes the EC2 host's dockerd into the agent pod, reproducing the
+  # GKE-COS shape (containerd CRI alongside dockerd) the filter targets.
+  dockerSocketPath: /var/run/docker.sock
   securityAgent:
     compliance:
       enabled: true

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,14 +124,6 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	defer subscription.Unsubscribe()
 
-	sendFunc := func(chunk []*pb.StreamTagsEvent) error {
-		return grpc.DoWithTimeout(func() error {
-			return out.Send(&pb.StreamTagsResponse{
-				Events: chunk,
-			})
-		}, taggerStreamSendTimeout)
-	}
-
 	for {
 		select {
 		case events, ok := <-subscription.EventsChan():
@@ -153,7 +145,15 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
+			sendFunc := func(chunk []*pb.StreamTagsEvent) error {
+				return grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						Events: chunk,
+					})
+				}, taggerStreamSendTimeout)
+			}
+
+			if err := grpc.ProcessChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
 				log.Warnf("error sending tagger event: %s", err)
 				s.telemetry.ServerStreamErrors.Inc()
 				return err

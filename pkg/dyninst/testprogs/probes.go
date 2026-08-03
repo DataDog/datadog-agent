@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"slices"
 	"strings"
 	"testing"
 
@@ -84,21 +83,41 @@ const IssueTagPrefix = "issue:"
 // parsed by parseConfig. Matching is exact on both fields.
 const SkipIntegrationTagPrefix = "skip_integration:"
 
-// GetIssueTag returns the issue tag for a probe definition.
-func GetIssueTag(p ir.ProbeDefinition) (string, bool) {
-	tags := p.GetTags()
-	index := slices.IndexFunc(tags, func(tag string) bool {
-		return strings.HasPrefix(tag, IssueTagPrefix)
-	})
-	if index == -1 {
-		return "", false
+// GetIssueTag returns the issue tag for a probe definition that matches
+// the given config. An issue tag has the form "issue:KIND" (matches all
+// configs) or "issue:KIND@arch=X,toolchain=Y" (matches only that config).
+// A probe may have multiple issue tags for different configs.
+//
+// Returns the issue kind, whether a match was found, and whether the
+// matching tag was config-conditional (had an @suffix). When conditional
+// is false and ok is true, the issue applies to ALL configs.
+func GetIssueTag(p ir.ProbeDefinition, cfg Config) (kind string, ok bool, conditional bool) {
+	for _, tag := range p.GetTags() {
+		if !strings.HasPrefix(tag, IssueTagPrefix) {
+			continue
+		}
+		value := tag[len(IssueTagPrefix):]
+		k, cfgStr, hasAt := strings.Cut(value, "@")
+		if !hasAt {
+			// Unconditional: applies to all configs.
+			return k, true, false
+		}
+		// Config-specific: only match if the config matches exactly.
+		issueCfg, err := ParseConfig(cfgStr)
+		if err != nil {
+			continue // malformed tag, skip
+		}
+		if issueCfg == cfg {
+			return k, true, true
+		}
 	}
-	return tags[index][len(IssueTagPrefix):], true
+	return "", false, false
 }
 
-// HasIssueTag returns true if the probe definition has an issue tag.
-func HasIssueTag(p ir.ProbeDefinition) bool {
-	_, ok := GetIssueTag(p)
+// HasIssueTag returns true if the probe definition has an issue tag
+// matching the given config.
+func HasIssueTag(p ir.ProbeDefinition, cfg Config) bool {
+	_, ok, _ := GetIssueTag(p, cfg)
 	return ok
 }
 

@@ -17,7 +17,7 @@ import (
 func pointer(value float64) *float64 { return &value }
 
 func TestSubmitCapabilityDependentMetricSubset(t *testing.T) {
-	metricSender := mocksender.NewMockSender("numa-monitoring")
+	metricSender := mocksender.NewMockSender(t, "numa-monitoring")
 	metricSender.SetupAcceptAll()
 	stats := model.ContainerStats{
 		RuntimeShares:     map[int]float64{0: 0.75},

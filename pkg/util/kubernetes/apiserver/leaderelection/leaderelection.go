@@ -29,10 +29,10 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -161,16 +161,16 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	serverVersion, err := common.KubeServerVersion(apiClient.Cl.Discovery(), 10*time.Second)
+	serverVersion, err := common.KubeServerVersion(apiClient.LeaderElectionCl.Discovery(), 10*time.Second)
 	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
 		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
 	}
 
-	le.coreClient = apiClient.Cl.CoreV1()
-	le.coordClient = apiClient.Cl.CoordinationV1()
-	le.discoveryClient = apiClient.Cl.DiscoveryV1()
+	le.coreClient = apiClient.LeaderElectionCl.CoreV1()
+	le.coordClient = apiClient.LeaderElectionCl.CoordinationV1()
+	le.discoveryClient = apiClient.LeaderElectionCl.DiscoveryV1()
 
-	usingLease, err := CanUseLeases(apiClient.Cl.Discovery())
+	usingLease, err := CanUseLeases(apiClient.LeaderElectionCl.Discovery())
 	if err != nil {
 		log.Errorf("Unable to retrieve available resources: %v", err)
 		return err

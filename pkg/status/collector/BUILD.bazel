@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "collector",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/collector.tmpl",
+        "status_templates/collectorHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/collector/collector/def",
+        "//comp/core/status",
+        "//pkg/collector/check",
+    ],
+)
+
+dd_agent_go_test(
+    name = "collector_test",
+    srcs = ["status_test.go"],
+    data = glob(["fixtures/**"]),
+    embed = [":collector"],
+    deps = [
+        "//comp/collector/collector/def",
+        "//comp/core/status",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -52,9 +52,9 @@ const (
 	// ContainerAppOrigin origin tag value
 	ContainerAppOrigin = "containerapp"
 
-	containerAppPrefix             = "azure.app_containerapp."
-	containerAppShutdownMetricName = "azure.app_containerapp.enhanced.shutdown"
-	containerAppStartMetricName    = "azure.app_containerapp.enhanced.cold_start"
+	containerAppPrefix             = "azure.app_containerapps."
+	containerAppShutdownMetricName = "azure.app_containerapps.enhanced.shutdown"
+	containerAppStartMetricName    = "azure.app_containerapps.enhanced.cold_start"
 
 	containerAppLegacyShutdownMetricName = "azure.containerapp.enhanced.shutdown"
 	containerAppLegacyStartMetricName    = "azure.containerapp.enhanced.cold_start"
@@ -199,8 +199,8 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (c *ContainerApp) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(containerAppShutdownMetricName, 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(containerAppLegacyShutdownMetricName, 1.0, c.GetSource())
 	}
@@ -209,11 +209,6 @@ func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(containerAppStartMetricName, 1.0, c.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(containerAppLegacyStartMetricName, 1.0, c.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (c *ContainerApp) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isContainerAppService() bool {

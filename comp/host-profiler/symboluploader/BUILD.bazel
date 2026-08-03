@@ -1,2 +1,112 @@
-# Stub: intermediate package not yet migrated to Bazel.
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:dd_agent_go_test off
+# gazelle:go_test file
+
+go_library(
+    name = "symboluploader",
+    srcs = [
+        "config.go",
+        "symbol_endpoint.go",
+        "symbol_querier.go",
+        "symbol_query_batching.go",
+        "symbol_uploader.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader/cgroup",
+            "//comp/host-profiler/symboluploader/pclntab",
+            "//comp/host-profiler/symboluploader/pipeline",
+            "//comp/host-profiler/symboluploader/symbol",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+            "//comp/host-profiler/version",
+            "@com_github_datadog_jsonapi//:jsonapi",
+            "@com_github_datadog_zstd//:zstd",
+            "@com_github_elastic_go_freelru//:go-freelru",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//reporter",
+            "@org_golang_x_sync//errgroup",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader/cgroup",
+            "//comp/host-profiler/symboluploader/pclntab",
+            "//comp/host-profiler/symboluploader/pipeline",
+            "//comp/host-profiler/symboluploader/symbol",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+            "//comp/host-profiler/version",
+            "@com_github_datadog_jsonapi//:jsonapi",
+            "@com_github_datadog_zstd//:zstd",
+            "@com_github_elastic_go_freelru//:go-freelru",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//reporter",
+            "@org_golang_x_sync//errgroup",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "symbol_query_batching_test",
+    srcs = ["symbol_query_batching_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":symboluploader"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader/symbol",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader/symbol",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# TODO: This test can't work from CI as written because it depends on direct
+# access to the go compiler outside of bazel control. It does work from the
+# developer command line.
+go_test(
+    name = "symbol_uploader_test",
+    srcs = ["symbol_uploader_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":symboluploader"],
+    gotags = ["test"],
+    tags = ["manual"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader/symbol",
+            "//pkg/util/safeelf",
+            "@com_github_datadog_jsonapi//:jsonapi",
+            "@com_github_datadog_zstd//:zstd",
+            "@com_github_jarcoal_httpmock//:httpmock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//process",
+            "@io_opentelemetry_go_ebpf_profiler//remotememory",
+            "@io_opentelemetry_go_ebpf_profiler//reporter",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader/symbol",
+            "//pkg/util/safeelf",
+            "@com_github_datadog_jsonapi//:jsonapi",
+            "@com_github_datadog_zstd//:zstd",
+            "@com_github_jarcoal_httpmock//:httpmock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//process",
+            "@io_opentelemetry_go_ebpf_profiler//remotememory",
+            "@io_opentelemetry_go_ebpf_profiler//reporter",
+        ],
+        "//conditions:default": [],
+    }),
+)

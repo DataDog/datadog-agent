@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = [
+        "fx.go",
+        "fx_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/snmptraps/oidresolver/def",
+        "//comp/snmptraps/oidresolver/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

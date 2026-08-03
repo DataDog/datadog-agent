@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Workload autoscaling: fixed a bug where custom tags added through the
+    ``ad.datadoghq.com/tags`` annotation on a local-owner ``DatadogPodAutoscaler``
+    were not applied to the ``datadog.cluster-agent.autoscaling.workload.*``
+    metrics until the Cluster Agent was restarted (or the autoscaler spec was
+    otherwise modified). The annotation is now part of the metadata fingerprint
+    used to detect changes, so edits are picked up on the next reconcile.

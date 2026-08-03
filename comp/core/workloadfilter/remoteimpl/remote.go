@@ -22,7 +22,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	baseimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -136,11 +136,18 @@ func (r *remoteFilterStore) start(_ context.Context) error {
 	mainCtx, _ := common.GetMainCtxCancel()
 	r.ctx, r.cancel = context.WithCancel(mainCtx)
 
+	// Same max message size as the core agent AgentSecure gRPC server (impl-agent.BuildServer).
+	maxMsgSize := r.Config.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	var err error
 	r.conn, err = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		r.ctx,
 		r.target,
 		grpc.WithTransportCredentials(credentials.NewTLS(r.tlsConfig)),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			if vsockAddr := r.Config.GetString("vsock_addr"); vsockAddr != "" {
 				_, sPort, err := net.SplitHostPort(url)

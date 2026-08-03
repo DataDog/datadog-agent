@@ -143,6 +143,99 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	}, ps[0].GetContent())
 }
 
+func TestPayloadsBuilderV3_Unit(t *testing.T) {
+	r := assert.New(t)
+	const ts = 1756737057.1
+	series := metrics.Series{
+		&metrics.Serie{
+			Name:     "lat",
+			Unit:     "millisecond",
+			Points:   []metrics.Point{{Ts: ts, Value: 1}},
+			Interval: 10,
+		},
+		&metrics.Serie{
+			Name:     "count",
+			Points:   []metrics.Point{{Ts: ts, Value: 2}},
+			Interval: 10,
+		},
+		&metrics.Serie{
+			Name:     "lat2",
+			Unit:     "millisecond",
+			Points:   []metrics.Point{{Ts: ts, Value: 3}},
+			Interval: 10,
+		},
+	}
+
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+
+	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	require.NoError(t, err)
+
+	for _, s := range series {
+		r.NoError(pb.writeSerie(s))
+	}
+	r.NoError(pb.finishPayload())
+
+	ps := pipelineContext.payloads
+	r.Len(ps, 1)
+
+	r.Equal([]byte{
+		// metricData
+		3<<3 | 2, 0x66,
+
+		// dictNameStr
+		1<<3 | 2, 15,
+		/* 1 */ 3, 0x6c, 0x61, 0x74, // "lat"
+		/* 2 */ 5, 0x63, 0x6f, 0x75, 0x6e, 0x74, // "count"
+		/* 3 */ 4, 0x6c, 0x61, 0x74, 0x32, // "lat2"
+
+		// dictOrigin (single (product=10, 0, 0) interned -- product=10 is the default agent product
+		// returned by metricSourceToOriginProduct for an unset Source)
+		9<<3 | 2, 3, 10, 0, 0,
+
+		// type: gauge|sint64|flagHasUnit, gauge|sint64, gauge|sint64|flagHasUnit
+		10<<3 | 2, 5, 0x93, 0x04, 0x13, 0x93, 0x04,
+
+		// nameRef (delta-encoded sint64, sequence 1,2,3 -> deltas 1,1,1 -> zigzag 2,2,2)
+		11<<3 | 2, 3, 2, 2, 2,
+
+		// tagsRef (all zero, no tags)
+		12<<3 | 2, 3, 0, 0, 0,
+
+		// resourcesRef (all zero, no resources)
+		13<<3 | 2, 3, 0, 0, 0,
+
+		// interval (int64 varint, all 10)
+		14<<3 | 2, 3, 10, 10, 10,
+
+		// numPoints (int64 varint, all 1)
+		15<<3 | 2, 3, 1, 1, 1,
+
+		// timestamp (delta-encoded sint64; first ts = 1756737057, then deltas of 0)
+		16<<3 | 2, 1, 7, 0xc2, 0xb8, 0xad, 0x8b, 0xd, 0, 0,
+
+		// valueSint64 (1,2,3 -> zigzag 2,4,6)
+		17<<3 | 2, 1, 3, 2, 4, 6,
+
+		// sourceTypeNameRef (all 0)
+		23<<3 | 2, 1, 3, 0, 0, 0,
+
+		// originRef (interned id 1 for all, deltas 1,0,0 -> zigzag 2,0,0)
+		24<<3 | 2, 1, 3, 2, 0, 0,
+
+		// dictUnitStr (single entry "millisecond" interned)
+		25<<3 | 2, 1, 12, 11,
+		0x6d, 0x69, 0x6c, 0x6c, 0x69, 0x73, 0x65, 0x63, 0x6f, 0x6e, 0x64,
+
+		// unitRef (sparse: entries for series 1 and 3 only; both unit id 1, deltas 1,0 -> zigzag 2,0)
+		26<<3 | 2, 1, 2, 2, 0,
+	}, ps[0].GetContent())
+}
+
 func BenchmarkPayloadsBuilderV3(b *testing.B) {
 	const ts = 1756737057.1
 	serie := &metrics.Serie{
@@ -212,7 +305,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 		V3:     true,
 	}
 	pipelineContext := &PipelineContext{}
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	pb, err := newPayloadsBuilderV3(188, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -224,7 +317,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 	r.Len(payloads, 3)
 
 	r.Equal(2, payloads[0].GetPointCount())
-	r.Less(len(payloads[1].GetContent()), 180)
+	r.Less(len(payloads[1].GetContent()), 188)
 	r.Equal(1, payloads[1].GetPointCount())
 	r.Equal(1, payloads[2].GetPointCount())
 	r.NotContains("foo", payloads[1].GetContent())
@@ -370,27 +463,35 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	sketches := metrics.SketchSeriesList{
 		{
-			Name:    "serie1",
-			NoIndex: true,
-			Points:  pointsOf(ts, 0, 0),
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:    "serie1",
+				NoIndex: true,
+			},
+			Points: pointsOf(ts, 0, 0),
 		}, {
-			Name:    "serie2",
-			NoIndex: false,
-			Tags:    tags,
-			Points:  pointsOf(ts, -1, 0, 1),
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:    "serie2",
+				NoIndex: false,
+				Tags:    tags,
+			},
+			Points: pointsOf(ts, -1, 0, 1),
 		}, {
-			Name:    "serie3",
-			NoIndex: false,
-			Tags:    tags,
-			Host:    "test.example",
-			Source:  metrics.MetricSourceDogstatsd,
-			Points:  pointsOf(ts, 0.5, -0.5),
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:    "serie3",
+				NoIndex: false,
+				Tags:    tags,
+				Host:    "test.example",
+				Source:  metrics.MetricSourceDogstatsd,
+			},
+			Points: pointsOf(ts, 0.5, -0.5),
 		}, {
-			Name:    "serie4",
-			NoIndex: true,
-			Host:    "test.example",
-			Source:  metrics.MetricSourceCassandra,
-			Points:  pointsOf(ts, 3.14159, 2.71),
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:    "serie4",
+				NoIndex: true,
+				Host:    "test.example",
+				Source:  metrics.MetricSourceCassandra,
+			},
+			Points: pointsOf(ts, 3.14159, 2.71),
 		},
 	}
 

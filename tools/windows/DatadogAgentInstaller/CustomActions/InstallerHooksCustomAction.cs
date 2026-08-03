@@ -9,6 +9,19 @@ namespace Datadog.CustomActions
 {
     public class InstallerHooksCustomAction
     {
+        private static readonly (string MsiProperty, string EnvKey)[] InstallerHookEnvProps =
+        {
+            ("PROJECTLOCATION", "DD_PROJECTLOCATION"),
+            ("APPLICATIONDATADIRECTORY", "DD_APPLICATIONDATADIRECTORY"),
+            ("DD_INSTALLER_REGISTRY_URL", "DD_INSTALLER_REGISTRY_URL"),
+            ("DD_INSTALLER_REGISTRY_AUTH", "DD_INSTALLER_REGISTRY_AUTH"),
+            ("DD_INSTALLER_REGISTRY_USERNAME", "DD_INSTALLER_REGISTRY_USERNAME"),
+            ("DD_INSTALLER_REGISTRY_PASSWORD", "DD_INSTALLER_REGISTRY_PASSWORD"),
+            ("DD_OTELCOLLECTOR_ENABLED", "DD_OTELCOLLECTOR_ENABLED"),
+            // EUDM gate for the ai-usage extension (installed via installAgentExtensions)
+            ("DD_INFRASTRUCTURE_MODE", "DD_INFRASTRUCTURE_MODE"),
+        };
+
         private readonly ISession _session;
         private readonly string _installerExecutable;
 
@@ -34,22 +47,12 @@ namespace Datadog.CustomActions
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
-            var registryProps = new[]
+            foreach (var (msiProperty, envKey) in InstallerHookEnvProps)
             {
-                // registry props
-                "DD_INSTALLER_REGISTRY_URL",
-                "DD_INSTALLER_REGISTRY_AUTH",
-                "DD_INSTALLER_REGISTRY_USERNAME",
-                "DD_INSTALLER_REGISTRY_PASSWORD",
-                // extensions props
-                "DD_OTELCOLLECTOR_ENABLED",
-            };
-            foreach (var prop in registryProps)
-            {
-                var value = _session.Property(prop);
+                var value = _session.Property(msiProperty);
                 if (!string.IsNullOrEmpty(value))
                 {
-                    env[prop] = value;
+                    env[envKey] = value;
                 }
             }
             return env;

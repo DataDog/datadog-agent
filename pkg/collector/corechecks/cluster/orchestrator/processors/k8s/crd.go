@@ -77,10 +77,24 @@ func (crd *CRDHandlers) ResourceList(ctx processors.ProcessorContext, list inter
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopyObject())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (crd *CRDHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*v1.CustomResourceDefinition).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (crd *CRDHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*v1.CustomResourceDefinition).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

@@ -127,6 +127,28 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
+	// orgPropMarker holds the Org Propagation Marker once the background fetch
+	// succeeds. An empty string means the marker is not yet available.
+	orgPropMarker atomic.String
+
+	// agentState is the Datadog-Agent-State hash served on all endpoints via
+	// the Datadog-Agent-State response header. Initialised from the static /info
+	// payload in makeInfoHandler and updated when orgPropMarker is set.
+	agentState atomic.String
+
+	// computeInfoAndHashMu protects computeInfoAndHash.
+	computeInfoAndHashMu sync.Mutex
+
+	// computeInfoAndHash is set by makeInfoHandler. Given an OPM value (may be
+	// empty), it returns the pre-serialised JSON body for GET /info and its
+	// SHA-256 hex hash (the Datadog-Agent-State header value).
+	computeInfoAndHash func(opm string) (body []byte, hash string)
+
+	// cachedInfoResponse holds the pre-serialised JSON body for GET /info.
+	// Value type: []byte. Initialised by makeInfoHandler and updated by
+	// setOrgPropMarker so the handler never needs to marshal on the hot path.
+	cachedInfoResponse atomic.Value
+
 	statsd   statsd.ClientInterface
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
@@ -156,7 +178,7 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
+	containerIDProvider := NewContainerIDProviderFromConfig(conf)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
@@ -208,7 +230,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
-	hash, infoHandler := r.makeInfoHandler()
+	_, infoHandler := r.makeInfoHandler()
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
@@ -217,7 +239,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.TimeoutOverride != nil {
 			timeout = e.TimeoutOverride(r.conf)
 		}
-		h := replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
+		h := replyWithVersion(r.agentState.Load, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
 		r.Handlers[e.Pattern] = h
 		mux.Handle(e.Pattern, h)
 	}
@@ -228,16 +250,21 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 }
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
-// HTTP headers containing version and state information.
-func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
+// HTTP headers containing version and state information. stateGetter is called on
+// every request so that the Datadog-Agent-State header always reflects the latest
+// agent state (which may change when the Org Propagation Marker is fetched).
+func replyWithVersion(stateGetter func() string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Datadog-Agent-Version", version)
-		w.Header().Set("Datadog-Agent-State", hash)
+		w.Header().Set("Datadog-Agent-State", stateGetter())
 		h.ServeHTTP(w, r)
 	})
 }
 
 func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	if conf.ReceiverTimeoutDuration > 0 {
+		return conf.ReceiverTimeoutDuration
+	}
 	timeout := 5 * time.Second
 	if conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
@@ -246,6 +273,9 @@ func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration
 }
 
 func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	if conf.EVPProxy.ReceiverTimeoutDuration > 0 {
+		return conf.EVPProxy.ReceiverTimeoutDuration
+	}
 	timeout := 30 * time.Second
 	if conf.EVPProxy.ReceiverTimeout > 0 {
 		timeout = time.Duration(conf.EVPProxy.ReceiverTimeout) * time.Second
@@ -518,6 +548,15 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 // - tp is the decoded payload
 // - err is the first error encountered
 func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
+	// Legacy decoders use pointer slices and may preserve nil wire entries.
+	// Establish the payload invariant here, before receiver metadata extraction
+	// or the payload is handed to the processing pipeline.
+	defer func() {
+		if err == nil && tp != nil {
+			removeNilEntries(tp)
+		}
+	}()
+
 	switch v {
 	case v01:
 		var spans []*pb.Span
@@ -856,15 +895,24 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}()
 
 	firstService := func(tp *pb.TracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+		if tp == nil {
 			return ""
 		}
-		return tp.Chunks[0].Spans[0].Service
+		// The decoder has already removed nil entries; use the helper to skip
+		// any empty chunks while finding the service used for receiver telemetry.
+		if span, ok := getFirstSpan(tp); ok {
+			return span.Service
+		}
+		return ""
 	}
 
 	start := time.Now()
 	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req, firstService(tp))
+	service := ""
+	if err == nil {
+		service = firstService(tp)
+	}
+	ts := r.tagStats(v, req, service)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -970,15 +1018,24 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	}()
 
 	firstService := func(tp *idx.InternalTracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+		if tp == nil {
 			return ""
 		}
-		return tp.Chunks[0].Spans[0].Service()
+		// Converted and native v1 decoders guarantee non-nil entries; use the
+		// helper to skip any empty chunks while finding the first service.
+		if span, ok := getFirstSpanV1(tp); ok {
+			return span.Service()
+		}
+		return ""
 	}
 
 	start := time.Now()
 	tp, err := r.decodeConvertedTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req, firstService(tp))
+	service := ""
+	if err == nil {
+		service = firstService(tp)
+	}
+	ts := r.tagStats(v, req, service)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -1095,33 +1152,19 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 }
 
 func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
-	if len(p.Chunks) == 0 {
-		return nil, false
-	}
 	for _, chunk := range p.Chunks {
-		if chunk == nil || len(chunk.Spans) == 0 {
-			continue
+		if len(chunk.Spans) != 0 {
+			return chunk.Spans[0], true
 		}
-		if chunk.Spans[0] == nil {
-			continue
-		}
-		return chunk.Spans[0], true
 	}
 	return nil, false
 }
 
 func getFirstSpanV1(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
-	if len(p.Chunks) == 0 {
-		return nil, false
-	}
 	for _, chunk := range p.Chunks {
-		if chunk == nil || len(chunk.Spans) == 0 {
-			continue
+		if len(chunk.Spans) != 0 {
+			return chunk.Spans[0], true
 		}
-		if chunk.Spans[0] == nil {
-			continue
-		}
-		return chunk.Spans[0], true
 	}
 	return nil, false
 }
@@ -1237,6 +1280,11 @@ func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
+		// A decoded span slice may contain nil entries (e.g. v0.1 JSON `[null]`);
+		// skip them rather than dereferencing s.TraceID.
+		if s == nil {
+			continue
+		}
 		byID[s.TraceID] = append(byID[s.TraceID], s)
 	}
 	for _, t := range byID {
@@ -1260,6 +1308,50 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 	}
 
 	return traceChunks
+}
+
+// removeNilEntries removes nil entries produced by legacy payload
+// decoders. After this function returns, every retained chunk, span, link,
+// event, event attribute, and attribute-array element is non-nil. Chunks with
+// no remaining spans are dropped because they carry no processable trace.
+func removeNilEntries(tp *pb.TracerPayload) {
+	chunks := compactNonNil(tp.Chunks)
+	keptChunks := chunks[:0]
+	for _, chunk := range chunks {
+		chunk.Spans = compactNonNil(chunk.Spans)
+		if len(chunk.Spans) == 0 {
+			continue
+		}
+		for _, span := range chunk.Spans {
+			span.SpanLinks = compactNonNil(span.SpanLinks)
+			span.SpanEvents = compactNonNil(span.SpanEvents)
+			for _, event := range span.SpanEvents {
+				for key, value := range event.Attributes {
+					if value == nil {
+						delete(event.Attributes, key)
+						continue
+					}
+					if value.ArrayValue != nil {
+						value.ArrayValue.Values = compactNonNil(value.ArrayValue.Values)
+					}
+				}
+			}
+		}
+		keptChunks = append(keptChunks, chunk)
+	}
+	clear(chunks[len(keptChunks):])
+	tp.Chunks = keptChunks
+}
+
+func compactNonNil[T any](values []*T) []*T {
+	kept := values[:0]
+	for _, value := range values {
+		if value != nil {
+			kept = append(kept, value)
+		}
+	}
+	clear(values[len(kept):])
+	return kept
 }
 
 func getContainerTagsList(fn func(string) ([]string, error), containerID string) []string {

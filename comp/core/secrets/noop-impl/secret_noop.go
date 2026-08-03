@@ -7,6 +7,7 @@
 package secretsimpl
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -52,7 +53,7 @@ func (r *secretNoop) Section() string {
 }
 
 // fillFlare fil a flare with secret information
-func fillFlare(fb flaretypes.FlareBuilder) error {
+func fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.AddFile("secrets.log", secretDisabled)
 	return nil
 }

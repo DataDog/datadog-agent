@@ -93,12 +93,8 @@ single_machine_performance-regression_detector-merge_base_check:
 # Trigger a child pipeline for SMP regression detection.
 # The parent pipeline does NOT wait for this child pipeline (no strategy: depend),
 # so the main pipeline completes without blocking on the ~1h SMP run.
-trigger-single-machine-performance-regression_detector:
+.trigger-single-machine-performance-regression_detector:
   stage: functional_test
-  rules:
-    - !reference [.except_coverage_pipeline]
-    - !reference [.on_main]  # Run on every main commit
-    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true  # Passes BASELINE_SHA dotenv variable to child pipeline
@@ -113,4 +109,26 @@ trigger-single-machine-performance-regression_detector:
     include:
       - local: .gitlab/childs/smp-regression-child-pipeline.yml
     # No strategy: depend — parent pipeline does not wait for the child pipeline to finish
+
+# This job is used to run the regression detector on dev branches. On dev branches, we allow the pipeline to continue.
+trigger-single-machine-performance-regression_detector:
+  extends:
+    - .trigger-single-machine-performance-regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   allow_failure: true
+
+# This job is used to run the regression detector on the main branch. It remains
+# linked to the parent pipeline, but the detector job is currently allowed to
+# fail on main while #incident-57148 is investigated.
+trigger-single-machine-performance-regression_detector-main:
+  extends:
+    - .trigger-single-machine-performance-regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_main]  # Run on every main commit
+  trigger:
+    strategy: depend
+  variables:
+    SMP_ALLOW_FAILURE: "true"

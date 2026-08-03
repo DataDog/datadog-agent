@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logonduration",
+    srcs = [
+        "timestamps.go",
+        "timestamps_darwin.go",
+        "timestamps_darwin.h",
+        "timestamps_darwin.m",
+        "timestamps_noop.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework Foundation -framework OSLog",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework Foundation -framework OSLog",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:darwin": [
+            "-x objective-c -mmacosx-version-min=12.0",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-x objective-c -mmacosx-version-min=12.0",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/logonduration",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)

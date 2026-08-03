@@ -17,14 +17,14 @@ import (
 	"github.com/coreos/go-systemd/v22/sdjournal"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,6 +53,10 @@ type Tailer struct {
 	// instead of on the logs content.
 	processRawMessage bool
 
+	// entryReady is true when seek() has already positioned the journal on a
+	// readable entry (via SeekHead+Next). tail() should read this entry before
+	// calling Next() again.
+	entryReady bool
 	// tagProvider provides additional tags to be attached to each log message.  It
 	// is called once for each log message.
 	tagProvider            tag.Provider
@@ -206,6 +210,12 @@ func (t *Tailer) forwardMessages() {
 	}()
 
 	for decodedMessage := range t.decoder.OutputChan() {
+		// This tailer produces StateStructured messages where "message" is
+		// populated from the journal MESSAGE field. Currently, entries without
+		// a MESSAGE field result in an empty "message" and are silently dropped
+		// here -- the structured metadata (unit name, priority, etc.) is
+		// discarded along with it. If that becomes a real concern, replace this
+		// check with decodedMessage.HasContent() (see stream_tailer.go).
 		if len(decodedMessage.GetContent()) > 0 {
 			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
 			// The decodedMessage already has the proper origin with tags set
@@ -223,7 +233,10 @@ func (t *Tailer) seek(cursor string) error {
 		if err := t.journal.SeekHead(); err != nil {
 			return err
 		}
-		_, err := t.journal.Next() // SeekHead must be followed by Next
+		// SeekHead must be followed by Next before any Get* call.
+		// Set entryReady so tail() reads this entry before calling Next().
+		n, err := t.journal.Next()
+		t.entryReady = n > 0
 		return err
 	}
 	seekTail := func() error {
@@ -271,17 +284,22 @@ func (t *Tailer) tail() {
 		case <-t.stop:
 			return
 		default:
-			n, err := t.journal.Next()
-			if err != nil && err != io.EOF {
-				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
-				t.source.Status.Error(err)
-				log.Error(err)
-				return
-			}
-			if n < 1 {
-				// no new entry
-				t.journal.Wait(defaultWaitDuration)
-				continue
+			if t.entryReady {
+				// seek() already positioned the journal on a readable entry.
+				t.entryReady = false
+			} else {
+				n, err := t.journal.Next()
+				if err != nil && err != io.EOF {
+					err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
+					t.source.Status.Error(err)
+					log.Error(err)
+					return
+				}
+				if n < 1 {
+					// no new entry
+					t.journal.Wait(defaultWaitDuration)
+					continue
+				}
 			}
 			entry, err := t.journal.GetEntry()
 			if err != nil {

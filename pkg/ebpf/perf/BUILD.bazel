@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "perf",
+    srcs = ["event.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/perf",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/modifiers",
+        "//pkg/ebpf/names",
+        "//pkg/ebpf/telemetry",
+        "//pkg/util/sync",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//perf",
+        "@com_github_cilium_ebpf//ringbuf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)

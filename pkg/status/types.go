@@ -19,11 +19,20 @@ type CLCChecks struct {
 
 // CLCStats is used to unmarshall the stats needed from the runner expvar payload
 type CLCStats struct {
-	AverageExecutionTime int  `json:"AverageExecutionTime"`
-	MetricSamples        int  `json:"MetricSamples"`
-	HistogramBuckets     int  `json:"HistogramBuckets"`
-	Events               int  `json:"Events"`
-	LastExecFailed       bool `json:"LastExecFailed"`
+	AverageExecutionTime int    `json:"AverageExecutionTime"`
+	MetricSamples        int    `json:"MetricSamples"`
+	HistogramBuckets     int    `json:"HistogramBuckets"`
+	Events               int    `json:"Events"`
+	ServiceChecks        int    `json:"ServiceChecks"`
+	LastExecFailed       bool   `json:"LastExecFailed"`
+	LastError            string `json:"LastError"`
+	TotalRuns            uint64 `json:"TotalRuns"`
+	TotalErrors          uint64 `json:"TotalErrors"`
+	TotalMetricSamples   uint64 `json:"TotalMetricSamples"`
+	TotalEvents          uint64 `json:"TotalEvents"`
+	TotalServiceChecks   uint64 `json:"TotalServiceChecks"`
+	LastSuccessDate      int64  `json:"LastSuccessDate"`
+	LastExecutionDate    int64  `json:"LastExecutionDate"`
 }
 
 // Workers is used to unmarshall the workers info needed from the runner expvar payload
@@ -47,11 +56,16 @@ func (d *CLCStats) UnmarshalJSON(data []byte) error {
 	d.MetricSamples = int(stats.MetricSamples)
 	d.HistogramBuckets = int(stats.HistogramBuckets)
 	d.Events = int(stats.Events)
-	if stats.LastError != "" {
-		d.LastExecFailed = true
-	} else {
-		d.LastExecFailed = false
-	}
+	d.ServiceChecks = int(stats.ServiceChecks)
+	d.LastError = stats.LastError
+	d.LastExecFailed = stats.LastError != ""
+	d.TotalRuns = stats.TotalRuns
+	d.TotalErrors = stats.TotalErrors
+	d.TotalMetricSamples = stats.TotalMetricSamples
+	d.TotalEvents = stats.TotalEvents
+	d.TotalServiceChecks = stats.TotalServiceChecks
+	d.LastSuccessDate = stats.LastSuccessDate
+	d.LastExecutionDate = stats.UpdateTimestamp.UnixMilli()
 
 	return nil
 }

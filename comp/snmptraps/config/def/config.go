@@ -8,6 +8,9 @@ package config
 import (
 	"fmt"
 	"hash/fnv"
+	"net"
+	"strconv"
+	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -46,6 +49,7 @@ type TrapsConfig struct {
 	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
+	Tags                  []string `mapstructure:"tags" yaml:"tags"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
 }
 
@@ -98,12 +102,21 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
+	cleaned := c.Tags[:0]
+	for _, t := range c.Tags {
+		t = strings.TrimSpace(t)
+		if t != "" {
+			cleaned = append(cleaned, t)
+		}
+	}
+	c.Tags = cleaned
+
 	return nil
 }
 
 // Addr returns the host:port address to listen on.
 func (c *TrapsConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
+	return net.JoinHostPort(c.BindHost, strconv.Itoa(int(c.Port)))
 }
 
 // BuildSNMPParams returns a valid GoSNMP params structure from configuration.

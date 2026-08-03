@@ -13,8 +13,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -23,12 +21,12 @@ import (
 )
 
 // Install registers v1 API endpoints
-func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", postCheckStatus(sc))).Methods("POST")
-	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc))).Methods("GET")
-	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc))).Methods("POST")
-	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
-	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc))).Methods("POST")
+func installClusterCheckEndpoints(r *http.ServeMux, sc clusteragent.ServerContext) {
+	r.HandleFunc("POST /clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", postCheckStatus(sc)))
+	r.HandleFunc("GET /clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc)))
+	r.HandleFunc("POST /clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc)))
+	r.HandleFunc("GET /clusterchecks", api.WithTelemetryWrapper("getState", getState(sc)))
+	r.HandleFunc("POST /clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc)))
 }
 
 // RebalancePostPayload struct is for the JSON messages received from a client POST request
@@ -47,8 +45,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		vars := mux.Vars(r)
-		identifier := vars["identifier"]
+		identifier := r.PathValue("identifier")
 
 		decoder := json.NewDecoder(r.Body)
 		var status cctypes.NodeStatus
@@ -80,8 +77,7 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		vars := mux.Vars(r)
-		identifier := vars["identifier"]
+		identifier := r.PathValue("identifier")
 		response, err := sc.ClusterCheckHandler.GetConfigs(identifier)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -132,8 +128,7 @@ func postIsolateCheck(sc clusteragent.ServerContext) func(w http.ResponseWriter,
 			return
 		}
 
-		vars := mux.Vars(r)
-		isolateCheckID := vars["identifier"]
+		isolateCheckID := r.PathValue("identifier")
 
 		response := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
 

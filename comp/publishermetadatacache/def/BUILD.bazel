@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
 const (
@@ -35,9 +36,13 @@ const (
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
-	enabled                       bool
-	core                          *mutatorCore
-	targets                       []targetInternal
+	enabled bool
+	core    *mutatorCore
+	targets []targetInternal
+	// matcher evaluates the policies derived from the configuration targets.
+	// matcher.policies and targets are aligned by index, so a match resolves
+	// directly to its injection config.
+	matcher                       *policyMatcher
 	disabledNamespaces            map[string]bool
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
@@ -48,7 +53,7 @@ type TargetMutator struct {
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -63,11 +68,19 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	// If there are no targets, we should fall back to enabledNamespace/libVersions. If those are also not defined, the
 	// expected behavior is to inject all pods into all namespaces.
 	var internalTargets []targetInternal
+	// configPolicies is the policy form of the configuration targets, aligned
+	// by index with internalTargets. Pod matching is delegated to the native
+	// policy engine; an empty set (disabled mutator) naturally matches nothing.
+	var configPolicies []policies.Policy
 	if config.Instrumentation.Enabled {
 		targets := config.Instrumentation.Targets
 		if len(targets) == 0 {
 			targets = append(targets, createDefaultTarget(config.Instrumentation.EnabledNamespaces, config.Instrumentation.LibVersions))
 		}
+
+		// Lower the configuration targets into policies once, at the config
+		// boundary. Everything past this point matches on policies only.
+		configPolicies = policiesFromTargets(targets)
 
 		// Convert the targets to internal format.
 		internalTargets = make([]targetInternal, len(targets))
@@ -146,6 +159,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	m := &TargetMutator{
 		enabled:                       config.Instrumentation.Enabled,
 		targets:                       internalTargets,
+		matcher:                       newPolicyMatcher(configPolicies, wmeta),
 		disabledNamespaces:            disabledNamespacesMap,
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
@@ -156,7 +170,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m, imageResolver)
+	core := newMutatorCore(config, wmeta, m, imageResolver, csiDriverWatcher)
 	m.core = core
 
 	return m, nil
@@ -181,7 +195,18 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
-	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// The admission can be re-run for the same pod (e.g. webhook reinvocation triggered by another
+	// mutating webhook, as happens on GKE Autopilot). Fast return if we injected the library
+	// already, otherwise we would mutate the pod a second time and, for instance, append the
+	// injector to LD_PRELOAD twice.
+	//
+	// The instrumentation volume is added by every injection mode (init_container, image_volume and
+	// CSI), so checking for it guards all modes. The CSI mode in particular has no init container,
+	// so the per-init-container checks below would miss it.
+	if containsVolume(pod, libraryinjection.InstrumentationVolumeName) {
+		log.Debugf("Instrumentation volume %q already exists in pod %q", libraryinjection.InstrumentationVolumeName, mutatecommon.PodString(pod))
+		return false, nil
+	}
 	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
@@ -353,6 +378,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
+				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
 	}
@@ -363,6 +389,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
+				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
 	}
@@ -374,6 +401,11 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 }
 
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.
+//
+// Matching is delegated to the native policy engine: each target is compiled
+// into an equivalent policy (namespace and pod selectors ANDed together) and
+// the first policy that evaluates to true wins, preserving the previous
+// first-match semantics without relying on CGO or k8s label selectors.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	// If instrumentation is disabled, we don't need to check the targets.
 	if !m.enabled {
@@ -385,32 +417,19 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 		return nil
 	}
 
-	// Check if the pod matches any of the targets. The first match wins.
-	for _, target := range m.targets {
-		// Check the pod namespace against the namespace selector.
-		matches, err := target.matchesNamespaceSelector(pod.Namespace)
-		if err != nil {
-			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
-			return nil
-
-		}
-		if !matches {
-			continue
-		}
-
-		// Check the pod labels against the pod selector.
-		if !target.matchesPodSelector(pod.Labels) {
-			continue
-		}
-
-		log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), target.name)
-
-		// If the namespace and pod selector match, return the libraries to inject.
-		return &target
+	// The matcher and targets are aligned by index, so the first matching
+	// policy resolves directly to its injection config (first match wins).
+	idx, err := m.matcher.matchIndex(pod)
+	if err != nil {
+		log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
+		return nil
+	}
+	if idx < 0 || idx >= len(m.targets) {
+		return nil
 	}
 
-	// No target matched.
-	return nil
+	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), m.targets[idx].name)
+	return &m.targets[idx]
 }
 
 func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
@@ -433,10 +452,6 @@ func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error)
 	// Check if the pod namespace is in the match names.
 	_, ok := t.enabledNamespaces[namespace]
 	return ok, nil
-}
-
-func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
-	return t.podSelector.Matches(labels.Set(podLabels))
 }
 
 // createDefaultTarget is used when there are no targets. If a user configures enabledNamespaces and libVersions, which
@@ -489,11 +504,10 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 	return false, found
 }
 
-// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
-// that should be enabled by default
+// getAllLatestDefaultLibraries returns the tracing libraries included in the default/all bundle.
 func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
-	for _, lang := range supportedLanguages {
+	for _, lang := range defaultInjectedLanguages {
 		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 
@@ -518,6 +532,47 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	}
 
 	return false
+}
+
+func containsVolume(pod *corev1.Pod, volumeName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == volumeName {
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
+// alongside the locally injected libraries. It is the annotation-based equivalent of a target's
+// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// rather than failing the mutation, mirroring the lenient handling of the other local SDK
+// injection annotations.
+func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
+	value, found := annotation.Get(pod, annotation.TracerConfigs)
+	if !found {
+		return nil
+	}
+
+	var tracerConfigs []TracerConfig
+	if err := json.Unmarshal([]byte(value), &tracerConfigs); err != nil {
+		log.Errorf("could not parse %q annotation for Single Step Instrumentation: %v", annotation.TracerConfigs, err)
+		return nil
+	}
+
+	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
+	for _, tc := range tracerConfigs {
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
+		// so this cannot be used as a generic env var injector.
+		if !strings.HasPrefix(tc.Name, "DD_") {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+			continue
+		}
+		envVars = append(envVars, tc.AsEnvVar())
+	}
+
+	return envVars
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {

@@ -9,19 +9,19 @@ exit /b 2
 :bazelisk_ok
 
 :: Ensure `XDG_CACHE_HOME` denotes a directory
+if not defined DOTNET_RUNNING_IN_CONTAINER >nul 2>&1 sc query CExecSvc && set DOTNET_RUNNING_IN_CONTAINER=1
 if not exist "%XDG_CACHE_HOME%" (
   if defined CI (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI!
     exit /b 2
   )
-  if not defined DOTNET_RUNNING_IN_CONTAINER >nul 2>&1 sc query CExecSvc && set DOTNET_RUNNING_IN_CONTAINER=1
   if defined DOTNET_RUNNING_IN_CONTAINER (
     >&2 echo 💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:
     >&2 echo     docker.exe run --env=XDG_CACHE_HOME=C:\cache --volume="$HOME\.cache:C:\cache" ...
   )
 )
 
-:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
+:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME`
 set "extra_args="
 if defined XDG_CACHE_HOME (
   set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
@@ -29,20 +29,30 @@ if defined XDG_CACHE_HOME (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
     exit /b 2
   )
-  :: https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
-  set "GOCACHE=%XDG_CACHE_HOME%\go-build"
-  :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
-  set "GOMODCACHE=%XDG_CACHE_HOME%\go\mod"
-  :: https://pip.pypa.io/en/stable/topics/caching/#default-paths
-  set "PIP_CACHE_DIR=%XDG_CACHE_HOME%\pip"
+  set "GOCACHE=!XDG_CACHE_HOME!\go-build"
+  set "GOMODCACHE=!XDG_CACHE_HOME!\go\mod"
+  set "PIP_CACHE_DIR=!XDG_CACHE_HOME!\pip"
   :: https://github.com/bazelbuild/bazel/issues/27808
-  set "bazel_home=%XDG_CACHE_HOME%\bazel"
-  set bazel_home_startup_option="--output_user_root=!bazel_home!"
+  set "bazel_home=!XDG_CACHE_HOME!\bazel"
+  set startup_options="--output_user_root=!bazel_home!"
+  :: Use container-scoped `outputBase` to prevent races on `outputUserRoot\<same workspace hash>\server\jvm.out`
+  if defined DOTNET_RUNNING_IN_CONTAINER set startup_options=!startup_options! "--output_base=%SYSTEMDRIVE%\bob"
   set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
+  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+) else (
+  :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
+  if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
+  if not defined GOMODCACHE (
+    if defined GOPATH (for /f "tokens=1 delims=;" %%i in ("%GOPATH%") do set "gp=%%i") else set "gp=%USERPROFILE%\go"
+    set "GOMODCACHE=!gp!\pkg\mod"
+    set "gp="
+  )
 )
+
+:: Local developer remote cache selection (CI selects its own endpoint above).
+if not defined CI call :remote_cache_select
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
 for %%i in ("%~dp0..\.cache") do if defined XDG_CACHE_HOME (set "more_than_260_chars=!XDG_CACHE_HOME!") else set "more_than_260_chars=%%~fi"
@@ -57,9 +67,20 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
+:: Check 8.3 short names are enabled, or fail with instructions
+:: TODO(agent-build): remove once https://github.com/bazelbuild/bazel/pull/29921 (or equivalent) is in effect
+set "more_than_8dot3_chars=%TEMP%\123456789.1234"
+2>nul del /f /q "!more_than_8dot3_chars!"
+>"!more_than_8dot3_chars!" type nul
+for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
+  >&2 echo 🔴 For `bazel` to work properly, please enable 8.3 short names on %%~di:
+  >&2 echo     fsutil 8dot3name set %%~di 0
+  exit /b 2
+)
+
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
-"%BAZEL_REAL%" !bazel_home_startup_option! !args!
+"%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
 
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
@@ -81,3 +102,74 @@ for /f "tokens=1* delims= " %%i in ("!next_args!") do (
 )
 if not defined cmd if defined next_args goto :parse_next_arg
 exit /b
+
+:: Buildbarn remote cache auto-selection. Policy via DD_BAZEL_REMOTE_CACHE:
+:: auto (default) | on | off. Appends --config=cache to extra_args when enabled.
+:remote_cache_select
+:: An explicit cache config on the command line, or an rc-file opt-out, wins.
+echo %* | findstr /C:"--config=cache" /C:"--config=no-remote-cache" >nul && goto :eof
+call :rc_opts_out && goto :eof
+if not defined DD_BAZEL_REMOTE_CACHE set "DD_BAZEL_REMOTE_CACHE=auto"
+if /i "%DD_BAZEL_REMOTE_CACHE%"=="off" goto :eof
+if /i "%DD_BAZEL_REMOTE_CACHE%"=="on" (
+  if defined extra_args (set "extra_args=!extra_args! --config=cache") else set "extra_args=--config=cache"
+  goto :eof
+)
+if /i not "%DD_BAZEL_REMOTE_CACHE%"=="auto" (
+  >&2 echo 🔴 Unknown DD_BAZEL_REMOTE_CACHE=%DD_BAZEL_REMOTE_CACHE%, expected auto^|on^|off
+  goto :eof
+)
+call :remote_cache_eligible || goto :eof
+if defined extra_args (set "extra_args=!extra_args! --config=cache") else set "extra_args=--config=cache"
+goto :eof
+
+:: True (exit 0) when a user rc file opts out of the remote cache. The wrapper
+:: injects --config=cache on the command line, which would otherwise beat an
+:: rc-level --config=no-remote-cache (command-line options win over rc ones).
+:rc_opts_out
+for %%R in ("%~dp0..\user.bazelrc" "%USERPROFILE%\.bazelrc") do (
+  if exist "%%~R" findstr /R /C:"^[^#]*config=no-remote-cache" "%%~R" >nul 2>&1 && exit /b 0
+)
+exit /b 1
+
+:remote_cache_eligible
+set "_have_token="
+if defined BUILDBARN_ID_TOKEN set "_have_token=1"
+if defined DOTNET_RUNNING_IN_CONTAINER (
+  if not defined _have_token (
+    >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:
+    >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
+    exit /b 1
+  )
+) else (
+  if not defined _have_token where vault >nul 2>&1 || exit /b 1
+)
+call :remote_cache_reachable
+exit /b !errorlevel!
+
+:: Reachability probe with asymmetric caching (mirrors remote-cache-select.sh).
+:: Any HTTPS response (incl. gRPC's 415) counts as reachable; only a
+:: connection/TLS failure counts as unreachable. A positive result is sticky
+:: until %TEMP% is cleared; a negative result is cached for 60s so a VPN
+:: reconnect is picked up quickly without re-probing on every build.
+:remote_cache_reachable
+set "_dir=%TEMP%\datadog-agent"
+set "_probe=%_dir%\remote-cache-probe"
+if exist "%_probe%" (
+  set "_r="
+  set /p _r=<"%_probe%"
+  if "!_r!"=="ok" exit /b 0
+  if "!_r!"=="no" (
+    set "_age="
+    for /f %%A in ('powershell -NoProfile -Command "[int]((Get-Date)-(Get-Item '%_probe%').LastWriteTime).TotalSeconds" 2^>nul') do set "_age=%%A"
+    if defined _age if !_age! lss 60 exit /b 1
+  )
+)
+if not exist "%_dir%" mkdir "%_dir%" >nul 2>&1
+curl.exe --silent --output NUL --connect-timeout 2 --max-time 4 "https://buildbarn-frontend-datadog-agent.us1.ddbuild.io/" >nul 2>&1
+if !errorlevel! neq 0 (
+  >"%_probe%" echo no
+  exit /b 1
+)
+>"%_probe%" echo ok
+exit /b 0

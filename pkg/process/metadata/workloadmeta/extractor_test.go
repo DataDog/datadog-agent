@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -36,7 +36,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, mocktelemetry.Module()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
@@ -255,7 +255,7 @@ func TestExtractor(t *testing.T) {
 // asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
 // will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
 func TestLateContainerId(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, mocktelemetry.Module()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
@@ -309,7 +309,7 @@ func TestLateContainerId(t *testing.T) {
 // TestExecCmdlineChange tests that when a process has a different cmdline but same PID and same createTime
 // the extractor treats it as a new process and generates creation/deletion events accordingly.
 func TestExecCmdlineChange(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, mocktelemetry.Module()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 

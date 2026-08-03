@@ -315,19 +315,13 @@ func (r *EBPFResolvers) snapshot() error {
 	r.NamespaceResolver.SyncCache()
 
 	for _, proc := range processes {
-		ppid, err := proc.Ppid()
-		if err != nil {
-			continue
-		}
-
-		pid := uint32(proc.Pid)
-
-		if process.IsKThread(uint32(ppid), pid) {
-			continue
-		}
-
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
+		// If the process is running a Datadog tracer, populate the user-space
+		// tracer metadata — this otherwise only gets populated by the runtime
+		// tracer_memfd_seal event, which has already fired and been missed for
+		// processes that started before the agent.
+		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))
 	}
 
 	return nil

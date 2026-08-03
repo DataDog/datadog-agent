@@ -22,7 +22,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
@@ -64,8 +64,12 @@ func TestMockBundleDependencies(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
+	// Set a fixed hostname so trace config init skips hostname resolution in
+	// containerized CI environments where os.Hostname() is not trustworthy.
+	t.Setenv("DD_HOSTNAME", "trace-bundle-test")
+
 	// Only for test purposes to avoid setting a different default value.
-	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath)
+	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath())
 	defer func() { os.Unsetenv("DDTEST_DEFAULT_LOG_FILE_PATH") }()
 
 	cfg := fxutil.Test[traceconfigdef.Component](t, fx.Options(
@@ -73,7 +77,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Invoke(func(_ traceconfigdef.Component) {}),

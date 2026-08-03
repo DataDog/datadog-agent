@@ -12,14 +12,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func checkHandler(w http.ResponseWriter, req *http.Request) {
-	requestedCheck := mux.Vars(req)["check"]
+	requestedCheck := req.PathValue("check")
 	checkOutput, ok := checks.GetCheckOutput(requestedCheck)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)

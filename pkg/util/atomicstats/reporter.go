@@ -103,7 +103,7 @@ func getReporter(ptrType reflect.Type) reporter {
 
 // newReporter creates a new reporter to represent the type of the argument.
 func newReporter(ptrType reflect.Type) reporter {
-	if ptrType.Kind() != reflect.Ptr || ptrType.Elem().Kind() != reflect.Struct {
+	if ptrType.Kind() != reflect.Pointer || ptrType.Elem().Kind() != reflect.Struct {
 		// errors here are programming (type) errors that cannot be caught at compile time,
 		// and thus are fatal
 		panic("Report expects a pointer to a struct")
@@ -188,7 +188,7 @@ func getFieldFor(fieldType reflect.Type) (field, error) {
 			get: func(v reflect.Value) interface{} {
 				return *(*uintptr)(unsafe.Pointer(v.UnsafeAddr()))
 			}}, nil
-	case reflect.Ptr:
+	case reflect.Pointer:
 		referentType := qualifiedTypeName(fieldType.Elem())
 		switch referentType {
 		case "go.uber.org/atomic.Bool":

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package agent provides the Enabled function for the process agent component.
 package agent
 
 import (
@@ -13,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -29,7 +30,7 @@ var (
 
 func enabledHelper(config config.Component, checkComponents []types.CheckComponent, l log.Component) bool {
 	// never run the process component in the cluster worker
-	if setup.IsCLCRunner(config) {
+	if helper.IsCLCRunner(config) {
 		return false
 	}
 

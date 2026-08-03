@@ -50,8 +50,8 @@ class Arch:
         """Check whether this architecture is different from one this code is running on."""
         return self != Arch.local()
 
-    def gcc_prefix(self, platform: str = sys.platform) -> str:
-        """Return the GCC prefix to use for this architecture, takes into account
+    def compiler_prefix(self, platform: str = sys.platform) -> str:
+        """Return the compiler prefix to use for this architecture, takes into account
         the platform we are running on (linux/darwin/windows).
 
         Raises ValueError if the platform is not recognized.
@@ -60,26 +60,23 @@ class Arch:
             return f"{self.gcc_arch}-apple-darwin23"
         elif platform == "linux":
             return f"{self.gcc_arch}-linux-gnu"
-        elif platform == "windows":
+        elif platform in {"windows", "win32"}:
             return f"{self.gcc_arch}-w64-mingw32"
+        elif platform == "aix":
+            # AIX cross-compiler triplet uses "powerpc" (not "powerpc64"); 64-bit mode
+            # is selected at compile time via -maix64. Target AIX 7.3 by default —
+            # match the version baked into the toolchain built by build-aix-cross.sh.
+            return "powerpc-ibm-aix7.3.0.0"
         else:
             raise ValueError(f"Unknown platform: {platform}")
 
-    def gcc_compiler(self, platform: str = sys.platform) -> str:
+    def compiler_name(self, compiler: str, platform: str = sys.platform) -> str:
         """Return the GCC compiler to use for this architecture, takes into account
         the platform we are running on (linux/darwin/windows).
 
         Raises ValueError if the platform is not recognized.
         """
-        return f"{self.gcc_prefix(platform)}-gcc"
-
-    def gpp_compiler(self, platform: str = sys.platform) -> str:
-        """Return the G++ compiler to use for this architecture, takes into account
-        the platform we are running on (linux/darwin/windows).
-
-        Raises ValueError if the platform is not recognized.
-        """
-        return f"{self.gcc_prefix(platform)}-g++"
+        return f"{self.compiler_prefix(platform)}-{compiler}"
 
     @property
     def kmt_arch(self) -> KMTArchName:
@@ -120,6 +117,10 @@ class Arch:
 
         if arch == "local":
             arch = platform.machine().lower()
+            # On AIX, platform.machine() returns a machine model number (e.g. "00f9d80f4c00"),
+            # not the architecture name.  Fall back to platform.processor() in that case.
+            if not any(arch in a.spellings for a in ALL_ARCHS):
+                arch = platform.processor().lower()
 
         # Not the most efficient way to do this, but the list is small
         # enough and this way we avoid having to maintain a dictionary
@@ -155,4 +156,15 @@ ARCH_AMD64 = Arch(
     spellings={"amd64", "x86_64", "x64", "x86-64", "x86"},
 )
 
-ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64]
+ARCH_PPC64 = Arch(
+    name="ppc64",
+    go_arch="ppc64",
+    gcc_arch="powerpc64",
+    kernel_arch="powerpc",
+    kmt_arch=None,
+    windows_arch="",
+    ci_arch="ppc64",
+    spellings={"ppc64", "powerpc64", "powerpc"},
+)
+
+ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64, ARCH_PPC64]

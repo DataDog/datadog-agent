@@ -1,3 +1,6 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 
 package(default_visibility = ["//visibility:private"])
@@ -10,4 +13,57 @@ py_library(
         "@py_dev_requirements//invoke",
         "@py_dev_requirements//pyyaml",
     ],
+)
+
+exports_files(["core_checks.py"])
+
+exports_files(
+    ["agent_payload_version.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+# Tool that reads go.mod and emits the Starlark constant file.
+py_binary(
+    name = "get_payload_version_tool",
+    srcs = ["libs/common/get_payload_version.py"],
+    main = "libs/common/get_payload_version.py",
+)
+
+# Regenerates agent_payload_version.bzl from go.mod.
+# bazel run //tasks:write_agent_payload_version  — updates the committed file.
+# bazel test //tasks:write_agent_payload_version_test — fails if out of sync.
+run_binary(
+    name = "gen_agent_payload_version",
+    srcs = ["//:go.mod"],
+    outs = ["agent_payload_version.bzl.gen"],
+    args = [
+        "$(location //:go.mod)",
+        "$(location agent_payload_version.bzl.gen)",
+    ],
+    tool = ":get_payload_version_tool",
+)
+
+write_source_file(
+    name = "write_agent_payload_version",
+    in_file = ":gen_agent_payload_version",
+    out_file = "agent_payload_version.bzl",
+)
+
+# build_tags.bzl is the single source of truth for build tags. //BUILD.bazel
+# load()s GAZELLE_BUILD_TAGS from it; the dd_agent_go_test extension consumes it as a
+# file input to generate its tags.go.
+exports_files(
+    ["build_tags.bzl"],
+    visibility = ["//bazel/rules/go:__pkg__"],
+)
+
+# No `data = [...]` for renovate.json / deps/ / .renovate-untracked.json on
+# purpose: the script resolves them via $BUILD_WORKSPACE_DIRECTORY (set by
+# `bazel run`) so it reads the live workspace, not the bazel sandbox. Adding
+# them as data deps would silently shadow the real files.
+py_binary(
+    name = "check_renovate_bazel_coverage",
+    srcs = ["renovate.py"],
+    main = "renovate.py",
+    deps = ["@py_dev_requirements//invoke"],
 )

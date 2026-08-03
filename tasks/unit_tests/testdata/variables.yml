@@ -48,8 +48,6 @@ variables:
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
-  ## comment out the line below to disable integration wheels cache
-  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   BTFHUB_ARCHIVE_BRANCH: main
@@ -107,16 +105,11 @@ variables:
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE: ci.datadog-agent.agent-qa-profile  # agent-devx
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx
   API_KEY_DDDEV: ci.datadog-agent.datadog_api_key  # agent-devx
   APP_KEY_ORG2: ci.datadog-agent.datadog_app_key_org2  # agent-devx
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx
-  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-products
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx
   DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
   DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
-  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
-  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd  # container-integrations
   E2E_TESTS_API_KEY: ci.datadog-agent.e2e_tests_api_key  # agent-devx
   E2E_TESTS_APP_KEY: ci.datadog-agent.e2e_tests_app_key  # agent-devx
   E2E_TESTS_RC_KEY: ci.datadog-agent.e2e_tests_rc_key  # agent-devx
@@ -126,23 +119,11 @@ variables:
   E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx
   E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx
   E2E_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_password  # agent-devx
-  GITHUB_PR_COMMENTER_APP_KEY: pr-commenter.github_app_key  # agent-devx
-  GITHUB_PR_COMMENTER_INTEGRATION_ID: pr-commenter.github_integration_id  # agent-devx
-  GITHUB_PR_COMMENTER_INSTALLATION_ID: pr-commenter.github_installation_id  # agent-devx
   GITLAB_SCHEDULER_TOKEN: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN: ci.datadog-agent.gitlab_read_api_token  # ci-cd
   GITLAB_FULL_API_TOKEN: ci.datadog-agent.gitlab_full_api_token  # ci-cd
   INSTALL_SCRIPT_API_KEY: ci.agent-linux-install-script.datadog_api_key_2  # agent-delivery
   JIRA_READ_API_TOKEN: ci.datadog-agent.jira_read_api_token  # agent-devx
-  AGENT_GITHUB_APP_ID: ci.datadog-agent.platform-github-app-id  # agent-devx
-  AGENT_GITHUB_INSTALLATION_ID: ci.datadog-agent.platform-github-app-installation-id  # agent-devx
-  AGENT_GITHUB_KEY: ci.datadog-agent.platform-github-app-key  # agent-devx
-  MACOS_GITHUB_APP_ID: ci.datadog-agent.macos_github_app_id  # agent-devx
-  MACOS_GITHUB_INSTALLATION_ID: ci.datadog-agent.macos_github_installation_id  # agent-devx
-  MACOS_GITHUB_KEY: ci.datadog-agent.macos_github_key_b64  # agent-devx
-  MACOS_GITHUB_APP_ID_2: ci.datadog-agent.macos_github_app_id_2  # agent-devx
-  MACOS_GITHUB_INSTALLATION_ID_2: ci.datadog-agent.macos_github_installation_id_2  # agent-devx
-  MACOS_GITHUB_KEY_2: ci.datadog-agent.macos_github_key_b64_2  # agent-devx
   RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-delivery
   RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-delivery
   SLACK_AGENT_CI_TOKEN: ci.datadog-agent.slack_agent_ci_token  # agent-devx
@@ -154,24 +135,19 @@ variables:
   SSH_KEY: ci.datadog-agent.ssh_key  # system-probe
   SSH_KEY_RSA: ci.datadog-agent.ssh_key_rsa  # agent-devx
   SSH_PUBLIC_KEY_RSA: ci.datadog-agent.ssh_public_key_rsa  # agent-devx
-  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-products
-  WINGET_PAT: ci.datadog-agent.winget_pat  # windows-products
   # End aws ssm variables
 
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2  # agent-devx
-  AGENT_GITHUB_APP: agent-github-app  # agent-devx
   AGENT_QA_E2E: agent-qa-e2e  # agent-devx
   ATLASSIAN_WRITE: atlassian-write  # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx
   SLACK_AGENT: slack-agent-ci  # agent-devx
+  VCPKG_BLOB_SAS_URL: vcpkg-blob-sas  # windows-products
+  WINGET_PAT: winget-pat  # windows-products
   # End vault variables
-
-  DD_PKG_VERSION: "latest"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2

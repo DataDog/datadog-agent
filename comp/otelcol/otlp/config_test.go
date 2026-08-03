@@ -61,6 +61,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
@@ -87,6 +88,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
@@ -113,6 +115,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
@@ -154,6 +157,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
@@ -175,6 +179,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"enabled": true,
 					"batch": map[string]interface{}{
@@ -203,9 +208,8 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
-				Logs: map[string]interface{}{
-					"enabled": false,
-				},
+				TracesContainerTagPromotion:  "off",
+				Logs:                         map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
@@ -259,6 +263,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -293,6 +298,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -333,6 +339,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -373,6 +380,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -406,6 +414,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -440,6 +449,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -472,6 +482,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -499,6 +510,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"enabled": true,
 					"batch": map[string]interface{}{
@@ -530,6 +542,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"enabled": false,
 				},
@@ -556,6 +569,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -581,6 +595,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: false,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				TracePort:                    5003,
 				Metrics: map[string]interface{}{
@@ -588,6 +603,31 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"resource_attributes_as_tags":            false,
+					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{},
+				Debug:        map[string]interface{}{},
+			},
+		},
+		{
+			name: "override trace container_tag_promotion",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_CONTAINER_TAG_PROMOTION": "rename",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "rename",
+				Logs:                         map[string]interface{}{},
+				TracePort:                    5003,
+				Metrics: map[string]interface{}{
+					"enabled":                                true,
+					"tag_cardinality":                        "low",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
 				},
 				MetricsBatch: map[string]interface{}{},
@@ -630,6 +670,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"enabled": true,
 					"batch": map[string]interface{}{
@@ -697,6 +738,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Debug:                        map[string]interface{}{},
 				Metrics: map[string]interface{}{
@@ -719,6 +761,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Debug:                        map[string]interface{}{"verbosity": "detailed"},
 				Metrics: map[string]interface{}{
@@ -741,6 +784,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Debug:                        map[string]interface{}{"verbosity": "none"},
 				Metrics: map[string]interface{}{
@@ -763,6 +807,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
 				Debug:                        map[string]interface{}{"verbosity": "normal"},
 				Metrics: map[string]interface{}{

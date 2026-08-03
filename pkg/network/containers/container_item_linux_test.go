@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -19,7 +20,34 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+func TestReadResolvConfAbsoluteSymlink(t *testing.T) {
+	// Set up a fake procfs so kernel.HostProc("<pid>/root") points at our temp dir.
+	// This simulates the container case where /etc/resolv.conf is an absolute
+	// symlink (e.g. -> /run/systemd/resolve/resolv.conf) that must be resolved
+	// within the container root, not the host root.
+	fakeProc := t.TempDir()
+	oldProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
+
+	containerRoot := filepath.Join(fakeProc, "42", "root")
+	require.NoError(t, os.MkdirAll(filepath.Join(containerRoot, "run/systemd/resolve"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(containerRoot, "run/systemd/resolve/resolv.conf"),
+		[]byte("nameserver 1.2.3.4\n"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(containerRoot, "etc"), 0755))
+	require.NoError(t, os.Symlink("/run/systemd/resolve/resolv.conf", filepath.Join(containerRoot, "etc/resolv.conf")))
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	result, err := rs.readResolvConf(&events.Process{
+		Pid:         42,
+		ContainerID: intern.GetByString("test-container"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "nameserver 1.2.3.4", result)
+}
 
 func TestStripResolvConf(t *testing.T) {
 	resolvConf := `

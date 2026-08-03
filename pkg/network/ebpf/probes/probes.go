@@ -91,12 +91,8 @@ const (
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
-	// TCPDoneFlushReturn traces the return of the tcp_done() system call
-	TCPDoneFlushReturn ProbeFuncName = "kretprobe__tcp_done_flush"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
-	// TCPCloseFlushReturn traces the return of tcp_close() system call
-	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
 	// We use the following two probes for UDP sends
 
@@ -150,13 +146,9 @@ const (
 
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
-	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
-	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
 	// UDPv6DestroySock traces the udpv6_destroy_sock() system call
 	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
-	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call
-	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
@@ -234,8 +226,6 @@ const (
 	TelemetryMap BPFMapName = "telemetry"
 	// TCPFailureTelemetry is the map storing telemetry for TCP Failures
 	TCPFailureTelemetry BPFMapName = "tcp_failure_telemetry"
-	// ConnCloseBatchMap is the map storing connection close batch events
-	ConnCloseBatchMap BPFMapName = "conn_close_batch"
 	// ConntrackArgsMap is the map storing the arguments of the __nf_conntrack_confirm() and nf_conntrack_hash_check_insert() kernel functions
 	ConntrackArgsMap BPFMapName = "conntrack_args"
 	// ConntrackMap is the map storing conntrack entries
@@ -266,6 +256,4 @@ const (
 	EnhancedTLSTagsMap BPFMapName = "tls_enhanced_tags"
 	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
-	// TCPCloseProgsMap is the map storing the programs to run on TCP close events
-	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
 )

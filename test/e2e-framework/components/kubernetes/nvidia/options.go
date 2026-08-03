@@ -14,7 +14,7 @@ const defaultNvkindVersion = "eeeb9ca30763177fbe7b4d10fb6b7e21725e2295"
 
 // defaultHostGoVersion is the default version of Go to install in the host. This version
 // must be compatible with the nvkind utility
-const defaultHostGoVersion = "1.23"
+const defaultHostGoVersion = "1.25"
 
 // defaultKindNodeImage is the default image to use for the kind nodes.
 const defaultKindNodeImage = "kindest/node"

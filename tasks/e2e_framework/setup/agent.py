@@ -1,41 +1,30 @@
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.tool import ask, warn
+from tasks.e2e_framework.tool import info
+
+# Defaults that work with fakeintake-based tests (the overwhelming majority of E2E
+# scenarios). For the rare real-intake case, set E2E_API_KEY / E2E_APP_KEY in the
+# environment or fill the values in ~/.test_infra_config.yaml manually.
+_DEFAULT_API_KEY = "0" * 32
+_DEFAULT_APP_KEY = "0" * 40
 
 
-def setup_agent_config(config):
+def setup_agent_config(config: Config):
+    """
+    Populate the agent block with placeholder API/APP keys if they are missing.
+    Existing user-provided values are preserved.
+    """
     if config.configParams.agent is None:
-        config.configParams.agent = Config.Params.Agent(
-            apiKey=None,
-            appKey=None,
+        config.configParams.agent = Config.Params.Agent(apiKey=None, appKey=None)
+
+    agent = config.configParams.agent
+    if not agent.apiKey:
+        agent.apiKey = _DEFAULT_API_KEY
+    if not agent.appKey:
+        agent.appKey = _DEFAULT_APP_KEY
+
+    if agent.apiKey == _DEFAULT_API_KEY and agent.appKey == _DEFAULT_APP_KEY:
+        info(
+            "✓ Datadog API/APP keys: placeholder values (works with fakeintake; set E2E_API_KEY/E2E_APP_KEY for real intake)"
         )
-    # API key
-    if config.configParams.agent.apiKey is None:
-        config.configParams.agent.apiKey = "0" * 32
-    default_api_key = config.configParams.agent.apiKey
-    while True:
-        config.configParams.agent.apiKey = default_api_key
-        apiKey = ask(f"🐶 Datadog API key - default [{_get_safe_dd_key(config.configParams.agent.apiKey)}]: ")
-        if len(apiKey) > 0:
-            config.configParams.agent.apiKey = apiKey
-        if len(config.configParams.agent.apiKey) == 32:
-            break
-        warn(f"Expecting API key of length 32, got {len(config.configParams.agent.apiKey)}")
-    # APP key
-    if config.configParams.agent.appKey is None:
-        config.configParams.agent.appKey = "0" * 40
-    default_app_key = config.configParams.agent.appKey
-    while True:
-        config.configParams.agent.appKey = default_app_key
-
-        app_Key = ask(f"🐶 Datadog APP key - default [{_get_safe_dd_key(config.configParams.agent.appKey)}]: ")
-        if len(app_Key) > 0:
-            config.configParams.agent.appKey = app_Key
-        if len(config.configParams.agent.appKey) == 40:
-            break
-        warn(f"Expecting APP key of length 40, got {len(config.configParams.agent.appKey)}")
-
-
-def _get_safe_dd_key(key: str) -> str:
-    if key == "0" * len(key):
-        return key
-    return "*" * len(key)
+    else:
+        info("✓ Datadog API/APP keys already configured")

@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "payload",
+    srcs = [
+        "devices.go",
+        "interfaces.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/payload",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/networkdevice/metadata",
+        "//pkg/util/log",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)

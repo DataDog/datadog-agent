@@ -7,7 +7,7 @@
 package rctelemetryreporterimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 )
@@ -76,8 +76,8 @@ func (r *DdRcTelemetryReporter) SetConfigSubscriptionClientsTracked(value int) {
 	}
 }
 
-// NewDdRcTelemetryReporter creates a new Remote Config telemetry reporter for sending RC metrics to Datadog
-func NewDdRcTelemetryReporter(deps Dependencies) rctelemetryreporter.Component {
+// NewComponent creates a new Remote Config telemetry reporter for sending RC metrics to Datadog
+func NewComponent(deps Dependencies) rctelemetryreporter.Component {
 	commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
 	return &DdRcTelemetryReporter{
 		BypassRateLimitCounter: deps.Telemetry.NewCounterWithOpts(

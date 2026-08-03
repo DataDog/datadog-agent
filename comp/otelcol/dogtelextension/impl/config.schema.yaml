@@ -1,0 +1,58 @@
+description: Config defines the configuration for the dogtelextension
+type: object
+properties:
+  enable_metadata_collection:
+    description: EnableMetadataCollection toggles metadata collection. Pointer so that nil ("not set") is distinguishable from an explicit false, allowing NewConfigComponent to leave the DD agent default (true) intact when the field is absent.
+    x-pointer: true
+    type: boolean
+  enable_tagger_server:
+    description: EnableTaggerServer enables the tagger gRPC server.
+    type: boolean
+  hostname:
+    description: Hostname overrides the agent hostname used in standalone mode. Maps to the "hostname" DD agent config key. When empty the agent resolves the hostname automatically.
+    type: string
+  kubelet_tls_verify:
+    description: KubeletTLSVerify controls TLS verification for the kubelet client. nil keeps the DD agent default (true).
+    x-pointer: true
+    type: boolean
+  kubernetes_http_kubelet_port:
+    description: KubernetesHTTPKubeletPort is the kubelet HTTP port. 0 uses the agent default (10255).
+    type: integer
+  kubernetes_https_kubelet_port:
+    description: KubernetesHTTPSKubeletPort is the kubelet HTTPS port. 0 uses the agent default (10250).
+    type: integer
+  kubernetes_kubelet_host:
+    description: KubernetesKubeletHost is the kubelet host used for K8s tag enrichment in standalone mode (e.g. "status.hostIP" or an explicit IP). When the otel-agent runs on a Kubernetes node these settings let the workloadmeta kubelet collector and the local tagger reach the kubelet API without needing a separate datadog.yaml.
+    type: string
+  metadata_interval:
+    description: MetadataInterval is the metadata collection interval, in seconds. 0 uses the agent default (1800).
+    type: integer
+  secret_backend_arguments:
+    description: SecretBackendArguments are extra CLI arguments passed to the secret resolver binary.
+    type: array
+    items:
+      type: string
+  secret_backend_command:
+    description: SecretBackendCommand is the path to the secret resolver binary (standalone mode). Maps to the "secret_backend_command" DD agent config key so ENC[] handles in the OTel config can be resolved without a separate datadog.yaml file.
+    type: string
+  secret_backend_output_max_size:
+    description: SecretBackendOutputMaxSize is the maximum secret-resolver output size, in bytes. 0 uses the agent default.
+    type: integer
+  secret_backend_timeout:
+    description: SecretBackendTimeout is the secret-resolver execution timeout, in seconds. 0 uses the agent default (30s).
+    type: integer
+  standalone_mode:
+    description: StandaloneMode controls whether the extension runs in standalone mode, enabling secrets resolution and other agent features. Typically set via the DD_OTEL_STANDALONE environment variable.
+    type: boolean
+  tagger_max_concurrent_sync:
+    description: 'TaggerMaxConcurrentSync is the maximum number of concurrent tag stream subscribers. Default: 5.'
+    type: integer
+  tagger_max_message_size:
+    description: 'TaggerMaxMessageSize is the maximum gRPC message size in bytes. Default: 4MB.'
+    type: integer
+  tagger_server_addr:
+    description: 'TaggerServerAddr is the address the tagger server binds to. Default: localhost.'
+    type: string
+  tagger_server_port:
+    description: TaggerServerPort is the port the tagger server binds to. 0 auto-assigns.
+    type: integer

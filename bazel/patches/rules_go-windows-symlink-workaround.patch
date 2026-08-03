@@ -1,0 +1,151 @@
+diff --git a/go/private/rules/BUILD.bazel b/go/private/rules/BUILD.bazel
+index 25d8e37f..37ef7b5d 100644
+--- a/go/private/rules/BUILD.bazel
++++ b/go/private/rules/BUILD.bazel
+@@ -150,6 +150,7 @@ bzl_library(
+         "//go/private:mode",
+         "//go/private:platforms",
+         "//go/private:providers",
++        "//go/private/tools:copy_cmd",
+     ],
+ )
+ 
+@@ -163,6 +164,7 @@ bzl_library(
+     deps = [
+         "//go/private:providers",
+         "//go/private/rules:transition",
++        "//go/private/tools:copy_cmd",
+     ],
+ )
+ 
+diff --git a/go/private/rules/cross.bzl b/go/private/rules/cross.bzl
+index d21b0d27..b2caae69 100644
+--- a/go/private/rules/cross.bzl
++++ b/go/private/rules/cross.bzl
+@@ -21,6 +21,7 @@ load(
+     "//go/private/rules:transition.bzl",
+     "go_cross_transition",
+ )
++load("//go/private/tools:copy_cmd.bzl", "copy_cmd")
+ 
+ def _is_windows(ctx):
+     return ctx.configuration.host_path_separator == ";"
+@@ -57,7 +58,10 @@ def _go_cross_impl(ctx):
+         # Bazel requires executable rules to created the executable themselves,
+         # so we create a symlink in this rule so that it appears this rule created its executable.
+         new_executable = ctx.actions.declare_file(ctx.attr.name)
+-        ctx.actions.symlink(output = new_executable, target_file = old_executable)
++        if _is_windows(ctx):
++            copy_cmd(ctx, old_executable, new_executable)
++        else:
++            ctx.actions.symlink(output = new_executable, target_file = old_executable)
+         new_default_info = DefaultInfo(
+             files = depset([new_executable]),
+             runfiles = old_default_info.default_runfiles,
+diff --git a/go/private/rules/transition.bzl b/go/private/rules/transition.bzl
+index c0b2e2aa..f5a1fadd 100644
+--- a/go/private/rules/transition.bzl
++++ b/go/private/rules/transition.bzl
+@@ -16,6 +16,7 @@ load(
+     "@bazel_skylib//lib:paths.bzl",
+     "paths",
+ )
++load("//go/private/tools:copy_cmd.bzl", "copy_cmd")
+ load(
+     "//go/private:mode.bzl",
+     "LINKMODES",
+@@ -45,6 +46,9 @@ TRANSITIONED_GO_SETTING_KEYS = [
+     "//go/config:pgoprofile",
+ ]
+ 
++def _is_windows(ctx):
++    return ctx.configuration.host_path_separator == ";"
++
+ def _deduped_and_sorted(strs):
+     return sorted({s: None for s in strs}.keys())
+ 
+@@ -304,11 +308,14 @@ def _go_reset_target_impl(ctx):
+         # executable (important in the case of proto plugins), put it in a
+         # subdirectory named after the label to prevent collisions.
+         new_executable = ctx.actions.declare_file(paths.join(ctx.label.name, original_executable.basename))
+-        ctx.actions.symlink(
+-            output = new_executable,
+-            target_file = original_executable,
+-            is_executable = True,
+-        )
++        if _is_windows(ctx):
++            copy_cmd(ctx, original_executable, new_executable)
++        else:
++            ctx.actions.symlink(
++                output = new_executable,
++                target_file = original_executable,
++                is_executable = True,
++            )
+         default_runfiles = default_runfiles.merge(ctx.runfiles([new_executable]))
+ 
+     providers.append(
+diff --git a/go/private/tools/BUILD.bazel b/go/private/tools/BUILD.bazel
+index 1852c9c8..f95d6ba7 100644
+--- a/go/private/tools/BUILD.bazel
++++ b/go/private/tools/BUILD.bazel
+@@ -25,3 +25,9 @@ bzl_library(
+         "//go/private:providers",
+     ],
+ )
++
++bzl_library(
++    name = "copy_cmd",
++    srcs = ["copy_cmd.bzl"],
++    visibility = ["//go:__subpackages__"],
++)
+diff --git a/go/private/tools/copy_cmd.bzl b/go/private/tools/copy_cmd.bzl
+new file mode 100644
+index 00000000..43c69991
+--- /dev/null
++++ b/go/private/tools/copy_cmd.bzl
+@@ -0,0 +1,45 @@
++# Copyright 2019 The Bazel Authors. All rights reserved.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#    http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++# `copy_cmd` from https://github.com/bazelbuild/bazel-skylib@6126842e3db2ec4986752f6dfc0860ca922997f1
++def copy_cmd(ctx, src, dst):
++    # Most Windows binaries built with MSVC use a certain argument quoting
++    # scheme. Bazel uses that scheme too to quote arguments. However,
++    # cmd.exe uses different semantics, so Bazel's quoting is wrong here.
++    # To fix that we write the command to a .bat file so no command line
++    # quoting or escaping is required.
++    bat = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
++    ctx.actions.write(
++        output = bat,
++        # Do not use lib/shell.bzl's shell.quote() method, because that uses
++        # Bash quoting syntax, which is different from cmd.exe's syntax.
++        content = "@copy /Y \"%s\" \"%s\" >NUL" % (
++            src.path.replace("/", "\\"),
++            dst.path.replace("/", "\\"),
++        ),
++        is_executable = True,
++    )
++    ctx.actions.run(
++        inputs = [src, bat],
++        outputs = [dst],
++        executable = "cmd.exe",
++        arguments = ["/C", bat.path.replace("/", "\\")],
++        mnemonic = "CopyFile",
++        progress_message = "Copying files",
++        use_default_shell_env = True,
++        execution_requirements = {
++            "no-remote": "1",
++            "no-cache": "1",
++        },
++    )

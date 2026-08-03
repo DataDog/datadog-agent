@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -160,6 +161,16 @@ func isEmptyCEdgeIP(ip string) bool {
 }
 
 func parseCEdgeIP(ip string) (string, error) {
+	// Some vManage API versions return the IP as "address:interfaceName"
+	// (e.g. "23.18.2.1:GigabitEthernet0/1/7"). Strip the suffix for IPv4:
+	// the candidate before the first ":" is safe to try because valid IPv4
+	// addresses contain no colons. For IPv6, the candidate won't parse as a
+	// valid IP so we fall through to the original string unchanged.
+	if i := strings.Index(ip, ":"); i != -1 {
+		if candidate := ip[:i]; net.ParseIP(candidate) != nil {
+			ip = candidate
+		}
+	}
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil || ipAddr.IsUnspecified() {
 		return "", errors.New("invalid ip address")

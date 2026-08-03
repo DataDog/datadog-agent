@@ -5,6 +5,35 @@
 
 package client
 
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
+
+// FlexFloat64 unmarshals from both JSON number and JSON string representations.
+// Some Cisco vManage API versions return numeric fields such as vpn_id as strings.
+type FlexFloat64 float64
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (f *FlexFloat64) UnmarshalJSON(data []byte) error {
+	var n float64
+	if err := json.Unmarshal(data, &n); err == nil {
+		*f = FlexFloat64(n)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal %q into FlexFloat64: %w", s, err)
+	}
+	*f = FlexFloat64(n)
+	return nil
+}
+
 type viewKeys struct {
 	UniqueKey     []string `json:"uniqueKey"`
 	PreferenceKey string   `json:"preferenceKey"`
@@ -225,39 +254,39 @@ type CEdgeInterfaceState struct {
 
 // InterfaceStats /dataservice/data/device/statistics/interfacestatistics
 type InterfaceStats struct {
-	DownCapacityPercentage float64 `json:"down_capacity_percentage"`
-	TxPps                  float64 `json:"tx_pps"`
-	TotalMbps              float64 `json:"total_mbps"`
-	DeviceModel            string  `json:"device_model"`
-	RxKbps                 float64 `json:"rx_kbps"`
-	Interface              string  `json:"interface"`
-	TxOctets               float64 `json:"tx_octets"`
-	OperStatus             string  `json:"oper_status"`
-	RxErrors               float64 `json:"rx_errors"`
-	BwDown                 float64 `json:"bw_down"`
-	TxPkts                 float64 `json:"tx_pkts"`
-	TxErrors               float64 `json:"tx_errors"`
-	RxOctets               float64 `json:"rx_octets"`
-	Statcycletime          float64 `json:"statcycletime"`
-	AdminStatus            string  `json:"admin_status"`
-	BwUp                   float64 `json:"bw_up"`
-	InterfaceType          string  `json:"interface_type"`
-	Tenant                 string  `json:"tenant"`
-	EntryTime              float64 `json:"entry_time"`
-	VipTime                float64 `json:"vip_time"`
-	AfType                 string  `json:"af_type"`
-	RxPkts                 float64 `json:"rx_pkts"`
-	RxPps                  float64 `json:"rx_pps"`
-	VmanageSystemIP        string  `json:"vmanage_system_ip"`
-	TxDrops                float64 `json:"tx_drops"`
-	RxDrops                float64 `json:"rx_drops"`
-	TxKbps                 float64 `json:"tx_kbps"`
-	VdeviceName            string  `json:"vdevice_name"`
-	UpCapacityPercentage   float64 `json:"up_capacity_percentage"`
-	VipIdx                 float64 `json:"vip_idx"`
-	HostName               string  `json:"host_name"`
-	VpnID                  float64 `json:"vpn_id"`
-	ID                     string  `json:"id"`
+	DownCapacityPercentage float64     `json:"down_capacity_percentage"`
+	TxPps                  float64     `json:"tx_pps"`
+	TotalMbps              float64     `json:"total_mbps"`
+	DeviceModel            string      `json:"device_model"`
+	RxKbps                 float64     `json:"rx_kbps"`
+	Interface              string      `json:"interface"`
+	TxOctets               float64     `json:"tx_octets"`
+	OperStatus             string      `json:"oper_status"`
+	RxErrors               float64     `json:"rx_errors"`
+	BwDown                 float64     `json:"bw_down"`
+	TxPkts                 float64     `json:"tx_pkts"`
+	TxErrors               float64     `json:"tx_errors"`
+	RxOctets               float64     `json:"rx_octets"`
+	Statcycletime          float64     `json:"statcycletime"`
+	AdminStatus            string      `json:"admin_status"`
+	BwUp                   float64     `json:"bw_up"`
+	InterfaceType          string      `json:"interface_type"`
+	Tenant                 string      `json:"tenant"`
+	EntryTime              float64     `json:"entry_time"`
+	VipTime                float64     `json:"vip_time"`
+	AfType                 string      `json:"af_type"`
+	RxPkts                 float64     `json:"rx_pkts"`
+	RxPps                  float64     `json:"rx_pps"`
+	VmanageSystemIP        string      `json:"vmanage_system_ip"`
+	TxDrops                float64     `json:"tx_drops"`
+	RxDrops                float64     `json:"rx_drops"`
+	TxKbps                 float64     `json:"tx_kbps"`
+	VdeviceName            string      `json:"vdevice_name"`
+	UpCapacityPercentage   float64     `json:"up_capacity_percentage"`
+	VipIdx                 float64     `json:"vip_idx"`
+	HostName               string      `json:"host_name"`
+	VpnID                  FlexFloat64 `json:"vpn_id"`
+	ID                     string      `json:"id"`
 }
 
 // DeviceCounters /dataservice/device/counters
@@ -411,34 +440,34 @@ type HardwareEnvironment struct {
 
 // CloudXStatistics /dataservice/data/device/statistics/cloudxstatistics
 type CloudXStatistics struct {
-	RemoteColor      string  `json:"remote_color"`
-	DeviceModel      string  `json:"device_model"`
-	Latency          float64 `json:"latency"`
-	Interface        string  `json:"interface"`
-	LocalColor       string  `json:"local_color"`
-	Loss             float64 `json:"loss"`
-	GatewaySystemIP  string  `json:"gateway_system_ip"`
-	SourcePublicIP   string  `json:"source_public_ip"`
-	Statcycletime    float64 `json:"statcycletime"`
-	LocalSystemIP    string  `json:"local_system_ip"`
-	Tenant           string  `json:"tenant"`
-	EntryTime        float64 `json:"entry_time"`
-	VqeStatus        string  `json:"vqe_status"`
-	ExitType         string  `json:"exit_type"`
-	VipTime          float64 `json:"vip_time"`
-	VmanageSystemIP  string  `json:"vmanage_system_ip"`
-	NbarAppGroupName string  `json:"nbar_app_group_name"`
-	Application      string  `json:"application"`
-	VdeviceName      string  `json:"vdevice_name"`
-	BestPath         string  `json:"best_path"`
-	VipIdx           float64 `json:"vip_idx"`
-	SiteID           float64 `json:"site_id"`
-	VqeScore         string  `json:"vqe_score"`
-	ServiceArea      string  `json:"service_area"`
-	HostName         string  `json:"host_name"`
-	VpnID            float64 `json:"vpn_id"`
-	AppURLHostIP     string  `json:"app_url_host_ip"`
-	ID               string  `json:"id"`
+	RemoteColor      string      `json:"remote_color"`
+	DeviceModel      string      `json:"device_model"`
+	Latency          float64     `json:"latency"`
+	Interface        string      `json:"interface"`
+	LocalColor       string      `json:"local_color"`
+	Loss             float64     `json:"loss"`
+	GatewaySystemIP  string      `json:"gateway_system_ip"`
+	SourcePublicIP   string      `json:"source_public_ip"`
+	Statcycletime    float64     `json:"statcycletime"`
+	LocalSystemIP    string      `json:"local_system_ip"`
+	Tenant           string      `json:"tenant"`
+	EntryTime        float64     `json:"entry_time"`
+	VqeStatus        string      `json:"vqe_status"`
+	ExitType         string      `json:"exit_type"`
+	VipTime          float64     `json:"vip_time"`
+	VmanageSystemIP  string      `json:"vmanage_system_ip"`
+	NbarAppGroupName string      `json:"nbar_app_group_name"`
+	Application      string      `json:"application"`
+	VdeviceName      string      `json:"vdevice_name"`
+	BestPath         string      `json:"best_path"`
+	VipIdx           float64     `json:"vip_idx"`
+	SiteID           float64     `json:"site_id"`
+	VqeScore         string      `json:"vqe_score"`
+	ServiceArea      string      `json:"service_area"`
+	HostName         string      `json:"host_name"`
+	VpnID            FlexFloat64 `json:"vpn_id"`
+	AppURLHostIP     string      `json:"app_url_host_ip"`
+	ID               string      `json:"id"`
 }
 
 // BGPNeighbor /dataservice/data/device/state/BGPNeighbor

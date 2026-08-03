@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed the Cluster Agent ``kubeapiserver`` workloadmeta collector so that
+    resources are now discovered on a non-preferred API group version when they
+    are not served on the group's preferred version.

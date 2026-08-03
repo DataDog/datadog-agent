@@ -1,9 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "processes",
     srcs = [
         "processes.go",
+        "processes_aix.go",
         "processes_nix.go",
         "processes_windows.go",
     ],
@@ -26,7 +28,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "processes_test",
     srcs = ["processes_test.go"],
     embed = [":processes"],

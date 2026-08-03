@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agent.go",
+        "agent_jmx.go",
+        "agent_nojmx.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent",
+    visibility = ["//comp/api/api/apiimpl:__subpackages__"],
+    deps = [
+        "//comp/api/api/apiimpl/observability",
+        "//comp/api/api/def",
+        "//pkg/api/coverage",
+        "//pkg/jmxfetch",
+        "//pkg/status/health",
+        "//pkg/status/jmx",
+        "//pkg/util/http",
+        "//pkg/util/installinfo",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "agent_test",
+    srcs = ["agent_test.go"],
+    embed = [":agent"],
+    deps = [
+        "//comp/api/api/def",
+        "//pkg/util/installinfo",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

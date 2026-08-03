@@ -11,9 +11,11 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -58,8 +60,9 @@ type state struct {
 	// If true, the state machine is shutting down.
 	shuttingDown bool
 
-	breakerCfg    CircuitBreakerConfig
-	lastHeartbeat time.Time
+	breakerCfg        CircuitBreakerConfig
+	bufferEvictionCfg BufferEvictionConfig
+	lastHeartbeat     time.Time
 
 	// discoveredTypes tracks type names discovered at runtime via interface
 	// decoding, keyed by service name. Each value is a sorted, deduplicated
@@ -91,6 +94,17 @@ type state struct {
 		detached                    uint64
 		unloaded                    uint64
 		typeRecompilationsTriggered uint64
+
+		// runtime.recovery counters, accumulated by evaluateCircuitBreakers
+		// from per-program BPF stats. These are cumulative across all
+		// processes' lifetimes (we sample BPF counters periodically and
+		// add deltas).
+		recoveryFires          uint64
+		recoveryEvictedFrames  uint64
+		recoverySubmitFailures uint64
+		recoveryNoOpenCalls    uint64
+		recoveryFilteredGoexit uint64
+		recoveryInvalidState   uint64
 	}
 }
 
@@ -140,6 +154,13 @@ func (s *state) Metrics() Metrics {
 
 		NumProcesses: uint64(len(s.processes)),
 		NumPrograms:  uint64(len(s.programs)),
+
+		RecoveryFires:          s.counters.recoveryFires,
+		RecoveryEvictedFrames:  s.counters.recoveryEvictedFrames,
+		RecoverySubmitFailures: s.counters.recoverySubmitFailures,
+		RecoveryNoOpenCalls:    s.counters.recoveryNoOpenCalls,
+		RecoveryFilteredGoexit: s.counters.recoveryFilteredGoexit,
+		RecoveryInvalidState:   s.counters.recoveryInvalidState,
 	}
 }
 
@@ -185,6 +206,19 @@ type Metrics struct {
 	NumProcesses uint64
 	// NumPrograms is the number of programs in the state machine.
 	NumPrograms uint64
+
+	// runtime.recovery probe activity, aggregated across all loaded
+	// programs. See loader.RuntimeStats for the underlying counter
+	// definitions; BPF writes them with __sync atomics into the probe-0
+	// slot of the shared stats_buf ARRAY (they are process-wide, not
+	// per-probe), and the actuator reads probe-0's deltas at each
+	// heartbeat-driven RuntimeStats poll.
+	RecoveryFires          uint64
+	RecoveryEvictedFrames  uint64
+	RecoverySubmitFailures uint64
+	RecoveryNoOpenCalls    uint64
+	RecoveryFilteredGoexit uint64
+	RecoveryInvalidState   uint64
 }
 
 // AsStats converts the Metrics to a map[string]any for use by the system-probe.
@@ -206,6 +240,13 @@ func (m Metrics) AsStats() map[string]any {
 
 		"numProcesses": m.NumProcesses,
 		"numPrograms":  m.NumPrograms,
+
+		"recoveryFires":          m.RecoveryFires,
+		"recoveryEvictedFrames":  m.RecoveryEvictedFrames,
+		"recoverySubmitFailures": m.RecoverySubmitFailures,
+		"recoveryNoOpenCalls":    m.RecoveryNoOpenCalls,
+		"recoveryFilteredGoexit": m.RecoveryFilteredGoexit,
+		"recoveryInvalidState":   m.RecoveryInvalidState,
 	}
 }
 
@@ -233,7 +274,8 @@ func newState(cfg Config) *state {
 			return p.id
 		}),
 		breakerCfg:             cfg.CircuitBreakerConfig,
-		lastHeartbeat:          time.Now(),
+		bufferEvictionCfg:      cfg.BufferEvictionConfig,
+		lastHeartbeat:          nowFunc(),
 		discoveredTypes:        make(map[string][]string),
 		discoveredTypesLimit:   cfg.DiscoveredTypesLimit,
 		recompilationRateLimit: cfg.RecompilationRateLimit,
@@ -253,6 +295,11 @@ type program struct {
 
 	// Stats collected from the last heartbeat, indexed by core.
 	lastRuntimeStats []loader.RuntimeStats
+
+	// lastAppliedLost is the most recent drop_notify_lost_at value for
+	// which we have already fired an eviction effect on this program's
+	// sink. Monotonic: only advances.
+	lastAppliedLost uint64
 
 	// The process with which this program is associated.
 	//
@@ -275,6 +322,14 @@ type process struct {
 	service    string
 	probes     map[probeKey]ir.ProbeDefinition
 
+	// circuitBrokenProbes is the set of probe identities that have
+	// tripped the circuit breaker on this process. They are filtered
+	// out when (re)building a program for the process. Entries persist
+	// across recompiles but are pruned on processesUpdated when the
+	// underlying probe is removed (so re-adding a probe with the same
+	// identity gives it a fresh attempt).
+	circuitBrokenProbes map[probeKey]circuitBrokenInfo
+
 	// The currently installed program, if there is one. Will be 0 if the
 	// process's program creation failed.
 	currentProgram ir.ProgramID
@@ -283,6 +338,13 @@ type process struct {
 	// same ID as the currentProgram. Will be nil if there is no program
 	// attached.
 	attachedProgram *attachedProgram
+}
+
+// circuitBrokenInfo records why a probe was circuit-broken. The reason
+// is the most recent one; if a probe is re-tripped while still in the
+// set the entry is left untouched.
+type circuitBrokenInfo struct {
+	reason error
 }
 
 func (s *state) addProcessToServiceIndex(proc *process) {
@@ -362,6 +424,11 @@ type effectHandler interface {
 
 	// Unload program resources asynchronously.
 	unloadProgram(*loadedProgram) // -> ProgramUnloaded
+
+	// Report a per-probe execution failure (used when the circuit
+	// breaker trips a single probe). Fire-and-forget; the probe is
+	// excluded from the next program for the process via a recompile.
+	reportProbeError(*attachedProgram, ir.ProbeDefinition, error)
 }
 
 // handleEvent updates the state given the event, triggering the relevant
@@ -510,6 +577,13 @@ func handleProcessesUpdated(
 			k := probeKey{id: probe.GetID(), version: probe.GetVersion()}
 			p.probes[k] = probe
 		}
+		// Prune circuit-broken entries whose probe is no longer in the
+		// configured set: removing and re-adding a probe with the same
+		// identity is treated as a fresh attempt.
+		maps.DeleteFunc(p.circuitBrokenProbes, func(k probeKey, _ circuitBrokenInfo) bool {
+			_, stillConfigured := p.probes[k]
+			return !stillConfigured
+		})
 		// If now we're in an invalid state, we need to delete the process if
 		// we have no probes, or enqueue the new program with the new probes.
 		if len(p.probes) == 0 {
@@ -580,15 +654,36 @@ func handleProcessesUpdated(
 }
 
 func enqueueProgramForProcess(sm *state, p *process) error {
-	// If the process has no probes, we don't need to enqueue a program --
-	// we're done with the process.
+	// If the process has no probes (configured or after circuit-breaker
+	// filtering), we don't need to enqueue a program -- we're done with
+	// the process.
 	if len(p.probes) == 0 {
 		sm.deleteProcess(p.processID)
 		return nil
 	}
 	probes := make([]ir.ProbeDefinition, 0, len(p.probes))
-	for _, probe := range p.probes {
+	for k, probe := range p.probes {
+		if _, broken := p.circuitBrokenProbes[k]; broken {
+			continue
+		}
 		probes = append(probes, probe)
+	}
+	if len(probes) == 0 {
+		// All configured user probes have been circuit-broken on this
+		// process. The recovery probe (irgen-synthesised, not in
+		// p.probes) is irrelevant without user probes to pair with, so
+		// we don't enqueue a recovery-only program. There is nothing
+		// to instrument right now, but we must keep the process record
+		// alive so circuitBrokenProbes is preserved -- otherwise a
+		// subsequent processesUpdated that adds an unrelated probe
+		// (while a broken probe remains configured) would silently
+		// re-enable the hot probe. Park the process in Failed;
+		// subsequent changes to the configured probe set re-enter
+		// enqueueProgramForProcess via the Failed case in
+		// handleProcessUpdate.
+		p.state = processStateFailed
+		p.currentProgram = 0
+		return nil
 	}
 	slices.SortFunc(probes, func(a, b ir.ProbeDefinition) int {
 		return cmp.Or(
@@ -1063,11 +1158,21 @@ func maybeDequeueProgram(sm *state, effects effectHandler) error {
 	// Look up discovered types for the process's service at dequeue time,
 	// so we always use the latest set.
 	var additionalTypes []string
-	if proc, ok := sm.processes[p.processID]; ok && proc.service != "" {
-		additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+	var skipRecoveryProbe bool
+	if proc, ok := sm.processes[p.processID]; ok {
+		if proc.service != "" {
+			additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+		}
+		// The recovery probe is synthesised by irgen and is not in
+		// p.probes, so the standard enqueueProgramForProcess filter
+		// can't drop it. When the breaker trips it, suppress it at
+		// irgen time via LoadOptions instead.
+		recoveryKey := probeKey{id: ir.RuntimeRecoveryProbeID, version: 0}
+		_, skipRecoveryProbe = proc.circuitBrokenProbes[recoveryKey]
 	}
 	effects.loadProgram(p.id, p.executable, p.processID, p.config, LoadOptions{
-		AdditionalTypes: additionalTypes,
+		AdditionalTypes:          additionalTypes,
+		SkipRuntimeRecoveryProbe: skipRecoveryProbe,
 	})
 	return nil
 }
@@ -1129,8 +1234,12 @@ func handleShutdown(sm *state, effects effectHandler) error {
 	return nil
 }
 
+// nowFunc returns wall-clock time. Overridden by tests to make
+// heartbeat-driven cost calculations deterministic.
+var nowFunc = time.Now
+
 func handleHeartbeatCheck(sm *state, effects effectHandler) {
-	now := time.Now()
+	now := nowFunc()
 	interval := now.Sub(sm.lastHeartbeat)
 	sm.lastHeartbeat = now
 
@@ -1139,96 +1248,180 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 }
 
 func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
-	// Validate budget on every core independently.
-	var totalCostSPS []float64
-	var maxCostSPS []float64
-	var maxProg []*program
-	detachedAny := false
+	// Per-probe stats are aggregated across CPUs in BPF. Compare each
+	// probe's cost against PerProbeCPULimit; a tripped probe is
+	// circuit-broken on its process and a recompile is queued. After
+	// the per-probe pass, the all-probes limit (host-wide) trips the
+	// most expensive *active* probe.
+	var totalCostSPS float64
+	type probeCost struct {
+		prog    *program
+		proc    *process
+		probeID uint32
+		cost    float64
+	}
+	var maxCost probeCost
 	for _, prog := range sm.programs {
 		if prog.state != programStateLoaded {
 			continue
 		}
 		proc, ok := sm.processes[prog.processID]
 		if !ok || proc.state != processStateAttached {
-			// Not attached.
 			continue
 		}
-		perCoreStats := prog.loaded.loaded.RuntimeStats()
-		if len(prog.lastRuntimeStats) < len(perCoreStats) {
-			lastRuntimeStats := make([]loader.RuntimeStats, len(perCoreStats))
+		evaluateDropNotifyEviction(sm, prog)
+		perProbeStats := prog.loaded.loaded.RuntimeStats()
+		if len(prog.lastRuntimeStats) < len(perProbeStats) {
+			lastRuntimeStats := make([]loader.RuntimeStats, len(perProbeStats))
 			copy(lastRuntimeStats, prog.lastRuntimeStats)
 			prog.lastRuntimeStats = lastRuntimeStats
 		}
-		for len(totalCostSPS) < len(perCoreStats) {
-			totalCostSPS = append(totalCostSPS, 0)
-			maxCostSPS = append(maxCostSPS, -1)
-			maxProg = append(maxProg, nil)
-		}
-		for core, stats := range perCoreStats {
-			lastStats := prog.lastRuntimeStats[core]
-			hits := stats.HitCnt - lastStats.HitCnt
-			execCost := stats.CPU - lastStats.CPU
-			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
-			prog.lastRuntimeStats[core] = stats
+		for probeID, stats := range perProbeStats {
+			last := prog.lastRuntimeStats[probeID]
+			hits := stats.HitCnt - last.HitCnt
+			execCost := stats.CPU - last.CPU
+			prog.lastRuntimeStats[probeID] = stats
 
+			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
+			// Accumulate recovery-probe deltas. These are reset when the
+			// program is unloaded, so deltas across BPF reads are non-
+			// decreasing.
+			sm.counters.recoveryFires += stats.RecoveryFires - last.RecoveryFires
+			sm.counters.recoveryEvictedFrames += stats.RecoveryEvictedFrames - last.RecoveryEvictedFrames
+			sm.counters.recoverySubmitFailures += stats.RecoverySubmitFailures - last.RecoverySubmitFailures
+			sm.counters.recoveryNoOpenCalls += stats.RecoveryNoOpenCalls - last.RecoveryNoOpenCalls
+			sm.counters.recoveryFilteredGoexit += stats.RecoveryFilteredGoexit - last.RecoveryFilteredGoexit
+			sm.counters.recoveryInvalidState += stats.RecoveryInvalidState - last.RecoveryInvalidState
 			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
-			totalCostSPS[core] += costSPS
-			if costSPS > maxCostSPS[core] {
-				maxCostSPS[core] = costSPS
-				maxProg[core] = prog
+
+			// Skip probes already circuit-broken. Their cost is
+			// transient under normal operation (the queued recompile
+			// will remove them) so do not charge it against the
+			// host-wide AllProbesCPULimit, and do not count them as
+			// candidates for that limit's victim either. Charging
+			// the cost would mean a probe destined for removal could
+			// cause a healthy sibling to be picked as the all-probes
+			// victim. Note: if recompilation is rate-limited the
+			// removal is delayed, and if disabled
+			// (recompilationRateLimit < 0) the cost stays invisible
+			// to this budget -- but in that mode the breaker can't
+			// remediate anyway.
+			if def := prog.loaded.loaded.ProbeDefinition(uint32(probeID)); def != nil {
+				key := probeKey{id: def.GetID(), version: def.GetVersion()}
+				if _, broken := proc.circuitBrokenProbes[key]; broken {
+					continue
+				}
 			}
-			if costSPS > sm.breakerCfg.PerProbeCPULimit && proc.state == processStateAttached {
-				// Circuit breaker triggered for this probe, detach it.
-				prog.state = programStateDraining
-				prog.needsRecompilation = false
-				proc.state = processStateFailed
+
+			totalCostSPS += costSPS
+			if costSPS > sm.breakerCfg.PerProbeCPULimit {
 				err := fmt.Errorf(
-					"probe exceeded CPU limit of %fcpus/s using %fcpus/s = %fcpus/s (exec) + %fcpus/s (%d interrupts) over %fs on core %d",
+					"probe exceeded CPU limit of %fcpus/s using %fcpus/s (exec %v + %d interrupts at %v each over %v)",
 					sm.breakerCfg.PerProbeCPULimit,
 					costSPS,
-					execCost.Seconds()/interval.Seconds(),
-					interruptCost.Seconds()/interval.Seconds(),
+					execCost,
 					hits,
-					interval.Seconds(),
-					core,
+					sm.breakerCfg.InterruptOverhead,
+					interval,
 				)
-				effects.detachFromProcess(proc.attachedProgram, err)
-				proc.attachedProgram = nil
-				detachedAny = true
-				break
+				tripProbe(effects, prog, proc, uint32(probeID), err)
+				// Subtract this probe's cost from the running total
+				// so the all-probes limit doesn't double-count it.
+				totalCostSPS -= costSPS
+				continue
+			}
+			if costSPS > maxCost.cost {
+				maxCost = probeCost{
+					prog: prog, proc: proc,
+					probeID: uint32(probeID), cost: costSPS,
+				}
 			}
 		}
 	}
 
-	// Check if any core exceeded the total budget across all probes.
-	// If so, pick the most expensive probe on a core with highest total cost.
-	if len(totalCostSPS) == 0 {
+	if maxCost.prog != nil && totalCostSPS > sm.breakerCfg.AllProbesCPULimit {
+		err := fmt.Errorf(
+			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s; tripping most expensive probe (%fcpus/s)",
+			sm.breakerCfg.AllProbesCPULimit,
+			totalCostSPS,
+			maxCost.cost,
+		)
+		tripProbe(effects, maxCost.prog, maxCost.proc, maxCost.probeID, err)
+	}
+}
+
+// tripProbe records that the given probe has tripped its circuit
+// breaker on the process owning prog. The probe is added to the
+// process's circuit-broken set, a per-probe diagnostic is emitted, and
+// the program is flagged for recompilation; the recompile filters the
+// tripped probe out of the new program. Idempotent: re-tripping a
+// probe already in the set is a no-op.
+func tripProbe(
+	effects effectHandler,
+	prog *program, proc *process, probeID uint32, reason error,
+) {
+	def := prog.loaded.loaded.ProbeDefinition(probeID)
+	if def == nil {
+		// Should not happen: probeID was read from RuntimeStats whose
+		// length is bounded by NumProbes(). Log and skip.
+		log.Errorf(
+			"dyninst: tripProbe called with out-of-range probeID %d on program %d",
+			probeID, prog.id,
+		)
 		return
 	}
-	{
-		maxCore := 0
-		for core, cost := range totalCostSPS {
-			if cost > totalCostSPS[maxCore] {
-				maxCore = core
-			}
-		}
-		if !detachedAny && maxProg[maxCore] != nil && totalCostSPS[maxCore] > sm.breakerCfg.AllProbesCPULimit {
-			prog := maxProg[maxCore]
-			proc := sm.processes[prog.processID]
-			prog.state = programStateDraining
-			prog.needsRecompilation = false
-			proc.state = processStateFailed
-			err := fmt.Errorf(
-				"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
-				sm.breakerCfg.AllProbesCPULimit,
-				totalCostSPS[maxCore],
-				maxCore,
-				maxCostSPS[maxCore],
-				interval.Seconds(),
-			)
-			effects.detachFromProcess(proc.attachedProgram, err)
-		}
+	key := probeKey{id: def.GetID(), version: def.GetVersion()}
+	if _, already := proc.circuitBrokenProbes[key]; already {
+		return
 	}
+	if proc.circuitBrokenProbes == nil {
+		proc.circuitBrokenProbes = make(map[probeKey]circuitBrokenInfo)
+	}
+	proc.circuitBrokenProbes[key] = circuitBrokenInfo{reason: reason}
+	if proc.attachedProgram != nil {
+		effects.reportProbeError(proc.attachedProgram, def, reason)
+	}
+	switch prog.state {
+	case programStateLoading, programStateLoaded:
+		prog.needsRecompilation = true
+	}
+	log.Warnf(
+		"dyninst: probe %s@%d circuit-broken on process %v: %v",
+		key.id, key.version, proc.processID, reason,
+	)
+}
+
+// nowKtimeNs returns the current kernel-monotonic time in nanoseconds —
+// the same clock source as bpf_ktime_get_ns. Overridden by tests.
+var nowKtimeNs = func() uint64 {
+	var ts unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		// CLOCK_MONOTONIC always succeeds on Linux; fall back to 0.
+		return 0
+	}
+	return uint64(ts.Sec)*1_000_000_000 + uint64(ts.Nsec)
+}
+
+// evaluateDropNotifyEviction reads the BPF drop_notify_lost_at timestamp
+// for prog, and if it has advanced since the last observation AND the
+// grace window has elapsed, asks prog's sink to evict buffered entries
+// older than the lost timestamp.
+func evaluateDropNotifyEviction(sm *state, prog *program) {
+	gw := sm.bufferEvictionCfg.GraceWindow
+	if gw <= 0 {
+		return // eviction disabled
+	}
+	lostAt := prog.loaded.loaded.DropNotifyLostAt()
+	if lostAt == 0 || lostAt <= prog.lastAppliedLost {
+		return
+	}
+	now := nowKtimeNs()
+	if now < uint64(gw.Nanoseconds()) || lostAt > now-uint64(gw.Nanoseconds()) {
+		// Grace window hasn't elapsed yet; retry on the next poll.
+		return
+	}
+	prog.loaded.loaded.EvictBufferOlderThan(lostAt)
+	prog.lastAppliedLost = lostAt
 }
 
 func replenishRecompilationAllowance(sm *state, interval time.Duration) {

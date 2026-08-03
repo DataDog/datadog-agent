@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    Health Platform: the ``health_platform.issues_detected`` telemetry counter
+    is now tagged with ``issue_type`` instead of ``health_check_id``. Update any
+    dashboards, monitors, or telemetry configuration that filtered or grouped
+    by the ``health_check_id`` tag to use ``issue_type`` instead.

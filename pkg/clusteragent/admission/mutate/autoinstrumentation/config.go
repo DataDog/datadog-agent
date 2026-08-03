@@ -46,6 +46,11 @@ type staticConfig struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
+	// registryAllowList restricts which registries can be used for library injection.
+	// When non-empty, libraries from registries not in this list will not be injected.
+	// An empty list allows all registries (default).
+	registryAllowList []string
+
 	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
 	mutateUnlabelled bool
 
@@ -126,6 +131,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	registryAllowList := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
@@ -134,6 +140,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 			Instrumentation:               instrumentationConfig,
 			containerRegistry:             containerRegistry,
+			registryAllowList:             registryAllowList,
 			mutateUnlabelled:              mutateUnlabelled,
 			initResources:                 initResources,
 			initSecurityContext:           initSecurityContext,
@@ -199,6 +206,21 @@ type InstrumentationConfig struct {
 	// Possible values: "auto" (default), "init_container" and "csi".
 	// Full config key: apm_config.instrumentation.injection_mode
 	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
+	// CSIDriverDetectionEnabled is a temporary feature flag gating the CSI
+	// auto-detection logic in the library-injection AutoProvider. When true,
+	// AutoProvider may switch to the CSI provider if the Datadog CSI driver
+	// is registered in the cluster. Full config key:
+	// apm_config.instrumentation.csi_driver_detection_enabled.
+	//
+	// The field is unused by this struct's consumers: the flag is read
+	// directly via config.GetBool both in the cluster-agent entry point (to
+	// decide whether to start the CSIDriverWatcher) and in the workloadmeta
+	// kubeapiserver collector (to decide whether to watch
+	// csidrivers.storage.k8s.io). It must still be declared here because
+	// NewInstrumentationConfig unmarshals apm_config.instrumentation with
+	// structure.ErrorUnused: without this field, setting the flag would
+	// crash the cluster-agent at startup.
+	CSIDriverDetectionEnabled bool `mapstructure:"csi_driver_detection_enabled" json:"csi_driver_detection_enabled"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
@@ -390,12 +412,14 @@ type pinnedLibraries struct {
 // given a registry.
 func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool) pinnedLibraries {
 	libs := []libInfo{}
+	defaultLanguages := defaultInjectedLanguagesMap()
 	allDefaults := true
 
 	for lang, version := range libVersions {
 		l := language(lang)
 		if !l.isSupported() {
 			log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
+			allDefaults = false
 			continue
 		}
 
@@ -403,14 +427,15 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 
-		if info.image != l.libImageName(registry, l.defaultLibVersion()) {
+		if !defaultLanguages[l] || info.image != l.libImageName(registry, l.defaultLibVersion()) {
 			allDefaults = false
 		}
+		delete(defaultLanguages, l)
 	}
 
 	return pinnedLibraries{
 		libs:             libs,
-		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultSupportedLanguagesMap()),
+		areSetToDefaults: checkDefaults && allDefaults && len(defaultLanguages) == 0,
 	}
 }
 

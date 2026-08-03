@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	gorilla "github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
@@ -39,22 +37,16 @@ func (server *apiServer) startCMDServer(
 
 	// Setup multiplexer
 	// create the REST HTTP router
-	agentMux := gorilla.NewRouter()
-
-	// Validate token for every request
-	agentMux.Use(server.ipc.HTTPMiddleware)
-	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
-	// Pass "/agent" to preserve the full path since agentMux is mounted via http.StripPrefix("/agent", ...).
-	agentMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/agent"))
+	agentMux := http.NewServeMux()
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
 		"/agent/",
-		http.StripPrefix("/agent",
+		server.ipc.HTTPMiddleware(observability.MountWithPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
 				server.endpointProviders,
-			)))
+			))))
 
 	// Add some observability in the API server
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)

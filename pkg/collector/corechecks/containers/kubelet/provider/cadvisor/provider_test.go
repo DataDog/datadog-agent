@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
@@ -29,6 +30,7 @@ import (
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
@@ -73,12 +75,41 @@ var (
 		common.KubeletMetricsPrefix + "io.read_bytes",
 		common.KubeletMetricsPrefix + "filesystem.usage",
 		common.KubeletMetricsPrefix + "filesystem.usage_pct",
-		common.KubeletMetricsPrefix + "memory.limits",
 		common.KubeletMetricsPrefix + "memory.usage",
 		common.KubeletMetricsPrefix + "memory.usage_pct",
 		common.KubeletMetricsPrefix + "memory.sw_limit",
 		common.KubeletMetricsPrefix + "memory.sw_in_use",
 		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "memory.cache",
+		common.KubeletMetricsPrefix + "memory.rss",
+		common.KubeletMetricsPrefix + "memory.swap",
+	}
+
+	// expectedMetricsPrometheusWithStatsSummary is the subset of cAdvisor
+	// metrics still emitted when use_stats_summary_as_source is enabled. The
+	// summary provider takes over cpu.usage.total, memory.usage,
+	// memory.working_set, filesystem.usage, filesystem.usage_pct, and the
+	// pod-level network.{rx,tx}_bytes; emitting them here as well would
+	// double-count (issue #50544). memory.usage_pct is intentionally kept:
+	// the summary provider does not emit it, so we still derive it locally
+	// from container_spec_memory_limit_bytes against the cache populated by
+	// the (silenced) container_memory_usage_bytes transformer.
+	expectedMetricsPrometheusWithStatsSummary = []string{
+		common.KubeletMetricsPrefix + "cpu.load.10s.avg",
+		common.KubeletMetricsPrefix + "cpu.system.total",
+		common.KubeletMetricsPrefix + "cpu.user.total",
+		common.KubeletMetricsPrefix + "cpu.cfs.periods",
+		common.KubeletMetricsPrefix + "cpu.cfs.throttled.periods",
+		common.KubeletMetricsPrefix + "cpu.cfs.throttled.seconds",
+		common.KubeletMetricsPrefix + "network.rx_dropped",
+		common.KubeletMetricsPrefix + "network.rx_errors",
+		common.KubeletMetricsPrefix + "network.tx_dropped",
+		common.KubeletMetricsPrefix + "network.tx_errors",
+		common.KubeletMetricsPrefix + "io.write_bytes",
+		common.KubeletMetricsPrefix + "io.read_bytes",
+		common.KubeletMetricsPrefix + "memory.usage_pct",
+		common.KubeletMetricsPrefix + "memory.sw_limit",
+		common.KubeletMetricsPrefix + "memory.sw_in_use",
 		common.KubeletMetricsPrefix + "memory.cache",
 		common.KubeletMetricsPrefix + "memory.rss",
 		common.KubeletMetricsPrefix + "memory.swap",
@@ -101,7 +132,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
@@ -123,13 +154,15 @@ func (suite *ProviderTestSuite) SetupTest() {
 	}
 	suite.store = store
 
-	sendBuckets := true
+	// Pin the flag so the default cAdvisor test set is deterministic across
+	// platforms — UseStatsSummaryAsSource=nil resolves to true on Windows.
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
 			Tags:                 commontesting.InstanceTags,
-			SendHistogramBuckets: &sendBuckets,
+			SendHistogramBuckets: pointer.Ptr(true),
 			Namespace:            common.KubeletMetricsPrefix,
 		},
+		UseStatsSummaryAsSource: pointer.Ptr(false),
 	}
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
@@ -198,6 +231,65 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 			commontesting.AssertMetricCallsMatch(t, tt.want.metrics, suite.mockSender)
 		})
 	}
+}
+
+// TestExpectedMetricsWithStatsSummaryAsSource is a regression test for issue
+// #50544: enabling use_stats_summary_as_source must stop the cAdvisor provider
+// from emitting metrics that are also produced by the summary provider, so
+// sums are not double-counted.
+func (suite *ProviderTestSuite) TestExpectedMetricsWithStatsSummaryAsSource() {
+	suite.SetupTest()
+
+	// Rebuild the provider with use_stats_summary_as_source enabled.
+	cfg := suite.provider.Config
+	cfg.UseStatsSummaryAsSource = pointer.Ptr(true)
+
+	p, err := NewProvider(
+		workloadfilterfxmock.SetupMockFilter(suite.T()),
+		cfg,
+		suite.store,
+		suite.provider.podUtils,
+		suite.tagger,
+	)
+	assert.NoError(suite.T(), err)
+	suite.provider = p
+
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil)
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error creating kubelet mock: %v", err)
+	}
+
+	// Provide is called twice so cached *_pct metrics are guaranteed to show up.
+	_ = suite.provider.Provide(kubeletMock, suite.mockSender)
+	suite.mockSender.ResetCalls()
+	if err := suite.provider.Provide(kubeletMock, suite.mockSender); err != nil {
+		suite.T().Fatalf("unexpected error from provider.Provide: %v", err)
+	}
+
+	commontesting.AssertMetricCallsMatch(suite.T(), expectedMetricsPrometheusWithStatsSummary, suite.mockSender)
+
+	// Explicitly assert the suppressed metrics never reach the sender from
+	// cAdvisor — the summary provider is the sole source of truth for them.
+	for _, suppressed := range []string{
+		common.KubeletMetricsPrefix + "cpu.usage.total",
+		common.KubeletMetricsPrefix + "memory.usage",
+		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "filesystem.usage",
+		common.KubeletMetricsPrefix + "filesystem.usage_pct",
+		common.KubeletMetricsPrefix + "network.rx_bytes",
+		common.KubeletMetricsPrefix + "network.tx_bytes",
+	} {
+		suite.mockSender.AssertNotCalled(suite.T(), "Rate", suppressed, mock.Anything, mock.Anything, mock.Anything)
+		suite.mockSender.AssertNotCalled(suite.T(), "Gauge", suppressed, mock.Anything, mock.Anything, mock.Anything)
+	}
+
+	// kubernetes.memory.usage_pct is derived locally by
+	// containerSpecMemoryLimitBytes against the memUsageBytes cache populated
+	// by the (silenced) container_memory_usage_bytes transformer. Asserting it
+	// is still emitted guards the cache-only path in processUsageMetric.
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage_pct", commontesting.InstanceTags)
 }
 
 func (suite *ProviderTestSuite) TestPrometheusFiltering() {

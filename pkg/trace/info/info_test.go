@@ -168,7 +168,6 @@ func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	conf.Proxy = nil
 	conf.EVPProxy.APIKey = "evp_api_key"
-	conf.EVPProxy.ApplicationKey = "evp_app_key"
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
@@ -257,6 +256,39 @@ func TestProbabilisticSampler(t *testing.T) {
 	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
 	assert.Equal(expectedInfoString, info)
+}
+
+func TestUDSInfo(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestUDSInfo is known to fail on the macOS Gitlab runners.")
+	}
+
+	assert := assert.New(t)
+	server := testServer(t, "./testdata/uds.json")
+	assert.NotNil(server)
+	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
+
+	url, err := url.Parse(server.URL)
+	assert.NotNil(url)
+	assert.NoError(err)
+
+	hostPort := strings.Split(url.Host, ":")
+	assert.Equal(2, len(hostPort))
+	port, err := strconv.Atoi(hostPort[1])
+	assert.NoError(err)
+	conf.DebugServerPort = port
+
+	info, err := retryInfoCall(t, conf)
+	assert.NoError(err)
+	assert.NotEmpty(info)
+	t.Logf("Info:\n%s\n", info)
+
+	assert.Contains(info, "UDS receiver: /var/run/datadog/apm.socket")
+	assert.Contains(info, "via tcp")
+	assert.Contains(info, "via uds")
 }
 
 func TestHideAPIKeys(t *testing.T) {
@@ -479,8 +511,6 @@ func TestInfoConfig(t *testing.T) {
 	}
 	assert.Equal("", confCopy.EVPProxy.APIKey, "EVP API Key should *NEVER* be exported")
 	conf.EVPProxy.APIKey = ""
-	assert.Equal("", confCopy.EVPProxy.ApplicationKey, "EVP APP Key should *NEVER* be exported")
-	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
 	assert.Equal("", confCopy.DebuggerIntakeProxy.APIKey, "Debugger Intake Proxy API Key should *NEVER* be exported")

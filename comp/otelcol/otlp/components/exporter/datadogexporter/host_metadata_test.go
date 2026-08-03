@@ -12,25 +12,26 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	implgzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -61,6 +62,9 @@ func (*mockProvider) NextPipelineChan() chan *message.Message { return make(chan
 func (*mockProvider) GetOutputChan() chan *message.Message    { return make(chan *message.Message, 10) }
 func (*mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return make(chan *message.Message), metrics.NewCapacityMonitor("test", "test-instance")
+}
+func (*mockProvider) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("")
 }
 func (*mockProvider) Flush(_ context.Context) {}
 
@@ -155,10 +159,20 @@ func createTestFactory(t *testing.T, serverAddr string) exporter.Factory {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, implgzip.NewComponent())
 	go traceagent.Run()
 
-	return NewFactory(testComponent{traceagent, nil}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
+	return NewFactory(testComponent{traceagent, nil}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 }
 
 func TestHostMetadata_FromTraces(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	c := make(chan payload.HostMetadata)
 	server := createTestServer(t, c)
 	defer server.Close()
@@ -214,6 +228,42 @@ func TestHostMetadata_FromMetrics(t *testing.T) {
 	assert.Equal(t, "otelcol-contrib", hm.Flavor)
 	assert.Equal(t, payload.Meta{Hostname: "test-host"}, *hm.Meta)
 	assert.Equal(t, map[string]string{"hostname": "test-host", "os": "test-os"}, hm.Platform())
+}
+
+func TestHostMetadata_CPUFromMetrics(t *testing.T) {
+	c := make(chan payload.HostMetadata)
+	server := createTestServer(t, c)
+	defer server.Close()
+
+	ctx := context.Background()
+	f := createTestFactory(t, server.URL)
+	exporter, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(Type), createTestCfg(t, server.URL))
+	assert.NoError(t, err)
+
+	res := createTestResAttrs()
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+	res.MoveTo(rm.Resource())
+	ilms := rm.ScopeMetrics()
+	ilm := ilms.AppendEmpty()
+	metricsArray := ilm.Metrics()
+
+	addGaugeInt := func(name string, val int64) {
+		m := metricsArray.AppendEmpty()
+		m.SetName(name)
+		m.SetEmptyGauge()
+		m.Gauge().DataPoints().AppendEmpty().SetIntValue(val)
+	}
+	addGaugeInt("system.cpu.physical.count", 8)
+	addGaugeInt("system.cpu.logical.count", 16)
+
+	err = exporter.ConsumeMetrics(ctx, md)
+	assert.NoError(t, err)
+
+	hm := <-c
+	assert.Equal(t, "test-host", hm.InternalHostname)
+	assert.Equal(t, map[string]string{"cpu_cores": "8", "cpu_logical_processors": "16"}, hm.CPU())
 }
 
 func TestHostMetadata_FromLogs(t *testing.T) {

@@ -19,6 +19,17 @@ const (
 	dataItemHeaderSize = int(unsafe.Sizeof(DataItemHeader{}))
 )
 
+// MaxDataItemSize is the maximum number of payload bytes the BPF
+// scratch buffer's serialize_whole dispatcher can emit in a single
+// data item (i.e., the largest entry in scratch.h's SIZE_LIST). The
+// BPF stack machine clamps to this value before serialization so an
+// oversized configured maxLength produces a truncated capture rather
+// than a silent skip. Userspace can use this constant to surface a
+// diagnostic when a probe's maxLength would be clamped at the BPF
+// boundary. Must be kept in sync with MAX_DATA_ITEM_SIZE in
+// pkg/dyninst/ebpf/scratch.h.
+const MaxDataItemSize = 8192
+
 // EventPairingExpectation returns the event pairing expectation.
 type EventPairingExpectation uint8
 
@@ -34,6 +45,13 @@ const (
 	EventPairingExpectationNoneInlined           EventPairingExpectation = 6
 	EventPairingExpectationNoneNoBody            EventPairingExpectation = 7
 	EventPairingExpectationConditionFailed       EventPairingExpectation = 8
+	// EventPairingExpectationReturnPanicUnwound stamps a synthetic return
+	// event emitted by the runtime.recovery uprobe when a probed frame is
+	// unwound by panic+recover and would otherwise leak its in-progress
+	// pairing state (BPF in_progress_calls slot and userspace
+	// bufferedEvent). The synthetic event carries the panic value in place
+	// of return captures.
+	EventPairingExpectationReturnPanicUnwound EventPairingExpectation = 9
 )
 
 const (
@@ -44,6 +62,29 @@ const (
 	// used to get the type of a data item without the failed read mask.
 	DataItemTypeMask = ^DataItemFailedReadMask
 )
+
+const (
+	// ContinuationFlagMore indicates that more fragments follow this one.
+	ContinuationFlagMore = uint8(1)
+)
+
+// FragmentedEvent provides access to one or more event fragments that together
+// represent a single logical event. The first fragment carries the event
+// header, stack trace, and root data item. Subsequent fragments carry only
+// additional pointer-chased data items.
+type FragmentedEvent interface {
+	Fragments() iter.Seq[Event]
+}
+
+// SingleEvent wraps a single Event as a FragmentedEvent. It yields itself once.
+type SingleEvent Event
+
+// Fragments implements FragmentedEvent.
+func (e SingleEvent) Fragments() iter.Seq[Event] {
+	return func(yield func(Event) bool) {
+		yield(Event(e))
+	}
+}
 
 // DataItem represents a single data item in an event.
 type DataItem struct {
@@ -72,6 +113,19 @@ func (d *DataItem) Data() ([]byte, bool) {
 		return nil, false
 	}
 	return d.data, true
+}
+
+// IsContinuation returns true if this event is part of a multi-fragment
+// continuation (either as the first fragment with more to follow, or as a
+// subsequent fragment).
+func (h *EventHeader) IsContinuation() bool {
+	return h.Continuation_seq > 0 || h.Continuation_flags&ContinuationFlagMore != 0
+}
+
+// HasMoreFragments returns true if more continuation fragments are expected
+// after this one.
+func (h *EventHeader) HasMoreFragments() bool {
+	return h.Continuation_flags&ContinuationFlagMore != 0
 }
 
 func nextMultipleOf8(v int) int {

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["fleetstatus.go"],
+    embedsrcs = ["status_templates/fleetstatus.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/comp/fleetstatus/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//comp/updater/daemonchecker/def",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["fleetstatus_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/updater/daemonchecker/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

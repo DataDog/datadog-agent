@@ -5,13 +5,13 @@
 
 package syntheticstestschedulerimpl
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 
 const subsystem = "synthetics_agent"
 
 var (
 	// ChecksReceived tracks the number of synthetics checks received from remote config
-	ChecksReceived = telemetry.NewCounter(
+	ChecksReceived = telemetryimpl.GetCompatComponent().NewCounter(
 		subsystem,
 		"checks_received",
 		nil,
@@ -19,7 +19,7 @@ var (
 	)
 
 	// ChecksProcessed tracks the number of synthetics checks processed
-	ChecksProcessed = telemetry.NewCounter(
+	ChecksProcessed = telemetryimpl.GetCompatComponent().NewCounter(
 		subsystem,
 		"checks_processed",
 		[]string{"status", "subtype"},
@@ -27,7 +27,7 @@ var (
 	)
 
 	// ErrorTestConfig tracks errors when interpreting test configuration
-	ErrorTestConfig = telemetry.NewCounter(
+	ErrorTestConfig = telemetryimpl.GetCompatComponent().NewCounter(
 		subsystem,
 		"error_test_config",
 		[]string{"subtype"},
@@ -35,7 +35,7 @@ var (
 	)
 
 	// TracerouteError tracks errors when running traceroute
-	TracerouteError = telemetry.NewCounter(
+	TracerouteError = telemetryimpl.GetCompatComponent().NewCounter(
 		subsystem,
 		"traceroute_error",
 		[]string{"subtype"},
@@ -43,7 +43,7 @@ var (
 	)
 
 	// SendResultFailure tracks errors when sending results to the event platform
-	SendResultFailure = telemetry.NewCounter(
+	SendResultFailure = telemetryimpl.GetCompatComponent().NewCounter(
 		subsystem,
 		"evp_send_result_failure",
 		[]string{"subtype"},

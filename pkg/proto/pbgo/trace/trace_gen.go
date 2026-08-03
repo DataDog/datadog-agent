@@ -6,6 +6,12 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+// Size limits for msgp deserialization
+const (
+	zb632dfd4limitArrays = 500000
+	zb632dfd4limitMaps   = 500000
+)
+
 // MarshalMsg implements msgp.Marshaler
 func (z Trace) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
@@ -30,6 +36,10 @@ func (z *Trace) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0002 > zb632dfd4limitArrays {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	if cap((*z)) >= int(zb0002) {
@@ -101,6 +111,10 @@ func (z *Traces) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0003 > zb632dfd4limitArrays {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	if cap((*z)) >= int(zb0003) {
 		(*z) = (*z)[:zb0003]
 	} else {
@@ -111,6 +125,10 @@ func (z *Traces) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
 		if err != nil {
 			err = msgp.WrapError(err, zb0001)
+			return
+		}
+		if zb0004 > zb632dfd4limitArrays {
+			err = msgp.ErrLimitExceeded
 			return
 		}
 		if cap((*z)[zb0001]) >= int(zb0004) {

@@ -13,12 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
@@ -31,11 +31,11 @@ var (
 	expvarsItemTooBig          = expvar.Int{}
 	expvarsPayloadFull         = expvar.Int{}
 	expvarsUnexpectedItemDrops = expvar.Int{}
-	tlmItemTooBig              = telemetry.NewCounter("sketch_series", "sketch_too_big",
+	tlmItemTooBig              = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "sketch_too_big",
 		nil, "Number of payloads dropped because they were too big for the stream compressor")
-	tlmPayloadFull = telemetry.NewCounter("sketch_series", "payload_full",
+	tlmPayloadFull = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "payload_full",
 		nil, "How many times we've hit a 'payload is full' in the stream compressor")
-	tlmUnexpectedItemDrops = telemetry.NewCounter("sketch_series", "unexpected_item_drops",
+	tlmUnexpectedItemDrops = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "unexpected_item_drops",
 		nil, "Items dropped in the stream compressor")
 )
 
@@ -46,7 +46,7 @@ func init() {
 }
 
 type sketchWriter interface {
-	writeSketch(sketch *metrics.SketchSeries) error
+	writeSketch(dist metrics.Distribution) error
 	startPayload() error
 	finishPayload() error
 }
@@ -140,6 +140,10 @@ type payloadsBuilder struct {
 	pointCount          int
 	logger              log.Component
 
+	// Scratch state for serializing a single Distribution.
+	sketchStream     *molecule.ProtoStream
+	sketchPointCount int
+
 	pipelineConfig  PipelineConfig
 	pipelineContext *PipelineContext
 }
@@ -148,8 +152,6 @@ type payloadsBuilder struct {
 func (pb *payloadsBuilder) startPayload() error {
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
-	// Unused fields are commented out
-	// const payloadSketches = 1
 	const payloadMetadata = 2
 
 	// Generate a footer containing an empty Metadata field.  The gogoproto
@@ -182,11 +184,12 @@ func (pb *payloadsBuilder) startPayload() error {
 	return nil
 }
 
-func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
-	// constants for the protobuf data we will be writing, taken from
+// WriteDDSketch implements metrics.DistributionWriter.
+func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numPoints int, points metrics.DDSketchPoints) error {
+	// protobuf field numbers for the data we serialize, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out
-	const payloadSketches = 1
+	// const payloadSketches = 1
 	// const payloadMetadata = 2
 	const sketchMetric = 1
 	const sketchHost = 2
@@ -233,106 +236,89 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
 
-	if !pb.pipelineConfig.Filter.Filter(ss) {
+	// protobuf field numbers for the dogsketch entries, taken from
+	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
+
+	pb.sketchPointCount = numPoints
+
+	ps := pb.sketchStream
+	if err := ps.String(sketchMetric, meta.Name); err != nil {
+		return err
+	}
+	if err := ps.String(sketchHost, meta.Host); err != nil {
+		return err
+	}
+	if err := meta.Tags.ForEachErr(func(tag string) error {
+		return ps.String(sketchTags, tag)
+	}); err != nil {
+		return err
+	}
+	err := ps.Embedded(sketchMetadata, func(ps *molecule.ProtoStream) error {
+		return ps.Embedded(sketchMetadataOrigin, func(ps *molecule.ProtoStream) error {
+			if meta.NoIndex {
+				if err := ps.Int32(sketchMetadataOriginMetricType, metryTypeNotIndexed); err != nil {
+					return err
+				}
+			}
+			if err := ps.Int32(sketchMetadataOriginOriginProduct, metricSourceToOriginProduct(meta.Source)); err != nil {
+				return err
+			}
+			if err := ps.Int32(sketchMetadataOriginOriginCategory, metricSourceToOriginCategory(meta.Source)); err != nil {
+				return err
+			}
+			return ps.Int32(sketchMetadataOriginOriginService, metricSourceToOriginService(meta.Source))
+		})
+	})
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < numPoints; i++ {
+		ts, cnt, min, max, sum, avg, k, n := points.GetDDSketchPoint(i)
+		err := ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
+			if err := ps.Int64(dogsketchTs, ts); err != nil {
+				return err
+			}
+			if err := ps.Int64(dogsketchCnt, cnt); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchMin, min); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchMax, max); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchAvg, avg); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchSum, sum); err != nil {
+				return err
+			}
+			if err := ps.Sint32Packed(dogsketchK, k); err != nil {
+				return err
+			}
+			return ps.Uint32Packed(dogsketchN, n)
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pb *payloadsBuilder) writeSketch(dist metrics.Distribution) error {
+	// protobuf field numbers for the data we serialize, taken from
+	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
+	const payloadSketches = 1
+
+	if !pb.pipelineConfig.Filter.Filter(dist) {
 		return nil
 	}
 
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
-		var err error
-
-		err = ps.String(sketchMetric, ss.Name)
-		if err != nil {
-			return err
-		}
-
-		err = ps.String(sketchHost, ss.Host)
-		if err != nil {
-			return err
-		}
-
-		err = ss.Tags.ForEachErr(func(tag string) error {
-			return ps.String(sketchTags, tag)
-		})
-		if err != nil {
-			return err
-		}
-
-		for _, p := range ss.Points {
-			err = ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-				k, n := p.Sketch.Cols()
-				bCnt, bMin, bMax, bSum, bAvg := p.Sketch.BasicStats()
-
-				err = ps.Int64(dogsketchTs, p.Ts)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Int64(dogsketchCnt, bCnt)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchMin, bMin)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchMax, bMax)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchAvg, bAvg)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchSum, bSum)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Sint32Packed(dogsketchK, k)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Uint32Packed(dogsketchN, n)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-		err = ps.Embedded(sketchMetadata, func(ps *molecule.ProtoStream) error {
-			return ps.Embedded(sketchMetadataOrigin, func(ps *molecule.ProtoStream) error {
-				if ss.NoIndex {
-					err = ps.Int32(sketchMetadataOriginMetricType, metryTypeNotIndexed)
-					if err != nil {
-						return err
-					}
-				}
-				err = ps.Int32(sketchMetadataOriginOriginProduct, metricSourceToOriginProduct(ss.Source))
-				if err != nil {
-					return err
-				}
-				err = ps.Int32(sketchMetadataOriginOriginCategory, metricSourceToOriginCategory(ss.Source))
-				if err != nil {
-					return err
-				}
-				return ps.Int32(sketchMetadataOriginOriginService, metricSourceToOriginService(ss.Source))
-			})
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
+		pb.sketchStream = ps
+		return dist.WriteTo(pb)
 	})
 	if err != nil {
 		return err
@@ -371,13 +357,13 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 			pb.logger.Debugf("Unexpected error trying to addItem to new payload after previous payload filled up: %v", err)
 			return err
 		}
-		pb.pointCount += len(ss.Points)
+		pb.pointCount += pb.sketchPointCount
 	case stream.ErrItemTooBig:
 		// Item was too big, drop it
 		expvarsItemTooBig.Add(1)
 		tlmItemTooBig.Add(1)
 	case nil:
-		pb.pointCount += len(ss.Points)
+		pb.pointCount += pb.sketchPointCount
 		return nil
 	default:
 		// Unexpected error bail out

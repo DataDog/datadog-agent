@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
@@ -728,7 +730,7 @@ func TestGetContainersExcludesFilteredContainers(t *testing.T) {
 
 	// Configure container exclusion by name
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", "name:excluded-container-name")
+	mockConfig.SetInTest("container_exclude", "name:excluded-container-name")
 
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	filter := filterStore.GetContainerSharedMetricFilters()
@@ -851,6 +853,46 @@ func TestGetContainersExcludesFilteredContainers(t *testing.T) {
 		1: "included-id",
 		2: "included-id",
 	}, pidToCid, "PID mapping should only contain PIDs from included container")
+}
+
+// erroringTagger wraps a tagger.Component and forces Tag to return an error,
+// to exercise the error-logging path in GetContainers.
+type erroringTagger struct {
+	tagger.Component
+}
+
+func (erroringTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	return nil, errors.New("forced tag error")
+}
+
+// TestGetContainersDoesNotPanicOnShortID ensures GetContainers does not panic
+// when a container has an ID shorter than the short-ID length (here, empty) and
+// the tagger returns an error, which previously triggered a slice-out-of-range
+// panic from container.ID[:12].
+func TestGetContainersDoesNotPanicOnShortID(t *testing.T) {
+	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	// Force the tagger to error so the error-logging branch runs.
+	errTagger := erroringTagger{Component: taggerfxmock.SetupFakeTagger(t)}
+	filter := workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters()
+	containerProvider := NewContainerProvider(mock.NewMetricsProvider(), metadataProvider, filter, errTagger)
+
+	// A running container with an empty ID is enough: the panic happened while
+	// logging the tagger error, before any metrics were gathered.
+	metadataProvider.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: ""},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+		State:    workloadmeta.ContainerState{Running: true, Status: workloadmeta.ContainerStatusRunning},
+	})
+
+	assert.NotPanics(t, func() {
+		_, _, _, err := containerProvider.GetContainers(0, nil)
+		assert.NoError(t, err)
+	})
 }
 
 func compareResults(a, b interface{}) string {

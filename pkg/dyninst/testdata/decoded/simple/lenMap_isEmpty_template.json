@@ -48,15 +48,15 @@
           "location": {
             "method": "main.lenMap"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "isEmpty(m)",
+            "message": "nil pointer dereference"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "isEmpty(m)",
-          "message": "nil pointer dereference"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

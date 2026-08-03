@@ -26,6 +26,14 @@
           Log Records Sent: {{.exporter.logs}}
           {{- if gt .exporter.failed_logs 0.0}}, WARNING: Send failed logs: {{.exporter.failed_logs}}{{end}}
         </span>
+        {{- if .warnings}}
+        <span class="stat_subtitle">Warnings</span>
+        <span class="stat_subdata">
+          {{- range .warnings}}
+          <span class="warning">WARNING: {{.}}</span><br>
+          {{- end}}
+        </span>
+        {{- end}}
       {{- end }}
     {{ end }}
   </span>

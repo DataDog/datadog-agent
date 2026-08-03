@@ -6,6 +6,8 @@
 package profile
 
 import (
+	"expvar"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,6 +22,10 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 			haveLegacyInitConfigProfile = haveLegacyInitConfigProfile || isLegacyInitConfigProfile
 			if err != nil {
 				log.Warnf("unable to load profile %q: %s", name, err)
+				errMsg := err.Error()
+				profileExpVar.Set(name, expvar.Func(func() interface{} {
+					return errMsg
+				}))
 				continue
 			}
 			profConfig.Definition = *profDefinition

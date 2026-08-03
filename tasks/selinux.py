@@ -31,8 +31,10 @@ def compile_system_probe_policy_file(
     # Compute the .pp packaged module name
     output_module_name = ".".join([os.path.join(output_directory, os.path.basename(policy_filename)), "pp"])
 
-    # Compile the module
-    command = f"checkmodule -M -m -o {temp_module_name} {te_file}"
+    # Compile the module targeting modular policy version 19, the highest version
+    # supported by libsepol on RHEL 7 (range 4-19). Newer distributions remain
+    # backward-compatible, so a v19 module loads on all supported RHEL releases.
+    command = f"checkmodule -M -m -c 19 -o {temp_module_name} {te_file}"
     ctx.run(command)
 
     # Package the module

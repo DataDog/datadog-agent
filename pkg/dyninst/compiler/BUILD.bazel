@@ -1,14 +1,26 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
     name = "compiler",
     srcs = [
+        "code.go",
+        "doc.go",
+        "functions.go",
+        "generate.go",
+        "instructions.go",
         "opcode.go",
         "opcode_string.go",
+        "ops.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/compiler",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/ir",
+        "//pkg/util/log",
+        "@org_golang_x_time//rate",
+    ],
 )
 
 go_stringer(
@@ -17,4 +29,30 @@ go_stringer(
     output = "opcode_string.go",
     trimprefix = "Opcode",
     types = ["Opcode"],
+)
+
+go_test(
+    name = "compiler_test",
+    srcs = [
+        "generate_test.go",
+        "instructions_test.go",
+        "snapshot_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":compiler"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/dyninst/ir",
+        "//pkg/dyninst/irgen",
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/testprogs",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

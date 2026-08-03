@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -148,8 +149,8 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
-	if enhancedMetricsEnabled {
+func (c *CloudRunJobs) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		duration := float64(time.Since(c.startTime).Milliseconds())
 		metricAgent.AddEnhancedMetric(cloudRunJobsDurationMetricName, duration, c.GetSource(), 0)
 
@@ -166,11 +167,6 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(cloudRunJobsStartMetricName, 1.0, c.GetSource(), 0)
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
-func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return true
 }
 
 func isCloudRunJob() bool {
@@ -207,6 +203,7 @@ func (c *CloudRunJobs) initJobSpan() {
 		c.startTime.UnixNano(),
 		tags,
 	)
+	traceutil.SetMeasured(c.jobSpan, true)
 }
 
 // setSpanModifier sets up the span modifier to reparent user spans under the job span

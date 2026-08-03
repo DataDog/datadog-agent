@@ -1,17 +1,20 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "payload",
     srcs = [
         "pathevent.go",
+        "traceroute_errors.go",
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/payload",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/network/payload"],
+    # gazelle keeps reverting this to @com_github_datadog_datadog_agent_pkg_network_payload
+    deps = ["//pkg/network/payload"],  # keep
 )
 
-go_test(
+dd_agent_go_test(
     name = "payload_test",
     srcs = ["payload_test.go"],
     embed = [":payload"],

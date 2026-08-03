@@ -64,7 +64,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "clusterName label not set, AKS label set",
+			name: "clusterName label not set, AKS label unparsed",
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
@@ -76,12 +76,24 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "clusterName label not set, AKS label parsed",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			nodeLabels: map[string]string{
+				"kubernetes.azure.com/cluster": "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
+			},
+			ctx:     context.Background(),
+			want:    "aks-kenafeh-eu",
+			wantErr: false,
+		},
+		{
 			name: "cluster-name custom label set",
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			mockConfFunc: func(conf model.Config) {
-				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
+				conf.SetInTest("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			nodeLabels: map[string]string{
 				"custom-label": "bar",
@@ -96,7 +108,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			mockConfFunc: func(conf model.Config) {
-				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
+				conf.SetInTest("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			nodeLabels: map[string]string{
 				"ad.datadoghq.com/cluster-name": "foo",
@@ -151,7 +163,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			mockConfFunc: func(conf model.Config) {
-				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
+				conf.SetInTest("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			currentClusterName: "bar",
 			nodeLabels: map[string]string{

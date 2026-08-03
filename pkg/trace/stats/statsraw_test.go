@@ -16,6 +16,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGrain(t *testing.T) {
@@ -260,10 +261,297 @@ func TestGrainWithSynthetics(t *testing.T) {
 	}, aggr)
 }
 
+func newAdditionalMetricTagStatSpan(value string) *StatSpan {
+	return &StatSpan{
+		service:                      "checkout-service",
+		name:                         "checkout.process",
+		resource:                     "POST /checkout/process",
+		isTopLevel:                   true,
+		duration:                     int64(time.Millisecond),
+		matchingAdditionalMetricTags: []string{"customer_id:" + value},
+	}
+}
+
+func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{AdditionalTags: 2})
+	spanA := newAdditionalMetricTagStatSpan("a")
+	spanB := newAdditionalMetricTagStatSpan("b")
+	spanC := newAdditionalMetricTagStatSpan("c")
+	spanD := newAdditionalMetricTagStatSpan("d")
+	spanAAgain := newAdditionalMetricTagStatSpan("a")
+
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanB, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{AdditionalTagsCapBlock: true}, sb.HandleSpan(spanC, 1, "", aggKey))
+	assert.Equal(t, []string{"customer_id:c"}, spanC.matchingAdditionalMetricTags)
+	assert.Equal(t, SpanCollapseResult{AdditionalTagsCapBlock: true}, sb.HandleSpan(spanD, 1, "", aggKey))
+	assert.Equal(t, []string{"customer_id:d"}, spanD.matchingAdditionalMetricTags)
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanAAgain, 1, "", aggKey))
+	assert.Equal(t, []string{"customer_id:a"}, spanAAgain.matchingAdditionalMetricTags)
+
+	require.Len(t, sb.data, 3)
+	assert.Len(t, sb.distinctAdditionalTagHashes, 2)
+	assert.True(t, sb.warnedThisBucket)
+
+	spanAAggr := NewAggregationFromSpan(spanA, "", aggKey)
+	spanBAggr := NewAggregationFromSpan(spanB, "", aggKey)
+	// maskedAggr uses sentinel tags directly — spanC is no longer mutated by HandleSpan
+	maskedAggr := NewAggregationFromSpan(newAdditionalMetricTagStatSpan("tracer_blocked_value"), "", aggKey)
+
+	spanAStats, ok := sb.data[spanAAggr]
+	require.True(t, ok)
+	assert.Equal(t, 2.0, spanAStats.hits)
+
+	spanBStats, ok := sb.data[spanBAggr]
+	require.True(t, ok)
+	assert.Equal(t, 1.0, spanBStats.hits)
+
+	maskedStats, ok := sb.data[maskedAggr]
+	require.True(t, ok)
+	assert.Equal(t, 2.0, maskedStats.hits)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, maskedStats.additionalMetricTags)
+}
+
+// TestRawBucketAdditionalMetricTagsCardinalityLimitIgnoresResourceCardinality
+// is a regression test: the additional_metric_tags limit must count distinct
+// tag-value combinations, not distinct full aggregations. A service with high
+// resource cardinality but a single tag-value combination must never collapse,
+// no matter how far resource count exceeds the limit.
+func TestRawBucketAdditionalMetricTagsCardinalityLimitIgnoresResourceCardinality(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{AdditionalTags: 2})
+
+	// 100 spans, each with a distinct resource but the SAME tag value.
+	// Distinct tag combinations = 1, well under the limit of 2.
+	const resourceCount = 100
+	for i := 0; i < resourceCount; i++ {
+		span := &StatSpan{
+			service:                      "checkout-service",
+			name:                         "checkout.process",
+			resource:                     "POST /checkout/" + strconv.Itoa(i),
+			isTopLevel:                   true,
+			duration:                     int64(time.Millisecond),
+			matchingAdditionalMetricTags: []string{"customer_id:same"},
+		}
+		res := sb.HandleSpan(span, 1, "", aggKey)
+		assert.Equal(t, SpanCollapseResult{}, res, "resource %d should not collapse additional_metric_tags", i)
+		assert.Equal(t, []string{"customer_id:same"}, span.matchingAdditionalMetricTags)
+	}
+
+	// One tag combination seen, so exactly one slot consumed and nothing masked.
+	assert.Len(t, sb.distinctAdditionalTagHashes, 1)
+	assert.False(t, sb.warnedThisBucket)
+	// Each distinct resource still produces its own aggregation.
+	require.Len(t, sb.data, resourceCount)
+}
+
+func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
+	spans := []*StatSpan{
+		newAdditionalMetricTagStatSpan("a"),
+		newAdditionalMetricTagStatSpan("b"),
+		newAdditionalMetricTagStatSpan("c"),
+	}
+
+	for _, span := range spans {
+		assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(span, 1, "", aggKey))
+	}
+
+	require.Len(t, sb.data, 3)
+	assert.Empty(t, sb.distinctAdditionalTagHashes)
+	assert.False(t, sb.warnedThisBucket)
+	assert.Equal(t, []string{"customer_id:c"}, spans[2].matchingAdditionalMetricTags)
+}
+
+func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *testing.T) {
+	bsize := int64(time.Second)
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		BucketInterval:                       bsize,
+		AdditionalMetricTagsCardinalityLimit: 1,
+	}, time.Unix(0, 0))
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+
+	firstAdmitted := newAdditionalMetricTagStatSpan("first-admitted")
+	firstAdmitted.start = 1
+	firstBlocked := newAdditionalMetricTagStatSpan("first-blocked")
+	firstBlocked.start = 2
+	secondAdmitted := newAdditionalMetricTagStatSpan("second-admitted")
+	secondAdmitted.start = bsize + 1
+	secondBlocked := newAdditionalMetricTagStatSpan("second-blocked")
+	secondBlocked.start = bsize + 2
+
+	sc.addSpan(firstAdmitted, aggKey, infraTags{}, "", 1)
+	sc.addSpan(firstBlocked, aggKey, infraTags{}, "", 1)
+	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1)
+	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1)
+
+	assert.Equal(t, []string{"customer_id:first-admitted"}, firstAdmitted.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:first-blocked"}, firstBlocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:second-admitted"}, secondAdmitted.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:second-blocked"}, secondBlocked.matchingAdditionalMetricTags)
+
+	require.Len(t, sc.buckets, 2)
+	firstBucket, ok := sc.buckets[0]
+	require.True(t, ok)
+	secondBucket, ok := sc.buckets[bsize]
+	require.True(t, ok)
+
+	assert.Len(t, firstBucket.distinctAdditionalTagHashes, 1)
+	assert.True(t, firstBucket.warnedThisBucket)
+	assert.Len(t, secondBucket.distinctAdditionalTagHashes, 1)
+	assert.True(t, secondBucket.warnedThisBucket)
+	assert.Equal(t, BlockCounts{CapBlocks: 2}, sc.DrainBlockCounts())
+	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())
+}
+
+func TestRawBucketResourceCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{Resource: 2})
+
+	mkSpan := func(resource string) *StatSpan {
+		return &StatSpan{service: "svc", name: "op", resource: resource, isTopLevel: true, duration: 1}
+	}
+
+	spanA := mkSpan("GET /a")
+	spanB := mkSpan("GET /b")
+	spanC := mkSpan("GET /c")
+
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanB, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{ResourceCollapsed: true}, sb.HandleSpan(spanC, 1, "", aggKey))
+
+	// span not mutated
+	assert.Equal(t, "GET /c", spanC.resource)
+
+	// two distinct resource entries + one sentinel entry
+	require.Len(t, sb.data, 3)
+
+	sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
+	sentinelSpan := mkSpan(sentinel)
+	sentinelAggr := NewAggregationFromSpan(sentinelSpan, "", aggKey)
+	sentinelStats, ok := sb.data[sentinelAggr]
+	require.True(t, ok)
+	assert.Equal(t, 1.0, sentinelStats.hits)
+}
+
+func TestRawBucketHTTPEndpointCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{HTTPEndpoint: 1})
+
+	mkSpan := func(endpoint string) *StatSpan {
+		return &StatSpan{service: "svc", name: "op", resource: "r", httpEndpoint: endpoint, isTopLevel: true, duration: 1}
+	}
+
+	spanA := mkSpan("/users")
+	spanB := mkSpan("/orders")
+
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{HTTPEndpointCollapsed: true}, sb.HandleSpan(spanB, 1, "", aggKey))
+
+	assert.Equal(t, "/orders", spanB.httpEndpoint)
+	require.Len(t, sb.data, 2)
+}
+
+func TestRawBucketPeerTagsCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{PeerTags: 1})
+
+	mkSpan := func(peerTags []string) *StatSpan {
+		return &StatSpan{service: "svc", name: "op", resource: "r", matchingPeerTags: peerTags, isTopLevel: true, duration: 1}
+	}
+
+	spanA := mkSpan([]string{"db.hostname:hostA"})
+	spanB := mkSpan([]string{"db.hostname:hostB"})
+
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{PeerTagsCollapsed: true}, sb.HandleSpan(spanB, 1, "", aggKey))
+
+	// span not mutated
+	assert.Equal(t, []string{"db.hostname:hostB"}, spanB.matchingPeerTags)
+	require.Len(t, sb.data, 2)
+}
+
+func TestRawBucketOriginCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{Origin: 1})
+
+	s := &StatSpan{service: "svc", name: "op", resource: "r", isTopLevel: true, duration: 1}
+
+	// "synthetics-user" prefix makes Synthetics=true in the aggregation key, giving two distinct keys.
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(s, 1, "synthetics-user", aggKey))
+	assert.Equal(t, SpanCollapseResult{OriginCollapsed: true}, sb.HandleSpan(s, 1, "other-origin", aggKey))
+
+	// collapsed origin must produce Synthetics=false
+	require.Len(t, sb.data, 2)
+	for aggr := range sb.data {
+		if aggr.BucketsAggregationKey.Synthetics == false && aggr.BucketsAggregationKey.Service == "svc" {
+			return // found the collapsed (non-synthetics) entry
+		}
+	}
+	t.Error("expected a collapsed non-synthetics aggregation entry")
+}
+
+func TestRawBucketWholeKeyCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{WholeKey: 2})
+
+	mkSpan := func(resource string) *StatSpan {
+		return &StatSpan{service: "svc", name: "op", resource: resource, isTopLevel: true, duration: 1}
+	}
+
+	spanA := mkSpan("GET /a")
+	spanB := mkSpan("GET /b")
+	spanC := mkSpan("GET /c")
+
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanB, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{WholeKeyCollapsed: true}, sb.HandleSpan(spanC, 1, "", aggKey))
+
+	// span not mutated
+	assert.Equal(t, "GET /c", spanC.resource)
+
+	// two distinct entries + one whole-key sentinel entry
+	require.Len(t, sb.data, 3)
+	assert.True(t, sb.warnedThisBucket)
+
+	sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
+	for aggr, gs := range sb.data {
+		if aggr.BucketsAggregationKey.Resource == sentinel {
+			assert.Equal(t, 1.0, gs.hits)
+			assert.Equal(t, sentinel, aggr.BucketsAggregationKey.Service)
+			assert.Equal(t, sentinel, aggr.BucketsAggregationKey.Name)
+			return
+		}
+	}
+	t.Error("expected a whole-key sentinel aggregation entry")
+}
+
+func TestRawBucketCardinalityLimitsDefaultNoop(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
+
+	for i := 0; i < 20; i++ {
+		s := &StatSpan{
+			service:          "svc",
+			name:             "op",
+			resource:         fmt.Sprintf("GET /%d", i),
+			httpEndpoint:     fmt.Sprintf("/ep%d", i),
+			matchingPeerTags: []string{fmt.Sprintf("host:%d", i)},
+			isTopLevel:       true,
+			duration:         1,
+		}
+		result := sb.HandleSpan(s, 1, fmt.Sprintf("origin-%d", i), aggKey)
+		assert.Equal(t, SpanCollapseResult{}, result, "limits should be no-op when all zero")
+	}
+	assert.Len(t, sb.data, 20)
+}
+
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sc := NewSpanConcentrator(&SpanConcentratorConfig{}, time.Now())
 	b.Run("no_peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9)
+		sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
 			statSpan, ok := sc.NewStatSpanFromPB(s, nil, nil)
@@ -321,7 +609,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		"topicname",
 	}
 	b.Run("peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9)
+		sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
 			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags, nil)

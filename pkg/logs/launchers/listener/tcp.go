@@ -6,34 +6,64 @@
 package listener
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
+
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
+const (
+	defaultTLSIdleTimeout = 60 * time.Second
+	defaultMaxConnections = 512
+	tlsHandshakeTimeout   = 10 * time.Second
+	// acceptDeadline controls how often the Accept loop wakes up to check
+	// for shutdown. It also works around a macOS kqueue bug where Accept
+	// can block indefinitely even with connections in the backlog
+	// (https://github.com/golang/go/issues/54529).
+	acceptDeadline = 1 * time.Second
+)
+
+// A TCPListener listens and accepts TCP connections and delegates the read
+// operations to a StreamTailer. The source's Format field controls whether
+// syslog or unstructured parsing is used.
+
 type TCPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	idleTimeout      time.Duration
 	frameSize        int
+	maxConnections   int
+	tlsCredentials   *tls.Config
+	ipFilter         *ipfilter.Filter
+	denialInfo       *ipfilter.DenialInfo
 	listener         net.Listener
-	tailers          []*tailer.Tailer
+	rawListener      *net.TCPListener
+	tailers          []startstop.StartStoppable
 	mu               sync.Mutex
+	stopped          bool
+	connSem          chan struct{}
 	stop             chan struct{}
+	ctx              context.Context
+	cancel           context.CancelFunc
 }
 
-// NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *TCPListener {
+// NewTCPListener returns an initialized TCPListener or an error if critical
+// configuration (TLS credentials, IP filter) fails to build.
+func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) (*TCPListener, error) {
 	var idleTimeout time.Duration
 	if source.Config.IdleTimeout != "" {
 		var err error
@@ -44,23 +74,68 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		}
 	}
 
+	var tlsCreds *tls.Config
+	ctx, cancel := context.WithCancel(context.Background())
+	if source.Config.TLS != nil {
+		var err error
+		tlsCreds, err = source.Config.TLS.BuildTLSConfig(ctx)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to load TLS credentials for TCP listener on port %d: %w", source.Config.Port, err)
+		}
+		if idleTimeout == 0 {
+			idleTimeout = defaultTLSIdleTimeout
+		}
+	}
+
+	maxConns := source.Config.MaxConnections
+	if maxConns <= 0 {
+		maxConns = defaultMaxConnections
+	}
+
+	var ipF *ipfilter.Filter
+	var denialInfo *ipfilter.DenialInfo
+	if len(source.Config.AllowedIPs) > 0 || len(source.Config.DeniedIPs) > 0 {
+		var err error
+		ipF, err = ipfilter.New(source.Config.AllowedIPs, source.Config.DeniedIPs)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to build IP filter for TCP listener on port %d: %w", source.Config.Port, err)
+		}
+		denialInfo = ipfilter.NewDenialInfo()
+		source.RegisterInfo(denialInfo)
+	}
+
 	return &TCPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
 		idleTimeout:      idleTimeout,
 		frameSize:        frameSize,
-		tailers:          []*tailer.Tailer{},
-		stop:             make(chan struct{}, 1),
-	}
+		maxConnections:   maxConns,
+		tlsCredentials:   tlsCreds,
+		ipFilter:         ipF,
+		denialInfo:       denialInfo,
+		tailers:          []startstop.StartStoppable{},
+		connSem:          make(chan struct{}, maxConns),
+
+		stop:   make(chan struct{}, 1),
+		ctx:    ctx,
+		cancel: cancel,
+	}, nil
 }
 
 // Start starts the listener to accepts new incoming connections.
 func (l *TCPListener) Start() {
-	log.Infof("Starting TCP forwarder on port %d, with read buffer size: %d", l.source.Config.Port, l.frameSize)
+	tlsLabel := ""
+	if l.tlsCredentials != nil {
+		tlsLabel = "+TLS"
+	}
+	log.Infof("Starting TCP%s forwarder on port %d, with read buffer size: %d", tlsLabel, l.source.Config.Port, l.frameSize)
 	err := l.startListener()
 	if err != nil {
-		log.Errorf("Can't start TCP forwarder on port %d: %v", l.source.Config.Port, err)
+		log.Errorf("Can't start TCP%s forwarder on port %d: %v", tlsLabel, l.source.Config.Port, err)
 		l.source.Status.Error(err)
+		l.cancel()
 		return
 	}
 	l.source.Status.Success()
@@ -72,18 +147,20 @@ func (l *TCPListener) Stop() {
 	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.stopped = true
 	l.stop <- struct{}{}
+	l.cancel()
 	if l.listener != nil {
 		l.listener.Close()
 	}
 	stopper := startstop.NewParallelStopper()
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
+	for _, t := range l.tailers {
+		stopper.Add(t)
 	}
 	stopper.Stop()
 
 	// At this point all the tailers have been stopped - remove them all from the active tailer list
-	l.tailers = []*tailer.Tailer{}
+	l.tailers = []startstop.StartStoppable{}
 }
 
 // run accepts new TCP connections and create a dedicated tailer for each.
@@ -92,77 +169,130 @@ func (l *TCPListener) run() {
 	for {
 		select {
 		case <-l.stop:
-			// stop accepting new connections.
 			return
 		default:
-			conn, err := l.listener.Accept()
-			switch {
-			case err != nil && isClosedConnError(err):
-				return
-			case err != nil:
-				// an error occurred, restart the listener.
-				log.Warnf("Can't listen on port %d, restarting a listener: %v", l.source.Config.Port, err)
-				l.listener.Close()
-				err := l.startListener()
-				if err != nil {
-					log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
-					l.source.Status.Error(err)
-					return
-				}
-				l.source.Status.Success()
+		}
+
+		l.rawListener.SetDeadline(time.Now().Add(acceptDeadline)) //nolint:errcheck
+		conn, err := l.listener.Accept()
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
 				continue
-			default:
-				l.startTailer(conn)
-				l.source.Status.Success()
 			}
+			if isClosedConnError(err) {
+				return
+			}
+			log.Warnf("Can't listen on port %d, restarting a listener: %v", l.source.Config.Port, err)
+			l.listener.Close()
+			if err := l.startListener(); err != nil {
+				log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
+				l.source.Status.Error(err)
+				return
+			}
+			l.source.Status.Success()
+			continue
+		}
+
+		if l.ipFilter != nil {
+			if d := l.ipFilter.Check(conn.RemoteAddr()); !d.Allowed() {
+				log.Debugf("Rejected connection from %s on port %d: %s", conn.RemoteAddr(), l.source.Config.Port, d.Reason())
+				metrics.TlmListenerIPDenied.Inc("tcp")
+				l.denialInfo.Record(d.Reason())
+				conn.Close()
+				continue
+			}
+		}
+		select {
+		case l.connSem <- struct{}{}:
+			go l.handleConnection(conn)
+		default:
+			log.Warnf("Max connections (%d) reached on port %d, rejecting connection from %s",
+				l.maxConnections, l.source.Config.Port, conn.RemoteAddr())
+			conn.Close()
 		}
 	}
 }
 
 // startListener starts a new listener, returns an error if it failed.
 func (l *TCPListener) startListener() error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+	bindAddr := net.JoinHostPort(l.source.Config.BindHost, strconv.Itoa(l.source.Config.Port))
+	rawListener, err := net.Listen("tcp", bindAddr)
 	if err != nil {
 		return err
 	}
-	l.listener = listener
+	l.rawListener = rawListener.(*net.TCPListener)
+	if l.tlsCredentials != nil {
+		l.listener = tls.NewListener(rawListener, l.tlsCredentials)
+	} else {
+		l.listener = rawListener
+	}
 	return nil
 }
 
-// read reads data from connection, returns an error if it failed and stop the tailer.
-func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
-	if l.idleTimeout > 0 {
-		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
+// handleConnection performs the TLS handshake (if applicable) outside of any
+// mutex, then registers the tailer. This prevents a slow or malicious client
+// from blocking the accept loop.
+func (l *TCPListener) handleConnection(conn net.Conn) {
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		ctx, cancel := context.WithTimeout(l.ctx, tlsHandshakeTimeout)
+		defer cancel()
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			log.Warnf("TLS handshake failed on port %d from %s: %v", l.source.Config.Port, conn.RemoteAddr(), err)
+			conn.Close()
+			<-l.connSem
+			return
+		}
 	}
-	frame := make([]byte, l.frameSize)
-	n, err := tailer.Conn.Read(frame)
-	if err != nil {
-		l.source.Status.Error(err)
-		go l.stopTailer(tailer)
-		return nil, "", err
+
+	l.mu.Lock()
+	if l.stopped {
+		l.mu.Unlock()
+		conn.Close()
+		<-l.connSem
+		return
 	}
-	return frame[:n], tailer.Conn.RemoteAddr().String(), nil
+
+	outputChan, capacityMonitor := l.pipelineProvider.NextPipelineChanWithMonitor()
+	sourceHostAddr := extractIPFromAddr(conn.RemoteAddr().String())
+
+	t := tailer.NewStreamTailer(
+		l.source,
+		conn,
+		outputChan,
+		l.frameSize,
+		l.idleTimeout,
+		sourceHostAddr,
+		capacityMonitor,
+	)
+	t.SetOnDone(func() { l.removeTailer(t) })
+	l.tailers = append(l.tailers, t)
+	l.mu.Unlock()
+	t.Start()
+	l.source.Status.Success()
+
 }
 
-// startTailer creates and starts a new tailer that reads from the connection.
-func (l *TCPListener) startTailer(conn net.Conn) {
+// removeTailer removes a finished tailer from the active list.
+// Called by the tailer's onDone callback when readLoop exits.
+func (l *TCPListener) removeTailer(t startstop.StartStoppable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer := tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
-	l.tailers = append(l.tailers, tailer)
-	tailer.Start()
-}
-
-// stopTailer stops the tailer.
-func (l *TCPListener) stopTailer(tailer *tailer.Tailer) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for i, t := range l.tailers {
-		if t == tailer {
-			// Only stop the tailer if it has not already been stopped
-			tailer.Stop()
+	for i, active := range l.tailers {
+		if active == t {
 			l.tailers = slices.Delete(l.tailers, i, i+1)
+			<-l.connSem
 			break
 		}
 	}
+}
+
+// extractIPFromAddr strips the port from an address string.
+// Handles IPv4 ("1.2.3.4:5678" -> "1.2.3.4"), IPv6 ("[::1]:5678" -> "::1"),
+// and bare addresses without a port.
+func extractIPFromAddr(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
 }

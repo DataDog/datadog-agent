@@ -58,6 +58,7 @@ var supportedLanguages = []string{
 	"dotnet",
 	"ruby",
 	"php",
+	"c",
 }
 
 // IsLanguageSupported checks if a language is supported for injection.

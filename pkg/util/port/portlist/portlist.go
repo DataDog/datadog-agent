@@ -9,12 +9,15 @@
 // listening on the current machine.
 package portlist
 
+import "net/netip"
+
 // Port is a listening port on the machine.
 type Port struct {
-	Proto   string // "tcp" or "udp"
-	Port    uint16 // port number
-	Process string // optional process name, if found (requires suitable permissions)
-	Pid     int    // process ID, if known (requires suitable permissions)
+	Proto   string     // "tcp" or "udp"
+	Port    uint16     // port number
+	IP      netip.Addr // listening IP address (e.g. "0.0.0.0", "127.0.0.1", "::")
+	Process string     // optional process name, if found (requires suitable permissions)
+	Pid     int        // process ID, if known (requires suitable permissions)
 }
 
 // List is a list of Ports.
@@ -23,6 +26,7 @@ type List []Port
 func (a *Port) equal(b *Port) bool {
 	return a.Port == b.Port &&
 		a.Proto == b.Proto &&
+		a.IP == b.IP &&
 		a.Process == b.Process
 }
 

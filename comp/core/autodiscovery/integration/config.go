@@ -10,6 +10,7 @@ package integration
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,10 +75,11 @@ type Config struct {
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
 	// CELSelector is the list of CEL-based selectors for this integration. (optional)
-	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: false)
+	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: true)
 
-	// Internal field to Autodiscovery, not serialized
-	matchingProgram MatchingProgram // (include in digest: false)
+	// Internal field to Autodiscovery, not serialized.
+	// Maps resource type to the compiled CEL matching program for that type.
+	matchingPrograms map[workloadfilter.ResourceType]MatchingProgram // (include in digest: false)
 
 	// Provider is the name of the config provider that issued the config.  If
 	// this is "", then the config is a service config, representing a service
@@ -119,7 +121,16 @@ type Config struct {
 
 	// ImageName is the container image name if any
 	ImageName string `json:"image_name"` // (include in digest: false)
+
+	// Discovery indicates that this config is a configuration-discovery
+	// template: the agent should not schedule it directly, and any matched
+	// instance is meant to discover its own config at runtime. A non-nil
+	// pointer means discovery is requested. (optional)
+	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
 }
+
+// DiscoveryConfig holds per-template configuration-discovery options.
+type DiscoveryConfig struct{}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {
@@ -229,19 +240,29 @@ func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
 }
 
+// IsDiscovery returns true if this config is a configuration-discovery
+// template (a non-nil Discovery field).
+func (c *Config) IsDiscovery() bool {
+	return c.Discovery != nil
+}
+
 // IsMatched returns true if the given object matches the filtering program of the config.
 // Note: this method should only be used within the autodiscovery component.
 func (c *Config) IsMatched(obj workloadfilter.Filterable) bool {
-	// If there's no matching program, then the config already matches w/ AD identifiers
-	if c.matchingProgram == nil {
+	if len(c.matchingPrograms) == 0 {
 		return true
 	}
-	return c.matchingProgram.IsMatched(obj)
+	prg, found := c.matchingPrograms[obj.Type()]
+	if !found {
+		// No CEL program for this resource type — the match was via AD identifiers
+		return true
+	}
+	return prg.IsMatched(obj)
 }
 
-// SetMatchingProgram sets the matching program for the config.
-func (c *Config) SetMatchingProgram(p MatchingProgram) {
-	c.matchingProgram = p
+// SetMatchingPrograms sets the matching programs for the config, keyed by resource type.
+func (c *Config) SetMatchingPrograms(programs map[workloadfilter.ResourceType]MatchingProgram) {
+	c.matchingPrograms = programs
 }
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,
@@ -379,6 +400,8 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 	for k := range tagSet {
 		rawConfig["tags"] = append(rawConfig["tags"].([]string), k)
 	}
+	// sort the list of tags so the digest stays stable for identical configs
+	slices.Sort(rawConfig["tags"].([]string))
 	// modify original config
 	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
@@ -452,10 +475,14 @@ func (c *Config) IntDigest() uint64 {
 	for _, i := range c.ADIdentifiers {
 		_, _ = h.Write([]byte(i))
 	}
+	_, _ = h.Write([]byte(c.CELSelector.String()))
 	_, _ = h.Write([]byte(c.NodeName))
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }
@@ -475,10 +502,14 @@ func (c *Config) FastDigest() uint64 {
 	for _, i := range c.ADIdentifiers {
 		_, _ = h.Write([]byte(i))
 	}
+	_, _ = h.Write([]byte(c.CELSelector.String()))
 	_, _ = h.Write([]byte(c.NodeName))
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }

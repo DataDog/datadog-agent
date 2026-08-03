@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "gcp",
+    srcs = ["secrets.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/gcp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@org_golang_x_oauth2//:oauth2",
+        "@org_golang_x_oauth2//google",
+    ],
+)
+
+dd_agent_go_test(
+    name = "gcp_test",
+    srcs = ["secrets_test.go"],
+    embed = [":gcp"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

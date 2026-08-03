@@ -14,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 
+	commonConfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
@@ -237,6 +238,8 @@ func provisionRemoteMicroVMs(vmCollections []*VMCollection, instanceEnv *Instanc
 					"ubuntu",
 					remoteComp.WithPrivateKeyPath(instanceEnv.DefaultPrivateKeyPath()),
 					remoteComp.WithPrivateKeyPassword(instanceEnv.DefaultPrivateKeyPassword()),
+					remoteComp.WithDialErrorLimit(instanceEnv.InfraDialErrorLimit()),
+					remoteComp.WithPerDialTimeoutSeconds(instanceEnv.InfraPerDialTimeoutSeconds()),
 				)
 				if err != nil {
 					return nil, err
@@ -281,7 +284,7 @@ func provisionRemoteMicroVMs(vmCollections []*VMCollection, instanceEnv *Instanc
 	return waitFor, nil
 }
 
-func provisionLocalMicroVMs(vmCollections []*VMCollection) ([]pulumi.Resource, error) {
+func provisionLocalMicroVMs(vmCollections []*VMCollection, e commonConfig.CommonEnvironment) ([]pulumi.Resource, error) {
 	var waitFor []pulumi.Resource
 	for _, collection := range vmCollections {
 		if collection.instance.Arch != LocalVMSet {
@@ -299,6 +302,8 @@ func provisionLocalMicroVMs(vmCollections []*VMCollection) ([]pulumi.Resource, e
 					domain.ip,
 					"root",
 					remoteComp.WithPrivateKeyPath(filepath.Join(GetWorkingDirectory(domain.vmset.Arch), "ddvm_rsa")),
+					remoteComp.WithDialErrorLimit(e.InfraDialErrorLimit()),
+					remoteComp.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 				)
 				if err != nil {
 					return nil, err

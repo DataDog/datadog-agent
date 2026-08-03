@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "data.go",
+        "result.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/networkpath/payload"],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = [
+        "data_test.go",
+        "result_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//pkg/networkpath/payload",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -56,10 +56,10 @@ type kubeletClientConfig struct {
 type kubeletClient struct {
 	client     http.Client
 	kubeletURL string
-	config     kubeletClientConfig
+	config     *kubeletClientConfig
 }
 
-func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletClient, error) {
+func newForConfig(config *kubeletClientConfig, timeout time.Duration) (*kubeletClient, error) {
 	var err error
 
 	// Building transport based on options
@@ -109,8 +109,9 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 
 	// Defaulting timeout
 	if timeout == 0 {
-		httpClient.Timeout = 30 * time.Second
+		timeout = 30 * time.Second
 	}
+	httpClient.Timeout = timeout
 
 	return &kubeletClient{
 		client:     httpClient,
@@ -120,13 +121,19 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 }
 
 func (kc *kubeletClient) checkConnection(ctx context.Context) error {
-	_, statusCode, err := kc.query(ctx, "/spec")
+	// override the timeout for the check only
+	// this will not affect the timeout for the actual client at runtime.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	_, statusCode, err := kc.query(ctx, "/healthz")
 	if err != nil {
 		return err
 	}
 
+	// unauthorized error, we can reach it but it's likely a token error
 	if statusCode == http.StatusUnauthorized {
-		return fmt.Errorf("unauthorized to request test kubelet endpoint (/spec) - token used: %t", kc.config.token != "")
+		return fmt.Errorf("unauthorized to request test kubelet endpoint (/healthz) - token used: %t", kc.config.token != "")
 	}
 
 	return nil
@@ -195,23 +202,16 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 	return b, response.StatusCode, nil
 }
 
-func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
+func getKubeletClientConfig() (*kubeletClientConfig, error) {
+	var kubeletToken string
 	var err error
 
-	kubeletTimeout := 30 * time.Second
-	kubeletProxyEnabled := pkgconfigsetup.Datadog().GetBool("eks_fargate")
 	kubeletUseAPIServer := pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server")
-	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
-	kubeletHTTPSPort := pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
-	kubeletHTTPPort := pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
 	kubeletTLSVerify := pkgconfigsetup.Datadog().GetBool("kubelet_tls_verify")
 	kubeletCAPath := pkgconfigsetup.Datadog().GetString("kubelet_client_ca")
-	kubeletTokenPath := pkgconfigsetup.Datadog().GetString("kubelet_auth_token_path")
 	kubeletClientCertPath := pkgconfigsetup.Datadog().GetString("kubelet_client_crt")
 	kubeletClientKeyPath := pkgconfigsetup.Datadog().GetString("kubelet_client_key")
-	kubeletNodeName := pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename")
-	var kubeletPathPrefix string
-	var kubeletToken string
+	kubeletTokenPath := pkgconfigsetup.Datadog().GetString("kubelet_auth_token_path")
 
 	// For some reason, token is not given as a path to Python part, so we need to read it here
 	if kubeletTokenPath == "" && filesystem.FileExists(kubernetes.DefaultServiceAccountTokenPath) {
@@ -247,67 +247,61 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		log.Infof("kubeletUseApiServer set to true, pod list queries will be sent to the apiserver at: %s/api/v1/pods", clientConfig.apiServerHost)
 	}
 
-	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)
-	var potentialHosts *connectionInfo
-	if kubeletProxyEnabled {
-		// Explicitly disable HTTP to reach APIServer
-		kubeletHTTPPort = 0
-		httpsPort, err := strconv.ParseUint(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("unable to get APIServer port: %w", err)
-		}
-		kubeletHTTPSPort = int(httpsPort)
+	return &clientConfig, nil
+}
 
-		if pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename") != "" {
-			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
-			apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
-
-			potentialHosts = &connectionInfo{
-				ips: []string{apiServerIP},
-			}
-			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerIP, kubeletHTTPSPort, kubeletPathPrefix)
-		} else {
-			return nil, errors.New("kubelet proxy mode enabled but nodename is empty - unable to query")
-		}
-	} else {
-		// Building a list of potential ips/hostnames to reach Kubelet
-		potentialHosts = getPotentialKubeletHosts(kubeletHost)
+func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
+	// Step 1: Get the client config
+	clientConfig, err := getKubeletClientConfig()
+	if err != nil {
+		return nil, err
 	}
 
-	// Checking HTTPS first if port available
+	// Step 2: Get the connection infos (ips, hostnames, ports, path prefix)
+	potentialHosts, httpsPort, httpPort, pathPrefix, err := getKubeletConnectionInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 3: Create the kubelet client
 	var httpsErr error
-	if kubeletHTTPSPort > 0 {
-		httpsErr = checkKubeletConnection(ctx, "https", kubeletHTTPSPort, kubeletPathPrefix, potentialHosts, &clientConfig)
+	var newKubeletClient *kubeletClient
+	kubeletTimeout := 30 * time.Second
+
+	// Checking HTTPS first if port available
+	if httpsPort > 0 {
+		newKubeletClient, httpsErr = checkGetKubeletClient(ctx, "https", httpsPort, pathPrefix, potentialHosts, clientConfig, kubeletTimeout)
 		if httpsErr != nil {
-			log.Debug("Impossible to reach Kubelet through HTTPS")
-			if kubeletHTTPPort <= 0 {
+			if httpPort <= 0 {
 				return nil, httpsErr
 			}
+
+			log.Warnf("Impossible to reach Kubelet through HTTPS, fallback to HTTP, err=%s", httpsErr.Error())
 		} else {
-			return newForConfig(clientConfig, kubeletTimeout)
+			return newKubeletClient, nil
 		}
 	}
 
 	// Check HTTP now if port available
 	var httpErr error
-	if kubeletHTTPPort > 0 {
-		httpErr = checkKubeletConnection(ctx, "http", kubeletHTTPPort, kubeletPathPrefix, potentialHosts, &clientConfig)
+	if httpPort > 0 {
+		newKubeletClient, httpErr = checkGetKubeletClient(ctx, "http", httpPort, pathPrefix, potentialHosts, clientConfig, kubeletTimeout)
 		if httpErr != nil {
 			log.Debug("Impossible to reach Kubelet through HTTP")
-			return nil, fmt.Errorf("impossible to reach Kubelet with host: %s. Please check if your setup requires kubelet_tls_verify = false. Activate debug logs to see all attempts made", kubeletHost)
+			return nil, errors.New("impossible to reach Kubelet with HTTP. Please check if your setup requires kubelet_tls_verify = false. Activate debug logs to see all attempts made")
 		}
 
 		if httpsErr != nil {
 			log.Warn("Unable to access Kubelet through HTTPS - Using HTTP connection instead. Please check if your setup requires kubelet_tls_verify = false")
 		}
 
-		return newForConfig(clientConfig, kubeletTimeout)
+		return newKubeletClient, nil
 	}
 
 	return nil, errors.New("Invalid Kubelet configuration: both HTTPS and HTTP ports are disabled")
 }
 
-func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig) error {
+func checkGetKubeletClient(ctx context.Context, scheme string, port int, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig, timeout time.Duration) (*kubeletClient, error) {
 	var err error
 	var kubeClient *kubeletClient
 
@@ -323,7 +317,7 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 		}
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)
-		kubeClient, err = newForConfig(*clientConfig, time.Second)
+		kubeClient, err = newForConfig(clientConfig, timeout)
 		if err != nil {
 			log.Debugf("Failed to create Kubelet client for host: %s - error: %v", clientConfig.baseURL, err)
 			continue
@@ -336,14 +330,14 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 		}
 
 		log.Infof("Successful configuration found for Kubelet, using URL: %s", kubeClient.kubeletURL)
-		return nil
+		return kubeClient, nil
 	}
 
 	for _, host := range hosts.hostnames {
 		clientConfig.baseURL = fmt.Sprintf("%s:%d%s", host, port, prefix)
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)
-		kubeClient, err = newForConfig(*clientConfig, time.Second)
+		kubeClient, err = newForConfig(clientConfig, timeout)
 		if err != nil {
 			log.Debugf("Failed to create Kubelet client for host: %s - error: %v", clientConfig.baseURL, err)
 			continue
@@ -356,10 +350,10 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 		}
 
 		log.Infof("Successful configuration found for Kubelet, using URL: %s", kubeClient.kubeletURL)
-		return nil
+		return kubeClient, nil
 	}
 
-	return errors.New("Kubelet connection check failed")
+	return nil, errors.New("Kubelet connection check failed")
 }
 
 func logConnectionError(clientConfig *kubeletClientConfig, err error) {

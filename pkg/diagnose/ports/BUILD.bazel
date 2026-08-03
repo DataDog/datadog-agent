@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ports",
+    srcs = [
+        "ports.go",
+        "ports_others.go",
+        "ports_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/ports",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/config/setup",
+        "//pkg/util/port",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ports_test",
+    srcs = [
+        "ports_test.go",
+        "ports_windows_test.go",
+    ],
+    embed = [":ports"],
+    deps = [
+        "//pkg/util/port",
+        "@com_github_stretchr_testify//require",
+    ],
+)
