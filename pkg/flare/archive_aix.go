@@ -31,7 +31,7 @@ func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	defer cancelfunc()
 
 	pid := strconv.Itoa(os.Getpid())
-	cmd := exec.CommandContext(cancelctx, "svmon", "-P", pid, "-O", "summary=basic,unit=KB")
+	cmd := exec.CommandContext(cancelctx, "svmon", "-P", pid, "-O", "unit=KB,segment=on")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
