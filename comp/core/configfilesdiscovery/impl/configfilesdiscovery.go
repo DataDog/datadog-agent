@@ -152,7 +152,10 @@ func (c *component) start(context.Context) error {
 	if c.store != nil {
 		filter := workloadmeta.NewFilterBuilder().
 			SetEventType(workloadmeta.EventTypeSet).
-			AddKind(workloadmeta.KindProcess).
+			AddKindWithEntityFilter(workloadmeta.KindProcess, func(entity workloadmeta.Entity) bool {
+				process, ok := entity.(*workloadmeta.Process)
+				return ok && process.ContainerID != "" && len(process.Cmdline) > 0
+			}).
 			Build()
 		c.processEvents = c.store.Subscribe(schedulerName, workloadmeta.NormalPriority, filter)
 		c.scheduler.startProcessEventListener(c.processEvents)

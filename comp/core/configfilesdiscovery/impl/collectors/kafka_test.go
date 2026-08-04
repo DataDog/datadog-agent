@@ -157,10 +157,10 @@ func TestKafkaGetConfigPath(t *testing.T) {
 func TestKafkaCollectorMatchesAndReadsRelativeProcessConfig(t *testing.T) {
 	eventArgs := []string{"kafka-server-start.sh", "config/server.properties"}
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
 			Args:       eventArgs,
 			WorkingDir: "/opt/kafka",
 		}},
@@ -182,7 +182,7 @@ func TestKafkaCollectorMatchesAndReadsRelativeProcessConfig(t *testing.T) {
 
 func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{
@@ -209,7 +209,7 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 
 func TestKafkaCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"kafka-server-start.sh", "--override", "broker.id=1"},
 		},
 	}
@@ -225,10 +225,10 @@ func TestKafkaCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 
 func TestKafkaCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"}},
 			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"}},
 		},
@@ -245,10 +245,10 @@ func TestKafkaCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
 
 func TestKafkaCollectorSkipsConflictingProcessConfigPaths(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"}},
 			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/other.properties"}},
 		},
@@ -263,10 +263,10 @@ func TestKafkaCollectorSkipsConflictingProcessConfigPaths(t *testing.T) {
 
 func TestKafkaCollectorSkipsUnresolvedMatchingProcessConfigPath(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"}},
 			{Args: []string{"java", "kafka.Kafka", "config/server.properties"}},
 		},
@@ -281,10 +281,10 @@ func TestKafkaCollectorSkipsUnresolvedMatchingProcessConfigPath(t *testing.T) {
 
 func TestKafkaCollectorUsesRuntimeConfigBeforeProcessConfig(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"kafka-server-start.sh", "/etc/kafka/runtime.properties"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/process.properties"}},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/kafka/runtime.properties"},
@@ -302,7 +302,7 @@ func TestKafkaCollectorFallsBackToProcessCommandlineOnRuntimeCommandlineError(t 
 	expectedErr := errors.New("command line unavailable")
 	reader := &kafkaCollectorTestReader{
 		commandlineErr: expectedErr,
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
 			Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"},
 		}},
 		file: configfilesdiscoveryimpl.ConfigFile{
@@ -333,7 +333,7 @@ func TestKafkaCollectorReturnsCommandlineErrors(t *testing.T) {
 func TestKafkaCollectorReturnsReadFileErrors(t *testing.T) {
 	expectedErr := errors.New("read failed")
 	reader := &kafkaCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"},
 		},
 		readFileErr: expectedErr,
@@ -348,8 +348,8 @@ func TestKafkaCollectorReturnsReadFileErrors(t *testing.T) {
 }
 
 type kafkaCollectorTestReader struct {
-	commandline             configfilesdiscoveryimpl.TargetCommandline
-	commandlines            []configfilesdiscoveryimpl.TargetCommandline
+	runtimeCommandline      configfilesdiscoveryimpl.TargetCommandline
+	liveProcessCommandlines []configfilesdiscoveryimpl.TargetCommandline
 	commandlineErr          error
 	processCommandlineCalls int
 	readFileCalls           []string
@@ -379,10 +379,10 @@ func (r *kafkaCollectorTestReader) ReadRuntimeCommandline(context.Context) (conf
 	if r.commandlineErr != nil {
 		return configfilesdiscoveryimpl.TargetCommandline{}, r.commandlineErr
 	}
-	return r.commandline, nil
+	return r.runtimeCommandline, nil
 }
 
 func (r *kafkaCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {
 	r.processCommandlineCalls++
-	return r.commandlines
+	return r.liveProcessCommandlines
 }

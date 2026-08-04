@@ -133,10 +133,10 @@ func TestRedisGetConfigPath(t *testing.T) {
 func TestRedisCollectorMatchesAndReadsRelativeProcessConfig(t *testing.T) {
 	eventArgs := []string{"redis-server", "redis.conf"}
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
 			Args:       eventArgs,
 			WorkingDir: "/etc/redis",
 		}},
@@ -158,7 +158,7 @@ func TestRedisCollectorMatchesAndReadsRelativeProcessConfig(t *testing.T) {
 
 func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{
@@ -185,7 +185,7 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 
 func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "--save", "60", "1"},
 		},
 	}
@@ -201,10 +201,10 @@ func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 
 func TestRedisCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
 			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
 		},
@@ -221,10 +221,10 @@ func TestRedisCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
 
 func TestRedisCollectorSkipsConflictingProcessConfigPaths(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
 			{Args: []string{"redis-server", "/etc/redis/other.conf"}},
 		},
@@ -239,10 +239,10 @@ func TestRedisCollectorSkipsConflictingProcessConfigPaths(t *testing.T) {
 
 func TestRedisCollectorSkipsUnresolvedMatchingProcessConfigPath(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
 			{Args: []string{"redis-server", "redis.conf"}},
 		},
@@ -257,10 +257,10 @@ func TestRedisCollectorSkipsUnresolvedMatchingProcessConfigPath(t *testing.T) {
 
 func TestRedisCollectorUsesRuntimeConfigBeforeProcessConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/runtime.conf"},
 		},
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"redis-server", "/etc/redis/process.conf"}},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/runtime.conf"},
@@ -278,7 +278,7 @@ func TestRedisCollectorFallsBackToProcessCommandlineOnRuntimeCommandlineError(t 
 	expectedErr := errors.New("command line unavailable")
 	reader := &redisCollectorTestReader{
 		commandlineErr: expectedErr,
-		commandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		}},
 		file: configfilesdiscoveryimpl.ConfigFile{
@@ -309,7 +309,7 @@ func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 	expectedErr := errors.New("read failed")
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		},
 		readFileErr: expectedErr,
@@ -324,8 +324,8 @@ func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 }
 
 type redisCollectorTestReader struct {
-	commandline             configfilesdiscoveryimpl.TargetCommandline
-	commandlines            []configfilesdiscoveryimpl.TargetCommandline
+	runtimeCommandline      configfilesdiscoveryimpl.TargetCommandline
+	liveProcessCommandlines []configfilesdiscoveryimpl.TargetCommandline
 	commandlineErr          error
 	processCommandlineCalls int
 	readFileCalls           []string
@@ -355,10 +355,10 @@ func (r *redisCollectorTestReader) ReadRuntimeCommandline(context.Context) (conf
 	if r.commandlineErr != nil {
 		return configfilesdiscoveryimpl.TargetCommandline{}, r.commandlineErr
 	}
-	return r.commandline, nil
+	return r.runtimeCommandline, nil
 }
 
 func (r *redisCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {
 	r.processCommandlineCalls++
-	return r.commandlines
+	return r.liveProcessCommandlines
 }
