@@ -295,89 +295,103 @@ func (h *midFlightDiscoverySuppressionHarness) releaseAndAssertSuppressed(t *tes
 	}
 }
 
-// TestConfigMgr_Discovery_StaleProbeResultSuppressedBySiblingArrivingMidFlight
-// reproduces the DSCVR-626 race: FilterTemplates only runs synchronously when
-// reconcileService runs, so it can't affect a probe that's already in
+// TestConfigMgr_Discovery_StaleProbeResultSuppressedByMidFlightConflict
+// reproduces the DSCVR-626 race: FilterTemplates only runs synchronously
+// inside reconcileService, so it can't affect a probe that's already in
 // flight. Without a re-check immediately before applying the probe result, a
-// sibling config that arrives for the same service *after* the probe was
-// enqueued but *before* it completes — e.g. an annotation change adding an
-// openmetrics config to the same container — would still get scheduled on
-// top of that sibling, defeating the point of the filtering. This test pins
-// down that applyDiscoveredConfigsLocked re-validates against live filtering
-// state before scheduling.
-func TestConfigMgr_Discovery_StaleProbeResultSuppressedBySiblingArrivingMidFlight(t *testing.T) {
-	// Mirrors filterTemplatesDiscovery's generic-integration-sibling rule:
-	// drop every discovery template while an openmetrics/prometheus sibling
-	// is present, regardless of Name.
-	filterTemplates := func(configs map[string]integration.Config) {
-		hasGenericSibling := false
-		for _, cfg := range configs {
-			if cfg.Discovery == nil && len(cfg.Instances) > 0 && (cfg.Name == "openmetrics" || cfg.Name == "prometheus") {
-				hasGenericSibling = true
+// conflicting generic-integration config that arrives for the same service
+// or host *after* the probe was enqueued but *before* it completes would
+// still get scheduled on top of it, defeating the point of the filtering.
+//
+// Both subtests below end up dropping the discovery digest for the same
+// (test-local, faked) reason — that part is deliberately trivial. What
+// actually differs, and is the point of having two cases, is *how* the
+// conflicting config reaches the config manager, which exercises two
+// different branches of processNewConfig:
+//
+//   - "sibling template arrives": the conflict has AD identifiers, so it IS
+//     a template. This DOES trigger a synchronous reconcileService for the
+//     affected service — but that alone changes nothing, because a
+//     discovery digest is never recorded in existingResolutions while its
+//     probe is pending, so reconcileService has nothing to unschedule. This
+//     proves the apply-time re-check matters even when reconcile does run.
+//   - "static config arrives host-wide": the conflict has no AD
+//     identifiers, so it's non-template. This NEVER triggers
+//     reconcileService for any already-active service at all (see the TODO
+//     in processNewConfig) — it only updates the shared StaticConfigIndex.
+//     This proves the apply-time re-check is the *only* thing that can catch
+//     this case; there's no reconcile to even race against.
+//
+// In both cases, applyDiscoveredConfigsLocked must re-validate against live
+// filtering state before scheduling the (stale) probe result.
+func TestConfigMgr_Discovery_StaleProbeResultSuppressedByMidFlightConflict(t *testing.T) {
+	t.Run("sibling template arrives for the same service", func(t *testing.T) {
+		// Mirrors filterTemplatesDiscovery's generic-integration-sibling rule:
+		// drop every discovery template while an openmetrics/prometheus
+		// sibling is present, regardless of Name.
+		filterTemplates := func(configs map[string]integration.Config) {
+			hasGenericSibling := false
+			for _, cfg := range configs {
+				if cfg.Discovery == nil && len(cfg.Instances) > 0 && (cfg.Name == "openmetrics" || cfg.Name == "prometheus") {
+					hasGenericSibling = true
+				}
+			}
+			if !hasGenericSibling {
+				return
+			}
+			for digest, cfg := range configs {
+				if cfg.Discovery != nil {
+					delete(configs, digest)
+				}
 			}
 		}
-		if !hasGenericSibling {
-			return
+		h := newMidFlightDiscoverySuppressionHarness(t, nil, filterTemplates)
+
+		// While the probe is in flight, a sibling openmetrics config for the
+		// same service arrives. Having AD identifiers makes this a template,
+		// so it triggers a real (but ultimately inconsequential)
+		// reconcileService for the service.
+		sibling := integration.Config{
+			Name:          "openmetrics",
+			ADIdentifiers: []string{"krakend"},
+			Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.1:9091/metrics")},
 		}
-		for digest, cfg := range configs {
-			if cfg.Discovery != nil {
-				delete(configs, digest)
+		changes, _ := h.cm.processNewConfig(sibling)
+		assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+
+		h.releaseAndAssertSuppressed(t)
+	})
+
+	t.Run("static config arrives host-wide", func(t *testing.T) {
+		idx := listeners.NewStaticConfigIndex()
+		// Mirrors filterTemplatesDiscovery's static-index rule: drop every
+		// discovery template while a host-wide generic-integration static
+		// config is present in the shared index.
+		filterTemplates := func(configs map[string]integration.Config) {
+			if !idx.Has("openmetrics") && !idx.Has("prometheus") {
+				return
+			}
+			for digest, cfg := range configs {
+				if cfg.Discovery != nil {
+					delete(configs, digest)
+				}
 			}
 		}
-	}
-	h := newMidFlightDiscoverySuppressionHarness(t, nil, filterTemplates)
+		h := newMidFlightDiscoverySuppressionHarness(t, idx, filterTemplates)
 
-	// While the probe is in flight, a sibling openmetrics config for the same
-	// service arrives.
-	sibling := integration.Config{
-		Name:          "openmetrics",
-		ADIdentifiers: []string{"krakend"},
-		Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.1:9091/metrics")},
-	}
-	changes, _ := h.cm.processNewConfig(sibling)
-	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
-
-	h.releaseAndAssertSuppressed(t)
-}
-
-// TestConfigMgr_Discovery_StaleProbeResultSuppressedByStaticConfigArrivingMidFlight
-// covers the host-wide variant: a *static* (non-template) generic-integration
-// config appearing while the probe is in flight — e.g. from a Kubernetes
-// Service's prometheus.io/scrape annotation, or a conf.d file picked up by
-// autoconf_config_files_poll. Crucially, adding a static config never
-// triggers reconcileService for any already-active service (see the
-// processNewConfig comment in configmgr.go) — it only updates the shared
-// StaticConfigIndex — so the apply-time re-check is the *only* thing that can
-// catch this case.
-func TestConfigMgr_Discovery_StaleProbeResultSuppressedByStaticConfigArrivingMidFlight(t *testing.T) {
-	idx := listeners.NewStaticConfigIndex()
-	// Mirrors filterTemplatesDiscovery's static-index rule: drop every
-	// discovery template while a host-wide generic-integration static
-	// config is present in the shared index.
-	filterTemplates := func(configs map[string]integration.Config) {
-		if !idx.Has("openmetrics") && !idx.Has("prometheus") {
-			return
+		// A static openmetrics config arrives while the probe is in flight.
+		// It has no AD identifiers, so it's non-template and never touches
+		// reconcileService — only the shared index.
+		staticOpenmetrics := integration.Config{
+			Name:      "openmetrics",
+			Instances: []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.2:9091/metrics")},
 		}
-		for digest, cfg := range configs {
-			if cfg.Discovery != nil {
-				delete(configs, digest)
-			}
-		}
-	}
-	h := newMidFlightDiscoverySuppressionHarness(t, idx, filterTemplates)
+		changes, _ := h.cm.processNewConfig(staticOpenmetrics)
+		assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+		assert.True(t, idx.Has("openmetrics"))
 
-	// A static openmetrics config arrives while the probe is in flight. It is
-	// not a template (no AD identifiers), so it never touches reconcileService
-	// — only the shared index.
-	staticOpenmetrics := integration.Config{
-		Name:      "openmetrics",
-		Instances: []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.2:9091/metrics")},
-	}
-	changes, _ := h.cm.processNewConfig(staticOpenmetrics)
-	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
-	assert.True(t, idx.Has("openmetrics"))
-
-	h.releaseAndAssertSuppressed(t)
+		h.releaseAndAssertSuppressed(t)
+	})
 }
 
 // makeDiscoveryCM is a small constructor used by the lifecycle tests below.
