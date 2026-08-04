@@ -16,7 +16,6 @@ require (
 	go.opentelemetry.io/collector/config/configretry v1.64.0
 	go.opentelemetry.io/collector/config/configtls v1.64.0
 	go.opentelemetry.io/collector/confmap v1.64.0
-	go.opentelemetry.io/collector/confmap/xconfmap v0.158.0
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.158.0
 	go.uber.org/zap v1.28.0
 )

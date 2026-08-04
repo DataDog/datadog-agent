@@ -79,11 +79,25 @@ Use this only when: the automated workflow has a persistent infrastructure failu
 dda inv collector.update   # bumps go.mod + OCB YAML files to latest OTel version
 dda inv collector.generate # regenerates OTel Agent code from the new manifests
 dda inv components.lint-components --fix
-dda inv modules.add-all-replace
 dda inv tidy               # reconcile transitive dependencies
+dda inv modules.add-all-replace  # must run AFTER tidy (see note below)
 bazel run //:go_mod_tidy_all
 dda inv generate-licenses  # update license inventory
 ```
+
+> **Run `modules.add-all-replace` after `tidy`, not before.** `collector.generate` rewrites
+> `comp/otelcol/collector-contrib/impl/go.mod` with short-form replace paths
+> (`=> ../../../logs-library`) where the repo standard is the canonical form
+> (`=> ../../../../comp/logs-library`). Running `add-all-replace` before `tidy` leaves the short
+> form in place and `check_modules_replace` fails in CI. Verify it converged by re-running it and
+> confirming no `go.mod` changes.
+
+> **`read_old_version` trusts the OCB manifest, which can be stale.** `collector.update`
+> search-replaces the version recorded in `comp/otelcol/collector-contrib/impl/manifest.yaml`.
+> If someone bumped the Go deps directly without running `collector.update` (as #53984 did), the
+> manifest lags and every file referencing the *actual* previous version is silently skipped.
+> Always compare the manifest version against a real dependency before trusting the bump:
+> `grep 'otelcol v' go.mod`.
 
 If a **specific version** was requested, skip `inv collector.update` and do a repo-wide search-and-replace of the old version string (find it in `tasks/collector.py` — the `OCB_VERSION` / `OTEL_CONTRIB_VERSION` constants). Then run the remaining commands above.
 
@@ -174,6 +188,37 @@ dda inv linter.go --targets=./comp/otelcol/...                                  
 dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=test,otlp  # confirm tests pass
 ```
 
+> **`--targets=./comp/otelcol/...` only covers the root module.** Several OTel packages are
+> *separate Go modules* and are invisible to that invocation — it will report "0 issues" while
+> they are silently unlinted. An upstream API change typically breaks exactly these. Lint each one
+> in its own module context:
+>
+> ```bash
+> for m in comp/otelcol/otlp/components/datadogconfig \
+>          comp/otelcol/otlp/components/exporter/serializerexporter \
+>          comp/otelcol/otlp/components/processor/infraattributesprocessor; do
+>   dda inv linter.go --module="$m"
+> done
+> ```
+>
+> Find the full list with `find comp/otelcol -name go.mod`. Note that `comp/host-profiler` also
+> consumes OTel APIs and is gated behind `//go:build linux`, so it cannot be linted from macOS
+> without a `x86_64-linux-gnu-gcc` cross toolchain — rely on CI's `lint_linux-x64` for it.
+
+### Upstream API moves
+
+When a symbol goes `undefined` after the bump, it has usually been *promoted* from an experimental
+`x`-prefixed package into its stable counterpart rather than deleted. Confirm before rewriting call
+sites, then rename:
+
+```bash
+rg -n "^func Validate|^type Validator" "$(go env GOMODCACHE)"/go.opentelemetry.io/collector/confmap@v1.64.0/*.go
+```
+
+Seen in v0.158.0: `xconfmap.Validate` / `xconfmap.Validator` → `confmap.Validate` / `confmap.Validator`
+(identical signatures). This breaks `lint_*`, `bazel:test:*`, and `build_host_profiler_binary_*`
+together, so a large fan-out of failures often has a single upstream cause.
+
 Open a draft PR to let CI catch any remaining failures. The PR title convention is:
 `Update OTel Collector dependencies to v<VERSION>`
 
@@ -185,8 +230,12 @@ Once the PR is open, run `/dd:ci:fix` to automatically fetch, analyze, and fix a
 
 - [ ] Automated workflow checked — succeeded (auto-PR reviewed) or failure diagnosed and fixed
 - [ ] `dda inv collector.update` + `collector.generate` + `tidy` + `generate-licenses` all completed without error (automated or manual)
-- [ ] No remaining references to the old OTel version in tracked files
-- [ ] ddflareextension unit + E2E golden files updated and tests pass
+- [ ] `modules.add-all-replace` run **after** `tidy` and confirmed idempotent (re-run produces no `go.mod` diff)
+- [ ] No remaining references to the old OTel version in tracked files — check the *actual* dep version, not just the manifest's
+- [ ] ddflareextension unit + E2E golden files updated and tests pass (with the `test` build tag)
+- [ ] Separate OTel Go modules linted individually with `--module=` (not just `--targets=./comp/otelcol/...`)
+- [ ] `test/fakeintake/version/VERSION` bumped if `tidy` touched `test/fakeintake/go.mod`
+- [ ] Release note added under `releasenotes/notes/` (or `changelog/no-changelog` applied)
 - [ ] OCB build script succeeds (or known issue tracked)
 - [ ] Static quality gate limits raised if breached (exemption approved)
 - [ ] Draft PR open and CI green (use `/dd:ci:fix` for any remaining failures)

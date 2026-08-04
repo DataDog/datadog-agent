@@ -200,8 +200,6 @@ go.opentelemetry.io/collector/config/configtls v1.64.0 h1:VsIN41cE+ZFTkVgNiAJvO0
 go.opentelemetry.io/collector/config/configtls v1.64.0/go.mod h1:JAH7YV5bexFhp/+xaw/3OH6PzkJftbO2wrC4A0bGbek=
 go.opentelemetry.io/collector/confmap v1.64.0 h1:0iORRU/KHd3T1FMV3r3ywLAPk7VpZGg/GmORRzsUthk=
 go.opentelemetry.io/collector/confmap v1.64.0/go.mod h1:Bv2VrpUOCcDJwNMsRHSKQovK5naW63RzQFoNiSeCfq4=
-go.opentelemetry.io/collector/confmap/xconfmap v0.158.0 h1:GkvJQY0RQs/Fmd4Sa5tQ6+9JZZ3CthUznpbi69eMdP0=
-go.opentelemetry.io/collector/confmap/xconfmap v0.158.0/go.mod h1:LArvH2ATgm5MLPqUWbKnIOsM+O6O1u0tNvnvP7iL8/E=
 go.opentelemetry.io/collector/connector v0.158.0 h1:/sL71B7LBpdBtIJc75eBEn46nL410AiB6FZzUcok9GE=
 go.opentelemetry.io/collector/connector v0.158.0/go.mod h1:vnNsGajqAKx1qCToaBuGVndZ4QbD/Bp4ToJzpUn9iAU=
 go.opentelemetry.io/collector/connector/connectortest v0.158.0 h1:tN3M0WqLEBLtiPO/UvGtbYPVDH9/LuQsmb2+YkRKhOw=
