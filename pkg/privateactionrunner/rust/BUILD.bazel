@@ -2,6 +2,13 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load(":version.bzl", "par_control_agent_version")
+
+# par-control reports this to OPMS in the X-Datadog-OnPrem-Version header, so it
+# must be the agent version rather than the crate version. Crate-local for now;
+# see version.bzl for why it is not yet shared with the Go binaries' x_defs.
+_RUSTC_ENV = {"DD_AGENT_VERSION": par_control_agent_version()}
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -10,41 +17,59 @@ _LINUX_OR_WINDOWS = select({
 })
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
-# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default.
+# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
+# so we provide it explicitly (same pattern as //pkg/procmgr/rust).
 cc_library(
     name = "cpp_stdlib",
     linkopts = select({
         "@platforms//os:windows": [],
+        # macOS has no libstdc++; the toolchain already links libc++ by default.
         "@platforms//os:macos": [],
         "//conditions:default": ["-lstdc++"],
     }),
 )
 
+_LIB_SRCS = glob(
+    ["src/**/*.rs"],
+    exclude = ["src/bins/**"],
+)
+
+_LIB_DEPS = [
+    "//pkg/proto/datadog/privateactionrunner:executor_rust_proto",
+    "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
+    "@crates//:anyhow",
+    "@crates//:base64",
+    "@crates//:chrono",
+    "@crates//:hyper-util",
+    "@crates//:log",
+    "@crates//:native-tls",
+    "@crates//:openssl",
+    "@crates//:p256",
+    "@crates//:prost",
+    "@crates//:reqwest",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:serde_yaml",
+    "@crates//:tokio",
+    "@crates//:tokio-native-tls",
+    "@crates//:tokio-stream",
+    "@crates//:tonic",
+    "@crates//:tonic-prost",
+    "@crates//:tower",
+    "@crates//:uuid",
+]
+
 rust_library(
     name = "par-control-lib",
-    srcs = glob(
-        ["src/**/*.rs"],
-        exclude = ["src/bins/**"],
-    ),
+    srcs = _LIB_SRCS,
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
+    rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
-        "@crates//:anyhow",
-        "@crates//:hyper-util",
-        "@crates//:log",
-        "@crates//:prost",
-        "@crates//:serde",
-        "@crates//:serde_yaml",
-        "@crates//:tokio",
-        "@crates//:tonic",
-        "@crates//:tonic-prost",
-        "@crates//:tower",
-    ],
+    deps = _LIB_DEPS,
 )
 
 rust_binary(
@@ -68,13 +93,37 @@ rust_test(
     name = "par-control_test",
     crate = ":par-control-lib",
     edition = "2024",
+    rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
+    # Linux-only, unlike the library and binary above, which build for both.
+    # The crate links the Agent's OpenSSL, which on Windows is
+    # libcrypto-3-x64.dll / libssl-3-x64.dll consumed via import libs. Bazel
+    # does not stage those next to a rust_test exe, so the test binary fails to
+    # load before main() (STATUS_DLL_NOT_FOUND / exit -1073741515).
+    # TODO(ACTP-xxxx): stage the OpenSSL DLLs so these tests run on Windows too.
     target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "@crates//:tempfile",
+        "@crates//:tokio",
+    ],
 )
 
+# Sets rpath to embedded/lib so par-control finds the packaged OpenSSL instead
+# of falling back to the host's, which the omnibus health check rejects.
+rewrite_rpath(
+    name = "par-control_linux",
+    inputs = [":par-control"],
+    target_compatible_with = ["@platforms//os:linux"],
+    # Absolute rpaths on Linux, matching the //conditions:default branch of the
+    # select() in dd_cc_packaged.bzl (relative rpaths are a macOS-only need).
+    use_relative_rpaths = False,
+)
+
+# Packaging: install par-control into the agent distribution (see
+# //pkg/procmgr/rust for the same Linux embedded/bin vs Windows bin/agent split).
 pkg_files(
     name = "all_files_linux",
-    srcs = [":par-control"],
+    srcs = [":par-control_linux"],
     attributes = pkg_attributes(mode = "0755"),
     prefix = "embedded/bin",
     target_compatible_with = ["@platforms//os:linux"],

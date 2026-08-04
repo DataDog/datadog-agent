@@ -20,4 +20,20 @@ crate.annotation(
     crate = "protoc-gen-tonic",
     gen_binaries = ["protoc-gen-tonic"],
 )
+
+# Link openssl-sys against the Agent's packaged OpenSSL.
+crate.annotation(
+    build_script_data = ["@openssl//:gen_dir"],
+    build_script_env = {
+        "OPENSSL_NO_VENDOR": "1",
+        "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
+    },
+    crate = "openssl-sys",
+    data = ["@openssl"],
+    deps = ["@openssl"],
+)
+
+# Expose @openssl to the crate extension used above.
+inject_repo(crate, "openssl")
+
 use_repo(crate, "crates")

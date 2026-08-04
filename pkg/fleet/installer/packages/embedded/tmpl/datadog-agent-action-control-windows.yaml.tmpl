@@ -3,9 +3,16 @@ command: '{{.InstallDir}}/bin/agent/par-control.exe'
 args:
   - --config
   - '{{.EtcDir}}/datadog.yaml'
+  - --config-helper
+  - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
+  - --enroll-command
+  - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
+  - rotate-identity
+  - --cfgpath
+  - '{{.EtcDir}}/datadog.yaml'
 auto_start: true
 # Keep the supervisor contract aligned with the Unix control-plane definition.
-stop_timeout: 30
+stop_timeout: 180
 condition_path_exists: '{{.InstallDir}}/bin/agent/par-control.exe'
 restart: on-failure
 restart_sec: 2
