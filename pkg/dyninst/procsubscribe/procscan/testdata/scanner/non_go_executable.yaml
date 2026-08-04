@@ -47,7 +47,7 @@ command: !create-process
 command: !scan {}
 state:
   current_time: 100
-  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}, {pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 1, next_attempt: 110}, {pid: 1002, start_time: 50, exe_ino: 7, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001, 1002]
   metrics: {candidates_evaluated: 2, executables_analyzed: 1, non_go_executables: 2}
 ---
@@ -56,6 +56,6 @@ command: !advance-time {to: 110}
 command: !scan {}
 state:
   current_time: 110
-  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}, {pid: 1002, start_time: 50, attempts: 2, next_attempt: 130}]
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 2, next_attempt: 130}, {pid: 1002, start_time: 50, exe_ino: 7, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001, 1002]
   metrics: {candidates_evaluated: 4, executables_analyzed: 1, non_go_executables: 4}

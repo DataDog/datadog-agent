@@ -39,6 +39,13 @@ const (
 	// DefaultRetryBackoffCap is the longest delay between two attempts at
 	// reading a process' tracer metadata.
 	DefaultRetryBackoffCap = 5 * time.Minute
+	// DefaultNonGoBackoffCap is the longest delay between two looks at a
+	// process that is not running a Go binary, and therefore how late an exec
+	// into one can be noticed. It is shorter than DefaultRetryBackoffCap
+	// because identifying an executable costs a fraction of searching a process
+	// for tracer metadata: at 2000 processes, re-identifying every one of them
+	// this often costs well under a tenth of a percent of a core.
+	DefaultNonGoBackoffCap = time.Minute
 	// DefaultMaxCandidates bounds the candidate set, which holds every process
 	// still awaiting a verdict rather than only the Go ones. It matches the
 	// common pid_max default so that the set can hold an entire host; above the
@@ -66,11 +73,17 @@ func procKeyLess(a, b procKey) bool {
 	return a.startTime < b.startTime
 }
 
-// candidate is the retry state for a process that runs a Go binary but whose
-// tracer metadata has not been readable yet.
+// candidate is the retry state for a process that has not been instrumented
+// yet, whatever the reason.
 type candidate struct {
 	// startTime distinguishes this process from a later one that reuses its pid.
 	startTime ticks
+	// exeKey identifies the executable the last verdict was reached about, and
+	// is zero if the executable could not be identified. An exec is the one way
+	// a verdict about a process' executable stops being true without its pid or
+	// start time changing, so a scan that finds a different key here knows to
+	// start the schedule over.
+	exeKey process.FileKey
 	// seenAt is the time of the last scan that observed the process. Candidates
 	// not observed by a scan have exited and are dropped.
 	seenAt ticks
@@ -98,6 +111,10 @@ type Scanner struct {
 	// the same process.
 	backoffBase ticks
 	backoffCap  ticks
+	// nonGoBackoffCap bounds the delay between two looks at a process that is
+	// not running a Go binary. Revisiting one is much cheaper than searching a
+	// process for tracer metadata, so it is worth doing more often.
+	nonGoBackoffCap ticks
 
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
@@ -139,6 +156,7 @@ type scannerConfig struct {
 	minProcessAge       time.Duration
 	backoffBase         time.Duration
 	backoffCap          time.Duration
+	nonGoBackoffCap     time.Duration
 	maxCandidates       int
 	executableCacheSize int
 }
@@ -147,6 +165,7 @@ var defaultScannerConfig = scannerConfig{
 	minProcessAge:       DefaultMinProcessAge,
 	backoffBase:         DefaultRetryBackoffBase,
 	backoffCap:          DefaultRetryBackoffCap,
+	nonGoBackoffCap:     DefaultNonGoBackoffCap,
 	maxCandidates:       DefaultMaxCandidates,
 	executableCacheSize: defaultExecutableCacheSize,
 }
@@ -172,6 +191,13 @@ func WithRetryBackoff(base, maxDelay time.Duration) Option {
 	return optionFunc(func(c *scannerConfig) {
 		c.backoffBase, c.backoffCap = base, maxDelay
 	})
+}
+
+// WithNonGoBackoffCap sets the longest delay between two looks at a process
+// that is not running a Go binary, which bounds how late an exec into one is
+// noticed.
+func WithNonGoBackoffCap(d time.Duration) Option {
+	return optionFunc(func(c *scannerConfig) { c.nonGoBackoffCap = d })
 }
 
 // WithMaxCandidates sets the maximum number of processes for which retry state
@@ -226,6 +252,7 @@ func newScanner(
 		minAge:               durationToTicks(cfg.minProcessAge),
 		backoffBase:          durationToTicks(cfg.backoffBase),
 		backoffCap:           durationToTicks(cfg.backoffCap),
+		nonGoBackoffCap:      durationToTicks(cfg.nonGoBackoffCap),
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
@@ -356,8 +383,15 @@ func (p *Scanner) Scan() (
 		if err != nil {
 			p.metrics.executablesUnresolved.Add(1)
 			maybeLogErr("resolve executable", err)
-			p.scheduleRetry(key, c, now)
+			p.scheduleRetry(key, c, process.FileKey{}, now, p.backoffCap)
 			continue
+		}
+		if c != nil && c.exeKey != executable.Key {
+			// The process exec'd, so whatever its previous executable earned
+			// does not apply to this one. Start the schedule over instead of
+			// making the new binary wait out the old one's backoff.
+			p.metrics.executablesChanged.Add(1)
+			c.attempts = 0
 		}
 
 		// Reading tracer metadata means walking the process' open file
@@ -366,24 +400,24 @@ func (p *Scanner) Scan() (
 		isGo, err := p.isGoExecutable(executable)
 		if err != nil {
 			maybeLogErr("analyze executable", err)
-			p.scheduleRetry(key, c, now)
+			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
 			continue
 		}
 		if !isGo {
 			p.metrics.nonGoExecutables.Add(1)
 			// The verdict is remembered per executable, but reaching it costs a
 			// readlink, an open and a stat to identify the executable at all.
-			// Back off so that cost is not paid every scan. It cannot be
-			// remembered against the process instead, because exec replaces the
-			// executable while preserving the pid and the start time.
-			p.scheduleRetry(key, c, now)
+			// Back off so that cost is not paid every scan, under the shorter
+			// cap, since revisiting the process is how an exec into a Go binary
+			// gets noticed and that should not take five minutes.
+			p.scheduleRetry(key, c, executable.Key, now, p.nonGoBackoffCap)
 			continue
 		}
 
 		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
 		if err != nil {
 			p.recordMetadataReadFailure(pid, err)
-			p.scheduleRetry(key, c, now)
+			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
 			continue
 		}
 		if tracerMetadata.TracerLanguage != "go" {
@@ -395,7 +429,7 @@ func (p *Scanner) Scan() (
 				"scanner: pid %d reports tracer language %q",
 				pid, tracerMetadata.TracerLanguage,
 			)
-			p.scheduleRetry(key, c, now)
+			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
 			continue
 		}
 
@@ -441,19 +475,26 @@ func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
 	return c
 }
 
-// scheduleRetry records a failed attempt and pushes the next one out, doubling
-// the delay each time up to the cap.
+// scheduleRetry records a failed attempt against the process running exeKey and
+// pushes the next attempt out, doubling the delay each time up to maxDelay.
+//
+// A zero exeKey means the executable could not be identified this time. The next
+// scan that does identify it will read that as an exec and restart the schedule,
+// which costs a few cheap attempts and is the safe way to be wrong.
 //
 // There is no attempt limit. A tracer can publish its metadata at any point in
-// the life of the process, so the backoff bounds the cost of waiting for it
-// without ever ruling it out.
-func (p *Scanner) scheduleRetry(key procKey, c *candidate, now ticks) {
+// the life of the process, and a process can exec into a Go binary at any point,
+// so the backoff bounds the cost of waiting without ever ruling either out.
+func (p *Scanner) scheduleRetry(
+	key procKey, c *candidate, exeKey process.FileKey, now, maxDelay ticks,
+) {
 	if c == nil {
 		c = &candidate{startTime: key.startTime}
 	}
+	c.exeKey = exeKey
 	c.attempts++
 	c.seenAt = now
-	c.nextAttempt = now + p.retryDelay(c.attempts)
+	c.nextAttempt = now + p.retryDelay(c.attempts, maxDelay)
 	// Adding refreshes the entry's position, so the candidate evicted when the
 	// set is full is the one that has gone longest without a retry.
 	if evicted := p.candidates.Add(key.pid, c); evicted {
@@ -461,12 +502,12 @@ func (p *Scanner) scheduleRetry(key procKey, c *candidate, now ticks) {
 	}
 }
 
-func (p *Scanner) retryDelay(attempts uint32) ticks {
+func (p *Scanner) retryDelay(attempts uint32, maxDelay ticks) ticks {
 	delay := p.backoffBase
-	for i := uint32(1); i < attempts && delay < p.backoffCap; i++ {
+	for i := uint32(1); i < attempts && delay < maxDelay; i++ {
 		delay *= 2
 	}
-	return min(delay, p.backoffCap)
+	return min(delay, maxDelay)
 }
 
 // forgetExitedCandidates drops the retry state of processes that this scan did

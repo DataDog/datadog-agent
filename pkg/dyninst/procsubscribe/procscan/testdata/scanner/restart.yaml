@@ -50,7 +50,7 @@ new: [{pid: 1001, start_time: 50}]
 state:
   current_time: 100
   live: [{pid: 1001, start_time: 50}]
-  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1002, start_time: 50, exe_ino: 1002, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001, 1002]
   metrics: {candidates_evaluated: 2, executables_analyzed: 2, discovered: 1, metadata_not_published: 1}
 ---
@@ -60,7 +60,7 @@ command: !scan {}
 state:
   current_time: 200
   live: [{pid: 1001, start_time: 50}]
-  candidates: [{pid: 1002, start_time: 50, attempts: 2, next_attempt: 220}]
+  candidates: [{pid: 1002, start_time: 50, exe_ino: 1002, attempts: 2, next_attempt: 220}]
   processes_in_procfs: [1001, 1002]
   metrics: {candidates_evaluated: 3, executables_analyzed: 2, discovered: 1, metadata_not_published: 2}
 ---
@@ -75,7 +75,7 @@ new: [{pid: 1001, start_time: 50}]
 state:
   current_time: 300
   live: [{pid: 1001, start_time: 50}]
-  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 310}]
+  candidates: [{pid: 1002, start_time: 50, exe_ino: 1002, attempts: 1, next_attempt: 310}]
   processes_in_procfs: [1001, 1002]
   metrics: {candidates_evaluated: 2, executables_analyzed: 2, discovered: 1, metadata_not_published: 1}
 ---

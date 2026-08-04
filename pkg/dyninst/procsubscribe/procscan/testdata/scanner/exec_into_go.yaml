@@ -1,0 +1,124 @@
+# A wrapper script that eventually execs the real service is a common way to
+# start a container. Exec keeps the pid and the start time, so the only thing
+# that tells us the process is no longer the one we wrote off is its executable.
+#
+# Two things make this work. The delay between two looks at a process that is not
+# running a Go binary is capped well below the delay between two tracer metadata
+# reads, because looking again is much cheaper than searching a process for
+# metadata, so an exec is noticed within 20 ticks here rather than 100. And once
+# the new executable is seen, the schedule starts over, so the service does not
+# have to wait out the backoff the wrapper accumulated before its metadata is
+# read.
+- !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+  non_go_backoff_cap: 20
+- !create-process
+  pid: 1001
+  start_time: 50
+  executable: {path: "/bin/sh", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "wrapped-service"}
+# The wrapper runs long enough to reach the cap on its own schedule.
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+- !advance-time {to: 130}
+- !scan {}
+- !advance-time {to: 150}
+- !scan {}
+# It execs the service, whose tracer has not published yet. The next look sees a
+# different executable and forgets the backoff the wrapper earned, so the first
+# metadata read for the service is followed by another 10 ticks later rather than
+# the 100 the wrapper had worked its way up to.
+- !exec-process
+  pid: 1001
+  executable: {path: "/app/server", ino: 9}
+  metadata_available_at: 185
+- !advance-time {to: 170}
+- !scan {}
+- !advance-time {to: 180}
+- !scan {}
+- !advance-time {to: 200}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+  non_go_backoff_cap: 20
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  executable: {path: "/bin/sh", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "wrapped-service"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_analyzed: 1, non_go_executables: 1}
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 2, executables_analyzed: 1, non_go_executables: 2}
+---
+command: !advance-time {to: 130}
+---
+command: !scan {}
+state:
+  current_time: 130
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 3, next_attempt: 150}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 3, executables_analyzed: 1, non_go_executables: 3}
+---
+command: !advance-time {to: 150}
+---
+command: !scan {}
+state:
+  current_time: 150
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 4, next_attempt: 170}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 4, executables_analyzed: 1, non_go_executables: 4}
+---
+command: !exec-process
+  pid: 1001
+  executable: {path: "/app/server", ino: 9}
+  metadata_available_at: 185
+---
+command: !advance-time {to: 170}
+---
+command: !scan {}
+state:
+  current_time: 170
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 9, attempts: 1, next_attempt: 180}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 5, executables_analyzed: 2, non_go_executables: 4, executables_changed: 1, metadata_not_published: 1}
+---
+command: !advance-time {to: 180}
+---
+command: !scan {}
+state:
+  current_time: 180
+  candidates: [{pid: 1001, start_time: 50, exe_ino: 9, attempts: 2, next_attempt: 200}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 6, executables_analyzed: 2, non_go_executables: 4, executables_changed: 1, metadata_not_published: 2}
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 50}]
+state:
+  current_time: 200
+  live: [{pid: 1001, start_time: 50}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 7, executables_analyzed: 2, non_go_executables: 4, executables_changed: 1, discovered: 1, metadata_not_published: 2}
