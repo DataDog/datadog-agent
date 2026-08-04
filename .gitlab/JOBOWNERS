@@ -75,7 +75,6 @@ iot-agent-*                          @DataDog/agent-build
 agent_suse*                          @DataDog/agent-build
 windows-installer*                   @DataDog/windows-products
 windows_*                            @DataDog/windows-products
-powershell_script_signing            @DataDog/windows-products
 datadog-otel-agent-*                 @DataDog/agent-build
 
 # Packaging
@@ -149,10 +148,8 @@ deploy_packages*                       @DataDog/agent-delivery
 deploy_macos_install_script            @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-products
-powershell_script_signing              @DataDog/windows-products
 windows_bootstrapper_deploy            @DataDog/windows-products
 qa_*_oci                               @DataDog/agent-delivery
-qa_installer_script*                   @DataDog/agent-delivery
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery

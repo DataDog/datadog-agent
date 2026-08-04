@@ -1,11 +1,10 @@
 # Windows Fleet Automation / Installer E2E Tests
 
 Tests for the Datadog Fleet Automation stack on Windows: installation and
-upgrade of the Agent and its OCI packages via `datadog-installer.exe` and the
-`Install-Datadog.ps1` setup script. Tests cover the happy path (install,
-upgrade, uninstall) and edge cases (rollback, stopping experiments, custom
-agent user/path, config experiments, persisting extensions). DDOT is
-currently the only Agent extension and has its own tests.
+upgrade of the Agent and its OCI packages via `datadog-installer.exe`. Tests
+cover the happy path (install, upgrade, uninstall) and edge cases (rollback,
+stopping experiments, custom agent user/path, config experiments, persisting
+extensions). DDOT is currently the only Agent extension and has its own tests.
 
 Tests run on AWS-provisioned Windows VMs with no pre-installed agent or
 fakeintake. After every test, WER crash dumps are collected; on failure,
@@ -21,8 +20,8 @@ with `-run`. The areas covered:
 - **Agent package** — install, upgrade (across versions and from GA), downgrade,
   rollback, config experiments, custom agent user / alternate install dir,
   hostname change, and domain-controller / GMSA scenarios.
-- **Install script & exe** — `Install-Datadog.ps1` and `datadog-installer.exe`
-  bootstrap/setup, including custom agent user, proxy, and domain-controller hosts.
+- **Install script & exe** — `datadog-installer.exe` bootstrap/setup, including
+  custom agent user, proxy, and domain-controller hosts.
 - **DDOT extension** — install via MSI, install script, and `agent` subcommand;
   MSI upgrade; persistence across upgrades.
 - **APM auto-injection** — IIS and Java injection via MSI and install script,
@@ -48,9 +47,9 @@ and `s.StableAgentVersion()`. Suites that need non-default artifacts can
 override resolution by setting `s.CreateCurrentAgent` or `s.CreateStableAgent`
 before `SetupSuite` runs.
 
-**Install script** — a `DatadogInstallScript` / `DatadogInstallExe` is
-created per test and accessible via `s.InstallScript()`. Suites can replace
-the implementation with `s.SetInstallScriptImpl()`.
+**Install script** — a `DatadogInstallExe` is created per test and accessible
+via `s.InstallScript()`. Suites can replace the implementation with
+`s.SetInstallScriptImpl()`.
 
 **Assertions** — `s.Require()` returns `*SuiteAssertions` (from
 `suite-assertions/`), which wraps testify's `Require` with fluent host
@@ -96,9 +95,8 @@ after a failed upgrade.
 `InstallPackage`, `StartExperiment`, `Status`, etc. plus `Install`/`Uninstall` for the MSI itself.
 Access via `s.Installer()`.
 
-**`DatadogInstallScript`** / **`DatadogInstallExe`** (in `install_script.go`)
-— runs `Install-Datadog.ps1` or `datadog-installer.exe setup` on the remote
-host. Access via `s.InstallScript()`.
+**`DatadogInstallExe`** (in `install_script.go`) — runs `datadog-installer.exe
+setup` on the remote host. Access via `s.InstallScript()`.
 
 **`AgentVersionManager`** (in `agent_package.go`) — holds the version string,
 OCI package config, and MSI package for a given agent version. Used by suites
@@ -144,8 +142,8 @@ have specific `needs` for the OCI artifacts they require.
 2. **Add a `TestXxx` to a new or existing `*_test.go` file** directly under
    `installer/windows/` (package `installer`).
    - If it fits an existing area, add a method to that suite struct (e.g. agent
-     upgrades in `agent_upgrade_test.go`, install-script scenarios in
-     `install_script_test.go`).
+     upgrades in `agent_upgrade_test.go`, install-exe scenarios in
+     `install_exe_test.go`).
    - For a new package or feature area, add a new `*_test.go` file with a suite
      struct that embeds `BaseSuite` and a `TestXxx` entry point:
 

@@ -152,7 +152,6 @@ new-e2e-windows-ddot-package-a7-x86_64:
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
-    - qa_installer_script_windows
   before_script:
     - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
     - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
@@ -184,7 +183,6 @@ new-e2e-windows-eudm-package-a7-x86_64:
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
-    - qa_installer_script_windows
   before_script:
     - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
     - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
@@ -210,7 +208,6 @@ new-e2e-installer-windows:
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
-    - qa_installer_script_windows
     - deploy_ddot_oci
   before_script:
     # Assertion variables for verifying installed agent version
@@ -279,14 +276,12 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentFails$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestConfigValuesNotOverwrittenByDefaults$"
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallUpgradeReinstallLifecycle$"
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestReinstallAfterMSIUninstall$"
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
-      # install-script
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestReinstallAfterMSIUninstall$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptWithAgentUser"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptChangesAgentUser$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
+      - EXTRA_PARAMS: --run "TestInstallExeWithAgentUser$/TestInstallExeWithAgentUser"
+      - EXTRA_PARAMS: --run "TestInstallExeWithAgentUser$/TestInstallExeChangesAgentUser$"
+      - EXTRA_PARAMS: --run "TestInstallExeWithAgentUserOnDC$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
       # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
