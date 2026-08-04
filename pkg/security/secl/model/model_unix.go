@@ -164,6 +164,9 @@ func NewEventZeroer() func(*Event) {
 	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
+		e.SpanContext = eventZero.SpanContext
+		e.GoLabels = eventZero.GoLabels
+
 		switch e.GetEventType() {
 		case PrCtlEventType:
 

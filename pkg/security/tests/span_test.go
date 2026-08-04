@@ -58,47 +58,86 @@ type spanLocations struct {
 	onAncestor bool
 }
 
-// assertSerializedSpanContext parses the marshalled event and asserts the
-// propagation wiring described by `loc`. Always asserts the top-level "dd"
-// and "tracer" fields (built by newDDContextSerializer; both share the same
-// underlying serializer in EventSerializer); the rest is gated by loc.
+// processTracerJSON mirrors the serialized "tracer" wrapper on a process node:
+// a "trace" span context plus optional tracer metadata.
+type processTracerJSON struct {
+	Trace *traceJSON `json:"trace"`
+}
+
+// spanJSON mirrors the span-carrying parts of a serialized event.
+type spanJSON struct {
+	DD      *traceJSON `json:"dd"`
+	Trace   *traceJSON `json:"trace"`
+	Process struct {
+		Tracer    *processTracerJSON `json:"tracer"`
+		Ancestors []struct {
+			Tracer *processTracerJSON `json:"tracer"`
+		} `json:"ancestors"`
+	} `json:"process"`
+}
+
+// parseSpanJSON unmarshals the span-carrying parts of a marshalled event.
+func parseSpanJSON(t *testing.T, jsonStr string) (spanJSON, bool) {
+	t.Helper()
+	var parsed spanJSON
+	if !assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
+		return parsed, false
+	}
+	return parsed, true
+}
+
+// assertSerializedTrace asserts the two top-level span keys of a marshalled
+// event: "dd" (intake-consumed) and "trace" (user-facing). Both are populated
+// from the same serializer instance in EventSerializer, so any divergence
+// between them would indicate a serialization bug.
 //
 // expectedAttrs may be nil; when non-nil, each expected key must be present
-// on the asserted span_context.attributes with the expected value (subset
-// match — the helper does not assert absence of unexpected keys).
-func assertSerializedSpanContext(t *testing.T, jsonStr, expectedSpanID, expectedTraceID string, expectedAttrs map[string]string, loc spanLocations) {
+// with the expected value (subset match — absence of unexpected keys is not
+// asserted).
+func assertSerializedTrace(t *testing.T, jsonStr, expectedSpanID, expectedTraceID string, expectedAttrs map[string]string) {
 	t.Helper()
-	// processTracerJSON mirrors the serialized "tracer" wrapper on a
-	// process node: a "trace" span context plus optional tracer metadata.
-	type processTracerJSON struct {
-		Trace *traceJSON `json:"trace"`
-	}
-	var parsed struct {
-		DD      *traceJSON `json:"dd"`
-		Trace   *traceJSON `json:"trace"`
-		Process struct {
-			Tracer    *processTracerJSON `json:"tracer"`
-			Ancestors []struct {
-				Tracer *processTracerJSON `json:"tracer"`
-			} `json:"ancestors"`
-		} `json:"process"`
-	}
-	if !assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
+	parsed, ok := parseSpanJSON(t, jsonStr)
+	if !ok {
 		return
 	}
 
-	// (1) Top-level "dd" (intake-consumed) — always asserted.
 	if assert.NotNil(t, parsed.DD, "serialized dd field should be populated") {
 		assertSpanFields(t, parsed.DD, expectedSpanID, expectedTraceID, expectedAttrs, "dd")
 	}
-
-	// (1b) Top-level "trace" (user-facing) — always asserted. Both fields
-	// are populated from the same serializer instance in EventSerializer,
-	// so any divergence between dd and trace would indicate a
-	// serialization bug.
 	if assert.NotNil(t, parsed.Trace, "serialized trace field should be populated") {
 		assertSpanFields(t, parsed.Trace, expectedSpanID, expectedTraceID, expectedAttrs, "trace")
 	}
+}
+
+// assertNoSerializedTrace asserts that no span context surfaced in the
+// marshalled event. newTraceSerializer returns nil when neither the event nor
+// any ancestor carries one, which leaves both omitempty keys out of the JSON
+// entirely.
+func assertNoSerializedTrace(t *testing.T, jsonStr string) {
+	t.Helper()
+	parsed, ok := parseSpanJSON(t, jsonStr)
+	if !ok {
+		return
+	}
+
+	assert.Nil(t, parsed.DD, "serialized dd field should be omitted: nothing in the lineage carries a span")
+	assert.Nil(t, parsed.Trace, "serialized trace field should be omitted: nothing in the lineage carries a span")
+}
+
+// assertSerializedSpanContext parses the marshalled event and asserts the
+// propagation wiring described by `loc`. Always asserts the top-level "dd"
+// and "trace" fields; the per-process copies are gated by loc.
+//
+// expectedAttrs is matched as described on assertSerializedTrace.
+func assertSerializedSpanContext(t *testing.T, jsonStr, expectedSpanID, expectedTraceID string, expectedAttrs map[string]string, loc spanLocations) {
+	t.Helper()
+	parsed, ok := parseSpanJSON(t, jsonStr)
+	if !ok {
+		return
+	}
+
+	// (1) Top-level "dd" and "trace" — always asserted.
+	assertSerializedTrace(t, jsonStr, expectedSpanID, expectedTraceID, expectedAttrs)
 
 	// (2) "process.tracer.trace" — populated when AddExecEntry persisted
 	// event.SpanContext onto the new PCE (in-process exec scenarios).
@@ -216,10 +255,13 @@ func TestGoSpan(t *testing.T) {
 
 				test.validateSpanSchema(t, event)
 
-				assert.Equal(t, uint64(987654321), event.SpanContext.SpanID,
-					"span ID should match the pprof label value")
-				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
-					"trace ID lo should match the local root span ID label value")
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedTrace(t, jsonStr,
+						strconv.FormatUint(987654321, 10),
+						utils.TraceID{Lo: 123456789}.HexString(),
+						nil)
+				}
 			}, "test_go_span_rule_open")
 		})
 	})
@@ -253,11 +295,6 @@ func TestGoSpan(t *testing.T) {
 				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
 
 				test.validateSpanSchema(t, event)
-
-				assert.Equal(t, uint64(987654321), event.SpanContext.SpanID,
-					"span ID should match the pprof label value")
-				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
-					"trace ID lo should match the local root span ID label value")
 
 				// In-process exec via syscall.Exec preserves the tgid:
 				// fill_span_context_go reads the goroutine's pprof labels at
@@ -300,8 +337,10 @@ func TestGoSpan(t *testing.T) {
 			}, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, "test_go_span_rule_open_no_labels")
 
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
-				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
 			}, "test_go_span_rule_open_no_labels")
 		})
 	})
@@ -329,8 +368,10 @@ func TestGoSpan(t *testing.T) {
 			}, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
 
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
-				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
 			}, "test_go_span_rule_exec")
 		})
 	})
@@ -381,9 +422,10 @@ func TestGoSpan(t *testing.T) {
 
 				// (1) The exec'd program (touch) has no tracer, so the raw
 				// exec event SpanContext is empty by design.
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID,
+				sc := event.FieldHandlers.ResolveSpanContext(event)
+				assert.Equal(t, uint64(0), sc.SpanID,
 					"exec event should not carry a span context: touch has no tracer")
-				assert.Equal(t, "0", event.SpanContext.TraceID.String(),
+				assert.Equal(t, "0", sc.TraceID.String(),
 					"exec event should not carry a trace id: touch has no tracer")
 
 				// (2) The immediate fork-parent in the ancestor lineage
@@ -516,10 +558,13 @@ func TestDDTraceGoSpan(t *testing.T) {
 
 				test.validateSpanSchema(t, event)
 
-				assert.Equal(t, expectedSpanID, event.SpanContext.SpanID,
-					"span ID should match the dd-trace-go generated value")
-				assert.Equal(t, expectedLocalRootSpanID, event.SpanContext.TraceID.Lo,
-					"trace ID lo should match the dd-trace-go local root span ID")
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedTrace(t, jsonStr,
+						strconv.FormatUint(expectedSpanID, 10),
+						utils.TraceID{Lo: expectedLocalRootSpanID}.HexString(),
+						nil)
+				}
 			}, "test_ddtrace_span_rule_open")
 		})
 	})
@@ -555,11 +600,6 @@ func TestDDTraceGoSpan(t *testing.T) {
 				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_exec")
 
 				test.validateSpanSchema(t, event)
-
-				assert.Equal(t, expectedSpanID, event.SpanContext.SpanID,
-					"span ID should match the dd-trace-go generated value")
-				assert.Equal(t, expectedLocalRootSpanID, event.SpanContext.TraceID.Lo,
-					"trace ID lo should match the dd-trace-go local root span ID")
 
 				// In-process exec via syscall.Exec: dd-trace-go's pprof labels
 				// on the locked OS thread are read by fill_span_context_go at
@@ -601,8 +641,10 @@ func TestDDTraceGoSpan(t *testing.T) {
 			}, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_open_no_span")
 
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
-				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
 			}, "test_ddtrace_span_rule_open_no_span")
 		})
 	})
@@ -630,8 +672,10 @@ func TestDDTraceGoSpan(t *testing.T) {
 			}, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_exec")
 
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
-				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
 			}, "test_ddtrace_span_rule_exec")
 		})
 	})
@@ -687,9 +731,10 @@ func TestDDTraceGoSpan(t *testing.T) {
 
 				// (1) The exec'd program (touch) has no tracer, so the raw
 				// exec event SpanContext is empty by design.
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID,
+				sc := event.FieldHandlers.ResolveSpanContext(event)
+				assert.Equal(t, uint64(0), sc.SpanID,
 					"exec event should not carry a span context: touch has no tracer")
-				assert.Equal(t, "0", event.SpanContext.TraceID.String(),
+				assert.Equal(t, "0", sc.TraceID.String(),
 					"exec event should not carry a trace id: touch has no tracer")
 
 				// (2) The immediate fork-parent in the ancestor lineage
