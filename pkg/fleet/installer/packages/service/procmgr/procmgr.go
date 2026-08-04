@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 )
