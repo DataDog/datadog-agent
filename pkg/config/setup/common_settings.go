@@ -162,7 +162,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.checks", "")
 	// Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)
-
 	// List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
 	// DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
 	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{})
