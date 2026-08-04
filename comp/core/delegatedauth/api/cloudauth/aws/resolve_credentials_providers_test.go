@@ -393,6 +393,7 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 	// EKS Pod Identity rotates the token file, so the value must be re-read per request rather than
 	// captured once when the provider is built.
 	t.Run("re-reads the token file on every retrieve", func(t *testing.T) {
+		isolateAWSEnv(t)
 		var gotAuth []string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			gotAuth = append(gotAuth, r.Header.Get("Authorization"))
@@ -483,6 +484,7 @@ func TestContainerProvider_Retrieve_Non200Success(t *testing.T) {
 // wins, and a failure reading it surfaces rather than silently falling back to the literal token.
 func TestContainerCredentialsProvider_TokenPrecedence(t *testing.T) {
 	t.Run("token file wins over the literal token", func(t *testing.T) {
+		isolateAWSEnv(t)
 		var gotAuth string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			gotAuth = r.Header.Get("Authorization")
@@ -506,6 +508,7 @@ func TestContainerCredentialsProvider_TokenPrecedence(t *testing.T) {
 	})
 
 	t.Run("an unreadable token file is an error", func(t *testing.T) {
+		isolateAWSEnv(t)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
 		}))

@@ -397,3 +397,27 @@ func TestDetectAWSCredentialSourceEnvSourcesIgnoreCloudProviderMetadata(t *testi
 	require.NoError(t, err)
 	assert.Equal(t, SourceEnvironment, source)
 }
+
+// An IRSA or container-credential workload reaches GetAWSRegion with no AWS_REGION set, so this
+// IMDS lookup is the one metadata request the other two guards do not cover.
+func TestGetAWSRegionHonorsCloudProviderMetadata(t *testing.T) {
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n  - azure\n")
+
+	region, err := GetAWSRegion(context.Background())
+	require.Error(t, err)
+	assert.Empty(t, region)
+	assert.ErrorIs(t, err, ec2internal.ErrCloudProviderDisabled)
+}
+
+// The env vars are read before the guard, so an explicitly configured region still resolves with
+// AWS excluded from cloud_provider_metadata.
+func TestGetAWSRegionEnvIgnoresCloudProviderMetadata(t *testing.T) {
+	t.Setenv("AWS_REGION", "eu-west-1")
+	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n")
+
+	region, err := GetAWSRegion(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "eu-west-1", region)
+}

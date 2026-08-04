@@ -126,6 +126,14 @@ func GetAWSRegion(ctx context.Context) (string, error) {
 		return region, nil
 	}
 
+	// Only this leg contacts the network, so honor cloud_provider_metadata before probing, the same
+	// as DetectAWSCredentialSource and GetSecurityCredentials. Returning an error costs the caller
+	// nothing: it treats a region failure as "use the default region", which is also what an
+	// IRSA-only pod with no AWS_REGION already gets.
+	if err := ec2internal.CheckCloudProviderEnabled(); err != nil {
+		return "", err
+	}
+
 	// Try to get region from IMDS (uses ImdsAllVersions to try v2, then v1)
 	identity, err := ec2internal.GetInstanceIdentity(ctx)
 	if err != nil {
