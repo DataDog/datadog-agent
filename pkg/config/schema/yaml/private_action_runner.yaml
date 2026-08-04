@@ -109,6 +109,10 @@ properties:
     node_type: setting
     type: string
     default: datadog-agent-action-executor
+  heartbeat_interval_seconds:
+    node_type: setting
+    type: integer
+    default: 20
   identity_file_path:
     node_type: setting
     type: string
@@ -121,6 +125,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
   log_file:
     node_type: setting
     type: string

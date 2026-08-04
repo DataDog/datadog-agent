@@ -43,6 +43,8 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"other":   "/var/run/datadog-procmgrd/dd-procmgrd.sock",
 	}))
 	config.BindEnvAndSetDefault("private_action_runner.executor_process_name", "datadog-agent-action-executor")
+	config.BindEnvAndSetDefault("private_action_runner.idle_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("private_action_runner.heartbeat_interval_seconds", 20)
 
 	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
 	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
