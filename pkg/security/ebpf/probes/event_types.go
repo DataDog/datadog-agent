@@ -448,8 +448,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				// source dentry
 				hookFunc("hook_complete_walk"),
 				// target dentry
+				// __filename_create is the pre-5.15 (and some el9 z-stream) symbol name for filename_create
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					hookFunc("rethook_filename_create"),
+					hookFunc("rethook___filename_create"),
 					hookFunc("rethook___lookup_hash"),
 				}},
 			}},
@@ -499,8 +501,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		"mkdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_vfs_mkdir"),
+				// __filename_create is the pre-5.15 (and some el9 z-stream) symbol name for filename_create
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					hookFunc("hook_filename_create"),
+					hookFunc("hook___filename_create"),
 					hookFunc("hook_security_path_mkdir"),
 				}},
 			}},
