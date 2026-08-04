@@ -6,7 +6,6 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 # exclude them so Gazelle does not try to manage them as static sources.
 # gazelle:exclude conntrack.go
 # gazelle:exclude gpu.go
-# gazelle:exclude numa-monitoring.go
 # gazelle:exclude offsetguess-test.go
 # gazelle:exclude oom-kill.go
 # gazelle:exclude runtime-security.go
@@ -18,7 +17,6 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 exports_files(
     [
         "oom-kill.go",
-        "numa-monitoring.go",
         "tcp-queue-length.go",
         "usm.go",
         "shared-libraries.go",
@@ -64,7 +62,6 @@ go_library(
         "telemetry.go",
         "//pkg/ebpf/bytecode:conntrack_gen",  # keep
         "//pkg/ebpf/bytecode:gpu_gen",  # keep
-        "//pkg/ebpf/bytecode:numa-monitoring_gen",  # keep
         "//pkg/ebpf/bytecode:offsetguess-test_gen",  # keep
         "//pkg/ebpf/bytecode:oom-kill_gen",  # keep
         "//pkg/ebpf/bytecode:runtime-security_gen",  # keep

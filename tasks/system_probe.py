@@ -973,7 +973,6 @@ _BAZEL_EBPF_INPLACE_TARGETS = {
 _BAZEL_RUNTIME_FLAT_TARGETS = [
     "//pkg/ebpf/bytecode:oom-kill_flat",
     "//pkg/ebpf/bytecode:tcp-queue-length_flat",
-    "//pkg/ebpf/bytecode:numa-monitoring_flat",
     "//pkg/ebpf/bytecode:usm_flat",
     "//pkg/ebpf/bytecode:shared-libraries_flat",
     "//pkg/ebpf/bytecode:conntrack_flat",
@@ -987,7 +986,6 @@ _BAZEL_RUNTIME_FLAT_TARGETS = [
 _BAZEL_RUNTIME_GEN_TARGETS = [
     "//pkg/ebpf/bytecode:oom-kill_gen",
     "//pkg/ebpf/bytecode:tcp-queue-length_gen",
-    "//pkg/ebpf/bytecode:numa-monitoring_gen",
     "//pkg/ebpf/bytecode:usm_gen",
     "//pkg/ebpf/bytecode:shared-libraries_gen",
     "//pkg/ebpf/bytecode:conntrack_gen",

@@ -34,16 +34,6 @@ runtime_compilation_bundle(
 )
 
 runtime_compilation_bundle(
-    name = "numa-monitoring",
-    header_deps = _CORECHECK_HEADERS,
-    include_dirs = ["pkg/ebpf/c"],
-    out_go_file = "//pkg/ebpf/bytecode/runtime:numa-monitoring.go",
-    out_name = "numa-monitoring",
-    src_c = "//pkg/collector/corechecks/ebpf/c/runtime:numa-monitoring-kern.c",
-    visibility = ["//visibility:public"],
-)
-
-runtime_compilation_bundle(
     name = "usm",
     header_deps = _NETWORK_HEADERS,
     include_dirs = [

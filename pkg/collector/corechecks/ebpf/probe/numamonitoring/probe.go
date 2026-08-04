@@ -5,9 +5,6 @@
 
 //go:build linux_bpf
 
-//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/numa-monitoring-kern.c pkg/ebpf/bytecode/build/runtime/numa-monitoring.c pkg/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/numa-monitoring.c pkg/ebpf/bytecode/runtime/numa-monitoring.go runtime
-
 package numamonitoring
 
 import (
@@ -24,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/numamonitoring/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	bytecoderuntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -84,35 +80,14 @@ func NewProbe(cfg *ddebpf.Config, maxGroups int) (*Probe, error) {
 		return nil
 	}
 
-	var loadErr error
-	if cfg.EnableCORE {
-		filename := "numa-monitoring.o"
-		if cfg.BPFDebug {
-			filename = "numa-monitoring-debug.o"
-		}
-		loadErr = ddebpf.LoadCOREAsset(filename, load)
-		if loadErr != nil && !cfg.AllowRuntimeCompiledFallback {
-			return nil, fmt.Errorf("load CO-RE NUMA monitoring probe: %w", loadErr)
-		}
+	filename := "numa-monitoring.o"
+	if cfg.BPFDebug {
+		filename = "numa-monitoring-debug.o"
 	}
-	if !cfg.EnableCORE || loadErr != nil {
-		if loadErr != nil {
-			log.Warnf("CO-RE NUMA monitoring probe failed, falling back to runtime compilation: %v", loadErr)
-		}
-		flags := []string{"-g"}
-		if cfg.BPFDebug {
-			flags = append(flags, "-DDEBUG=1")
-		}
-		compiled, err := bytecoderuntime.NumaMonitoring.Compile(cfg, flags)
-		if err != nil {
-			return nil, fmt.Errorf("runtime compile NUMA monitoring probe: %w", err)
-		}
-		loadErr = load(compiled, manager.Options{})
-		_ = compiled.Close()
-		if loadErr != nil {
-			return nil, loadErr
-		}
+	if err := ddebpf.LoadCOREAsset(filename, load); err != nil {
+		return nil, fmt.Errorf("load CO-RE NUMA monitoring probe: %w", err)
 	}
+
 	if err := probe.mgr.Start(); err != nil {
 		return nil, fmt.Errorf("start NUMA monitoring eBPF manager: %w", err)
 	}

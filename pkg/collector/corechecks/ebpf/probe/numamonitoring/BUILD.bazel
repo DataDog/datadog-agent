@@ -33,7 +33,6 @@ go_library(
         "//pkg/collector/corechecks/ebpf/probe/numamonitoring/model",
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/bytecode/runtime",
         "//pkg/ebpf/telemetry",
         "//pkg/util/cgroups",
         "//pkg/util/kernel",

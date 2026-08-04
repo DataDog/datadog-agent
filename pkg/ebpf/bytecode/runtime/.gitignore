@@ -6,7 +6,6 @@ http.go
 logdebug-test.go
 offsetguess-test.go
 oom-kill.go
-numa-monitoring.go
 runtime-security.go
 shared-libraries.go
 tcp-queue-length.go
