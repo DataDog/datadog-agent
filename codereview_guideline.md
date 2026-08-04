@@ -39,20 +39,6 @@ bugs — typically the "other" platform is untested. The same applies to
 packaging: Windows MSI and Linux deb/rpm have independent logic that can
 silently diverge.
 
-### Writing to host filesystems from a containerized agent
-Host paths are bind-mounted into the agent's containers **read-only** (see
-`readOnly: true` on the `procdir`, `cgroups`, and `hostroot` mounts in
-`Dockerfiles/manifests/`). Code that only ever reads them works everywhere, so a
-change that starts *writing* to `/host/sys/...` or `/host/proc/...` fails with
-`EROFS` in Kubernetes while passing on host installs. Unit and functional tests
-run as root with writable mounts, so they cannot catch this — ask for a
-Kubernetes check (E2E or manual QA).
-
-When a write to a host path is genuinely required, going through
-`/proc/1/root/<host path>` reaches the same file via pid 1's mount namespace,
-where it is still writable. That needs `hostPID: true` and must degrade
-gracefully when it is unavailable.
-
 ### Concurrency and component lifecycle
 The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
 lifecycles. The most common bugs are send-on-closed-channel during shutdown and
