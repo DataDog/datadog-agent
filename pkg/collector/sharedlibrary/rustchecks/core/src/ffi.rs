@@ -34,9 +34,6 @@ macro_rules! generate_ffi {
                         .map(|s| s.to_string())
                         .or_else(|| payload.downcast_ref::<String>().cloned())
                         .unwrap_or_else(|| "unknown panic".to_string());
-                    // Dropping the payload may itself panic (see catch_unwind
-                    // docs); leak it so a second panic cannot escape here.
-                    std::mem::forget(payload);
                     format!("check panicked: {msg}")
                 }
             };
