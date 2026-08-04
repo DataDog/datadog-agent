@@ -330,9 +330,20 @@ func procmgrStartSucceededAfterWait(serviceName string) bool {
 	finalState, err := winutil.WaitForPendingStateChange(ctx, serviceName, svc.StartPending)
 	if err != nil {
 		log.Warnf("Service %s did not finish starting: %v", serviceName, err)
+		stopProcmgrForLegacyFallback(serviceName)
 		return false
 	}
 	return finalState == svc.Running
+}
+
+// stopProcmgrForLegacyFallback stops dd-procmgr-service when startup cannot be confirmed
+// before the agent falls back to legacy SCM children, avoiding duplicate workloads if procmgr
+// later reaches Running while still StartPending.
+func stopProcmgrForLegacyFallback(serviceName string) {
+	log.Warnf("Stopping service %s before falling back to legacy Windows services", serviceName)
+	if err := winutil.StopService(serviceName); err != nil {
+		log.Warnf("Failed to stop service %s during legacy fallback: %v", serviceName, err)
+	}
 }
 
 func waitForServiceRunning(serviceName string) bool {
