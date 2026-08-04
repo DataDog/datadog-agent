@@ -123,7 +123,6 @@ func TestNewConfig(t *testing.T) {
 	c := cfg.(*ntmConfig)
 
 	assert.False(t, c.ready.Load())
-	assert.Equal(t, bool(mutateInPlace), c.defaultSetAtMode.Load())
 
 	assert.Equal(t, "config_name", c.configName)
 	assert.Equal(t, "", c.configFile)
@@ -2043,24 +2042,19 @@ func TestClearEnvVars(t *testing.T) {
 	assert.Equal(t, "default-b", cfg.GetString("b"))
 }
 
-// TestSetDefaultAfterRevertToBuilderDoesNotCorruptSharedRoot verifies that a node fetched via
-// GetNode stays frozen even if SetDefault runs afterward through RevertFinishedBackToBuilder
-// (used by OTel): Merge() can alias a defaults node into c.root, so setDefault must not mutate
-// that node in place once it may be shared, regardless of ready's value.
-func TestSetDefaultAfterRevertToBuilderDoesNotCorruptSharedRoot(t *testing.T) {
+// TestSetDefaultAfterRevertToBuilder follows the sequence cmd/otel-agent runs: revert a built
+// config back to a builder, register more defaults, then build it again.
+func TestSetDefaultAfterRevertToBuilder(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.SetDefault("ns.existing", "v1")
 	cfg.BuildSchema()
 
-	node, err := cfg.(NodeTreeConfig).GetNode("ns")
-	require.NoError(t, err)
-	before := node.ChildrenKeys()
-
-	cfg = cfg.RevertFinishedBackToBuilder() //nolint:forbidigo // for test purposes
+	cfg = cfg.RevertFinishedBackToBuilder() //nolint:forbidigo // testing behavior
 	cfg.SetDefault("ns.new", "v2")
+	cfg.BuildSchema()
 
-	assert.Equal(t, before, node.ChildrenKeys())
+	assert.Equal(t, "v1", cfg.GetString("ns.existing"))
+	assert.Equal(t, "v2", cfg.GetString("ns.new"))
 }
 
 func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {

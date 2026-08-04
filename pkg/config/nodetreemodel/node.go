@@ -145,11 +145,9 @@ func (n *nodeImpl) ChildrenKeys() []string {
 type setAtMode bool
 
 const (
-	// copyOnWrite clones an existing inner node's children map instead of mutating it, ensuring a tree that has already
-	// been shared is never mutated while it may be read concurrently.
+	// copyOnWrite clones an existing inner node's children map instead of mutating it, for a config that is in use.
 	copyOnWrite setAtMode = false
-	// mutateInPlace mutates an existing inner node's children map directly. Safe only while the tree is still being
-	// built and has not yet become observable elsewhere.
+	// mutateInPlace mutates an existing inner node's children map directly, for a config still being initialized.
 	mutateInPlace setAtMode = true
 )
 
