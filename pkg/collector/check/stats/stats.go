@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -99,8 +100,8 @@ func (s SenderStats) Copy() (result SenderStats) {
 	return result
 }
 
-// Stats holds basic runtime statistics about check instances
-type Stats struct {
+// stats holds Stats' fields, split out to ease deep-copy without touching the mutex
+type stats struct {
 	CheckName         string
 	CheckVersion      string
 	CheckConfigSource string
@@ -133,9 +134,14 @@ type Stats struct {
 	LastDelay                float64       // most recent check start time delay relative to the previous check run, in seconds
 	LastWarnings             []string      // warnings that occurred in the last run, if any
 	UpdateTimestamp          time.Time     // latest update to this instance, unix timestamp in seconds
-	m                        sync.Mutex
-	Telemetry                bool // do we want telemetry on this Check
+	Telemetry                bool          // do we want telemetry on this Check
 	HASupported              bool
+}
+
+// Stats holds basic runtime statistics about check instances
+type Stats struct {
+	stats
+	m sync.Mutex
 }
 
 //nolint:revive
@@ -158,27 +164,29 @@ type StatsCheck interface {
 
 // NewStats returns a new check stats instance
 func NewStats(c StatsCheck) *Stats {
-	stats := Stats{
-		CheckID:                  c.ID(),
-		CheckName:                c.String(),
-		CheckLoader:              c.Loader(),
-		CheckVersion:             c.Version(),
-		CheckConfigSource:        c.ConfigSource(),
-		Interval:                 c.Interval(),
-		Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
-		EventPlatformEvents:      make(map[string]int64),
-		TotalEventPlatformEvents: make(map[string]int64),
-		HASupported:              c.IsHASupported(),
+	cs := &Stats{
+		stats: stats{
+			CheckID:                  c.ID(),
+			CheckName:                c.String(),
+			CheckLoader:              c.Loader(),
+			CheckVersion:             c.Version(),
+			CheckConfigSource:        c.ConfigSource(),
+			Interval:                 c.Interval(),
+			Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
+			EventPlatformEvents:      make(map[string]int64),
+			TotalEventPlatformEvents: make(map[string]int64),
+			HASupported:              c.IsHASupported(),
+		},
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
 	// initialize them here explicitly
-	if stats.Telemetry && utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()) {
-		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
-		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
+	if cs.Telemetry && utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()) {
+		tlmRuns.InitializeToZero(cs.CheckName, runCheckFailureTag)
+		tlmRuns.InitializeToZero(cs.CheckName, runCheckSuccessTag)
 	}
 
-	return &stats
+	return cs
 }
 
 // Add tracks a new execution time
@@ -282,6 +290,14 @@ func (cs *Stats) SetStateCancelling() {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 	cs.Cancelling = true
+}
+
+// Clone returns a copy of the check stats, safe to read after the lock is released.
+func (cs *Stats) Clone() *Stats {
+	cs.m.Lock()
+	defer cs.m.Unlock()
+
+	return &Stats{stats: deepcopy.Copy(cs.stats).(stats)}
 }
 
 type aggStats struct {
