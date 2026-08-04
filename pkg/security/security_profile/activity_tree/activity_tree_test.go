@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -578,4 +579,196 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
 		assert.Empty(t, tree.ProcessNodes, "Expected all process nodes to be removed from tree")
 	})
+}
+
+// Syscall and capability nodes must survive a time based eviction pass that does prune a sibling.
+func TestEvictUnusedNodes_SyscallAndCapabilityExemption(t *testing.T) {
+	tree := &ActivityTree{
+		validator:    activityTreeInsertTestValidator{},
+		Stats:        NewActivityTreeNodeStats(),
+		SyscallsMask: make(map[int]int),
+	}
+
+	testTagID := tree.GetOrInsertImageTag("test-tag")
+	oldTime := time.Now().Add(-2 * time.Hour)
+
+	processNode := &ProcessNode{
+		NodeBase: NewNodeBase(),
+		Process: model.Process{
+			FileEvent: model.FileEvent{
+				PathnameStr: "/usr/bin/exempt",
+			},
+		},
+		DNSNames: make(map[string]*DNSNode),
+	}
+	processNode.AppendImageTagID(testTagID, oldTime)
+
+	// all three children are equally stale
+	processNode.Syscalls = []*SyscallNode{
+		NewSyscallNode(42, oldTime, testTagID, Runtime),
+	}
+	processNode.Capabilities = []*CapabilityNode{
+		NewCapabilityNode(7, true, oldTime, testTagID, Runtime),
+	}
+	dnsNode := &DNSNode{
+		NodeBase:       NewNodeBase(),
+		GenerationType: Runtime,
+		Requests:       []model.DNSEvent{{Question: model.DNSQuestion{Name: "example.com"}}},
+	}
+	dnsNode.AppendImageTagID(testTagID, oldTime)
+	processNode.DNSNames["example.com"] = dnsNode
+
+	tree.ProcessNodes = []*ProcessNode{processNode}
+
+	// keep the parent process node alive so we only observe child eviction
+	filepathsInProcessCache := map[ImageProcessKey]bool{
+		{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/exempt"}: true,
+	}
+
+	tree.EvictUnusedNodes(time.Now().Add(-1*time.Hour), filepathsInProcessCache, "test-image", "test-tag")
+
+	require.Len(t, tree.ProcessNodes, 1, "the parent process node should be protected by the process cache")
+	node := tree.ProcessNodes[0]
+
+	assert.Len(t, node.Syscalls, 1, "stale syscall nodes must not be evicted")
+	assert.Len(t, node.Capabilities, 1, "stale capability nodes must not be evicted")
+	assert.Empty(t, node.DNSNames, "a stale DNS node should still be evicted, proving the pass ran")
+}
+
+// The kernel delivers a syscall mask that only grows and is never reset between sends, so re-delivering
+// an unchanged mask must report no new syscalls.
+func TestInsertSyscalls_AccumulatingMask(t *testing.T) {
+	newSyscallsEvent := func(syscalls ...int) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+		}
+		for _, s := range syscalls {
+			evt.Syscalls.Syscalls = append(evt.Syscalls.Syscalls, model.Syscall(s))
+		}
+		return evt
+	}
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	stats := NewActivityTreeNodeStats()
+	syscallMask := make(map[int]int)
+	const tagID = uint64(1)
+
+	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
+		"the first delivery introduces new syscalls")
+	assert.Len(t, pn.Syscalls, 2)
+
+	assert.False(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
+		"re-delivering the same mask must not report new syscalls")
+	assert.Len(t, pn.Syscalls, 2, "re-delivery must not duplicate nodes")
+
+	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false),
+		"a grown mask reports the newly discovered syscall")
+	assert.Len(t, pn.Syscalls, 3, "only the genuinely new syscall is added")
+	assert.Equal(t, map[int]int{1: 1, 2: 2, 3: 3}, syscallMask)
+}
+
+func TestSyscallsByImageTagID(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	v2 := tree.GetOrInsertImageTag("v2")
+	now := time.Now()
+
+	// A syscall shared by both processes of v1, one exclusive to each tag, and a node carrying
+	// both tags at once.
+	parent := &ProcessNode{NodeBase: NewNodeBase()}
+	parent.Syscalls = []*SyscallNode{
+		NewSyscallNode(1, now, v1, Runtime),
+		NewSyscallNode(60, now, v2, Runtime),
+	}
+	child := &ProcessNode{NodeBase: NewNodeBase()}
+	child.Syscalls = []*SyscallNode{
+		NewSyscallNode(1, now, v1, Runtime),
+		NewSyscallNode(2, now, v1, Runtime),
+	}
+	shared := NewSyscallNode(257, now, v1, Runtime)
+	shared.AppendImageTagID(v2, now)
+	child.Syscalls = append(child.Syscalls, shared)
+
+	parent.Children = []*ProcessNode{child}
+	tree.ProcessNodes = []*ProcessNode{parent}
+
+	rollup := tree.SyscallsByImageTagID()
+
+	assert.Equal(t, []uint32{1, 2, 257}, rollup[v1], "v1 unions both processes and dedups syscall 1")
+	assert.Equal(t, []uint32{60, 257}, rollup[v2], "v2 only sees its own syscalls plus the shared node")
+}
+
+func TestCapabilitiesByImageTagID(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	v2 := tree.GetOrInsertImageTag("v2")
+	now := time.Now()
+
+	// Capability 7 was checked for and held, 12 was checked for but not held, so it is attempted
+	// only. Capability 21 lands on both tags.
+	parent := &ProcessNode{NodeBase: NewNodeBase()}
+	parent.Capabilities = []*CapabilityNode{
+		NewCapabilityNode(7, true, now, v1, Runtime),
+		NewCapabilityNode(12, false, now, v1, Runtime),
+	}
+	child := &ProcessNode{NodeBase: NewNodeBase()}
+	child.Capabilities = []*CapabilityNode{
+		NewCapabilityNode(7, true, now, v1, Runtime),
+		NewCapabilityNode(30, true, now, v2, Runtime),
+	}
+	shared := NewCapabilityNode(21, true, now, v1, Runtime)
+	shared.AppendImageTagID(v2, now)
+	child.Capabilities = append(child.Capabilities, shared)
+
+	parent.Children = []*ProcessNode{child}
+	tree.ProcessNodes = []*ProcessNode{parent}
+
+	rollup := tree.CapabilitiesByImageTagID()
+
+	assert.Equal(t, []uint64{7, 12, 21}, rollup[v1].Attempted, "v1 unions both processes and dedups capability 7")
+	assert.Equal(t, []uint64{7, 21}, rollup[v1].Used, "capability 12 was attempted but never held")
+	assert.Equal(t, []uint64{21, 30}, rollup[v2].Attempted)
+	assert.Equal(t, []uint64{21, 30}, rollup[v2].Used)
+}
+
+// The same capability yields two nodes when a process is checked for it both with and without
+// holding it, and the rollup has to report it as attempted and used exactly once.
+func TestCapabilitiesByImageTagID_AttemptedAndUsedSameCapability(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	now := time.Now()
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	pn.Capabilities = []*CapabilityNode{
+		NewCapabilityNode(7, false, now, v1, Runtime),
+		NewCapabilityNode(7, true, now, v1, Runtime),
+	}
+	tree.ProcessNodes = []*ProcessNode{pn}
+
+	rollup := tree.CapabilitiesByImageTagID()
+
+	assert.Equal(t, []uint64{7}, rollup[v1].Attempted)
+	assert.Equal(t, []uint64{7}, rollup[v1].Used)
+}
+
+// A node that only belongs to an evicted image tag must drop out of that tag's rollup.
+func TestSyscallsByImageTagID_AfterImageTagEviction(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	now := time.Now()
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	pn.AppendImageTagID(v1, now)
+	pn.Syscalls = []*SyscallNode{NewSyscallNode(42, now, v1, Runtime)}
+	tree.ProcessNodes = []*ProcessNode{pn}
+
+	require.Equal(t, []uint32{42}, tree.SyscallsByImageTagID()[v1])
+
+	tree.EvictImageTag("v1")
+
+	assert.Empty(t, tree.SyscallsByImageTagID()[v1], "an evicted image tag keeps no syscalls")
 }

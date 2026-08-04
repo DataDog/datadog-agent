@@ -284,14 +284,16 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpMaxDumpSize func() int
 
 	// Per-type event sampling config
-	EventSamplingOpenEnabled    bool
-	EventSamplingOpenRate       int
-	EventSamplingConnectEnabled bool
-	EventSamplingConnectRate    int
-	EventSamplingBindEnabled    bool
-	EventSamplingBindRate       int
-	EventSamplingDNSEnabled     bool
-	EventSamplingDNSRate        int
+	EventSamplingOpenEnabled     bool
+	EventSamplingOpenRate        int
+	EventSamplingConnectEnabled  bool
+	EventSamplingConnectRate     int
+	EventSamplingBindEnabled     bool
+	EventSamplingBindRate        int
+	EventSamplingDNSEnabled      bool
+	EventSamplingDNSRate         int
+	EventSamplingSyscallsEnabled bool
+	EventSamplingSyscallsRate    int
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -487,6 +489,10 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	if rsConfig.SecurityProfileV2Enabled {
+		probeConfig.CapabilitiesMonitoringEnabled = true
+	}
+
 	return &Config{
 		Probe:           probeConfig,
 		RuntimeSecurity: rsConfig,
@@ -636,6 +642,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingDNSEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
 		EventSamplingDNSRate:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
 
+		EventSamplingSyscallsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
+		EventSamplingSyscallsRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
+
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
@@ -724,6 +733,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
 		rsConfig.EventSamplingDNSEnabled = true
+		rsConfig.EventSamplingSyscallsEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

@@ -172,6 +172,24 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
     return SAMPLED;
 }
 
+// Runs on every syscall on the host, so it stays free of map accesses. Dedup comes from the syscall
+// monitor bitmask and the rate limit is applied at send time, so that a drop doesn't lose the syscall.
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscalls_sample(u32 pid) {
+    u64 event_sampling_syscalls_enabled = 0;
+    LOAD_CONSTANT("event_sampling_syscalls_enabled", event_sampling_syscalls_enabled);
+
+    if (!event_sampling_syscalls_enabled) {
+        return DISCARDED;
+    }
+
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
+        return DISCARDED;
+    }
+
+    return SAMPLED;
+}
+
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
     u64 event_sampling_connect_enabled = 0;
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);

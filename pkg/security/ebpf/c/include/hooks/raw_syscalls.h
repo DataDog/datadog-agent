@@ -62,6 +62,20 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         }
     }
 
+    // are we feeding the user space workload profile manager ?
+    // no container gate here, the profile manager filters on container context in user space
+    if (approve_syscalls_sample(pid) == SAMPLED) {
+        struct syscall_monitor_entry_t *entry = fetch_sycall_monitor_entry(&zero, pid, now, SYSCALL_MONITOR_TYPE_PROFILE);
+        if (entry == NULL) {
+            // should never happen
+            return 0;
+        }
+        // insert the current syscall in the map
+        syscall_monitor_entry_insert(entry, args->id);
+        event.event.flags = 0;
+        send_or_skip_syscall_monitor_event(args, &event, entry, &zero, SYSCALL_MONITOR_TYPE_PROFILE);
+    }
+
     return 0;
 }
 
