@@ -55,7 +55,7 @@ type TimeSampler struct {
 	// feature is disabled, so default DogStatsD hot-path overhead is zero.
 	dogStatsDLookback DogStatsDLookback
 
-	dogStatsDClientTelemetry *dogStatsDClientTelemetry
+	finalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -71,14 +71,13 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 	counterExpireTime := contextExpireTime + pkgconfigsetup.Datadog().GetInt64("dogstatsd_expiry_seconds")
 
 	s := &TimeSampler{
-		interval:                 interval,
-		contextResolver:          newTimestampContextResolver(tagger, cache, idString, contextExpireTime, counterExpireTime),
-		metricsByTimestamp:       map[int64]metrics.ContextMetrics{},
-		sketchMap:                make(sketchMap),
-		id:                       id,
-		idString:                 idString,
-		hostname:                 hostname,
-		dogStatsDClientTelemetry: dogStatsDClientTelemetryCollector,
+		interval:           interval,
+		contextResolver:    newTimestampContextResolver(tagger, cache, idString, contextExpireTime, counterExpireTime),
+		metricsByTimestamp: map[int64]metrics.ContextMetrics{},
+		sketchMap:          make(sketchMap),
+		id:                 id,
+		idString:           idString,
+		hostname:           hostname,
 	}
 
 	return s
@@ -250,7 +249,9 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
-		s.dogStatsDClientTelemetry.observe(serie)
+		for _, observer := range s.finalDogStatsDSerieObservers {
+			observer.ObserveFinalDogStatsDSerie(serie)
+		}
 		serieSink.Append(serie)
 	}
 }
