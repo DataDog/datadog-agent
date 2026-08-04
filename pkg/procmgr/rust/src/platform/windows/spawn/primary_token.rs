@@ -25,6 +25,7 @@ use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
+use super::user_profile::UserProfileGuard;
 
 pub(super) fn spawn_as_primary_token(
     process_name: &str,
@@ -63,6 +64,16 @@ pub(super) fn spawn_as_primary_token(
         AgentAccount::LocalSystem => local_system_primary_token(process_name)?,
         _ => primary_token_from_logon(process_name, account)?,
     });
+
+    let _profile_guard = if account.inherits_supervisor_token() {
+        None
+    } else {
+        Some(UserProfileGuard::load(
+            process_name,
+            primary_token_guard.raw(),
+            account,
+        )?)
+    };
 
     let env_block =
         env_block_from_baseline_plus_overrides(primary_token_guard.raw(), &request.env)?;

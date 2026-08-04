@@ -12,5 +12,6 @@ mod primary_token;
 mod privileged;
 mod profiles;
 mod stdio;
+mod user_profile;
 
 pub(crate) use managed::spawn_child_handle;
