@@ -392,6 +392,11 @@ func endpointSliceChecksFromTemplate(tpl integration.Config, slice *discv1.Endpo
 	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, slice.Namespace, serviceName)
 
 	for _, endpoint := range slice.Endpoints {
+		if shouldSkipEndpoint(&endpoint) {
+			log.Debugf("Skipping not-ready endpoint %v of service %s/%s", endpoint.Addresses, slice.Namespace, serviceName)
+			continue
+		}
+
 		for _, ip := range endpoint.Addresses {
 			entity := apiserver.EntityForEndpoints(slice.Namespace, serviceName, ip)
 			config := &integration.Config{

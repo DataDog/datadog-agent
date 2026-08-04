@@ -315,6 +315,53 @@ func TestGenerateConfigFromSlice(t *testing.T) {
 	}
 }
 
+func TestGenerateConfigFromSliceConditions(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	slice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "myservice-abc",
+			Namespace: "default",
+			Labels:    map[string]string{"kubernetes.io/service-name": "myservice"},
+		},
+		Endpoints: []discv1.Endpoint{
+			// Ready
+			{Addresses: []string{"10.0.0.1"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(true)}},
+			// Not ready
+			{Addresses: []string{"10.0.0.2"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(false)}},
+			// Terminating but still serving
+			{Addresses: []string{"10.0.0.3"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(true), Serving: boolPtr(true), Terminating: boolPtr(true)}},
+			// Unknown conditions, considered ready
+			{Addresses: []string{"10.0.0.4"}},
+		},
+	}
+
+	serviceIDs := func(cfgs []integration.Config) []string {
+		ids := make([]string, 0, len(cfgs))
+		for _, cfg := range cfgs {
+			ids = append(ids, cfg.ServiceID)
+		}
+		return ids
+	}
+
+	tpl := integration.Config{Name: "http_check", InitConfig: integration.Data("{}")}
+
+	cfg := configmock.New(t)
+	assert.Equal(t, []string{
+		"kube_endpoint_uid://default/myservice/10.0.0.1",
+		"kube_endpoint_uid://default/myservice/10.0.0.4",
+	}, serviceIDs(generateConfigFromSlice(tpl, kubeEndpointResolveIP, slice, "default", "myservice")))
+
+	// With kubernetes_endpoint_slices_ignore_readiness, every endpoint is scheduled
+	cfg.SetInTest("kubernetes_endpoint_slices_ignore_readiness", true)
+	assert.Equal(t, []string{
+		"kube_endpoint_uid://default/myservice/10.0.0.1",
+		"kube_endpoint_uid://default/myservice/10.0.0.2",
+		"kube_endpoint_uid://default/myservice/10.0.0.3",
+		"kube_endpoint_uid://default/myservice/10.0.0.4",
+	}, serviceIDs(generateConfigFromSlice(tpl, kubeEndpointResolveIP, slice, "default", "myservice")))
+}
+
 func TestEndpointSlice_InvalidateOnServiceAdd(t *testing.T) {
 	serviceWithoutEndpointAnnotations := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{

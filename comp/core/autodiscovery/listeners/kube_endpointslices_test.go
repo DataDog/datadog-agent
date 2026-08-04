@@ -87,7 +87,7 @@ func TestProcessEndpointSlice(t *testing.T) {
 		},
 	}
 
-	eps := processEndpointSlice(slice, []string{"foo:bar"}, workloadfilterfxmock.SetupMockFilter(t))
+	eps := processEndpointSlice(slice, []string{"foo:bar"}, workloadfilterfxmock.SetupMockFilter(t), false)
 
 	// Should create 2 endpoint services (one per IP)
 	assert.Equal(t, 2, len(eps))
@@ -148,7 +148,7 @@ func TestProcessEndpointSliceNoServiceLabel(t *testing.T) {
 		},
 	}
 
-	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t))
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), false)
 
 	assert.Equal(t, 0, len(eps))
 }
@@ -344,7 +344,7 @@ func TestProcessEndpointSliceNilPorts(t *testing.T) {
 		},
 	}
 
-	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t))
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), false)
 
 	assert.Equal(t, 1, len(eps))
 
@@ -352,6 +352,54 @@ func TestProcessEndpointSliceNilPorts(t *testing.T) {
 	ports, err := eps[0].GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(ports))
+}
+
+func TestProcessEndpointSliceConditions(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	slice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "myservice-abc",
+			Namespace: "default",
+			Labels: map[string]string{
+				"kubernetes.io/service-name": "myservice",
+			},
+		},
+		Endpoints: []discv1.Endpoint{
+			// Ready
+			{Addresses: []string{"10.0.0.1"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(true)}},
+			// Not ready
+			{Addresses: []string{"10.0.0.2"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(false)}},
+			// Terminating but still serving
+			{Addresses: []string{"10.0.0.3"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(true), Serving: boolPtr(true), Terminating: boolPtr(true)}},
+			// Unknown conditions, considered ready
+			{Addresses: []string{"10.0.0.4"}},
+		},
+	}
+
+	entities := func(eps []*KubeEndpointService) []string {
+		ids := make([]string, 0, len(eps))
+		for _, ep := range eps {
+			ids = append(ids, ep.GetServiceID())
+		}
+		sort.Strings(ids)
+		return ids
+	}
+
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), false)
+	assert.Equal(t, []string{
+		"kube_endpoint_uid://default/myservice/10.0.0.1",
+		"kube_endpoint_uid://default/myservice/10.0.0.4",
+	}, entities(eps))
+
+	// With ignoreReadiness, every endpoint is scheduled
+	eps = processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), true)
+	assert.Equal(t, []string{
+		"kube_endpoint_uid://default/myservice/10.0.0.1",
+		"kube_endpoint_uid://default/myservice/10.0.0.2",
+		"kube_endpoint_uid://default/myservice/10.0.0.3",
+		"kube_endpoint_uid://default/myservice/10.0.0.4",
+	}, entities(eps))
 }
 
 func TestKubeEndpointSlicesFiltering(t *testing.T) {
@@ -466,7 +514,7 @@ cel_workload_exclude:
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			eps := processEndpointSlice(tc.slice, []string{}, mockFilterStore)
+			eps := processEndpointSlice(tc.slice, []string{}, mockFilterStore, false)
 			assert.NotEmpty(t, eps, "Should have at least one endpoint service")
 			for _, ep := range eps {
 				assert.Equal(t, tc.expectedMetricsExcl, ep.metricsExcluded,

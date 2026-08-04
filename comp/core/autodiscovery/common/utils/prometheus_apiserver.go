@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -91,7 +92,13 @@ func ConfigsForServiceEndpointSlices(pc *types.PrometheusCheck, svc *v1.Service,
 	namespacedName := svc.GetNamespace() + "/" + svc.GetName()
 	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
+		ignoreReadiness := pkgconfigsetup.Datadog().GetBool("kubernetes_endpoint_slices_ignore_readiness")
 		for _, endpoint := range slice.Endpoints {
+			if !ignoreReadiness && !apiserver.IsEndpointServing(&endpoint) {
+				log.Debugf("Skipping not-ready endpoint %v of service %s", endpoint.Addresses, namespacedName)
+				continue
+			}
+
 			for _, ip := range endpoint.Addresses {
 				endpointsID := apiserver.EntityForEndpoints(slice.GetNamespace(), svc.GetName(), ip)
 
