@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -24,6 +25,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -54,6 +56,12 @@ type Dependencies struct {
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
 	Tagger                option.Option[tagger.Component]
+	// RcServiceMRF is the failover-DC remote config service. It is only
+	// provided by the fx graph in binaries that also wire rcservicemrf's fx
+	// module (currently only the core agent's `run` command), so it must be
+	// optional here to avoid breaking every other binary that includes this
+	// component.
+	RcServiceMRF option.Option[rcservicemrf.Component] `optional:"true"`
 }
 
 // Provides defines the output of the rcservice component.
@@ -62,24 +70,34 @@ type Provides struct {
 
 	Comp          option.Option[rcservice.Component]
 	FlareProvider flaretypes.Provider
+	// Endpoint serves the remote config state as JSON over the agent's
+	// authenticated IPC HTTP API at GET /agent/remote-config/state.
+	Endpoint api.AgentEndpointProvider
 }
 
 // NewComponent conditionally creates and configures a new remote config service, based on whether RC is enabled.
 func NewComponent(deps Dependencies) Provides {
 	none := option.None[rcservice.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
-		return Provides{Comp: none}
+		return Provides{
+			Comp:     none,
+			Endpoint: newRCStateEndpointProvider(nil, deps.RcServiceMRF),
+		}
 	}
 
 	configService, err := newRemoteConfigService(deps)
 	if err != nil {
 		deps.Logger.Errorf("remote config service not initialized or started: %s", err)
-		return Provides{Comp: none}
+		return Provides{
+			Comp:     none,
+			Endpoint: newRCStateEndpointProvider(nil, deps.RcServiceMRF),
+		}
 	}
 
 	return Provides{
 		Comp:          option.New[rcservice.Component](configService),
 		FlareProvider: flaretypes.NewProvider(rcFillFlare(configService, deps.Cfg.GetString("run_path"))),
+		Endpoint:      newRCStateEndpointProvider(configService, deps.RcServiceMRF),
 	}
 }
 
