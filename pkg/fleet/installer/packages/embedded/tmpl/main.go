@@ -141,6 +141,7 @@ func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string
 		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
 		"datadog-agent-ddot-exp.yaml":        mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
 		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", stableData),
+		"datadog-agent-action-control.yaml":  mustRenderYAMLConfig("datadog-agent-action-control.yaml", stableData),
 	}
 }
 
@@ -204,6 +205,7 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-control.yaml", "datadog-agent-action-control-windows.yaml", windowsPARCodegenData)},
 	}
 	linuxProcmgrYAMLLayouts = []embeddedLayout{
 		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
