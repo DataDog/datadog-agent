@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fdhandoff",
+    srcs = [
+        "fdhandoff.go",
+        "fdhandoff_nix.go",
+        "fdhandoff_nonix.go",
+        "passcred_darwin.go",
+        "passcred_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dogstatsd/fdhandoff",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

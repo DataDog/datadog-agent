@@ -27,6 +27,7 @@ from tasks import (
     diff,
     docker_tasks,
     dogstatsd,
+    dsd_socket_holder,
     dyntest,
     ebpf,
     emacs,
@@ -210,6 +211,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(dsd_socket_holder, "dsd-socket-holder")
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)

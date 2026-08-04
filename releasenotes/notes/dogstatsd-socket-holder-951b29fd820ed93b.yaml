@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added an experimental DogStatsD socket holder. The ``dsd-socket-holder``
+    helper binds the DogStatsD datagram socket once and hands its file
+    descriptor over to the Agent on a separate unix socket. Setting the new
+    ``dogstatsd_socket_fd_from`` option to the path of that handoff socket makes
+    the Agent adopt the socket instead of unlinking and rebinding it, so clients
+    no longer lose datagrams while the Agent restarts. Leaving
+    ``dogstatsd_socket_fd_from`` empty, which is the default, keeps the previous
+    behavior.
