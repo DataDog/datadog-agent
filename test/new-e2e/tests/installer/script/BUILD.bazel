@@ -9,6 +9,8 @@ go_test(
         "ssi_script_test.go",
     ],
     gotags = ["test"],
+    # This test currently requires special setup from the gitlab job.
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",
