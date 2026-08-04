@@ -1117,12 +1117,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// (default 1). ADP defaults to 3 for ~6% smaller payloads without a net CPU increase, since ADP is
 	// more efficient than the Agent. Forwarded to ADP over the config stream.
 	config.BindEnvAndSetDefault("data_plane.serializer_zstd_compressor_level", 3)
-	// Dummy mode enables a short pre-flight run of ADP at Agent startup to surface any environment-specific startup
-	// problems before ADP is released o GA. The dummy process handles no customer data, listening only on a throwaway
+	// Preflight mode enables a short pre-flight run of ADP at Agent startup to surface any environment-specific startup
+	// problems before ADP is released o GA. The preflight process handles no customer data, listening only on a throwaway
 	// UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
 	//
-	// See comp/dataplane/dummymode for more details.
-	config.BindEnvAndSetDefault("data_plane.dummy_mode", true)
+	// See comp/dataplane/preflightmode for more details.
+	config.BindEnvAndSetDefault("data_plane.preflight_mode", true)
 
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 

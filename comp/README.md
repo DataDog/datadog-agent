@@ -858,11 +858,11 @@ Package connectivitychecker is responsible for running connectivity checks that 
 
 Package queryactions provides the Data Observability query actions component
 
-### [comp/dataplane/dummymode](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataplane/dummymode)
+### [comp/dataplane/preflightmode](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataplane/preflightmode)
 
 *Datadog Team*: agent-data-plane
 
-Package dummymode pre-flights the Agent Data Plane (ADP).
+Package preflightmode pre-flights the Agent Data Plane (ADP).
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 

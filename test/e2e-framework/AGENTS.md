@@ -199,7 +199,7 @@ constraints shape how a macOS suite must be wired into CI:
 
 Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
 (installs by hand, `ec2.WithoutAgent()`) and
-`tests/agent-data-plane/dummy-mode` (stock provisioner with agentparams).
+`tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
 
 ## Fakeintake image version
 

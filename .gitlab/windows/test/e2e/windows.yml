@@ -34,15 +34,15 @@ new-e2e-agent-runtimes-windows:
     EXTRA_PARAMS: --run "Windows"
     ON_NIGHTLY_FIPS: "true"
 
-new-e2e-adp-dummy-mode-windows:
+new-e2e-adp-preflight-mode-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
-    - !reference [.on_adp_dummy_mode_or_e2e_changes]
+    - !reference [.on_adp_preflight_mode_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-data-plane/dummy-mode
+    TARGETS: ./tests/agent-data-plane/preflight-mode
     TEAM: agent-data-plane
-    EXTRA_PARAMS: --run "TestDummyModeWindowsSuite"
+    EXTRA_PARAMS: --run "TestPreflightModeWindowsSuite"
 
 new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64

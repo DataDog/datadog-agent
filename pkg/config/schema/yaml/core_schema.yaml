@@ -7235,16 +7235,16 @@ properties:
             node_type: setting
             type: boolean
             default: true
-      dummy_mode:
+      preflight_mode:
         node_type: setting
         type: boolean
         default: true
         comment: |-
-          Dummy mode enables a short pre-flight run of ADP at Agent startup to surface any environment-specific startup
-          problems before ADP is released o GA. The dummy process handles no customer data, listening only on a throwaway
+          Preflight mode enables a short pre-flight run of ADP at Agent startup to surface any environment-specific startup
+          problems before ADP is released o GA. The preflight process handles no customer data, listening only on a throwaway
           UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
 
-          See comp/dataplane/dummymode for more details.
+          See comp/dataplane/preflightmode for more details.
       enabled:
         node_type: setting
         type: boolean

@@ -653,20 +653,20 @@ new-e2e-amp-adp:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-# Agent Data Plane dummy mode pre-flight (comp/dataplane/dummymode).
+# Agent Data Plane preflight mode (comp/dataplane/preflightmode).
 #
-# One job per platform rather than one job running all three: dummy mode's eligibility rules
+# One job per platform rather than one job running all three: preflight mode's eligibility rules
 # and DogStatsD transport differ per platform, so a shared job would leave it ambiguous which
 # platform regressed. The Windows job lives in .gitlab/windows/test/e2e/windows.yml.
-new-e2e-adp-dummy-mode:
+new-e2e-adp-preflight-mode:
   extends: .new_e2e_template_needs_deb_x64
   rules:
-    - !reference [.on_adp_dummy_mode_or_e2e_changes]
+    - !reference [.on_adp_preflight_mode_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-data-plane/dummy-mode
+    TARGETS: ./tests/agent-data-plane/preflight-mode
     TEAM: agent-data-plane
-    EXTRA_PARAMS: --run "TestDummyModeLinuxSuite"
+    EXTRA_PARAMS: --run "TestPreflightModeLinuxSuite"
 
 new-e2e-alp:
   extends: .new_e2e_template

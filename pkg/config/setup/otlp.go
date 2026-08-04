@@ -31,7 +31,7 @@ const (
 	DataPlaneOTLPSection = DataPlaneSection + ".otlp"
 	DataPlaneOTLPEnabled = DataPlaneOTLPSection + ".enabled"
 
-	DataPlaneDummyMode = DataPlaneSection + ".dummy_mode"
+	DataPlanePreflightMode = DataPlaneSection + ".preflight_mode"
 
 	DataPlaneOTLPProxySection = DataPlaneOTLPSection + ".proxy"
 	DataPlaneOTLPProxyEnabled = DataPlaneOTLPProxySection + ".enabled"
