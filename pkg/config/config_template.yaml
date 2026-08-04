@@ -2296,7 +2296,7 @@ api_key:
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
-#     # In end_user_device infrastructure mode, user-defined filters are appended to the default SaaS filters below.
+#     # No filters are added automatically in end_user_device infrastructure mode; configure filters explicitly when needed.
 #
 #     filters:
 #
