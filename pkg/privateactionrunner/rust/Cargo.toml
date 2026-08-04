@@ -1,0 +1,39 @@
+[package]
+name = "par-control"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Private Action Runner control-plane process lifecycle scaffold"
+
+[lib]
+name = "par_control"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "par-control"
+path = "src/bins/par-control.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+dd-agent-log.workspace = true
+hyper-util.workspace = true
+log.workspace = true
+prost.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
+tokio = { workspace = true, features = [
+  "macros",
+  "net",
+  "rt-multi-thread",
+  "signal",
+  "time",
+] }
+tonic = { workspace = true, features = ["transport"] }
+tonic-prost.workspace = true
+tower.workspace = true
+
+[build-dependencies]
+tonic-prost-build.workspace = true
