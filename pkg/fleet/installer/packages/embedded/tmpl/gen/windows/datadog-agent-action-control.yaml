@@ -4,7 +4,7 @@ args:
   - --config
   - '__PAR_ETC_ROOT__/datadog.yaml'
 auto_start: true
-# Keep the supervisor contract aligned with the Unix control-plane definition.
+# par-control exits on SIGTERM, so it does not need the 90s default.
 stop_timeout: 30
 condition_path_exists: '__PAR_INSTALL_ROOT__/bin/agent/par-control.exe'
 restart: on-failure

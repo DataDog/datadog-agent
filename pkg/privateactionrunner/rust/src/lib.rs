@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Installation and process-lifecycle scaffold for the split Private Action
-//! Runner control plane.
+//! Process-lifecycle scaffold for the split Private Action Runner control plane.
 
 pub mod config;
 pub mod procmgr;

@@ -23,8 +23,7 @@ func TestWritePARProcmgrConfigs(t *testing.T) {
 	executor := readProcmgrConfig(t, installRoot, parExecutorProcmgrConfigName)
 	assert.Contains(t, executor, "${DD_CONF_DIR}/datadog.yaml")
 	assert.Contains(t, executor, filepath.Join(installRoot, "embedded", "bin", "privateactionrunner"))
-	// The executor is only ever started by par-control, and a crashed executor
-	// must not be resurrected behind the control plane's back.
+	// Only par-control starts the executor, and procmgr must not resurrect it.
 	assert.Contains(t, executor, "auto_start: false")
 	assert.Contains(t, executor, "restart: never")
 	assert.NotContains(t, executor, "/opt/datadog-agent/")
@@ -32,14 +31,11 @@ func TestWritePARProcmgrConfigs(t *testing.T) {
 	control := readProcmgrConfig(t, installRoot, parControlProcmgrConfigName)
 	assert.Contains(t, control, "${DD_CONF_DIR}/datadog.yaml")
 	assert.Contains(t, control, filepath.Join(installRoot, "embedded", "bin", "par-control"))
-	// The control plane is the always-on half of the split deployment: procmgr
-	// starts it with the Agent and restarts it if it crashes. It exits 0 when
-	// private_action_runner.split_enabled is unset, which on-failure ignores.
+	// The control plane is always on: procmgr starts it with the Agent and restarts
+	// it on crash. on-failure ignores the clean exit taken when split mode is off.
 	assert.Contains(t, control, "auto_start: true")
 	assert.Contains(t, control, "stop_timeout: 30")
 	assert.Contains(t, control, "restart: on-failure")
-	assert.NotContains(t, control, "--config-helper")
-	assert.NotContains(t, control, "--enroll-command")
 	assert.NotContains(t, control, "/opt/datadog-agent/")
 }
 

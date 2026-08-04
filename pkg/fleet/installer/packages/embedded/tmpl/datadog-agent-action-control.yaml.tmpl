@@ -4,10 +4,9 @@ args:
   - --config
   - ${DD_CONF_DIR}/datadog.yaml
 auto_start: true
-# Allow par-control to stop the executor before the supervisor terminates it.
+# par-control exits on SIGTERM, so it does not need the 90s default.
 stop_timeout: 30
-condition_path_exists: >-
-  {{.InstallDir}}/embedded/bin/par-control
+condition_path_exists: {{.InstallDir}}/embedded/bin/par-control
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10
