@@ -102,9 +102,9 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 		if g.GetBool("disable_file_logging") {
 			return ""
 		}
-		logFile := g.GetString(logFileConfig)
-		if !g.IsConfigured(logFileConfig) {
-			logFile = defaultLogFile
+		logFile := defaultLogFile
+		if g.IsConfigured(logFileConfig) {
+			logFile = g.GetString(logFileConfig)
 		}
 		return logFile
 	}
