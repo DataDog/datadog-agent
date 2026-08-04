@@ -136,9 +136,10 @@ BPF_PERCPU_ARRAY_MAP(network_flow_monitor_event_gen, struct network_flow_monitor
 BPF_PERCPU_ARRAY_MAP(active_flows_gen, struct active_flows_t, 1)
 BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
+// Shared per-CPU staging slot for the deferred span-context fill + send
+BPF_PERCPU_ARRAY_MAP(span_fill_event, struct span_fill_slot_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
@@ -153,6 +154,9 @@ BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
 BPF_PROG_ARRAY(cache_syscall_progs, 1)
+// Targets for the deferred span-context fill + send.
+BPF_PROG_ARRAY(span_fill_progs, 2)
+BPF_PROG_ARRAY(span_fill_tp_progs, 2)
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)
