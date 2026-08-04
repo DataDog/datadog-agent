@@ -8,7 +8,8 @@
 //! # Keep in sync with Go
 //!
 //! Mirrors `load()` in `pkg/system-probe/config/config.go` and the NPM back-compat
-//! rule in `pkg/system-probe/config/adjust.go`. Module knob resolution uses fleet →
+//! rule in `pkg/system-probe/config/adjust.go`. Sk-tracer disables USM in
+//! `pkg/system-probe/config/adjust_npm.go`. Module knob resolution uses fleet →
 //! env → YAML ([`super::env_bindings`], `pkg/config/model/types.go` precedence).
 //!
 //! **When module enablement changes in Go, update `derived_enabled` below.**
@@ -34,9 +35,9 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         yaml,
     };
 
-    // config.go:123-131 — values reused below.
+    // config.go:123-131 — values reused below (post-Adjust; USM may be cleared by sk tracer).
     let npm = cfg.npm_enabled()?;
-    let usm = cfg.sp_bool("service_monitoring_config.enabled")?;
+    let usm = cfg.effective_usm_enabled()?;
     let ccm = cfg.sp_bool("ccm_network_config.enabled")?;
     let eudm = cfg
         .agent_string("infrastructure_mode")?
@@ -157,6 +158,7 @@ impl<'a> Cfg<'a> {
         }
         // Network: Go uses IsConfigured; USM: Go uses !GetBool (explicit `false` still allows back-compat).
         // Keep in sync with `adjust.go` (`!cfg.IsConfigured(netNS("enabled"))`).
+        // Back-compat runs before adjustNetwork, so use raw USM here (not effective_usm_enabled).
         if self.sp_bool("system_probe_config.enabled")?
             && !self.sp_is_configured("network_config.enabled")?
             && !self.sp_bool("service_monitoring_config.enabled")?
@@ -164,5 +166,17 @@ impl<'a> Cfg<'a> {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    /// USM after `adjustNetwork`: sk tracer disables `service_monitoring_config.enabled`.
+    fn effective_usm_enabled(&mut self) -> anyhow::Result<bool> {
+        // adjust_npm.go:123-130 gates sk tracer; :131-135 disables USM when it stays on.
+        let sk_tracer = self.sp_bool("network_config.enable_sk_tracer")?
+            && self.sp_bool("system_probe_config.enable_co_re")?
+            && self.sp_bool("network_config.enable_ringbuffers")?;
+        if sk_tracer {
+            return Ok(false);
+        }
+        self.sp_bool("service_monitoring_config.enabled")
     }
 }

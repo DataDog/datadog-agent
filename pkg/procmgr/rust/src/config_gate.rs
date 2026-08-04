@@ -1351,6 +1351,24 @@ process_config:
     }
 
     #[test]
+    fn derived_sk_tracer_disables_usm_for_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "service_monitoring_config:\n  enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
+            );
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    #[test]
     fn derived_usm_env_enables_system_probe_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
