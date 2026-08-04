@@ -93,7 +93,6 @@ func ConfigsForServiceEndpointSlices(pc *types.PrometheusCheck, svc *v1.Service,
 	if found {
 		for _, endpoint := range slice.Endpoints {
 			if !apiserver.IsEndpointServing(&endpoint) {
-				log.Debugf("Skipping not-ready endpoint %v of service %s", endpoint.Addresses, namespacedName)
 				continue
 			}
 

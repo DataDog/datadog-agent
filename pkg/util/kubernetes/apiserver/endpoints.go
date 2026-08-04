@@ -68,12 +68,8 @@ func EntityForEndpoints(namespace, name, ip string) string {
 }
 
 // IsEndpointServing reports whether an EndpointSlice endpoint is ready to be
-// targeted by checks. Terminating and not-ready endpoints are backed by pods
-// that are shutting down or failing their readiness probes, so scheduling
-// checks against them makes those checks error out.
-//
-// This mirrors the v1.Endpoints API, where not-ready addresses live in a
-// separate NotReadyAddresses field that autodiscovery never reads.
+// targeted by checks. This mirrors the v1.Endpoints API, where not-ready addresses
+// live in a separate NotReadyAddresses field that autodiscovery never reads.
 func IsEndpointServing(endpoint *discv1.Endpoint) bool {
 	if endpoint.Conditions.Terminating != nil && *endpoint.Conditions.Terminating {
 		return false

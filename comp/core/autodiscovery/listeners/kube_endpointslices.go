@@ -423,7 +423,6 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 	// Iterate through endpoints (IP addresses)
 	for _, endpoint := range slice.Endpoints {
 		if !apiserver.IsEndpointServing(&endpoint) {
-			log.Debugf("Skipping not-ready endpoint %v of service %s/%s", endpoint.Addresses, namespace, serviceName)
 			continue
 		}
 
