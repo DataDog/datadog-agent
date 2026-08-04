@@ -8,6 +8,8 @@ package embedded
 
 import (
 	"embed"
+	"errors"
+	"io/fs"
 	"path/filepath"
 )
 
@@ -78,7 +80,11 @@ func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported
 
 // GetProcmgrUnit returns the unit for the given name, for the procmgr service manager.
 func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	return procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	data, err := procmgrUnits.ReadFile(filepath.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	if errors.Is(err, fs.ErrNotExist) {
+		return GetSystemdUnit(name, unitType, ambiantCapabilitiesSupported)
+	}
+	return data, err
 }
 
 // GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
