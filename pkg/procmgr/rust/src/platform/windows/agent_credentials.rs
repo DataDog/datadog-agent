@@ -177,18 +177,18 @@ fn well_known_from_sid(sid: &[u8]) -> Option<AgentAccount> {
 }
 
 fn is_local_system_name(domain: &str, user: &str) -> bool {
-    user.eq_ignore_ascii_case("LocalSystem")
+    (domain.is_empty() && user.eq_ignore_ascii_case("LocalSystem"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY") && user.eq_ignore_ascii_case("SYSTEM"))
 }
 
 fn is_local_service_name(domain: &str, user: &str) -> bool {
-    user.eq_ignore_ascii_case("LocalService")
+    (domain.is_empty() && user.eq_ignore_ascii_case("LocalService"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY")
             && user.eq_ignore_ascii_case("LOCAL SERVICE"))
 }
 
 fn is_network_service_name(domain: &str, user: &str) -> bool {
-    user.eq_ignore_ascii_case("NetworkService")
+    (domain.is_empty() && user.eq_ignore_ascii_case("NetworkService"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY")
             && user.eq_ignore_ascii_case("NETWORK SERVICE"))
 }
@@ -284,6 +284,7 @@ mod tests {
         assert!(is_local_system_name("", "LocalSystem"));
         assert!(is_local_system_name("NT AUTHORITY", "SYSTEM"));
         assert!(!is_local_system_name("WIN-HOST", "ddagentuser"));
+        assert!(!is_local_system_name("CORP", "LocalSystem"));
     }
 
     #[test]
@@ -293,6 +294,8 @@ mod tests {
         assert!(is_network_service_name("", "NetworkService"));
         assert!(is_network_service_name("NT AUTHORITY", "NETWORK SERVICE"));
         assert!(!is_local_service_name("WIN-HOST", "ddagentuser"));
+        assert!(!is_local_service_name("CORP", "LocalService"));
+        assert!(!is_network_service_name("CORP", "NetworkService"));
     }
 
     #[test]
@@ -306,6 +309,8 @@ mod tests {
             Some(AgentAccount::NetworkService)
         );
         assert_eq!(well_known_from_names("CORP", "gmsa$"), None);
+        assert_eq!(well_known_from_names("CORP", "LocalSystem"), None);
+        assert_eq!(well_known_from_names("CORP", "LocalService"), None);
     }
 
     #[test]
