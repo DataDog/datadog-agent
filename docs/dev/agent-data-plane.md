@@ -1,8 +1,8 @@
 # Agent Data Plane
 
-## Dummy mode (startup pre-flight)
+## Preflight mode (startup pre-flight)
 
-Dummy mode answers a single question before ADP is enabled for real on a given host:
+Preflight mode answers a single question before ADP is enabled for real on a given host:
 *would it have started cleanly here?* Historically the only way to find out was to set
 `data_plane.enabled: true` on a customer, which is the worst possible time to discover an
 OS, permissions, proxy or packaging problem.
@@ -11,7 +11,7 @@ When it runs, the Core Agent starts ADP itself for a short window, pushes one th
 metric through it to exercise the DogStatsD → aggregate → serialize → forward path, stops
 it, and reports what went wrong as agent telemetry.
 
-Implemented in `comp/dataplane/dummymode`. This is the only place in the Agent that
+Implemented in `comp/dataplane/preflightmode`. This is the only place in the Agent that
 launches ADP directly — every other platform delegates to systemd, launchd, SRC, s6 or
 `dd-procmgrd`.
 
@@ -21,33 +21,33 @@ All of the following must hold:
 
 | Condition | Why |
 |---|---|
-| `data_plane.dummy_mode` is `true` (the default) | The off switch, and the only knob dummy mode exposes. |
-| `data_plane.enabled` has not been set **at all** | An explicit `true` means ADP is already running for real and two instances would contend for the API, secure API and telemetry ports plus the DogStatsD socket. An explicit `false` means the operator does not want ADP running. Either way the operator has an opinion and dummy mode stays out of the way. Note the platform gate in `sanitizeDataPlaneConfig` sets this to `false` on unsupported platforms, which also disables dummy mode. |
+| `data_plane.preflight_mode` is `true` (the default) | The off switch, and the only knob preflight mode exposes. |
+| `data_plane.enabled` has not been set **at all** | An explicit `true` means ADP is already running for real and two instances would contend for the API, secure API and telemetry ports plus the DogStatsD socket. An explicit `false` means the operator does not want ADP running. Either way the operator has an opinion and preflight mode stays out of the way. Note the platform gate in `sanitizeDataPlaneConfig` sets this to `false` on unsupported platforms, which also disables preflight mode. |
 | The Agent flavor is the default Agent | Heroku and IoT share the same `run` command with fewer build tags and neither ships ADP. |
 | The ADP binary is on disk | Absent on Heroku packages and slim container images. Silently skipped — not reported. |
 
 It runs **once** per Agent start, not on a schedule, for a fixed 90 seconds.
 
-The window is deliberately **not** configurable (`dummyModeDuration` in
-`comp/dataplane/dummymode/impl`). There is no operational reason to tune it — the switch
-operators need is `data_plane.dummy_mode` — and a documented duration setting would be public
+The window is deliberately **not** configurable (`preflightModeDuration` in
+`comp/dataplane/preflightmode/impl`). There is no operational reason to tune it — the switch
+operators need is `data_plane.preflight_mode` — and a documented duration setting would be public
 API to support and later deprecate for a mechanism that only exists until ADP goes GA. Fixing
 it also makes the agent telemetry `start_after` a provable relationship instead of one an
 operator could silently break.
 
 ### What makes the run inert
 
-ADP gets a generated config file under `<run_path>/adp-dummy/datadog.yaml`. The base is the
+ADP gets a generated config file under `<run_path>/adp-preflight/datadog.yaml`. The base is the
 Agent's full resolved configuration (`AllSettings`), so ADP sees what it would really run
 with, plus these overrides:
 
 - **Standalone mode**: `data_plane.standalone_mode: true`, with
   `remote_agent_enabled: false` and `use_new_config_stream_endpoint: false`. ADP neither
-  registers as a remote agent nor pulls configuration over the config stream, so the dummy
+  registers as a remote agent nor pulls configuration over the config stream, so the preflight
   process cannot show up in `agent status`, flares or telemetry fan-out as if it were real.
-- **DogStatsD**: a throwaway unix socket at `<run_path>/adp-dummy/dsd.socket`, or a named
-  pipe `dd-adp-dummy-<pid>` on Windows. UDP, the stream socket and non-local traffic are
-  all off, so the dummy process cannot receive customer traffic.
+- **DogStatsD**: a throwaway unix socket at `<run_path>/adp-preflight/dsd.socket`, or a named
+  pipe `dd-adp-preflight-<pid>` on Windows. UDP, the stream socket and non-local traffic are
+  all off, so the preflight process cannot receive customer traffic.
 - **`statsd_metric_namespace` is cleared** (note: `statsd_`, not `dogstatsd_`) — otherwise
   the operator's namespace is prepended to the probe metric name, breaking its leading
   `n_o_i_n_d_e_x.` prefix and turning the probe into an indexed, billed custom metric.
@@ -65,7 +65,7 @@ with, plus these overrides:
   that really is empty makes ADP log at `ERROR`, which the log scan would report as a finding.
 - **Environment**: every `DD_*` variable is stripped from the child's environment. ADP
   layers environment over its config file, so an inherited `DD_DOGSTATSD_PORT` would make
-  the dummy process bind the real endpoint and steal traffic from the Core Agent. The match
+  the preflight process bind the real endpoint and steal traffic from the Core Agent. The match
   is case-insensitive: Windows environment lookups are, so a `dd_dogstatsd_port` left in
   place would still reach ADP as the real override.
 
@@ -73,7 +73,7 @@ Core Agent-only settings are passed through rather than stripped. ADP ignores ke
 not recognise, and it drives its OTLP surfaces from `data_plane.otlp.*` rather than the
 Core Agent's `otlp_config`, so a full config is harmless. This was checked against
 agent-data-plane 1.4.0 rather than assumed — see
-`TestBuildDummyConfigPassesThroughCoreAgentOnlySettings`.
+`TestBuildPreflightConfigPassesThroughCoreAgentOnlySettings`.
 
 The forwarder is **not** neutered: it uses the real `api_key`, `site` and proxy settings,
 because proxy, DNS and TLS problems are exactly the day-one failures being hunted.
@@ -131,8 +131,8 @@ floor of false positives under the primary signal.
 
 ### The probe metric
 
-One gauge, `n_o_i_n_d_e_x.datadog.agent.data_plane.dummy_mode.probe`, tagged
-`dummy_mode:true`, `agent_version:<version>` and `os:<goos>`.
+One gauge, `n_o_i_n_d_e_x.datadog.agent.data_plane.preflight_mode.probe`, tagged
+`preflight_mode:true`, `agent_version:<version>` and `os:<goos>`.
 
 The DogStatsD *text* protocol has no no-index flag — `MetricSample.NoIndex` is only
 reachable in-process — so the name prefix is the only mechanism available. The DogStatsD
@@ -147,14 +147,14 @@ downstream (namespace prepend, mapper profiles), which is why clearing
 ### What gets reported
 
 Three agent telemetry metrics, allowlisted in
-`comp/core/agenttelemetry/impl/defaultProfiles.yaml` under the `data-plane-dummy-mode`
+`comp/core/agenttelemetry/impl/defaultProfiles.yaml` under the `data-plane-preflight-mode`
 profile:
 
 | Metric | Meaning |
 |---|---|
-| `data_plane.dummy_mode_result{result}` | One value per run: `clean`, or the first finding. |
-| `data_plane.dummy_mode_finding{finding}` | One increment per distinct finding. |
-| `data_plane.dummy_mode_duration_seconds` | Wall-clock length of the run. |
+| `data_plane.preflight_mode_result{result}` | One value per run: `clean`, or the first finding. |
+| `data_plane.preflight_mode_finding{finding}` | One increment per distinct finding. |
+| `data_plane.preflight_mode_duration_seconds` | Wall-clock length of the run. |
 
 The profile's schedule is **recurring**, not one-shot, so that changing the run window cannot
 strand the outcome: a flush landing mid-run finds nothing, and with `iterations: 1` there would
@@ -166,15 +166,15 @@ Findings: `spawn_failed`, `no_listener`, `probe_send_failed`, `exited_early`,
 `unstructured_output`, `interrupted`.
 
 Only these bounded enums are shipped. ADP's actual error text is **not** yet sent
-anywhere — see the `reportErrorMessages` stub in `comp/dataplane/dummymode/impl/report.go`.
+anywhere — see the `reportErrorMessages` stub in `comp/dataplane/preflightmode/impl/report.go`.
 The agent telemetry error-tracking pipeline deliberately ships PC-only telemetry with no
 message field, so shipping log text needs a new event type plus a backend schema, agreed
 with the team that owns that pipeline.
 
 ### Reading the output
 
-Dummy mode forces `log_format_json`, and the scanner in
-`comp/dataplane/dummymode/impl/logscan.go` parses **only** JSON. That is a deliberate
+Preflight mode forces `log_format_json`, and the scanner in
+`comp/dataplane/preflightmode/impl/logscan.go` parses **only** JSON. That is a deliberate
 simplification with a specific justification: ADP renders a whole `anyhow` error chain into
 the `message` field, so a plain-text log spreads one event over many physical lines and
 needs heuristics to reassemble. In JSON the newlines are escaped inside the string, so a
@@ -202,7 +202,7 @@ reports some hard blockers at WARN rather than ERROR — a rejected API key amon
 A scan that only looked at ERROR would report a completely clean run on a host whose API
 key does not work, which is close to the worst possible failure for a pre-flight.
 
-Warnings that dummy mode provokes itself are excluded, or the finding would fire on every
+Warnings that preflight mode provokes itself are excluded, or the finding would fire on every
 run and drown the ones that matter. Today that is just the `standalone mode` warning caused
 by `data_plane.standalone_mode`; the list is `expectedWarnings` in `logscan.go`, matched on
 target plus a message substring so that an unrelated component cannot suppress a real
@@ -223,10 +223,10 @@ Lines are kept whole or dropped whole, never truncated: a truncated JSON record 
 indistinguishable from output that bypassed the logger, so truncating would manufacture
 failures out of ordinary long records.
 
-### Debugging a dummy mode run
+### Debugging a preflight mode run
 
 ADP's captured output is mirrored to the Agent log at **debug** level only, prefixed
-`ADP-DUMMY-MODE:`. To see it:
+`ADP-PREFLIGHT-MODE:`. To see it:
 
 ```yaml
 log_level: debug
@@ -237,7 +237,7 @@ pre-flight off entirely:
 
 ```yaml
 data_plane:
-  dummy_mode: false
+  preflight_mode: false
 ```
 
 ### Reproducing a run locally with Docker
@@ -246,31 +246,31 @@ The public ADP image can be driven the same way the component drives the install
 which is the quickest way to check a config change or capture new log fixtures:
 
 ```bash
-W=/tmp/adpdummy; mkdir -p $W
+W=/tmp/adppreflight; mkdir -p $W
 # ADP needs the IPC cert even in standalone mode; the Core Agent generates it at startup.
 openssl ecparam -name prime256v1 -genkey -noout -out $W/key.pem
 openssl req -new -x509 -key $W/key.pem -out $W/cert.pem -days 1 -subj "/CN=localhost"
 cat $W/cert.pem $W/key.pem > $W/ipc_cert.pem
 openssl rand -hex 32 > $W/auth_token
 
-# Write $W/datadog.yaml with the overrides from dummyModeGlobalOverrides, pointing
+# Write $W/datadog.yaml with the overrides from preflightModeGlobalOverrides, pointing
 # dogstatsd_socket at /adprun/dsd.socket and the cert/token at /adpconf/.
 
 # Keep the socket on a container-local tmpfs: a bind mount cannot be chmod'ed on macOS,
 # and ADP fails the bind with a bare "Invalid argument".
-docker run -d --name adpdummy -v $W:/adpconf:ro --tmpfs /adprun:rw,mode=0700 \
+docker run -d --name adppreflight -v $W:/adpconf:ro --tmpfs /adprun:rw,mode=0700 \
   registry.datadoghq.com/agent-data-plane:1.4.0 --config /adpconf/datadog.yaml run
 
-docker logs -f adpdummy                      # JSON records, one per line
-docker kill --signal=INT adpdummy            # graceful stop; SIGTERM will not work
+docker logs -f adppreflight                      # JSON records, one per line
+docker kill --signal=INT adppreflight            # graceful stop; SIGTERM will not work
 ```
 
 To send the probe by hand (the image has perl but no nc):
 
 ```bash
-docker exec adpdummy perl -e 'use Socket;
+docker exec adppreflight perl -e 'use Socket;
 socket(my $s,PF_UNIX,SOCK_DGRAM,0) or die $!;
-send($s,"n_o_i_n_d_e_x.datadog.agent.data_plane.dummy_mode.probe:1|g|#dummy_mode:true\n",
+send($s,"n_o_i_n_d_e_x.datadog.agent.data_plane.preflight_mode.probe:1|g|#preflight_mode:true\n",
      0,sockaddr_un("/adprun/dsd.socket")) or die $!;'
 ```
 

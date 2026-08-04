@@ -619,7 +619,7 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 21 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-dummy-mode)
+	// Default config has 21 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode)
 	assert.Equal(t, 21, totalProfiles)
 }
 
@@ -2622,33 +2622,33 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	assert.Equal(t, 20.0, m2.Value)
 }
 
-// TestDataPlaneDummyModeProfile guards the Agent Data Plane dummy mode metrics.
+// TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
 //
-// The pre-flight in comp/dataplane/dummymode reports its outcome purely through these
+// The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these
 // three metrics, and a metric missing from this allowlist is dropped rather than shipped.
 // The label allowlists matter just as much: an unlisted label is stripped and its
 // timeseries summed into the others, which would collapse every distinct finding into one
 // meaningless number. The matching tripwire on the producing side is
-// TestFindingsAreAllowlisted in comp/dataplane/dummymode/impl.
-func TestDataPlaneDummyModeProfile(t *testing.T) {
+// TestFindingsAreAllowlisted in comp/dataplane/preflightmode/impl.
+func TestDataPlanePreflightModeProfile(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, defaultProfiles)
 	atCfg, err := parseConfig(cfg)
 	require.NoError(t, err)
 
 	var profile *Profile
 	for _, p := range atCfg.Profiles {
-		if p.Name == "data-plane-dummy-mode" {
+		if p.Name == "data-plane-preflight-mode" {
 			profile = p
 			break
 		}
 	}
-	require.NotNil(t, profile, "the data-plane-dummy-mode profile is missing")
+	require.NotNil(t, profile, "the data-plane-preflight-mode profile is missing")
 	require.NotNil(t, profile.Metric)
 
 	wantTags := map[string][]string{
-		"data_plane.dummy_mode_result":           {"result"},
-		"data_plane.dummy_mode_finding":          {"finding"},
-		"data_plane.dummy_mode_duration_seconds": nil,
+		"data_plane.preflight_mode_result":           {"result"},
+		"data_plane.preflight_mode_finding":          {"finding"},
+		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 
 	got := make(map[string][]string, len(profile.Metric.Metrics))
@@ -2665,18 +2665,18 @@ func TestDataPlaneDummyModeProfile(t *testing.T) {
 	require.NotNil(t, profile.Schedule)
 
 	// The first flush must land after the run finishes, or it would report an empty run. The
-	// window is dummyModeDuration in comp/dataplane/dummymode/impl (90s, deliberately not
+	// window is preflightModeDuration in comp/dataplane/preflightmode/impl (90s, deliberately not
 	// configurable); this asserts the schedule keeps clear of it with margin. Raising that
 	// constant past this bound should fail here.
-	const dummyModeWindowSeconds = 90
-	assert.Greater(t, int(profile.Schedule.StartAfter), dummyModeWindowSeconds,
-		"the first flush must land after the dummy mode window closes")
+	const preflightModeWindowSeconds = 90
+	assert.Greater(t, int(profile.Schedule.StartAfter), preflightModeWindowSeconds,
+		"the first flush must land after the preflight mode window closes")
 
 	// The schedule also stays recurring, so a future change to the window cannot silently
 	// strand the outcome. Safe because counters are delta-converted: the increment ships on
 	// whichever flush first observes it, and later flushes send zero, which zero_metric drops.
 	assert.Zero(t, int(profile.Schedule.Iterations),
-		"the schedule must be recurring so a longer dummy mode window still reports")
+		"the schedule must be recurring so a longer preflight mode window still reports")
 	require.NotNil(t, profile.Metric.Exclude)
 	require.NotNil(t, profile.Metric.Exclude.ZeroMetric)
 	assert.True(t, *profile.Metric.Exclude.ZeroMetric,
