@@ -363,7 +363,6 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 	if !subnet.cacheDirty {
 		return
 	}
-	subnet.cacheDirty = false
 
 	devices := make([]string, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
@@ -378,7 +377,10 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 
 	if err = persistentcache.Write(subnet.cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("subnet %s: Couldn't write cache: %s", d.config.Network, err)
+		return
 	}
+
+	subnet.cacheDirty = false
 }
 
 // NewDiscovery return a new Discovery instance
