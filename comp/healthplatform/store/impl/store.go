@@ -46,7 +46,7 @@ type Requires struct {
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
 	// selfident). Every binary that wires this bundle also wires
 	// workloadmeta's fx module, so this is a mandatory dependency, not optional.
-	Workloadmeta workloadmeta.Component
+	Workloadmeta workloadmeta.Component `optional:"true"` // set to optional for non-Kubernetes agents. TODO create a new comp with no-op selfident.
 }
 
 // Provides defines the output of the health-platform component

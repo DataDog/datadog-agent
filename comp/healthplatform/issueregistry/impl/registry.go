@@ -25,7 +25,7 @@ type Requires struct {
 	// Workloadmeta resolves this agent's DaemonSet UID, so that
 	// invalidconfig/invalidsysprobeconfig issue ids can be scoped by
 	// selfident's discriminator instead of the bare hostname.
-	Workloadmeta workloadmeta.Component
+	Workloadmeta workloadmeta.Component `optional:"true"`
 }
 
 type registryImpl struct {
