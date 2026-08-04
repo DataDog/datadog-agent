@@ -13,8 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,16 +22,6 @@ const (
 	kubeEndpointResolveAuto endpointResolveMode = "auto"
 	kubeEndpointResolveIP   endpointResolveMode = "ip"
 )
-
-// shouldSkipEndpoint reports whether an EndpointSlice endpoint must be left out
-// of the generated configs because it is not ready or is terminating. This can
-// be disabled with kubernetes_endpoint_slices_ignore_readiness.
-func shouldSkipEndpoint(endpoint *discv1.Endpoint) bool {
-	if pkgconfigsetup.Datadog().GetBool("kubernetes_endpoint_slices_ignore_readiness") {
-		return false
-	}
-	return !apiserver.IsEndpointServing(endpoint)
-}
 
 // getEndpointResolveFunc returns a function that resolves the endpoint address
 func getEndpointResolveFunc(resolveMode endpointResolveMode, namespace, name string) func(*integration.Config, v1.EndpointAddress) {

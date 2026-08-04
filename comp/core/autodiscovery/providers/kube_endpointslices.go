@@ -379,7 +379,7 @@ func generateConfigFromSlice(tpl integration.Config, resolveMode endpointResolve
 	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, namespace, serviceName)
 
 	for _, endpoint := range slice.Endpoints {
-		if shouldSkipEndpoint(&endpoint) {
+		if !apiserver.IsEndpointServing(&endpoint) {
 			log.Debugf("Skipping not-ready endpoint %v of service %s/%s", endpoint.Addresses, namespace, serviceName)
 			continue
 		}

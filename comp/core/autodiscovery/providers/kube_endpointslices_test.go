@@ -346,18 +346,8 @@ func TestGenerateConfigFromSliceConditions(t *testing.T) {
 
 	tpl := integration.Config{Name: "http_check", InitConfig: integration.Data("{}")}
 
-	cfg := configmock.New(t)
 	assert.Equal(t, []string{
 		"kube_endpoint_uid://default/myservice/10.0.0.1",
-		"kube_endpoint_uid://default/myservice/10.0.0.4",
-	}, serviceIDs(generateConfigFromSlice(tpl, kubeEndpointResolveIP, slice, "default", "myservice")))
-
-	// With kubernetes_endpoint_slices_ignore_readiness, every endpoint is scheduled
-	cfg.SetInTest("kubernetes_endpoint_slices_ignore_readiness", true)
-	assert.Equal(t, []string{
-		"kube_endpoint_uid://default/myservice/10.0.0.1",
-		"kube_endpoint_uid://default/myservice/10.0.0.2",
-		"kube_endpoint_uid://default/myservice/10.0.0.3",
 		"kube_endpoint_uid://default/myservice/10.0.0.4",
 	}, serviceIDs(generateConfigFromSlice(tpl, kubeEndpointResolveIP, slice, "default", "myservice")))
 }

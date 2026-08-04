@@ -2200,7 +2200,6 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_collector_pull_interval", 0)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
-	config.BindEnvAndSetDefault("kubernetes_endpoint_slices_ignore_readiness", false)
 	// Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60)
 	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", true)

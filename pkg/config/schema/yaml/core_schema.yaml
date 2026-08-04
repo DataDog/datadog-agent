@@ -3830,17 +3830,6 @@ properties:
       EndpointSlices are GA since 1.21. Kubernetes Endpoint API is depreceated in 1.33.
     tags:
     - template_section:KubeApiServer
-  kubernetes_endpoint_slices_ignore_readiness:
-    node_type: setting
-    type: boolean
-    default: false
-    visibility: public
-    description: |-
-      By default, the Cluster Agent only schedules endpoints checks against the endpoints
-      of an EndpointSlice that are ready and not terminating. Set this to true to schedule
-      checks against every endpoint of the EndpointSlice, regardless of its conditions.
-    tags:
-    - template_section:KubeApiServer
   auto_team_tag_collection:
     node_type: setting
     type: boolean

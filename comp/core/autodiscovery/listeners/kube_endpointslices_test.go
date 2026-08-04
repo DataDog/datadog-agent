@@ -87,7 +87,7 @@ func TestProcessEndpointSlice(t *testing.T) {
 		},
 	}
 
-	eps := processEndpointSlice(slice, []string{"foo:bar"}, workloadfilterfxmock.SetupMockFilter(t), false)
+	eps := processEndpointSlice(slice, []string{"foo:bar"}, workloadfilterfxmock.SetupMockFilter(t))
 
 	// Should create 2 endpoint services (one per IP)
 	assert.Equal(t, 2, len(eps))
@@ -148,7 +148,7 @@ func TestProcessEndpointSliceNoServiceLabel(t *testing.T) {
 		},
 	}
 
-	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), false)
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t))
 
 	assert.Equal(t, 0, len(eps))
 }
@@ -344,7 +344,7 @@ func TestProcessEndpointSliceNilPorts(t *testing.T) {
 		},
 	}
 
-	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), false)
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t))
 
 	assert.Equal(t, 1, len(eps))
 
@@ -386,18 +386,9 @@ func TestProcessEndpointSliceConditions(t *testing.T) {
 		return ids
 	}
 
-	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), false)
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t))
 	assert.Equal(t, []string{
 		"kube_endpoint_uid://default/myservice/10.0.0.1",
-		"kube_endpoint_uid://default/myservice/10.0.0.4",
-	}, entities(eps))
-
-	// With ignoreReadiness, every endpoint is scheduled
-	eps = processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t), true)
-	assert.Equal(t, []string{
-		"kube_endpoint_uid://default/myservice/10.0.0.1",
-		"kube_endpoint_uid://default/myservice/10.0.0.2",
-		"kube_endpoint_uid://default/myservice/10.0.0.3",
 		"kube_endpoint_uid://default/myservice/10.0.0.4",
 	}, entities(eps))
 }
@@ -514,7 +505,7 @@ cel_workload_exclude:
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			eps := processEndpointSlice(tc.slice, []string{}, mockFilterStore, false)
+			eps := processEndpointSlice(tc.slice, []string{}, mockFilterStore)
 			assert.NotEmpty(t, eps, "Should have at least one endpoint service")
 			for _, ep := range eps {
 				assert.Equal(t, tc.expectedMetricsExcl, ep.metricsExcluded,

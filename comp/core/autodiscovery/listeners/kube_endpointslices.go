@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -55,7 +54,6 @@ type KubeEndpointSlicesListener struct {
 	newService         chan<- Service
 	delService         chan<- Service
 	targetAllEndpoints bool
-	ignoreReadiness    bool
 	serviceTracker     types.ServiceTracker
 	m                  sync.RWMutex
 	filterStore        workloadfilter.Component
@@ -89,7 +87,6 @@ func NewKubeEndpointSlicesListener(options ServiceListernerDeps) (ServiceListene
 		serviceLister:         serviceInformer.Lister(),
 		promInclAnnot:         getPrometheusIncludeAnnotations(),
 		targetAllEndpoints:    options.Config.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
-		ignoreReadiness:       pkgconfigsetup.Datadog().GetBool("kubernetes_endpoint_slices_ignore_readiness"),
 		serviceTracker:        options.ServiceTracker,
 		filterStore:           options.Filter,
 		telemetryStore:        options.Telemetry,
@@ -245,7 +242,7 @@ func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.Endpoi
 		tags = []string{}
 	}
 
-	eps := processEndpointSlice(slice, tags, l.filterStore, l.ignoreReadiness)
+	eps := processEndpointSlice(slice, tags, l.filterStore)
 
 	l.m.Lock()
 	// Store endpoints by slice UID for granular updates
@@ -391,9 +388,9 @@ func (l *KubeEndpointSlicesListener) isServiceTracked(slice *discv1.EndpointSlic
 }
 
 // processEndpointSlice parses a single kubernetes EndpointSlice object
-// and returns a slice of KubeEndpointService per endpoint IP. Unless
-// ignoreReadiness is set, only ready and non-terminating endpoints are returned.
-func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStore workloadfilter.Component, ignoreReadiness bool) []*KubeEndpointService {
+// and returns a slice of KubeEndpointService per endpoint IP. Only ready and
+// non-terminating endpoints are returned.
+func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
 	if slice == nil {
@@ -425,7 +422,7 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 
 	// Iterate through endpoints (IP addresses)
 	for _, endpoint := range slice.Endpoints {
-		if !ignoreReadiness && !apiserver.IsEndpointServing(&endpoint) {
+		if !apiserver.IsEndpointServing(&endpoint) {
 			log.Debugf("Skipping not-ready endpoint %v of service %s/%s", endpoint.Addresses, namespace, serviceName)
 			continue
 		}

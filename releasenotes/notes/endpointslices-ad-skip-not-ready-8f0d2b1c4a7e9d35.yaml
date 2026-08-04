@@ -12,6 +12,4 @@ fixes:
     endpoints that are not ready or are terminating. This restores the behavior
     of the ``v1.Endpoints`` code path, which only ever targeted ready addresses,
     and stops checks from erroring out against pods that are shutting down or
-    failing their readiness probes. Set
-    ``kubernetes_endpoint_slices_ignore_readiness`` to ``true`` to target every
-    endpoint of an EndpointSlice regardless of its conditions.
+    failing their readiness probes.

@@ -4072,14 +4072,6 @@ api_key:
 #
 # kubernetes_use_endpoint_slices: false
 
-## @param kubernetes_endpoint_slices_ignore_readiness - boolean - optional - default: false
-## @env DD_KUBERNETES_ENDPOINT_SLICES_IGNORE_READINESS - boolean - optional - default: false
-## By default, the Cluster Agent only schedules endpoints checks against the endpoints
-## of an EndpointSlice that are ready and not terminating. Set this to true to schedule
-## checks against every endpoint of the EndpointSlice, regardless of its conditions.
-#
-# kubernetes_endpoint_slices_ignore_readiness: false
-
 ## @param auto_team_tag_collection - boolean - optional - default: true
 ## @env DD_AUTO_TEAM_TAG_COLLECTION - boolean - optional - default: true
 ## When enabled, the orchestrator check automatically collects the 'team' tag from Kubernetes resources.
