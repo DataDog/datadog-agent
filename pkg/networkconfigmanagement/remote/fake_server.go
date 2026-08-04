@@ -86,6 +86,12 @@ func NewShellContext(command string, ch ssh.Channel) *ShellContext {
 	}
 }
 
+// InteractiveShellFunc drives a "shell" (pty) session: it reads lines typed
+// by the client from stdin and writes scripted responses to stdout, e.g. to
+// simulate an "enable" password prompt followed by a device CLI. It returns
+// the exit status to report once the client closes stdin.
+type InteractiveShellFunc func(stdin *bufio.Reader, stdout io.Writer)
+
 type ShellFunc func(*ShellContext) (returnCode uint32)
 
 // FakeSSHServer is an in-process SSH server backed by a map of canned
@@ -100,6 +106,7 @@ type FakeSSHServer struct {
 	listener  net.Listener
 	hostKey   ssh.Signer
 	getOutput ShellFunc
+	getShell  InteractiveShellFunc
 
 	expectedUser     string
 	expectedPassword string
@@ -119,6 +126,16 @@ func WithCredentials(user, password string) FakeServerOption {
 	return func(s *FakeSSHServer) {
 		s.expectedUser = user
 		s.expectedPassword = password
+	}
+}
+
+// WithInteractiveShell configures the function used to drive "shell" (pty)
+// sessions, needed for tests exercising interactive flows like enable's
+// password prompt. Without this option, "pty-req"/"shell" requests are
+// acknowledged but the session produces no output.
+func WithInteractiveShell(fn InteractiveShellFunc) FakeServerOption {
+	return func(s *FakeSSHServer) {
+		s.getShell = fn
 	}
 }
 
@@ -241,6 +258,21 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			exitStatus := s.getOutput(shell)
 
 			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: exitStatus}))
+			return
+
+		case "pty-req":
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
+
+		case "shell":
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
+			if s.getShell != nil {
+				s.getShell(bufio.NewReader(ch), ch)
+			}
+			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: 0}))
 			return
 
 		default:

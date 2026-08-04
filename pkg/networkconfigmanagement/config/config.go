@@ -44,6 +44,23 @@ type AuthCredentials struct { // auth_credentials
 	Protocol string `yaml:"remote"`
 
 	SSH *SSHConfig `yaml:"ssh"`
+
+	// Enable indicates whether to invoke the profile's enable/privileged-mode
+	// command before running any of the profile's other commands.
+	Enable bool `yaml:"enable"`
+	// EnablePassword is sent in response to the enable command's password
+	// prompt. If empty, falls back to Password (see EffectiveEnablePassword).
+	EnablePassword string `yaml:"enable_password"`
+}
+
+// EffectiveEnablePassword returns EnablePassword, falling back to Password
+// if EnablePassword is unset (many devices reuse the login password, or only
+// one secret is vaulted, for enable mode).
+func (a AuthCredentials) EffectiveEnablePassword() string {
+	if a.EnablePassword != "" {
+		return a.EnablePassword
+	}
+	return a.Password
 }
 
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.

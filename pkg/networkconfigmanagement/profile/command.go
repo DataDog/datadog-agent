@@ -75,3 +75,32 @@ type SCPCommand struct {
 func (c *SCPCommand) CommandType() string {
 	return "scp"
 }
+
+// DefaultEnablePasswordPrompt is used to recognize an enable command's
+// password prompt when EnableCommand.PasswordPrompt is unset.
+var DefaultEnablePasswordPrompt = regexp.MustCompile(`(?i)password:\s*$`)
+
+// EnableCommand represents the command used to elevate to a device's
+// privileged/enable mode before running the rest of a profile's commands.
+// PasswordPrompt is the regex used to recognize the device's password
+// prompt in the session output; Validator (optional) checks the response
+// after the password is sent, to confirm enable actually succeeded before
+// proceeding to run the real command.
+type EnableCommand struct {
+	Command        string         `json:"command"`
+	PasswordPrompt *regexp.Regexp `json:"password_prompt,omitempty"`
+	Validator      Validator      `json:"validator,omitempty"`
+}
+
+func (c *EnableCommand) CommandType() string {
+	return "enable"
+}
+
+// EffectivePasswordPrompt returns c.PasswordPrompt, or
+// DefaultEnablePasswordPrompt if c is nil or PasswordPrompt is unset.
+func (c *EnableCommand) EffectivePasswordPrompt() *regexp.Regexp {
+	if c != nil && c.PasswordPrompt != nil {
+		return c.PasswordPrompt
+	}
+	return DefaultEnablePasswordPrompt
+}

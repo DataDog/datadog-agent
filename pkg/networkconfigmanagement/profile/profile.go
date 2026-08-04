@@ -52,6 +52,11 @@ type CommandSet struct {
 	GetStartup *PlainCommand `json:"get_startup,omitempty"`
 	// Config pushing
 	PushConfig *PushConfig
+	// EnableCommand, if set, is run (with credentials) before every other
+	// command in this CommandSet when AuthCredentials.Enable is true. If nil,
+	// enable is a no-op regardless of AuthCredentials.Enable (this
+	// profile/device type doesn't need/support it).
+	EnableCommand *EnableCommand
 }
 
 // CanPush returns whether or not this CommandSet includes a valid Push command.

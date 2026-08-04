@@ -36,6 +36,36 @@ func MkCommand(command string, options ...CmdOption) *PlainCommand {
 	return cmd
 }
 
+// EnableOption configures an EnableCommand built by MkEnable.
+type EnableOption func(*EnableCommand)
+
+// WithEnablePasswordPrompt overrides the default password-prompt regex.
+func WithEnablePasswordPrompt(exp string) EnableOption {
+	re := regexp.MustCompile(exp)
+	return func(ec *EnableCommand) {
+		ec.PasswordPrompt = re
+	}
+}
+
+// WithEnableReject adds a regex that, if matched in the output following the
+// enable password, indicates the device rejected it (e.g. a bad-password
+// message).
+func WithEnableReject(exp string) EnableOption {
+	re := regexp.MustCompile(exp)
+	return func(ec *EnableCommand) {
+		ec.Validator.Reject = append(ec.Validator.Reject, re)
+	}
+}
+
+// MkEnable builds an EnableCommand for the given command string (e.g. "enable").
+func MkEnable(command string, options ...EnableOption) *EnableCommand {
+	ec := &EnableCommand{Command: command}
+	for _, opt := range options {
+		opt(ec)
+	}
+	return ec
+}
+
 // RedactionOption configures a RedactionRule built by MkRedaction.
 type RedactionOption func(*RedactionRule)
 

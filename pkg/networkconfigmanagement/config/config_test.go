@@ -152,6 +152,23 @@ func TestDeviceInstance_Validation(t *testing.T) {
 			expectValid: false,
 			errorMsg:    "auth is required: missing SSH configuration for device 100.1.1.1",
 		},
+		{
+			name: "enable requested with no enable_password is still valid",
+			config: DeviceInstance{
+				IPAddress: "100.1.1.1",
+				Auth: AuthCredentials{
+					Username: "admin",
+					Password: "password",
+					Port:     "22",
+					Protocol: "tcp",
+					Enable:   true,
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
+				},
+			},
+			expectValid: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -220,10 +237,12 @@ func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
 		Auth: AuthCredentials{
-			Username: "admin",
-			Password: "password",
-			Port:     "22",
-			Protocol: "tcp",
+			Username:       "admin",
+			Password:       "password",
+			Port:           "22",
+			Protocol:       "tcp",
+			Enable:         true,
+			EnablePassword: "enablepw",
 		},
 	}
 
@@ -232,6 +251,8 @@ func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "ip_address: 10.100.1.1")
 	assert.Contains(t, string(data), "username: admin")
+	assert.Contains(t, string(data), "enable: true")
+	assert.Contains(t, string(data), "enable_password: enablepw")
 
 	// Test unmarshaling
 	var parsed DeviceInstance
@@ -240,6 +261,8 @@ func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	assert.Equal(t, config.IPAddress, parsed.IPAddress)
 	assert.Equal(t, config.Auth.Username, parsed.Auth.Username)
 	assert.Equal(t, config.Auth.Password, parsed.Auth.Password)
+	assert.Equal(t, config.Auth.Enable, parsed.Auth.Enable)
+	assert.Equal(t, config.Auth.EnablePassword, parsed.Auth.EnablePassword)
 }
 
 func TestAuthCredentials_DefaultValues(t *testing.T) {
@@ -261,6 +284,35 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 	assert.Equal(t, "tcp", config.Auth.Protocol)
 	assert.Equal(t, "thenamespace", config.Namespace)
 	assert.True(t, config.Auth.SSH.InsecureSkipVerify)
+}
+
+func TestAuthCredentials_EffectiveEnablePassword(t *testing.T) {
+	tests := []struct {
+		name     string
+		auth     AuthCredentials
+		expected string
+	}{
+		{
+			name:     "falls back to password when enable_password unset",
+			auth:     AuthCredentials{Password: "loginpw"},
+			expected: "loginpw",
+		},
+		{
+			name:     "uses enable_password when set",
+			auth:     AuthCredentials{Password: "loginpw", EnablePassword: "enablepw"},
+			expected: "enablepw",
+		},
+		{
+			name:     "empty when neither is set",
+			auth:     AuthCredentials{},
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.auth.EffectiveEnablePassword())
+		})
+	}
 }
 
 func TestInitConfig_InventoryReportMaxInterval_ApplyDefaults(t *testing.T) {
