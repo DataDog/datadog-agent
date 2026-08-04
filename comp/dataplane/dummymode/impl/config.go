@@ -81,6 +81,28 @@ var dummyModeGlobalOverrides = map[string]any{
 	"log_format_json":      true,
 	"log_level":            "info",
 
+	// Turn off the forwarder's on-disk retry queue.
+	//
+	// ADP resolves forwarder_storage_path and, when this setting is non-zero, creates
+	// <forwarder_storage_path>/<queue id> at startup and persists transactions there on
+	// overflow (lib/saluki-components/src/common/datadog/{retry,io}.rs). Inherited unchanged
+	// that path is the Core Agent's own retry tree, so the pre-flight would create directories
+	// — and, on overflow, write customer payloads — outside the working directory the run
+	// secures and deletes, then leave them behind on every Agent start.
+	//
+	// This is the gate rather than the path because it is the only one that actually stops the
+	// feature. Clearing forwarder_storage_path does not: fix_empty_storage_path falls back to
+	// run_path + "transactions_to_retry", landing on the Core Agent's tree anyway, and a path
+	// that did end up empty makes with_disk_persistence fail and ADP log at ERROR — which the
+	// log scan would then report as findingErrorsInLog, manufacturing a finding on every host
+	// that has persistence enabled.
+	//
+	// Losing coverage of the persistence path is an acceptable trade: it is off by default on
+	// both sides, and a pre-flight has nothing to retry anyway. It runs for 90s against a live
+	// intake, so the queue only fills if the endpoint is already failing — the case the log
+	// scan reports regardless.
+	"forwarder_storage_max_size_in_bytes": 0,
+
 	// Configure DogStatsD to avoid listening on UDP or UDS stream, as well as to avoid
 	// applying any metric prefixes/namespaces that would mess up our probe metric, which
 	// is named specifically to ensure that the metric makes it through to the Datadog
@@ -132,11 +154,15 @@ func buildDummyConfig(cfg pkgconfigmodel.Reader, l listener) map[string]any {
 
 // writeDummyConfig renders the dummy configuration into workDir and returns its path.
 //
-// The file is written user-only because it holds the Agent's entire resolved configuration.
-// That is every secret, not just api_key: AllSettings merges the secrets layer, so
-// secret-backend outputs such as app_key, proxy credentials, additional_endpoints keys and
-// integration passwords are all present in plaintext. The working directory is removed when
-// the run finishes, and again from stop if the run does not unwind in time.
+// The file holds the Agent's entire resolved configuration. That is every secret, not just
+// api_key: AllSettings merges the secrets layer, so secret-backend outputs such as app_key,
+// proxy credentials, additional_endpoints keys and integration passwords are all present in
+// plaintext. The working directory is removed when the run finishes, and again from stop if
+// the run does not unwind in time.
+//
+// The 0600 below is what restricts the file on Unix. It does nothing on Windows, where the
+// mode is not an access control mechanism at all; there the file is covered by the ACL
+// secureWorkDir puts on the directory, which is inheritable for exactly this reason.
 func writeDummyConfig(cfg pkgconfigmodel.Reader, l listener, workDir string) (string, error) {
 	data, err := yaml.Marshal(buildDummyConfig(cfg, l))
 	if err != nil {

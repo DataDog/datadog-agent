@@ -55,6 +55,14 @@ with, plus these overrides:
   surfaces are off.
 - **Logging**: `disable_file_logging`, `log_to_console` and `log_format_json` are all
   forced, at `info`. See "Reading the output" below for why JSON is non-negotiable here.
+- **On-disk retry queue**: `forwarder_storage_max_size_in_bytes: 0`. ADP resolves
+  `forwarder_storage_path` and, when that size is non-zero, creates
+  `<forwarder_storage_path>/<queue id>` at startup and persists transactions there on
+  overflow. Inherited unchanged that is the Core Agent's own retry tree, which would put ADP
+  directories — and potentially customer payloads — outside the working directory this run
+  deletes. Zeroing the size is the only thing that stops it: clearing the path instead makes
+  ADP fall back to `run_path` + `transactions_to_retry` and land on the same tree, and a path
+  that really is empty makes ADP log at `ERROR`, which the log scan would report as a finding.
 - **Environment**: every `DD_*` variable is stripped from the child's environment. ADP
   layers environment over its config file, so an inherited `DD_DOGSTATSD_PORT` would make
   the dummy process bind the real endpoint and steal traffic from the Core Agent. The match
@@ -73,9 +81,22 @@ because proxy, DNS and TLS problems are exactly the day-one failures being hunte
 **The generated file therefore contains the Agent's entire resolved configuration, including
 every secret** — `AllSettings` merges the secrets layer, so secret-backend outputs such as
 `app_key`, proxy credentials, `additional_endpoints` keys and integration passwords are all
-present in plaintext, not just `api_key`. It is written `0600` inside a `0700` directory, the
-directory is removed when the run finishes, and `stop` removes it again if the run does not
-unwind in time.
+present in plaintext, not just `api_key`. The directory is removed when the run finishes, and
+`stop` removes it again if the run does not unwind in time.
+
+How the file is restricted differs by platform, because the Go file mode is not portable:
+
+- **Unix** — the config is written `0600` inside a `0700` directory.
+- **Windows** — the mode is not an access control mechanism. `syscall.Mkdir` discards it
+  outright and `syscall.Open` uses it only to decide the read-only attribute, so both objects
+  inherit whatever the parent grants. `secureWorkDir` therefore replaces the working
+  directory's DACL with SYSTEM, Administrators and the Agent user, protected from inheritance
+  (`filesystem.Permission.RemoveAccessToOtherUsers`). Those ACEs are inheritable, so the
+  config is covered from the moment it is created rather than being tightened after the fact.
+
+The directory, not the file, is the thing secured — on a default MSI install
+`C:\ProgramData\Datadog` already propagates a restrictive ACL, but `run_path` is
+operator-configurable and most locations outside ProgramData grant `Users`.
 
 ### Stopping ADP
 
