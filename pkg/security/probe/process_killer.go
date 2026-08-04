@@ -45,13 +45,6 @@ type ProcessKillerOS interface {
 	getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error)
 }
 
-// cgroupKillTarget identifies a cgroup to kill in a single operation. The inode is carried along
-// with the ID so the killer can check that the path it resolves to is still the expected cgroup.
-type cgroupKillTarget struct {
-	id    containerutils.CGroupID
-	inode uint64
-}
-
 const (
 	disarmerCacheFlushInterval = 5 * time.Second
 	// killActionDisarmerMaxPeriod represents the maximum disarmer period

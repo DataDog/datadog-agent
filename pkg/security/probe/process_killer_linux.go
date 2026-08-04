@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -60,6 +61,13 @@ type killContext struct {
 	pid       int
 	path      string
 	// containerID string?? TODO: be able to specify the containerID to kill
+}
+
+// cgroupKillTarget identifies a cgroup to kill in a single operation. The inode is carried along
+// with the ID so the killer can check that the path it resolves to is still the expected cgroup.
+type cgroupKillTarget struct {
+	id    containerutils.CGroupID
+	inode uint64
 }
 
 const (

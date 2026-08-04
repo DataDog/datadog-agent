@@ -13,9 +13,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,6 +140,8 @@ func TestCgroupKillWriteBasesPrefersAgentViewThenHostRoot(t *testing.T) {
 }
 
 // TestCgroupKillerKillsRealCgroup exercises cgroup.kill against a real cgroup v2 hierarchy.
+// Everything the environment has to provide is a skip rather than a failure: containerized
+// runners are usually confined to a cgroupfs they cannot create cgroups in.
 func TestCgroupKillerKillsRealCgroup(t *testing.T) {
 	if os.Getuid() != 0 {
 		t.Skip("requires root to create a cgroup and write cgroup.kill")
@@ -149,17 +151,26 @@ func TestCgroupKillerKillsRealCgroup(t *testing.T) {
 	}
 
 	mountPoint, err := utils.GetCgroup2MountPoint()
-	require.NoError(t, err)
-	require.NotEmpty(t, mountPoint)
+	if err != nil || mountPoint == "" {
+		t.Skipf("requires a cgroup2 mount point: %v", err)
+	}
 
-	// Nest the test cgroup under our own so we inherit whatever delegation is in place.
-	selfID, err := selfCGroupID()
-	require.NoError(t, err)
+	// Nest the test cgroup under our own when we can resolve it, so that we inherit whatever
+	// delegation is in place. When we can't, the mount point is the closest thing we have.
+	parent := mountPoint
+	if selfID, err := selfCGroupID(); err == nil {
+		parent = filepath.Join(mountPoint, string(selfID))
+	}
 
-	cgroupID := containerutils.CGroupID(filepath.Join(string(selfID), "cws-cgroup-kill-test"))
-	dir := filepath.Join(mountPoint, string(cgroupID))
-	require.NoError(t, os.Mkdir(dir, 0o755))
+	dir := filepath.Join(parent, "cws-cgroup-kill-test")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Skipf("requires a writable cgroupfs: %v", err)
+	}
 	defer os.Remove(dir)
+
+	if _, err := os.Stat(filepath.Join(dir, cgroupKillFile)); err != nil {
+		t.Skipf("requires cgroup.kill, added in Linux 5.14: %v", err)
+	}
 
 	cmd := exec.Command("/bin/sleep", "300")
 	require.NoError(t, cmd.Start())
@@ -168,22 +179,21 @@ func TestCgroupKillerKillsRealCgroup(t *testing.T) {
 		_, _ = cmd.Process.Wait()
 	}()
 
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "cgroup.procs"), []byte(strconv.Itoa(cmd.Process.Pid)), 0o600))
+	if err := os.WriteFile(filepath.Join(dir, "cgroup.procs"), []byte(strconv.Itoa(cmd.Process.Pid)), 0o600); err != nil {
+		t.Skipf("unable to move a process into the test cgroup: %v", err)
+	}
 
 	killer := &cgroupKiller{bases: []string{mountPoint}}
+	cgroupID := containerutils.CGroupID(strings.TrimPrefix(dir, mountPoint))
 	require.NoError(t, killer.kill(cgroupKillTarget{id: cgroupID, inode: dirInode(t, dir)}))
 
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		require.Error(t, err, "the process should have been killed")
-		exitErr, ok := err.(*exec.ExitError)
-		require.True(t, ok)
-		status, ok := exitErr.Sys().(syscall.WaitStatus)
-		require.True(t, ok)
-		assert.Equal(t, syscall.SIGKILL, status.Signal(), "cgroup.kill delivers SIGKILL")
-	case <-time.After(5 * time.Second):
-		t.Fatal("process was not killed by cgroup.kill")
-	}
+	// cgroup.kill has queued the SIGKILL by the time the write returns, so this only waits for
+	// the process to be reaped. A hang is caught by the test timeout.
+	err = cmd.Wait()
+	require.Error(t, err, "the process should have been killed")
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	require.True(t, ok)
+	assert.Equal(t, syscall.SIGKILL, status.Signal(), "cgroup.kill delivers SIGKILL")
 }
