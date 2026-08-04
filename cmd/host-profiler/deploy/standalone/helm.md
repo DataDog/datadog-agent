@@ -108,7 +108,7 @@ affinity:
 
 3. Taints and tolerations
 
-The OpenTelemetry Collector Helm chart supports taints and tolerations. Taint the nodes first, then add a matching toleration:
+Use this when the target nodes are already tainted for another reason (for example, a reserved nodegroup or a team's dedicated node pool). Without a matching toleration, the Host Profiler cannot schedule on those nodes at all, even with a matching `nodeSelector` or `affinity`:
 ```yaml
 tolerations:
   - key: dedicated
