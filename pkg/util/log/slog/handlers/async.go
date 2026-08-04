@@ -9,8 +9,10 @@ import (
 	"container/list"
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 )
 
@@ -160,7 +162,7 @@ func (h *Async) Flush() {
 
 // Handle writes a record to the handler.
 func (h *Async) Handle(ctx context.Context, r slog.Record) error {
-	r = snapshotAnyAttrs(r)
+	r = snapshotMutableAttrsFromRecord(r)
 
 	h.cond.L.Lock()
 	if h.closed {
@@ -173,37 +175,6 @@ func (h *Async) Handle(ctx context.Context, r slog.Record) error {
 	h.cond.L.Unlock()
 
 	return nil
-}
-
-// snapshotAnyAttrs formats KindAny attribute values into strings now instead of deferring
-// to the background goroutine, since a KindAny value is an arbitrary, possibly-mutable
-// reference the caller may change right after this call returns.
-func snapshotAnyAttrs(r slog.Record) slog.Record {
-	hasAny := false
-	r.Attrs(func(a slog.Attr) bool {
-		if a.Value.Kind() == slog.KindAny {
-			hasAny = true
-			return false
-		}
-		return true
-	})
-	if !hasAny {
-		// Fast path: nothing to snapshot, avoid the allocation below.
-		return r
-	}
-
-	attrs := make([]slog.Attr, 0, r.NumAttrs())
-	r.Attrs(func(a slog.Attr) bool {
-		if a.Value.Kind() == slog.KindAny {
-			a.Value = slog.StringValue(fmt.Sprint(a.Value.Any()))
-		}
-		attrs = append(attrs, a)
-		return true
-	})
-
-	snapshot := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
-	snapshot.AddAttrs(attrs...)
-	return snapshot
 }
 
 // Enabled returns true if the handler is enabled for the given level.
@@ -222,9 +193,10 @@ func (h *Async) Close() {
 }
 
 // WithAttrs returns a new handler with the given attributes.
-func (h *Async) WithAttrs(_attrs []slog.Attr) slog.Handler {
+func (h *Async) WithAttrs(attrs []slog.Attr) slog.Handler {
+	attrs = snapshotMutableAttrsFromSlice(attrs)
 	return &Async{
-		innerHandler:     h.innerHandler.WithAttrs(_attrs),
+		innerHandler:     h.innerHandler.WithAttrs(attrs),
 		asyncSharedState: h.asyncSharedState,
 	}
 }
@@ -235,4 +207,53 @@ func (h *Async) WithGroup(_name string) slog.Handler {
 		innerHandler:     h.innerHandler.WithGroup(_name),
 		asyncSharedState: h.asyncSharedState,
 	}
+}
+
+func hasMutableAttrs(attrs iter.Seq[slog.Attr]) bool {
+	for attr := range attrs {
+		if attr.Value.Kind() == slog.KindAny {
+			return true
+		}
+		if attr.Value.Kind() == slog.KindGroup {
+			if hasMutableAttrs(slices.Values(attr.Value.Group())) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// snapshotMutableAttrs formats mutable attribute values into strings eagerly to avoid
+// races in the background goroutine.
+func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
+	newAttrs := slices.Clone(attrs)
+	for i, attr := range newAttrs {
+		if attr.Value.Kind() == slog.KindAny {
+			newAttrs[i].Value = slog.StringValue(fmt.Sprint(attr.Value.Any()))
+		} else if attr.Value.Kind() == slog.KindGroup {
+			newGroupValues := snapshotMutableAttrs(attr.Value.Group())
+			newAttrs[i].Value = slog.GroupValue(newGroupValues...)
+		}
+	}
+
+	return newAttrs
+}
+
+func snapshotMutableAttrsFromRecord(r slog.Record) slog.Record {
+	if !hasMutableAttrs(r.Attrs) {
+		return r
+	}
+
+	attrs := snapshotMutableAttrs(slices.Collect(r.Attrs))
+	snapshot := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
+	snapshot.AddAttrs(attrs...)
+	return snapshot
+}
+
+func snapshotMutableAttrsFromSlice(attrs []slog.Attr) []slog.Attr {
+	if !hasMutableAttrs(slices.Values(attrs)) {
+		return attrs
+	}
+
+	return snapshotMutableAttrs(attrs)
 }
