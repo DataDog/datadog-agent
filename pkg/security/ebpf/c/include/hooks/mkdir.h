@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
@@ -167,7 +168,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_mkdir_exit, struct tracepoint_raw_syscalls_s
     return sys_mkdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
+int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -184,29 +185,30 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         return 0;
     }
 
-    struct mkdir_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .file = syscall->mkdir.file,
-        .mode = syscall->mkdir.mode,
-    };
+    struct mkdir_event_t *event = SPAN_FILL_EVENT(struct mkdir_event_t, EVENT_MKDIR);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->file = syscall->mkdir.file;
+    event->mode = syscall->mkdir.mode;
 
-    fill_file(syscall->mkdir.dentry, &event.file);
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_file(syscall->mkdir.dentry, &event->file);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_MKDIR, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
 }
 
 TAIL_CALL_FNC(dr_mkdir_callback, ctx_t *ctx) {
-    return dr_mkdir_callback(ctx);
+    return dr_mkdir_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_mkdir_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_mkdir_callback(args);
+    return dr_mkdir_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif
