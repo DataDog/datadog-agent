@@ -99,7 +99,7 @@ func TestFoo(t *testing.T) {
 - **MSI install/uninstall/upgrade/repair** — `tests/windows/install-test/`.
   Uses the MSI installer helpers (`baseAgentMSISuite`, `Tester`).
 - **Fleet Automation / OCI packages** (`datadog-installer.exe`,
-  `Install-Datadog.ps1`, experiment lifecycle) —
+  experiment lifecycle) —
   `tests/installer/windows/`. Uses the installer helpers (`BaseSuite`,
   `DatadogInstallerRunner`).
 - **Agent functional or integration tests** that need a pre-installed running
