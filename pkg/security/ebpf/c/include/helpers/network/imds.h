@@ -30,7 +30,7 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     if (sched_cls_has_current_pid_tgid_helper) {
         // reset and fill span context
         reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     // network context
