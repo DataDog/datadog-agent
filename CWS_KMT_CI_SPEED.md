@@ -266,7 +266,82 @@ could shorten via config. ~5 min available across a long tail.
 3. **Angle 2a → 2b** — the real prize (~20–25 min). Do not design before measuring.
 4. **Angle 4** (sharding / matrix trimming) and **Angle 6** (long tail).
 
-## 9. How to reproduce the analysis
+## 9. The Angle 2 experiment (implemented, commit `56598e7c137`)
+
+Instrumentation is in place to attribute the 34 s and to A/B the RCU hypothesis in a single
+pipeline. Everything is gated by env vars, so it is inert unless a run config asks for it.
+
+### What was added
+
+| file | change |
+|---|---|
+| `pkg/security/seclog/logger.go` | `StartPhase(name) func()` — gated phase timer, reports at **warn** level (the suite's default level, so it lands in the log). `PhaseProfilingEnabled()`. Driven by `DD_CWS_PHASE_PROFILING`. |
+| `pkg/eventmonitor/eventmonitor.go` | `Close()` split into `Probe.Stop` / `consumers.Stop` (per consumer ID) / `cancel+wait` / `Probe.Close`. |
+| `pkg/security/probe/probe_ebpf.go` | `Stop()` split into `Manager.StopReaders` / `cancel+wait`. `Close()` split into `rawPacketCollections` / `nameMappings+telemetry` / `Manager.Stop` / `Erpc.Close` / `Resolvers.Close`, plus a line reporting how many probes are running vs. total right before `Manager.Stop`. |
+| `pkg/security/tests/module_tester_linux.go` | `testPhase()` times the `newTestModule` steps that make up the pre-rebuild window (`newSimpleTest`, `setTestPolicy`, `cmdWrapper`, `testMod.cleanup`, `genTestConfigs`) plus `eventMonitor.Init` / `Start`, via `t.Logf`. `logCPUPressure()` samples `/proc/loadavg` + `/proc/pressure/cpu` + `NumCPU` immediately before and after teardown. |
+| `pkg/security/tests/main_linux.go` | `applyRCUExpedited()` in `preTestsHook`: when `DD_CWS_RCU_EXPEDITED` is set, writes `/sys/kernel/rcu_expedited=1` and `/sys/kernel/rcu_normal=0`. Both knobs are root-writable sysfs files, so no kernel cmdline change is needed. |
+| `test/new-e2e/.../files/cws_teardown.json` | 10 reload-forcing tests, `DD_CWS_PHASE_PROFILING=1`. |
+| `test/new-e2e/.../files/cws_teardown_rcu.json` | same 10 tests, `+ DD_CWS_RCU_EXPEDITED=1`. |
+| `.gitlab/test/kernel_matrix_testing/security_agent.yml` | `kmt_run_secagent_tests_x64_teardown`, matrix `{amazon_6.12, ubuntu_22.04} x {cws_teardown, cws_teardown_rcu}`. Wired into `kmt_secagent_tests_join2_x64` so cleanup cannot destroy the metal instance mid-run. |
+
+### Why those 10 tests
+
+`^TestDentryPathERPC$`, `^TestDentryPathMap$`, `^TestOnDemandOpen$`,
+`^TestNetworkFlowSendUDP4$`, `^TestNetDevice$`, `^TestCapabilitiesEvent$`,
+`^TestCaptureAllSyscallErrors$`, `^TestOpenApproverZero$`, `^TestFilterRuntimeDiscarded$`,
+`^TestSelfTests$`.
+
+Their static configs are **pairwise distinct**, so every one of them forces a reload
+regardless of what `-test.run` filtering does to adjacency — 10 reloads, ~9 measured
+teardowns, in a job of roughly 8–10 min instead of 55. Anchors matter: `-test.run` matches
+each element as an unanchored regexp, so `TestHardLink` would also pull in
+`TestHardLinkExecsWithMaps`.
+
+### Deliberate choice: keep the full matrices
+
+The new jobs add only 4 microVMs (76 → 80 on the x86 box) and run **alongside** the
+existing `cws_host`/`cws_peds`/`cws_docker` matrices. Contention is therefore identical to
+production, which is what isolates Angle 2 from Angle 1. Trimming the matrices to get a
+quiet box is the *separate* Angle 1 experiment — do it as a second pipeline, don't conflate
+the two.
+
+### Reading the results
+
+Pull `testjson-x86_64-<tag>-cws_teardown{,_rcu}.tar.gz` from each job (see §10) and grep
+`out.json` for `[phase]`. Expected decision table:
+
+| observation | conclusion |
+|---|---|
+| `EBPFProbe.Close/Manager.Stop` ≈ 30 s of the 34 s | teardown is probe detach; go to the RCU arm |
+| `_rcu` variant drops `Manager.Stop` to a few seconds | RCU grace periods confirmed → ship `rcu_expedited` (Angle 2b) as the fix |
+| `_rcu` changes nothing | not RCU; instrument inside ebpf-manager's `Manager.Stop` next |
+| time is in `Resolvers.Close` or `consumers.Stop/<id>` | product-code teardown bug, not a kernel cost |
+| time is in `newTestModule/cmdWrapper` | it is `newDockerCmdWrapper`, not the probe at all |
+| `loadavg` >> 4 with high PSI `some` | large contention component → Angle 1 first |
+
+### Pre-flight already done locally
+
+- `dda inv -e security-agent.build-functional-tests` — compiles; golangci-lint 0 issues
+- `dda inv -e linter.go --targets=./pkg/eventmonitor,./pkg/security/probe,./pkg/security/seclog` — passed
+- `dda inv -e linter.gitlab-ci` — passed. Note `kmt_secagent_tests_join1_x64` was already at
+  the GitLab 50-`needs` ceiling (25 + 1 + 2 + 22), which is why the new job hangs off join2.
+- `dda inv -e linter.gitlab-ci-jobs-codeowners`, `linter.gitlab-change-paths` — passed
+- `kmt.gen-config` derives vmsets from this yml, so the new test sets provision VMs
+  automatically: `cws_teardown -> 2`, `cws_teardown_rcu -> 2`
+- `testsuite -test.list` resolves all 10 anchored names to exactly 10 tests
+
+### To trigger
+
+```bash
+git push -u origin daniel.mercier/faster-ci
+gh pr create --draft --title "[DO NOT MERGE] Measure CWS eBPF probe teardown cost in KMT" --body "..."
+```
+
+Then read the four `kmt_run_secagent_tests_x64_teardown` jobs. KMT jobs run on
+`.on_security_agent_changes_or_manual`, and this branch touches `pkg/security/**`, so they
+fire automatically.
+
+## 10. How to reproduce the analysis
 
 ```bash
 # job trace (gitlab.ddbuild.io is OAuth-gated; dda handles auth)
