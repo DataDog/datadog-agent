@@ -118,10 +118,8 @@ export interface AnomalyDebugInfo {
   baselineStddev?: number;
   baselineMAD?: number;
   threshold: number;
-  slackParam?: number;
   currentValue: number;
   deviationSigma: number;
-  cusumValues?: number[];
 }
 
 export interface Anomaly {

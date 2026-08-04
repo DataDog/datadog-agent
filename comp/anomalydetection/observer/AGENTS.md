@@ -58,7 +58,7 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
 | Detector | `rrcf` | on |
-| Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
+| Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | on |
 | Correlator | `cross_signal`, `passthrough` | off |
 | Correlator | `anomaly_scorer` | off |

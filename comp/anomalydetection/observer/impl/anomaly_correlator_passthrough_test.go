@@ -20,23 +20,23 @@ func passthroughSource(name string) observer.SeriesDescriptor {
 func TestDetectorPassthroughCorrelator_OnePerAnomaly(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), Timestamp: 100})
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Source: passthroughSource("redis.cpu.sys"), Timestamp: 105})
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.info.latency_ms"), Timestamp: 110})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "detector_b", Source: passthroughSource("redis.cpu.sys"), Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "detector_a", Source: passthroughSource("redis.cpu.sys"), Timestamp: 105})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "detector_b", Source: passthroughSource("redis.info.latency_ms"), Timestamp: 110})
 
 	corrs := c.ActiveCorrelations()
 	// 3 anomalies = 3 correlations (one per anomaly)
 	require.Len(t, corrs, 3)
 
-	// Sorted by detector name (bocpd before cusum), then by timestamp within detector
-	assert.Equal(t, "passthrough_bocpd_0", corrs[0].Pattern)
+	// Sorted by detector name, then by timestamp within detector
+	assert.Equal(t, "passthrough_detector_a_0", corrs[0].Pattern)
 	assert.Equal(t, int64(105), corrs[0].FirstSeen)
 	assert.Len(t, corrs[0].Anomalies, 1)
 
-	assert.Equal(t, "passthrough_cusum_0", corrs[1].Pattern)
+	assert.Equal(t, "passthrough_detector_b_0", corrs[1].Pattern)
 	assert.Equal(t, int64(100), corrs[1].FirstSeen)
 
-	assert.Equal(t, "passthrough_cusum_1", corrs[2].Pattern)
+	assert.Equal(t, "passthrough_detector_b_1", corrs[2].Pattern)
 	assert.Equal(t, int64(110), corrs[2].FirstSeen)
 }
 
@@ -59,7 +59,7 @@ func TestDetectorPassthroughCorrelator_TimestampOrdering(t *testing.T) {
 func TestDetectorPassthroughCorrelator_SeriesIDAndSource(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Source: passthroughSource("redis.cpu.sys"), Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "detector_a", Source: passthroughSource("redis.cpu.sys"), Timestamp: 100})
 
 	corrs := c.ActiveCorrelations()
 	require.Len(t, corrs, 1)
@@ -70,7 +70,7 @@ func TestDetectorPassthroughCorrelator_SeriesIDAndSource(t *testing.T) {
 func TestDetectorPassthroughCorrelator_Reset(t *testing.T) {
 	c := NewDetectorPassthroughCorrelator()
 
-	c.ProcessAnomaly(observer.Anomaly{DetectorName: "cusum", Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{DetectorName: "detector_a", Timestamp: 100})
 	require.Len(t, c.ActiveCorrelations(), 1)
 
 	c.Reset()

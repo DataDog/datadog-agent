@@ -323,14 +323,6 @@ export function ChartWithAnomalyDetails({
                               );
                             })}
                           </div>
-
-                          {/* CUSUM sparkline - gated on field existence, not algorithm name */}
-                          {debug.cusumValues && debug.cusumValues.length > 1 && (
-                            <div className="mt-2">
-                              <div className="text-slate-500 mb-1">CUSUM accumulator:</div>
-                              <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
-                            </div>
-                          )}
                         </>
                       )}
 
@@ -355,57 +347,5 @@ export function ChartWithAnomalyDetails({
         </div>
       )}
     </div>
-  );
-}
-
-function CUSUMSparkline({ values, threshold }: { values: number[]; threshold: number }) {
-  const height = 32;
-  const width = 180;
-  const padding = 2;
-
-  const maxVal = Math.max(threshold * 1.2, ...values.map(Math.abs));
-  const minVal = -maxVal;
-
-  const scaleY = (v: number) => {
-    return height - padding - ((v - minVal) / (maxVal - minVal)) * (height - 2 * padding);
-  };
-
-  const points = values
-    .map((v, i) => {
-      const x = padding + (i / (values.length - 1)) * (width - 2 * padding);
-      const y = scaleY(v);
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  const zeroY = scaleY(0);
-  const thresholdY = scaleY(threshold);
-  const negThresholdY = scaleY(-threshold);
-
-  return (
-    <svg width={width} height={height} className="bg-slate-800 rounded">
-      <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#475569" strokeWidth="1" />
-      <line
-        x1={padding}
-        y1={thresholdY}
-        x2={width - padding}
-        y2={thresholdY}
-        stroke="#ef4444"
-        strokeWidth="1"
-        strokeDasharray="2,2"
-        opacity="0.5"
-      />
-      <line
-        x1={padding}
-        y1={negThresholdY}
-        x2={width - padding}
-        y2={negThresholdY}
-        stroke="#ef4444"
-        strokeWidth="1"
-        strokeDasharray="2,2"
-        opacity="0.5"
-      />
-      <polyline points={points} fill="none" stroke="#8b5cf6" strokeWidth="1.5" />
-    </svg>
   );
 }
