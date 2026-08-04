@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
 )
 
 // withSelection pins the three inputs GetServiceManagerType reads and restores them afterwards.
@@ -26,7 +25,7 @@ func withSelection(t *testing.T, base Type, enabled, installed bool) {
 	t.Cleanup(func() {
 		initSystemType = sync.OnceValue(detectInitSystem)
 		procmgrEnabled = func() bool { return env.FromEnv().ProcessManagerEnabled }
-		procmgrInstalled = procmgr.IsInstalled
+		procmgrInstalled = isProcmgrInstalled
 	})
 }
 

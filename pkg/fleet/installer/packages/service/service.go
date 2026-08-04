@@ -9,11 +9,13 @@
 package service
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
 )
 
 // Type is the service manager type
@@ -33,6 +35,14 @@ const (
 	ProcmgrType Type = "procmgr"
 )
 
+const (
+	// ProcessesDirName is the per-install directory holding one YAML per supervised process.
+	// It's the equivalent of systemd's .service files, but for processes managed by procmgr.
+	ProcessesDirName = "processes.d"
+
+	procmgrDaemonRelPath = "embedded/bin/dd-procmgrd"
+)
+
 // initSystemType memoizes the init system probe. It never returns ProcmgrType: procmgr is a layer
 // on top of systemd, not an init system.
 var initSystemType = sync.OnceValue(detectInitSystem)
@@ -40,7 +50,7 @@ var initSystemType = sync.OnceValue(detectInitSystem)
 // procmgrEnabled and procmgrInstalled are indirected so tests can drive the selection.
 var (
 	procmgrEnabled   = func() bool { return env.FromEnv().ProcessManagerEnabled }
-	procmgrInstalled = procmgr.IsInstalled
+	procmgrInstalled = isProcmgrInstalled
 )
 
 // GetServiceManagerType returns the service manager of the current system.
@@ -58,6 +68,33 @@ func GetServiceManagerType(packagePath string) Type {
 		return SystemdType
 	}
 	return ProcmgrType
+}
+
+// isProcmgrInstalled reports whether binary dd-procmgrd exists.
+func isProcmgrInstalled(installRoot string) bool {
+	fi, err := os.Stat(filepath.Join(installRoot, procmgrDaemonRelPath))
+	if err == nil && !fi.IsDir() {
+		return true
+	}
+	return false
+}
+
+// ConfigDir returns the processes.d directory for an install root.
+func ConfigDir(installRoot string) string {
+	return filepath.Join(installRoot, ProcessesDirName)
+}
+
+// WriteProcess writes a single processes.d entry, creating the directory if needed.
+func WriteProcess(installRoot string, name string, content []byte) error {
+	dir := ConfigDir(installRoot)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+	return nil
 }
 
 func detectInitSystem() Type {

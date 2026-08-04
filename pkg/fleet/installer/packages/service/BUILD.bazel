@@ -9,63 +9,48 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
         ],
         "//conditions:default": [],
     }),
@@ -78,77 +63,62 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/fleet/installer/env",
-            "//pkg/fleet/installer/packages/service/procmgr",
             "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],

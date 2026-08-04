@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/sysvinit"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
@@ -652,7 +651,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.EnableUnit(ctx, s.SystemdMainUnitStable)
 	case service.ProcmgrType:
-		return procmgr.EnableUnit(ctx, s.ProcmgrMainUnitStable)
+		return systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable)
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -671,7 +670,7 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.DisableUnits(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
-		return procmgr.DisableUnits(ctx, s.ProcmgrUnitsStable...)
+		return systemd.DisableUnits(ctx, s.ProcmgrUnitsStable...)
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -698,7 +697,7 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
 	case service.ProcmgrType:
-		return procmgr.RestartUnit(ctx, s.ProcmgrMainUnitStable)
+		return systemd.RestartUnit(ctx, s.ProcmgrMainUnitStable)
 	case service.UpstartType:
 		return upstart.Restart(ctx, s.UpstartMainService)
 	case service.SysvinitType:
@@ -717,7 +716,7 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.ProcmgrType:
-		return procmgr.StopUnits(ctx, reverseStringSlice(s.ProcmgrUnitsStable)...)
+		return systemd.StopUnits(ctx, reverseStringSlice(s.ProcmgrUnitsStable)...)
 	case service.UpstartType:
 		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 	case service.SysvinitType:
@@ -730,7 +729,7 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 // WriteProcesses writes the processes for the given package path
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
 	// Delete existing processes regardless of the service manager to delete old processes if the service manager changes
-	if err := os.RemoveAll(procmgr.ConfigDir(packagePath)); err != nil {
+	if err := os.RemoveAll(service.ConfigDir(packagePath)); err != nil {
 		return fmt.Errorf("failed to delete procmgr processes directory: %v", err)
 	}
 	switch service.GetServiceManagerType(packagePath) {
@@ -784,7 +783,7 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
-		return procmgr.StartUnit(ctx, s.ProcmgrMainUnitExp)
+		return systemd.StartUnit(ctx, s.ProcmgrMainUnitExp)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -803,7 +802,7 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
-		return procmgr.StopUnits(ctx, s.ProcmgrMainUnitExp)
+		return systemd.StopUnits(ctx, s.ProcmgrMainUnitExp)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Experiments are not supported on upstart or sysvinit
 	default:
@@ -915,7 +914,7 @@ func writeEmbeddedProcmgrUnitsAndReload(ctx HookContext, units ...string) error 
 	if err := writeUnitsAndReload(ctx, embedded.GetProcmgrUnit, units...); err != nil {
 		return err
 	}
-	return procmgr.Reload(ctx)
+	return systemd.Reload(ctx)
 }
 
 type embeddedUnitGetter func(name string, unitType embedded.UnitType, ambiantCapabilitiesSupported bool) ([]byte, error)
@@ -956,7 +955,7 @@ func writeEmbeddedProcmgrProcesses(packagePath string, processes ...string) erro
 		if err != nil {
 			return err
 		}
-		if err := procmgr.WriteProcess(packagePath, process, content); err != nil {
+		if err := service.WriteProcess(packagePath, process, content); err != nil {
 			return err
 		}
 	}
