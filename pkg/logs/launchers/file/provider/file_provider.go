@@ -200,7 +200,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 				}
 				files, err := p.CollectFiles(source)
 				if err != nil {
-					source.Status.Error(err)
+					source.Status().Error(err)
 					if shouldLogErrors {
 						log.Warnf("Could not collect files: %v", err)
 					}
@@ -243,7 +243,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					wildcardFileCounter.setTotal(source, len(files))
 				}
 				if err != nil {
-					source.Status.Error(err)
+					source.Status().Error(err)
 					if shouldLogErrors {
 						log.Warnf("Could not collect files: %v", err)
 					}
