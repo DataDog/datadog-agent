@@ -682,6 +682,10 @@ namespace WixSetup.Datadog_Agent
                     EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.PrivateActionRunner)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 });
+
+                // par-control (private action runner control plane, Rust). Plain file in
+                // bin\agent. Only built for non-FIPS flavors, alongside privateactionrunner.exe.
+                agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ParControl));
             }
             var procmgrService = GenerateDependentServiceInstaller(
                 new Id("ddagentprocmgrservice"),
@@ -699,9 +703,6 @@ namespace WixSetup.Datadog_Agent
                 AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
             });
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
-
-            // par-control (private action runner control plane, Rust). Plain file in bin\agent.
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ParControl));
 
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
 

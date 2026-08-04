@@ -95,7 +95,13 @@ rust_test(
     edition = "2024",
     rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    # Linux-only, unlike the library and binary above, which build for both.
+    # The crate links the Agent's OpenSSL, which on Windows is
+    # libcrypto-3-x64.dll / libssl-3-x64.dll consumed via import libs. Bazel
+    # does not stage those next to a rust_test exe, so the test binary fails to
+    # load before main() (STATUS_DLL_NOT_FOUND / exit -1073741515).
+    # TODO(ACTP-xxxx): stage the OpenSSL DLLs so these tests run on Windows too.
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "@crates//:tempfile",
         "@crates//:tokio",

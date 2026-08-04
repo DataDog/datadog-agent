@@ -338,8 +338,13 @@ if windows_target?
   # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
-  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
+
+  unless fips_mode?
+    # par-control is only built alongside privateactionrunner.exe, which is not
+    # shipped in Gov/FIPS yet (see software/datadog-agent.rb).
+    windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
+  end
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -366,9 +371,8 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
-      "#{install_dir}\\bin\\agent\\par-control.exe",
       "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
-    ]
+    ] + (fips_mode? ? [] : ["#{install_dir}\\bin\\agent\\par-control.exe"])
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin

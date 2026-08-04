@@ -60,7 +60,7 @@ func TestResolveUsesEffectiveAgentValues(t *testing.T) {
 	require.True(t, got.NoProxyNonexactMatch)
 	require.True(t, got.SkipSSLValidation)
 	require.Equal(t, "tlsv1.3", got.MinTLSVersion)
-	require.Equal(t, "/run/datadog/ipc_cert.pem", got.IPCCertFile)
+	require.Equal(t, filepath.Join("/run/datadog", "ipc_cert.pem"), got.IPCCertFile)
 	require.Equal(t, "resolved-urn", got.URN)
 	require.Equal(t, "resolved-private-key", got.PrivateKey)
 }
