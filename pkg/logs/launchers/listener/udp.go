@@ -63,10 +63,10 @@ func (l *UDPListener) Start() {
 	err := l.startNewTailer()
 	if err != nil {
 		log.Errorf("Can't start UDP forwarder on port %d: %v", l.source.Config.Port, err)
-		l.source.Status.Error(err)
+		l.source.Status().Error(err)
 		return
 	}
-	l.source.Status.Success()
+	l.source.Status().Success()
 }
 
 // Stop stops the tailer.
@@ -101,10 +101,10 @@ func (l *UDPListener) resetTailer() {
 	err := l.startNewTailer()
 	if err != nil {
 		log.Errorf("Could not reset the UDP connection on port %d: %v", l.source.Config.Port, err)
-		l.source.Status.Error(err)
+		l.source.Status().Error(err)
 		return
 	}
-	l.source.Status.Success()
+	l.source.Status().Success()
 }
 
 // newUDPConnection returns a new UDP connection,
