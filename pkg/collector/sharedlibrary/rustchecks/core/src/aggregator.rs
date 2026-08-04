@@ -6,6 +6,7 @@ use anyhow::{Ok, Result};
 
 /// Replica of the Agent metric type enum
 #[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MetricType {
     Gauge = 0,
     Rate = 1,
@@ -18,6 +19,7 @@ pub enum MetricType {
 
 /// Replica of the Agent service check status
 #[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ServiceCheckStatus {
     OK = 0,
     WARNING = 1,
@@ -42,16 +44,16 @@ pub enum LogLevel {
 /// Replica of the Agent event struct
 #[repr(C)]
 pub struct Event {
-    title: *mut c_char,
-    text: *mut c_char,
-    timestamp: c_long,
-    priority: *mut c_char,
-    host: *mut c_char,
-    tags: *mut *mut c_char,
-    alert_type: *mut c_char,
-    aggregation_key: *mut c_char,
-    source_type_name: *mut c_char,
-    event_type: *mut c_char,
+    pub(crate) title: *mut c_char,
+    pub(crate) text: *mut c_char,
+    pub(crate) timestamp: c_long,
+    pub(crate) priority: *mut c_char,
+    pub(crate) host: *mut c_char,
+    pub(crate) tags: *mut *mut c_char,
+    pub(crate) alert_type: *mut c_char,
+    pub(crate) aggregation_key: *mut c_char,
+    pub(crate) source_type_name: *mut c_char,
+    pub(crate) event_type: *mut c_char,
 }
 
 /// Signature of the submit metric function

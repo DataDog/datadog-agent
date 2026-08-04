@@ -74,6 +74,7 @@ logs_config:
     protect_important_logs: false
     smart_severity_profiles:
       enabled: true
+      cooldown: 0s
       medium:
         rate_limit: 1000
         burst_size: 200
