@@ -114,7 +114,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NSPath
 	nr.Unlock()
 
 	if isNew && netns != nil {
-		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(netns)
 	}
 
@@ -133,7 +133,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 	nr.Unlock()
 
 	if isNew && netns != nil {
-		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(netns)
 	}
 
@@ -242,7 +242,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 				attachedDeviceCountNoLazyDeletion++
 			}
 		} else {
-			seclog.Errorf("error setting up new tc classifier on snapshot: %v", err)
+			nr.reportTCClassifierError(err, device)
 		}
 	}
 
@@ -314,7 +314,7 @@ func (nr *Resolver) SyncCache() bool {
 	nr.Unlock()
 
 	for _, entry := range newEntries {
-		entry.netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		entry.netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 

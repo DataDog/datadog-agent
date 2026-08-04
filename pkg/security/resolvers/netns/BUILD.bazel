@@ -4,6 +4,7 @@ go_library(
     name = "netns",
     srcs = [
         "async.go",
+        "errors.go",
         "graph.go",
         "network_namespace.go",
         "resolver.go",
