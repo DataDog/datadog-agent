@@ -87,6 +87,7 @@ tests_windows-x64:
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e CI
       -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
@@ -118,6 +119,7 @@ tests_windows-x64:
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e CI
       -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
