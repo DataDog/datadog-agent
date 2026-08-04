@@ -441,6 +441,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 
 	routes = append(routes, getOpenTailCallRoutes()...)
 	routes = append(routes, getExecTailCallRoutes()...)
+	routes = append(routes, getSpanFillTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	routes = append(routes, getCacheSyscallTailCallRoutes()...)
