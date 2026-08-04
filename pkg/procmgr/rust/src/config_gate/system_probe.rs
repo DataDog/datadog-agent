@@ -9,7 +9,8 @@
 //!
 //! Mirrors `load()` in `pkg/system-probe/config/config.go` and the NPM back-compat
 //! rule in `pkg/system-probe/config/adjust.go`. Sk-tracer disables USM in
-//! `pkg/system-probe/config/adjust_npm.go`. Module knob resolution uses fleet →
+//! `pkg/system-probe/config/adjust_npm.go`; discovery conflicts in
+//! `pkg/system-probe/config/adjust_discovery.go`. Module knob resolution uses fleet →
 //! env → YAML ([`super::env_bindings`], `pkg/config/model/types.go` precedence).
 //!
 //! **When module enablement changes in Go, update `derived_enabled` below.**
@@ -45,7 +46,7 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
     let csm = cfg.sp_bool("runtime_security_config.enabled")?;
     let gpu = cfg.sp_bool("gpu_monitoring.enabled")?;
     let di = cfg.sp_bool("dynamic_instrumentation.enabled")?;
-    let discovery_service_map = cfg.sp_bool("discovery.service_map.enabled")?;
+    let discovery_service_map = cfg.effective_discovery_service_map()?;
 
     // config.go:133-135 — NetworkTracerModule
     let network_tracer = npm
@@ -138,6 +139,15 @@ impl<'a> Cfg<'a> {
             .resolve_bool(self.sysprobe, key, Some(SYSPROBE_FLEET))
     }
 
+    fn sp_bool_default(&mut self, key: &str, default: bool) -> anyhow::Result<bool> {
+        self.yaml.resolve_bool_with_default(
+            self.sysprobe,
+            key,
+            Some(SYSPROBE_FLEET),
+            default,
+        )
+    }
+
     fn agent_bool(&mut self, key: &str) -> anyhow::Result<bool> {
         self.yaml.resolve_bool(self.agent, key, Some(AGENT_FLEET))
     }
@@ -172,11 +182,29 @@ impl<'a> Cfg<'a> {
     fn effective_usm_enabled(&mut self) -> anyhow::Result<bool> {
         // adjust_npm.go:123-130 gates sk tracer; :131-135 disables USM when it stays on.
         let sk_tracer = self.sp_bool("network_config.enable_sk_tracer")?
-            && self.sp_bool("system_probe_config.enable_co_re")?
-            && self.sp_bool("network_config.enable_ringbuffers")?;
+            && self.sp_bool_default("system_probe_config.enable_co_re", true)?
+            && self.sp_bool_default("network_config.enable_ringbuffers", true)?;
         if sk_tracer {
             return Ok(false);
         }
         self.sp_bool("service_monitoring_config.enabled")
+    }
+
+    /// Discovery service map after `adjustDiscovery` conflict checks.
+    fn effective_discovery_service_map(&mut self) -> anyhow::Result<bool> {
+        if !self.sp_bool("discovery.service_map.enabled")? {
+            return Ok(false);
+        }
+        // adjust_discovery.go:48-52 — full USM makes discovery redundant (pre-adjustNetwork).
+        if self.sp_bool("service_monitoring_config.enabled")? {
+            return Ok(false);
+        }
+        // adjust_discovery.go:61-77 — raw sk_tracer / ebpfless (before adjustNetwork).
+        if self.sp_bool("network_config.enable_sk_tracer")?
+            || self.sp_bool("network_config.enable_ebpfless")?
+        {
+            return Ok(false);
+        }
+        Ok(true)
     }
 }
