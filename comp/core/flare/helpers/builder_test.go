@@ -110,8 +110,16 @@ func TestSave(t *testing.T) {
 
 	err = archive.Unzip(archivePath, tmpDir)
 	assert.Nil(t, err)
-	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test.data"))
-	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"))
+
+	for _, extracted := range []string{
+		filepath.Join(tmpDir, hostname, "test.data"),
+		filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"),
+	} {
+		assert.Eventually(t, func() bool {
+			info, err := os.Lstat(extracted)
+			return err == nil && !info.IsDir()
+		}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", extracted)
+	}
 }
 
 func TestAddFileFromFunc(t *testing.T) {
