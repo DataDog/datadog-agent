@@ -52,6 +52,10 @@ var dockerImageLibrary = map[string][]string{
 		"busybox:1.36.1",
 		"public.ecr.aws/docker/library/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
+	"eclipse-temurin": {
+		"eclipse-temurin:21",
+		"public.ecr.aws/docker/library/eclipse-temurin:21",
+	},
 }
 
 type cmdWrapper interface {

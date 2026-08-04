@@ -86,6 +86,7 @@ type EBPFResolver struct {
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
 	goLabelsMap         ebpf.Map
+	otelTLSMap          ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -96,6 +97,7 @@ type EBPFResolver struct {
 	addedEntriesFromProcFS    *atomic.Int64
 	flushedEntries            *atomic.Int64
 	pathErrStats              *atomic.Int64
+	otelTLSErrStats           *atomic.Int64
 	argsTruncated             *atomic.Int64
 	argsSize                  *atomic.Int64
 	envsTruncated             *atomic.Int64
@@ -217,6 +219,12 @@ func (p *EBPFResolver) SendStats() error {
 	if count := p.pathErrStats.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send process_resolver path error metric: %w", err)
+		}
+	}
+
+	if count := p.otelTLSErrStats.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverOTelTLSError, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver otel tls error metric: %w", err)
 		}
 	}
 
@@ -1191,8 +1199,9 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 }
 
 // AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
-// If the metadata is successfully parsed and the tracer is a Go runtime, it also resolves the
-// pprof label offsets and populates the go_labels_procs BPF map.
+// If the metadata is successfully parsed, it also resolves the thread-context reader for the
+// process: the pprof label offsets (go_labels_procs BPF map) for Go runtimes, and the OTel TLS
+// symbol from the process's ELF binary (otel_tls BPF map).
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1208,8 +1217,8 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 
 // SnapshotTracer detects whether a pre-existing process (one that started
 // before the agent) is running a Datadog tracer and, if so, populates the
-// user-space tracer metadata and the kernel-side go_labels_procs offset map
-// the same way the runtime tracer_memfd_seal event handler does.
+// user-space tracer metadata and the kernel-side go_labels_procs / otel_tls
+// maps the same way the runtime tracer_memfd_seal event handler does.
 //
 // Called from the startup snapshot for every pid; processes without a tracer
 // memfd return cheaply via the GetTracerMetadata error path.
@@ -1233,10 +1242,11 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	p.applyTracerMetadata(pid, tmeta)
 }
 
-// applyTracerMetadata stores tracer metadata on the process cache entry and,
-// for Go processes, resolves the pprof label offsets for goroutine-level span
-// context. Must be called WITHOUT the resolver lock held; ELF I/O happens
-// outside the lock.
+// applyTracerMetadata stores tracer metadata on the process cache entry and
+// resolves the thread-context reader for the process: the pprof label offsets
+// for goroutine-level span context on Go processes, the native OTel TLS symbol
+// for TLSDESC-based span context otherwise. Must be called WITHOUT the resolver
+// lock held; ELF I/O happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
@@ -1250,6 +1260,26 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
 		}
 	}
+
+	// Native: resolve OTel TLS symbol for TLSDESC-based span context.
+	if p.otelTLSMap != nil {
+		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			p.otelTLSErrStats.Inc()
+			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+		}
+	}
+}
+
+// resolveAndUpdateOTelTLS prepares the OTel TLS lookup metadata and writes it
+// to the otel_tls BPF map.
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
+	res, err := resolveOTelTLS(pid, tracerLanguage)
+	if err != nil {
+		return err
+	}
+
+	value := serializeOTelTLSValue(res)
+	return p.otelTLSMap.Put(pid, value)
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1320,6 +1350,9 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	p.goLabelsMap, _ = managerhelper.Map(p.manager, "go_labels_procs")
+
+	// otel_tls map is optional — non-fatal if not found.
+	p.otelTLSMap, _ = managerhelper.Map(p.manager, "otel_tls")
 
 	go p.cacheFlush(ctx)
 
@@ -1659,6 +1692,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		addedEntriesFromProcFS:    atomic.NewInt64(0),
 		flushedEntries:            atomic.NewInt64(0),
 		pathErrStats:              atomic.NewInt64(0),
+		otelTLSErrStats:           atomic.NewInt64(0),
 		argsTruncated:             atomic.NewInt64(0),
 		argsSize:                  atomic.NewInt64(0),
 		envsTruncated:             atomic.NewInt64(0),

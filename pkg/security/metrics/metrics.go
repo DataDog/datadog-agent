@@ -183,6 +183,9 @@ var (
 	// MetricProcessResolverPathError is the name of the metric used to report process path resolution errors
 	// Tags: -
 	MetricProcessResolverPathError = newRuntimeMetric(".process_resolver.path_error")
+	// MetricProcessResolverOTelTLSError is the name of the metric used to report OTel TLS context resolution failures
+	// Tags: -
+	MetricProcessResolverOTelTLSError = newRuntimeMetric(".process_resolver.otel_tls_error")
 	// MetricProcessResolverHits is the name of the metric used to report the process resolver cache hits
 	// Tags: type
 	MetricProcessResolverHits = newRuntimeMetric(".process_resolver.hits")

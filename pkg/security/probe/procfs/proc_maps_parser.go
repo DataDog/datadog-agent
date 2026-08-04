@@ -23,6 +23,9 @@ const MaxMmapedFilesPerProcess = 128
 
 // MapsEntry represents a parsed entry from /proc/[pid]/maps
 type MapsEntry struct {
+	StartAddr   uint64 // start of the mapped address range
+	EndAddr     uint64 // end of the mapped address range
+	Offset      uint64 // offset into the mapped file
 	Permissions string // e.g., "r-xp", "rw-p"
 	Pathname    string // e.g., "/usr/lib/libc.so.6" or "[heap]"
 }
@@ -35,14 +38,16 @@ var (
 	//    00651000-00652000 r--p 00051000 08:02 173521      /usr/bin/dbus-daemon
 	//    00652000-00655000 rw-p 00052000 08:02 173521      /usr/bin/dbus-daemon
 	mapsLineRegex = regexp.MustCompile(`^` +
-		`(?:\S+)` + // address
+		`(?P<address>\S+)` + // address
 		`\s+(?P<perms>\S+)` + // perms
-		`\s+(?:\S+)` + // offset
+		`\s+(?P<offset>\S+)` + // offset
 		`\s+(?:\S+)` + // dev
 		`\s+(?:\S+)` + // inode
 		`(?:\s+(?P<pathname>.+))?` +
 		`$`)
+	addressIdx  = mapsLineRegex.SubexpIndex("address")
 	permsIdx    = mapsLineRegex.SubexpIndex("perms")
+	offsetIdx   = mapsLineRegex.SubexpIndex("offset")
 	pathnameIdx = mapsLineRegex.SubexpIndex("pathname")
 )
 
@@ -54,6 +59,22 @@ func ParseMapsLine(line []byte) (MapsEntry, bool) {
 	}
 
 	entry := MapsEntry{}
+
+	// Extract the start-end address range. Parsing is best-effort: real file
+	// mappings always carry a valid hex range, but we keep the entry on failure
+	// so callers that only need perms/pathname are unaffected.
+	if m[addressIdx*2] != -1 {
+		address := line[m[addressIdx*2]:m[addressIdx*2+1]]
+		if dash := bytes.IndexByte(address, '-'); dash > 0 {
+			entry.StartAddr, _ = strconv.ParseUint(string(address[:dash]), 16, 64)
+			entry.EndAddr, _ = strconv.ParseUint(string(address[dash+1:]), 16, 64)
+		}
+	}
+
+	// Extract the file offset.
+	if m[offsetIdx*2] != -1 {
+		entry.Offset, _ = strconv.ParseUint(string(line[m[offsetIdx*2]:m[offsetIdx*2+1]]), 16, 64)
+	}
 
 	// Extract permissions
 	if m[permsIdx*2] != -1 {

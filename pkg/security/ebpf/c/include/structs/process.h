@@ -140,4 +140,100 @@ struct go_labels_scratch_t {
     struct go_slice_t slice;
 };
 
+// OTel Thread Local Context Record (per OTel spec PR #4947).
+struct otel_thread_ctx_record_t {
+    u8 trace_id[16];     // W3C Trace Context byte order (big-endian)
+    u8 span_id[8];       // W3C Trace Context byte order (big-endian)
+    u8 valid;            // must be 1 for the record to be considered valid
+    u8 _reserved;        // padding for alignment
+    u16 attrs_data_size; // size of custom attributes data following this header
+};
+
+// Maximum size of OTel custom attributes data stored in the otel_span_attrs map.
+// The RFC allows up to 65535 bytes (u16), but typical records are <=64 bytes.
+// 256 bytes is generous while keeping BPF map value size reasonable.
+#define OTEL_ATTRS_MAX_SIZE 256
+
+// Key for the otel_span_attrs map: uniquely identifies one event-side
+// attributes snapshot. Multiple events can observe the same active span with
+// different attributes before userspace drains them.
+struct otel_span_attrs_key_t {
+    u64 id;
+};
+
+// Value for the otel_span_attrs map: raw attrs_data bytes from the OTel record.
+// Format per RFC: repeated [key(u8) + length(u8) + val(u8[length])].
+struct otel_span_attrs_t {
+    u16 size;                        // actual size of attrs_data
+    u8  data[OTEL_ATTRS_MAX_SIZE];   // raw attribute bytes
+};
+
+// Offset of otel_thread_ctx_record_t.valid from the record base.
+#define OTEL_THREAD_CTX_VALID_OFFSET 24
+
+// OTel TLS lookup modes for otel_tls_t.mode.
+// User-space identifies the mapped ELF object exporting the STT_TLS
+// `otel_thread_ctx_v1` symbol and stores file-derived metadata here. eBPF then
+// resolves the current process's runtime TLS module ID by walking the dynamic
+// loader's live module list, matching the glibc tls-modid-bpf sample. Fully
+// static no-loader executables use the main-module DTV convention.
+#define OTEL_TLS_MODE_STATIC_MAIN 1
+#define OTEL_TLS_MODE_LINK_MAP    2
+
+// OTel TLS lookup status values used internally by the eBPF resolver.
+#define OTEL_TLS_LOOKUP_OK 0
+#define OTEL_TLS_LOOKUP_NO_PT_TLS 2
+#define OTEL_TLS_LOOKUP_OFFSET_OUT_OF_RANGE 3
+#define OTEL_TLS_LOOKUP_NO_R_DEBUG 5
+#define OTEL_TLS_LOOKUP_R_DEBUG_READ_ERROR 6
+#define OTEL_TLS_LOOKUP_LINK_MAP_READ_ERROR 7
+#define OTEL_TLS_LOOKUP_LINK_MAP_NOT_FOUND 8
+#define OTEL_TLS_LOOKUP_BAD_MODE 9
+#define OTEL_TLS_LOOKUP_NO_THREAD_POINTER 10
+#define OTEL_TLS_LOOKUP_DTV_READ_ERROR 11
+#define OTEL_TLS_LOOKUP_TLS_BLOCK_UNAVAILABLE 12
+
+#define OTEL_TLS_MAX_LINK_MAPS 256
+#define OTEL_TLS_MAX_MODULE_ID 4096
+// 8192 hash slots make struct otel_tls_t 1192 bytes: 120-byte metadata header,
+// 128*8-byte module bitmap, and 48-byte eBPF result tail. In 1000 empirical
+// 256 TLS / 256 non-TLS trials, every case found a collision-free seed within
+// the 1<<20 cap: mean 2954.5 tries, median 2081, min 1, max 18683.
+#define OTEL_TLS_HASH_SLOTS 8192
+#define OTEL_TLS_HASH_WORDS (OTEL_TLS_HASH_SLOTS / 64)
+
+// OTel TLS registration for a process. The first block is written by
+// user-space after reading only ELF files and procfs metadata. The final
+// resolver fields are cached by eBPF after reading the target process's live
+// loader state.
+struct otel_tls_t {
+    u64 dt_debug_value_addr;          // live address of main executable DT_DEBUG.d_un
+    u64 target_load_bias;             // loader link_map l_addr to match
+    u64 target_symbol_offset;         // STT_TLS st_value, offset in module TLS block
+    u64 target_symbol_size;           // STT_TLS st_size
+    u64 target_tls_memsz;             // defining module PT_TLS p_memsz
+    u64 r_debug_r_map_offset;         // offset from struct r_debug to r_map
+    u64 link_map_l_addr_offset;       // offset to loader module load bias/base
+    u64 link_map_l_next_offset;       // offset to next loader module
+    u64 link_map_l_real_offset;       // offset to canonical module node, or 0
+    u64 link_map_l_tls_modid_offset;  // glibc _thread_db_link_map_l_tls_modid
+    u64 link_map_l_tls_offset_offset; // glibc _thread_db_link_map_l_tls_offset
+    s64 tcb_dtv_offset;               // signed offset from thread pointer to DTV pointer
+    u64 dtv_entry_size;               // size of one DTV entry
+    u64 dtv_entry_pointer_offset;     // offset within one DTV entry to TLS block pointer
+    u64 tls_module_hash_seed;         // seed for tls_module_hash_bits
+    u64 tls_module_hash_bits[OTEL_TLS_HASH_WORDS]; // file-derived PT_TLS module set
+
+    u64 resolved_mod_id;              // runtime TLS module ID found by eBPF
+    s64 resolved_static_tls_offset;   // glibc static TLS offset, when available
+    s32 resolved_read_error;          // bpf_probe_read_user error for status
+    u32 mode;                         // OTEL_TLS_MODE_* constant
+    u32 reconstruct_module_ids;       // fallback: count known PT_TLS modules in loader order
+    u32 tls_module_count;             // number of PT_TLS modules encoded in hash bits
+    u32 runtime;                      // enum otel_runtime_language
+    u32 resolved;                     // non-zero once eBPF wrote resolver fields
+    u32 status;                       // OTEL_TLS_LOOKUP_* value
+    u32 _pad;
+};
+
 #endif
