@@ -516,6 +516,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
+require github.com/antithesishq/antithesis-sdk-go v0.7.2
+
 require (
 	cel.dev/expr v0.25.2 // indirect
 	cloud.google.com/go v0.123.0 // indirect

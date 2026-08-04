@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/antithesishq/antithesis-sdk-go/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
@@ -312,6 +314,11 @@ func start(log log.Component,
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	// Antithesis bootstrap property: proves the SDK is linked and reporting
+	// correctly. Every antithesis-setup run must reach this line. Real
+	// properties are added by antithesis-workload.
+	assert.Reachable("cluster-agent start() entered", nil)
 
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
