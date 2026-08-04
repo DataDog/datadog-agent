@@ -478,12 +478,27 @@ fn lookup_mapping_case_insensitive<'a>(
 }
 
 fn lookup_dotted_key<'a>(root: &'a serde_yaml::Value, key: &str) -> Option<&'a serde_yaml::Value> {
-    let mut current = root;
-    for segment in key.split('.') {
-        let mapping = current.as_mapping()?;
-        current = lookup_mapping_case_insensitive(mapping, segment)?;
+    lookup_dotted_key_in_mapping(root, key)
+}
+
+/// Resolves a dotted config key in raw YAML, mirroring Agent flattened keys.
+///
+/// The Agent expands keys containing `.` into nested maps in
+/// `read_config_file.go`; serde_yaml preserves literal dotted keys. At each
+/// mapping, try the full remaining key before descending segment-by-segment.
+fn lookup_dotted_key_in_mapping<'a>(
+    current: &'a serde_yaml::Value,
+    key: &str,
+) -> Option<&'a serde_yaml::Value> {
+    let mapping = current.as_mapping()?;
+
+    if let Some(value) = lookup_mapping_case_insensitive(mapping, key) {
+        return Some(value);
     }
-    Some(current)
+
+    let (first, rest) = key.split_once('.')?;
+    let next = lookup_mapping_case_insensitive(mapping, first)?;
+    lookup_dotted_key_in_mapping(next, rest)
 }
 
 fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
@@ -656,6 +671,45 @@ process_config:
             lookup_dotted_key(&yaml, "process_config.process_collection.enabled"),
             Some(&serde_yaml::Value::Bool(true))
         );
+    }
+
+    #[test]
+    fn lookup_dotted_key_supports_flattened_top_level_yaml() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "process_config.process_collection.enabled: true\nprocess_config.container_collection.enabled: false\nprocess_config.process_discovery.enabled: false\n",
+        )
+        .unwrap();
+        assert_eq!(
+            lookup_dotted_key(&yaml, "process_config.process_collection.enabled"),
+            Some(&serde_yaml::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn lookup_dotted_key_supports_partially_flattened_yaml() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "process_config:\n  process_collection.enabled: true\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+        )
+        .unwrap();
+        assert_eq!(
+            lookup_dotted_key(&yaml, "process_config.process_collection.enabled"),
+            Some(&serde_yaml::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn flattened_yaml_key_enables_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config.process_collection.enabled: true\nprocess_config.container_collection.enabled: false\nprocess_config.process_discovery.enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
     }
 
     #[test]
