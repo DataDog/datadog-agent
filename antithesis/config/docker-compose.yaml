@@ -99,7 +99,14 @@ services:
     hostname: cluster-agent-etcd
     platform: linux/amd64
     init: true
-    image: registry.k8s.io/etcd:3.5.16-0
+    # Tagged locally as cluster-agent-etcd (docker tag registry.k8s.io/etcd:3.5.16-0
+    # cluster-agent-etcd:antithesis) instead of referencing registry.k8s.io directly.
+    # snouty only pushes images it doesn't already consider "in a registry" — a
+    # registry.k8s.io/docker.io reference is skipped, but Antithesis's provisioning
+    # environment can't actually reach those registries (no internet access; see
+    # antithesis/README.md). A plain local tag forces snouty to push it to our
+    # reachable ANTITHESIS_REPOSITORY like every other image in this compose file.
+    image: cluster-agent-etcd:antithesis
     environment:
       NO_COLOR: "1"
     command:
@@ -202,7 +209,8 @@ services:
     hostname: cluster-agent-workload
     platform: linux/amd64
     init: true
-    image: docker.io/library/debian:stable-slim
+    # Locally re-tagged, same reason as etcd above — see that comment.
+    image: cluster-agent-workload-base:antithesis
     environment:
       NO_COLOR: "1"
     depends_on:

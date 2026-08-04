@@ -136,11 +136,34 @@ workload/test-template are still placeholders, `antithesis-workload`'s job.)
   control test to a `$HOME` path, which worked. This doesn't affect the real
   Antithesis environment (no macOS/Colima boundary exists there) — workaround for
   local runs: `TMPDIR="$HOME/.cache/snouty-tmp" snouty validate antithesis/config`.
+- **First real `snouty launch` failed: `etcd`/`debian` images referenced their
+  original public registries** (`registry.k8s.io`, `docker.io`). `snouty` only
+  pushes images it doesn't already consider "in a registry" — it assumed
+  Antithesis could pull these directly, but Antithesis's provisioning
+  environment has no general internet access (the same hermetic-execution
+  constraint as `kube-init`, above). Fixed by retagging both under plain local
+  tags (`cluster-agent-etcd:antithesis`, `cluster-agent-workload-base:antithesis`)
+  so `snouty` mirrors them into `ANTITHESIS_REPOSITORY` like every other image.
+  **Every image in the compose file needs to be reachable from our own
+  registry, not just the ones we build.**
+- **Plain `docker pull --platform linux/amd64` silently ignored the platform
+  flag on this Colima setup** — even a fresh pull after `docker rmi` still
+  resolved to the host's native arm64, causing `snouty launch` to fail with
+  `'docker image inspect ...' returned empty architecture`. Fixed by resolving
+  through `buildx` instead, which correctly honors `--platform`:
+  `printf 'FROM <image>\n' | docker buildx build --platform linux/amd64 --load -t <tag> -f - .`
+  Full details and the exact commands: `~/sandbox/antithesis-cluster-agent-run-2026-08-04/NOTES.md`.
 
 ## What's not done yet
 
-- The rest of `references/submit-and-test.md` (actual submission via
-  `antithesis-launch`) is still pending — `snouty validate` is confirmed passing.
+- **`snouty launch` accepted a second run** (`c46848efc4156ead5a6ff7a8a7b3d10a-58-11`,
+  10 min, webhook `basic_test`) after fixing the two image-mirroring bugs above.
+  The first attempt (`725488c3bbf9b06ad02e8bca4d197a16-58-11`) was also
+  *accepted* (202) but then failed Antithesis's own internal setup validation
+  once provisioned — `snouty launch` returning 202 only means the request was
+  queued, not that the run will actually come up. Still need to check this
+  second run's outcome via `snouty runs --json show <run_id>` once it
+  provisions.
 - `workload` is still a no-op placeholder — `antithesis-workload`'s job.
 - The "Deferred decisions" list in `scratchbook/deployment-topology.md` (webhook
   Service selector, StatefulSet vs Deployment, whether to request clock-skew/
