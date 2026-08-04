@@ -156,7 +156,7 @@ scan_data:
                 },
                 ScannedColumn {
                     name: "name".to_string(),
-                    data_type: "text".to_string(),
+                    data_type: "varchar".to_string(),
                 },
             ],
             scanned_row_count: 2,
@@ -214,7 +214,7 @@ scan_data:
                                     },
                                     PostgresScannedColumn {
                                         name: "name".to_string(),
-                                        data_type: "text".to_string(),
+                                        data_type: "varchar".to_string(),
                                     },
                                 ],
                                 ..Default::default()
