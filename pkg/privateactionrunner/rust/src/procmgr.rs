@@ -1,0 +1,155 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//! Executor lifecycle through the existing dd-procmgrd gRPC API.
+
+use crate::proto::procmgr;
+use crate::proto::procmgr::process_manager_client::ProcessManagerClient;
+use crate::transport;
+use anyhow::{Context, Result, bail};
+use std::path::Path;
+use std::time::Duration;
+use tonic::transport::Channel;
+
+const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+#[derive(Clone)]
+pub struct ProcmgrLifecycle {
+    client: ProcessManagerClient<Channel>,
+    process_name: String,
+}
+
+impl ProcmgrLifecycle {
+    pub fn new(socket: &Path, process_name: String) -> Self {
+        Self {
+            client: ProcessManagerClient::new(transport::connect_lazy(socket)),
+            process_name,
+        }
+    }
+
+    pub async fn ensure_started(&self) -> Result<()> {
+        loop {
+            match self.describe_state().await? {
+                Some(procmgr::ProcessState::Running | procmgr::ProcessState::Starting) => {
+                    return Ok(());
+                }
+                Some(procmgr::ProcessState::Stopping) => {
+                    tokio::time::sleep(STATE_POLL_INTERVAL).await;
+                }
+                Some(_) => {
+                    log::info!(
+                        "starting executor {:?} through dd-procmgrd",
+                        self.process_name
+                    );
+                    let mut client = self.client.clone();
+                    client
+                        .start(procmgr::StartRequest {
+                            name_or_uuid: self.process_name.clone(),
+                        })
+                        .await
+                        .with_context(|| {
+                            format!("process-manager Start failed for {:?}", self.process_name)
+                        })?;
+                    return Ok(());
+                }
+                None => bail!(
+                    "process-manager has no definition for {:?}",
+                    self.process_name
+                ),
+            }
+        }
+    }
+
+    /// Wait until the executor reaches a terminal state. The caller treats this
+    /// as an unexpected exit and lets dd-procmgrd restart par-control.
+    pub async fn wait_for_exit(&self) -> Result<procmgr::ProcessState> {
+        loop {
+            let state = self.describe_state().await?.with_context(|| {
+                format!(
+                    "process-manager lost the definition for {:?}",
+                    self.process_name
+                )
+            })?;
+            if is_terminal(&state) {
+                return Ok(state);
+            }
+            tokio::time::sleep(STATE_POLL_INTERVAL).await;
+        }
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        if self
+            .describe_state()
+            .await?
+            .is_none_or(|state| is_terminal(&state))
+        {
+            return Ok(());
+        }
+        log::info!(
+            "stopping executor {:?} through dd-procmgrd",
+            self.process_name
+        );
+        let mut client = self.client.clone();
+        client
+            .stop(procmgr::StopRequest {
+                name_or_uuid: self.process_name.clone(),
+            })
+            .await
+            .with_context(|| format!("process-manager Stop failed for {:?}", self.process_name))?;
+        Ok(())
+    }
+
+    async fn describe_state(&self) -> Result<Option<procmgr::ProcessState>> {
+        let mut client = self.client.clone();
+        let response = client
+            .describe(procmgr::DescribeRequest {
+                name_or_uuid: self.process_name.clone(),
+            })
+            .await
+            .with_context(|| {
+                format!(
+                    "process-manager Describe failed for {:?}",
+                    self.process_name
+                )
+            })?
+            .into_inner();
+        response
+            .detail
+            .map(|detail| {
+                procmgr::ProcessState::try_from(detail.state)
+                    .context("process-manager returned an unknown process state")
+            })
+            .transpose()
+    }
+}
+
+fn is_terminal(state: &procmgr::ProcessState) -> bool {
+    matches!(
+        state,
+        procmgr::ProcessState::Stopped
+            | procmgr::ProcessState::Crashed
+            | procmgr::ProcessState::Exited
+            | procmgr::ProcessState::Failed
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identifies_terminal_states() {
+        for state in [
+            procmgr::ProcessState::Stopped,
+            procmgr::ProcessState::Crashed,
+            procmgr::ProcessState::Exited,
+            procmgr::ProcessState::Failed,
+        ] {
+            assert!(is_terminal(&state));
+        }
+        assert!(!is_terminal(&procmgr::ProcessState::Running));
+        assert!(!is_terminal(&procmgr::ProcessState::Starting));
+    }
+}
