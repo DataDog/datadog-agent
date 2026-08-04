@@ -95,6 +95,45 @@ func TestLegacyEccMetricOverlapRules(t *testing.T) {
 	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
 }
 
+func TestECCMetricsEmitAggregateAndVolatileCounters(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+		device.GetMemoryErrorCounterFunc = func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, nvml.Return) {
+			require.Equal(t, nvml.MEMORY_ERROR_TYPE_CORRECTED, errorType)
+			require.Equal(t, nvml.MEMORY_LOCATION_DEVICE_MEMORY, memoryLocation)
+
+			switch counterType {
+			case nvml.AGGREGATE_ECC:
+				return 10, nvml.SUCCESS
+			case nvml.VOLATILE_ECC:
+				return 3, nvml.SUCCESS
+			default:
+				require.Failf(t, "unexpected ECC counter type", "counter type: %d", counterType)
+				return 0, nvml.ERROR_INVALID_ARGUMENT
+			}
+		}
+	}))
+
+	apis := createStatelessAPIs(&CollectorDependencies{})
+	api := findAPICallByName(t, apis, "ecc_errors.corrected.device_memory")
+
+	metricsOut, _, err := api.Handler(device, 0)
+	require.NoError(t, err)
+	require.Equal(t, []Metric{
+		{
+			Name:  "errors.ecc.corrected.total",
+			Value: 10,
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:device_memory"},
+		},
+		{
+			Name:  "errors.ecc.corrected.volatile",
+			Value: 3,
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:device_memory"},
+		},
+	}, metricsOut)
+}
+
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithMockAllFunctions())

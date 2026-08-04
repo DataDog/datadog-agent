@@ -818,7 +818,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 	}
 
-	// Create APIs for ECC errors
+	// Create APIs for aggregate and volatile ECC errors.
 	for errorType, errorTypeName := range eccErrorTypeToName {
 		for memoryLocation, memoryLocationName := range memoryLocationToName {
 			apis = append(apis, apiCallInfo{
@@ -828,18 +828,31 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", nvml.ERROR_NOT_SUPPORTED)
 					}
 
-					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
+					aggregateCount, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
 					if err != nil {
 						return nil, 0, err
 					}
-					return []Metric{{
-						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
-						Value: float64(count),
-						Type:  metrics.GaugeType,
-						Tags: []string{
-							"memory_location:" + memoryLocationName,
+
+					volatileCount, err := device.GetMemoryErrorCounter(errorType, nvml.VOLATILE_ECC, memoryLocation)
+					if err != nil {
+						return nil, 0, err
+					}
+
+					tags := []string{"memory_location:" + memoryLocationName}
+					return []Metric{
+						{
+							Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
+							Value: float64(aggregateCount),
+							Type:  metrics.GaugeType,
+							Tags:  tags,
 						},
-					}}, 0, nil
+						{
+							Name:  fmt.Sprintf("errors.ecc.%s.volatile", errorTypeName),
+							Value: float64(volatileCount),
+							Type:  metrics.GaugeType,
+							Tags:  tags,
+						},
+					}, 0, nil
 				},
 			})
 		}
