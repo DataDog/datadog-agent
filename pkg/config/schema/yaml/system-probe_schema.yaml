@@ -1287,6 +1287,15 @@ properties:
         description: |-
           Set to true to enable the GPU Monitoring module, enabling collection of privileged metrics.
           Must be used together with gpu.enabled: true in datadog.yaml.
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to additionally load the GPU Monitoring eBPF probes, which collect
+          the gpu.process.core.usage metric. Requires Linux kernel 5.8 or later.
+          These probes are deprecated and are disabled by default.
       attacher_detailed_logs:
         node_type: setting
         type: boolean
@@ -1313,15 +1322,6 @@ properties:
         format: duration
         tags:
         - golang_type:duration
-      enable_ebpf_probes:
-        node_type: setting
-        type: boolean
-        default: false
-        visibility: public
-        description: |-
-          Set to true to additionally load the GPU Monitoring eBPF probes, which collect
-          the gpu.process.core.usage metric. Requires Linux kernel 5.8 or later.
-          These probes are deprecated and are disabled by default.
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
