@@ -80,3 +80,93 @@ macro_rules! generate_ffi {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{AgentCheck, Aggregator, AggregatorStub};
+
+    use anyhow::{Result, bail};
+
+    use std::cell::Cell;
+    use std::ffi::{CStr, CString, c_char};
+
+    // Per-thread check behavior. A single `generate_ffi!` `Run` (one `#[no_mangle]`
+    // symbol) is driven by each test via this thread-local.
+    #[derive(Clone, Copy)]
+    enum Behavior {
+        Panic,
+        Error,
+        Success,
+    }
+
+    thread_local! {
+        static BEHAVIOR: Cell<Behavior> = const { Cell::new(Behavior::Success) };
+    }
+
+    fn configurable_check(_check: &AgentCheck) -> Result<()> {
+        match BEHAVIOR.with(Cell::get) {
+            Behavior::Panic => panic!("divide by zero"),
+            Behavior::Error => bail!("check failed"),
+            Behavior::Success => Ok(()),
+        }
+    }
+
+    const TEST_VERSION: &CStr = c"test";
+
+    generate_ffi!(configurable_check, TEST_VERSION);
+
+    /// Calls the generated `Run` and returns the reported error message
+    /// (`strdup`-allocated, freed here), or `None` on success.
+    fn run_check() -> Option<String> {
+        let aggregator = AggregatorStub::new().aggregator();
+        let check_id = CString::new("test-check").unwrap();
+        let config = CString::new("{}").unwrap();
+        let mut error_handler: *mut c_char = std::ptr::null_mut();
+
+        Run(
+            check_id.as_ptr(),
+            config.as_ptr(),
+            config.as_ptr(),
+            &aggregator as *const Aggregator,
+            &mut error_handler as *mut *mut c_char,
+        );
+
+        // Null means success: `Run` leaves `error_handler` untouched.
+        if error_handler.is_null() {
+            return None;
+        }
+
+        let msg = unsafe { CStr::from_ptr(error_handler) }
+            .to_str()
+            .unwrap()
+            .to_string();
+        unsafe { libc::free(error_handler as *mut libc::c_void) };
+        Some(msg)
+    }
+
+    #[test]
+    fn run_catches_panic_and_reports_it() {
+        BEHAVIOR.with(|b| b.set(Behavior::Panic));
+
+        let msg = run_check().expect("panicking check should report an error");
+        assert_eq!(msg, "check panicked: divide by zero");
+    }
+
+    #[test]
+    fn run_reports_check_error() {
+        BEHAVIOR.with(|b| b.set(Behavior::Error));
+
+        let msg = run_check().expect("failing check should report an error");
+        assert_eq!(msg, "check failed");
+    }
+
+    #[test]
+    fn run_succeeds_without_error() {
+        BEHAVIOR.with(|b| b.set(Behavior::Success));
+
+        assert!(
+            run_check().is_none(),
+            "successful check should not report an error"
+        );
+    }
+}
