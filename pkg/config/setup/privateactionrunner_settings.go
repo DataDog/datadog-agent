@@ -10,7 +10,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.enabled", false)
 
@@ -61,6 +60,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 
 	// Optional local restriction on backend system-service grants. When
 	// unset, backend grants pass through; an explicit empty map denies all.
+	// The "*" action admits every backend-granted action for an exact service.
 	// The environment variable accepts a JSON object only.
 	config.BindEnvAndSetDefault("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})
 	config.ParseEnvJSON("private_action_runner.restricted_shell.allowed_system_services", map[string][]string{})

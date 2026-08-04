@@ -64,8 +64,9 @@ type RunCommandHandlerConfig struct {
 //     form to match.
 //   - paths compare by containment with the narrower side winning; the
 //     sentinel "/" admits every POSIX or Windows drive-rooted absolute path.
-//   - system services compare exact service and action strings. An unset local
-//     map admits all backend grants, while a configured map intersects them.
+//   - system services compare exact service names and intersect action lists.
+//     The "*" action admits every action granted by the other side for that
+//     service. An unset local map admits all backend grants.
 //
 // An explicitly configured empty operator list or service map is the
 // kill-switch for that axis.
@@ -169,7 +170,8 @@ func backendSystemServiceGrants(backend map[string]*structpb.ListValue) []interp
 
 // filterSystemServiceGrants narrows normalized backend grants with the local
 // operator policy. A nil operator policy leaves the backend grants unchanged,
-// while a configured empty policy denies every service.
+// while a configured empty policy denies every service. Within an exact
+// service, "*" stands for every action granted by the other policy.
 func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemServiceControlGrant) []interp.SystemServiceControlGrant {
 	if h.operatorAllowedSystemServices == nil {
 		return backend
@@ -182,12 +184,7 @@ func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemSer
 			continue
 		}
 
-		actions := make([]interp.SystemServiceAction, 0, len(grant.Actions))
-		for _, action := range grant.Actions {
-			if _, ok := slices.BinarySearch(allowed, string(action)); ok {
-				actions = append(actions, action)
-			}
-		}
+		actions := intersectSystemServiceActions(grant.Actions, allowed)
 		if len(actions) == 0 {
 			continue
 		}
@@ -198,6 +195,28 @@ func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemSer
 		})
 	}
 	return grants
+}
+
+func intersectSystemServiceActions(backend []interp.SystemServiceAction, operator []string) []interp.SystemServiceAction {
+	if slices.Contains(operator, string(interp.SystemServiceAllActions)) {
+		return slices.Clone(backend)
+	}
+
+	if slices.Contains(backend, interp.SystemServiceAllActions) {
+		actions := make([]interp.SystemServiceAction, 0, len(operator))
+		for _, action := range operator {
+			actions = append(actions, interp.SystemServiceAction(action))
+		}
+		return actions
+	}
+
+	actions := make([]interp.SystemServiceAction, 0, len(backend))
+	for _, action := range backend {
+		if _, ok := slices.BinarySearch(operator, string(action)); ok {
+			actions = append(actions, action)
+		}
+	}
+	return actions
 }
 
 func cloneSystemServiceAllowlist(services map[string][]string) map[string][]string {
