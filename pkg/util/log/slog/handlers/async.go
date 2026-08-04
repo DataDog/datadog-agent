@@ -211,7 +211,7 @@ func (h *Async) WithGroup(_name string) slog.Handler {
 
 func hasMutableAttrs(attrs iter.Seq[slog.Attr]) bool {
 	for attr := range attrs {
-		if attr.Value.Kind() == slog.KindAny {
+		if attr.Value.Kind() == slog.KindAny || attr.Value.Kind() == slog.KindLogValuer {
 			return true
 		}
 		if attr.Value.Kind() == slog.KindGroup {
@@ -228,11 +228,15 @@ func hasMutableAttrs(attrs iter.Seq[slog.Attr]) bool {
 func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
 	newAttrs := slices.Clone(attrs)
 	for i, attr := range newAttrs {
-		if attr.Value.Kind() == slog.KindAny {
-			newAttrs[i].Value = slog.StringValue(fmt.Sprint(attr.Value.Any()))
-		} else if attr.Value.Kind() == slog.KindGroup {
-			newGroupValues := snapshotMutableAttrs(attr.Value.Group())
-			newAttrs[i].Value = slog.GroupValue(newGroupValues...)
+		value := attr.Value
+		if value.Kind() == slog.KindLogValuer {
+			value = value.Resolve()
+		}
+
+		if value.Kind() == slog.KindAny {
+			newAttrs[i].Value = slog.StringValue(fmt.Sprint(value.Any()))
+		} else if value.Kind() == slog.KindGroup {
+			newAttrs[i].Value = slog.GroupValue(snapshotMutableAttrs(value.Group())...)
 		}
 	}
 
