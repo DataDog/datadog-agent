@@ -70,15 +70,9 @@ func (t *dogStatsDClientTelemetry) observe(serie *metrics.Serie) {
 
 	for _, point := range serie.Points {
 		bytes := point.Value * float64(serie.Interval)
-		if !bytesAreValidCounterDelta(bytes) {
+		if !(bytes >= 0 && bytes < math.MaxUint64) {
 			continue
 		}
 		counter.Add(bytes)
 	}
-}
-
-func bytesAreValidCounterDelta(bytes float64) bool {
-	return bytes >= 0 &&
-		bytes == math.Trunc(bytes) &&
-		bytes < float64(^uint64(0))
 }

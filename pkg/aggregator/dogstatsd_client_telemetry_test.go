@@ -65,6 +65,19 @@ func TestDogStatsDClientTelemetryRecordsSupportedRateBuckets(t *testing.T) {
 	}
 }
 
+func TestDogStatsDClientTelemetryRecordsFractionalRateBuckets(t *testing.T) {
+	telemetry, counters := newTestDogStatsDClientTelemetry()
+
+	telemetry.observe(&metrics.Serie{
+		Name:     dogStatsDClientBytesSentMetric,
+		MType:    metrics.APIRateType,
+		Interval: 10,
+		Points:   []metrics.Point{{Value: 0.75}},
+	})
+
+	assert.Equal(t, 7.5, counters[0].Get())
+}
+
 func TestDogStatsDClientTelemetryIgnoresUnsupportedSeries(t *testing.T) {
 	telemetry, counters := newTestDogStatsDClientTelemetry()
 
@@ -89,7 +102,6 @@ func TestDogStatsDClientTelemetryIgnoresUnsupportedSeries(t *testing.T) {
 				{Value: -0.7},
 				{Value: math.NaN()},
 				{Value: math.Inf(1)},
-				{Value: 0.75},
 				{Value: math.Ldexp(1, 64) / 10},
 				{Value: 1e20},
 			},
