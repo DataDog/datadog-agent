@@ -56,8 +56,10 @@ async fn main() -> Result<()> {
 
     tokio::select! {
         _ = shutdown_signal() => {
-            lifecycle.stop().await?;
-            log::info!("par-control stopped the executor and is exiting");
+            // Do not call back into dd-procmgrd while it may be synchronously
+            // waiting for this managed process to exit. The supervisor retains
+            // ownership of the executor and stops both processes on shutdown.
+            log::info!("par-control is exiting");
         }
         state = lifecycle.wait_for_exit() => {
             let state = state?;
