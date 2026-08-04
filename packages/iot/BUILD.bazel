@@ -17,12 +17,11 @@ package_name_variables(
     name = "variables",
 )
 
-# TODO: Add the iot-agent binary and component targets here, analogous to
-# //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
 # The main build dependency from iot-agent.rb is 'datadog-iot-agent'.
 pkg_filegroup(
     name = "iot_components",
     srcs = [
+        "//packages/agent/iot:all_files",
         # TODO: //packages/iot/dependencies:all_files
         # TODO: //packages/install_dir:embedded (iot-specific variant)
     ],
