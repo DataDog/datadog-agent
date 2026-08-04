@@ -16,13 +16,9 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
-const (
-	legacyProcmgrUnit            = "datadog-agent-procmgrd.service"
-	legacyProcmgrBaselineRegistry = "install.datadoghq.com.internal.dda-testing.com"
-)
+const legacyProcmgrUnit = "datadog-agent-procmgrd.service"
 
 type legacyProcmgrUpgradeSuite struct {
 	packageBaseSuite
@@ -63,7 +59,11 @@ func (s *legacyProcmgrUpgradeSuite) TestLegacyProcmgrUpgradeContinuesOnRetiremen
 	defer s.Purge()
 
 	s.requireSELinuxEnforcing()
-	s.installLegacyProcmgrBaseline(legacyProcmgrStableAgentVersion())
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+		envForceVersion("datadog-agent", legacyProcmgrStableAgentPackageVersion()),
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=install.datadoghq.com.internal.dda-testing.com",
+	)
 
 	if _, err := s.Env().RemoteHost.Execute("systemctl cat " + legacyProcmgrUnit); err != nil {
 		s.T().Fatalf(
@@ -97,37 +97,18 @@ func legacyProcmgrStableAgentVersion() string {
 	return "7.79.2"
 }
 
+func legacyProcmgrStableAgentPackageVersion() string {
+	if version := os.Getenv("STABLE_AGENT_ASSERT_PACKAGE_VERSION"); version != "" {
+		return version
+	}
+	return legacyProcmgrStableAgentVersion() + "-1"
+}
+
 func (s *legacyProcmgrUpgradeSuite) requireSELinuxEnforcing() {
 	enforce := strings.TrimSpace(s.host.Run("getenforce"))
 	if enforce != "Enforcing" {
 		s.T().Skipf("SELinux is %q, need Enforcing for this scenario", enforce)
 	}
-}
-
-func (s *legacyProcmgrUpgradeSuite) installLegacyProcmgrBaseline(version string) {
-	packages := make([]TestPackageConfig, len(PackagesConfig))
-	copy(packages, PackagesConfig)
-	for i := range packages {
-		if packages[i].Name != "datadog-agent" {
-			continue
-		}
-		packages[i].Version = version + "-1"
-		packages[i].Registry = legacyProcmgrBaselineRegistry
-	}
-
-	env := InstallScriptEnvWithPackages(s.arch, packages)
-	_, err := s.Env().RemoteHost.Execute(
-		`DD_REMOTE_UPDATES=true bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`,
-		client.WithEnvVariables(env),
-	)
-	require.NoErrorf(
-		s.T(),
-		err,
-		"failed to install datadog-agent %s baseline from fleet OCI; stdout=%s stderr=%s",
-		version,
-		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"),
-		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"),
-	)
 }
 
 func (s *legacyProcmgrUpgradeSuite) simulateSELinuxRunDirMislabel() {
