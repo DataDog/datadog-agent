@@ -12,7 +12,10 @@ activation, and executor process lifecycle:
 - In split mode on Linux, `par-control` asks `dd-procmgrd` to start the existing
   `privateactionrunner run-executor` process immediately. It does not connect to
   the executor or dispatch actions yet.
-- On shutdown, `par-control` asks `dd-procmgrd` to stop and reap the executor.
+- On shutdown, `par-control` exits without calling back into its own supervisor.
+  `dd-procmgrd` retains ownership of the executor and stops both processes when
+  the supervisor shuts down. Polling-informed idle reaping belongs to the full
+  control-plane slice.
 - Windows ships the binary and process definition for package symmetry, but the
   binary exits cleanly until named-pipe transport is implemented.
 
