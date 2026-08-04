@@ -6,6 +6,7 @@
 package provisioners
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -113,9 +114,54 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 func dumpRawResources(resources RawResources) string {
 	var builder strings.Builder
 	for key, value := range resources {
-		fmt.Fprintf(&builder, "%s: %s\n", key, value)
+		fmt.Fprintf(&builder, "%s: %s\n", key, redactRawResource(value))
 	}
 	return builder.String()
+}
+
+func redactRawResource(rawResource []byte) []byte {
+	var resource any
+	if err := json.Unmarshal(rawResource, &resource); err != nil {
+		return []byte("<invalid resource output>")
+	}
+
+	redactedResource := redactSensitiveFields(resource)
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "\t")
+	if err := encoder.Encode(redactedResource); err != nil {
+		return []byte("<invalid resource output>")
+	}
+
+	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
+}
+
+func redactSensitiveFields(value any) any {
+	switch typedValue := value.(type) {
+	case map[string]any:
+		redacted := make(map[string]any, len(typedValue))
+		for key, nestedValue := range typedValue {
+			if isSensitiveField(key) {
+				redacted[key] = "<redacted>"
+				continue
+			}
+			redacted[key] = redactSensitiveFields(nestedValue)
+		}
+		return redacted
+	case []any:
+		redacted := make([]any, len(typedValue))
+		for index, nestedValue := range typedValue {
+			redacted[index] = redactSensitiveFields(nestedValue)
+		}
+		return redacted
+	default:
+		return value
+	}
+}
+
+func isSensitiveField(key string) bool {
+	return strings.Contains(strings.ToLower(key), "password")
 }
 
 // Diagnose runs the diagnose function if it is set diagnoseFunc

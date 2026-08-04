@@ -66,10 +66,10 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 	pwdOpts := make([]pulumi.ResourceOption, 0, len(opts)+1)
 	copy(pwdOpts, opts)
 	pwdOpts = append(pwdOpts, e.WithProviders(config.ProviderRandom))
-	windowsAdminPassword, err := random.NewRandomString(e.Ctx(), e.Namer.ResourceName(name, "admin-password"), &random.RandomStringArgs{
+	windowsAdminPassword, err := random.NewRandomPassword(e.Ctx(), e.Namer.ResourceName(name, "admin-password"), &random.RandomPasswordArgs{
 		Length:  pulumi.Int(20),
 		Special: pulumi.Bool(true),
-		// Disallow "<", ">" and "&" as they get encoded by json.Marshall in the CI log output, making the password hard to read
+		// Avoid characters that are awkward in generated PowerShell and Pulumi JSON.
 		OverrideSpecial: pulumi.String("!@#$%*()-_=+[]{}:?"),
 	}, pwdOpts...)
 	if err != nil {
@@ -132,7 +132,7 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 		return args[0].(string)
 	}).(pulumi.StringOutput)
 
-	return vm, privateIP, windowsAdminPassword.Result, nil
+	return vm, privateIP, pulumi.ToSecret(windowsAdminPassword.Result).(pulumi.StringOutput), nil
 }
 
 func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, osProfile compute.OSProfilePtrInput, opts ...pulumi.ResourceOption) (*compute.VirtualMachine, *network.NetworkInterface, error) {

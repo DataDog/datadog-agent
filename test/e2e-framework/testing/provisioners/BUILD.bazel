@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "provisioners",
@@ -14,4 +14,11 @@ go_library(
         "//test/e2e-framework/testing/utils/infra",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
+)
+
+go_test(
+    name = "provisioners_test",
+    srcs = ["pulumi_provisioner_test.go"],
+    embed = [":provisioners"],
+    gotags = ["test"],
 )

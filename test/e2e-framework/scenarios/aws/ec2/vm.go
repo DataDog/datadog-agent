@@ -108,10 +108,10 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			// 		* Base 10 digits (0 through 9).
 			// 		* Non-alphanumeric characters (special characters): '-!"#$%&()*,./:;?@[]^_`{|}~+<=>
 			// Source: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements
-			randomPassword, err := random.NewRandomString(e.Ctx(), e.Namer.ResourceName(name, "win-admin-password"), &random.RandomStringArgs{
+			randomPassword, err := random.NewRandomPassword(e.Ctx(), e.Namer.ResourceName(name, "win-admin-password"), &random.RandomPasswordArgs{
 				Length:  pulumi.Int(20),
 				Special: pulumi.Bool(true),
-				// Disallow "<", ">" and "&" as they get encoded by json.Marshall in the CI log output, making the password hard to read
+				// Avoid characters that are awkward in the generated PowerShell command and Pulumi JSON.
 				OverrideSpecial: pulumi.String("!@#$%*()-_=+[]{}:?"),
 				MinLower:        pulumi.Int(1),
 				MinUpper:        pulumi.Int(1),
@@ -129,7 +129,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				return err
 			}
 
-			c.Password = randomPassword.Result
+			c.Password = pulumi.ToSecret(randomPassword.Result).(pulumi.StringOutput)
 		}
 
 		return nil
