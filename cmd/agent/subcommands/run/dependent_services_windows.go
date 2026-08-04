@@ -10,7 +10,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -239,38 +238,35 @@ func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 		procmgrWait <- startProcmgrIfEnabled(procmgr, ok)
 	}()
 
-	var (
-		procmgrStarted     bool
-		procmgrStartedOnce sync.Once
-	)
-	resolveProcmgrStarted := func() bool {
-		procmgrStartedOnce.Do(func() {
-			procmgrStarted = <-procmgrWait
-		})
-		return procmgrStarted
-	}
-
+	var independent, gated []Servicedef
 	for _, svc := range svcs {
 		if svc.name == "procmgr" {
 			continue
 		}
-
-		procmgrStarted := false
 		if svc.needsProcmgrStartupGate(coreConf) {
-			procmgrStarted = resolveProcmgrStarted()
-		}
-		if !svc.IsEnabled(procmgrStarted, coreConf) {
-			log.Infof("Service %s is disabled, not starting", svc.name)
-			continue
-		}
-		log.Debugf("Attempting to start service: %s", svc.name)
-		err := svc.Start()
-		if err != nil {
-			log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
+			gated = append(gated, svc)
 		} else {
-			log.Debugf("Started service %s", svc.name)
+			independent = append(independent, svc)
 		}
 	}
+
+	startServices := func(services []Servicedef, procmgrStarted bool) {
+		for _, svc := range services {
+			if !svc.IsEnabled(procmgrStarted, coreConf) {
+				log.Infof("Service %s is disabled, not starting", svc.name)
+				continue
+			}
+			log.Debugf("Attempting to start service: %s", svc.name)
+			if err := svc.Start(); err != nil {
+				log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
+			} else {
+				log.Debugf("Started service %s", svc.name)
+			}
+		}
+	}
+
+	startServices(independent, false)
+	startServices(gated, <-procmgrWait)
 }
 
 func findService(svcs []Servicedef, name string) (Servicedef, bool) {
