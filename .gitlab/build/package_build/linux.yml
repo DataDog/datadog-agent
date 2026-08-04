@@ -122,7 +122,6 @@ iot-agent-arm64:
 
 iot-agent-armhf:
   extends: .iot-agent-common
-  needs: ["go_deps"]
   rules:
     - when: on_success
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
@@ -134,9 +133,6 @@ iot-agent-armhf:
     # if we use too many compression threads or a too agressive level
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
     PACKAGE_ARCH: armhf
-  script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.iot-agent-common, script]
 
 # ----- Dogstatsd -----
 
