@@ -361,7 +361,20 @@ http_requests_total{method="GET"} 100
 	result, err := ProcessMetrics(data, "application/openmetrics-text; version=1.0.0", cfg)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	assert.Equal(t, "http_requests", result[0].Name) // _total stripped for OpenMetrics counters
+	assert.Equal(t, "http_requests", result[0].Name)
+	assert.Equal(t, "COUNTER", result[0].Type)
+}
+
+func TestProcessMetrics_PrometheusCounterTotalStripped(t *testing.T) {
+	data := []byte(`# TYPE http_requests_total counter
+http_requests_total{method="GET"} 100`)
+
+	cfg := &ProcessConfig{}
+
+	result, err := ProcessMetrics(data, "", cfg)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, "http_requests", result[0].Name) // _total stripped for Prometheus counters too
 	assert.Equal(t, "COUNTER", result[0].Type)
 }
 

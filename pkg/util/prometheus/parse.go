@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"strings"
 
 	"github.com/prometheus/common/model"
@@ -119,14 +120,26 @@ func ParseMetricsWithFilter(data []byte, filter []string, contentType string) ([
 				result = result[:len(result)-1]
 			}
 			name, typ := parser.Type()
+			familyName := string(name)
+			upperType := strings.ToUpper(string(typ))
+			// Strip _total suffix from counter family names to match
+			// Python prometheus_client behavior (>= 0.14).
+			if upperType == "COUNTER" {
+				familyName = trimCounterSuffix(familyName)
+			}
 			result = append(result, MetricFamily{
-				Name:    string(name),
-				Type:    strings.ToUpper(string(typ)),
+				Name:    familyName,
+				Type:    upperType,
 				Samples: make([]Sample, 0, 8),
 			})
 
 		case textparse.EntrySeries:
 			_, ts, value := parser.Series()
+			// Skip NaN/Inf values — they can't be JSON-encoded and the Python
+			// scraper already drops them, so omitting them here is safe.
+			if math.IsNaN(value) || math.IsInf(value, 0) {
+				continue
+			}
 			parser.Labels(&lbls)
 
 			rawName := lbls.Get(model.MetricNameLabel)
