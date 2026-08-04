@@ -33,11 +33,20 @@ install_systemd_unit() {
     done <<< "${extraenv} "
   fi
 
+  # The start limit is left enabled on purpose. These services are
+  # Restart=always with RestartSec=1, so one which fails immediately restarts
+  # forever: it stays in "activating (auto-restart)" and never reaches "failed",
+  # which makes a broken fixture look like a service the Agent failed to
+  # discover rather than a service that is not running. Letting the limit stop
+  # it turns that into a failed unit instead. The counter is reset by an
+  # explicit systemctl stop, so the start/stop cycles the tests do between
+  # subtests never accumulate towards it.
   cat > "/etc/systemd/system/${name}.service" <<- EOM
 [Unit]
 Description=${name}
 After=network.target
-StartLimitIntervalSec=0
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
