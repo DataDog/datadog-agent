@@ -67,13 +67,8 @@ func (e *encoder) AddUint16(k string, v uint16)                        { e.ctx =
 func (e *encoder) AddUint8(k string, v uint8)                          { e.ctx = append(e.ctx, e.fullKey(k), v) }
 func (e *encoder) AddUintptr(k string, v uintptr)                      { e.ctx = append(e.ctx, e.fullKey(k), v) }
 func (e *encoder) AddReflected(k string, v interface{}) error {
-	// Format eagerly, like zap's own encoders do at the call site, instead of storing the
-	// live interface{} reference: our downstream async slog pipeline (pkg/util/log/slog)
-	// defers formatting of context values to a background goroutine, so storing a live,
-	// possibly-mutable reference here would let that later formatting race with any
-	// mutation the caller makes to v after this call returns — a safe, common pattern
-	// under real zap's eager-encoding contract. fmt.Sprint matches what slog.Value.String
-	// would otherwise produce for a KindAny value.
+	// Format eagerly instead of storing the live reference, so a caller mutating v after
+	// this call can't race with our async logging pipeline formatting it later.
 	e.ctx = append(e.ctx, e.fullKey(k), fmt.Sprint(v))
 	return nil
 }

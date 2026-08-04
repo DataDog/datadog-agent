@@ -160,6 +160,8 @@ func (h *Async) Flush() {
 
 // Handle writes a record to the handler.
 func (h *Async) Handle(ctx context.Context, r slog.Record) error {
+	r = snapshotAnyAttrs(r)
+
 	h.cond.L.Lock()
 	if h.closed {
 		h.cond.L.Unlock()
@@ -171,6 +173,37 @@ func (h *Async) Handle(ctx context.Context, r slog.Record) error {
 	h.cond.L.Unlock()
 
 	return nil
+}
+
+// snapshotAnyAttrs formats KindAny attribute values into strings now instead of deferring
+// to the background goroutine, since a KindAny value is an arbitrary, possibly-mutable
+// reference the caller may change right after this call returns.
+func snapshotAnyAttrs(r slog.Record) slog.Record {
+	hasAny := false
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Value.Kind() == slog.KindAny {
+			hasAny = true
+			return false
+		}
+		return true
+	})
+	if !hasAny {
+		// Fast path: nothing to snapshot, avoid the allocation below.
+		return r
+	}
+
+	attrs := make([]slog.Attr, 0, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Value.Kind() == slog.KindAny {
+			a.Value = slog.StringValue(fmt.Sprint(a.Value.Any()))
+		}
+		attrs = append(attrs, a)
+		return true
+	})
+
+	snapshot := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
+	snapshot.AddAttrs(attrs...)
+	return snapshot
 }
 
 // Enabled returns true if the handler is enabled for the given level.

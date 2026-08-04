@@ -154,10 +154,6 @@ func TestObjectEncoder(t *testing.T) {
 
 }
 
-// TestAddReflectedSnapshotsImmediately guards against reintroducing the race this fixes:
-// AddReflected must format its argument synchronously, at the call site, rather than
-// storing a live reference for later (possibly async, possibly concurrent-with-a-mutation)
-// formatting.
 func TestAddReflectedSnapshotsImmediately(t *testing.T) {
 	type mutable struct {
 		Field string
@@ -167,7 +163,6 @@ func TestAddReflectedSnapshotsImmediately(t *testing.T) {
 	enc := &encoder{}
 	require.NoError(t, enc.AddReflected("k", obj))
 
-	// Mutate after logging - the captured context must not observe this change.
 	obj.Field = "after"
 
 	assert.Equal(t, []interface{}{"k", fmt.Sprint(&mutable{Field: "before"})}, enc.ctx)
