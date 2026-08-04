@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.ico">
-      <meta name="generator" content="zensical-0.0.52">
+      <meta name="generator" content="zensical-0.0.53">
     
     
       
@@ -32,7 +32,7 @@
       
         
       
-      <link rel="stylesheet" href="../../../assets/stylesheets/classic/main.4c04d108.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/classic/main.39e53929.min.css">
       
         
           
@@ -3828,7 +3828,7 @@
   
 
 
-<h1 id="agent-configuration">Agent Configuration</h1>
+<h1 id="agent-configuration">Agent Configuration<a class="headerlink" href="#agent-configuration" title="Permanent link">&para;</a></h1>
 <p>This doc describes how to define new configuration parameters for the Agent.</p>
 <ol>
 <li>Define your config.</li>
@@ -3838,7 +3838,7 @@
 </ol>
 <p>If you have any questions, head over to #fleet-automation and ask (datadog
 internal).</p>
-<h2 id="1-define-your-config">1. Define Your Config</h2>
+<h2 id="1-define-your-config">1. Define Your Config<a class="headerlink" href="#1-define-your-config" title="Permanent link">&para;</a></h2>
 <p>A config must be declared before it can be used. If you don't do this, the Agent
 will log warnings about missing config at runtime that look like:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>WARN | config keyconfig key &quot;config.subsystem.bananas&quot; is unknown
@@ -3858,12 +3858,12 @@ will log warnings about missing config at runtime that look like:</p>
   <a href="https://github.com/DataDog/datadog-agent/blob/main/pkg/config/setup/config.go"><code>config.go</code></a>.</p>
 </li>
 </ul>
-<h2 id="2-add-to-template">2. Add to Template</h2>
+<h2 id="2-add-to-template">2. Add to Template<a class="headerlink" href="#2-add-to-template" title="Permanent link">&para;</a></h2>
 <p>By default newly declared configs are not added to the sample config file a user
 sees.</p>
 <p>If you want your config to appear in the sample config file, add it to the
 <a href="https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml">config template</a>.</p>
-<h2 id="3-use-your-config">3. Use Your Config</h2>
+<h2 id="3-use-your-config">3. Use Your Config<a class="headerlink" href="#3-use-your-config" title="Permanent link">&para;</a></h2>
 <p>You can access your configured value (or the declared default) using the config
 <code>model.Reader</code>. For example:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">if</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">GetBool</span><span class="p">(</span><span class="s">&quot;config.subsystem.bananas&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -3871,7 +3871,7 @@ sees.</p>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>See the <a href="https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/config/model#Reader">package documentation</a> for available methods.</p>
-<h2 id="4-request-a-review">4. Request a Review!</h2>
+<h2 id="4-request-a-review">4. Request a Review!<a class="headerlink" href="#4-request-a-review" title="Permanent link">&para;</a></h2>
 <p>Please add this label to your PRs: <code>team/fleet-automation</code></p>
 <p>This will summon a config wizard who can review your changes and suggest any
 changes.</p>
@@ -3986,7 +3986,7 @@ changes.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.ed145cee.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.69c251d7.min.js"></script>
       
     
   </body>
