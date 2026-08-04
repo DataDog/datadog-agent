@@ -19,8 +19,6 @@ const (
 	DefaultNumWorkers = 4
 	// MaxNumWorkers maximum number of workers for our check runner
 	MaxNumWorkers = 25
-	// DefaultSecurityAgentCmdPort is the default port used by security-agent to run a runtime settings server
-	DefaultSecurityAgentCmdPort = 5010
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162
 )
