@@ -659,7 +659,10 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		r.dataCacheLock.RUnlock()
 		sb.data = data
 
+		sb.state.Store(computedState)
+
 		r.removePendingScan(sb.ContainerID)
+		r.processPendingFileEvents(sb)
 
 		return nil
 	}
