@@ -36,7 +36,7 @@ dd_agent_go_test(
             "//pkg/fleet/installer/packages/embedded",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),
