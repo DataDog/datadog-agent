@@ -204,6 +204,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.itlb_misses", false)
 	config.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.branch_misses", false)
 	config.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cpu_migrations", false)
+	config.BindEnvAndSetDefault("noisy_neighbor.max_tracked_cgroups", 64)
 	// control the size of the buffers used for the batch lookups of the ebpf maps
 	config.BindEnvAndSetDefault("ebpf_check.entry_count.max_keys_buffer_size_bytes", 512*1024)
 	config.BindEnvAndSetDefault("ebpf_check.entry_count.max_values_buffer_size_bytes", 1024*1024)

@@ -1696,6 +1696,12 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      max_tracked_cgroups:
+        node_type: setting
+        type: integer
+        default: 64
+        minimum: 1
+        maximum: 128
       pmu_metrics:
         node_type: section
         type: object

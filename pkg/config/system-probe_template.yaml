@@ -237,6 +237,38 @@
 #
 #     enabled: true
 
+##################################################
+## Experimental Noisy Neighbor PMU collection  ##
+##################################################
+
+## @param noisy_neighbor - custom object - optional
+## Experimental Linux-only scheduling and per-container PMU collection.
+## The noisy_neighbor check must also have an enabled instance.
+#
+# noisy_neighbor:
+
+#   # @param enabled - boolean - optional - default: false
+#   # Enables the noisy neighbor system-probe module.
+#
+#   enabled: false
+
+#   # @param max_tracked_cgroups - integer - optional - default: 64
+#   # Maximum number of container cgroups sampled in each 10-second window. Valid range: 1-128.
+#
+#   max_tracked_cgroups: 64
+
+#   # @param pmu_metrics - custom object - optional
+#   # Each event is disabled by default. Hardware events open one perf FD per online CPU.
+#
+#   pmu_metrics:
+#     cycles: false
+#     instructions: false
+#     cache_misses: false
+#     cache_references: false
+#     itlb_misses: false
+#     branch_misses: false
+#     cpu_migrations: false
+
 ########################################
 ## System Probe GPU Monitoring module ##
 ########################################

@@ -19,6 +19,7 @@ go_library(
     name = "noisyneighbor",
     srcs = [
         "ebpf_types_linux.go",
+        "perf.go",
         "probe.go",
     ],
     cgo = True,
@@ -32,7 +33,9 @@ go_library(
         "//pkg/ebpf/telemetry",
         "//pkg/util/kernel",
         "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@org_golang_x_sys//unix",
     ],
 )
 
@@ -77,6 +80,18 @@ go_test(
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",
         "//pkg/util/kernel",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "noisyneighbor_perf_test",
+    srcs = ["perf_test.go"],
+    embed = [":noisyneighbor"],
+    gotags = ["linux_bpf"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
         "@com_github_stretchr_testify//require",
     ],
 )

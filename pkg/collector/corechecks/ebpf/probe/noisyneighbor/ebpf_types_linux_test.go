@@ -11,3 +11,19 @@ import (
 func TestCgoAlignment_ebpfCgroupAggStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[ebpfCgroupAggStats](t)
 }
+
+func TestCgoAlignment_ebpfPmuCounter(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfPmuCounter](t)
+}
+
+func TestCgoAlignment_ebpfPmuCgroupStats(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfPmuCgroupStats](t)
+}
+
+func TestCgoAlignment_ebpfPmuConfig(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfPmuConfig](t)
+}
+
+func TestCgoAlignment_ebpfPmuErrorStats(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfPmuErrorStats](t)
+}
