@@ -51,6 +51,13 @@ type helmactionsImpl struct {
 
 // NewComponent creates a new helmactions component.
 func NewComponent(reqs Requires) (Provides, error) {
+	// APIClient is nil when the private action runner is disabled: the fx
+	// provider skips the (cluster-dependent) apiserver.GetAPIClient call in
+	// that case. Fall back to a no-op component rather than dereferencing it.
+	if reqs.APIClient == nil {
+		return Provides{Comp: &helmactionsImpl{}}, nil
+	}
+
 	ctx := context.Background()
 
 	// clustername.GetClusterName needs the hostname as a fallback source for the
