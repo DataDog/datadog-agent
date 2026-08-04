@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -46,8 +47,8 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	// Forwarder
 	config.Set("additional_endpoints", map[string][]string{}, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_timeout", 20, pkgconfigmodel.SourceDefault)
-	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                               // in seconds, 0 means disabled
-	config.Set("forwarder_apikey_validation_interval", pkgconfigsetup.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
+	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                          // in seconds, 0 means disabled
+	config.Set("forwarder_apikey_validation_interval", constants.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
 
 	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
@@ -57,7 +58,7 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	config.Set("forwarder_backoff_factor", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_base", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_max", 64, pkgconfigmodel.SourceDefault)
-	config.Set("forwarder_recovery_interval", pkgconfigsetup.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_recovery_interval", constants.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_recovery_reset", false, pkgconfigmodel.SourceDefault)
 
 	// Forwarder storage on disk
@@ -84,8 +85,8 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_zstd_compressor_level", pkgconfigsetup.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_zstd_compressor_level", constants.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
 

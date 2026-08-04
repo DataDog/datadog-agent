@@ -33,19 +33,19 @@
   - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
 
 bazel:test:linux-amd64:
-  extends: [ .bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test ]
+  extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 bazel:test:linux-arm64:
-  extends: [ .bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test ]
+  extends: [.bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
     - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 bazel:test:macos-amd64:
-  extends: [ .bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test ]
+  extends: [.bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
@@ -55,7 +55,7 @@ bazel:test:macos-amd64:
     - !reference [.bazel:test:reporting, after_script]
 
 bazel:test:macos-arm64:
-  extends: [ .bazel:test:reporting, .bazel:runner:macos-arm64, .bazel:test ]
+  extends: [.bazel:test:reporting, .bazel:runner:macos-arm64, .bazel:test]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
@@ -70,7 +70,7 @@ bazel:test:macos-arm64:
       - bazel-exec.log
 
 bazel:test:windows-amd64:
-  extends: [ .bazel:runner:windows-amd64, .bazel:test ]
+  extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --config=gorace --keep_going //... --
