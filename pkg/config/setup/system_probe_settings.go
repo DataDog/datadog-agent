@@ -44,7 +44,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	config.SetDefault("system_probe_config.adjusted", false)
 
-	config.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", getPlatformDefault(map[string]interface{}{
 		"linux":   "${run_path}/sysprobe.sock",
 		"darwin":  "${run_path}/sysprobe.sock",
 		"aix":     "${run_path}/sysprobe.sock",
@@ -161,7 +161,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// authoritative source; deprecateBool only forwards this deprecated alias
 	// when it is explicitly configured.
 	config.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.enabled", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
-	config.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", getPlatformDefault(map[string]interface{}{
 		"windows": true,
 		"other":   false,
 	}))
@@ -295,12 +295,12 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ping.enabled", false)
 	config.BindEnvAndSetDefault("traceroute.enabled", false)
 	config.BindEnvAndSetDefault("ccm_network_config.enabled", false)
-	config.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("discovery.enabled", getPlatformDefault(map[string]interface{}{
 		"fargate": false,
 		"linux":   true,
 		"other":   false,
 	}))
-	config.BindEnvAndSetDefault("discovery.use_system_probe_lite", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("discovery.use_system_probe_lite", getPlatformDefault(map[string]interface{}{
 		"linux": true,
 		"other": false,
 	}))
@@ -343,11 +343,11 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 }
 
 func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("runtime_security_config.socket", getPlatformDefault(map[string]interface{}{
 		"windows": "localhost:3335",
 		"other":   "${install_path}/run/runtime-security.sock",
 	}))
-	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", getPlatformDefault(map[string]interface{}{
 		"other":   DefaultRuntimePoliciesDir,
 		"windows": "${conf_path}/runtime-security.d",
 	}))

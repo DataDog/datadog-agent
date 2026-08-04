@@ -7,6 +7,7 @@
 package pathteststore
 
 import (
+	"slices"
 	"sync"
 	time "time"
 
@@ -47,6 +48,7 @@ func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) 
 func (p *PathtestContext) snapshot() *PathtestContext {
 	contextSnapshot := *p
 	pathtestSnapshot := *p.Pathtest
+	pathtestSnapshot.Tags = slices.Clone(p.Pathtest.Tags)
 	contextSnapshot.Pathtest = &pathtestSnapshot
 	return &contextSnapshot
 }
@@ -190,6 +192,7 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		// context for the same path.
 		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
 		pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
+		pathtestCtx.Pathtest.Tags = slices.Clone(pathtestToAdd.Tags)
 		pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
 		return
 	}
@@ -203,7 +206,9 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		return
 	}
 
-	f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
+	pathtestToStore := *pathtestToAdd
+	pathtestToStore.Tags = slices.Clone(pathtestToAdd.Tags)
+	f.contexts[hash] = f.newPathtestContext(&pathtestToStore, f.config.TTL)
 }
 
 // GetContextsCount returns pathtest contexts count

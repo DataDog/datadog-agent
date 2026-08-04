@@ -46,12 +46,13 @@ import (
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
 
-// StandaloneAgentDeployFunc is a callback invoked by RunWithEnv to deploy a
-// standalone agent (e.g. otel-agent in DD_OTEL_STANDALONE mode) after the
-// cluster and fakeintake have been provisioned. Using a callback keeps the
-// otelstandalone package out of the kindvm import graph, avoiding OOM-kills
-// in the e2e-framework unit-test CI job when compiling large cloud SDKs.
-type StandaloneAgentDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
+// StandaloneDdotDeployFunc is a callback invoked by RunWithEnv to deploy a
+// standalone DDOT (Datadog Distribution of OpenTelemetry) agent (e.g. otel-agent
+// in DD_OTEL_STANDALONE mode) after the cluster and fakeintake have been
+// provisioned. Using a callback keeps the otelstandalone package out of the
+// kindvm import graph, avoiding OOM-kills in the e2e-framework unit-test CI
+// job when compiling large cloud SDKs.
+type StandaloneDdotDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
 
 // Run is the entry point for the scenario when run via pulumi.
 // It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
@@ -219,12 +220,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		}
 	}
 
-	if params.standaloneAgentFunc != nil {
-		standaloneAgent, err := params.standaloneAgentFunc(&awsEnv, kubeProvider, fakeIntake)
+	if params.standaloneDdotFunc != nil {
+		standaloneDdot, err := params.standaloneDdotFunc(&awsEnv, kubeProvider, fakeIntake)
 		if err != nil {
 			return err
 		}
-		if err := standaloneAgent.Export(ctx, env.KubernetesAgentOutput()); err != nil {
+		if err := standaloneDdot.Export(ctx, env.KubernetesAgentOutput()); err != nil {
 			return err
 		}
 	}
@@ -313,7 +314,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	}
 
-	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 && params.standaloneAgentFunc == nil {
+	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 && params.standaloneDdotFunc == nil {
 		env.DisableAgent()
 	}
 
