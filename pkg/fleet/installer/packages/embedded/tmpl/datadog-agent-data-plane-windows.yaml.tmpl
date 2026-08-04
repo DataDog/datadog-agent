@@ -1,13 +1,13 @@
 description: Datadog Agent Data Plane
-command: {{yamlQuote (print .InstallDir "/bin/agent/agent-data-plane.exe")}}
+command: '{{.InstallDir}}/bin/agent/agent-data-plane.exe'
 args:
   - --config
-  - {{yamlQuote (print .EtcDir "/datadog.yaml")}}
+  - '{{.EtcDir}}/datadog.yaml'
   - run
   - --pidfile
-  - {{yamlQuote (print .EtcDir "/run/agent-data-plane.pid")}}
+  - '{{.EtcDir}}/run/agent-data-plane.pid'
 auto_start: true
-condition_path_exists: {{yamlQuote (print .InstallDir "/bin/agent/agent-data-plane.exe")}}
+condition_path_exists: '{{.InstallDir}}/bin/agent/agent-data-plane.exe'
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10

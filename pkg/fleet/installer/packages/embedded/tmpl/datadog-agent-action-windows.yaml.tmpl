@@ -1,11 +1,11 @@
 description: Datadog Private Action Runner
-command: {{yamlQuote (print .InstallDir "/bin/agent/privateactionrunner.exe")}}
+command: '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
 args:
   - run
   - --cfgpath
-  - {{yamlQuote (print .EtcDir "/datadog.yaml")}}
+  - '{{.EtcDir}}/datadog.yaml'
 auto_start: true
-condition_path_exists: {{yamlQuote (print .InstallDir "/bin/agent/privateactionrunner.exe")}}
+condition_path_exists: '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10
