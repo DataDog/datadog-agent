@@ -236,6 +236,33 @@ kmt_run_secagent_tests_x64_required:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
     - !reference [.suggest_kmt_retry_command]
+# MEASUREMENT ONLY - DO NOT MERGE
+# A/B experiment for the CWS eBPF probe teardown cost (see CWS_KMT_CI_SPEED.md, Angle 2).
+# Both test sets run the same 10 reload-forcing tests with DD_CWS_PHASE_PROFILING=1; the _rcu
+# variant additionally sets DD_CWS_RCU_EXPEDITED=1. They intentionally run alongside the full
+# cws_host/cws_peds/cws_docker matrices so that VM contention is identical to production.
+kmt_run_secagent_tests_x64_teardown:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "amazon_6.12"
+          - "ubuntu_22.04"
+        TEST_SET: [cws_teardown, cws_teardown_rcu]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
+
 kmt_run_secagent_tests_x64_ad:
   extends:
     - .kmt_run_secagent_tests
@@ -530,6 +557,9 @@ kmt_secagent_tests_join2_x64:
   needs:
     - kmt_run_secagent_tests_x64_peds
     - kmt_run_secagent_tests_x64_required
+    # MEASUREMENT ONLY - DO NOT MERGE: keeps the metal instance alive until the experiment ends
+    # (join1_x64 is already at the 50-needs limit)
+    - kmt_run_secagent_tests_x64_teardown
 
 kmt_secagent_cleanup_x64:
   when: always

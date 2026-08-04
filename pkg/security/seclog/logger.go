@@ -8,11 +8,13 @@ package seclog
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -282,4 +284,31 @@ func SetPatterns(patterns ...string) []string {
 
 func init() {
 	DefaultLogger = &PatternLogger{}
+}
+
+// phaseProfilingEnabled reports whether shutdown/startup phase profiling is enabled. It is
+// driven by DD_CWS_PHASE_PROFILING so that it stays a no-op unless explicitly asked for.
+var phaseProfilingEnabled = os.Getenv("DD_CWS_PHASE_PROFILING") != ""
+
+// PhaseProfilingEnabled reports whether phase profiling is enabled
+func PhaseProfilingEnabled() bool {
+	return phaseProfilingEnabled
+}
+
+// StartPhase starts a named timing phase and returns the function that ends it and reports the
+// elapsed time. Reporting happens at warn level so that it shows up with the default log level
+// of the functional test suite. When phase profiling is disabled both calls are no-ops.
+//
+// Usage:
+//
+//	defer seclog.StartPhase("EBPFProbe.Close")()
+func StartPhase(name string) func() {
+	if !phaseProfilingEnabled {
+		return func() {}
+	}
+
+	start := time.Now()
+	return func() {
+		Warnf("[phase] %s took %s", name, time.Since(start))
+	}
 }
