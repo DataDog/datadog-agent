@@ -163,11 +163,14 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)
 
-	// Prometheus HTTP Service Discovery
-	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{}) // List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
-	config.ParseEnvJSON("prometheus_http_sd.configs", []map[string]interface{}{})         // DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
-	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")                             // [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
-	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")                  // [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
+	// List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+	// DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{})
+	config.ParseEnvJSON("prometheus_http_sd.configs", []map[string]interface{}{})
+	// [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")
+	// [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")

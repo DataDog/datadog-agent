@@ -9632,15 +9632,14 @@ properties:
         items:
           type: object
         comment: |-
-          Prometheus HTTP Service Discovery
           List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
       url:
         node_type: setting
         type: string
         default: ''
-        comment: |-
-          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
-          [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+        comment: '[DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs
+          instead.'
     tags:
     - full-agent-only:true
   provider_kind:
