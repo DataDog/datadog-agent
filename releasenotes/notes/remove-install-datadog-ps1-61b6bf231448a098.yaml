@@ -1,7 +1,0 @@
----
-upgrade:
-  - |
-    The deprecated ``Install-Datadog.ps1`` PowerShell install script has been removed and is no
-    longer published. Anyone still invoking it directly (rather than through the
-    `in-app installation guide <https://app.datadoghq.com/fleet/install-agent/latest?platform=windows>`_)
-    should switch to ``datadog-installer.exe`` or the MSI installer instead.
