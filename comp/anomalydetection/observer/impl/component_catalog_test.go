@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -23,6 +24,35 @@ import (
 func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 	require.NoError(t, defaultCatalog().validateDetectorTeardownContract(),
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
+}
+
+func TestProductionCatalogExcludesCleanupComponents(t *testing.T) {
+	removed := map[string]bool{
+		"cusum":        true,
+		"cross_signal": true,
+		"passthrough":  true,
+	}
+	for _, entry := range defaultCatalog().entries {
+		require.False(t, removed[entry.name], "%s must not be registered in the production catalog", entry.name)
+	}
+}
+
+func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
+	found := false
+	for _, entry := range TestbenchCatalogEntries() {
+		if entry.Name == TestbenchPassthroughComponentName {
+			found = true
+			require.Equal(t, "correlator", entry.Kind)
+			require.False(t, entry.DefaultEnabled)
+		}
+	}
+	require.True(t, found)
+
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		TestbenchPassthroughComponentName: json.RawMessage(`{"enabled":true}`),
+	})
+	require.NoError(t, err)
+	require.True(t, settings.Enabled[TestbenchPassthroughComponentName])
 }
 
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the

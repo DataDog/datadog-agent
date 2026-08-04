@@ -351,10 +351,10 @@ def eval_tp(
     build: bool = True,
 ):
     """
-    Runs TP metric scoring: replays scenarios with passthrough correlator and scores
+    Runs TP metric scoring: replays scenarios with the testbench passthrough adapter and scores
     each detected anomaly against ground truth metric labels in ground_truth.json.
 
-    passthrough correlator is auto-added if not specified (required for TP scoring).
+    The passthrough adapter is auto-added if not specified (required for TP scoring).
 
     Examples:
         dda inv anomalydetection.eval-tp --only scanmw              # scanmw + passthrough (auto)
@@ -1635,7 +1635,7 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline
         dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
+        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
             --ddeval-command ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
@@ -1932,7 +1932,7 @@ def eval_component(
     overwrite: bool = False,
     tune_evaluated_component: bool = False,
     enable: str = "",
-    disable: str = "cusum",
+    disable: str = "",
     lock: str = "",
     timeout: int = 300,
     scenarios: str = "",
@@ -1963,7 +1963,7 @@ def eval_component(
         build: Whether to build testbench and scorer first.
         tune_evaluated_component: If True, Optuna also tunes the target component's hyperparameters.
         enable: Comma-separated components to force-enable in every subset.
-        disable: Comma-separated components to force-disable from every subset (default: cusum).
+        disable: Comma-separated components to force-disable from every subset.
         lock: Comma-separated components to lock at Go defaults in every Bayesian run.
         timeout: Per-scenario time budget in seconds (default: 300).
         scenarios: Comma-separated scenario names (default: all SCENARIOS).

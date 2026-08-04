@@ -82,8 +82,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | Name | Default | Description |
 |------|---------|-------------|
 | `bocpd` | enabled | Bayesian Online Change Point Detection — streaming, per-series changepoint detector |
-| `rrcf` | enabled | Robust Random Cut Forest — multivariate anomaly detection over system metrics |
-| `cusum` | disabled | CUSUM change-point detector |
+| `rrcf` | enabled | Robust Random Cut Forest — multivariate system-metric detection plus log-count trajectory detection |
 | `scanmw` | disabled | Mann-Whitney scan statistic detector |
 | `scanwelch` | disabled | Welch t-test scan statistic detector |
 
@@ -92,8 +91,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | Name | Default | Description |
 |------|---------|-------------|
 | `time_cluster` | enabled | Groups anomalies that occur close together in time |
-| `cross_signal` | disabled | Cross-signal pattern correlator (fixed known patterns) |
-| `passthrough` | disabled | Passes every anomaly through as its own correlation (for TP metric scoring) |
+| `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
 ### Extractors
 
@@ -113,9 +111,6 @@ dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster
 dda inv -- anomalydetection.launch-testbench --only bocpd,time_cluster
-
-# Enable CUSUM on top of defaults
-dda inv -- anomalydetection.launch-testbench --enable cusum
 
 # Run on a different port
 dda inv -- anomalydetection.launch-testbench --http :9090
@@ -253,7 +248,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
       "threshold_sigma": 2.5,
       "tree_size": 128
     },
-    "cusum": { "enabled": false },
     "time_cluster": {
       "enabled": true,
       "proximity_seconds": 15,
@@ -279,15 +273,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `prior_variance_scale` | 10.0 | Diffuseness of prior over the mean |
 | `min_variance` | 1.0 | Variance floor (numerical stability) |
 | `recovery_points` | 10 | Consecutive quiet points needed to exit alert state |
-
-#### `cusum`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `min_points` | 5 | Minimum data points required |
-| `baseline_fraction` | 0.25 | Fraction of data used for baseline estimation |
-| `slack_factor` | 0.5 | k = slack_factor × stddev (slack parameter) |
-| `threshold_factor` | 4.0 | h = threshold_factor × stddev (detection threshold) |
 
 #### `rrcf`
 
@@ -318,12 +303,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `min_token_match_ratio` | 0.5 | Minimum fraction of token positions that must match to merge lines (0 = default 0.5) |
 | `cluster_time_to_live_sec` | 14400 | Clusters with no matching log for this many seconds are removed during GC. `0` disables cluster garbage collection. |
 | `garbage_collection_interval_sec` | 3600 | Minimum seconds between GC passes when cluster TTL is enabled (nonzero `cluster_time_to_live_sec`) |
-
-#### `cross_signal`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `window_seconds` | 30 | Time window for clustering anomalies |
 
 ## Architecture
 

@@ -42,7 +42,6 @@ and the testbench use the same engine.
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
-| `impl/anomaly_correlator_passthrough.go` | Passthrough correlator (one ActiveCorrelation per anomaly) |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
@@ -58,9 +57,8 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
 | Detector | `rrcf` | on |
-| Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
+| Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | on |
-| Correlator | `cross_signal`, `passthrough` | off |
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
@@ -135,7 +133,7 @@ are unaffected.
 
 All correlation event deduplication lives **inside each correlator**, not in reporters.
 `correlationEmitter` (`impl/correlation_emitter.go`) is a shared helper embedded in
-every non-scorer correlator (`TimeCluster`, `CrossSignal`, `Passthrough`). It tracks
+every non-scorer correlator (`TimeCluster`). It tracks
 first-seen / recurrence state and produces `CorrelatorEventCorrelationDetected` events
 via `PendingEvents()`. The engine collects pending events after each `Advance` call and
 forwards them to reporters via `ReportOutput.CorrelatorEvents`.
@@ -197,6 +195,15 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```bash
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
+
+# Headless logs-only smoke test for one detector. The testbench-only
+# passthrough adapter serializes raw anomalies as anomaly_periods.
+bin/anomalydetection-testbench \
+  --headless <scenario> \
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios \
+  --output /tmp/observer-smoke.json \
+  --only <detector>,passthrough \
+  --logs-only --verbose
 ```
 
 Reads scenarios from `observer/scenarios/`. See
