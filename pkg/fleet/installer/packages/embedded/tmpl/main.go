@@ -13,19 +13,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
-
-var yamlTemplateFuncs = template.FuncMap{
-	"yamlQuote": yamlSingleQuote,
-}
-
-// yamlSingleQuote wraps s in YAML single quotes, escaping embedded apostrophes.
-func yamlSingleQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-}
 
 //go:generate go run ./main.go ./gen
 
@@ -99,7 +89,7 @@ func (l embeddedLayout) writeFilesToSubdir(root string) error {
 }
 
 func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
-	tmpl, err := template.New(filepath.Base(name)).Funcs(yamlTemplateFuncs).ParseFS(embedded, name)
+	tmpl, err := template.New(filepath.Base(name)).ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
 	}

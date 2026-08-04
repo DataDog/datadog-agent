@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,10 +39,7 @@ func (s installRootProcmgrSpec) renderConfig(installRootResolved string) string 
 		s.logLabel, s.placeholderPrefix, installRootRepl,
 		s.placeholderPrefix, etcRootRepl)
 
-	config := s.embeddedConfig
-	config = strings.ReplaceAll(config, "__"+s.placeholderPrefix+"_INSTALL_ROOT__", installRootRepl)
-	config = strings.ReplaceAll(config, "__"+s.placeholderPrefix+"_ETC_ROOT__", etcRootRepl)
-	return config
+	return substituteProcmgrYAMLPlaceholders(s.embeddedConfig, s.placeholderPrefix, installRootResolved, paths.DatadogDataDir)
 }
 
 func writeInstallRootProcmgrConfig(installRootResolved string, spec installRootProcmgrSpec) error {
