@@ -5,6 +5,7 @@ go_library(
     name = "flare",
     srcs = [
         "archive.go",
+        "archive_aix.go",
         "archive_docker.go",
         "archive_k8s.go",
         "archive_linux.go",
@@ -12,6 +13,7 @@ go_library(
         "archive_nodocker.go",
         "archive_nok8s.go",
         "archive_nolinux.go",
+        "archive_notaix.go",
         "archive_win.go",
         "config_check.go",
         "flare.go",
