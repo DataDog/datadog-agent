@@ -20,13 +20,13 @@ with `-run`. The areas covered:
 - **Agent package** — install, upgrade (across versions and from GA), downgrade,
   rollback, config experiments, custom agent user / alternate install dir,
   hostname change, and domain-controller / GMSA scenarios.
-- **Install script & exe** — `datadog-installer.exe` bootstrap/setup, including
+- **Install exe** — `datadog-installer.exe` bootstrap/setup, including
   custom agent user, proxy, and domain-controller hosts.
-- **DDOT extension** — install via MSI, install script, and `agent` subcommand;
+- **DDOT extension** — install via MSI, the installer exe, and `agent` subcommand;
   MSI upgrade; persistence across upgrades.
-- **APM auto-injection** — IIS and Java injection via MSI and install script,
+- **APM auto-injection** — IIS and Java injection via MSI and the installer exe,
   injector stats, and system-probe config interplay.
-- **.NET APM library package** — install via MSI and script, with and without IIS.
+- **.NET APM library package** — install via MSI and the installer exe, with and without IIS.
 - **Installer itself** — `datadog-installer.exe` install/rollback, the experiment
   lifecycle (see below), and OCI dev-env overrides.
 
