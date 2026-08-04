@@ -1,6 +1,6 @@
 {
     "base_branch": "7.82.x",
-    "current_milestone": "7.82.0",
+    "current_milestone": "7.82.1",
     "dependencies": {
         "AGENT_DATA_PLANE_HASH_DARWIN_AMD64": "e956ecbe696afb1a3e5f019a2f3594e40804e98f1bfe862ffc9e18850779cb5f",
         "AGENT_DATA_PLANE_HASH_DARWIN_ARM64": "cfdf28d45c68271eb24fc7fe6ec89c0d996a10d72fb681143fe899e7ffd97437",
@@ -15,7 +15,7 @@
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
-        "OMNIBUS_RUBY_VERSION": "7.82.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.82.0",
         "SECURITY_AGENT_POLICIES_SHA256": "259e75377a92109de18b63dd6009f5b5874ca15d98e0da69d466b009c0d962f2",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.82.0",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
