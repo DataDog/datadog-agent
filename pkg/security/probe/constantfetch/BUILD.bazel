@@ -18,18 +18,21 @@ go_library(
     # keep
     embedsrcs = select({
         "@rules_go//go/platform:linux_amd64": [
-            "//pkg/security/probe/constantfetch/btfhub:constants_amd64.json",  # keep
+            "constants_amd64.json",
         ],
         "@rules_go//go/platform:linux_arm64": [
-            "//pkg/security/probe/constantfetch/btfhub:constants_arm64.json",  # keep
+            "constants_arm64.json",
         ],
         "//conditions:default": [],
     }),
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch",
+    # All the code is tag guarded with linux
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/security/ebpf",
             "//pkg/security/ebpf/kernel",
             "//pkg/security/ebpf/probes",
@@ -42,6 +45,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/security/ebpf",
             "//pkg/security/ebpf/kernel",
             "//pkg/security/ebpf/probes",

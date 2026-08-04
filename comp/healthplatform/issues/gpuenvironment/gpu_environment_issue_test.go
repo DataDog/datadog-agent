@@ -24,6 +24,7 @@ func TestBuildGPUEnvironmentIssue(t *testing.T) {
 
 	assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
 	assert.Equal(t, issueName, issue.IssueName)
+	assert.Equal(t, issueType, issue.IssueType)
 	assert.Equal(t, "GPU monitoring cannot initialize NVML", issue.Title)
 	assert.Contains(t, issue.Description, "NVIDIA Management Library")
 	assert.Equal(t, category, issue.Category)

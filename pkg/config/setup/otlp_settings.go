@@ -9,7 +9,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// OTLP related configuration.
 func OTLP(config pkgconfigmodel.Setup) {
 	// Legacy port keys (unused; 0 = disabled)
 	config.BindEnvAndSetDefault("otlp_config.grpc_port", 0)
@@ -17,8 +16,7 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.http_port", 0)
 
 	// This only partially works. The environment variable is also manually checked in comp/otelcol/otlp/config.go
-	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low",
-		"DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY", "DD_OTLP_TAG_CARDINALITY")
+	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low", "DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY", "DD_OTLP_TAG_CARDINALITY")
 
 	config.BindEnvAndSetDefault("otlp_config.logs.enabled", false)
 	config.BindEnvAndSetDefault("otlp_config.logs.batch.min_size", 8192)
@@ -28,8 +26,7 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.traces.enabled", true)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_as_resource_name", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
-	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
-		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
+	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", float64(100), "DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
 
 	// Receiver gRPC settings (defaults from OTel otlpreceiver / configgrpc)
@@ -69,6 +66,11 @@ func OTLP(config pkgconfigmodel.Setup) {
 	// container_tag_promotion controls how the infraattributes processor promotes custom
 	// container tags into `_dd.tags.container` for traces. Valid values: off, duplicate, rename.
 	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.container_tag_promotion", "off")
+
+	// tags_as_ddtags controls whether the infraattributes processor writes custom tags
+	// (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log
+	// tags instead of log attributes.
+	config.BindEnvAndSetDefault("otlp_config.logs.infra_attributes.tags_as_ddtags", false)
 
 	// Debug settings (default from OTel debugexporter)
 	config.BindEnvAndSetDefault("otlp_config.debug.verbosity", "basic")

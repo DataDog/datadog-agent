@@ -17,10 +17,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
@@ -80,7 +81,26 @@ const (
 // container
 type Data struct {
 	files    fileQuerier
-	packages []sbomtypes.PackageWithInstalledFiles // Store original packages for forwarding
+	packages []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+}
+
+// newData builds the cached scan Data from a freshly generated report. It keeps
+// only the compact representation: per-package metadata in packages (dropping the
+// plain-text InstalledFiles) and murmur3 hashes of the file paths in the file
+// querier. Runtime file->package lookups use the hashes and forwarding only needs
+// the package metadata, so retaining the paths would waste megabytes per workload
+// for the lifetime of the data cache. The file querier stores pointers into
+// packages so LastAccess updates stay visible to the forwarding path.
+func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data {
+	packages := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		packages[i] = report[i].Package
+	}
+
+	return &Data{
+		files:    newFileQuerier(report, packages, usrMerged),
+		packages: packages,
+	}
 }
 
 // SBOM defines an SBOM
@@ -119,8 +139,8 @@ func (s *SBOM) IsComputed() bool {
 
 // SetReport sets the SBOM report
 func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
-	// build file cache
-	s.data.files = newFileQuerier(pkgs, s.usrMerged)
+	// build the compact file cache and package metadata, dropping installed-file lists
+	s.data = newData(pkgs, s.usrMerged)
 }
 
 func (s *SBOM) stop() {
@@ -269,9 +289,9 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case sbom := <-r.scanChan:
-				if err := retry.Do(func() error {
-					return r.analyzeWorkload(sbom)
-				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond), retry.DelayType(retry.FixedDelay)); err != nil {
+				if _, err := backoff.Retry(ctx, func() (struct{}, error) {
+					return struct{}{}, r.analyzeWorkload(sbom)
+				}, backoff.WithMaxTries(maxSBOMGenerationRetries), backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil {
 					if errors.Is(err, errNoProcessForContainerID) {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {
@@ -410,8 +430,13 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 
 				seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
 
+				// Snapshot the package metadata: the forwarded report outlives the
+				// lock and the backing slice keeps being mutated (LastAccess) at runtime.
+				packages := make([]sbomtypes.Package, len(sbom.data.packages))
+				copy(packages, sbom.data.packages)
+
 				// Create SBOM report and notify listeners
-				packagesReport := NewPackagesReport(sbom.data.packages, sbom.ContainerID)
+				packagesReport := NewPackagesReport(packages, sbom.ContainerID)
 				scanResult := &sbompkg.ScanResult{
 					Report:           packagesReport,
 					CreatedAt:        time.Now(),
@@ -520,6 +545,13 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 	return policyDef
 }
 
+// isProcRootGone reports whether err is the expected outcome of reaching for the proc root of a
+// process that is exiting: the entry is already reaped (ENOENT) or the task has dropped its
+// address space and the kernel no longer resolves it (ESRCH).
+func isProcRootGone(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
+}
+
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	var (
 		lastErr error
@@ -545,6 +577,9 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 		if sbom.ContainerID != "" {
 			stat, err := utils.UnixStat(containerProcRootPath)
 			if err != nil {
+				if isProcRootGone(err) {
+					continue
+				}
 				return nil, fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
 			}
 			if stat.Dev == r.hostRootDevice {
@@ -557,6 +592,11 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 			sbom.setReport(report)
 			scanned = true
 			break
+		}
+
+		if isProcRootGone(lastErr) {
+			lastErr = nil
+			continue
 		}
 
 		seclog.Errorf("couldn't generate SBOM: %v", lastErr)
@@ -635,10 +675,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		return scanErr
 	}
 
-	data := &Data{
-		files:    newFileQuerier(report, sb.usrMerged),
-		packages: report, // Store original packages for forwarding with LastAccess
-	}
+	data := newData(report, sb.usrMerged)
 	sb.data = data
 
 	// mark the SBOM as successful

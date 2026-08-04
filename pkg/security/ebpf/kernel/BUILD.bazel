@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:dd_linux_bpf off
+
 go_library(
     name = "kernel",
     srcs = [
@@ -12,24 +14,24 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/config/env",
+            "//pkg/ebpf/btf",
             "//pkg/util/filesystem",
             "//pkg/util/kernel",
             "@com_github_acobaugh_osrelease//:osrelease",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
-            "@com_github_cilium_ebpf//btf",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/env",
+            "//pkg/ebpf/btf",
             "//pkg/util/filesystem",
             "//pkg/util/kernel",
             "@com_github_acobaugh_osrelease//:osrelease",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
-            "@com_github_cilium_ebpf//btf",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
             "@org_golang_x_sys//unix",

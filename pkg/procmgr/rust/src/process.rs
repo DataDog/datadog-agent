@@ -196,11 +196,12 @@ impl ManagedProcess {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if let Some(ref path) = self.config.condition_path_exists
-            && !std::path::Path::new(path).exists()
-        {
-            info!("[{}] condition_path_exists not met: {path}", self.name);
-            return false;
+        if let Some(ref raw) = self.config.condition_path_exists {
+            let path = expand_env_vars(raw);
+            if !std::path::Path::new(&path).exists() {
+                info!("[{}] condition_path_exists not met: {path}", self.name);
+                return false;
+            }
         }
         true
     }
@@ -270,13 +271,13 @@ impl ManagedProcess {
     }
 
     fn build_command(&self) -> Result<Command> {
-        let mut cmd = Command::new(&self.config.command);
-        cmd.args(&self.config.args);
+        let mut cmd = Command::new(expand_env_vars(&self.config.command));
+        cmd.args(self.config.args.iter().map(|a| expand_env_vars(a)));
 
         apply_child_environment(&mut cmd, self.name(), &self.config)?;
 
         if let Some(ref dir) = self.config.working_dir {
-            cmd.current_dir(dir);
+            cmd.current_dir(expand_env_vars(dir));
         }
 
         apply_child_stdio(&mut cmd, &self.config);
@@ -519,6 +520,7 @@ fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig
     platform::apply_child_baseline_env(cmd);
 
     if let Some(ref raw_path) = config.environment_file {
+        let raw_path = expand_env_vars(raw_path);
         let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
             (true, stripped)
         } else {
@@ -535,9 +537,55 @@ fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig
         }
     }
     for (k, v) in &config.env {
-        cmd.env(k, v);
+        cmd.env(k, expand_env_vars(v));
     }
     Ok(())
+}
+
+/// Expand `${VAR}` references in `input` using dd-procmgr's own environment.
+///
+/// This lets a single process definition be pointed at the stable or experiment configuration
+/// directory by the supervising dd-procmgr, which exports the target directory in its own
+/// environment (the stable and experiment procmgr units export different values). It mirrors how
+/// the datadog-agent stable/experiment units each select their own config directory, so the
+/// experiment collector reads the experiment config while the process definition stays identical.
+/// Unknown variables are left as the literal `${VAR}` and logged, so a misconfiguration surfaces
+/// as a startup failure rather than silently resolving to an empty path.
+fn expand_env_vars(input: &str) -> String {
+    expand_vars_with(input, |name| std::env::var(name).ok())
+}
+
+/// Core of [`expand_env_vars`] with the variable lookup injected, so it can be unit-tested without
+/// mutating the process environment.
+fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        match after.find('}') {
+            Some(end) => {
+                let name = &after[..end];
+                match lookup(name) {
+                    Some(val) => out.push_str(&val),
+                    None => {
+                        warn!(
+                            "process config references unset variable ${{{name}}}, leaving it literal"
+                        );
+                        out.push_str(&rest[start..start + 2 + end + 1]);
+                    }
+                }
+                rest = &after[end + 1..];
+            }
+            None => {
+                // No closing brace: emit the remainder verbatim.
+                out.push_str(&rest[start..]);
+                return out;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
@@ -595,6 +643,44 @@ pub mod tests {
     use crate::test_helpers;
     #[cfg(unix)]
     use nix::sys::signal::Signal;
+
+    // -- ${VAR} expansion tests --
+
+    #[test]
+    fn test_expand_vars_substitutes_known() {
+        let lookup = |name: &str| match name {
+            "DD_CONF_DIR" => Some("/etc/datadog-agent-exp".to_string()),
+            _ => None,
+        };
+        assert_eq!(
+            expand_vars_with("${DD_CONF_DIR}/otel-config.yaml", lookup),
+            "/etc/datadog-agent-exp/otel-config.yaml"
+        );
+        // Multiple references and a leading dash (optional environment_file form) are preserved.
+        assert_eq!(
+            expand_vars_with("-${DD_CONF_DIR}/environment", lookup),
+            "-/etc/datadog-agent-exp/environment"
+        );
+    }
+
+    #[test]
+    fn test_expand_vars_leaves_unknown_literal() {
+        let lookup = |_: &str| None;
+        assert_eq!(
+            expand_vars_with("${MISSING}/x", lookup),
+            "${MISSING}/x",
+            "unset variables must be left literal so misconfiguration fails loudly"
+        );
+    }
+
+    #[test]
+    fn test_expand_vars_no_placeholder_untouched() {
+        let lookup = |_: &str| Some("should-not-be-used".to_string());
+        let path = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/otel-agent";
+        assert_eq!(expand_vars_with(path, lookup), path);
+        // A dangling `${` with no closing brace is emitted verbatim.
+        assert_eq!(expand_vars_with("a ${ b", lookup), "a ${ b");
+    }
 
     // -- state lifecycle tests --
 

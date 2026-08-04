@@ -18,6 +18,8 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -126,7 +128,7 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 }
 
 // TestSetObserverConfigOff verifies that SetObserver does not wire the handle
-// when anomaly_detection.enabled or anomaly_detection.metrics.enabled is false.
+// when no active observer gate is enabled or anomaly_detection.metrics.enabled is false.
 // Covers both the DogStatsD TimeSampler path and the BufferedAggregator/CheckSampler path.
 func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
@@ -134,7 +136,7 @@ func TestSetObserverConfigOff(t *testing.T) {
 	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
-	// Both config keys default to false — handle must not be wired.
+	// Observer gates are off by default — handle must not be wired.
 	comp := &recordingComponent{handle: &recordingHandle{}}
 	demux.SetObserver(comp)
 
@@ -150,6 +152,33 @@ func TestSetObserverConfigOff(t *testing.T) {
 	demux.aggregator.mu.Unlock()
 	require.NotNil(t, cs)
 	assert.Nil(t, cs.observerHandle, "CheckSampler handle should not be wired when config is off")
+}
+
+func TestSetObserverReportingEventsGateOn(t *testing.T) {
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	cfg := pkgconfigsetup.Datadog()
+	cfg.Set("anomaly_detection.reporting.events.enabled", true, model.SourceAgentRuntime)
+	t.Cleanup(func() {
+		cfg.Set("anomaly_detection.reporting.events.enabled", false, model.SourceAgentRuntime)
+	})
+
+	comp := &recordingComponent{handle: &recordingHandle{}}
+	demux.SetObserver(comp)
+
+	for _, w := range demux.statsd.workers {
+		assert.Same(t, comp.handle, w.sampler.observerHandle, "DogStatsD worker handle should be wired when an observer gate is on")
+	}
+	assert.Same(t, comp.handle, demux.aggregator.observerHandle, "BufferedAggregator handle should be wired when an observer gate is on")
+
+	demux.aggregator.handleRegisterSampler("check-reporting-events-on")
+	demux.aggregator.mu.Lock()
+	cs := demux.aggregator.checkSamplers["check-reporting-events-on"]
+	demux.aggregator.mu.Unlock()
+	require.NotNil(t, cs)
+	assert.Same(t, comp.handle, cs.observerHandle, "CheckSampler handle should be wired when an observer gate is on")
 }
 
 // TestCheckSamplerObserverHandle verifies that ObserveMetric is called for each

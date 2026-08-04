@@ -6,17 +6,18 @@
 package encryptioncontext
 
 import (
+	"crypto/hpke"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/nacl/box"
 )
 
-// KeyTypeCurve25519 is the only supported EncryptionContext.KeyType.
-const KeyTypeCurve25519 = "curve25519"
+const KeyTypeHPKE = "hpke-p256-hkdf-sha256-aes256gcm"
+
+// hpkeInfo is the HPKE `info` used for domain separation. It must match the
+// value used by the sealing side (wf-actions-server) byte-for-byte.
+var hpkeInfo = []byte("dd-par-per-task-secret-input")
 
 // EncryptionContext identifies the key pair an input was sealed with.
 type EncryptionContext struct {
@@ -24,14 +25,14 @@ type EncryptionContext struct {
 	EncryptionContextID string `json:"encryptionContextId"`
 }
 
-// Decrypt opens the base64-encoded, NaCl-sealed encryptedInput using the
+// Decrypt opens the base64-encoded, HPKE-sealed encryptedInput using the
 // private key evicted from store for encryptionContext.
 func Decrypt(store *Store, encryptionContext EncryptionContext, encryptedInput string) (string, error) {
 	if encryptionContext.EncryptionContextID == "" {
 		return "", errors.New("encryptionContext.encryptionContextId is required")
 	}
-	if encryptionContext.KeyType != KeyTypeCurve25519 {
-		return "", fmt.Errorf("unsupported keyType %q (expected %q)", encryptionContext.KeyType, KeyTypeCurve25519)
+	if encryptionContext.KeyType != KeyTypeHPKE {
+		return "", fmt.Errorf("unsupported keyType %q (expected %q)", encryptionContext.KeyType, KeyTypeHPKE)
 	}
 	if encryptedInput == "" {
 		return "", errors.New("encryptedInput is required")
@@ -47,16 +48,9 @@ func Decrypt(store *Store, encryptionContext EncryptionContext, encryptedInput s
 		return "", fmt.Errorf("encryptedInput is not valid base64: %w", err)
 	}
 
-	publicKeyBytes, err := curve25519.X25519(privateKey[:], curve25519.Basepoint)
+	plaintext, err := hpke.Open(privateKey, hpke.HKDFSHA256(), hpke.AES256GCM(), hpkeInfo, ciphertext)
 	if err != nil {
-		return "", fmt.Errorf("failed to derive public key: %w", err)
-	}
-	var publicKey [32]byte
-	copy(publicKey[:], publicKeyBytes)
-
-	plaintext, ok := box.OpenAnonymous(nil, ciphertext, &publicKey, privateKey)
-	if !ok {
-		return "", errors.New("failed to open sealed input")
+		return "", fmt.Errorf("failed to open sealed input: %w", err)
 	}
 	return string(plaintext), nil
 }

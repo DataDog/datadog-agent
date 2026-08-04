@@ -1,12 +1,11 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
@@ -16,13 +15,6 @@ namespace Datadog.CustomActions
 {
     public class ConfigCustomActions
     {
-        private const string AiUsageNativeHostConfigName = "ai_usage_native_host.yaml";
-        private const string AiUsageNativeHostName = "com.datadoghq.ai_usage_agent.native_host";
-        private static readonly string[] ObsoleteAiUsageNativeHostNames =
-        {
-            "com.datadoghq.ai_prompt_logger.native_host",
-        };
-
         /// <summary>
         /// Subset of the Datadog config file that we are going to read.
         /// </summary>
@@ -31,13 +23,6 @@ namespace Datadog.CustomActions
         {
             // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public int? ReceiverPort { get; set; }
-        }
-
-        // ReSharper disable once ArrangeTypeMemberModifiers
-        class AiUsageNativeHostConfig
-        {
-            // ReSharper disable once UnusedAutoPropertyAccessor.Local
-            public string ChromeExtensionId { get; set; }
         }
 
         // ReSharper disable once ArrangeTypeMemberModifiers
@@ -363,137 +348,9 @@ namespace Datadog.CustomActions
             return yaml;
         }
 
-        private static int ReadAgentReceiverPort(string configFolder)
-        {
-            const int defaultPort = 8126;
-            var datadogYamlPath = Path.Combine(configFolder, "datadog.yaml");
-            if (!File.Exists(datadogYamlPath))
-            {
-                return defaultPort;
-            }
-
-            try
-            {
-                using var input = new StreamReader(datadogYamlPath);
-                var deserializer = new DeserializerBuilder()
-                    .IgnoreUnmatchedProperties()
-                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                    .Build();
-                var cfg = deserializer.Deserialize<DatadogConfig>(input);
-                return cfg?.ApmConfig?.ReceiverPort ?? defaultPort;
-            }
-            catch
-            {
-                return defaultPort;
-            }
-        }
-
-        private static string ReadAiUsageChromeExtensionIdFromFile(string configPath)
-        {
-            if (!File.Exists(configPath))
-            {
-                return "";
-            }
-
-            try
-            {
-                using var input = new StreamReader(configPath);
-                var deserializer = new DeserializerBuilder()
-                    .IgnoreUnmatchedProperties()
-                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                    .Build();
-                var cfg = deserializer.Deserialize<AiUsageNativeHostConfig>(input);
-                return cfg?.ChromeExtensionId?.Trim() ?? "";
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        private static string ReadAiUsageChromeExtensionId(string configFolder, ISession session)
-        {
-            var aiUsageNativeHostYamlPath = Path.Combine(configFolder, AiUsageNativeHostConfigName);
-            var extensionId = ReadAiUsageChromeExtensionIdFromFile(aiUsageNativeHostYamlPath);
-            if (!string.IsNullOrEmpty(extensionId))
-            {
-                return extensionId;
-            }
-
-            var aiUsageNativeHostExamplePath = Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example");
-            extensionId = ReadAiUsageChromeExtensionIdFromFile(aiUsageNativeHostExamplePath);
-            if (!string.IsNullOrEmpty(extensionId))
-            {
-                return extensionId;
-            }
-
-            session.Log(
-                $"No chrome_extension_id override found in {aiUsageNativeHostYamlPath} or {aiUsageNativeHostExamplePath}; " +
-                $"using fallback Chrome extension ID {Constants.FallbackAiUsageChromeExtensionId}.");
-            return Constants.FallbackAiUsageChromeExtensionId;
-        }
-
-        private static string JsonEscape(string value)
-        {
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"");
-        }
-
-        private static void WriteAiUsageNativeMessagingManifest(string projectLocation, string configFolder, ISession session)
-        {
-            var manifestDir = Path.Combine(projectLocation, "bin", "agent", "dist");
-            Directory.CreateDirectory(manifestDir);
-
-            var hostExe = Path.Combine(projectLocation, "bin", "agent", "ai-usage-agent-native-host.exe");
-            var extensionId = ReadAiUsageChromeExtensionId(configFolder, session);
-            var manifestPath = Path.Combine(manifestDir, $"{AiUsageNativeHostName}.json");
-            foreach (var obsoleteHostName in ObsoleteAiUsageNativeHostNames)
-            {
-                var obsoleteManifestPath = Path.Combine(manifestDir, $"{obsoleteHostName}.json");
-                try
-                {
-                    if (File.Exists(obsoleteManifestPath))
-                    {
-                        session.Log($"Deleting obsolete AI usage native messaging manifest \"{obsoleteManifestPath}\"");
-                        File.Delete(obsoleteManifestPath);
-                    }
-                }
-                catch (Exception e)
-                {
-                    session.Log($"Failed to delete obsolete AI usage native messaging manifest \"{obsoleteManifestPath}\": {e}");
-                }
-            }
-
-            var manifest = "{\n" +
-                           $"  \"name\": \"{AiUsageNativeHostName}\",\n" +
-                           "  \"description\": \"Datadog AI usage native messaging host\",\n" +
-                           $"  \"path\": \"{JsonEscape(hostExe)}\",\n" +
-                           "  \"type\": \"stdio\",\n" +
-                           "  \"allowed_origins\": [\n" +
-                           $"    \"chrome-extension://{JsonEscape(extensionId)}/\"\n" +
-                           "  ]\n" +
-                           "}\n";
-
-            File.WriteAllText(manifestPath, manifest);
-        }
-
-        private static void GrantAiUsageNativeHostConfigReadAccess(string configPath)
-        {
-            var security = File.GetAccessControl(configPath);
-            // Chrome launches the native messaging host as the browser user, so all
-            // local users need read access to the host config under ProgramData.
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                FileSystemRights.Read,
-                AccessControlType.Allow));
-            File.SetAccessControl(configPath, security);
-        }
-
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
-            var projectLocation = session.Property("PROJECTLOCATION");
             try
             {
                 var copyFileFn = new Action<string>(c => File.Copy(c + ".example", c));
@@ -527,31 +384,6 @@ namespace Datadog.CustomActions
                                     output.Write(yaml);
                                 })
                             }
-                        })
-                        .Concat(new[]
-                        {
-                            new
-                            {
-                                Path = AiUsageNativeHostConfigName,
-                                CreateFn = new Action<string>(c =>
-                                {
-                                    string yaml;
-                                    using (var input = new StreamReader(Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example")))
-                                    {
-                                        yaml = input.ReadToEnd();
-                                    }
-
-                                    var port = ReadAgentReceiverPort(configFolder);
-                                    yaml = Regex.Replace(
-                                        yaml,
-                                        "^[ #]*trace_agent_url:.*$",
-                                        $"trace_agent_url: \"http://127.0.0.1:{port}\"",
-                                        RegexOptions.Multiline);
-
-                                    using var output = new StreamWriter(c);
-                                    output.Write(yaml);
-                                })
-                            }
                         });
 
                 foreach (var c in configFiles)
@@ -572,14 +404,7 @@ namespace Datadog.CustomActions
                     {
                         session.Log($"{configPath}.example doesn't exists.");
                     }
-
-                    if (c.Path == AiUsageNativeHostConfigName && File.Exists(configPath))
-                    {
-                        GrantAiUsageNativeHostConfigReadAccess(configPath);
-                    }
                 }
-
-                WriteAiUsageNativeMessagingManifest(projectLocation, configFolder, session);
             }
             catch (Exception e)
             {
@@ -601,45 +426,8 @@ namespace Datadog.CustomActions
             {
                 var path = session.Property("APPLICATIONDATADIRECTORY");
 
-                // This section is copied from RollbackDataStore.cs
-                // Create DACL for only SYSTEM and Administrators, disable inheritance
-                FileSystemSecurity security = new DirectorySecurity();
-                security.SetAccessRuleProtection(true, false);
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                security.SetOwner(new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid, null));
-                security.SetGroup(new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid, null));
-
-                if (Directory.Exists(path))
-                {
-                    var _oldACL = Directory.GetAccessControl(path, AccessControlSections.All);
-                    session.Log($"{path} current ACL: {_oldACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-                }
-                else
-                {
-                    session.Log($"Creating {path}");
-                }
-
-                // Create the directory with the above DACL
-                Directory.CreateDirectory(path, (DirectorySecurity)security); // Create directory with ACL if needed
-                session.Log($"Updating ACL on {path}");
-                Directory.SetAccessControl(path, (DirectorySecurity)security); // otherwise update ACL in case directory already existed
-
-                // Log final permissions and owner
-                var _newACL = Directory.GetAccessControl(path, AccessControlSections.All);
-                session.Log($"{path} final ACL: {_newACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                // Create/update the directory so only SYSTEM and Administrators have access
+                SecureDirectory.CreateAndSecure(session, path);
 
                 // Create the logonduration subdirectory; it inherits the DACL above.
                 var logonDurationDir = Path.Combine(path, "logonduration");
@@ -649,7 +437,11 @@ namespace Datadog.CustomActions
                     Directory.CreateDirectory(logonDurationDir);
                 }
             }
-
+            catch (SecureDirectoryException e)
+            {
+                session.LogAndDisplayError(e.Message);
+                return ActionResult.Failure;
+            }
             catch (Exception e)
             {
                 session.Log($"Application directory could not be created/configured: {e}");

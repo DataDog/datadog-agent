@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aggregator",
@@ -12,7 +13,7 @@ go_library(
         "demultiplexer_agent_printer.go",
         "demultiplexer_mock.go",
         "demultiplexer_senders.go",
-        "demultiplexer_serverless.go",
+        "lookback.go",
         "no_aggregation_stream_worker.go",
         "no_op_sender_manager.go",
         "no_orchestrator.go",
@@ -30,11 +31,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/anomalydetection/config",
         "//comp/anomalydetection/observer/def",
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
-        "//comp/core/log/impl",
         "//comp/core/secrets/noop-impl/types",
         "//comp/core/tagger/def",
         "//comp/core/tagger/impl-noop",
@@ -43,7 +44,6 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/filterlist/def",
-        "//comp/filterlist/impl",
         "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/impl",
         "//comp/forwarder/defaultforwarder/noop-impl",
@@ -74,9 +74,7 @@ go_library(
         "//pkg/status/health",
         "//pkg/tagger/types",
         "//pkg/tagset",
-        "//pkg/util/compression/selector",
         "//pkg/util/flavor",
-        "//pkg/util/hostname",
         "//pkg/util/infratags",
         "//pkg/util/log",
         "//pkg/util/option",
@@ -92,7 +90,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
         "aggregator_test.go",
@@ -101,9 +99,7 @@ go_test(
         "context_resolver_bench_test.go",
         "context_resolver_test.go",
         "demultiplexer_agent_test.go",
-        "demultiplexer_serverless_test.go",
         "demultiplexer_test.go",
-        "main_test.go",
         "no_aggregation_stream_worker_test.go",
         "observer_handle_test.go",
         "sender_test.go",
@@ -114,7 +110,6 @@ go_test(
         "time_sampler_test.go",
     ],
     embed = [":aggregator"],
-    gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/severityevents/def",
@@ -163,6 +158,7 @@ go_test(
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
+        "//pkg/serializer",
         "//pkg/tagger/types",
         "//pkg/tagset",
         "//pkg/util/flavor",

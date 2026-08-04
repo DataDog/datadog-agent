@@ -315,7 +315,7 @@ func TestRunDoesNotError(t *testing.T) {
 }
 
 func TestSyncNvmlHealthIssue(t *testing.T) {
-	healthStore := healthplatformmock.Mock(t)
+	healthStore := healthplatformmock.New(t)
 	check := &Check{}
 	check.SetIssueReporter(healthStore)
 

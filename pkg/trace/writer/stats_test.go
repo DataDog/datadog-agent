@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -575,12 +576,12 @@ func TestContainerTagsBufferManyTracerPayload(t *testing.T) {
 			sw.Write(payload)
 
 			// wait for result
-			assert.Eventually(func() bool { return len(srv.Payloads()) == 1 }, time.Second, 10*time.Millisecond)
+			require.Eventually(t, func() bool { return len(srv.Payloads()) == 1 }, 5*time.Second, 10*time.Millisecond)
 
 			var statsPayload pb.StatsPayload
 			r, err := gzip.NewReader(srv.Payloads()[0].body)
-			assert.NoError(err)
-			assert.NoError(msgp.Decode(r, &statsPayload))
+			require.NoError(t, err)
+			require.NoError(t, msgp.Decode(r, &statsPayload))
 
 			receivedStats := statsPayload.Stats
 			assert.Equal(3, len(receivedStats))

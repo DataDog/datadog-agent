@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The Cluster Agent's Prometheus HTTP Service Discovery provider now applies
+    the OpenMetrics check template's ``rename_labels`` mapping to the tags
+    derived from the SD target labels, in addition to the labels scraped from
+    each target. Previously ``rename_labels`` only affected scraped metric
+    labels, so a label supplied by the SD endpoint could not be renamed.
+    No configuration change is required: the existing
+    ``rename_labels`` in the ``check_template`` now covers both sources.
