@@ -100,8 +100,7 @@ func (s SenderStats) Copy() (result SenderStats) {
 	return result
 }
 
-// stats holds Stats' fields, split out so Clone() can deep-copy it without ever
-// reflecting over a struct containing Stats.m (see Clone).
+// stats holds Stats' fields, split out to ease deep-copy without touching the mutex
 type stats struct {
 	CheckName         string
 	CheckVersion      string
