@@ -51,31 +51,29 @@ func TestLinuxPARSplitLifecycleSuite(t *testing.T) {
 	))
 }
 
-func (s *linuxPARSplitLifecycleSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
-
-	// These states jointly prove that the package contains both process
-	// definitions and that the installed par-control asked dd-procmgrd to start
-	// the otherwise on-demand executor.
+// TestControlStartsExecutor proves that the package contains both process
+// definitions and that dd-procmgrd starts par-control, which in turn starts the
+// otherwise on-demand executor.
+func (s *linuxPARSplitLifecycleSuite) TestControlStartsExecutor() {
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
 }
 
-// TestControlShutdownReapsExecutor proves the installed process lifecycle in
-// both directions: stopping par-control causes it to stop the executor through
-// dd-procmgrd, and starting par-control brings the executor back. Restoring the
-// initial state also keeps same-host test retries independent.
-func (s *linuxPARSplitLifecycleSuite) TestControlShutdownReapsExecutor() {
+// TestControlStopsWithoutReenteringSupervisor proves that par-control exits
+// promptly on SIGTERM instead of making a nested Stop RPC that blocks behind
+// dd-procmgrd's in-progress stop operation. The executor remains owned by the
+// supervisor; polling-informed idle reaping is tested in the full-stack slice.
+func (s *linuxPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervisor() {
+	started := time.Now()
 	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
+	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 30s timeout")
 	defer func() {
 		s.Require().NoError(s.runProcmgr("start", parControlProcess))
 		s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-		s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
 	}()
 
-	s.waitForProcessState(parControlProcess, "Stopped", 2*time.Minute)
-	s.waitForProcessState(parExecutorProcess, "Stopped", 2*time.Minute)
+	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
+	s.waitForProcessState(parExecutorProcess, "Running", 10*time.Second)
 }
 
 func (s *linuxPARSplitLifecycleSuite) runProcmgr(command, name string) error {

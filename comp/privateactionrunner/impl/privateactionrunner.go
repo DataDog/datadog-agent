@@ -61,7 +61,7 @@ func isEnabled(cfg config.Component) bool {
 }
 
 func splitDeploymentEnabled(cfg config.Component, goos string) bool {
-	return goos != "windows" && cfg.GetBool(privateactionrunner.PARSplitEnabled)
+	return goos == "linux" && cfg.GetBool(privateactionrunner.PARSplitEnabled)
 }
 
 func isSplitEnabled(cfg config.Component) bool {

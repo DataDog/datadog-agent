@@ -23,7 +23,11 @@ func TestSplitDeploymentEnabled(t *testing.T) {
 	cfg.SetInTest(privateactionrunner.PARSplitEnabled, true)
 
 	assert.True(t, splitDeploymentEnabled(cfg, "linux"))
+	assert.False(t, splitDeploymentEnabled(cfg, "darwin"))
 	assert.False(t, splitDeploymentEnabled(cfg, "windows"))
+
+	cfg.SetInTest(privateactionrunner.PARSplitEnabled, false)
+	assert.False(t, splitDeploymentEnabled(cfg, "linux"))
 }
 
 func TestStopCleansUpMetricsClient(t *testing.T) {
