@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1361,20 +1362,20 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"dd_url", "")
 	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
-	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
-	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                // Default level for the gzip algorithm
-	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
+	config.BindEnvAndSetDefault(prefix+"compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"batch_wait", constants.DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
-	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
-	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
-	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
-	config.BindEnvAndSetDefault(prefix+"input_chan_size", DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", DefaultLogsSenderBackoffBase)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
-	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault(prefix+"batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault(prefix+"input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)

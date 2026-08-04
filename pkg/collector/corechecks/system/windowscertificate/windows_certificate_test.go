@@ -635,6 +635,77 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	}
 }
 
+func TestConfigureWithValidFilters(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^abc"
+  exclude:
+    subject_CN: "internal"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	require.Len(t, certCheck.certFilters.include, 1)
+	require.Len(t, certCheck.certFilters.exclude, 1)
+}
+
+func TestConfigureWithInvalidFilterRegex(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "["
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.Error(t, err)
+}
+
+func TestConfigureWithFilterOnDisabledOptInTagIsPruned(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+certificate_template_tag: false
+filters:
+  include:
+    certificate_template_name: "WebServer"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	// The rule references a tag that certificate_template_tag: false never
+	// collects, so it is pruned rather than rejecting every certificate.
+	require.Empty(t, certCheck.certFilters.include)
+}
+
+func TestConfigureWithFiltersExcludesNonMatchingCerts(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^THISDOESNOTMATCH99999$"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	m.On("Commit").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
+	require.NoError(t, certCheck.Run())
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
+}
+
 func TestRun_WithSubjectFilters_EmitsThumbprintTag(t *testing.T) {
 	t.Parallel()
 
