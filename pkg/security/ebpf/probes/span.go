@@ -10,9 +10,10 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// getSpanFillTailCallRoutes returns the tail call routes used to defer the span
-// context fill (fill_span_context) and event emission to a single dedicated
-// program, keeping the calling hooks within the verifier budget on old kernels.
+// getSpanFillTailCallRoutes returns the tail call routes used to defer the Go
+// pprof labels snapshot (collect_go_labels) and event emission to a single
+// dedicated program, keeping the calling hooks within the verifier budget on
+// old kernels.
 func getSpanFillTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
@@ -45,6 +46,16 @@ func getSpanFillTailCallRoutes() []manager.TailCallRoute {
 			Key:           uint32(1),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallTracepointFnc("fill_span_and_send_setsockopt"),
+			},
+		},
+		// Index 2: exit-specific program (fill+send then unregister_go_labels).
+		// Exit is reached only from kprobe/fentry (do_exit), so there is no
+		// tracepoint-typed twin.
+		{
+			ProgArrayName: "span_fill_progs",
+			Key:           uint32(2),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallFnc("fill_span_and_send_exit"),
 			},
 		},
 	}
