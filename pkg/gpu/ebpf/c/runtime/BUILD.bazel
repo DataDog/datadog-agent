@@ -5,6 +5,8 @@ exports_files(["gpu.c"])
 ebpf_program_suite(
     name = "gpu",
     src = "gpu.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     extra_flags = [
         "-Ipkg/gpu/ebpf/c",
@@ -13,8 +15,18 @@ ebpf_program_suite(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/ebpf/c:ebpf_c_headers",
-        "//pkg/gpu/ebpf/c:gpu_headers",
-        "//pkg/network/ebpf/c:ebpf_c_network",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_helpers_custom",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/cgroup",
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
+        "//pkg/gpu/ebpf/c:hdr/types",
+        "//pkg/network/ebpf/c:hdr/pid_tgid",
     ],
 )

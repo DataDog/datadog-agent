@@ -167,6 +167,7 @@ gazelle_binary(
     name = "gazelle_binary",
     languages = _LANGUAGES_WITHOUT_GO + [
         "//bazel/rules/cws_codegen:gazelle_extension",
+        "//bazel/rules/ebpf_c:gazelle_extension",
         "//bazel/rules/go:gazelle_extension",
         "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",

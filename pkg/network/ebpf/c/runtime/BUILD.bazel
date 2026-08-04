@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
@@ -18,36 +20,83 @@ filegroup(
 ebpf_program_suite(
     name = "usm",
     src = "usm.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":runtime_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
-        "//pkg/network/ebpf/c:ebpf_c_network",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/ipv6",
+        "//pkg/network/ebpf/c:hdr/pid_tgid",
+        "//pkg/network/ebpf/c:hdr/port_range",
+        "//pkg/network/ebpf/c:hdr/protocols/classification/dispatcher-helpers",
+        "//pkg/network/ebpf/c:hdr/protocols/flush",
+        "//pkg/network/ebpf/c:hdr/protocols/http/buffer",
+        "//pkg/network/ebpf/c:hdr/protocols/http/http",
+        "//pkg/network/ebpf/c:hdr/protocols/http2/decoding",
+        "//pkg/network/ebpf/c:hdr/protocols/http2/decoding-tls",
+        "//pkg/network/ebpf/c:hdr/protocols/kafka/kafka-parsing",
+        "//pkg/network/ebpf/c:hdr/protocols/postgres/decoding",
+        "//pkg/network/ebpf/c:hdr/protocols/redis/decoding",
+        "//pkg/network/ebpf/c:hdr/protocols/sockfd-probes",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/go-tls-conn",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/go-tls-goid",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/go-tls-location",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/go-tls-types",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/native-tls",
+        "//pkg/network/ebpf/c:hdr/protocols/tls/tags-types",
+        "//pkg/network/ebpf/c:hdr/sock",
     ],
 )
 
 ebpf_program_suite(
     name = "shared-libraries",
     src = "shared-libraries.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":runtime_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
-        "//pkg/network/ebpf/c:ebpf_c_network",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/shared-libraries/maps",
+        "//pkg/network/ebpf/c:hdr/shared-libraries/probes",
+        "//pkg/network/ebpf/c:hdr/shared-libraries/types",
     ],
 )
 
 ebpf_program_suite(
     name = "conntrack",
     src = "conntrack.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":runtime_headers",
-        "//pkg/ebpf/c:ebpf_c_headers",
-        "//pkg/network/ebpf/c:ebpf_c_network",
+        ":hdr/conntrack",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/conntrack/maps",
+        "//pkg/network/ebpf/c:hdr/defs",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/ipv6",
+        "//pkg/network/ebpf/c:hdr/netns",
+        "//pkg/network/ebpf/c:hdr/pid_tgid",
     ],
 )
 
@@ -57,3 +106,29 @@ exports_files([
     "shared-libraries.c",
     "usm.c",
 ])
+
+cc_library(
+    name = "hdr/conntrack-types",
+    hdrs = ["conntrack-types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/conntrack",
+    hdrs = ["conntrack.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/network/ebpf/c:hdr/conn_tuple",
+        "//pkg/network/ebpf/c:hdr/conntrack/helpers",
+        "//pkg/network/ebpf/c:hdr/conntrack/maps",
+        "//pkg/network/ebpf/c:hdr/conntrack/types",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/netns",
+    ],
+)
