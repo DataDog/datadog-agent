@@ -1165,7 +1165,7 @@ func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupContext *model.CGroupContext) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, cgroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.GoLabels, cgroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -1408,6 +1408,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 	offset += read
 
+	// resolve APM span/trace ids from the Go pprof labels captured in the event
+	// header. Done before handleBeforeProcessContext so exec/fork can persist the
+	// resolved span context.
+	p.resolveGoLabelsSpanContext(event)
+
 	// save netns handle if applicable
 	netNS := event.PIDContext.NetNS
 	pid := event.PIDContext.Pid
@@ -1445,6 +1450,24 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+}
+
+// resolveGoLabelsSpanContext resolves the APM span/trace ids of an event from
+// the Go pprof. The raw labels are parsed lazily here rather than in the kernel
+// to avoid code blowup.
+func (p *EBPFProbe) resolveGoLabelsSpanContext(event *model.Event) {
+	if event.SpanContext.SpanID != 0 || event.GoLabels.ID == 0 || event.GoLabels.Resolved {
+		return
+	}
+	event.GoLabels.Resolved = true
+
+	spanID, traceID, err := p.Resolvers.GoLabelsCtxResolver.Resolve(event.GoLabels.ID)
+	if err != nil {
+		seclog.Tracef("unable to resolve go labels span context: %s", err)
+		return
+	}
+	event.SpanContext.SpanID = spanID
+	event.SpanContext.TraceID = traceID
 }
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.
@@ -3683,6 +3706,15 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePIDLinkStructPID, "struct pid_link", "pid")
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
+	}
+
+	if kv.Code >= kernel.Kernel4_7 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameThreadStructFsbase, "struct thread_struct", "fsbase")
+		constantFetcher.AppendOffsetofRequestWithFallbacks(constantfetch.OffsetNameThreadStructUw,
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "uw"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "tp_value"},
+		)
 	}
 
 	// splice event

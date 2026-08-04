@@ -152,6 +152,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameTaskStructCred:              getTaskStructCredOffset,
 		OffsetNameTaskStructSignal:            getTaskStructSignalOffset,
 		OffsetNameTaskStructRealCred:          getTaskStructRealCredOffset,
+		OffsetNameTaskStructThread:            getTaskStructThreadOffset,
+		OffsetNameThreadStructFsbase:          getThreadStructFsbaseOffset,
+		OffsetNameThreadStructUw:              getThreadStructUwOffset,
 	}
 }
 
@@ -1186,4 +1189,19 @@ func getTaskStructRealCredOffset(kv *kernel.Version) uint64 {
 	default:
 		return ErrorSentinel
 	}
+}
+
+// BTF is the primary source for these offsets because the task_struct.thread offset
+// varies significantly with kernel config.
+
+func getTaskStructThreadOffset(_ *kernel.Version) uint64 {
+	return ErrorSentinel
+}
+
+func getThreadStructFsbaseOffset(_ *kernel.Version) uint64 {
+	return ErrorSentinel
+}
+
+func getThreadStructUwOffset(_ *kernel.Version) uint64 {
+	return ErrorSentinel
 }
