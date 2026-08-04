@@ -39,17 +39,17 @@ func (h *PatchStatefulSetHandler) Run(
 	}
 	// The action's identity fixes the kind; it is not a user input.
 	in.Kind = "StatefulSet"
+	report := newReport(kubeactions.ActionTypePatchStatefulSet, in.ResourceRef, task)
+	h.ka.ReportReceived(report)
+
 	if err := in.Validate(); err != nil {
-		return nil, err
+		return reportPreflightFailure(h.ka, report, err)
 	}
 
 	client, err := support.KubeClient(credential)
 	if err != nil {
-		return nil, err
+		return reportPreflightFailure(h.ka, report, err)
 	}
-
-	report := newReport(kubeactions.ActionTypePatchStatefulSet, in.ResourceRef, task)
-	h.ka.ReportReceived(report)
 
 	result := kubeactionsimpl.NewPatchStatefulSetExecutor(client).Execute(ctx, in)
 	h.ka.ReportResult(report, result)

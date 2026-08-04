@@ -25,6 +25,8 @@ func TestGetAction(t *testing.T) {
 		kubeactions.ActionNameDeletePod,
 		kubeactions.ActionNameRestartDeployment,
 		kubeactions.ActionNamePatchDeployment,
+		kubeactions.ActionNamePatchDaemonSet,
+		kubeactions.ActionNamePatchStatefulSet,
 		kubeactions.ActionNameRollbackDeployment,
 		kubeactions.ActionNameGetResource,
 	} {

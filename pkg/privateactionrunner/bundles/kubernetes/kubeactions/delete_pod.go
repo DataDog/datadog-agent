@@ -46,17 +46,18 @@ func (h *DeletePodHandler) Run(
 	}
 	// The action's identity fixes the kind; it is not a user input.
 	in.Kind = "Pod"
+
+	report := newReport(kubeactions.ActionTypeDeletePod, in.ResourceRef, task)
+	h.ka.ReportReceived(report)
+
 	if err := in.Validate(); err != nil {
-		return nil, err
+		return reportPreflightFailure(h.ka, report, err)
 	}
 
 	client, err := support.KubeClient(credential)
 	if err != nil {
-		return nil, err
+		return reportPreflightFailure(h.ka, report, err)
 	}
-
-	report := newReport(kubeactions.ActionTypeDeletePod, in.ResourceRef, task)
-	h.ka.ReportReceived(report)
 
 	result := kubeactionsimpl.NewDeletePodExecutor(client).Execute(ctx, in)
 	h.ka.ReportResult(report, result)

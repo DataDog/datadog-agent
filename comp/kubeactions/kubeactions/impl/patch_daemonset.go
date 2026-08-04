@@ -57,7 +57,14 @@ func (e *PatchDaemonSetExecutor) Execute(ctx context.Context, in kubeactions.Pat
 	}
 
 	patchType := resolvePatchType(in.PatchStrategy)
-	if _, err := e.clientset.AppsV1().DaemonSets(namespace).Patch(ctx, name, patchType, in.Patch, metav1.PatchOptions{}); err != nil {
+	patch, err := applyUIDGuard(patchType, in.Patch, in.ResourceID)
+	if err != nil {
+		return kubeactions.ExecutionResult{
+			Status:  kubeactions.StatusFailed,
+			Message: fmt.Sprintf("failed to build patch: %v", err),
+		}
+	}
+	if _, err := e.clientset.AppsV1().DaemonSets(namespace).Patch(ctx, name, patchType, patch, metav1.PatchOptions{}); err != nil {
 		return kubeactions.ExecutionResult{
 			Status:  kubeactions.StatusFailed,
 			Message: fmt.Sprintf("failed to patch daemonset: %v", err),

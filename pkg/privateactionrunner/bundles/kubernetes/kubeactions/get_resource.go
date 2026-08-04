@@ -47,17 +47,17 @@ func (h *GetResourceHandler) Run(
 	if err != nil {
 		return nil, err
 	}
+	report := newReport(kubeactions.ActionTypeGetResource, in.ResourceRef, task)
+	h.ka.ReportReceived(report)
+
 	if err := in.Validate(); err != nil {
-		return nil, err
+		return reportPreflightFailure(h.ka, report, err)
 	}
 
 	client, err := support.DynamicKubeClient(credential)
 	if err != nil {
-		return nil, err
+		return reportPreflightFailure(h.ka, report, err)
 	}
-
-	report := newReport(kubeactions.ActionTypeGetResource, in.ResourceRef, task)
-	h.ka.ReportReceived(report)
 
 	result := kubeactionsimpl.NewGetResourceExecutor(client, h.ka.CustomSensitiveWords()).Execute(ctx, in)
 	h.ka.ReportResult(report, result)

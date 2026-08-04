@@ -73,3 +73,17 @@ func actionErr(result kubeactions.ExecutionResult) error {
 	}
 	return nil
 }
+
+// reportPreflightFailure emits the terminal failed action_executed event for a
+// preflight failure (input validation, Kubernetes client construction) that
+// happens before the executor runs, then returns the error. Without it these
+// early returns would report nothing to EVP, leaving the kube-actions row stuck
+// in its pending state since the writer advances status only from EVP events.
+// Callers must have already emitted ReportReceived for the report.
+func reportPreflightFailure(ka kubeactions.Component, report kubeactions.ActionReport, err error) (any, error) {
+	ka.ReportResult(report, kubeactions.ExecutionResult{
+		Status:  kubeactions.StatusFailed,
+		Message: err.Error(),
+	})
+	return nil, err
+}

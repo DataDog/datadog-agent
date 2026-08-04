@@ -9,6 +9,7 @@ package kubeactionsimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +42,58 @@ func resolvePatchType(strategy string) types.PatchType {
 	}
 }
 
+// applyUIDGuard rewrites patch so it fails atomically when the live object's UID
+// no longer matches uid, closing the check-then-patch race: the pre-Get UID
+// comparison can go stale if the object is deleted and recreated under the same
+// name between the Get and the Patch. PatchOptions carries no UID precondition,
+// so the guard is embedded in the patch body itself:
+//   - JSON patch (RFC 6902): prepend a `test` op on /metadata/uid; a mismatch
+//     makes the API server reject the whole patch.
+//   - strategic / merge patch: set metadata.uid — uid is immutable, so the API
+//     server rejects the patch when the live UID differs and no-ops when it matches.
+//
+// An empty uid means no guard was requested and patch is returned unchanged.
+func applyUIDGuard(patchType types.PatchType, patch json.RawMessage, uid string) (json.RawMessage, error) {
+	if uid == "" {
+		return patch, nil
+	}
+
+	if patchType == types.JSONPatchType {
+		var ops []json.RawMessage
+		if err := json.Unmarshal(patch, &ops); err != nil {
+			return nil, fmt.Errorf("invalid JSON patch: %w", err)
+		}
+		testOp, err := json.Marshal(map[string]string{"op": "test", "path": "/metadata/uid", "value": uid})
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(append([]json.RawMessage{testOp}, ops...))
+	}
+
+	// strategic / merge patch: inject metadata.uid.
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(patch, &obj); err != nil {
+		return nil, fmt.Errorf("invalid patch body: %w", err)
+	}
+	meta := map[string]json.RawMessage{}
+	if raw, ok := obj["metadata"]; ok {
+		if err := json.Unmarshal(raw, &meta); err != nil {
+			return nil, fmt.Errorf("invalid patch metadata: %w", err)
+		}
+	}
+	uidJSON, err := json.Marshal(uid)
+	if err != nil {
+		return nil, err
+	}
+	meta["uid"] = uidJSON
+	metaJSON, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
+	}
+	obj["metadata"] = metaJSON
+	return json.Marshal(obj)
+}
+
 // Execute applies a patch to a deployment using the specified strategy.
 func (e *PatchDeploymentExecutor) Execute(ctx context.Context, in kubeactions.PatchDeploymentInputs) kubeactions.ExecutionResult {
 	namespace := in.Namespace
@@ -71,7 +124,14 @@ func (e *PatchDeploymentExecutor) Execute(ctx context.Context, in kubeactions.Pa
 	}
 
 	patchType := resolvePatchType(in.PatchStrategy)
-	if _, err := e.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, patchType, in.Patch, metav1.PatchOptions{}); err != nil {
+	patch, err := applyUIDGuard(patchType, in.Patch, in.ResourceID)
+	if err != nil {
+		return kubeactions.ExecutionResult{
+			Status:  kubeactions.StatusFailed,
+			Message: fmt.Sprintf("failed to build patch: %v", err),
+		}
+	}
+	if _, err := e.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, patchType, patch, metav1.PatchOptions{}); err != nil {
 		return kubeactions.ExecutionResult{
 			Status:  kubeactions.StatusFailed,
 			Message: fmt.Sprintf("failed to patch deployment: %v", err),

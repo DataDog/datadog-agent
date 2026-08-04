@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -150,4 +151,55 @@ func TestPatchDeploymentExecutor_DeploymentNotFound(t *testing.T) {
 	result := executor.Execute(context.Background(), in)
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	assert.Contains(t, result.Message, "failed to get deployment")
+}
+
+func TestApplyUIDGuard(t *testing.T) {
+	t.Run("empty uid leaves the patch unchanged", func(t *testing.T) {
+		in := mustJSON(map[string]interface{}{"spec": map[string]interface{}{"replicas": 5}})
+		out, err := applyUIDGuard(k8stypes.StrategicMergePatchType, in, "")
+		require.NoError(t, err)
+		assert.JSONEq(t, string(in), string(out))
+	})
+
+	t.Run("strategic/merge patch gets metadata.uid injected", func(t *testing.T) {
+		for _, pt := range []k8stypes.PatchType{k8stypes.StrategicMergePatchType, k8stypes.MergePatchType} {
+			out, err := applyUIDGuard(pt, mustJSON(map[string]interface{}{
+				"metadata": map[string]interface{}{"labels": map[string]string{"k": "v"}},
+				"spec":     map[string]interface{}{"replicas": 5},
+			}), "uid-abc")
+			require.NoError(t, err)
+
+			var obj map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(out, &obj))
+			var meta map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(obj["metadata"], &meta))
+			// uid guard added without dropping the caller's existing metadata.
+			assert.JSONEq(t, `"uid-abc"`, string(meta["uid"]))
+			assert.Contains(t, string(meta["labels"]), "\"k\":\"v\"")
+			assert.Contains(t, string(obj["spec"]), "\"replicas\":5")
+		}
+	})
+
+	t.Run("json patch gets a test op on /metadata/uid prepended", func(t *testing.T) {
+		out, err := applyUIDGuard(k8stypes.JSONPatchType, mustJSON([]map[string]interface{}{
+			{"op": "replace", "path": "/spec/replicas", "value": 5},
+		}), "uid-abc")
+		require.NoError(t, err)
+
+		var ops []map[string]interface{}
+		require.NoError(t, json.Unmarshal(out, &ops))
+		require.Len(t, ops, 2)
+		assert.Equal(t, "test", ops[0]["op"])
+		assert.Equal(t, "/metadata/uid", ops[0]["path"])
+		assert.Equal(t, "uid-abc", ops[0]["value"])
+		// the caller's op is preserved after the guard.
+		assert.Equal(t, "replace", ops[1]["op"])
+	})
+
+	t.Run("malformed patch is rejected", func(t *testing.T) {
+		_, err := applyUIDGuard(k8stypes.MergePatchType, json.RawMessage("not json"), "uid-abc")
+		assert.Error(t, err)
+		_, err = applyUIDGuard(k8stypes.JSONPatchType, json.RawMessage("{}"), "uid-abc")
+		assert.Error(t, err)
+	})
 }
