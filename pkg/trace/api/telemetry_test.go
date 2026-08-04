@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -623,10 +624,16 @@ func TestBatchSizeTriggeredFlush(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
+	// The size-triggered flush and the shutdown flush are forwarded by
+	// separate concurrent workers and can hit this real TLS server from two
+	// goroutines at once, so expectedSizes needs its own lock.
+	var mu sync.Mutex
 	expectedSizes := []int{1, 3}
 	srv := assertingServer(t, func(_ *http.Request, body []byte) error {
 		batch := decodeBatch(t, body)
 		assert.Equal("agent-batch", batch.RequestType)
+		mu.Lock()
+		defer mu.Unlock()
 		// We send 4 events of 1000 bytes each, threshold is 3000 → flush after 3rd event
 		assert.Contains(expectedSizes, len(batch.Payload.Events))
 		expectedSizes = slices.DeleteFunc(expectedSizes, func(v int) bool { return v == len(batch.Payload.Events) })
