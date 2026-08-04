@@ -150,3 +150,39 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 		t.Errorf("package = %+v, want last access set from the queued accesses", pkg)
 	}
 }
+
+// TestAnalyzeWorkloadSkipsStoppedWorkload checks that a workload stopped while it was
+// queued for a scan is left alone. Reviving it as computed restarts a forwarding
+// debouncer that can never be stopped again, since a stopped workload is no longer
+// reachable from the resolver, and reports an SBOM for a container that is gone.
+func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
+		dataCache:         dataCache,
+		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+	}
+
+	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false))
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.stop()
+	t.Cleanup(sbom.stop)
+
+	if err := r.analyzeWorkload(sbom); err != nil {
+		t.Fatalf("analyzeWorkload: %v", err)
+	}
+
+	if got := sbom.state.Load(); got != stoppedState {
+		t.Errorf("state = %d, want stoppedState (%d)", got, stoppedState)
+	}
+	if sbom.forwarder != nil {
+		t.Errorf("a forwarding debouncer was started for a stopped workload")
+	}
+}

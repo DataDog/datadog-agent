@@ -649,8 +649,11 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		if currentState != stoppedState {
 			// should not append, ignore
 			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sb.ContainerID, currentState)
-			return nil
 		}
+
+		// a stopped workload is unreachable from the resolver, so not returning here would start a new
+		// forwarding debouncer go routine that we can never stop
+		return nil
 	}
 
 	// bail out if the workload has been analyzed while queued up
