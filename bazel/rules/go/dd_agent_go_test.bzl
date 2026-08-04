@@ -1,6 +1,7 @@
 load("@rules_go//go:def.bzl", "go_test")
 load(
     "//bazel/test_tags:defs.bzl",
+    "test_tag_set_check_name",
     "test_tag_set_suffix",
     "test_tag_set_tags",
     "test_tag_set_target_compatible_with",
@@ -28,6 +29,7 @@ def dd_agent_go_test(
     user_tcw = [] if target_compatible_with == None else target_compatible_with
 
     if include_default:
+        test_tag_set_check_name(name)
         go_test(
             name = name,
             gotags = test_tag_set_tags(),
@@ -37,10 +39,12 @@ def dd_agent_go_test(
         )
 
     for tag_set in tag_sets or []:
+        suffix = test_tag_set_suffix(tag_set)
+        test_tag_set_check_name(name + "_" + suffix, tag_set)
         go_test(
-            name = name + "_" + test_tag_set_suffix(tag_set),
+            name = name + "_" + suffix,
             gotags = test_tag_set_tags(tag_set),
-            tags = user_tags + ["dd_agent_go_test", "tagset_" + test_tag_set_suffix(tag_set)],
+            tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
             target_compatible_with = user_tcw + test_tag_set_target_compatible_with(tag_set),
             **kwargs
         )

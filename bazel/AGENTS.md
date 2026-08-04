@@ -857,8 +857,14 @@ paths, breaking Bazel label syntax.
 **File deletion.** Open files cannot be deleted on Windows ("Access Denied"). Close handles eagerly. A running process
 also holds its working directory open, preventing deletion.
 
-**Path length.** The hard limit is 32,767 characters (Developer Mode removes the legacy 260-character limit). Keep
-workspace names, target names, and directory structures short to stay well within this.
+**Path length.** File APIs go up to 32,767 characters (Developer Mode removes the legacy 260-character limit), but a
+process's *current directory* is still capped at `MAX_PATH` (260) unless the binary ships a `longPathAware` manifest —
+and Bazel's Windows test wrapper (`tools/test/windows/tw.cc`) does not. It `chdir`s into
+`<target>_/<target>.exe.runfiles` before launching the test, so an over-long target name fails at test time with
+`Could not chdir` / `Failed to load runfiles` (error 206, `ERROR_FILENAME_EXCED_RANGE`) rather than at build time.
+The target name is spent twice in that path, so keep target names, tag-set suffixes, and package depth short.
+`dd_agent_go_test` enforces the budget at analysis time via `test_tag_set_check_name()` in
+`//bazel/test_tags:defs.bzl`.
 
 ## Testing
 
