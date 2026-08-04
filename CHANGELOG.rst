@@ -583,7 +583,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- Agent Data Plane has been bumped to version 1.3.0. See the `Agent Data Plane 1.3.0 release notes <https://github.com/DataDog/saluki/releases/tag/1.3.0>`_.
+- Agent Data Plane has been bumped to version 1.3.1. See the `Agent Data Plane 1.3.1 release notes <https://github.com/DataDog/saluki/releases/tag/1.3.1>`_.
 
 - The anomaly detection observer component no longer allocates memory or starts
   background goroutines when anomaly detection is disabled (the default). This
