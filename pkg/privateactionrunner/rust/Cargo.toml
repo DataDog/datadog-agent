@@ -35,5 +35,9 @@ tonic = { workspace = true, features = ["transport"] }
 tonic-prost.workspace = true
 tower.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+# ERROR_PIPE_BUSY, for the named-pipe client retry loop.
+windows-sys = { workspace = true, features = ["Win32_Foundation"] }
+
 [build-dependencies]
 tonic-prost-build.workspace = true
