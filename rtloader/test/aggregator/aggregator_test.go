@@ -14,6 +14,24 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
+// BenchmarkSubmitMetricTags measures the cost of py_tag_to_c for a realistic
+// 10-tag metric submission. Run with:
+//
+//	go test -bench=BenchmarkSubmitMetricTags -benchtime=5s ./rtloader/test/aggregator/
+func BenchmarkSubmitMetricTags(b *testing.B) {
+	// Pre-create the Python list once so the benchmark body is just the C call.
+	runBench(`
+_bench_tags = ['kube_namespace:datadog-agent','env:production','service:web',
+               'pod:abc-123','host:myhost','region:us-east-1','cluster:main',
+               'version:1.2.3','team:infra','dc:aws']
+`)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		runBench(`aggregator.submit_metric(None,'bench.check',aggregator.GAUGE,'system.cpu.user',1.0,_bench_tags,'myhost')`)
+	}
+}
+
 func TestMain(m *testing.M) {
 	err := setUp()
 	if err != nil {
