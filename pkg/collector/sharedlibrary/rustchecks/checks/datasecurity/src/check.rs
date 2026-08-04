@@ -109,11 +109,12 @@ mod tests {
     use serde_json::json;
     use shlib_core::stubs::AggregatorStub;
 
-    use crate::backend::mock;
+    use crate::backend::{ScanData, ScannedColumn, mock};
     use crate::constants::SDS_RESULT_EVENT_TYPE;
     use crate::proto::{
-        PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult, ScanTaskMetadata,
-        ScanningSource, SdsResultPayload, Status, TableMatch, scan_location, scanning_source,
+        PostgresScannedColumn, PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult,
+        ScanTaskMetadata, ScanningSource, SdsResultPayload, Status, TableMatch, scan_location,
+        scanning_source,
     };
 
     use super::check;
@@ -141,8 +142,25 @@ scan_data:
 
     #[test]
     fn scans_data_and_emits_sds_result() {
-        // The mock engine returns this in place of a real query.
-        mock::set_data(json!({ "email": ["alice@corp.io", "bob@corp.io hatem@corp.io"] }));
+        // The mock engine returns this in place of a real query: two scanned
+        // columns, `email` (which matches) and `name` (which does not).
+        mock::set_data(ScanData {
+            columns: json!({
+                "email": ["alice@corp.io", "bob@corp.io hatem@corp.io"],
+                "name": ["alice", "bob"],
+            }),
+            scanned_columns: vec![
+                ScannedColumn {
+                    name: "email".to_string(),
+                    data_type: "text".to_string(),
+                },
+                ScannedColumn {
+                    name: "name".to_string(),
+                    data_type: "text".to_string(),
+                },
+            ],
+            scanned_row_count: 2,
+        });
 
         let aggregator = AggregatorStub::new();
         check(&aggregator.agent_check("{}", INSTANCE)).expect("check run failed");
@@ -188,6 +206,17 @@ scan_data:
                                 database_name: "app".to_string(),
                                 schema_name: "public".to_string(),
                                 table_name: "users".to_string(),
+                                scanned_row_count: 2,
+                                scanned_columns: vec![
+                                    PostgresScannedColumn {
+                                        name: "email".to_string(),
+                                        data_type: "text".to_string(),
+                                    },
+                                    PostgresScannedColumn {
+                                        name: "name".to_string(),
+                                        data_type: "text".to_string(),
+                                    },
+                                ],
                                 ..Default::default()
                             }
                         )),

@@ -3,17 +3,16 @@
 use std::cell::RefCell;
 
 use anyhow::Result;
-use serde_json::Value;
 
 use super::{ScanData, ScanEngine};
 use crate::config::SubTask;
 
 thread_local! {
-    static DATA: RefCell<Value> = const { RefCell::new(Value::Null) };
+    static DATA: RefCell<ScanData> = RefCell::new(ScanData::default());
 }
 
-/// Sets the `{ column: [values] }` map the mock engine returns from `fetch_data`.
-pub(crate) fn set_data(data: Value) {
+/// Sets the [`ScanData`] the mock engine returns from `fetch_data`.
+pub(crate) fn set_data(data: ScanData) {
     DATA.with(|d| *d.borrow_mut() = data);
 }
 
@@ -26,9 +25,6 @@ impl ScanEngine for MockEngine {
     }
 
     fn fetch_data(&self, _sub_task: &SubTask) -> Result<ScanData> {
-        Ok(ScanData {
-            columns: DATA.with(|d| d.borrow().clone()),
-            ..Default::default()
-        })
+        Ok(DATA.with(|d| d.borrow().clone()))
     }
 }
