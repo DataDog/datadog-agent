@@ -19,20 +19,20 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/component v1.62.0
-	go.opentelemetry.io/collector/component/componenttest v0.156.0
-	go.opentelemetry.io/collector/confmap v1.62.0
-	go.opentelemetry.io/collector/confmap/xconfmap v0.156.0
-	go.opentelemetry.io/collector/consumer v1.62.0
-	go.opentelemetry.io/collector/consumer/consumertest v0.156.0
-	go.opentelemetry.io/collector/consumer/xconsumer v0.156.0
-	go.opentelemetry.io/collector/pdata v1.62.0
-	go.opentelemetry.io/collector/pdata/pprofile v0.156.0
-	go.opentelemetry.io/collector/processor v1.62.0
-	go.opentelemetry.io/collector/processor/processorhelper v0.156.0
-	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.156.0
-	go.opentelemetry.io/collector/processor/processortest v0.156.0
-	go.opentelemetry.io/collector/processor/xprocessor v0.156.0
+	go.opentelemetry.io/collector/component v1.63.0
+	go.opentelemetry.io/collector/component/componenttest v0.157.0
+	go.opentelemetry.io/collector/confmap v1.63.0
+	go.opentelemetry.io/collector/confmap/xconfmap v0.157.0
+	go.opentelemetry.io/collector/consumer v1.63.0
+	go.opentelemetry.io/collector/consumer/consumertest v0.157.0
+	go.opentelemetry.io/collector/consumer/xconsumer v0.157.0
+	go.opentelemetry.io/collector/pdata v1.63.0
+	go.opentelemetry.io/collector/pdata/pprofile v0.157.0
+	go.opentelemetry.io/collector/processor v1.63.0
+	go.opentelemetry.io/collector/processor/processorhelper v0.157.0
+	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.157.0
+	go.opentelemetry.io/collector/processor/processortest v0.157.0
+	go.opentelemetry.io/collector/processor/xprocessor v0.157.0
 	go.opentelemetry.io/otel v1.44.1-0.20260622141720-fbe3d073ba93
 	go.opentelemetry.io/otel/metric v1.44.1-0.20260622141720-fbe3d073ba93
 	go.opentelemetry.io/otel/trace v1.44.1-0.20260622141720-fbe3d073ba93
@@ -45,7 +45,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.64.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.205 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.207 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
@@ -69,8 +69,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.72.0-rc.5 // indirect
@@ -148,11 +149,11 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.156.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.62.0 // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.156.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.156.0 // indirect
-	go.opentelemetry.io/collector/pipeline v1.62.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.157.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.63.0 // indirect
+	go.opentelemetry.io/collector/internal/componentalias v0.157.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.157.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.63.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.44.1-0.20260622141720-fbe3d073ba93 // indirect
@@ -243,6 +244,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../../../../comp/otelcol/otlp/components/connector/datadogconnector
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig => ../../../../../../comp/otelcol/otlp/components/datadogconfig
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../../../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../../../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../../../comp/otelcol/otlp/components/exporter/serializerexporter
@@ -271,6 +273,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../../../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../../../pkg/config/setup/constants
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../../../pkg/discovery/tracermetadata/model

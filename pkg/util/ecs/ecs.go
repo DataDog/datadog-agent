@@ -21,6 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// declare these as vars not const to ease testing
+var (
+	fetchECSInstanceMetadata = getECSInstanceMetadata
+	fetchECSTaskMetadata     = getECSTaskMetadata
 )
 
 // MetaECS stores ECS cluster metadata
@@ -80,9 +87,35 @@ func newECSMeta(ctx context.Context) (*MetaECS, error) {
 
 	if env.IsFeaturePresent(env.ECSFargate) {
 		// There is no instance metadata endpoint on ECS Fargate
-		awsAccountID, region, cluster, version, err = getECSTaskMetadata(ctx)
+		awsAccountID, region, cluster, version, err = fetchECSTaskMetadata(ctx)
 	} else {
-		awsAccountID, region, cluster, version, err = getECSInstanceMetadata(ctx)
+		awsAccountID, region, cluster, version, err = fetchECSInstanceMetadata(ctx)
+		if err != nil {
+			// The v1 introspection endpoint is not guaranteed to be reachable outside of
+			// ECS EC2 (notably on ECS Managed Instances). The agent's own task metadata
+			// carries the same cluster identity — the agent task belongs to the cluster it
+			// runs on, and region/account come from its own task ARN — so fall back to it.
+			// This applies to every non-Fargate launch type, not just Managed Instances: on
+			// EC2 it only takes effect when v1 already failed, where the previous behaviour
+			// was to give up entirely. A non-containerised agent has no task metadata
+			// endpoint, so the fallback fails and the original v1 error is returned.
+			//
+			// Note the returned version is the task revision here rather than the ECS agent
+			// version. MetaECS.ECSAgentVersion is only round-tripped through the cache key
+			// (toCacheValue/fromCacheValue) and never used for behaviour, and the Fargate
+			// branch above already populates it the same way.
+			log.Debugf("could not get ECS instance metadata, falling back to task metadata: %s", err)
+
+			var fallbackErr error
+			awsAccountID, region, cluster, version, fallbackErr = fetchECSTaskMetadata(ctx)
+			if fallbackErr != nil {
+				log.Debugf("could not get ECS task metadata either: %s", fallbackErr)
+				// Surface the original instance metadata error, which is the more
+				// meaningful one outside of Managed Instances.
+				return nil, err
+			}
+			err = nil
+		}
 	}
 
 	if err != nil {

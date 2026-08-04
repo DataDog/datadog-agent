@@ -271,6 +271,21 @@ def filter(expect, filename):
     return comparator
 
 
+def generated_files(tmpdir):
+    """
+    Yield a (generated file, destination file) pair for every file produced by the codegen.
+
+    The codegen lays its output out as a mirror of SETUP_INIT_DIR, so a file generated at
+    `<tmpdir>/constants/generated.go` belongs to `pkg/config/setup/constants/generated.go`.
+    """
+    for dirpath, _, filenames in os.walk(tmpdir):
+        relative_dir = os.path.relpath(dirpath, tmpdir)
+        for filename in sorted(filenames):
+            source = os.path.join(dirpath, filename)
+            destination = os.path.normpath(os.path.join(SETUP_INIT_DIR, relative_dir, filename))
+            yield source, destination
+
+
 @task
 def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     """
@@ -284,7 +299,7 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
 
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
-    hints = extract_imperative_code_hints()
+    hints = extract_imperative_code_hints() if keep_orig_order else None
 
     tmpdir = tempfile.mkdtemp()
     run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
@@ -297,10 +312,10 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         print("Codegen complete. Output dir: %s" % tmpdir)
 
     if check:
-        # Compare tmpdir against SETUP_INIT_DIR, fail if different
+        # Compare each generated file against its counterpart in SETUP_INIT_DIR, fail if different
         try:
-            for file in os.listdir(tmpdir):
-                ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/")
+            for source, destination in generated_files(tmpdir):
+                ctx.run(f"diff {source} {destination}")
         except Failure as e:
             print(
                 color_message(
@@ -310,9 +325,12 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
             raise Exit(code=1) from e
 
     if fix:
-        # Fix any differences by copying the codegen results into SETUP_INIT_DIR
-        ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
-        ctx.run(f"cp {tmpdir}/*generated.go {SETUP_INIT_DIR}/")
+        # Fix any differences by copying each generated file over its counterpart in SETUP_INIT_DIR
+        for source, destination in generated_files(tmpdir):
+            destination_dir = os.path.dirname(destination)
+            if not os.path.isdir(destination_dir):
+                raise Exit(f"Cannot copy generated file {source}: {destination_dir} does not exist", code=1)
+            ctx.run(f"cp {source} {destination}")
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)

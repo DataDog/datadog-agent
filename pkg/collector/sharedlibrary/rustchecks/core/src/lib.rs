@@ -3,7 +3,7 @@ mod agent_check;
 pub use agent_check::AgentCheck;
 
 mod aggregator;
-pub use aggregator::{Aggregator, Event, MetricType, ServiceCheckStatus};
+pub use aggregator::{Aggregator, Event, LogLevel, MetricType, ServiceCheckStatus};
 
 mod config;
 pub use config::Config;

@@ -372,6 +372,8 @@ properties:
             env_vars:
             - DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE
             - DD_SITE
+            tags:
+            - generate_const:DefaultSite
           unix_socket:
             node_type: setting
             type: string

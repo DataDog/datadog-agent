@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "msi",
@@ -26,7 +27,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "msi_test",
     srcs = [
         "msiexec_test.go",
@@ -40,14 +41,11 @@ go_test(
             "testdata/invalid_credentials.log",
             "testdata/missing_password_for_dc.log",
             "testdata/service_marked_for_deletion.log",
+            "testdata/untrusted_config_root.log",
             "testdata/wixfailwhendeferred.log",
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "test",
-        "windows",
-    ],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
