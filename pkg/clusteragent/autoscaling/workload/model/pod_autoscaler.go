@@ -18,7 +18,6 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -44,11 +43,6 @@ const (
 
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
-
-	// RuntimeValuesAnnotationKey is the annotation written by the leader to persist runtime
-	// recommendations (e.g. GOMEMLIMIT) on the DPA object so that follower replicas can read
-	// them and apply them consistently when handling admission-webhook pod CREATE requests.
-	RuntimeValuesAnnotationKey = "autoscaling.datadoghq.com/runtime-values"
 )
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -207,46 +201,8 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
-	// Restore RuntimeValues from the annotation written by the leader so that follower
-	// replicas (which only sync from the DPA object) can apply them in webhook handlers.
-	pai.updateRuntimeValuesFromAnnotation(podAutoscaler.Annotations)
 
 	return pai
-}
-
-// updateRuntimeValuesFromAnnotation reads RuntimeValues from the DPA annotation and populates
-// scalingValues.Vertical.RuntimeValues. Called on all replicas (leader + followers) so that
-// admission-webhook pod CREATE requests inject the correct GOMEMLIMIT regardless of which
-// cluster-agent replica handles the request.
-func (p *PodAutoscalerInternal) updateRuntimeValuesFromAnnotation(annotations map[string]string) {
-	raw, ok := annotations[RuntimeValuesAnnotationKey]
-	if !ok || raw == "" {
-		return
-	}
-	if p.scalingValues.Vertical == nil {
-		return
-	}
-	var rv map[string]ContainerRuntimeValues
-	if err := json.Unmarshal([]byte(raw), &rv); err != nil {
-		log.Warnf("Failed to parse %s annotation: %v", RuntimeValuesAnnotationKey, err)
-		return
-	}
-	p.scalingValues.Vertical.RuntimeValues = rv
-}
-
-// BuildRuntimeValuesAnnotation serializes the current vertical RuntimeValues to a JSON string
-// suitable for storing in the RuntimeValuesAnnotationKey DPA annotation. Returns an empty
-// string when there are no runtime values to persist (callers should delete the annotation).
-func (p *PodAutoscalerInternal) BuildRuntimeValuesAnnotation() string {
-	if p.scalingValues.Vertical == nil || len(p.scalingValues.Vertical.RuntimeValues) == 0 {
-		return ""
-	}
-	b, err := json.Marshal(p.scalingValues.Vertical.RuntimeValues)
-	if err != nil {
-		log.Warnf("Failed to marshal runtime values for annotation: %v", err)
-		return ""
-	}
-	return string(b)
 }
 
 // NewPodAutoscalerFromSettings creates a new PodAutoscalerInternal from settings received through remote configuration
@@ -642,12 +598,21 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 
 	if status.Vertical != nil {
 		if status.Vertical.Target != nil {
-			p.scalingValues.Vertical = &VerticalScalingValues{
+			vsv := &VerticalScalingValues{
 				Source:             status.Vertical.Target.Source,
 				Timestamp:          status.Vertical.Target.GeneratedAt.Time,
 				ContainerResources: status.Vertical.Target.DesiredResources,
 				ResourcesHash:      status.Vertical.Target.Version,
 			}
+			for _, cr := range status.Vertical.Target.DesiredResources {
+				if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+					if vsv.RuntimeValues == nil {
+						vsv.RuntimeValues = make(map[string]ContainerRuntimeValues)
+					}
+					vsv.RuntimeValues[cr.Name] = ContainerRuntimeValues{GoMemLimit: cr.Runtime.Gomemlimit}
+				}
+			}
+			p.scalingValues.Vertical = vsv
 		}
 
 		p.verticalLastAction = status.Vertical.LastAction
@@ -1248,6 +1213,11 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 					cp.Limits = make(corev1.ResourceList)
 				}
 				cp.Limits[res] = qty.DeepCopy()
+			}
+		}
+		if rv, ok := v.RuntimeValues[cr.Name]; ok && rv.GoMemLimit != "" {
+			cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+				Gomemlimit: rv.GoMemLimit,
 			}
 		}
 		result[i] = cp

@@ -9,7 +9,6 @@ package workload
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -21,7 +20,6 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -592,40 +590,6 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 	return nil
 }
 
-// updatePodAutoscalerAnnotations patches the DPA metadata to persist RuntimeValues so that
-// follower replicas can read them from the DPA object and apply them in admission webhook handlers.
-func (c *Controller) updatePodAutoscalerAnnotations(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
-	newAnnotation := podAutoscalerInternal.BuildRuntimeValuesAnnotation()
-	existing := podAutoscaler.Annotations[model.RuntimeValuesAnnotationKey]
-	if newAnnotation == existing {
-		return nil
-	}
-
-	// Build a merge-patch that sets or deletes the annotation.
-	annotationValue := interface{}(newAnnotation)
-	if newAnnotation == "" {
-		annotationValue = nil // null in JSON deletes the key
-	}
-	patch := map[string]interface{}{
-		"metadata": map[string]interface{}{
-			"annotations": map[string]interface{}{
-				model.RuntimeValuesAnnotationKey: annotationValue,
-			},
-		},
-	}
-	patchBytes, err := json.Marshal(patch)
-	if err != nil {
-		return fmt.Errorf("unable to marshal runtime values annotation patch for %s/%s: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
-	}
-
-	log.Debugf("Updating runtime values annotation on PodAutoscaler: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
-	_, err = c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Patch(ctx, podAutoscalerInternal.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
-	if err != nil {
-		return fmt.Errorf("unable to update runtime values annotation for %s/%s: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
-	}
-	return nil
-}
-
 func (c *Controller) deletePodAutoscaler(ns, name string) error {
 	log.Infof("Deleting PodAutoscaler: %s/%s", ns, name)
 	err := c.Client.Resource(podAutoscalerGVR).Namespace(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
@@ -681,15 +645,6 @@ func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *
 		// We want to return the status error if none to count in the requeue retries.
 		if err == nil {
 			err = statusErr
-		}
-	}
-
-	// Persist RuntimeValues in a metadata annotation so follower replicas can apply them
-	// in admission-webhook handlers (the config-retriever only runs on the leader).
-	if annotErr := c.updatePodAutoscalerAnnotations(ctx, podAutoscalerInternal, podAutoscaler); annotErr != nil {
-		log.Errorf("Failed to update runtime values annotation for PodAutoscaler: %s/%s, err: %v", ns, name, annotErr)
-		if err == nil {
-			err = annotErr
 		}
 	}
 
