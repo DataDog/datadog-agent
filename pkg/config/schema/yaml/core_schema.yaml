@@ -9599,6 +9599,10 @@ properties:
       or connected mode (expects core agent for secrets and tagger)
   otelcollector:
     $ref: otelcollector.yaml
+  patch_prometheus_client:
+    node_type: setting
+    type: boolean
+    default: true
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
@@ -9628,14 +9632,15 @@ properties:
         items:
           type: object
         comment: |-
+          Prometheus HTTP Service Discovery
           List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
-          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
       url:
         node_type: setting
         type: string
         default: ''
-        comment: '[DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs
-          instead.'
+        comment: |-
+          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+          [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
     tags:
     - full-agent-only:true
   provider_kind:
