@@ -190,6 +190,26 @@ func testMetricFamily(metricType dto.MetricType, metrics ...*dto.Metric) *dto.Me
 	return &dto.MetricFamily{Name: &name, Type: &metricType, Metric: metrics}
 }
 
+func TestConvertPromCountersTreatsDecreaseAsReset(t *testing.T) {
+	previousValues := make(map[string]float64)
+
+	for _, testCase := range []struct {
+		current float64
+		want    float64
+	}{
+		{current: 100, want: 100},
+		{current: 175, want: 75},
+		{current: 20, want: 20},
+		{current: 35, want: 15},
+	} {
+		metric := testCounterMetric(testCase.current)
+		convertPromCountersToDatadogCountersValues([]*dto.Metric{metric}, previousValues, []string{"test-counter"})
+
+		require.Equal(t, testCase.want, metric.GetCounter().GetValue())
+		require.Equal(t, testCase.current, previousValues["test-counter"])
+	}
+}
+
 func metricLabels(metric *dto.Metric) map[string]string {
 	labels := make(map[string]string, len(metric.GetLabel()))
 	for _, label := range metric.GetLabel() {
@@ -2795,6 +2815,28 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	assert.Equal(t, 20.0, m2.Value)
 }
 
+func TestDefaultProfilesExportRARClientByteCounters(t *testing.T) {
+	config := getCommonYAMLConfig(true, "")
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("dogstatsd_client", "bytes_sent", []string{"emitter"}, "")
+	counter.Add(100, "agent-data-plane")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, config, sender, nil, runner)
+	require.True(t, a.enabled)
+
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "dogstatsd_client.bytes_sent", sender.sentMetrics[0].name)
+	require.Len(t, sender.sentMetrics[0].metrics, 1)
+	metric := sender.sentMetrics[0].metrics[0]
+	assert.Equal(t, 100.0, metric.GetCounter().GetValue())
+	assert.Equal(t, map[string]string{"emitter": "agent-data-plane"}, metricLabels(metric))
+}
+
 func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)
@@ -2818,6 +2860,10 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}{
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
+		{name: "dogstatsd_client.bytes_sent"},
+		{name: "dogstatsd_client.bytes_dropped"},
+		{name: "dogstatsd_client.bytes_dropped_queue"},
+		{name: "dogstatsd_client.bytes_dropped_writer"},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
 		{name: "point.sent", preserveTags: []string{"domain"}},
