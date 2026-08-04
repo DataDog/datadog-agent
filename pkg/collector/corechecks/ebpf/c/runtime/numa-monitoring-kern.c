@@ -2,6 +2,7 @@
 #include "bpf_helpers.h"
 #include "map-defs.h"
 #include "numa-monitoring-kern-user.h"
+#include "bpf_metadata.h"
 #include "bpf_telemetry.h"
 
 #define MAX_NUMA_RUNTIME_ENTRIES 16384
