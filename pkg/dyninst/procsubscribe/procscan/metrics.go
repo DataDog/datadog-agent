@@ -29,6 +29,10 @@ type Metrics struct {
 	// nonGoTracers counts Go binaries whose tracer reports a language other
 	// than Go, which we have no way to instrument.
 	nonGoTracers atomic.Uint64
+	// executablesChanged counts processes found running a different executable
+	// than the one the last verdict about them was reached about, i.e. execs.
+	// Their retry schedule starts over.
+	executablesChanged atomic.Uint64
 	// discovered counts processes reported as newly instrumentable.
 	discovered atomic.Uint64
 	// metadataNotPublished counts metadata reads that found no tracer memfd.
@@ -51,6 +55,7 @@ func (m *Metrics) asStats() map[string]any {
 		"non_go_executables":     m.nonGoExecutables.Load(),
 		"executables_unresolved": m.executablesUnresolved.Load(),
 		"non_go_tracers":         m.nonGoTracers.Load(),
+		"executables_changed":    m.executablesChanged.Load(),
 		"discovered":             m.discovered.Load(),
 		"metadata_not_published": m.metadataNotPublished.Load(),
 		"metadata_unreadable":    m.metadataUnreadable.Load(),

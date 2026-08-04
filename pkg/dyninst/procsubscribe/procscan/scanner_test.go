@@ -249,20 +249,7 @@ func (c *createProcessCommand) execute(
 	default:
 		return fmt.Errorf("unknown metadata_error %q", c.MetadataError)
 	}
-	exe := process.Executable{
-		Path: c.Executable.Path,
-		Key: process.FileKey{
-			FileHandle: process.FileHandle{Ino: c.Executable.Ino},
-		},
-	}
-	if exe.Path == "" {
-		exe.Path = fmt.Sprintf("/proc/%d/exe", c.PID)
-	}
-	if exe.Key.Ino == 0 {
-		exe.Key.Ino = uint64(c.PID)
-	}
-	ts.goBinaries[exe.Path] = c.Executable.GoBinary == nil ||
-		*c.Executable.GoBinary
+	exe := ts.declareExecutable(c.PID, c.Executable)
 	ts.processes[c.PID] = &testProcess{
 		pid:                 c.PID,
 		startTime:           ticks(c.StartTime),
@@ -271,6 +258,52 @@ func (c *createProcessCommand) execute(
 		executable:          exe,
 		executableResolves:  !c.Executable.Unresolvable,
 		tracerMetadata:      c.TracerMetadata.toTracerMetadata(),
+	}
+	return nil
+}
+
+// declareExecutable fills in the defaults for an executable a timeline
+// describes and records whether it is a Go binary. Distinct processes sharing a
+// path and inode share a cache entry in the scanner's executable filter.
+func (ts *scannerTestState) declareExecutable(
+	pid int32, in executableInput,
+) process.Executable {
+	exe := process.Executable{
+		Path: in.Path,
+		Key:  process.FileKey{FileHandle: process.FileHandle{Ino: in.Ino}},
+	}
+	if exe.Path == "" {
+		exe.Path = fmt.Sprintf("/proc/%d/exe", pid)
+	}
+	if exe.Key.Ino == 0 {
+		exe.Key.Ino = uint64(pid)
+	}
+	ts.goBinaries[exe.Path] = in.GoBinary == nil || *in.GoBinary
+	return exe
+}
+
+// execProcessCommand replaces the executable of a running process, leaving its
+// pid and start time alone, which is what an exec does.
+type execProcessCommand struct {
+	PID        int32           `yaml:"pid"`
+	Executable executableInput `yaml:"executable"`
+	// MetadataAvailableAt is when the new image publishes its tracer metadata.
+	// It defaults to leaving the process' existing time alone.
+	MetadataAvailableAt *uint64 `yaml:"metadata_available_at,omitempty"`
+}
+
+func (c *execProcessCommand) execute(
+	_ *testing.T,
+	ts *scannerTestState,
+) error {
+	proc, exists := ts.processes[c.PID]
+	if !exists {
+		return fmt.Errorf("process %d does not exist", c.PID)
+	}
+	proc.executable = ts.declareExecutable(c.PID, c.Executable)
+	proc.executableResolves = !c.Executable.Unresolvable
+	if c.MetadataAvailableAt != nil {
+		proc.metadataAvailableAt = ticks(*c.MetadataAvailableAt)
 	}
 	return nil
 }
@@ -313,11 +346,14 @@ func (c *advanceTimeCommand) execute(
 //
 // All of the durations are in ticks to match the timelines.
 type initializeCommand struct {
-	CurrentTime   uint64 `yaml:"current_time"`
-	MinAge        uint64 `yaml:"min_age"`
-	BackoffBase   uint64 `yaml:"backoff_base"`
-	BackoffCap    uint64 `yaml:"backoff_cap"`
-	MaxCandidates int    `yaml:"max_candidates,omitempty"`
+	CurrentTime uint64 `yaml:"current_time"`
+	MinAge      uint64 `yaml:"min_age"`
+	BackoffBase uint64 `yaml:"backoff_base"`
+	BackoffCap  uint64 `yaml:"backoff_cap"`
+	// NonGoBackoffCap defaults to BackoffCap, so that a timeline only has to
+	// mention it when the difference between the two is the point.
+	NonGoBackoffCap uint64 `yaml:"non_go_backoff_cap,omitempty"`
+	MaxCandidates   int    `yaml:"max_candidates,omitempty"`
 }
 
 func (c *initializeCommand) execute(
@@ -329,12 +365,17 @@ func (c *initializeCommand) execute(
 	if maxCandidates == 0 {
 		maxCandidates = DefaultMaxCandidates
 	}
+	nonGoBackoffCap := c.NonGoBackoffCap
+	if nonGoBackoffCap == 0 {
+		nonGoBackoffCap = c.BackoffCap
+	}
 	ts.scanner = newScanner(
 		[]Option{
 			WithMinProcessAge(ticksToDuration(c.MinAge)),
 			WithRetryBackoff(
 				ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
 			),
+			WithNonGoBackoffCap(ticksToDuration(nonGoBackoffCap)),
 			WithMaxCandidates(maxCandidates),
 		},
 		func() (ticks, error) { return ts.currentTime, nil },
@@ -435,8 +476,11 @@ type procSnapshot struct {
 // candidateSnapshot exposes the retry schedule of a process that is not
 // instrumented yet.
 type candidateSnapshot struct {
-	PID         uint32 `yaml:"pid"`
-	StartTime   uint64 `yaml:"start_time"`
+	PID       uint32 `yaml:"pid"`
+	StartTime uint64 `yaml:"start_time"`
+	// ExeIno is the inode of the executable the last verdict was reached about,
+	// which is how the timelines show an exec being noticed.
+	ExeIno      uint64 `yaml:"exe_ino,omitempty"`
 	Attempts    uint32 `yaml:"attempts"`
 	NextAttempt uint64 `yaml:"next_attempt"`
 }
@@ -447,6 +491,7 @@ type metricsSnapshot struct {
 	NonGoExecutables      uint64 `yaml:"non_go_executables,omitempty"`
 	ExecutablesUnresolved uint64 `yaml:"executables_unresolved,omitempty"`
 	NonGoTracers          uint64 `yaml:"non_go_tracers,omitempty"`
+	ExecutablesChanged    uint64 `yaml:"executables_changed,omitempty"`
 	Discovered            uint64 `yaml:"discovered,omitempty"`
 	MetadataNotPublished  uint64 `yaml:"metadata_not_published,omitempty"`
 	MetadataUnreadable    uint64 `yaml:"metadata_unreadable,omitempty"`
@@ -494,6 +539,7 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 		candidates = append(candidates, candidateSnapshot{
 			PID:         pid,
 			StartTime:   uint64(c.startTime),
+			ExeIno:      c.exeKey.Ino,
 			Attempts:    c.attempts,
 			NextAttempt: uint64(c.nextAttempt),
 		})
@@ -520,6 +566,7 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 			NonGoExecutables:      m.nonGoExecutables.Load(),
 			ExecutablesUnresolved: m.executablesUnresolved.Load(),
 			NonGoTracers:          m.nonGoTracers.Load(),
+			ExecutablesChanged:    m.executablesChanged.Load(),
 			Discovered:            m.discovered.Load(),
 			MetadataNotPublished:  m.metadataNotPublished.Load(),
 			MetadataUnreadable:    m.metadataUnreadable.Load(),
@@ -667,6 +714,15 @@ func parseCommand(node ast.Node) (command, error) {
 		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
 			return nil, fmt.Errorf(
 				"failed to decode create-process: %w", err,
+			)
+		}
+		return &cmd, nil
+
+	case "exec-process":
+		var cmd execProcessCommand
+		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
+			return nil, fmt.Errorf(
+				"failed to decode exec-process: %w", err,
 			)
 		}
 		return &cmd, nil
