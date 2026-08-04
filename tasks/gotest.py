@@ -641,7 +641,6 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
-    skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
     extra_args=None,
@@ -748,7 +747,6 @@ def test(
         "nocache": nocache,
         # Used to print failed tests at the end of the go test command
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
-        "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
         "extra_args": extra_args or "",
         "trimpath_opt": trimpath_opt,

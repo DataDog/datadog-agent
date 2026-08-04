@@ -8,6 +8,7 @@ package connectivitycheckerimpl
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	checker "github.com/DataDog/datadog-agent/comp/connectivitychecker/checker"
@@ -42,9 +43,13 @@ type inventoryImpl struct {
 	log            log.Component
 	config         config.Component
 	inventoryAgent inventoryagent.Component
-	timerStopCh    chan struct{}
-	collectCtx     context.Context
-	collectCancel  context.CancelFunc
+
+	// mu guards the fields below, which are read from the background timer
+	// goroutine and rewritten by restartTimer/stop on config updates.
+	mu            sync.Mutex
+	timerStopCh   chan struct{}
+	collectCtx    context.Context
+	collectCancel context.CancelFunc
 }
 
 // NewComponent creates a new connectivitychecker component
@@ -71,23 +76,32 @@ func (c *inventoryImpl) startTimer(delay time.Duration) {
 		c.log.Debug("Connectivity check disabled: inventories_diagnostics_enabled is false")
 		return
 	}
+
+	// Capture the channel/context this goroutine should use for its entire
+	// lifetime, so a later restartTimer() reassigning c's fields can't race
+	// with the reads below.
+	c.mu.Lock()
+	stopCh := c.timerStopCh
+	ctx := c.collectCtx
+	c.mu.Unlock()
+
 	go func() {
 		// Initial delay before first run
 		select {
 		case <-time.After(delay):
-		case <-c.timerStopCh:
+		case <-stopCh:
 			return
 		}
 
 		// Run initial check after delay
-		c.collect()
+		c.collect(ctx)
 
 		// Periodic execution
 		for {
 			select {
 			case <-time.After(interval):
-				c.collect()
-			case <-c.timerStopCh:
+				c.collect(ctx)
+			case <-stopCh:
 				return
 			}
 		}
@@ -97,25 +111,22 @@ func (c *inventoryImpl) startTimer(delay time.Duration) {
 // restartTimer restarts the timer process (called on config updates)
 func (c *inventoryImpl) restartTimer() {
 	c.log.Debug("Connectivity check restarted due to config update")
-	// Safely close the timer channel if it's not already closed
-	select {
-	case <-c.timerStopCh:
-		// Channel is already closed, do nothing
-	default:
-		_ = c.stop(context.Background())
-	}
+	_ = c.stop(context.Background())
 
+	c.mu.Lock()
 	c.timerStopCh = make(chan struct{})
 	// Create new context for the restarted timer
 	c.collectCtx, c.collectCancel = context.WithCancel(context.Background())
+	c.mu.Unlock()
+
 	c.startTimer(0)
 }
 
-func (c *inventoryImpl) collect() {
-	diagnoses, err := checker.Check(c.collectCtx, c.config, c.log)
+func (c *inventoryImpl) collect(ctx context.Context) {
+	diagnoses, err := checker.Check(ctx, c.config, c.log)
 	if err != nil {
 		// Check if the error is due to context cancellation
-		if c.collectCtx.Err() == context.Canceled {
+		if ctx.Err() == context.Canceled {
 			c.log.Debug("Connectivity check cancelled")
 			return
 		}
@@ -125,7 +136,7 @@ func (c *inventoryImpl) collect() {
 
 	// Check if we should stop before setting data
 	select {
-	case <-c.collectCtx.Done():
+	case <-ctx.Done():
 		return
 	default:
 		// Continue with setting data
@@ -142,6 +153,9 @@ func (c *inventoryImpl) start(_ context.Context) error {
 }
 
 func (c *inventoryImpl) stop(_ context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Cancel any ongoing collect operations
 	c.collectCancel()
 

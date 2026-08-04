@@ -9,6 +9,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 func getSoftwareInventoryPipelines() []passthroughPipelineDesc {
@@ -23,10 +24,10 @@ func getSoftwareInventoryPipelines() []passthroughPipelineDesc {
 			endpointsConfigPrefix:         "software_inventory.forwarder.",
 			hostnameEndpointPrefix:        "softinv-intake.",
 			intakeTrackType:               "softinv",
-			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxConcurrentSend: constants.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
+			defaultInputChanSize:          constants.DefaultInputChanSize,
 		},
 	}
 }

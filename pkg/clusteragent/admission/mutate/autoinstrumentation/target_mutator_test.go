@@ -462,6 +462,24 @@ func TestIsNamespaceEligible(t *testing.T) {
 	}
 }
 
+func TestIsNamespaceEligibleFailsClosedWhenNamespaceMetadataIsUnavailable(t *testing.T) {
+	const cfg = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "namespace-label-target"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+      - name: "fallback"
+`
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, cfg, wmeta)
+
+	require.False(t, m.IsNamespaceEligible("temporarily-unavailable"))
+}
+
 func TestGetTargetFromAnnotation(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
@@ -906,8 +924,10 @@ func TestGetTargetLibraries(t *testing.T) {
 func TestLanguageDetection(t *testing.T) {
 	tests := map[string]struct {
 		config                     map[string]any
+		configYAML                 string
 		pod                        *corev1.Pod
 		deployments                []mutatecommon.MockDeployment
+		expectNoMutation           bool
 		expectedInitContainerNames []string
 	}{
 		"default target uses language detection when enabled": {
@@ -959,6 +979,41 @@ func TestLanguageDetection(t *testing.T) {
 				"datadog-lib-python-init",
 			},
 		},
+		"fallback target is not used when namespace metadata is unavailable": {
+			configYAML: `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "namespace-label-target"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          java: "default"
+      - name: "fallback"
+language_detection:
+  enabled: true
+  reporting:
+    enabled: true
+admission_controller:
+  auto_instrumentation:
+    inject_auto_detected_libraries: true
+`,
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectNoMutation: true,
+		},
 		"default target does not use language detection when disabled": {
 			config: map[string]interface{}{
 				"apm_config.instrumentation.enabled":                                       true,
@@ -994,6 +1049,9 @@ func TestLanguageDetection(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.New(t)
+			if test.configYAML != "" {
+				mockConfig = configmock.NewFromYAML(t, test.configYAML)
+			}
 			for k, v := range test.config {
 				mockConfig.SetInTest(k, v)
 			}
@@ -1010,6 +1068,10 @@ func TestLanguageDetection(t *testing.T) {
 			// Mutate the pod.
 			mutated, err := m.MutatePod(test.pod, test.pod.Namespace, nil)
 			require.NoError(t, err)
+			if test.expectNoMutation {
+				require.False(t, mutated)
+				return
+			}
 			require.True(t, mutated)
 
 			// Ensure the init containers match.

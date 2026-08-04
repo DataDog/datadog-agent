@@ -8,7 +8,7 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 func getNDMIntegrationsPipelines() []passthroughPipelineDesc {
@@ -21,7 +21,7 @@ func getNDMIntegrationsPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "ndmflow-intake.",
 			intakeTrackType:               "ndmflow",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
 			// Each NetFlow flow is about 500 bytes, we could fit ~10k is the default 5Mb content size. However,
 			// this is also directly tied to the amount of work we need to do atomically in our event processing code to add enrichments.
 			// Let's limit this size to 250 events, there will be some increased overhead since more packets will need to be sent.
@@ -43,9 +43,9 @@ func getNDMIntegrationsPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndmconfig",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
+			defaultInputChanSize:          constants.DefaultInputChanSize,
 		},
 	}
 }

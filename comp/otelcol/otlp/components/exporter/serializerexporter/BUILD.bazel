@@ -34,6 +34,7 @@ go_library(
         "//pkg/config/create",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/opentelemetry-mapping-go/inframetadata",

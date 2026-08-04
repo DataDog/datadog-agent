@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "custommetrics",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/autoscaling/datadogclient/def",
+        "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/clusteragent/autoscaling/externalmetrics",
+        "//pkg/config/setup",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_spf13_pflag//:pflag",
+        "@io_k8s_sigs_custom_metrics_apiserver//pkg/apiserver",
+        "@io_k8s_sigs_custom_metrics_apiserver//pkg/cmd",
+        "@io_k8s_sigs_custom_metrics_apiserver//pkg/provider",
+    ],
+)

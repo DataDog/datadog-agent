@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The data security check now reports the number of scanned rows and the
+    list of scanned columns (name and data type) for each scanned table in its
+    scan results.

@@ -19,8 +19,8 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -128,7 +128,7 @@ type domain struct {
 func getDomains(cfg model.Reader) []domain {
 	domains := []domain{}
 
-	mainSite := pkgconfigsetup.DefaultSite
+	mainSite := constants.DefaultSite
 	if cfg.GetString("site") != "" {
 		mainSite = cfg.GetString("site")
 	}

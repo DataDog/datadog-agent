@@ -53,6 +53,16 @@ const (
 	componentName     = "workloadmeta-process"
 	cacheValidityNoRT = 2 * time.Second
 
+	// discoveredServicesSubsystem is the telemetry subsystem (metric prefix) for the
+	// discovered_services gauge. It is intentionally "service_discovery" rather than the
+	// collectorID ("process-collector"): through Agent 7.70 this gauge was emitted by the
+	// service_discovery corecheck under that subsystem, so the emitted metric was
+	// "service_discovery.discovered_services", which the cross-org agent telemetry (COAT)
+	// allowlist in comp/core/agenttelemetry/impl/defaultProfiles.yaml matches. Reusing the
+	// same subsystem keeps that metric name stable across agent versions instead of minting
+	// a new "process_collector.discovered_services", so historical COAT data stays continuous.
+	discoveredServicesSubsystem = "service_discovery"
+
 	// Service discovery constants
 	maxPortCheckTries                                = 10
 	serviceCollectionBatchSizeConfigKey              = "discovery.service_collection_batch_size"
@@ -107,7 +117,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 	var discoveredServicesGauge telemetry.Gauge
 	if serviceDiscoveryEnabled(systemProbeConfig) {
 		discoveredServicesGauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-			collectorID,
+			discoveredServicesSubsystem,
 			"discovered_services",
 			[]string{},
 			"Number of discovered alive services.",

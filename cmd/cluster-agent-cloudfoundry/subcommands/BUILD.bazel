@@ -1,0 +1,86 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = ["subcommands.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/subcommands",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:js": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/cluster-agent-cloudfoundry/command",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/run",
+            "//cmd/cluster-agent-cloudfoundry/subcommands/version",
+        ],
+        "//conditions:default": [],
+    }),
+)

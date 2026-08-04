@@ -259,6 +259,43 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 			},
 		},
 		{
+			name: "operator wildcard preserves backend actions for the exact service",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "backend wildcard is narrowed by explicit operator actions",
+			operator: map[string][]string{
+				"mysql.service": {"read", "restart"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "wildcards on both sides remain a wildcard",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{interp.SystemServiceAllActions}},
+			},
+		},
+		{
 			name: "nil and empty backend action lists grant nothing",
 			backend: map[string]*structpb.ListValue{
 				"mysql.service": nil,

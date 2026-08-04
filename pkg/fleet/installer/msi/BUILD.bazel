@@ -41,6 +41,7 @@ dd_agent_go_test(
             "testdata/invalid_credentials.log",
             "testdata/missing_password_for_dc.log",
             "testdata/service_marked_for_deletion.log",
+            "testdata/untrusted_config_root.log",
             "testdata/wixfailwhendeferred.log",
         ],
         "//conditions:default": [],

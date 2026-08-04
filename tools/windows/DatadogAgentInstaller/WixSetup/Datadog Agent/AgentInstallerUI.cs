@@ -18,7 +18,6 @@ namespace WixSetup.Datadog_Agent
             {
                 CommonDialogs.BrowseDlg,
                 CommonDialogs.DiskCostDlg,
-                CommonDialogs.ErrorDlg,
                 CommonDialogs.FilesInUse,
                 CommonDialogs.MsiRMFilesInUse,
                 CommonDialogs.PrepareDlg,
@@ -33,14 +32,26 @@ namespace WixSetup.Datadog_Agent
                 .AddXmlInclude("dialogs/sendFlaredlg.wxi")
                 .AddXmlInclude("dialogs/ddagentuserdlg.wxi")
                 .AddXmlInclude("dialogs/ddlicense.wxi")
-                .AddXmlInclude("dialogs/errormodaldlg.wxi");
+                .AddXmlInclude("dialogs/errormodaldlg.wxi")
+                // Replaces CommonDialogs.ErrorDlg, which is not referenced above
+                .AddXmlInclude("dialogs/errordlg.wxi");
 
             // NOTE: CustomActions called from dialog Controls will not be able to add messages to the log.
             //       If possible, prefer adding the custom action to an install sequence.
             //       https://learn.microsoft.com/en-us/windows/win32/msi/doaction-controlevent
 
+            // Refuse to go past the first dialog when the configuration directory cannot be trusted,
+            // see PrerequisitesCustomActions.EnsureSecureConfigRoot. The same check runs in the
+            // InstallExecuteSequence, which is what a silent install relies on.
+            // Set by the EnsureSecureConfigRootUI custom action
+            var configRootValid = new Condition("DDConfigRoot_Valid = \"True\"");
+            var configRootInvalid = new Condition("DDConfigRoot_Valid <> \"True\"");
+
             // Fresh install track
-            OnFreshInstall(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(Dialogs.LicenseAgreementDlg));
+            OnFreshInstall(NativeDialogs.WelcomeDlg, Buttons.Next,
+                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 1 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 2 },
+                new ShowDialog(Dialogs.LicenseAgreementDlg, configRootValid) { Order = 3 });
             OnFreshInstall(Dialogs.LicenseAgreementDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
             OnFreshInstall(Dialogs.LicenseAgreementDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.LicenseAccepted));
             OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(Dialogs.LicenseAgreementDlg));
@@ -60,7 +71,10 @@ namespace WixSetup.Datadog_Agent
             OnFreshInstall(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
 
             // Upgrade track
-            OnUpgrade(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg));
+            OnUpgrade(NativeDialogs.WelcomeDlg, Buttons.Next,
+                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 1 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 2 },
+                new ShowDialog(NativeDialogs.CustomizeDlg, configRootValid) { Order = 3 });
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
             OnUpgrade(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg));
@@ -74,13 +88,19 @@ namespace WixSetup.Datadog_Agent
             OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
 
+            // Change and repair write to the configuration directory, so they are checked too. Remove
+            // is deliberately not: an untrusted directory must not prevent uninstalling the Agent.
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",
-                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg),
-                new ShowDialog(NativeDialogs.CustomizeDlg));
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg) { Order = 1 },
+                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 2 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 3 },
+                new ShowDialog(NativeDialogs.CustomizeDlg, configRootValid) { Order = 4 });
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair,
-                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg),
-                new ShowDialog(Dialogs.AgentUserDialog));
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg) { Order = 1 },
+                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 2 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 3 },
+                new ShowDialog(Dialogs.AgentUserDialog, configRootValid) { Order = 4 });
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove,
                 new ShowDialog(NativeDialogs.VerifyReadyDlg));

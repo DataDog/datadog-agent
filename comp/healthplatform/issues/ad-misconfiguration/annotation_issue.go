@@ -85,7 +85,7 @@ func (t *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatfo
 	return &healthplatform.Issue{
 		IssueName:   annotationIssueName,
 		IssueType:   annotationIssueType,
-		Title:       content.title + " on '" + entityName + "'",
+		Title:       fmt.Sprintf("%s on %q", content.title, entityName),
 		Description: content.description,
 		Category:    category,
 		Location:    location,

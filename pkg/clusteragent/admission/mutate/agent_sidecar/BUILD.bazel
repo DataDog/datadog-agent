@@ -22,7 +22,7 @@ go_library(
         "//pkg/clusteragent/admission/metrics",
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/admission/mutate/config",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",

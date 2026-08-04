@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/traceroute/def",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/message",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
@@ -27,7 +27,7 @@ dd_agent_go_test(
     embed = [":networks"],
     deps = [
         "//comp/forwarder/eventplatform/def",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/message",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",

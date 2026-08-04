@@ -34,6 +34,7 @@ dd_agent_go_test(
         "//comp/anomalydetection/config",
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/severityevents/def",
+        "//comp/anomalydetection/severityevents/impl",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",

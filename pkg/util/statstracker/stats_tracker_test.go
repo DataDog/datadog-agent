@@ -6,6 +6,7 @@
 package statstracker
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -151,6 +152,39 @@ func TestAllTimePeak(t *testing.T) {
 
 	assert.Equal(t, int64(20), s.AllTimePeak())
 
+}
+
+func TestGoStringReadsFieldsUnderLock(t *testing.T) {
+	_, s := setupStatsTracker(3*time.Second, time.Second)
+	s.Add(10)
+	s.Add(20)
+
+	dump := fmt.Sprintf("%#v", s)
+
+	assert.Contains(t, dump, "allTimeAvg:15")
+	assert.Contains(t, dump, "allTimePeak:20")
+	assert.Contains(t, dump, "totalPoints:2")
+	assert.Contains(t, dump, "timeFrame:3000000000")
+	assert.Contains(t, dump, "bucketFrame:1000000000")
+}
+
+// TestGoStringConcurrentWithAdd reproduces the scenario that raced in production: something
+// dumping a *Tracker with %#v (e.g. LogSource.Dump()) while Add() is running concurrently.
+// Run with -race.
+func TestGoStringConcurrentWithAdd(_ *testing.T) {
+	_, s := setupStatsTracker(3*time.Second, time.Second)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 1000 {
+			s.Add(int64(i))
+		}
+	}()
+	for range 1000 {
+		_ = fmt.Sprintf("%#v", s)
+	}
+	<-done
 }
 
 func TestAllTimeAvg(t *testing.T) {

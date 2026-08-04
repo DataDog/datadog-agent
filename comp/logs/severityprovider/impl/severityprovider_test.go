@@ -10,6 +10,7 @@ package severityproviderimpl
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	severityeventsimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -51,31 +53,51 @@ type fakeObserverComponent struct {
 	sub               severityeventsdef.SeverityEventsReaderSubscription
 	err               error
 	unsubscribeCalled bool
+	config            severityeventsdef.SeverityEventsConfiguration
+	dispatcher        *severityeventsimpl.Dispatcher
 }
 
 func (f *fakeObserverComponent) GetHandle(string) observerdef.Handle { return nil }
 func (f *fakeObserverComponent) RecordSamplerDropped(string, string) {}
 func (f *fakeObserverComponent) DumpMetrics(string) error            { return nil }
-func (f *fakeObserverComponent) SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration, severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
-	return severityeventsdef.SeverityEventsSubscription{}, nil
+func (f *fakeObserverComponent) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	if f.err != nil {
+		return severityeventsdef.SeverityEventsSubscription{}, f.err
+	}
+	f.dispatcher = severityeventsimpl.NewDispatcher(cfg, listener)
+	return severityeventsdef.SeverityEventsSubscription{
+		Dispatcher: f.dispatcher,
+		Unsubscribe: func() {
+			f.unsubscribeCalled = true
+		},
+	}, nil
 }
 
-func (f *fakeObserverComponent) SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+func (f *fakeObserverComponent) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	f.config = cfg
 	if f.err != nil {
 		return severityeventsdef.SeverityEventsReaderSubscription{}, f.err
+	}
+	if f.sub.Reader == nil {
+		return severityeventsimpl.NewSeverityReader(f, cfg)
 	}
 	return f.sub, nil
 }
 
+func (f *fakeObserverComponent) advance(sec int64, level severityeventsdef.SeverityLevel) {
+	f.dispatcher.Advance(sec, level)
+}
+
 var _ observerdef.Component = (*fakeObserverComponent)(nil)
 
-func newComponent(t *testing.T, enabled bool, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
+func newComponent(t *testing.T, enabled bool, cooldown time.Duration, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
 	t.Helper()
 	lifecycle := compdef.NewTestLifecycle(t)
 	provides, err := NewComponent(Requires{
 		Lifecycle: lifecycle,
 		Config: config.NewMockWithOverrides(t, map[string]interface{}{
 			anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey: enabled,
+			smartSeverityProfilesCooldownConfigKey:                       cooldown,
 		}),
 		Observer: observer,
 		Log:      noopLogComponent{},
@@ -85,7 +107,7 @@ func newComponent(t *testing.T, enabled bool, observer option.Option[observerdef
 }
 
 func TestLifecycleDisabled(t *testing.T) {
-	comp, lifecycle := newComponent(t, false, option.New[observerdef.Component](&fakeObserverComponent{}))
+	comp, lifecycle := newComponent(t, false, 0, option.New[observerdef.Component](&fakeObserverComponent{}))
 	require.NoError(t, lifecycle.Start(context.Background()))
 
 	level, ok := comp.Current()
@@ -94,7 +116,7 @@ func TestLifecycleDisabled(t *testing.T) {
 }
 
 func TestLifecycleNoObserverProvided(t *testing.T) {
-	comp, lifecycle := newComponent(t, true, option.None[observerdef.Component]())
+	comp, lifecycle := newComponent(t, true, 0, option.None[observerdef.Component]())
 	require.NoError(t, lifecycle.Start(context.Background()))
 
 	level, ok := comp.Current()
@@ -103,7 +125,7 @@ func TestLifecycleNoObserverProvided(t *testing.T) {
 }
 
 func TestLifecyclePropagatesSubscriptionError(t *testing.T) {
-	comp, lifecycle := newComponent(t, true, option.New[observerdef.Component](&fakeObserverComponent{err: assert.AnError}))
+	comp, lifecycle := newComponent(t, true, 0, option.New[observerdef.Component](&fakeObserverComponent{err: assert.AnError}))
 	assert.ErrorIs(t, lifecycle.Start(context.Background()), assert.AnError)
 
 	_, ok := comp.Current()
@@ -117,9 +139,10 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 		Reader:      reader,
 		Unsubscribe: func() { observer.unsubscribeCalled = true },
 	}
-	comp, lifecycle := newComponent(t, true, option.New[observerdef.Component](observer))
+	comp, lifecycle := newComponent(t, true, 500*time.Millisecond, option.New[observerdef.Component](observer))
 
 	require.NoError(t, lifecycle.Start(context.Background()))
+	assert.Equal(t, int64(1), observer.config.CooldownSecs)
 	level, ok := comp.Current()
 	require.True(t, ok)
 	assert.Equal(t, severityeventsdef.SeverityHigh, level)
@@ -128,4 +151,28 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 	assert.True(t, observer.unsubscribeCalled)
 	_, ok = comp.Current()
 	assert.False(t, ok)
+}
+
+func TestLifecycleReaderHonorsSmartSeverityProfilesCooldown(t *testing.T) {
+	observer := &fakeObserverComponent{}
+	comp, lifecycle := newComponent(t, true, 10*time.Second, option.New[observerdef.Component](observer))
+
+	require.NoError(t, lifecycle.Start(context.Background()))
+	require.NotNil(t, observer.dispatcher)
+	assert.Equal(t, int64(10), observer.config.CooldownSecs)
+
+	observer.advance(100, severityeventsdef.SeverityHigh)
+	level, ok := comp.Current()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityHigh, level)
+
+	observer.advance(101, severityeventsdef.SeverityLow)
+	level, ok = comp.Current()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityHigh, level, "cooldown must delay the reader's de-escalation")
+
+	observer.advance(110, severityeventsdef.SeverityLow)
+	level, ok = comp.Current()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
 }

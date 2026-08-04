@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Notable Events on Windows now reports critical temperature events: system shutdown or
+    hibernation triggered by a critical thermal condition.

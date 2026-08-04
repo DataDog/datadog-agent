@@ -573,11 +573,6 @@ type SnapshottedBoundSocket struct {
 	Protocol uint16
 }
 
-// SnapshottedMmapedFile represents a snapshotted memory-mapped file
-type SnapshottedMmapedFile struct {
-	Path string
-}
-
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext

@@ -167,6 +167,26 @@ func getEventDefinitions() []eventDefinition {
 			Message:       "An application removal (MSI) failed",
 			FormatPayload: formatMsiInstaller1034Payload,
 		},
+		{
+			Provider:      "Microsoft-Windows-Kernel-Power",
+			EventID:       86,
+			Channel:       "System",
+			QueryBody:     `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=86]]</Select>`,
+			EventType:     "Critical Temperature",
+			Title:         "The system was shut down due to a critical thermal event",
+			Message:       "The system was shut down due to a critical thermal event.",
+			FormatPayload: formatCriticalThermalShutdownPayload,
+		},
+		{
+			Provider:      "Microsoft-Windows-Kernel-Power",
+			EventID:       88,
+			Channel:       "System",
+			QueryBody:     `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=88]]</Select>`,
+			EventType:     "Critical Temperature",
+			Title:         "The system was hibernated due to a critical thermal event",
+			Message:       "The system was hibernated due to a critical thermal event.",
+			FormatPayload: formatCriticalThermalHibernatePayload,
+		},
 	}
 	return e
 }

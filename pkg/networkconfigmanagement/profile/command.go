@@ -54,6 +54,9 @@ type Command interface {
 type PlainCommand struct {
 	Command   string    `json:"command"`
 	Validator Validator `json:"validator"`
+	// SetupCommands run before Command in the same exec session. Note: if a setup
+	// command prints output, it may appear in the saved config.
+	SetupCommands []string `json:"setup_commands,omitempty"`
 }
 
 func (c *PlainCommand) CommandType() string {

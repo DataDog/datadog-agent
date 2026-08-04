@@ -14,7 +14,7 @@ import (
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -71,22 +71,22 @@ func (h *RunNetworkPathHandler) Run(
 
 	maxTTL := inputs.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = pkgconfigsetup.DefaultNetworkPathMaxTTL
+		maxTTL = constants.DefaultNetworkPathMaxTTL
 	}
 
 	timeout := time.Duration(inputs.TimeoutMs) * time.Millisecond
 	if timeout == 0 {
-		timeout = pkgconfigsetup.DefaultNetworkPathTimeout * time.Millisecond
+		timeout = constants.DefaultNetworkPathTimeout * time.Millisecond
 	}
 
 	tracerouteQueries := inputs.TracerouteQueries
 	if tracerouteQueries == 0 {
-		tracerouteQueries = pkgconfigsetup.DefaultNetworkPathStaticPathTracerouteQueries
+		tracerouteQueries = constants.DefaultNetworkPathStaticPathTracerouteQueries
 	}
 
 	e2eQueries := inputs.E2eQueries
 	if e2eQueries == 0 {
-		e2eQueries = pkgconfigsetup.DefaultNetworkPathStaticPathE2eQueries
+		e2eQueries = constants.DefaultNetworkPathStaticPathE2eQueries
 	}
 
 	cfg := tracerouteconfig.Config{

@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
@@ -71,7 +71,7 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 
 	if profile {
 		// populate site
-		s := pkgconfigsetup.DefaultSite
+		s := constants.DefaultSite
 		if config.IsConfigured(l.ConfigPrefix + "site") {
 			s = config.GetString(l.ConfigPrefix + "site")
 		}

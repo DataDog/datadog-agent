@@ -23,7 +23,9 @@ pub mod datadog {
 pub use datadog::sds::{
     ScanningSource, SdsResultPayload, scanning_source,
     sds_result_payload::{
-        PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult, TableMatch, scan_location,
+        PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult, TableMatch,
+        postgres_table::ScannedColumn as PostgresScannedColumn,
+        scan_location,
         scan_metadata::{ScanTaskMetadata, scan_task_metadata::Status},
     },
 };
