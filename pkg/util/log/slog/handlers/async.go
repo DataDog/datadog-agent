@@ -234,10 +234,11 @@ func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
 		}
 
 		if value.Kind() == slog.KindAny {
-			newAttrs[i].Value = slog.StringValue(fmt.Sprint(value.Any()))
+			value = slog.StringValue(fmt.Sprint(value.Any()))
 		} else if value.Kind() == slog.KindGroup {
-			newAttrs[i].Value = slog.GroupValue(snapshotMutableAttrs(value.Group())...)
+			value = slog.GroupValue(snapshotMutableAttrs(value.Group())...)
 		}
+		newAttrs[i].Value = value
 	}
 
 	return newAttrs
