@@ -97,6 +97,7 @@ tests_windows-x64:
       -e GOPROXY
       -e GONOSUMDB
       -e PIP_INDEX_URL
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -127,6 +128,7 @@ tests_windows-x64:
       -e GOPROXY
       -e GONOSUMDB
       -e PIP_INDEX_URL
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       c:\mnt\tasks\winbuildscripts\secagent.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
