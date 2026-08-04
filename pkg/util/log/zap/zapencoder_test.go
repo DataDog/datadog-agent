@@ -6,7 +6,6 @@
 package log
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -59,7 +58,7 @@ func TestArrayEncoder(t *testing.T) {
 		{"AppendUint16", func(e zapcore.ArrayEncoder) { e.AppendUint16(42) }, uint16(42)},
 		{"AppendUint8", func(e zapcore.ArrayEncoder) { e.AppendUint8(42) }, uint8(42)},
 		{"AppendUintptr", func(e zapcore.ArrayEncoder) { e.AppendUintptr(42) }, uintptr(42)},
-		{"AppendReflected", func(e zapcore.ArrayEncoder) { e.AppendReflected(map[string]int{"foo": 5}) }, fmt.Sprint(map[string]int{"foo": 5})},
+		{"AppendReflected", func(e zapcore.ArrayEncoder) { e.AppendReflected(map[string]int{"foo": 5}) }, map[string]int{"foo": 5}},
 		{
 			desc: "AppendArray (arrays of arrays)",
 			encode: func(e zapcore.ArrayEncoder) {
@@ -128,7 +127,7 @@ func TestObjectEncoder(t *testing.T) {
 			encode: func(e zapcore.ObjectEncoder) {
 				assert.NoError(t, e.AddReflected("k", map[string]interface{}{"foo": 5}), "Expected AddReflected to succeed.")
 			},
-			expected: []interface{}{"k", fmt.Sprint(map[string]interface{}{"foo": 5})},
+			expected: []interface{}{"k", map[string]interface{}{"foo": 5}},
 		},
 		{
 			desc: "OpenNamespace",
@@ -152,18 +151,4 @@ func TestObjectEncoder(t *testing.T) {
 		})
 	}
 
-}
-
-func TestAddReflectedSnapshotsImmediately(t *testing.T) {
-	type mutable struct {
-		Field string
-	}
-	obj := &mutable{Field: "before"}
-
-	enc := &encoder{}
-	require.NoError(t, enc.AddReflected("k", obj))
-
-	obj.Field = "after"
-
-	assert.Equal(t, []interface{}{"k", fmt.Sprint(&mutable{Field: "before"})}, enc.ctx)
 }

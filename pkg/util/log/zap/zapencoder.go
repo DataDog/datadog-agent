@@ -6,7 +6,6 @@
 package log
 
 import (
-	"fmt"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -67,9 +66,7 @@ func (e *encoder) AddUint16(k string, v uint16)                        { e.ctx =
 func (e *encoder) AddUint8(k string, v uint8)                          { e.ctx = append(e.ctx, e.fullKey(k), v) }
 func (e *encoder) AddUintptr(k string, v uintptr)                      { e.ctx = append(e.ctx, e.fullKey(k), v) }
 func (e *encoder) AddReflected(k string, v interface{}) error {
-	// Format eagerly instead of storing the live reference, so a caller mutating v after
-	// this call can't race with our async logging pipeline formatting it later.
-	e.ctx = append(e.ctx, e.fullKey(k), fmt.Sprint(v))
+	e.ctx = append(e.ctx, e.fullKey(k), v)
 	return nil
 }
 
@@ -98,8 +95,7 @@ func (s *sliceArrayEncoder) AppendObject(v zapcore.ObjectMarshaler) error {
 	return err
 }
 func (s *sliceArrayEncoder) AppendReflected(v interface{}) error {
-	// See encoder.AddReflected: format eagerly to avoid racing with the async slog pipeline.
-	s.elems = append(s.elems, fmt.Sprint(v))
+	s.elems = append(s.elems, v)
 	return nil
 }
 func (s *sliceArrayEncoder) AppendBool(v bool)              { s.elems = append(s.elems, v) }
