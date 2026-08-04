@@ -41,6 +41,7 @@ dd_agent_go_test(
     name = "safenvml_test",
     srcs = [
         "cache_test.go",
+        "device_concurrency_test.go",
         "device_impl_test.go",
         "lib_test.go",
         "telemetry_test.go",

@@ -7,196 +7,203 @@
 
 package safenvml
 
-import "github.com/NVIDIA/go-nvml/pkg/nvml"
+import (
+	"sync"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
 	nvmlDevice nvml.Device
 	lib        symbolLookup
+
+	// mu serializes native NVML calls made against nvmlDevice. The NVIDIA driver
+	// does not guarantee that concurrent calls on the same device handle are safe:
+	// issuing two nvmlGpmSampleGet calls on one handle at the same time has been
+	// observed to fault inside the driver. Collectors run in parallel (see
+	// gpu.parallel_collectors) and several of them share a device, so every entry
+	// point below must hold this lock for the duration of the native call.
+	//
+	// The lock is per handle, so calls to different devices still run in parallel.
+	// MIG handles obtained from GetMigDeviceHandleByIndex are distinct handles and
+	// get their own lock; GPM sampling for a MIG instance goes through the parent
+	// handle via GpmMigSampleGet and is therefore covered by the parent's lock.
+	mu sync.Mutex
+}
+
+// nvmlAPI identifies an NVML entry point: the short name reported in errors and
+// the dynamic symbol that must be present in the loaded library.
+type nvmlAPI struct {
+	name   string
+	symbol string
+}
+
+// deviceAPI describes an NVML API exported with the nvmlDevice prefix.
+func deviceAPI(name string) nvmlAPI {
+	return nvmlAPI{name: name, symbol: toNativeName(name)}
+}
+
+// gpmAPI describes an NVML API exported with the nvmlGpm prefix.
+func gpmAPI(name string) nvmlAPI {
+	return nvmlAPI{name: name, symbol: "nvml" + name}
+}
+
+// deviceCall invokes an NVML device API that only reports a status code. The
+// symbol availability check runs outside the device lock (it is a lookup in the
+// capability set, not a driver call); the native call itself is serialized.
+func deviceCall(d *safeDeviceImpl, api nvmlAPI, fn func() nvml.Return) error {
+	if err := d.lib.lookup(api.symbol); err != nil {
+		return err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return NewNvmlAPIErrorOrNil(api.name, fn())
+}
+
+// deviceCall1 invokes an NVML device API returning a single value, serialized on
+// the device lock. See deviceCall.
+func deviceCall1[T any](d *safeDeviceImpl, api nvmlAPI, fn func() (T, nvml.Return)) (T, error) {
+	var zero T
+	if err := d.lib.lookup(api.symbol); err != nil {
+		return zero, err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	value, ret := fn()
+	return value, NewNvmlAPIErrorOrNil(api.name, ret)
+}
+
+// deviceCall2 invokes an NVML device API returning two values, serialized on the
+// device lock. See deviceCall.
+func deviceCall2[T1, T2 any](d *safeDeviceImpl, api nvmlAPI, fn func() (T1, T2, nvml.Return)) (T1, T2, error) {
+	var zero1 T1
+	var zero2 T2
+	if err := d.lib.lookup(api.symbol); err != nil {
+		return zero1, zero2, err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	first, second, ret := fn()
+	return first, second, NewNvmlAPIErrorOrNil(api.name, ret)
 }
 
 func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
-	if err := d.lib.lookup(toNativeName("GetArchitecture")); err != nil {
-		return 0, err
-	}
-	arch, ret := d.nvmlDevice.GetArchitecture()
-	return arch, NewNvmlAPIErrorOrNil("GetArchitecture", ret)
+	return deviceCall1(d, deviceAPI("GetArchitecture"), d.nvmlDevice.GetArchitecture)
 }
 
 func (d *safeDeviceImpl) GetAttributes() (nvml.DeviceAttributes, error) {
-	if err := d.lib.lookup(toNativeName("GetAttributes")); err != nil {
-		return nvml.DeviceAttributes{}, err
-	}
-	attrs, ret := d.nvmlDevice.GetAttributes()
-	return attrs, NewNvmlAPIErrorOrNil("GetAttributes", ret)
+	return deviceCall1(d, deviceAPI("GetAttributes"), d.nvmlDevice.GetAttributes)
 }
 
 func (d *safeDeviceImpl) GetBAR1MemoryInfo() (nvml.BAR1Memory, error) {
-	if err := d.lib.lookup(toNativeName("GetBAR1MemoryInfo")); err != nil {
-		return nvml.BAR1Memory{}, err
-	}
-	bar1Info, ret := d.nvmlDevice.GetBAR1MemoryInfo()
-	return bar1Info, NewNvmlAPIErrorOrNil("GetBAR1MemoryInfo", ret)
+	return deviceCall1(d, deviceAPI("GetBAR1MemoryInfo"), d.nvmlDevice.GetBAR1MemoryInfo)
 }
 
 func (d *safeDeviceImpl) GetClockInfo(clockType nvml.ClockType) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetClockInfo")); err != nil {
-		return 0, err
-	}
-	clock, ret := d.nvmlDevice.GetClockInfo(clockType)
-	return clock, NewNvmlAPIErrorOrNil("GetClockInfo", ret)
+	return deviceCall1(d, deviceAPI("GetClockInfo"), func() (uint32, nvml.Return) {
+		return d.nvmlDevice.GetClockInfo(clockType)
+	})
 }
 
 // GetComputeRunningProcesses returns the list of compute processes running on the device
 func (d *safeDeviceImpl) GetComputeRunningProcesses() ([]nvml.ProcessInfo, error) {
-	if err := d.lib.lookup(toNativeName("GetComputeRunningProcesses")); err != nil {
-		return nil, err
-	}
-	processes, ret := d.nvmlDevice.GetComputeRunningProcesses()
-	return processes, NewNvmlAPIErrorOrNil("GetComputeRunningProcesses", ret)
+	return deviceCall1(d, deviceAPI("GetComputeRunningProcesses"), d.nvmlDevice.GetComputeRunningProcesses)
 }
 
 func (d *safeDeviceImpl) GetCudaComputeCapability() (int, int, error) {
-	if err := d.lib.lookup(toNativeName("GetCudaComputeCapability")); err != nil {
-		return 0, 0, err
-	}
-	major, minor, ret := d.nvmlDevice.GetCudaComputeCapability()
-	return major, minor, NewNvmlAPIErrorOrNil("GetCudaComputeCapability", ret)
+	return deviceCall2(d, deviceAPI("GetCudaComputeCapability"), d.nvmlDevice.GetCudaComputeCapability)
 }
 
 func (d *safeDeviceImpl) GetCurrentClocksThrottleReasons() (uint64, error) {
-	if err := d.lib.lookup(toNativeName("GetCurrentClocksThrottleReasons")); err != nil {
-		return 0, err
-	}
-	reasons, ret := d.nvmlDevice.GetCurrentClocksThrottleReasons()
-	return reasons, NewNvmlAPIErrorOrNil("GetCurrentClocksThrottleReasons", ret)
+	return deviceCall1(d, deviceAPI("GetCurrentClocksThrottleReasons"), d.nvmlDevice.GetCurrentClocksThrottleReasons)
 }
 
 func (d *safeDeviceImpl) GetDecoderUtilization() (uint32, uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetDecoderUtilization")); err != nil {
-		return 0, 0, err
-	}
-	utilization, samplingPeriod, ret := d.nvmlDevice.GetDecoderUtilization()
-	return utilization, samplingPeriod, NewNvmlAPIErrorOrNil("GetDecoderUtilization", ret)
+	return deviceCall2(d, deviceAPI("GetDecoderUtilization"), d.nvmlDevice.GetDecoderUtilization)
 }
 
 func (d *safeDeviceImpl) GetEncoderUtilization() (uint32, uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetEncoderUtilization")); err != nil {
-		return 0, 0, err
-	}
-	utilization, samplingPeriod, ret := d.nvmlDevice.GetEncoderUtilization()
-	return utilization, samplingPeriod, NewNvmlAPIErrorOrNil("GetEncoderUtilization", ret)
+	return deviceCall2(d, deviceAPI("GetEncoderUtilization"), d.nvmlDevice.GetEncoderUtilization)
 }
 
 func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetFanSpeed")); err != nil {
-		return 0, err
-	}
-	speed, ret := d.nvmlDevice.GetFanSpeed()
-	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed", ret)
+	return deviceCall1(d, deviceAPI("GetFanSpeed"), d.nvmlDevice.GetFanSpeed)
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming
 func (d *safeDeviceImpl) GetFanSpeed_v2(fanIndex int) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetFanSpeed_v2")); err != nil {
-		return 0, err
-	}
-	speed, ret := d.nvmlDevice.GetFanSpeed_v2(fanIndex)
-	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed_v2", ret)
+	return deviceCall1(d, deviceAPI("GetFanSpeed_v2"), func() (uint32, nvml.Return) {
+		return d.nvmlDevice.GetFanSpeed_v2(fanIndex)
+	})
 }
 
 func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
-	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
-		return err
-	}
-	ret := d.nvmlDevice.GetFieldValues(values)
-	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
+	return deviceCall(d, deviceAPI("GetFieldValues"), func() nvml.Return {
+		return d.nvmlDevice.GetFieldValues(values)
+	})
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming
 func (d *safeDeviceImpl) ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error {
-	if err := d.lib.lookup("nvmlDeviceReadWritePRM_v1"); err != nil {
-		return err
-	}
-	ret := d.nvmlDevice.ReadWritePRM_v1(buffer)
-	return NewNvmlAPIErrorOrNil("ReadWritePRM_v1", ret)
+	return deviceCall(d, deviceAPI("ReadWritePRM_v1"), func() nvml.Return {
+		return d.nvmlDevice.ReadWritePRM_v1(buffer)
+	})
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming
 func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetGpuInstanceId")); err != nil {
-		return 0, err
-	}
-	id, ret := d.nvmlDevice.GetGpuInstanceId()
-	return id, NewNvmlAPIErrorOrNil("GetGpuInstanceId", ret)
+	return deviceCall1(d, deviceAPI("GetGpuInstanceId"), d.nvmlDevice.GetGpuInstanceId)
 }
 
 func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error) {
-	if err := d.lib.lookup(toNativeName("GetGpuInstanceProfileInfo")); err != nil {
-		return nvml.GpuInstanceProfileInfo{}, err
-	}
-	info, ret := d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
-	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
+	return deviceCall1(d, deviceAPI("GetGpuInstanceProfileInfo"), func() (nvml.GpuInstanceProfileInfo, nvml.Return) {
+		return d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
+	})
 }
 
 func (d *safeDeviceImpl) GetIndex() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
-		return 0, err
-	}
-	index, ret := d.nvmlDevice.GetIndex()
-	return index, NewNvmlAPIErrorOrNil("GetIndex", ret)
+	return deviceCall1(d, deviceAPI("GetIndex"), d.nvmlDevice.GetIndex)
 }
 
 func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetMaxClockInfo")); err != nil {
-		return 0, err
-	}
-	clock, ret := d.nvmlDevice.GetMaxClockInfo(clockType)
-	return clock, NewNvmlAPIErrorOrNil("GetMaxClockInfo", ret)
+	return deviceCall1(d, deviceAPI("GetMaxClockInfo"), func() (uint32, nvml.Return) {
+		return d.nvmlDevice.GetMaxClockInfo(clockType)
+	})
 }
 
 // GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
 func (d *safeDeviceImpl) GetMaxMigDeviceCount() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetMaxMigDeviceCount")); err != nil {
-		return 0, err
-	}
-	count, ret := d.nvmlDevice.GetMaxMigDeviceCount()
-	return count, NewNvmlAPIErrorOrNil("GetMaxMigDeviceCount", ret)
+	return deviceCall1(d, deviceAPI("GetMaxMigDeviceCount"), d.nvmlDevice.GetMaxMigDeviceCount)
 }
 
 func (d *safeDeviceImpl) GetMemoryBusWidth() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetMemoryBusWidth")); err != nil {
-		return 0, err
-	}
-	width, ret := d.nvmlDevice.GetMemoryBusWidth()
-	return width, NewNvmlAPIErrorOrNil("GetMemoryBusWidth", ret)
+	return deviceCall1(d, deviceAPI("GetMemoryBusWidth"), d.nvmlDevice.GetMemoryBusWidth)
 }
 
 func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
-	if err := d.lib.lookup(toNativeName("GetMemoryInfo")); err != nil {
-		return nvml.Memory{}, err
-	}
-	memInfo, ret := d.nvmlDevice.GetMemoryInfo()
-	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo", ret)
+	return deviceCall1(d, deviceAPI("GetMemoryInfo"), d.nvmlDevice.GetMemoryInfo)
 }
 
 func (d *safeDeviceImpl) GetMemoryInfoV2() (nvml.Memory_v2, error) {
-	if err := d.lib.lookup(toNativeName("GetMemoryInfo_v2")); err != nil {
-		return nvml.Memory_v2{}, err
-	}
-	memInfo, ret := d.nvmlDevice.GetMemoryInfo_v2()
-	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo_v2", ret)
+	return deviceCall1(d, deviceAPI("GetMemoryInfo_v2"), d.nvmlDevice.GetMemoryInfo_v2)
 }
 
 // GetMigDeviceHandleByIndex returns the MIG device handle at the given index
 func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error) {
-	if err := d.lib.lookup(toNativeName("GetMigDeviceHandleByIndex")); err != nil {
+	device, err := deviceCall1(d, deviceAPI("GetMigDeviceHandleByIndex"), func() (nvml.Device, nvml.Return) {
+		return d.nvmlDevice.GetMigDeviceHandleByIndex(index)
+	})
+	if err != nil {
 		return nil, err
 	}
-	device, ret := d.nvmlDevice.GetMigDeviceHandleByIndex(index)
-	if err := NewNvmlAPIErrorOrNil("GetMigDeviceHandleByIndex", ret); err != nil {
-		return nil, err
-	}
+
 	return &safeDeviceImpl{
 		nvmlDevice: device,
 		lib:        d.lib,
@@ -205,258 +212,161 @@ func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error
 
 // GetMigMode returns the MIG mode of the device
 func (d *safeDeviceImpl) GetMigMode() (int, int, error) {
-	if err := d.lib.lookup(toNativeName("GetMigMode")); err != nil {
-		return 0, 0, err
-	}
-	mode, pendingMode, ret := d.nvmlDevice.GetMigMode()
-	return mode, pendingMode, NewNvmlAPIErrorOrNil("GetMigMode", ret)
+	return deviceCall2(d, deviceAPI("GetMigMode"), d.nvmlDevice.GetMigMode)
 }
 
 func (d *safeDeviceImpl) GetName() (string, error) {
-	if err := d.lib.lookup(toNativeName("GetName")); err != nil {
-		return "", err
-	}
-	name, ret := d.nvmlDevice.GetName()
-	return name, NewNvmlAPIErrorOrNil("GetName", ret)
+	return deviceCall1(d, deviceAPI("GetName"), d.nvmlDevice.GetName)
 }
 
 func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetNumGpuCores")); err != nil {
-		return 0, err
-	}
-	cores, ret := d.nvmlDevice.GetNumGpuCores()
-	return cores, NewNvmlAPIErrorOrNil("GetNumGpuCores", ret)
+	return deviceCall1(d, deviceAPI("GetNumGpuCores"), d.nvmlDevice.GetNumGpuCores)
 }
 
 func (d *safeDeviceImpl) GetNumFans() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetNumFans")); err != nil {
-		return 0, err
-	}
-	fans, ret := d.nvmlDevice.GetNumFans()
-	return fans, NewNvmlAPIErrorOrNil("GetNumFans", ret)
+	return deviceCall1(d, deviceAPI("GetNumFans"), d.nvmlDevice.GetNumFans)
 }
 
 func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
-	if err := d.lib.lookup(toNativeName("GetNvLinkState")); err != nil {
-		return 0, err
-	}
-	state, ret := d.nvmlDevice.GetNvLinkState(link)
-	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
+	return deviceCall1(d, deviceAPI("GetNvLinkState"), func() (nvml.EnableState, nvml.Return) {
+		return d.nvmlDevice.GetNvLinkState(link)
+	})
 }
 
 func (d *safeDeviceImpl) GetPciInfo() (nvml.PciInfo, error) {
-	if err := d.lib.lookup(toNativeName("GetPciInfo")); err != nil {
-		return nvml.PciInfo{}, err
-	}
-	pciInfo, ret := d.nvmlDevice.GetPciInfo()
-	return pciInfo, NewNvmlAPIErrorOrNil("GetPciInfo", ret)
+	return deviceCall1(d, deviceAPI("GetPciInfo"), d.nvmlDevice.GetPciInfo)
 }
 
 func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetPcieThroughput")); err != nil {
-		return 0, err
-	}
-	throughput, ret := d.nvmlDevice.GetPcieThroughput(counter)
-	return throughput, NewNvmlAPIErrorOrNil("GetPcieThroughput", ret)
+	return deviceCall1(d, deviceAPI("GetPcieThroughput"), func() (uint32, nvml.Return) {
+		return d.nvmlDevice.GetPcieThroughput(counter)
+	})
 }
 
 func (d *safeDeviceImpl) GetCurrPcieLinkGeneration() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetCurrPcieLinkGeneration")); err != nil {
-		return 0, err
-	}
-	gen, ret := d.nvmlDevice.GetCurrPcieLinkGeneration()
-	return gen, NewNvmlAPIErrorOrNil("GetCurrPcieLinkGeneration", ret)
+	return deviceCall1(d, deviceAPI("GetCurrPcieLinkGeneration"), d.nvmlDevice.GetCurrPcieLinkGeneration)
 }
 
 func (d *safeDeviceImpl) GetMaxPcieLinkGeneration() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetMaxPcieLinkGeneration")); err != nil {
-		return 0, err
-	}
-	gen, ret := d.nvmlDevice.GetMaxPcieLinkGeneration()
-	return gen, NewNvmlAPIErrorOrNil("GetMaxPcieLinkGeneration", ret)
+	return deviceCall1(d, deviceAPI("GetMaxPcieLinkGeneration"), d.nvmlDevice.GetMaxPcieLinkGeneration)
 }
 
 func (d *safeDeviceImpl) GetCurrPcieLinkWidth() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetCurrPcieLinkWidth")); err != nil {
-		return 0, err
-	}
-	width, ret := d.nvmlDevice.GetCurrPcieLinkWidth()
-	return width, NewNvmlAPIErrorOrNil("GetCurrPcieLinkWidth", ret)
+	return deviceCall1(d, deviceAPI("GetCurrPcieLinkWidth"), d.nvmlDevice.GetCurrPcieLinkWidth)
 }
 
 func (d *safeDeviceImpl) GetMaxPcieLinkWidth() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetMaxPcieLinkWidth")); err != nil {
-		return 0, err
-	}
-	width, ret := d.nvmlDevice.GetMaxPcieLinkWidth()
-	return width, NewNvmlAPIErrorOrNil("GetMaxPcieLinkWidth", ret)
+	return deviceCall1(d, deviceAPI("GetMaxPcieLinkWidth"), d.nvmlDevice.GetMaxPcieLinkWidth)
 }
 
 func (d *safeDeviceImpl) GetPerformanceState() (nvml.Pstates, error) {
-	if err := d.lib.lookup(toNativeName("GetPerformanceState")); err != nil {
-		return 0, err
-	}
-	state, ret := d.nvmlDevice.GetPerformanceState()
-	return state, NewNvmlAPIErrorOrNil("GetPerformanceState", ret)
+	return deviceCall1(d, deviceAPI("GetPerformanceState"), d.nvmlDevice.GetPerformanceState)
 }
 
 func (d *safeDeviceImpl) GetPowerManagementLimit() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetPowerManagementLimit")); err != nil {
-		return 0, err
-	}
-	limit, ret := d.nvmlDevice.GetPowerManagementLimit()
-	return limit, NewNvmlAPIErrorOrNil("GetPowerManagementLimit", ret)
+	return deviceCall1(d, deviceAPI("GetPowerManagementLimit"), d.nvmlDevice.GetPowerManagementLimit)
 }
 
 func (d *safeDeviceImpl) GetPowerUsage() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetPowerUsage")); err != nil {
-		return 0, err
-	}
-	usage, ret := d.nvmlDevice.GetPowerUsage()
-	return usage, NewNvmlAPIErrorOrNil("GetPowerUsage", ret)
+	return deviceCall1(d, deviceAPI("GetPowerUsage"), d.nvmlDevice.GetPowerUsage)
 }
 
 // GetProcessUtilization returns process utilization samples since the given timestamp
 func (d *safeDeviceImpl) GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error) {
-	if err := d.lib.lookup(toNativeName("GetProcessUtilization")); err != nil {
-		return nil, err
-	}
-	samples, ret := d.nvmlDevice.GetProcessUtilization(lastSeenTimestamp)
-	return samples, NewNvmlAPIErrorOrNil("GetProcessUtilization", ret)
+	return deviceCall1(d, deviceAPI("GetProcessUtilization"), func() ([]nvml.ProcessUtilizationSample, nvml.Return) {
+		return d.nvmlDevice.GetProcessUtilization(lastSeenTimestamp)
+	})
 }
 
 func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
-	if err := d.lib.lookup(toNativeName("GetRemappedRows")); err != nil {
-		return 0, 0, false, false, err
+	// Grouped into a struct so this shares the single locked-call helper rather
+	// than open-coding the locking for a four-value signature.
+	type remappedRows struct {
+		corrRows        int
+		uncorrRows      int
+		isPending       bool
+		failureOccurred bool
 	}
-	corrRows, uncorrRows, isPending, failureOccurred, ret := d.nvmlDevice.GetRemappedRows()
-	return corrRows, uncorrRows, isPending, failureOccurred, NewNvmlAPIErrorOrNil("GetRemappedRows", ret)
+
+	rows, err := deviceCall1(d, deviceAPI("GetRemappedRows"), func() (remappedRows, nvml.Return) {
+		corrRows, uncorrRows, isPending, failureOccurred, ret := d.nvmlDevice.GetRemappedRows()
+		return remappedRows{corrRows, uncorrRows, isPending, failureOccurred}, ret
+	})
+	return rows.corrRows, rows.uncorrRows, rows.isPending, rows.failureOccurred, err
 }
 
 func (d *safeDeviceImpl) GetRepairStatus() (nvml.RepairStatus, error) {
-	if err := d.lib.lookup(toNativeName("GetRepairStatus")); err != nil {
-		return nvml.RepairStatus{}, err
-	}
-	repairStatus, ret := d.nvmlDevice.GetRepairStatus()
-	return repairStatus, NewNvmlAPIErrorOrNil("GetRepairStatus", ret)
+	return deviceCall1(d, deviceAPI("GetRepairStatus"), d.nvmlDevice.GetRepairStatus)
 }
 
 func (d *safeDeviceImpl) GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error) {
-	if err := d.lib.lookup(toNativeName("GetSamples")); err != nil {
-		return 0, nil, err
-	}
-	valueType, samples, ret := d.nvmlDevice.GetSamples(samplingType, lastSeenTimestamp)
-	return valueType, samples, NewNvmlAPIErrorOrNil("GetSamples", ret)
+	return deviceCall2(d, deviceAPI("GetSamples"), func() (nvml.ValueType, []nvml.Sample, nvml.Return) {
+		return d.nvmlDevice.GetSamples(samplingType, lastSeenTimestamp)
+	})
 }
 
 func (d *safeDeviceImpl) GetTemperature(sensorType nvml.TemperatureSensors) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetTemperature")); err != nil {
-		return 0, err
-	}
-	temp, ret := d.nvmlDevice.GetTemperature(sensorType)
-	return temp, NewNvmlAPIErrorOrNil("GetTemperature", ret)
+	return deviceCall1(d, deviceAPI("GetTemperature"), func() (uint32, nvml.Return) {
+		return d.nvmlDevice.GetTemperature(sensorType)
+	})
 }
 
 func (d *safeDeviceImpl) GetTotalEnergyConsumption() (uint64, error) {
-	if err := d.lib.lookup(toNativeName("GetTotalEnergyConsumption")); err != nil {
-		return 0, err
-	}
-	energy, ret := d.nvmlDevice.GetTotalEnergyConsumption()
-	return energy, NewNvmlAPIErrorOrNil("GetTotalEnergyConsumption", ret)
+	return deviceCall1(d, deviceAPI("GetTotalEnergyConsumption"), d.nvmlDevice.GetTotalEnergyConsumption)
 }
 
 func (d *safeDeviceImpl) GetUUID() (string, error) {
-	if err := d.lib.lookup(toNativeName("GetUUID")); err != nil {
-		return "", err
-	}
-	uuid, ret := d.nvmlDevice.GetUUID()
-	return uuid, NewNvmlAPIErrorOrNil("GetUUID", ret)
+	return deviceCall1(d, deviceAPI("GetUUID"), d.nvmlDevice.GetUUID)
 }
 
 func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
-	if err := d.lib.lookup(toNativeName("GetUtilizationRates")); err != nil {
-		return nvml.Utilization{}, err
-	}
-	utilization, ret := d.nvmlDevice.GetUtilizationRates()
-	return utilization, NewNvmlAPIErrorOrNil("GetUtilizationRates", ret)
+	return deviceCall1(d, deviceAPI("GetUtilizationRates"), d.nvmlDevice.GetUtilizationRates)
 }
 
 func (d *safeDeviceImpl) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
-	if err := d.lib.lookup("nvmlGpmQueryDeviceSupport"); err != nil {
-		return nvml.GpmSupport{}, err
-	}
-	support, ret := d.nvmlDevice.GpmQueryDeviceSupport()
-	return support, NewNvmlAPIErrorOrNil("GpmQueryDeviceSupport", ret)
+	return deviceCall1(d, gpmAPI("GpmQueryDeviceSupport"), d.nvmlDevice.GpmQueryDeviceSupport)
 }
 
 func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
-	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
-		return err
-	}
-	ret := d.nvmlDevice.GpmSampleGet(sample)
-	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
+	return deviceCall(d, gpmAPI("GpmSampleGet"), func() nvml.Return {
+		return d.nvmlDevice.GpmSampleGet(sample)
+	})
 }
 
 func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error {
-	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
-		return err
-	}
-	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
-	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
+	return deviceCall(d, gpmAPI("GpmMigSampleGet"), func() nvml.Return {
+		return d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
+	})
 }
 
 func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
-	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
-		return false, err
-	}
-	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
-	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
+	return deviceCall1(d, deviceAPI("IsMigDeviceHandle"), d.nvmlDevice.IsMigDeviceHandle)
 }
 
 func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, error) {
-	if err := d.lib.lookup(toNativeName("GetVirtualizationMode")); err != nil {
-		return nvml.GPU_VIRTUALIZATION_MODE_NONE, err
-	}
-	mode, ret := d.nvmlDevice.GetVirtualizationMode()
-	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
+	return deviceCall1(d, deviceAPI("GetVirtualizationMode"), d.nvmlDevice.GetVirtualizationMode)
 }
 
 func (d *safeDeviceImpl) GetSupportedEventTypes() (uint64, error) {
-	if err := d.lib.lookup(toNativeName("GetSupportedEventTypes")); err != nil {
-		return 0, err
-	}
-	types, ret := d.nvmlDevice.GetSupportedEventTypes()
-	return types, NewNvmlAPIErrorOrNil("GetSupportedEventTypes", ret)
+	return deviceCall1(d, deviceAPI("GetSupportedEventTypes"), d.nvmlDevice.GetSupportedEventTypes)
 }
 
 func (d *safeDeviceImpl) RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error {
-	if err := d.lib.lookup(toNativeName("RegisterEvents")); err != nil {
-		return err
-	}
-	ret := d.nvmlDevice.RegisterEvents(evtTypes, evtSet)
-	return NewNvmlAPIErrorOrNil("RegisterEvents", ret)
+	return deviceCall(d, deviceAPI("RegisterEvents"), func() nvml.Return {
+		return d.nvmlDevice.RegisterEvents(evtTypes, evtSet)
+	})
 }
 
 func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error) {
-	if err := d.lib.lookup(toNativeName("GetMemoryErrorCounter")); err != nil {
-		return 0, err
-	}
-	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
-	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+	return deviceCall1(d, deviceAPI("GetMemoryErrorCounter"), func() (uint64, nvml.Return) {
+		return d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
+	})
 }
 
 func (d *safeDeviceImpl) GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error) {
-	if err := d.lib.lookup(toNativeName("GetSramEccErrorStatus")); err != nil {
-		return nvml.EccSramErrorStatus{}, err
-	}
-	status, ret := d.nvmlDevice.GetSramEccErrorStatus()
-	return status, NewNvmlAPIErrorOrNil("GetSramEccErrorStatus", ret)
+	return deviceCall1(d, deviceAPI("GetSramEccErrorStatus"), d.nvmlDevice.GetSramEccErrorStatus)
 }
 
 func (d *safeDeviceImpl) GetRunningProcessDetailList() (nvml.ProcessDetailList, error) {
-	if err := d.lib.lookup(toNativeName("GetRunningProcessDetailList")); err != nil {
-		return nvml.ProcessDetailList{}, err
-	}
-	processes, ret := d.nvmlDevice.GetRunningProcessDetailList()
-	return processes, NewNvmlAPIErrorOrNil("GetRunningProcessDetailList", ret)
+	return deviceCall1(d, deviceAPI("GetRunningProcessDetailList"), d.nvmlDevice.GetRunningProcessDetailList)
 }

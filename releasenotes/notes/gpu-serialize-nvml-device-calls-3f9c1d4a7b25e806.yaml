@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    GPU: Fixed a crash in the ``gpu`` check caused by concurrent NVML calls
+    against the same GPU. When ``gpu.parallel_collectors`` is enabled, the
+    ``gpm`` and ``nvlink_gpm`` collectors could issue two ``nvmlGpmSampleGet``
+    calls on the same device handle at the same time, which faults inside the
+    NVIDIA driver. Calls to a given GPU are now serialized; calls to different
+    GPUs still run in parallel.
