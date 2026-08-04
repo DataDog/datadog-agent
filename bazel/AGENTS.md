@@ -876,6 +876,11 @@ The target name is spent twice in that path, so keep target names, tag-set suffi
 `dd_agent_go_test` enforces the budget at analysis time via `test_tag_set_check_name()` in
 `//bazel/test_tags:defs.bzl`.
 
+**CI lane split.** Windows is the only platform whose Bazel tests run in two jobs, partitioned by the complementary
+`--config=no-dd-agent-go-tests` / `--config=dd-agent-go-tests-only` filters in `bazel/configs/go_tests.bazelrc`. The
+runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
+asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
+
 ## Testing
 
 ### Testing rules (Starlark unit tests)

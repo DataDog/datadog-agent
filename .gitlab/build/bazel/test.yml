@@ -69,10 +69,22 @@ bazel:test:macos-arm64:
       - bazel-bep-*.json
       - bazel-exec.log
 
+# Windows splits the build from the Go tests, unlike the other platforms: the
+# runner has 16 CPUs, and compiling the rest of the repo alongside ~1k
+# race-instrumented tests starves them enough that tests waiting on wall-clock
+# time fail. This job covers everything but the Go tests.
 bazel:test:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=gorace --keep_going //... --
+      bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going //... --
+      -//bazel/rules/dd_packaging/...
+      -//packages/agent/linux/...
+
+bazel:test:windows-amd64:go:
+  extends: [.bazel:runner:windows-amd64, .bazel:test]
+  variables:
+    POWERSHELL_SCRIPT: >-
+      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...

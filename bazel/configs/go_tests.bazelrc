@@ -2,6 +2,12 @@
 test:gorace --@rules_go//go/config:race
 test:gorace --test_env=GORACE=atexit_sleep_ms=50
 
+# Complementary filters that partition a `bazel test //...` invocation in two, so
+# one lane can build the repo while another runs the dd_agent_go_test targets.
+# Usage: bazel test --config=no-dd-agent-go-tests //...
+test:no-dd-agent-go-tests --test_tag_filters=-dd_agent_go_test
+test:dd-agent-go-tests-only --test_tag_filters=dd_agent_go_test
+
 # Go-only coverage: emit go cover profiles and merge Bazel baseline files.
 # Usage: bazel coverage --config=coverage:go //pkg/...
 coverage:go --@rules_go//go/config:cover_format=go_cover
