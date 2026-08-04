@@ -1,0 +1,9 @@
+cloudprem
+datadog
+datadog-crds
+observability-pipelines-worker
+private-action-runner
+synthetics-private-location
+datadog-csi-driver
+datadog-operator
+extendeddaemonset

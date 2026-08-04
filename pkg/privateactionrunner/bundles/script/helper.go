@@ -11,10 +11,16 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 )
 
-func buildEnv(allowedEnvVars []string) []string {
-	env := []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+func buildEnv(allowedEnvVars []string, extraPaths ...string) []string {
+	basePath := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	pathVal := basePath
+	if len(extraPaths) > 0 {
+		pathVal = strings.Join(extraPaths, ":") + ":" + basePath
+	}
+	env := []string{"PATH=" + pathVal}
 	for _, name := range allowedEnvVars {
 		if val, ok := os.LookupEnv(name); ok {
 			env = append(env, name+"="+val)
@@ -29,8 +35,14 @@ func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string
 	return cmd, nil
 }
 
-func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string) (*exec.Cmd, error) {
+// NewPredefinedScriptCommand builds a command for a predefined script.
+// extraPaths are prepended to PATH so tool binaries extracted from catalog packages
+// are found before system binaries. extraEnvVars are set unconditionally.
+func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string, extraEnvVars map[string]string, extraPaths []string) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
-	cmd.Env = buildEnv(envVarNames)
+	cmd.Env = buildEnv(envVarNames, extraPaths...)
+	for k, v := range extraEnvVars {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 	return cmd, nil
 }

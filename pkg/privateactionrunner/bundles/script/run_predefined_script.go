@@ -62,6 +62,31 @@ func (h *RunPredefinedScriptHandler) Run(
 		return nil, fmt.Errorf("script %s not found", inputs.ScriptName)
 	}
 
+	var extraPaths []string
+	var extraEnvVars map[string]string
+
+	if isCatalogScript(inputs.ScriptName) {
+		resolved, err := resolveCatalogScript(ctx, inputs.ScriptName, script.Version)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve catalog script: %w", err)
+		}
+		defer resolved.cleanup()
+		script = resolved.config
+		extraPaths = resolved.toolDirs
+		extraEnvVars = make(map[string]string)
+		for k, v := range resolved.envVars {
+			extraEnvVars[k] = v
+		}
+		// Map parameters to env vars so shell scripts can read them via $VAR.
+		if params, ok := inputs.Parameters.(map[string]interface{}); ok {
+			for paramName, envVar := range resolved.parameterEnvMapping {
+				if val, exists := params[paramName]; exists {
+					extraEnvVars[envVar] = fmt.Sprintf("%v", val)
+				}
+			}
+		}
+	}
+
 	evaluatedCommand, err := evaluateScriptWithParameters(script, inputs.Parameters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate command templates: %w", err)
@@ -74,7 +99,7 @@ func (h *RunPredefinedScriptHandler) Run(
 		defer cancel()
 	}
 
-	cmd, err := NewPredefinedScriptCommand(ctx, evaluatedCommand, script.AllowedEnvVars)
+	cmd, err := NewPredefinedScriptCommand(ctx, evaluatedCommand, script.AllowedEnvVars, extraEnvVars, extraPaths)
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}

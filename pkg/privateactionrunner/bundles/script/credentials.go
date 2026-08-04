@@ -24,7 +24,10 @@ type ScriptBundleConfig struct {
 }
 
 type RunPredefinedScriptConfig struct {
-	Command         []string               `yaml:"command"`
+	// Version is only meaningful for dd-par-scripts: catalog entries; it selects
+	// the OCI image tag to pull. When empty, "latest" is used.
+	Version         string                 `yaml:"version,omitempty"`
+	Command         []string               `yaml:"command,omitempty"`
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
 	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
 }
