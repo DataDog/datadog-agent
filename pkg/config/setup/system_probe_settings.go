@@ -56,7 +56,7 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("system_probe_config.telemetry_perf_buffer_emit_per_cpu", false)
 	config.BindEnvAndSetDefault("system_probe_config.health_port", int64(0), "DD_SYSTEM_PROBE_HEALTH_PORT")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.enabled", false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
-	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.site", DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
+	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.site", constants.DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.profile_dd_url", "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.api_key", "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
 	config.BindEnvAndSetDefault("system_probe_config.internal_profiling.env", "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENV", "DD_ENV")
