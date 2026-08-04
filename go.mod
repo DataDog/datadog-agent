@@ -41,12 +41,12 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.11.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.205
+	github.com/DataDog/agent-payload/v5 v5.0.207
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000
@@ -123,16 +123,18 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/config/env v0.81.0
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/config/model v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/schema v0.0.0
+	github.com/DataDog/datadog-agent/pkg/config/schema v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-devel.0.20260624113434-509b872045c2
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.81.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.81.0
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/fips v0.81.0
+	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.78.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.78.1
@@ -195,7 +197,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.81.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.72.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0
@@ -204,13 +206,15 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.9.0
 	github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597
 	github.com/DataDog/datadog-traceroute v1.0.19
+	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/ebpf-manager v0.8.1-0.20260723114030-df952c39a4e3
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.4
 	github.com/DataDog/jsonapi v0.13.0
-	github.com/DataDog/rshell v0.0.23
+	// TODO: Bump to the official rshell release when available.
+	github.com/DataDog/rshell v0.0.24-0.20260731173317-843e67b25fbd
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -551,9 +555,8 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.83.0-devel.0.20260714134811-fee4bbf7ff73 // indirect
@@ -693,26 +696,27 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
-	github.com/go-openapi/analysis v0.25.0 // indirect
-	github.com/go-openapi/errors v0.22.7 // indirect
-	github.com/go-openapi/jsonpointer v0.23.1 // indirect
-	github.com/go-openapi/jsonreference v0.21.5 // indirect
-	github.com/go-openapi/loads v0.23.3 // indirect
-	github.com/go-openapi/spec v0.22.4 // indirect
-	github.com/go-openapi/strfmt v0.26.2 // indirect
+	github.com/go-openapi/analysis v0.25.5 // indirect
+	github.com/go-openapi/errors v0.22.8 // indirect
+	github.com/go-openapi/jsonpointer v1.0.0 // indirect
+	github.com/go-openapi/jsonreference v1.0.0 // indirect
+	github.com/go-openapi/loads v0.25.0 // indirect
+	github.com/go-openapi/spec v0.22.9 // indirect
+	github.com/go-openapi/strfmt v0.27.0 // indirect
 	github.com/go-openapi/swag v0.25.5 // indirect
 	github.com/go-openapi/swag/cmdutils v0.25.5 // indirect
-	github.com/go-openapi/swag/conv v0.25.5 // indirect
-	github.com/go-openapi/swag/fileutils v0.25.5 // indirect
+	github.com/go-openapi/swag/conv v0.27.3 // indirect
+	github.com/go-openapi/swag/fileutils v0.27.3 // indirect
 	github.com/go-openapi/swag/jsonname v0.26.0 // indirect
-	github.com/go-openapi/swag/jsonutils v0.25.5 // indirect
-	github.com/go-openapi/swag/loading v0.25.5 // indirect
-	github.com/go-openapi/swag/mangling v0.25.5 // indirect
+	github.com/go-openapi/swag/jsonutils v0.27.3 // indirect
+	github.com/go-openapi/swag/loading v0.27.3 // indirect
+	github.com/go-openapi/swag/mangling v0.27.3 // indirect
 	github.com/go-openapi/swag/netutils v0.25.5 // indirect
-	github.com/go-openapi/swag/stringutils v0.25.5 // indirect
-	github.com/go-openapi/swag/typeutils v0.25.5 // indirect
-	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
-	github.com/go-openapi/validate v0.25.2 // indirect
+	github.com/go-openapi/swag/pools v0.27.3 // indirect
+	github.com/go-openapi/swag/stringutils v0.27.3 // indirect
+	github.com/go-openapi/swag/typeutils v0.27.3 // indirect
+	github.com/go-openapi/swag/yamlutils v0.27.3 // indirect
+	github.com/go-openapi/validate v0.26.1 // indirect
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
@@ -1313,6 +1317,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/render_config => ./pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ./pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ./pkg/config/setup/constants
 	github.com/DataDog/datadog-agent/pkg/config/structure => ./pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ./pkg/discovery/tracermetadata/model

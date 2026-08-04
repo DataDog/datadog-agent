@@ -582,6 +582,16 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
@@ -2666,6 +2676,26 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			name:     "logs_disabled_no_override",
 			settings: map[string]interface{}{"logs_enabled": false},
 			expected: false,
+		},
+		{
+			name:     "logs_unset_defaults_enabled",
+			settings: map[string]interface{}{},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_disables",
+			settings: map[string]interface{}{"log_enabled": false},
+			expected: false,
+		},
+		{
+			name:     "stale_deprecated_log_enabled_does_not_disable",
+			settings: map[string]interface{}{"logs_enabled": true, "log_enabled": false},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_still_enables",
+			settings: map[string]interface{}{"logs_enabled": false, "log_enabled": true},
+			expected: true,
 		},
 	}
 	for _, tt := range tests {
