@@ -70,7 +70,7 @@ func TestStateView_Anomalies(t *testing.T) {
 	// Add some anomalies via the engine
 	e.captureRawAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
-		DetectorName: "detector_a",
+		DetectorName: "cusum",
 		Timestamp:    100,
 	})
 	e.captureRawAnomaly(observerdef.Anomaly{
@@ -90,12 +90,12 @@ func TestStateView_Anomalies(t *testing.T) {
 	}
 
 	// DetectorAnomalies filters correctly
-	detectorAAnomalies := sv.DetectorAnomalies("detector_a")
-	if len(detectorAAnomalies) != 1 {
-		t.Fatalf("expected 1 detector_a anomaly, got %d", len(detectorAAnomalies))
+	cusumAnomalies := sv.DetectorAnomalies("cusum")
+	if len(cusumAnomalies) != 1 {
+		t.Fatalf("expected 1 cusum anomaly, got %d", len(cusumAnomalies))
 	}
-	if detectorAAnomalies[0].DetectorName != "detector_a" {
-		t.Fatalf("expected detector_a, got %s", detectorAAnomalies[0].DetectorName)
+	if cusumAnomalies[0].DetectorName != "cusum" {
+		t.Fatalf("expected cusum, got %s", cusumAnomalies[0].DetectorName)
 	}
 
 	// AnomaliesByDetector groups correctly
@@ -103,8 +103,8 @@ func TestStateView_Anomalies(t *testing.T) {
 	if len(byDetector) != 2 {
 		t.Fatalf("expected 2 detector groups, got %d", len(byDetector))
 	}
-	if len(byDetector["detector_a"]) != 1 {
-		t.Fatalf("expected 1 detector_a anomaly, got %d", len(byDetector["detector_a"]))
+	if len(byDetector["cusum"]) != 1 {
+		t.Fatalf("expected 1 cusum anomaly, got %d", len(byDetector["cusum"]))
 	}
 	if len(byDetector["bocpd"]) != 1 {
 		t.Fatalf("expected 1 bocpd anomaly, got %d", len(byDetector["bocpd"]))
@@ -114,7 +114,7 @@ func TestStateView_Anomalies(t *testing.T) {
 	diskDesc := observerdef.SeriesDescriptor{Name: "disk", Aggregate: observerdef.AggregateAverage}
 	e.captureRawAnomaly(observerdef.Anomaly{
 		Source:       diskDesc,
-		DetectorName: "detector_a",
+		DetectorName: "cusum",
 		Timestamp:    102,
 	})
 	diskAnomalies := sv.AnomaliesForSource(diskDesc)

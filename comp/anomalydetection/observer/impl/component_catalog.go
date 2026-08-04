@@ -144,6 +144,21 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Detectors ----
 			{
+				name:           "cusum",
+				displayName:    "CUSUM",
+				kind:           componentDetector,
+				defaultConfig:  DefaultCUSUMConfig(),
+				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(CUSUMConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("cusum: failed to parse JSON config: %w", err)
+					}
+					return cfg, nil
+				},
+			},
+			{
 				name:           "bocpd",
 				displayName:    "BOCPD",
 				kind:           componentDetector,

@@ -28,7 +28,6 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 
 func TestProductionCatalogExcludesCleanupComponents(t *testing.T) {
 	removed := map[string]bool{
-		"cusum":        true,
 		"cross_signal": true,
 		"passthrough":  true,
 	}

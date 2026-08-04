@@ -42,7 +42,7 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
-DETECTORS = ["bocpd", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
@@ -543,6 +543,12 @@ def _sample_component_params(trial, component: str) -> dict:
             # "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
             # "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
             # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
+        },
+        "cusum": lambda: {
+            # "min_points": trial.suggest_int("cusum.min_points", 3, 30),
+            # "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
+            # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
+            "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
         },
         "holt_residual": sample_holt_residual,
         "rrcf": lambda: {

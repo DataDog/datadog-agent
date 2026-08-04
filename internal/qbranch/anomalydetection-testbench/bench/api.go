@@ -749,15 +749,17 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	detectorFilter := r.URL.Query().Get("detector")
 
 	type debugInfoResponse struct {
-		BaselineStart  int64   `json:"baselineStart"`
-		BaselineEnd    int64   `json:"baselineEnd"`
-		BaselineMean   float64 `json:"baselineMean,omitempty"`
-		BaselineMedian float64 `json:"baselineMedian,omitempty"`
-		BaselineStddev float64 `json:"baselineStddev,omitempty"`
-		BaselineMAD    float64 `json:"baselineMAD,omitempty"`
-		Threshold      float64 `json:"threshold"`
-		CurrentValue   float64 `json:"currentValue"`
-		DeviationSigma float64 `json:"deviationSigma"`
+		BaselineStart  int64     `json:"baselineStart"`
+		BaselineEnd    int64     `json:"baselineEnd"`
+		BaselineMean   float64   `json:"baselineMean,omitempty"`
+		BaselineMedian float64   `json:"baselineMedian,omitempty"`
+		BaselineStddev float64   `json:"baselineStddev,omitempty"`
+		BaselineMAD    float64   `json:"baselineMAD,omitempty"`
+		Threshold      float64   `json:"threshold"`
+		SlackParam     float64   `json:"slackParam,omitempty"`
+		CurrentValue   float64   `json:"currentValue"`
+		DeviationSigma float64   `json:"deviationSigma"`
+		CUSUMValues    []float64 `json:"cusumValues,omitempty"`
 	}
 
 	type anomalyResponse struct {
@@ -810,8 +812,10 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 				BaselineStddev: a.DebugInfo.BaselineStddev,
 				BaselineMAD:    a.DebugInfo.BaselineMAD,
 				Threshold:      a.DebugInfo.Threshold,
+				SlackParam:     a.DebugInfo.SlackParam,
 				CurrentValue:   a.DebugInfo.CurrentValue,
 				DeviationSigma: a.DebugInfo.DeviationSigma,
+				CUSUMValues:    a.DebugInfo.CUSUMValues,
 			}
 		}
 		return resp

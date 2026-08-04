@@ -11,7 +11,7 @@ Go Server (:8080)                 React UI (:5173)
 │ (parquet/logs/demo)  │  HTTP   │ Toggle detectors     │
 │         ↓            │◄───────►│ Browse series tree   │
 │ Run detectors        │  JSON   │ View charts + zoom   │
-│ (BOCPD, RRCF, scans) │         │ Inspect anomalies    │
+│ (CUSUM, LightESD)    │         │ Inspect anomalies    │
 │         ↓            │         │ Click correlations   │
 │ Detect correlations  │         └──────────────────────┘
 └──────────────────────┘
@@ -35,10 +35,11 @@ internal/qbranch/anomalydetection-testbench/
     │   └── hooks/useObserver.ts        # API polling, reconnect
     └── package.json
 
-internal/qbranch/anomalydetection-testbench/bench/
-├── bench.go             # Scenario loading and analysis orchestration
-├── api.go               # REST API handlers
-└── output.go            # Headless evaluation output
+comp/anomalydetection/observer/impl/
+├── testbench.go         # Scenario loading, analysis orchestration
+├── testbench_api.go     # REST API handlers
+├── metrics_detector_cusum.go # CUSUM change-point detector
+└── storage.go           # Time series storage
 ```
 
 ## Running
