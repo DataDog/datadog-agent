@@ -463,10 +463,25 @@ fn config_key_enabled(path: &str, key: &str, yaml: &mut YamlCache) -> anyhow::Re
         .enabled(path, yaml)
 }
 
+fn lookup_mapping_case_insensitive<'a>(
+    mapping: &'a serde_yaml::Mapping,
+    key: &str,
+) -> Option<&'a serde_yaml::Value> {
+    if let Some(value) = mapping.get(key) {
+        return Some(value);
+    }
+    mapping.iter().find_map(|(k, v)| {
+        k.as_str()
+            .filter(|segment| segment.eq_ignore_ascii_case(key))
+            .map(|_| v)
+    })
+}
+
 fn lookup_dotted_key<'a>(root: &'a serde_yaml::Value, key: &str) -> Option<&'a serde_yaml::Value> {
     let mut current = root;
     for segment in key.split('.') {
-        current = current.get(segment)?;
+        let mapping = current.as_mapping()?;
+        current = lookup_mapping_case_insensitive(mapping, segment)?;
     }
     Some(current)
 }
@@ -629,6 +644,33 @@ process_config:
                 ],
             }];
             assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn lookup_dotted_key_is_case_insensitive() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "process_config:\n  Process_Collection:\n    enabled: true\n",
+        )
+        .unwrap();
+        assert_eq!(
+            lookup_dotted_key(&yaml, "process_config.process_collection.enabled"),
+            Some(&serde_yaml::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn mixed_case_yaml_key_enables_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  Process_Collection:\n    enabled: true\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
 
