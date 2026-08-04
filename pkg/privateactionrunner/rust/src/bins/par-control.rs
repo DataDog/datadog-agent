@@ -42,13 +42,6 @@ async fn run() -> Result<()> {
         log::info!("private_action_runner split mode is disabled; par-control is exiting");
         return Ok(());
     }
-    if cfg!(windows) {
-        log::error!(
-            "split mode requires the Windows named-pipe transport, which is not implemented yet; \
-             par-control is exiting"
-        );
-        return Ok(());
-    }
 
     let lifecycle =
         ProcmgrLifecycle::new(&config.procmgr_socket, config.executor_process_name.clone());
@@ -83,7 +76,23 @@ async fn shutdown_signal() {
     }
 }
 
-#[cfg(not(unix))]
+/// dd-procmgrd stops children with `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`
+/// (see `send_graceful_stop` in `pkg/procmgr/rust/src/platform/windows.rs`), so
+/// CTRL_BREAK is the event that matters in production; CTRL_C only covers
+/// interactive runs. Missing CTRL_BREAK would mean waiting out `stop_timeout`
+/// and being force-killed with the job object.
+#[cfg(windows)]
 async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
+    match tokio::signal::windows::ctrl_break() {
+        Ok(mut ctrl_break) => {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = ctrl_break.recv() => {},
+            }
+        }
+        Err(error) => {
+            log::warn!("could not listen for CTRL_BREAK, falling back to CTRL_C: {error}");
+            let _ = tokio::signal::ctrl_c().await;
+        }
+    }
 }

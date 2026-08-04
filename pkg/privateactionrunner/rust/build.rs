@@ -9,8 +9,8 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rustc-check-cfg=cfg(bazel)");
     tonic_prost_build::configure().compile_protos(
-        &["../../../proto/datadog/procmgr/process_manager.proto"],
-        &["../../../proto"],
+        &["../../proto/datadog/procmgr/process_manager.proto"],
+        &["../../proto"],
     )?;
     Ok(())
 }
