@@ -16,7 +16,10 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["dogstatsdclienttelemetry_test.go"],
+    srcs = [
+        "dogstatsdclienttelemetry_bench_test.go",
+        "dogstatsdclienttelemetry_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/telemetry/mock",

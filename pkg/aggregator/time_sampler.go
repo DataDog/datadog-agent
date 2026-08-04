@@ -249,10 +249,14 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
-		for _, observer := range s.finalDogStatsDSerieObservers {
-			observer.ObserveFinalDogStatsDSerie(serie)
-		}
+		s.observeFinalDogStatsDSerie(serie)
 		serieSink.Append(serie)
+	}
+}
+
+func (s *TimeSampler) observeFinalDogStatsDSerie(serie *metrics.Serie) {
+	for _, observer := range s.finalDogStatsDSerieObservers {
+		observer.ObserveFinalDogStatsDSerie(serie)
 	}
 }
 
