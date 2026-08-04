@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -57,6 +58,14 @@ const (
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
+}
+
+func splitDeploymentEnabled(cfg config.Component, goos string) bool {
+	return goos != "windows" && cfg.GetBool(privateactionrunner.PARSplitEnabled)
+}
+
+func isSplitEnabled(cfg config.Component) bool {
+	return splitDeploymentEnabled(cfg, runtime.GOOS)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -116,6 +125,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
+	}
+	if isSplitEnabled(reqs.Config) {
+		reqs.Log.Info("Split deployment is enabled; the monolithic runner is standing down")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrSplitDeployment
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
