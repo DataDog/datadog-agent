@@ -500,7 +500,7 @@ class CollectorRepo:
 
         for _, details in data.get("module-sets", {}).items():
             version = details.get("version", "unknown")
-            for module in details.get("modules", []):
+            for module in details.get("modules") or []:
                 version_modules[version] = version_modules.get(version, []) + [module]
 
         return version_modules
