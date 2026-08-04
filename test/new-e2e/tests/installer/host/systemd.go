@@ -234,38 +234,3 @@ func (h *Host) journaldLogsSince(since JournaldTimestamp) []journaldLog {
 	})
 	return logs
 }
-
-// AssertJournalContainsSubstring asserts that some journal entry after since includes substr.
-// Unlike AssertSystemdEvents, this searches all journal messages (installer scriptlet output included).
-func (h *Host) AssertJournalContainsSubstring(since JournaldTimestamp, substr string) {
-	assert.Eventually(h.t(), func() bool {
-		for _, message := range h.journaldMessagesSince(since) {
-			if strings.Contains(message, substr) {
-				return true
-			}
-		}
-		return false
-	}, 90*time.Second, 2*time.Second, "journal since %d should contain %q", since, substr)
-}
-
-func (h *Host) journaldMessagesSince(since JournaldTimestamp) []string {
-	h.remote.MustExecute("sudo journalctl --output=json --no-pager > /tmp/journald_all_logs")
-	file, err := h.ReadFile("/tmp/journald_all_logs")
-	require.NoError(h.t(), err)
-	lines := strings.Split(string(file), "\n")
-	messages := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		var log journaldLog
-		if err := json.Unmarshal([]byte(line), &log); err != nil {
-			continue
-		}
-		if log.MonotonicTimestamp <= int64(since) {
-			continue
-		}
-		messages = append(messages, log.Message)
-	}
-	return messages
-}
