@@ -35,9 +35,8 @@ import (
 // ProcessKillerOS interface defines an os specific process killer
 type ProcessKillerOS interface {
 	Kill(sig uint32, pc *killContext) error
-	// KillCgroup kills every process of the target cgroup, and of its descendant cgroups, in a
-	// single operation. An error means nothing was killed, so the caller falls back to killing
-	// each process individually.
+	// KillCgroup kills every process of the target cgroup in a single operation. An error means
+	// nothing was killed, so the caller falls back to killing each process individually.
 	KillCgroup(target cgroupKillTarget) error
 	// getCgroupKillTarget returns the cgroup that can be killed in a single operation for the
 	// given scope, and whether that is possible at all on this host.

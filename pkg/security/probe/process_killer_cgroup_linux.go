@@ -37,8 +37,9 @@ var errCgroupKillUnavailable = errors.New("one-shot cgroup kill is unavailable")
 // concurrent forks and migrations itself, so a forking process cannot outrun the kill, and there
 // is no PID reuse window to guard against.
 //
-// Note that cgroup.kill also kills the processes of every descendant cgroup, and only ever
-// delivers SIGKILL.
+// cgroup.kill only ever delivers SIGKILL, and would also kill the processes of every descendant
+// cgroup, which the caller has not checked against the excluded binaries. Cgroups that have
+// children are therefore refused, and left to the per-process path.
 type cgroupKiller struct {
 	// bases are the directories a cgroup ID is resolved against, tried in order. There is more
 	// than one because the agent's own view of cgroupfs is not necessarily writable.
@@ -108,9 +109,8 @@ func selfCGroupID() (containerutils.CGroupID, error) {
 	return cgroupContext.CGroupID, nil
 }
 
-// kill sends SIGKILL to every process of the target cgroup, and of its descendant cgroups, in a
-// single operation. An error means nothing was killed, so the caller can safely fall back to
-// killing each process individually.
+// kill sends SIGKILL to every process of the target cgroup in a single operation. An error means
+// nothing was killed, so the caller can safely fall back to killing each process individually.
 func (c *cgroupKiller) kill(target cgroupKillTarget) error {
 	relPath, err := cgroupRelPath(target.id)
 	if err != nil {
@@ -132,6 +132,20 @@ func (c *cgroupKiller) kill(target cgroupKillTarget) error {
 		if err := checkCgroupInode(dir, target.inode); err != nil {
 			errs = append(errs, err)
 			continue
+		}
+
+		// cgroup.kill also kills the processes of descendant cgroups, and the caller only
+		// checked the processes of this one against the excluded binaries. Rather than kill
+		// processes that were never checked, leave cgroups that have children to the
+		// per-process path. Whether a cgroup has children doesn't depend on the view we
+		// resolved it through, so there is no point trying the remaining bases.
+		hasChildren, err := hasChildCgroups(dir)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if hasChildren {
+			return fmt.Errorf("cgroup `%s` has descendant cgroups, whose processes have not been checked", target.id)
 		}
 
 		// Opening cgroup.kill has no effect of its own, the kill happens on write, so a failure
@@ -179,6 +193,21 @@ func cgroupRelPath(cgroupID containerutils.CGroupID) (string, error) {
 		return "", errors.New("refusing to kill the root cgroup")
 	}
 	return relPath, nil
+}
+
+// hasChildCgroups returns whether the given cgroup has child cgroups. A cgroup directory only
+// ever holds interface files and child cgroups, so any subdirectory is a child cgroup.
+func hasChildCgroups(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // checkCgroupInode returns an error unless dir is a directory with the expected inode.
