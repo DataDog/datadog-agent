@@ -27,6 +27,7 @@ import (
 	dummymode "github.com/DataDog/datadog-agent/comp/dataplane/dummymode/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -264,6 +265,11 @@ func (d *dummyModeComponent) prepare() (*exec.Cmd, listener, error) {
 	if err := os.MkdirAll(workDir, 0700); err != nil {
 		return nil, listener{}, fmt.Errorf("could not create %s: %w", workDir, err)
 	}
+	// Lock the directory down before anything sensitive goes into it, so the generated config
+	// is never on disk with weaker permissions than it ends up with. See secureWorkDir.
+	if err := secureWorkDir(workDir); err != nil {
+		return nil, listener{}, err
+	}
 
 	l := newListener(workDir)
 	if err := l.validate(); err != nil {
@@ -284,6 +290,42 @@ func (d *dummyModeComponent) prepare() (*exec.Cmd, listener, error) {
 	// On Linux, have the kernel kill ADP if the Agent dies without running its own cleanup.
 	cmd.SysProcAttr = dummyProcAttr()
 	return cmd, l, nil
+}
+
+// secureWorkDir restricts the working directory to the Agent's own account.
+//
+// The mode arguments to MkdirAll and WriteFile are not portable: on Windows
+// syscall.Mkdir drops the mode entirely and syscall.Open uses it only to decide the
+// read-only attribute, so 0700/0600 there buy nothing and both objects simply inherit
+// whatever the parent grants. Under a default MSI install that parent is
+// C:\ProgramData\Datadog, whose ACL is already restricted to SYSTEM, Administrators and the
+// Agent user — but run_path is operator-configurable, and pointed anywhere else (a second
+// drive, C:\Temp) the inherited ACL is whatever that location grants, which for most paths
+// outside ProgramData includes Users. The generated config holds every resolved secret, so
+// it must not depend on where run_path happens to point.
+//
+// Applying this to the directory rather than to each file is deliberate: the ACEs
+// RestrictAccessToUser installs are inheritable, so the config created inside is covered the
+// moment it exists, instead of spending a window on disk with the inherited ACL and being
+// tightened afterwards.
+//
+// This does not close the race on the directory itself, which exists with the inherited ACL
+// between MkdirAll and this call. Closing that needs the directory created with an explicit
+// security descriptor (as pkg/fleet/installer/paths.SecureCreateDirectory does); there is no
+// equivalent helper outside the installer module today.
+//
+// A variable so tests can force the failure path; nothing in production reassigns it.
+var secureWorkDir = func(dir string) error {
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return fmt.Errorf("could not resolve the permissions to apply to %s: %w", dir, err)
+	}
+	// Fail rather than continue with a directory we could not restrict: writing the resolved
+	// secrets somewhere world-readable is worse than skipping the pre-flight.
+	if err := perms.RemoveAccessToOtherUsers(dir); err != nil {
+		return fmt.Errorf("could not restrict access to %s: %w", dir, err)
+	}
+	return nil
 }
 
 func (d *dummyModeComponent) run(ctx context.Context) {

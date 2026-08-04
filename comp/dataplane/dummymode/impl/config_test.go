@@ -213,6 +213,24 @@ func TestBuildDummyConfigClearsMetricNamespace(t *testing.T) {
 	requireEq(t, got, "statsd_metric_namespace_blacklist", []string{})
 }
 
+// TestBuildDummyConfigDisablesDiskRetryQueue guards the isolation of ADP's on-disk footprint.
+//
+// With the retry queue enabled, ADP creates directories under forwarder_storage_path and
+// persists transactions there — the Core Agent's own retry tree, outside the working directory
+// the run secures and deletes. Zeroing the size is what stops ADP taking that branch at all;
+// see the override's comment for why clearing the path instead does not work.
+func TestBuildDummyConfigDisablesDiskRetryQueue(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("forwarder_storage_max_size_in_bytes", 500_000_000, pkgconfigmodel.SourceFile)
+
+	// Set on an unknown key is a silent no-op, so prove the Given clause took.
+	require.Equal(t, int64(500_000_000), cfg.GetInt64("forwarder_storage_max_size_in_bytes"))
+
+	got := buildDummyConfig(cfg, newListener(t.TempDir()))
+
+	requireEq(t, got, "forwarder_storage_max_size_in_bytes", 0)
+}
+
 // TestBuildDummyConfigOverridesOperatorListeners is the safety property that matters most:
 // whatever the operator configured, the dummy process must never end up on the real
 // DogStatsD endpoints.

@@ -10,6 +10,7 @@ package dummymodeimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -731,6 +732,55 @@ func TestDummyModeUnbindableSocketPath(t *testing.T) {
 
 	assert.Equal(t, string(findingSpawnFailed), h.result(t))
 	assert.Empty(t, h.captured(), "the process must not have been started at all")
+}
+
+// TestDummyModePrepareRestrictsWorkDir checks that prepare hands back a restricted working
+// directory with the generated config inside it.
+//
+// Unix only, because this file is: the fake ADP harness depends on Unix signals. The Windows
+// side is covered by TestSecureWorkDir, which does not need the harness.
+func TestDummyModePrepareRestrictsWorkDir(t *testing.T) {
+	h := newHarness(t, modeNormal, nil)
+
+	_, _, err := h.comp.prepare()
+	require.NoError(t, err)
+
+	workDir := filepath.Join(h.cfg.GetString("run_path"), workDirName)
+	cfgPath := filepath.Join(workDir, dummyConfigFileName)
+
+	dirInfo, err := os.Stat(workDir)
+	require.NoError(t, err)
+	require.True(t, dirInfo.IsDir())
+
+	cfgInfo, err := os.Stat(cfgPath)
+	require.NoError(t, err, "the generated config must be inside the secured directory")
+
+	assert.Equal(t, os.FileMode(0700), dirInfo.Mode().Perm(),
+		"%s must not be reachable by group or other", workDir)
+	assert.Equal(t, os.FileMode(0600), cfgInfo.Mode().Perm(),
+		"%s holds every resolved secret", cfgPath)
+}
+
+// TestDummyModeAbortsWhenWorkDirCannotBeSecured pins the fail-closed behaviour: a directory we
+// could not restrict must stop the pre-flight, not merely be logged. Writing the resolved
+// secrets somewhere unprotected is worse than skipping the run.
+func TestDummyModeAbortsWhenWorkDirCannotBeSecured(t *testing.T) {
+	h := newHarness(t, modeNormal, nil)
+
+	original := secureWorkDir
+	secureWorkDir = func(string) error { return errors.New("boom") }
+	t.Cleanup(func() { secureWorkDir = original })
+
+	h.runToCompletion(t)
+
+	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Empty(t, h.captured(), "the process must not have been started at all")
+
+	// Nothing may be left behind, least of all a config we could not protect.
+	workDir := filepath.Join(h.cfg.GetString("run_path"), workDirName)
+	cfgPath := filepath.Join(workDir, dummyConfigFileName)
+	_, err := os.Stat(cfgPath)
+	assert.Truef(t, os.IsNotExist(err), "%s was written anyway (err=%v)", cfgPath, err)
 }
 
 func TestListenerValidate(t *testing.T) {
