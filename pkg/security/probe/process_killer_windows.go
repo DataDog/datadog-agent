@@ -40,6 +40,16 @@ func (p *ProcessKillerWindows) Kill(sig uint32, pc *killContext) error {
 	return winutil.KillProcess(int(pc.pid), 0)
 }
 
+// KillCgroup is not supported on Windows
+func (p *ProcessKillerWindows) KillCgroup(_ cgroupKillTarget) error {
+	return errors.New("cgroups are not supported")
+}
+
+// getCgroupKillTarget always reports that killing a cgroup at once isn't possible on Windows
+func (p *ProcessKillerWindows) getCgroupKillTarget(_ string, _ *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
+	return cgroupKillTarget{}, false
+}
+
 func (p *ProcessKillerWindows) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]killContext, error) {
 	if scope == "container" {
 		return nil, errors.New("container scope not supported")
