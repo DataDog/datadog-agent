@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,7 @@ func TestDDOTProcmgrConfigVariants(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			raw, err := embedded.GetProcmgrUnit(ddotProcmgrConfigName, tt.unitType, false)
 			if tt.experiment {
-				raw, err = embedded.GetProcmgrUnit(ddotProcmgrExpConfigName, tt.unitType, false)
+				raw, err = embedded.GetProcmgrUnit(strings.ReplaceAll(ddotProcmgrConfigName, ".yaml", "-exp.yaml"), tt.unitType, false)
 			}
 			require.NoError(t, err)
 			content := string(raw)

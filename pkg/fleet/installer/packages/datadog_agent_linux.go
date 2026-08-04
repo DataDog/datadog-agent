@@ -105,7 +105,6 @@ var (
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
-		"processes.d/datadog-agent-action-executor.yaml",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
@@ -136,7 +135,7 @@ var (
 		ProcmgrMainUnitExp:    "datadog-agent-exp.service",
 		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-procmgr.service"},
 		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-procmgr-exp.service"},
-		ProcmgrProcesses:      []string{ddotProcmgrConfigName},
+		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml"},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -259,18 +258,6 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 		}
 	}
 	return systemd.Reload(ctx)
-}
-
-const parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
-
-func writePARExecutorProcmgrConfig(installRoot string) error {
-	processesDir := filepath.Join(installRoot, "processes.d")
-	config := strings.ReplaceAll(embedded.PARExecutorProcessConfig, "/opt/datadog-agent", installRoot)
-	if err := os.MkdirAll(processesDir, 0755); err != nil {
-		return fmt.Errorf("failed to write PAR executor procmgr config: %w", err)
-	}
-	path := filepath.Join(processesDir, parExecutorProcmgrConfigName)
-	return os.WriteFile(path, []byte(config), 0644)
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -467,9 +454,6 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
-	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
@@ -516,9 +500,6 @@ func prePromoteExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
-	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
@@ -920,27 +901,6 @@ func removeUnits(ctx HookContext, units ...string) error {
 		}
 	}
 	return nil
-}
-
-// procmgrInstallRoot returns the tree whose processes.d dd-procmgrd reads for the given lifecycle
-// half. It matches DD_PM_CONFIG_DIR in datadog-agent-procmgr{,-exp}.service and must stay in step
-// with it. It is resolved from the package type rather than ctx.PackagePath because hooks do not
-// always run from the tree they operate on: preStartExperiment runs from stable while managing
-// experiment artifacts, and postPromoteExperiment runs from the experiment link after it has been
-// pointed at the new stable version.
-func procmgrInstallRoot(ctx HookContext, experiment bool) (string, error) {
-	switch ctx.PackageType {
-	case PackageTypeDEB, PackageTypeRPM:
-		return "/opt/datadog-agent", nil
-	case PackageTypeOCI:
-		half := "stable"
-		if experiment {
-			half = "experiment"
-		}
-		return filepath.Join(paths.PackagesPath, "datadog-agent", half), nil
-	default:
-		return "", fmt.Errorf("unsupported package type: %s", ctx.PackageType)
-	}
 }
 
 func writeEmbeddedSystemdUnitsAndReload(ctx HookContext, units ...string) error {

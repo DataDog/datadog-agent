@@ -145,9 +145,9 @@ func unitSet(stableData, expData installerTemplateData, ambiantCapabilitiesSuppo
 
 func yamlSet() map[string][]byte {
 	return map[string][]byte{
-		// The file is always the same, nothing to resolve from the template
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
-    "datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", installerTemplateData{}),
+		// The files are always the same, nothing to resolve from the template
+		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
+		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", installerTemplateData{}),
 	}
 }
 

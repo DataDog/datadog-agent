@@ -29,9 +29,6 @@ const (
 	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
-
-	ddotProcmgrConfigName    = "datadog-agent-ddot.yaml"
-	ddotProcmgrExpConfigName = "datadog-agent-ddot-exp.yaml"
 )
 
 var (

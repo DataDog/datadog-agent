@@ -37,12 +37,6 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/pm
 var procmgrUnits embed.FS
 
-// PARExecutorProcessConfig is the rendered process manager config for the PAR on-demand executor
-// on Linux (deb/rpm layout).
-//
-//go:embed tmpl/gen/debrpm/datadog-agent-action-executor.yaml
-var PARExecutorProcessConfig string
-
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //

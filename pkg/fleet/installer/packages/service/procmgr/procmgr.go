@@ -28,17 +28,6 @@ const (
 	ProcessesDirName = "processes.d"
 
 	daemonRelPath = "embedded/bin/dd-procmgrd"
-	cliRelPath    = "embedded/bin/dd-procmgr"
-
-	cliTimeout = 120 * time.Second
-)
-
-var (
-
-	// socketPath matches RuntimeDirectory=datadog-procmgrd in datadog-agent-procmgr.service and
-	// DEFAULT_SOCKET_PATH in pkg/procmgr/rust. Its presence is the cheapest reliable "daemon is
-	// up" signal: systemd removes RuntimeDirectory when the unit stops.
-	socketPath = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 )
 
 // IsInstalled reports whether binary dd-procmgrd exists
