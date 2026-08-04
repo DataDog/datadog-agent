@@ -1,0 +1,10 @@
+# Keeps `docker build` context transfer fast. Added for the Antithesis harness
+# (antithesis/dca.Dockerfile, antithesis/kube-apiserver.Dockerfile), which are the
+# first Dockerfiles in this repo to `COPY . .` the whole source tree as a build
+# context — none of these paths are needed to compile any Go binary.
+.git/
+bin/
+.mypy_cache/
+/openshift_run.log
+/e2e_test_output*.json*
+/junit-out-*.xml

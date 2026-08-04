@@ -1,0 +1,211 @@
+# Antithesis harness for the Datadog Cluster Agent (DCA).
+# See antithesis/scratchbook/deployment-topology.md for the design rationale.
+#
+# Topology: etcd + a bare kube-apiserver (own containers so they can be faulted
+# independently of each other and of the DCA) + 2 DCA replicas (leader-elected) +
+# a workload placeholder (real test commands added by antithesis-workload).
+#
+# kube-init generates a self-signed CA/serving cert/service-account keypair once,
+# shared via the k8s-certs volume, before kube-apiserver starts. DCA replicas
+# fake in-cluster auth via KUBERNETES_SERVICE_HOST/PORT + a static
+# serviceaccount token bundle (kube-apiserver runs --authorization-mode=AlwaysAllow,
+# so real bearer-token validation is not required for this harness).
+
+name: cluster-agent
+
+# Shared config for dca-1/dca-2 so the two replicas can never silently drift (this
+# bit us once already: DD_LEADER_ELECTION_DEFAULT_RESOURCE was added to only one
+# replica's env block by hand and the mismatch wasn't caught until the two replicas
+# elected via different lock objects and both claimed to be leader).
+x-dca-env: &dca-env
+  NO_COLOR: "1"
+  DD_API_KEY: "00000000000000000000000000000000"
+  KUBERNETES_SERVICE_HOST: kube-apiserver
+  KUBERNETES_SERVICE_PORT: "6443"
+  DD_LEADER_ELECTION: "true"
+  # Force the Lease object (coordination.k8s.io), not the legacy ConfigMap
+  # fallback the code defaults to (verified via smoke test: without this, one
+  # replica logs "will use ConfigMaps" while the other uses Leases — two
+  # different lock objects, so they never actually contend and BOTH become
+  # leader, a false split-brain that isn't the bug the property catalog means).
+  DD_LEADER_ELECTION_DEFAULT_RESOURCE: lease
+  # Short lease per the committed harness setting (deployment-topology.md
+  # "Committed decisions") so flap-dependent properties are reachable without
+  # clock-skew/node-termination faults.
+  DD_LEADER_LEASE_DURATION: "15"
+  DD_CLUSTER_CHECKS_ENABLED: "true"
+  DD_CLUSTER_CHECKS_WARMUP_DURATION: "15"
+  DD_CLUSTER_CHECKS_NODE_EXPIRATION_TIMEOUT: "15"
+  DD_LOG_LEVEL: debug
+
+x-dca-volumes: &dca-volumes
+  - k8s-certs:/certs:ro
+  - sa-token:/var/run/secrets/kubernetes.io/serviceaccount:ro
+
+services:
+  kube-init:
+    container_name: cluster-agent-kube-init
+    hostname: cluster-agent-kube-init
+    platform: linux/amd64
+    init: true
+    image: docker.io/library/alpine:3.20
+    environment:
+      NO_COLOR: "1"
+    volumes:
+      - k8s-certs:/certs
+      - sa-token:/sa
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        apk add --no-cache openssl >/dev/null
+        cd /certs
+        # CA
+        openssl genrsa -out ca.key 2048
+        openssl req -x509 -new -nodes -key ca.key -subj "/CN=antithesis-ca" -days 3650 -out ca.crt
+        # apiserver serving cert
+        openssl genrsa -out apiserver.key 2048
+        openssl req -new -key apiserver.key -subj "/CN=kube-apiserver" -out apiserver.csr
+        cat > san.cnf <<EOF
+        subjectAltName=DNS:kube-apiserver,DNS:cluster-agent-kube-apiserver,DNS:localhost,DNS:kubernetes.default.svc,IP:127.0.0.1
+        EOF
+        openssl x509 -req -in apiserver.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+          -out apiserver.crt -days 3650 -extfile san.cnf
+        # service-account signing keypair
+        openssl genrsa -out sa.key 2048
+        openssl rsa -in sa.key -pubout -out sa.pub
+        # static "token" bundle DCA replicas read as if in-cluster (--token-auth-file
+        # below maps this exact token string to a real, authenticated identity;
+        # --anonymous-auth is force-disabled by kube-apiserver whenever
+        # --authorization-mode=AlwaysAllow is set, so bearer-token auth must
+        # actually succeed — anonymous is not a fallback here).
+        # Written to its own volume, mounted directly at the in-cluster path
+        # (/var/run/secrets/kubernetes.io/serviceaccount) in both DCA replicas —
+        # identical/static content is fine since AlwaysAllow authorizes any
+        # authenticated identity regardless of which replica presents it.
+        cp ca.crt /sa/ca.crt
+        echo -n "antithesis-static-token" > /sa/token
+        echo -n "default" > /sa/namespace
+        # --token-auth-file format: token,username,uid,"group1,group2"
+        echo 'antithesis-static-token,antithesis,antithesis-uid,"system:masters"' > /certs/token-auth.csv
+        chmod -R a+r /certs /sa
+        echo "kube-init: certs ready"
+
+  etcd:
+    container_name: cluster-agent-etcd
+    hostname: cluster-agent-etcd
+    platform: linux/amd64
+    init: true
+    image: registry.k8s.io/etcd:3.5.16-0
+    environment:
+      NO_COLOR: "1"
+    command:
+      - etcd
+      - --data-dir=/var/lib/etcd
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+    healthcheck:
+      test: ["CMD", "etcdctl", "--endpoints=http://127.0.0.1:2379", "endpoint", "health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  kube-apiserver:
+    container_name: cluster-agent-kube-apiserver
+    hostname: cluster-agent-kube-apiserver
+    platform: linux/amd64
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/kube-apiserver.Dockerfile
+    image: cluster-agent-kube-apiserver:antithesis
+    environment:
+      NO_COLOR: "1"
+    depends_on:
+      etcd:
+        condition: service_healthy
+      kube-init:
+        condition: service_completed_successfully
+    volumes:
+      - k8s-certs:/certs:ro
+    command:
+      - --etcd-servers=http://etcd:2379
+      - --bind-address=0.0.0.0
+      - --secure-port=6443
+      - --tls-cert-file=/certs/apiserver.crt
+      - --tls-private-key-file=/certs/apiserver.key
+      - --client-ca-file=/certs/ca.crt
+      - --service-account-key-file=/certs/sa.pub
+      - --service-account-signing-key-file=/certs/sa.key
+      - --service-account-issuer=https://kube-apiserver:6443
+      - --service-cluster-ip-range=10.96.0.0/16
+      - --authorization-mode=AlwaysAllow
+      - --token-auth-file=/certs/token-auth.csv
+      - --allow-privileged=true
+    healthcheck:
+      # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
+      # bearer token like any other authenticated request.
+      test: ["CMD", "sh", "-c", "wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz | grep -q ok"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+  dca-1:
+    container_name: cluster-agent-dca-1
+    hostname: cluster-agent-dca-1
+    platform: linux/amd64
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/dca.Dockerfile
+    image: cluster-agent-dca:antithesis
+    depends_on:
+      kube-apiserver:
+        condition: service_healthy
+    environment:
+      <<: *dca-env
+      DD_HOSTNAME: cluster-agent-dca-1
+      DD_POD_NAME: cluster-agent-dca-1
+    volumes: *dca-volumes
+
+  dca-2:
+    container_name: cluster-agent-dca-2
+    hostname: cluster-agent-dca-2
+    platform: linux/amd64
+    init: true
+    image: cluster-agent-dca:antithesis
+    depends_on:
+      kube-apiserver:
+        condition: service_healthy
+      dca-1:
+        condition: service_started
+    environment:
+      <<: *dca-env
+      DD_HOSTNAME: cluster-agent-dca-2
+      DD_POD_NAME: cluster-agent-dca-2
+    volumes: *dca-volumes
+
+  workload:
+    container_name: cluster-agent-workload
+    hostname: cluster-agent-workload
+    platform: linux/amd64
+    init: true
+    image: docker.io/library/debian:stable-slim
+    environment:
+      NO_COLOR: "1"
+    depends_on:
+      dca-1:
+        condition: service_started
+      dca-2:
+        condition: service_started
+    volumes:
+      - ../test:/opt/antithesis/test/v1
+    # Placeholder: antithesis-workload replaces this with the real workload
+    # image/entrypoint (impersonates node agents, manages the DCA Service +
+    # EndpointSlice, seeds cluster-check configs, emits assertions).
+    command: ["sh", "-c", "tail -f /dev/null"]
+
+volumes:
+  k8s-certs:
+  sa-token:
