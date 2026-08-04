@@ -48,7 +48,10 @@ services:
     hostname: cluster-agent-kube-init
     platform: linux/amd64
     init: true
-    image: docker.io/library/alpine:3.20
+    build:
+      context: ../..
+      dockerfile: antithesis/kube-init.Dockerfile
+    image: cluster-agent-kube-init:antithesis
     environment:
       NO_COLOR: "1"
     volumes:
@@ -59,7 +62,6 @@ services:
       - -c
       - |
         set -eu
-        apk add --no-cache openssl >/dev/null
         cd /certs
         # CA
         openssl genrsa -out ca.key 2048
@@ -129,20 +131,29 @@ services:
         condition: service_completed_successfully
     volumes:
       - k8s-certs:/certs:ro
+    # kube-apiserver auto-detects --advertise-address from the default route,
+    # which doesn't exist under Antithesis/snouty's isolated network (it does
+    # under a plain `docker compose up`, which is why this only failed under
+    # `snouty validate`: "no default routes found in /proc/net/route"). Resolve
+    # and pass it explicitly instead of relying on auto-detection.
+    entrypoint: ["sh", "-c"]
     command:
-      - --etcd-servers=http://etcd:2379
-      - --bind-address=0.0.0.0
-      - --secure-port=6443
-      - --tls-cert-file=/certs/apiserver.crt
-      - --tls-private-key-file=/certs/apiserver.key
-      - --client-ca-file=/certs/ca.crt
-      - --service-account-key-file=/certs/sa.pub
-      - --service-account-signing-key-file=/certs/sa.key
-      - --service-account-issuer=https://kube-apiserver:6443
-      - --service-cluster-ip-range=10.96.0.0/16
-      - --authorization-mode=AlwaysAllow
-      - --token-auth-file=/certs/token-auth.csv
-      - --allow-privileged=true
+      - |
+        exec /usr/local/bin/kube-apiserver \
+          --advertise-address="$$(hostname -i)" \
+          --etcd-servers=http://etcd:2379 \
+          --bind-address=0.0.0.0 \
+          --secure-port=6443 \
+          --tls-cert-file=/certs/apiserver.crt \
+          --tls-private-key-file=/certs/apiserver.key \
+          --client-ca-file=/certs/ca.crt \
+          --service-account-key-file=/certs/sa.pub \
+          --service-account-signing-key-file=/certs/sa.key \
+          --service-account-issuer=https://kube-apiserver:6443 \
+          --service-cluster-ip-range=10.96.0.0/16 \
+          --authorization-mode=AlwaysAllow \
+          --token-auth-file=/certs/token-auth.csv \
+          --allow-privileged=true
     healthcheck:
       # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
       # bearer token like any other authenticated request.
@@ -201,10 +212,16 @@ services:
         condition: service_started
     volumes:
       - ../test:/opt/antithesis/test/v1
+      - ../setup-complete.sh:/antithesis/setup-complete.sh:ro
     # Placeholder: antithesis-workload replaces this with the real workload
     # image/entrypoint (impersonates node agents, manages the DCA Service +
-    # EndpointSlice, seeds cluster-check configs, emits assertions).
-    command: ["sh", "-c", "tail -f /dev/null"]
+    # EndpointSlice, seeds cluster-check configs, emits assertions). For now it
+    # just signals setup-complete immediately (depends_on only waits for the DCAs
+    # to *start*, not to be actually ready) so the harness can be validated
+    # end-to-end; a real workload should poll for actual readiness before this.
+    # setup-complete.sh has a bash shebang (uses [[ ]]) — must be invoked with
+    # bash, not sh/dash, or the [[ test silently fails and it never emits.
+    command: ["bash", "-c", "bash /antithesis/setup-complete.sh; tail -f /dev/null"]
 
 volumes:
   k8s-certs:

@@ -42,7 +42,7 @@ DCA to authenticate. Both replicas share one static bearer token; `kube-apiserve
 runs `--authorization-mode=AlwaysAllow`, so any authenticated caller can do
 anything — there's no real RBAC being tested here, on purpose.
 
-## The two Dockerfiles we built and why they're not the release ones
+## The Dockerfiles we built and why they're not the release ones
 
 - `antithesis/kube-apiserver.Dockerfile` — the official `registry.k8s.io/kube-apiserver`
   image is distroless (no shell). Docker Compose healthchecks need to exec a
@@ -50,6 +50,9 @@ anything — there's no real RBAC being tested here, on purpose.
 - `antithesis/dca.Dockerfile` — `Dockerfiles/cluster-agent/Dockerfile` (the real
   release Dockerfile) only assembles a runtime image from binaries built
   *elsewhere* by CI; it has no from-source build stage. Ours builds from source.
+- `antithesis/kube-init.Dockerfile` — bakes `openssl` into the image at build
+  time (see "Real bugs" below — installing it at container start needs internet
+  access, which Antithesis runs don't have).
 
 ## How the DCA is built (and what we tried that didn't work)
 
@@ -97,19 +100,47 @@ Built both images, brought up the full 6-container stack, and confirmed real
   termination faults, both commonly disabled by default on Antithesis tenants)
   is actually taking effect.
 
-One real bug caught and fixed along the way: the two DCA replicas' `docker-compose.yaml`
-env blocks had nearly-identical but not-quite-identical text, so a config fix
-applied via find-and-replace landed on only one of them — `dca-1` used the Lease
-object, `dca-2` silently kept the default (ConfigMap) object, so they never
-actually contended with each other and **both** claimed to be leader. Fixed by
-replacing the duplicated blocks with a shared YAML anchor (`x-dca-env`) so the
-two replicas structurally cannot drift again.
+`snouty validate antithesis/config` **passes**: "Setup-complete event detected."
+/ "Setup validation successful." (0 test commands found is expected — the
+workload/test-template are still placeholders, `antithesis-workload`'s job.)
+
+## Real bugs caught and fixed along the way
+
+- **Two DCA replicas silently using different leader-election lock objects.**
+  The `docker-compose.yaml` env blocks had nearly-identical but not-quite-identical
+  text, so a config fix applied via find-and-replace landed on only one of
+  them — `dca-1` used the Lease object, `dca-2` silently kept the default
+  (ConfigMap) object, so they never actually contended with each other and
+  **both** claimed to be leader. Fixed by replacing the duplicated blocks with a
+  shared YAML anchor (`x-dca-env`) so the two replicas structurally cannot drift
+  again.
+- **`kube-init` violated hermetic execution.** It ran `apk add openssl` at
+  container *start* — Antithesis runs have no internet access once sealed, so
+  this failed under `snouty validate`'s isolated network (worked fine under a
+  plain `docker compose up`, which still has normal internet access, masking the
+  bug). Fixed by baking `openssl` into a purpose-built image
+  (`antithesis/kube-init.Dockerfile`) at *build* time instead.
+- **`kube-apiserver` couldn't determine its own address.** It auto-detects
+  `--advertise-address` from the host's default route, which doesn't exist under
+  `snouty`'s isolated network (`"no default routes found in /proc/net/route"`).
+  Fixed by resolving `$(hostname -i)` explicitly instead of relying on
+  auto-detection.
+- **`setup-complete.sh` was never actually invoked.** Copying the script into an
+  image doesn't run it. Wired it into the `workload` placeholder's startup
+  command — and separately found the script's `[[ ]]` test syntax silently no-ops
+  under `sh`/dash (must be invoked with `bash`).
+- **(Local-validation-only, not a harness bug) `snouty`'s scratch directory landed
+  under macOS's `/var/folders`, which this machine's Colima VM doesn't share** —
+  confirmed with a plain `docker run -v /var/folders/.../x:/tmp/y ...` outside
+  snouty/compose entirely, which reproduced the identical silent failure, and a
+  control test to a `$HOME` path, which worked. This doesn't affect the real
+  Antithesis environment (no macOS/Colima boundary exists there) — workaround for
+  local runs: `TMPDIR="$HOME/.cache/snouty-tmp" snouty validate antithesis/config`.
 
 ## What's not done yet
 
-- Only `dca-1`+`kube-apiserver` (not the full 6-container stack) has been
-  through `snouty validate`; that and the rest of `references/submit-and-test.md`
-  are still pending.
+- The rest of `references/submit-and-test.md` (actual submission via
+  `antithesis-launch`) is still pending — `snouty validate` is confirmed passing.
 - `workload` is still a no-op placeholder — `antithesis-workload`'s job.
 - The "Deferred decisions" list in `scratchbook/deployment-topology.md` (webhook
   Service selector, StatefulSet vs Deployment, whether to request clock-skew/
@@ -133,3 +164,12 @@ file declares `platform: linux/amd64` for real Antithesis submission) — expect
 it to take a while (~30 min cold) even though the build itself is simple. For
 faster local iteration, `docker build --platform linux/arm64 -f antithesis/dca.Dockerfile -t cluster-agent-dca:antithesis-test .`
 bypasses compose's platform pin.
+
+Running `snouty validate antithesis/config` **on macOS with Colima**: set
+`TMPDIR` to somewhere under `$HOME` first (Colima doesn't share macOS's system
+temp dir, where `snouty` creates its scratch directory, into its VM by default):
+
+```bash
+mkdir -p "$HOME/.cache/snouty-tmp"
+TMPDIR="$HOME/.cache/snouty-tmp" snouty validate antithesis/config
+```
