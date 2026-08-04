@@ -30,27 +30,33 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
         privileged::validate_process_request(process_name, &request)?;
     }
 
+    // Create the job before spawning so a CreateJobObjectW / SetInformationJobObject
+    // failure cannot leave a running child with no retained handle or watcher.
+    let job = JobObject::new()
+        .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
+
     let handle = match profile {
         SpawnProfile::Agent => spawn_agent_profile(process_name, &request)?,
         SpawnProfile::Privileged => spawn_privileged_profile(process_name, request)?,
     };
 
-    assign_supervision_job(process, &handle)?;
+    assign_supervision_job(process, &handle, job)?;
     Ok(handle)
 }
 
-/// Create a job, assign the child, and store it on the process only when assignment succeeds.
+/// Assign the child to a pre-created job and store it on the process only when assignment succeeds.
 ///
-/// Job creation failure fails the spawn. Assignment failure is best-effort: an empty job
-/// would make `force_kill`'s `TerminateJobObject` a no-op while skipping the
-/// `TerminateProcess` fallback.
-fn assign_supervision_job(process: &mut ManagedProcess, handle: &ProcessHandle) -> Result<()> {
+/// Assignment failure is best-effort: an empty job would make `force_kill`'s
+/// `TerminateJobObject` a no-op while skipping the `TerminateProcess` fallback.
+fn assign_supervision_job(
+    process: &mut ManagedProcess,
+    handle: &ProcessHandle,
+    job: JobObject,
+) -> Result<()> {
     let Some(pid) = handle.id() else {
         return Ok(());
     };
     let process_name = process.name();
-    let job = JobObject::new()
-        .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
     match job.assign_process(pid) {
         Ok(()) => process.set_job_object(job),
         Err(e) => warn!("[{process_name}] failed to assign to job object: {e:#}"),
