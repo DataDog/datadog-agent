@@ -562,19 +562,6 @@ namespace Datadog.CustomActions
             return $"{secretType}datadog_ddagentuser_password";
         }
 
-        /// <summary>
-        /// LSA secret name SCM uses for a service account password.
-        /// </summary>
-        /// <remarks>
-        /// Windows stores service start credentials as <c>_SC_&lt;service name&gt;</c> secrets.
-        /// Keep in sync with procmgr <c>agent_credentials.rs</c>, which reads
-        /// <see cref="AgentPasswordPrivateDataKey"/>.
-        /// </remarks>
-        public static string ScmServicePasswordSecretName(string serviceName)
-        {
-            return $"_SC_{serviceName}";
-        }
-
         private void ConfigureUserPassword()
         {
             var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
@@ -623,60 +610,6 @@ namespace Datadog.CustomActions
                 //       if it wasn't provided on the command line so this may no longer be a possibility.
                 _session.Log("Agent user has a password, storing in LSA secret store");
                 _nativeMethods.StoreSecret(keyName, ddagentuserPassword);
-            }
-            else
-            {
-                MigrateAgentPasswordFromScmIfNeeded(keyName);
-            }
-        }
-
-        /// <summary>
-        /// On upgrade, older installs may only have the agent password in SCM (<c>_SC_datadogagent</c>)
-        /// while procmgr reads <see cref="AgentPasswordPrivateDataKey"/>. Copy it before services
-        /// such as dd-procmgr-service are switched to LocalSystem.
-        /// </summary>
-        internal void MigrateAgentPasswordFromScmIfNeeded(string agentPasswordKeyName)
-        {
-            if (_session.Property("DDAGENTUSER_IS_SERVICE_ACCOUNT") == "true")
-            {
-                return;
-            }
-
-            if (!_serviceController.ServiceExists(Constants.AgentServiceName))
-            {
-                return;
-            }
-
-            try
-            {
-                var existing = _nativeMethods.FetchSecret(agentPasswordKeyName);
-                if (!string.IsNullOrEmpty(existing))
-                {
-                    _session.Log("Agent password already present in LSA secret store");
-                    return;
-                }
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Agent password not in LSA secret store, attempting SCM migration: {e}");
-            }
-
-            var scmKeyName = ScmServicePasswordSecretName(Constants.AgentServiceName);
-            try
-            {
-                var password = _nativeMethods.FetchSecret(scmKeyName);
-                if (string.IsNullOrEmpty(password))
-                {
-                    _session.Log($"SCM password secret {scmKeyName} is empty, skipping migration");
-                    return;
-                }
-
-                _session.Log($"Migrating agent password from SCM secret {scmKeyName} to LSA secret store");
-                _nativeMethods.StoreSecret(agentPasswordKeyName, password);
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Failed to migrate agent password from SCM secret {scmKeyName}: {e}");
             }
         }
 

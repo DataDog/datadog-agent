@@ -75,7 +75,6 @@
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserAccountRightsTests.cs" />
-    <Compile Include="ConfigureUserCustomActions\ConfigureUserPasswordMigrationTests.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserCustomActionsTestSetup.cs" />
     <Compile Include="InstallState\InstallStateTests.cs" />
     <Compile Include="InstallState\InstallStateTestSetup.cs" />
