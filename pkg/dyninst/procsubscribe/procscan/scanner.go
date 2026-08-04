@@ -264,8 +264,8 @@ type DiscoveredProcess struct {
 // avoid log spam from common transient errors like ENOENT and ESRCH.
 var scannerLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
-// Metrics returns the scanner's counters.
-func (p *Scanner) Metrics() *Metrics { return &p.metrics }
+// Stats returns a snapshot of the scanner's counters.
+func (p *Scanner) Stats() map[string]any { return p.metrics.asStats() }
 
 // Scan discovers new Go processes and detects removed processes since the last
 // Scan call.
@@ -320,6 +320,12 @@ func (p *Scanner) Scan() (
 		startTime, err := p.readStartTime(int32(pid))
 		if err != nil {
 			maybeLogErr("read start time", err)
+			// The process is here, we just could not confirm which one it is.
+			// Hold on to its retry state rather than let this scan look like
+			// the process exited and reset its backoff.
+			if c, ok := p.candidates.Peek(pid); ok {
+				c.seenAt = now
+			}
 			continue
 		}
 		key := procKey{pid: pid, startTime: startTime}
@@ -341,9 +347,16 @@ func (p *Scanner) Scan() (
 		}
 		p.metrics.candidatesEvaluated.Add(1)
 
+		// Failing to identify the executable backs the process off like any
+		// other verdict. Every kernel thread fails here on every scan, and
+		// there are hundreds of them. Backing off costs nothing when the
+		// failure was really the process exiting, since the next scan will not
+		// see it and will forget it.
 		executable, err := p.resolveExecutable(int32(pid))
 		if err != nil {
+			p.metrics.executablesUnresolved.Add(1)
 			maybeLogErr("resolve executable", err)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 
@@ -353,6 +366,7 @@ func (p *Scanner) Scan() (
 		isGo, err := p.isGoExecutable(executable)
 		if err != nil {
 			maybeLogErr("analyze executable", err)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 		if !isGo {
@@ -376,6 +390,7 @@ func (p *Scanner) Scan() (
 			// A Go binary reporting some other tracer language is not something
 			// we can instrument, but back off rather than giving up so that the
 			// only terminal state remains "the process exited".
+			p.metrics.nonGoTracers.Add(1)
 			log.Tracef(
 				"scanner: pid %d reports tracer language %q",
 				pid, tracerMetadata.TracerLanguage,

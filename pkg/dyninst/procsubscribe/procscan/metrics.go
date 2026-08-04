@@ -23,6 +23,12 @@ type Metrics struct {
 	// nonGoExecutables counts evaluations skipped because the executable is
 	// not a Go binary.
 	nonGoExecutables atomic.Uint64
+	// executablesUnresolved counts evaluations that could not identify the
+	// process' executable at all, which is what every kernel thread does.
+	executablesUnresolved atomic.Uint64
+	// nonGoTracers counts Go binaries whose tracer reports a language other
+	// than Go, which we have no way to instrument.
+	nonGoTracers atomic.Uint64
 	// discovered counts processes reported as newly instrumentable.
 	discovered atomic.Uint64
 	// metadataNotPublished counts metadata reads that found no tracer memfd.
@@ -37,12 +43,14 @@ type Metrics struct {
 	candidatesEvicted atomic.Uint64
 }
 
-// AsStats converts the Metrics to a map[string]any for use by the system-probe.
-func (m *Metrics) AsStats() map[string]any {
+// asStats converts the Metrics to a map[string]any for use by the system-probe.
+func (m *Metrics) asStats() map[string]any {
 	return map[string]any{
 		"candidates_evaluated":   m.candidatesEvaluated.Load(),
 		"executables_analyzed":   m.executablesAnalyzed.Load(),
 		"non_go_executables":     m.nonGoExecutables.Load(),
+		"executables_unresolved": m.executablesUnresolved.Load(),
+		"non_go_tracers":         m.nonGoTracers.Load(),
 		"discovered":             m.discovered.Load(),
 		"metadata_not_published": m.metadataNotPublished.Load(),
 		"metadata_unreadable":    m.metadataUnreadable.Load(),

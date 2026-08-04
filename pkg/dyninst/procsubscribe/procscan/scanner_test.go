@@ -157,6 +157,7 @@ type testProcess struct {
 	metadataAvailableAt ticks
 	metadataError       error
 	executable          process.Executable
+	executableResolves  bool
 	tracerMetadata      tracermetadata.TracerMetadata
 }
 
@@ -211,9 +212,13 @@ func (t *tracerMetadataInput) toTracerMetadata() tracermetadata.TracerMetadata {
 // executableInput describes the binary a test process runs. Processes sharing a
 // path and inode share a cache entry in the scanner's executable filter.
 type executableInput struct {
-	Path     string `yaml:"path,omitempty"`
-	Ino      uint64 `yaml:"ino,omitempty"`
-	GoBinary *bool  `yaml:"go_binary,omitempty"`
+	Path string `yaml:"path,omitempty"`
+	Ino  uint64 `yaml:"ino,omitempty"`
+	// GoBinary defaults to true.
+	GoBinary *bool `yaml:"go_binary,omitempty"`
+	// Unresolvable models a process whose executable cannot be identified,
+	// which is what every kernel thread is.
+	Unresolvable bool `yaml:"unresolvable,omitempty"`
 }
 
 type createProcessCommand struct {
@@ -264,6 +269,7 @@ func (c *createProcessCommand) execute(
 		metadataAvailableAt: metadataAvailableAt,
 		metadataError:       metadataError,
 		executable:          exe,
+		executableResolves:  !c.Executable.Unresolvable,
 		tracerMetadata:      c.TracerMetadata.toTracerMetadata(),
 	}
 	return nil
@@ -408,9 +414,9 @@ func (ts *scannerTestState) resolveExecutable(
 	pid int32,
 ) (process.Executable, error) {
 	proc, ok := ts.processes[pid]
-	if !ok {
+	if !ok || !proc.executableResolves {
 		return process.Executable{}, fmt.Errorf(
-			"process %d does not exist: %w", pid, fs.ErrNotExist,
+			"cannot read the executable of process %d: %w", pid, fs.ErrNotExist,
 		)
 	}
 	return proc.executable, nil
@@ -436,13 +442,15 @@ type candidateSnapshot struct {
 }
 
 type metricsSnapshot struct {
-	CandidatesEvaluated  uint64 `yaml:"candidates_evaluated,omitempty"`
-	ExecutablesAnalyzed  uint64 `yaml:"executables_analyzed,omitempty"`
-	NonGoExecutables     uint64 `yaml:"non_go_executables,omitempty"`
-	Discovered           uint64 `yaml:"discovered,omitempty"`
-	MetadataNotPublished uint64 `yaml:"metadata_not_published,omitempty"`
-	MetadataUnreadable   uint64 `yaml:"metadata_unreadable,omitempty"`
-	CandidatesEvicted    uint64 `yaml:"candidates_evicted,omitempty"`
+	CandidatesEvaluated   uint64 `yaml:"candidates_evaluated,omitempty"`
+	ExecutablesAnalyzed   uint64 `yaml:"executables_analyzed,omitempty"`
+	NonGoExecutables      uint64 `yaml:"non_go_executables,omitempty"`
+	ExecutablesUnresolved uint64 `yaml:"executables_unresolved,omitempty"`
+	NonGoTracers          uint64 `yaml:"non_go_tracers,omitempty"`
+	Discovered            uint64 `yaml:"discovered,omitempty"`
+	MetadataNotPublished  uint64 `yaml:"metadata_not_published,omitempty"`
+	MetadataUnreadable    uint64 `yaml:"metadata_unreadable,omitempty"`
+	CandidatesEvicted     uint64 `yaml:"candidates_evicted,omitempty"`
 }
 
 type scannerStateSnapshot struct {
@@ -507,13 +515,15 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 		Candidates:        candidates,
 		ProcessesInProcfs: pids,
 		Metrics: metricsSnapshot{
-			CandidatesEvaluated:  m.candidatesEvaluated.Load(),
-			ExecutablesAnalyzed:  m.executablesAnalyzed.Load(),
-			NonGoExecutables:     m.nonGoExecutables.Load(),
-			Discovered:           m.discovered.Load(),
-			MetadataNotPublished: m.metadataNotPublished.Load(),
-			MetadataUnreadable:   m.metadataUnreadable.Load(),
-			CandidatesEvicted:    m.candidatesEvicted.Load(),
+			CandidatesEvaluated:   m.candidatesEvaluated.Load(),
+			ExecutablesAnalyzed:   m.executablesAnalyzed.Load(),
+			NonGoExecutables:      m.nonGoExecutables.Load(),
+			ExecutablesUnresolved: m.executablesUnresolved.Load(),
+			NonGoTracers:          m.nonGoTracers.Load(),
+			Discovered:            m.discovered.Load(),
+			MetadataNotPublished:  m.metadataNotPublished.Load(),
+			MetadataUnreadable:    m.metadataUnreadable.Load(),
+			CandidatesEvicted:     m.candidatesEvicted.Load(),
 		},
 	}
 }

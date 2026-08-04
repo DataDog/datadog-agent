@@ -47,8 +47,6 @@ const (
 type config struct {
 	scanInterval    time.Duration
 	maxScanInterval time.Duration
-	minProcessAge   time.Duration
-	retryBackoffCap time.Duration
 	processScanner  processScanner
 	clk             clock.Clock
 	jitterFactor    float64
@@ -58,8 +56,6 @@ type config struct {
 var defaultConfig = config{
 	scanInterval:    defaultScanInterval,
 	maxScanInterval: defaultMaxScanInterval,
-	minProcessAge:   procscan.DefaultMinProcessAge,
-	retryBackoffCap: procscan.DefaultRetryBackoffCap,
 	clk:             clock.New(),
 	wait: func(ctx context.Context, duration time.Duration) error {
 		select {
@@ -127,6 +123,10 @@ type processScanner interface {
 		removed []procscan.ProcessID,
 		_ error,
 	)
+	// LiveProcesses returns the processes alive as of the last Scan.
+	LiveProcesses() []procscan.ProcessID
+	// Stats returns a snapshot of the scanner's counters.
+	Stats() map[string]any
 }
 
 // Option configures a RemoteConfigProcessSubscriber.
@@ -137,31 +137,6 @@ type Option interface {
 type optionFunc func(*config)
 
 func (f optionFunc) apply(c *config) { f(c) }
-
-// WithScanInterval sets the interval between two process scans. It is also the
-// delay before the first retry of a process whose tracer metadata could not be
-// read.
-func WithScanInterval(d time.Duration) Option {
-	return optionFunc(func(c *config) { c.scanInterval = d })
-}
-
-// WithMaxScanInterval caps the interval between two process scans, including
-// the penalty added for slow scans.
-func WithMaxScanInterval(d time.Duration) Option {
-	return optionFunc(func(c *config) { c.maxScanInterval = d })
-}
-
-// WithMinProcessAge sets how long a process must have been alive before the
-// scanner looks at it.
-func WithMinProcessAge(d time.Duration) Option {
-	return optionFunc(func(c *config) { c.minProcessAge = d })
-}
-
-// WithRetryBackoffCap sets the longest delay between two attempts at reading a
-// process' tracer metadata.
-func WithRetryBackoffCap(d time.Duration) Option {
-	return optionFunc(func(c *config) { c.retryBackoffCap = d })
-}
 
 // NewSubscriber creates a Subscriber that sources updates directly from Remote
 // Config.
@@ -177,9 +152,10 @@ func NewSubscriber(
 	if scanner == nil {
 		scanner = procscan.NewScanner(
 			kernel.ProcFSRoot(),
-			procscan.WithMinProcessAge(cfg.minProcessAge),
 			// The first retry lands on the next scan, and doubles from there.
-			procscan.WithRetryBackoff(cfg.scanInterval, cfg.retryBackoffCap),
+			procscan.WithRetryBackoff(
+				cfg.scanInterval, procscan.DefaultRetryBackoffCap,
+			),
 		)
 	}
 	s := &Subscriber{
@@ -287,15 +263,12 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 
 // Stats returns a snapshot of the process discovery counters.
 func (s *Subscriber) Stats() map[string]any {
-	stats := map[string]any{
+	return map[string]any{
 		"scans":                s.stats.scans.Load(),
 		"scan_interval_millis": s.stats.scanIntervalMillis.Load(),
 		"scan_duration_millis": s.stats.scanDurationMillis.Load(),
+		"scanner":              s.scanner.Stats(),
 	}
-	if scanner, ok := s.scanner.(*procscan.Scanner); ok {
-		stats["scanner"] = scanner.Metrics().AsStats()
-	}
-	return stats
 }
 
 func (s *Subscriber) withlocked(fn func(*lockedSubscriber)) {
@@ -504,11 +477,8 @@ func (s *Subscriber) GetReport() Report {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	liveProcs := map[int32]struct{}{}
-	if scanner, ok := s.scanner.(*procscan.Scanner); ok {
-		procs := scanner.LiveProcesses()
-		for _, proc := range procs {
-			liveProcs[int32(proc)] = struct{}{}
-		}
+	for _, proc := range s.scanner.LiveProcesses() {
+		liveProcs[int32(proc)] = struct{}{}
 	}
 
 	var ret Report

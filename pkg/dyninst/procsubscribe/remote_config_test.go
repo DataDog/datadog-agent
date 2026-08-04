@@ -574,6 +574,40 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	subscriber.Close()
 }
 
+// A slow scan pushes the next scan out by a hundred times its duration, so that
+// scanning never costs more than 1% of a core. The cap is what keeps a single
+// slow scan, such as the first one after a restart, from putting discovery to
+// sleep for minutes.
+func TestSlowScanIntervalIsCapped(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	// A one second scan earns a hundred second penalty, well past the cap.
+	scanner := procsubscribe.ProcessScannerFunc(
+		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
+			mockClock.Add(time.Second)
+			return nil, nil, nil
+		},
+	)
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	waitRequests := make(waitRequestChan)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithJitterFactor(0),
+		procsubscribe.WithWaitFunc(waitRequests.Wait),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Start()
+
+	w1, w2 := waitRequests.expect(t, 0), waitRequests.expect(t, 0)
+	w1.Close()
+	w2.Close()
+	<-streams
+	waitRequests.expect(t, procsubscribe.DefaultMaxScanInterval)
+}
+
 func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
@@ -765,6 +799,10 @@ func (s *stubScanner) Scan() ([]procscan.DiscoveredProcess, []procscan.ProcessID
 	removed := append([]procscan.ProcessID(nil), res.removed...)
 	return added, removed, res.err
 }
+
+func (s *stubScanner) LiveProcesses() []procscan.ProcessID { return nil }
+
+func (s *stubScanner) Stats() map[string]any { return nil }
 
 type fakeAgentSecureServer struct {
 	pbgo.UnimplementedAgentSecureServer
