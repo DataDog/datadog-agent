@@ -78,7 +78,6 @@ func (s *daemonTestSuite) TestRunCommand() {
 // Note: this actually instantiates the components, so it will actually start
 // the remote config service etc...
 func (s *daemonTestSuite) TestAppStartsAndStops() {
-	// TODO: This test currently tries to start the daemon using the system paths
 	createConfigDir(s.T())
 	tempfile, err := os.CreateTemp("", "test-*.yaml")
 	require.NoError(s.T(), err, "failed to create temporary file")
@@ -92,15 +91,11 @@ func (s *daemonTestSuite) TestAppStartsAndStops() {
 	s.Require().NoError(testApp.Stop())
 }
 
-// createConfigDir creates the C:\ProgramData\Datadog Installer directory with the correct permissions.
+// createConfigDir creates the Installer directory with the correct permissions, under a temporary
+// configuration directory so that the test does not use the real one.
 func createConfigDir(t *testing.T) {
-	t.Cleanup(func() {
-		// only cleanup the dir in the CI, to protect local testers while
-		// this test still uses the real filesystem
-		if os.Getenv("CI") != "" || os.Getenv("CI_JOB_ID") != "" {
-			_ = os.RemoveAll(paths.DatadogInstallerData)
-		}
-	})
+	paths.SetupTestPaths(t)
+
 	err := paths.SetupInstallerDataDir()
 	require.NoError(t, err)
 	err = paths.IsInstallerDataDirSecure()
