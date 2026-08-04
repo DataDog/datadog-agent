@@ -256,6 +256,26 @@ impl YamlCache {
         Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(false))
     }
 
+    /// Like [`Self::resolve_bool`] but uses `default` when the key is unset everywhere.
+    pub(super) fn resolve_bool_with_default(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+        default: bool,
+    ) -> anyhow::Result<bool> {
+        if let Some(filename) = fleet_policy_file
+            && let Some(path) = self.fleet_policy_path(filename, base_path)?
+            && let Some(value) = self.bool_key_if_exists(&path, key)?
+        {
+            return Ok(value);
+        }
+        if let Some(enabled) = env_bool_for_config_key(key) {
+            return Ok(enabled);
+        }
+        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(default))
+    }
+
     pub(super) fn resolve_string(
         &mut self,
         base_path: &str,
@@ -1361,6 +1381,61 @@ process_config:
                 dir.path(),
                 "system-probe.yaml",
                 "service_monitoring_config:\n  enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
+            );
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    #[test]
+    fn derived_sk_tracer_co_re_env_disables_sk_tracer_gating() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _co_re = EnvGuard::set("DD_ENABLE_CO_RE", "false");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "service_monitoring_config:\n  enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
+            );
+            assert!(condition_config_any_met(&process_agent_windows_conditions(
+                agent, sysprobe
+            )));
+        });
+    }
+
+    #[test]
+    fn derived_discovery_service_map_disabled_when_ebpfless() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  service_map:\n    enabled: true\nnetwork_config:\n  enable_ebpfless: true\n",
+            );
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    #[test]
+    fn derived_discovery_service_map_disabled_when_sk_tracer() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  service_map:\n    enabled: true\nnetwork_config:\n  enable_sk_tracer: true\n",
             );
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)

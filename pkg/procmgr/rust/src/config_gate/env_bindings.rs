@@ -62,6 +62,18 @@ const ENV_BINDINGS: &[EnvBinding] = &[
         env_vars: &["DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED"],
     },
     EnvBinding {
+        key: "system_probe_config.enable_co_re",
+        env_vars: &["DD_ENABLE_CO_RE"],
+    },
+    EnvBinding {
+        key: "network_config.enable_ringbuffers",
+        env_vars: &["DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS"],
+    },
+    EnvBinding {
+        key: "network_config.enable_ebpfless",
+        env_vars: &["DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS"],
+    },
+    EnvBinding {
         key: "system_probe_config.process_config.enabled",
         env_vars: &["DD_SYSTEM_PROBE_PROCESS_ENABLED"],
     },
