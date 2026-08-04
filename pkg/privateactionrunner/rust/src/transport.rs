@@ -7,6 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
+/// Ignored by the custom connector, but tonic requires a well-formed URI.
 const DUMMY_ENDPOINT: &str = "http://[::]:50051";
 
 /// Build a channel that connects lazily to dd-procmgrd's local socket.

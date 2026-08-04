@@ -3,19 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Executor lifecycle through the existing dd-procmgrd gRPC API.
+//! Executor lifecycle through the dd-procmgrd gRPC API.
 
 use crate::proto::procmgr;
 use crate::proto::procmgr::process_manager_client::ProcessManagerClient;
 use crate::transport;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use std::path::Path;
 use std::time::Duration;
 use tonic::transport::Channel;
 
 const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
-#[derive(Clone)]
 pub struct ProcmgrLifecycle {
     client: ProcessManagerClient<Channel>,
     process_name: String,
@@ -30,35 +29,24 @@ impl ProcmgrLifecycle {
     }
 
     pub async fn ensure_started(&self) -> Result<()> {
-        loop {
-            match self.describe_state().await? {
-                Some(procmgr::ProcessState::Running | procmgr::ProcessState::Starting) => {
-                    return Ok(());
-                }
-                Some(procmgr::ProcessState::Stopping) => {
-                    tokio::time::sleep(STATE_POLL_INTERVAL).await;
-                }
-                Some(_) => {
-                    log::info!(
-                        "starting executor {:?} through dd-procmgrd",
-                        self.process_name
-                    );
-                    let mut client = self.client.clone();
-                    client
-                        .start(procmgr::StartRequest {
-                            name_or_uuid: self.process_name.clone(),
-                        })
-                        .await
-                        .with_context(|| {
-                            format!("process-manager Start failed for {:?}", self.process_name)
-                        })?;
-                    return Ok(());
-                }
-                None => bail!(
-                    "process-manager has no definition for {:?}",
-                    self.process_name
-                ),
-            }
+        log::info!(
+            "starting executor {:?} through dd-procmgrd",
+            self.process_name
+        );
+        let result = self
+            .client
+            .clone()
+            .start(procmgr::StartRequest {
+                name_or_uuid: self.process_name.clone(),
+            })
+            .await;
+        match result {
+            Ok(_) => Ok(()),
+            // dd-procmgrd rejects Start when the executor is already alive.
+            Err(status) if status.code() == tonic::Code::FailedPrecondition => Ok(()),
+            Err(status) => Err(status).with_context(|| {
+                format!("process-manager Start failed for {:?}", self.process_name)
+            }),
         }
     }
 
@@ -72,38 +60,17 @@ impl ProcmgrLifecycle {
                     self.process_name
                 )
             })?;
-            if is_terminal(&state) {
+            if is_terminal(state) {
                 return Ok(state);
             }
             tokio::time::sleep(STATE_POLL_INTERVAL).await;
         }
     }
 
-    pub async fn stop(&self) -> Result<()> {
-        if self
-            .describe_state()
-            .await?
-            .is_none_or(|state| is_terminal(&state))
-        {
-            return Ok(());
-        }
-        log::info!(
-            "stopping executor {:?} through dd-procmgrd",
-            self.process_name
-        );
-        let mut client = self.client.clone();
-        client
-            .stop(procmgr::StopRequest {
-                name_or_uuid: self.process_name.clone(),
-            })
-            .await
-            .with_context(|| format!("process-manager Stop failed for {:?}", self.process_name))?;
-        Ok(())
-    }
-
     async fn describe_state(&self) -> Result<Option<procmgr::ProcessState>> {
-        let mut client = self.client.clone();
-        let response = client
+        let response = self
+            .client
+            .clone()
             .describe(procmgr::DescribeRequest {
                 name_or_uuid: self.process_name.clone(),
             })
@@ -125,14 +92,9 @@ impl ProcmgrLifecycle {
     }
 }
 
-fn is_terminal(state: &procmgr::ProcessState) -> bool {
-    matches!(
-        state,
-        procmgr::ProcessState::Stopped
-            | procmgr::ProcessState::Crashed
-            | procmgr::ProcessState::Exited
-            | procmgr::ProcessState::Failed
-    )
+fn is_terminal(state: procmgr::ProcessState) -> bool {
+    use procmgr::ProcessState::{Crashed, Exited, Failed, Stopped};
+    matches!(state, Stopped | Crashed | Exited | Failed)
 }
 
 #[cfg(test)]
@@ -147,9 +109,9 @@ mod tests {
             procmgr::ProcessState::Exited,
             procmgr::ProcessState::Failed,
         ] {
-            assert!(is_terminal(&state));
+            assert!(is_terminal(state));
         }
-        assert!(!is_terminal(&procmgr::ProcessState::Running));
-        assert!(!is_terminal(&procmgr::ProcessState::Starting));
+        assert!(!is_terminal(procmgr::ProcessState::Running));
+        assert!(!is_terminal(procmgr::ProcessState::Starting));
     }
 }

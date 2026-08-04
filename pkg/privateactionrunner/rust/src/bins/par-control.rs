@@ -7,7 +7,7 @@
 
 use anyhow::{Result, bail};
 use clap::Parser;
-use par_control::config::{Config, LaunchGate, log_level_from_yaml_file};
+use par_control::config::Config;
 use par_control::procmgr::ProcmgrLifecycle;
 use std::path::PathBuf;
 
@@ -20,75 +20,70 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let result = run().await;
+    log::logger().flush();
+    result
+}
+
+async fn run() -> Result<()> {
     let cli = Cli::parse();
+    let config = Config::from_yaml_file(&cli.config);
 
     if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
-        level: log_level_from_yaml_file(&cli.config),
+        level: config.as_ref().map_or(log::Level::Info, |c| c.log_level),
         log_file: None,
     }) {
         eprintln!("par-control: could not initialize the logger: {error}");
     }
+    let config = config?;
 
-    let gate = LaunchGate::from_yaml_file(&cli.config)?;
-    if !gate.split_mode {
+    if !config.split_mode {
         log::info!("private_action_runner split mode is disabled; par-control is exiting");
-        log::logger().flush();
         return Ok(());
     }
     if cfg!(windows) {
         log::error!(
-            "split mode is not supported on Windows until named-pipe transport is available; \
+            "split mode requires the Windows named-pipe transport, which is not implemented yet; \
              par-control is exiting"
         );
-        log::logger().flush();
         return Ok(());
     }
 
-    let config = Config::from_yaml_file(&cli.config)?;
     let lifecycle =
         ProcmgrLifecycle::new(&config.procmgr_socket, config.executor_process_name.clone());
     lifecycle.ensure_started().await?;
-    log::info!(
-        "par-control lifecycle scaffold started executor {:?}",
-        config.executor_process_name
-    );
 
     tokio::select! {
         _ = shutdown_signal() => {
-            // Do not call back into dd-procmgrd while it may be synchronously
-            // waiting for this managed process to exit. The supervisor retains
-            // ownership of the executor and stops both processes on shutdown.
+            // dd-procmgrd may be synchronously waiting for par-control to exit, so
+            // don't call back into it. It owns the executor and stops both processes.
             log::info!("par-control is exiting");
+            Ok(())
         }
         state = lifecycle.wait_for_exit() => {
-            let state = state?;
-            bail!("executor exited unexpectedly with state {state:?}");
+            bail!("executor exited unexpectedly with state {:?}", state?);
         }
     }
-
-    log::logger().flush();
-    Ok(())
 }
 
+#[cfg(unix)]
 async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix::{SignalKind, signal};
-        let mut term = match signal(SignalKind::terminate()) {
-            Ok(signal) => signal,
-            Err(_) => {
-                let _ = tokio::signal::ctrl_c().await;
-                return;
+    use tokio::signal::unix::{SignalKind, signal};
+    match signal(SignalKind::terminate()) {
+        Ok(mut term) => {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = term.recv() => {},
             }
-        };
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = term.recv() => {},
+        }
+        Err(_) => {
+            let _ = tokio::signal::ctrl_c().await;
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
 }

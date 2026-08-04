@@ -60,12 +60,9 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
+// splitDeploymentEnabled reports whether par-control owns polling on this platform.
 func splitDeploymentEnabled(cfg config.Component, goos string) bool {
 	return goos == "linux" && cfg.GetBool(privateactionrunner.PARSplitEnabled)
-}
-
-func isSplitEnabled(cfg config.Component) bool {
-	return splitDeploymentEnabled(cfg, runtime.GOOS)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -126,7 +123,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if isSplitEnabled(reqs.Config) {
+	if splitDeploymentEnabled(reqs.Config, runtime.GOOS) {
 		reqs.Log.Info("Split deployment is enabled; the monolithic runner is standing down")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrSplitDeployment

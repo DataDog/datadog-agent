@@ -43,9 +43,8 @@ var DDOTProcessConfig string
 //go:embed tmpl/gen/debrpm/datadog-agent-action-executor.yaml
 var PARExecutorProcessConfig string
 
-// PARControlProcessConfig is the rendered process manager config for the always-on PAR control
-// plane (par-control) on Linux (deb/rpm layout). It is installed unconditionally; par-control
-// itself exits cleanly unless private_action_runner.split_enabled is set.
+// PARControlProcessConfig is the rendered process manager config for the PAR control plane
+// (par-control) on Linux (deb/rpm layout).
 //
 //go:embed tmpl/gen/debrpm/datadog-agent-action-control.yaml
 var PARControlProcessConfig string
