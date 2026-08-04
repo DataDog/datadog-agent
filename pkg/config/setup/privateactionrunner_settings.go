@@ -34,6 +34,16 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"other":   "${run_path}/par-executor.sock",
 	}))
 
+	// Enables the Rust control plane and on-demand Go executor on supported platforms.
+	config.BindEnvAndSetDefault("private_action_runner.split_enabled", false)
+
+	// Control-plane settings consumed by par-control.
+	config.BindEnvAndSetDefault("private_action_runner.procmgr_socket_path", getPlatformDefault(map[string]interface{}{
+		"windows": `\\.\pipe\datadog-procmgrd`,
+		"other":   "/var/run/datadog-procmgrd/dd-procmgrd.sock",
+	}))
+	config.BindEnvAndSetDefault("private_action_runner.executor_process_name", "datadog-agent-action-executor")
+
 	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
 	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.http_allowlist")
