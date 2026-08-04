@@ -33,6 +33,9 @@ import (
 
 const rotationInterval = 60 * time.Second
 
+// 4.10 for bpf_get_numa_node_id, 4.18 for bpf_get_current_cgroup_id
+var minimumKernelVersion = kernel.VersionCode(4, 18, 0)
+
 // Probe owns the scheduler program and the procfs/resctrl collectors.
 type Probe struct {
 	mu sync.Mutex
@@ -52,6 +55,14 @@ type Probe struct {
 
 // NewProbe starts scheduler instrumentation and discovers host capabilities.
 func NewProbe(cfg *ddebpf.Config, maxGroups int) (*Probe, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("kernel version: %s", err)
+	}
+	if kv < minimumKernelVersion {
+		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
+	}
+
 	if maxGroups < 1 {
 		maxGroups = 1
 	}

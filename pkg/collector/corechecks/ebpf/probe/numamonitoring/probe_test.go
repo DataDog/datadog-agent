@@ -15,10 +15,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+var kv = kernel.MustHostVersion()
 
 func TestSchedulerRuntimeAggregation(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		if kv < minimumKernelVersion {
+			t.Skipf("Kernel version %v is not supported by the NUMA monitoring probe", kv)
+		}
+
 		probe, err := NewProbe(ebpf.NewConfig(), 1)
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
