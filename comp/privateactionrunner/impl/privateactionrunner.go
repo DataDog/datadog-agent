@@ -60,8 +60,14 @@ func isEnabled(cfg config.Component) bool {
 }
 
 // splitDeploymentEnabled reports whether par-control owns polling on this platform.
+// Only Linux and Windows package par-control and its dd-procmgrd process definition.
 func splitDeploymentEnabled(cfg config.Component, goos string) bool {
-	return goos == "linux" && cfg.GetBool(privateactionrunner.PARSplitEnabled)
+	switch goos {
+	case "linux", "windows":
+		return cfg.GetBool(privateactionrunner.PARSplitEnabled)
+	default:
+		return false
+	}
 }
 
 // Requires defines the dependencies for the privateactionrunner component

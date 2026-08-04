@@ -44,13 +44,21 @@ rust_library(
         "@crates//:tonic",
         "@crates//:tonic-prost",
         "@crates//:tower",
-    ],
+    ] + select({
+        # ERROR_PIPE_BUSY, for the named-pipe client retry loop.
+        "@platforms//os:windows": ["@crates//:windows-sys"],
+        "//conditions:default": [],
+    }),
 )
 
 rust_binary(
     name = "par-control",
     srcs = ["src/bins/par-control.rs"],
     edition = "2024",
+    link_deps = select({
+        "@platforms//os:windows": ["//pkg/privateactionrunner/rust/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -69,7 +77,7 @@ rust_test(
     crate = ":par-control-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
 pkg_files(
