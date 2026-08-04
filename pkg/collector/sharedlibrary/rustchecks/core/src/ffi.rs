@@ -12,18 +12,40 @@ macro_rules! generate_ffi {
             aggregator_ptr: *const $crate::Aggregator,
             error_handler: *mut *mut std::ffi::c_char,
         ) {
-            if let Err(e) = create_and_run_check(
-                check_id_cstr,
-                init_config_cstr,
-                instance_config_cstr,
-                aggregator_ptr,
-            ) {
-                let error_msg = std::ffi::CString::new(e.to_string()).unwrap_or_default();
-                unsafe {
-                    let ptr = libc::strdup(error_msg.as_ptr());
-                    *error_handler = ptr;
-                };
-            }
+            // Catch panics: unwinding across this `extern "C"` boundary would
+            // abort (SIGABRT) the whole agent.
+            // See https://doc.rust-lang.org/nomicon/ffi.html#catching-panic-preemptively
+            let result = std::panic::catch_unwind(|| {
+                create_and_run_check(
+                    check_id_cstr,
+                    init_config_cstr,
+                    instance_config_cstr,
+                    aggregator_ptr,
+                )
+                .map_err(|e| e.to_string())
+            });
+
+            let error_msg = match result {
+                Ok(Ok(())) => return,
+                Ok(Err(msg)) => msg,
+                Err(payload) => {
+                    let msg = payload
+                        .downcast_ref::<&str>()
+                        .map(|s| s.to_string())
+                        .or_else(|| payload.downcast_ref::<String>().cloned())
+                        .unwrap_or_else(|| "unknown panic".to_string());
+                    // Dropping the payload may itself panic (see catch_unwind
+                    // docs); leak it so a second panic cannot escape here.
+                    std::mem::forget(payload);
+                    format!("check panicked: {msg}")
+                }
+            };
+
+            let error_cstr = std::ffi::CString::new(error_msg).unwrap_or_default();
+            unsafe {
+                let ptr = libc::strdup(error_cstr.as_ptr());
+                *error_handler = ptr;
+            };
         }
 
         /// Build the check structure and execute its custom implementation
