@@ -27,6 +27,7 @@ go_library(
         "//comp/logs/agent/config",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/config/utils",
         "//pkg/util/scrubber",
         "//pkg/version",

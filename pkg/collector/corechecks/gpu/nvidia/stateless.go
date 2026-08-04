@@ -404,6 +404,68 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Metric, uint64, error) {
 	return metricsOut, 0, nil
 }
 
+type clockThrottleReason struct {
+	name string
+	bit  uint64
+}
+
+var clockThrottleReasons = []clockThrottleReason{
+	{name: "gpu_idle", bit: nvml.ClocksEventReasonGpuIdle},
+	{name: "applications_clocks_setting", bit: nvml.ClocksEventReasonApplicationsClocksSetting},
+	{name: "sw_power_cap", bit: nvml.ClocksEventReasonSwPowerCap},
+	{name: "hw_slowdown", bit: nvml.ClocksThrottleReasonHwSlowdown},
+	{name: "sync_boost", bit: nvml.ClocksEventReasonSyncBoost},
+	{name: "sw_thermal_slowdown", bit: nvml.ClocksEventReasonSwThermalSlowdown},
+	{name: "hw_thermal_slowdown", bit: nvml.ClocksThrottleReasonHwThermalSlowdown},
+	{name: "hw_power_brake_slowdown", bit: nvml.ClocksThrottleReasonHwPowerBrakeSlowdown},
+	{name: "display_clock_setting", bit: nvml.ClocksEventReasonDisplayClockSetting},
+	{name: "none", bit: nvml.ClocksEventReasonNone},
+}
+
+const notThrottledReason = "not_throttled"
+const throttleReasonTag = "throttle_reason"
+
+func clockThrottleReasonMetrics(reasons uint64) []Metric {
+	allMetrics := make([]Metric, 0, len(clockThrottleReasons)*2)
+
+	// emit per-reason metrics
+	throttledWhileActiveValueReason := notThrottledReason
+	for _, reason := range clockThrottleReasons {
+		throttleReasonValue := 0.0
+
+		// check if reason is set
+		if reasons&reason.bit != 0 || (reasons == 0 && reason.bit == 0) {
+			throttleReasonValue = 1.0
+
+			// if the reason is not idle or "none" (i.e., not throttled), set the reason for the throttledWhileActive metric
+			// note that usually, only one reason is set, so we don't care about overwriting it.
+			if reason.name != "gpu_idle" && reason.name != "none" {
+				throttledWhileActiveValueReason = reason.name
+			}
+		}
+
+		allMetrics = append(allMetrics, Metric{
+			Name:  "clock.throttle_reasons." + reason.name,
+			Value: throttleReasonValue,
+			Type:  metrics.GaugeType,
+		})
+	}
+
+	throttledWhileActiveValue := 0.0
+	if throttledWhileActiveValueReason != notThrottledReason {
+		throttledWhileActiveValue = 1.0
+	}
+
+	allMetrics = append(allMetrics, Metric{
+		Name:  "clock.throttled_while_active",
+		Value: throttledWhileActiveValue,
+		Type:  metrics.GaugeType,
+		Tags:  []string{throttleReasonTag + ":" + throttledWhileActiveValueReason},
+	})
+
+	return allMetrics
+}
+
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
 func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
@@ -680,28 +742,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, err
 				}
 
-				var allMetrics []Metric
-				for reasonName, reasonBit := range map[string]uint64{
-					"gpu_idle":                    nvml.ClocksEventReasonGpuIdle,
-					"applications_clocks_setting": nvml.ClocksEventReasonApplicationsClocksSetting,
-					"sw_power_cap":                nvml.ClocksEventReasonSwPowerCap,
-					"sync_boost":                  nvml.ClocksEventReasonSyncBoost,
-					"sw_thermal_slowdown":         nvml.ClocksEventReasonSwThermalSlowdown,
-					"display_clock_setting":       nvml.ClocksEventReasonDisplayClockSetting,
-					"none":                        nvml.ClocksEventReasonNone,
-				} {
-					value := 0.0
-					if reasons&reasonBit != 0 || (reasons == 0 && reasonBit == 0) {
-						value = 1.0
-					}
-					allMetrics = append(allMetrics, Metric{
-						Name:  "clock.throttle_reasons." + reasonName,
-						Value: value,
-						Type:  metrics.GaugeType,
-					})
-				}
-
-				return allMetrics, 0, nil
+				return clockThrottleReasonMetrics(reasons), 0, nil
 			},
 		},
 		{
