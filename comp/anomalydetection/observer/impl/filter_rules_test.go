@@ -12,6 +12,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -197,25 +198,29 @@ func TestMetricsFilterRulesLogMetricsExtractorBypass(t *testing.T) {
 	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", nil))
 }
 
-func TestDefaultMetricsProcessingRulesExcludeAgentNamespace(t *testing.T) {
-	filter, err := newMetricsFilterRules(defaultMetricsProcessingRules())
+func TestImplicitMetricsProcessingRulesExcludeObserverTelemetry(t *testing.T) {
+	filter, err := newMetricsFilterRules(implicitMetricsProcessingRules())
 	require.NoError(t, err)
 
-	assert.False(t, filter.isAllowed("datadog.agent.running", observerdef.AgentNamespace, nil))
+	assert.False(t, filter.isAllowed(observerTelemetryMetricPrefix+"metrics.filtered", observerdef.AgentNamespace, nil))
+	assert.True(t, filter.isAllowed(observerTelemetryMetricPrefix+"metrics.filtered", "dogstatsd", nil))
+	assert.True(t, filter.isAllowed("datadog.agent.running", observerdef.AgentNamespace, nil))
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", nil))
 }
 
-func TestDefaultAgentRuleCanBeOverriddenByEarlierIncludeRule(t *testing.T) {
-	filter, err := newMetricsFilterRules(append([]metricsProcessingRule{
-		{
-			Type:   includeAtMatch,
-			Name:   "keep_agent_metrics",
-			Source: observerdef.AgentNamespace,
-		},
-	}, defaultMetricsProcessingRules()...))
+func TestImplicitObserverTelemetryRuleCannotBeOverridden(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  metrics:
+    processing_rules:
+      - type: include_at_match
+        name: keep_observer_telemetry
+        name_pattern: datadog.agent.observer.*
+`)
+	filter, err := loadMetricFilter(cfg)
 	require.NoError(t, err)
 
-	assert.True(t, filter.isAllowed("datadog.agent.running", observerdef.AgentNamespace, nil))
+	assert.False(t, filter.isAllowed(observerTelemetryMetricPrefix+"metrics.filtered", observerdef.AgentNamespace, nil))
 }
 
 func TestLoadMetricFilterWithoutConfigUsesDefaultRules(t *testing.T) {
@@ -223,7 +228,8 @@ func TestLoadMetricFilterWithoutConfigUsesDefaultRules(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, filter)
 
-	assert.False(t, filter.isAllowed("datadog.agent.running", observerdef.AgentNamespace, nil))
+	assert.False(t, filter.isAllowed(observerTelemetryMetricPrefix+"metrics.filtered", observerdef.AgentNamespace, nil))
+	assert.True(t, filter.isAllowed("datadog.agent.running", observerdef.AgentNamespace, nil))
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", nil))
 }
 
@@ -285,14 +291,21 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	assert.Equal(t, "system.cpu.user", kept.metric.name)
 }
 
-func TestPrepareMetricIngestDropsNormalizedAgentMetricsViaDefaultRule(t *testing.T) {
+func TestPrepareMetricIngestAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
-	decision := prepareMetricIngest("dogstatsd", &metricObs{
+	allowed := prepareMetricIngest("dogstatsd", &metricObs{
 		name:  "datadog.agent.running",
 		value: 1,
 	}, filter)
-	assert.Nil(t, decision.metric)
+	require.NotNil(t, allowed.metric)
+	assert.Equal(t, observerdef.AgentNamespace, allowed.source)
+
+	dropped := prepareMetricIngest("dogstatsd", &metricObs{
+		name:  observerTelemetryMetricPrefix + "metrics.filtered",
+		value: 1,
+	}, filter)
+	assert.Nil(t, dropped.metric)
 }
 
 func TestPrepareMetricIngestAllowsNormalizedAgentMetricsWhenIncludedEarlier(t *testing.T) {
@@ -302,7 +315,7 @@ func TestPrepareMetricIngestAllowsNormalizedAgentMetricsWhenIncludedEarlier(t *t
 			Name:   "keep_agent_metrics",
 			Source: observerdef.AgentNamespace,
 		},
-	}, defaultMetricsProcessingRules()...))
+	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
 	decision := prepareMetricIngest("dogstatsd", &metricObs{
@@ -327,7 +340,7 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 			Name:   "drop_other_agent_metrics",
 			Source: observerdef.AgentNamespace,
 		},
-	}, defaultMetricsProcessingRules()...))
+	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
 	kept := prepareMetricIngest("dogstatsd", &metricObs{
@@ -490,7 +503,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 	requireCounterMetricValueBySource(t, "check", 1.0, telComp)
 }
 
-func TestDefaultFilterAsyncPathIngestsNonAgentMetricsAndCountsFilteredAgentMetrics(t *testing.T) {
+func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t *testing.T) {
 	telComp := telemetryimpl.GetCompatComponent()
 	telComp.Reset()
 	t.Cleanup(telComp.Reset)
@@ -538,6 +551,11 @@ func TestDefaultFilterAsyncPathIngestsNonAgentMetricsAndCountsFilteredAgentMetri
 		value:     1,
 		timestamp: 1000,
 	})
+	obs.GetHandle("check").ObserveMetric(&metricObs{
+		name:      observerTelemetryMetricPrefix + "metrics.filtered",
+		value:     1,
+		timestamp: 1000,
+	})
 
 	stopFn()
 
@@ -550,7 +568,8 @@ func TestDefaultFilterAsyncPathIngestsNonAgentMetricsAndCountsFilteredAgentMetri
 	assert.Equal(t, "system.mem.used", checkSeries[0].Name)
 
 	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
-	assert.Empty(t, agentSeries)
+	require.Len(t, agentSeries, 1)
+	assert.Equal(t, "datadog.agent.running", agentSeries[0].Name)
 
 	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
 	requireNoCounterMetricForNameBySource(t, telemetryObsChannelDropped, "check", telComp)
@@ -650,7 +669,7 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 			Name:   "drop_other_agent_metrics",
 			Source: observerdef.AgentNamespace,
 		},
-	}, defaultMetricsProcessingRules()...))
+	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
 	telComp := telemetryimpl.GetCompatComponent()
