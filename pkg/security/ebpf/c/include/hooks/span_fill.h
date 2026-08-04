@@ -13,19 +13,26 @@ static int __attribute__((always_inline)) fill_span_and_send_impl(void *ctx) {
         return 0;
     }
 
-    // Fill on the stack, so fill_span_context() -- and the span-context readers
-    // it inlines -- only ever touch fixed offsets.
+    // Fill on the stack, so fill_span_context() -- and the large
+    // collect_go_labels() body it inlines -- only ever touches fixed offsets.
     struct span_context_t span = {0};
-    fill_span_context(&span);
+    struct go_labels_context_t go_labels = {0};
+    fill_span_context(&span, &go_labels);
 
-    // Then copy it into the payload at the offset the caller recorded. The offset
-    // is read and bounded here, after the call, so that the bound stays adjacent
-    // to the map_value arithmetic it guards (this is done to please the verifier)
+    // Then copy both into the payload at the offsets the caller recorded. The
+    // offsets are read and bounded here, after the call, so that each bound stays
+    // adjacent to the map_value arithmetic it guards (this is done to please the verifier)
     u32 span_off = slot->span_off;
     if (span_off > sizeof(slot->data) - sizeof(span)) {
         return 0;
     }
     *(struct span_context_t *)((char *)&slot->data + span_off) = span;
+
+    u32 go_labels_off = slot->go_labels_off;
+    if (go_labels_off > sizeof(slot->data) - sizeof(go_labels)) {
+        return 0;
+    }
+    *(struct go_labels_context_t *)((char *)&slot->data + go_labels_off) = go_labels;
 
     u64 size = slot->size;
 
@@ -57,7 +64,7 @@ static int __attribute__((always_inline)) fill_span_and_send_setsockopt_impl(voi
         return 0;
     }
 
-    fill_span_context(&event->span);
+    fill_span_context(&event->span, &event->go_labels);
 
     u64 sent_size = event->sent_size;
     if (sent_size > MAX_BPF_FILTER_SIZE) {
@@ -74,6 +81,14 @@ TAIL_CALL_FNC(fill_span_and_send_setsockopt, void *ctx) {
 
 TAIL_CALL_TRACEPOINT_FNC(fill_span_and_send_setsockopt, void *ctx) {
     return fill_span_and_send_setsockopt_impl(ctx);
+}
+
+// exit has its own target: it tears down the process' Go pprof-label
+// registration after sending the event
+TAIL_CALL_FNC(fill_span_and_send_exit, void *ctx) {
+    int ret = fill_span_and_send_impl(ctx);
+    unregister_go_labels();
+    return ret;
 }
 
 #endif

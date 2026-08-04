@@ -17,6 +17,7 @@ struct accept_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -29,6 +30,7 @@ struct bind_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -45,6 +47,7 @@ struct socket_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -58,6 +61,7 @@ struct connect_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -74,6 +78,7 @@ struct bpf_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -94,6 +99,7 @@ struct process_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_context_t syscall_ctx;
     struct process_entry_t proc_entry;
@@ -110,6 +116,7 @@ struct exit_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     u32 exit_code;
 };
@@ -118,6 +125,7 @@ struct login_uid_write_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     u32 auid;
 };
@@ -126,6 +134,7 @@ struct setuid_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     u32 uid;
     u32 euid;
@@ -136,6 +145,7 @@ struct setgid_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     u32 gid;
     u32 egid;
@@ -146,6 +156,7 @@ struct capset_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     u64 cap_effective;
     u64 cap_permitted;
@@ -163,6 +174,7 @@ struct cgroup_write_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct path_key_t path_key;
     u32 pid; // pid of the process added to the cgroup
@@ -172,6 +184,7 @@ struct utimes_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -183,6 +196,7 @@ struct chmod_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -195,6 +209,7 @@ struct chown_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -207,6 +222,7 @@ struct mmap_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -222,6 +238,7 @@ struct dns_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
@@ -244,6 +261,7 @@ struct full_dns_response_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
@@ -260,6 +278,7 @@ struct imds_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
@@ -270,6 +289,7 @@ struct link_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -281,6 +301,7 @@ struct mkdir_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -293,6 +314,7 @@ struct init_module_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -308,6 +330,7 @@ struct delete_module_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -318,6 +341,7 @@ struct mount_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -334,6 +358,7 @@ struct mprotect_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -347,6 +372,7 @@ struct net_device_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -357,6 +383,7 @@ struct veth_pair_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -368,6 +395,7 @@ struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -382,6 +410,7 @@ struct ptrace_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -395,6 +424,7 @@ struct syscall_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
 
     u64 event_reason;
@@ -405,6 +435,7 @@ struct rename_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -416,6 +447,7 @@ struct rmdir_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -426,6 +458,7 @@ struct selinux_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct file_t file;
     u32 event_kind;
@@ -436,6 +469,7 @@ struct setxattr_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct file_t file;
@@ -446,6 +480,7 @@ struct signal_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -457,6 +492,7 @@ struct splice_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -469,6 +505,7 @@ struct umount_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     u32 mount_id;
@@ -478,6 +515,7 @@ struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -490,6 +528,7 @@ struct chdir_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
@@ -502,6 +541,7 @@ struct on_demand_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
 
     u32 synth_id;
@@ -512,6 +552,7 @@ struct raw_packet_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct network_device_context_t device;
 
@@ -523,6 +564,7 @@ struct network_flow_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct network_device_context_t device;
 
@@ -534,6 +576,7 @@ struct sysctl_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
 
     u32 action;
@@ -549,6 +592,7 @@ struct setrlimit_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -562,6 +606,7 @@ struct setsockopt_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -580,6 +625,7 @@ struct capabilities_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct capabilities_usage_t caps_usage;
 };
@@ -588,6 +634,7 @@ struct prctl_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -601,6 +648,7 @@ struct tracer_memfd_seal_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
@@ -685,12 +733,14 @@ union event_t {
 // maps.h). It wraps the max-sized event payload (union event_t) with a small
 // kernel-only header carrying what the generic fill_span_and_send tail program
 // cannot otherwise recover: the event type, the number of bytes to emit, and the
-// offset of the span field within the (type-erased) payload. The header is
-// scratch: only `data` (for `size` bytes) is sent to userspace.
+// offsets of the span / go_labels fields within the (type-erased) payload. The
+// header is scratch: only `data` (for `size` bytes) is sent to userspace.
 struct span_fill_slot_t {
-    u64 event_type; // EVENT_* type passed to send_event
-    u32 size;       // number of bytes of `data` to emit
-    u32 span_off;   // byte offset of the span field within `data`
+    u64 event_type;    // EVENT_* type passed to send_event
+    u32 size;          // number of bytes of `data` to emit
+    u32 span_off;      // byte offset of the span field within `data`
+    u32 go_labels_off; // byte offset of the go_labels field within `data`
+    u32 padding;       // keep `data` 8-byte aligned
     union event_t data;
 };
 

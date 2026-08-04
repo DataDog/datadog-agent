@@ -104,9 +104,9 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
-    // Fill the span context and emit the event from the shared tail-call target.
-    // Everything above must be built into the event before this point, because
-    // the tail call never returns here.
+    // Snapshot the Go pprof labels and emit the event from the shared tail-call
+    // target. Everything above must be built into the event before this point,
+    // because the tail call never returns here.
     bpf_tail_call_compat(ctx, &span_fill_progs, 0);
     return 0;
 }

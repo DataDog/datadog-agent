@@ -363,6 +363,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct exit_event_t *event = SPAN_FILL_EVENT(struct exit_event_t, EVENT_EXIT);
         if (!event) {
             // tear down the process state even if the event can't be staged
+            unregister_go_labels();
             cleanup_traced_state(tgid);
             pop_syscall(EVENT_ANY);
             return 0;
@@ -383,7 +384,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         cleanup_traced_state(tgid);
         pop_syscall(EVENT_ANY);
 
-        span_fill_tail_call(ctx, KPROBE_OR_FENTRY_TYPE);
+        span_fill_tail_call_key(ctx, KPROBE_OR_FENTRY_TYPE, SPAN_FILL_KEY_EXIT);
         return 0;
     }
 
@@ -461,7 +462,7 @@ int __attribute__((always_inline)) fill_exec_context() {
     }
 
     // call it here before the memory get replaced
-    fill_span_context(&syscall->exec.span_context);
+    fill_span_context(&syscall->exec.span_context, &syscall->exec.go_labels);
 
     return 0;
 }
@@ -876,7 +877,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // override the pid context inode with the parent inode so that we can compare
     on_stack_process->inode = parent_inode;
 
-    copy_span_context(&syscall->exec.span_context, &event->span);
+    copy_span_context(&syscall->exec.span_context, &event->span, &syscall->exec.go_labels, &event->go_labels);
 
     fill_args_envs(event, syscall);
 
@@ -893,6 +894,8 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     event->is_through_symlink = syscall->exec.is_through_symlink;
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
+
+    unregister_go_labels();
 
     return 0;
 }
