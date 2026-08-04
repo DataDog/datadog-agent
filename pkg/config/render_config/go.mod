@@ -108,6 +108,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../pkg/config/setup/constants
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model
