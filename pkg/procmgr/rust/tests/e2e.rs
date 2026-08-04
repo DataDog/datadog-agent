@@ -1951,8 +1951,11 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     let mut daemon = helpers::DaemonHandle::start_with_env(
         &config_dir,
         &sock,
-        &[("DD_CONF_DIR", conf_dir.to_str().unwrap())],
-        &[("DD_INSTALL_DIR", install_dir.to_str().unwrap())],
+        &[
+            ("DD_CONF_DIR", conf_dir.to_str().unwrap()), 
+            ("DD_INSTALL_DIR", install_dir.to_str().unwrap()),
+            ("DD_PID_DIR", pid_dir.to_str().unwrap())
+        ],
     );
     assert!(
         daemon.wait_for_log_default(
