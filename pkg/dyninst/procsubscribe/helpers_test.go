@@ -16,7 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan"
 )
 
-const DefaultScanInterval = defaultScanInterval
+const (
+	DefaultScanInterval    = defaultScanInterval
+	DefaultMaxScanInterval = defaultMaxScanInterval
+)
 
 // WithScanner overrides the scanner used to discover processes.
 func WithProcessScanner(scanner processScanner) Option {
@@ -32,6 +35,12 @@ type ProcessScannerFunc func() ([]procscan.DiscoveredProcess, []procscan.Process
 func (f ProcessScannerFunc) Scan() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
 	return f()
 }
+
+// LiveProcesses implements the ProcessScanner interface.
+func (f ProcessScannerFunc) LiveProcesses() []procscan.ProcessID { return nil }
+
+// Stats implements the ProcessScanner interface.
+func (f ProcessScannerFunc) Stats() map[string]any { return nil }
 
 // WithClock overrides the clock used for scheduling scans.
 func WithClock(clk clock.Clock) Option {

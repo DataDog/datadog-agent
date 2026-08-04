@@ -1,0 +1,85 @@
+# A process whose executable cannot be identified backs off like any other
+# failure. Kernel threads are the reason this matters: they have no readable
+# executable and there are hundreds of them on a host, so without a backoff they
+# would each cost an attempt on every scan for as long as the host is up.
+#
+# The failure is not terminal, because it is indistinguishable from a process
+# that is exiting as we look at it, and the answer for a process that really is
+# gone comes for free: the next scan does not see it and forgets it.
+- !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  executable: {unresolvable: true}
+  tracer_metadata: {language: "go", service: "kernel-thread"}
+- !scan {}
+- !advance-time {to: 105}
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+- !advance-time {to: 130}
+- !scan {}
+# The process exits while backing off, so its retry state goes with it rather
+# than lingering until the cache evicts it.
+- !remove-process {pid: 1001}
+- !advance-time {to: 140}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  min_age: 10
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  executable: {unresolvable: true}
+  tracer_metadata: {language: "go", service: "kernel-thread"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_unresolved: 1}
+---
+command: !advance-time {to: 105}
+---
+command: !scan {}
+state:
+  current_time: 105
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 1, executables_unresolved: 1}
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 2, executables_unresolved: 2}
+---
+command: !advance-time {to: 130}
+---
+command: !scan {}
+state:
+  current_time: 130
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
+  processes_in_procfs: [1001]
+  metrics: {candidates_evaluated: 3, executables_unresolved: 3}
+---
+command: !remove-process {pid: 1001}
+---
+command: !advance-time {to: 140}
+---
+command: !scan {}
+state:
+  current_time: 140
+  metrics: {candidates_evaluated: 3, executables_unresolved: 3}
