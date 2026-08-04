@@ -143,17 +143,10 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	if err := ensureADPProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write ADP process manager config: %w", err)
-	}
-	if err := ensurePARProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write PAR process manager config: %w", err)
-	}
-	if err := ensurePARExecutorProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
-	}
-	if err := ensurePARControlProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write PAR control plane process manager config: %w", err)
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg); err != nil {
+			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
+		}
 	}
 
 	// No need to explicitly start the Agent here
@@ -206,66 +199,34 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	return installRoot, nil
 }
 
-func ensureADPProcmgrConfig() error {
-	installRoot, err := resolveDatadogProgramFilesInstallRoot()
-	if err != nil {
-		return err
-	}
-
-	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WriteADPProcmgrConfig(installRoot)
-	}
-	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
-		log.Warnf("ADP: could not remove stale process manager config: %v", err)
-	}
-	return nil
+// procmgrConfig is a processes.d definition managed at install time.
+type procmgrConfig struct {
+	label  string
+	write  func(installRoot string) error
+	remove func(installRoot string) error
 }
 
-func ensurePARProcmgrConfig() error {
-	installRoot, err := resolveDatadogProgramFilesInstallRoot()
-	if err != nil {
-		return err
-	}
-
-	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WritePARProcmgrConfig(installRoot)
-	}
-	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
-		log.Warnf("PAR: could not remove stale process manager config: %v", err)
-	}
-	return nil
+// procmgrConfigs are written whenever the process manager is enabled. The PAR
+// control plane is included unconditionally: par-control itself exits cleanly
+// unless private_action_runner.split_enabled is set.
+var procmgrConfigs = []procmgrConfig{
+	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
+	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
+	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
+	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
 }
 
-func ensurePARExecutorProcmgrConfig() error {
+func ensureProcmgrConfig(cfg procmgrConfig) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
 	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WritePARExecutorProcmgrConfig(installRoot)
+		return cfg.write(installRoot)
 	}
-	if err := processmanager.RemovePARExecutorProcmgrConfig(installRoot); err != nil {
-		log.Warnf("PAR executor: could not remove stale process manager config: %v", err)
-	}
-	return nil
-}
-
-// ensurePARControlProcmgrConfig installs the definition for the always-on PAR
-// control plane. It is written whenever the process manager is enabled, like the
-// executor's: par-control itself exits cleanly unless
-// private_action_runner.split_enabled is set.
-func ensurePARControlProcmgrConfig() error {
-	installRoot, err := resolveDatadogProgramFilesInstallRoot()
-	if err != nil {
-		return err
-	}
-
-	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WritePARControlProcmgrConfig(installRoot)
-	}
-	if err := processmanager.RemovePARControlProcmgrConfig(installRoot); err != nil {
-		log.Warnf("PAR control plane: could not remove stale process manager config: %v", err)
+	if err := cfg.remove(installRoot); err != nil {
+		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
 }

@@ -1,21 +1,18 @@
 # par-control lifecycle scaffold
 
 `par-control` is the installed control-plane process for the split Private
-Action Runner. This first slice intentionally contains only installation,
-activation, and executor process lifecycle:
+Action Runner. This slice covers installation, activation, and executor process
+lifecycle only:
 
 - `dd-procmgrd` starts `par-control` from
   `processes.d/datadog-agent-action-control.yaml`.
-- Unless both `private_action_runner.enabled` and
-  `private_action_runner.split_enabled` are true, `par-control` exits with code
-  0 and is not restarted.
-- In split mode on Linux, `par-control` asks `dd-procmgrd` to start the existing
-  `privateactionrunner run-executor` process immediately. It does not connect to
-  the executor or dispatch actions yet.
-- On shutdown, `par-control` exits without calling back into its own supervisor.
-  `dd-procmgrd` retains ownership of the executor and stops both processes when
-  the supervisor shuts down. Polling-informed idle reaping belongs to the full
-  control-plane slice.
+- `par-control` exits 0 (and is not restarted) unless both
+  `private_action_runner.enabled` and `.split_enabled` are true.
+- In split mode on Linux, it asks `dd-procmgrd` to start the existing
+  `privateactionrunner run-executor` process. It does not connect to the
+  executor or dispatch actions yet.
+- On shutdown it exits without calling back into its own supervisor:
+  `dd-procmgrd` owns the executor and stops both processes.
 - Windows ships the binary and process definition for package symmetry, but the
   binary exits cleanly until named-pipe transport is implemented.
 
@@ -28,12 +25,9 @@ The crate is Linux/Windows-only, so build it inside the Linux dev container on a
 macOS workstation:
 
 ```bash
-dda env dev run -- bash -lc 'cd /repos/datadog-agent && \
-  bazel test //pkg/privateactionrunner/rust:par-control_test'
-dda env dev run -- bash -lc 'cd /repos/datadog-agent && \
-  bazel build //pkg/privateactionrunner/rust:par-control'
+dda env dev run -- bazel test //pkg/privateactionrunner/rust:par-control_test
+dda env dev run -- bazel build //pkg/privateactionrunner/rust:par-control
 ```
 
-The binary is installed by Omnibus through
-`//pkg/privateactionrunner/rust:install`; it is not part of
-`dda inv privateactionrunner.build`.
+Omnibus installs the binary through `//pkg/privateactionrunner/rust:install`; it
+is not part of `dda inv privateactionrunner.build`.

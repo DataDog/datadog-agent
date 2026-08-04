@@ -341,8 +341,7 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
 
   unless fips_mode?
-    # par-control is only built alongside privateactionrunner.exe, which is not
-    # shipped in Gov/FIPS yet (see software/datadog-agent.rb).
+    # par-control ships alongside privateactionrunner.exe, which is not in FIPS builds.
     windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
   end
 

@@ -51,26 +51,25 @@ func TestLinuxPARSplitLifecycleSuite(t *testing.T) {
 	))
 }
 
-// TestControlStartsExecutor proves that the package contains both process
-// definitions and that dd-procmgrd starts par-control, which in turn starts the
-// otherwise on-demand executor.
+// TestControlStartsExecutor proves the package ships both process definitions and
+// that dd-procmgrd starts par-control, which starts the on-demand executor.
 func (s *linuxPARSplitLifecycleSuite) TestControlStartsExecutor() {
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
 }
 
-// TestControlStopsWithoutReenteringSupervisor proves that par-control exits
-// promptly on SIGTERM instead of making a nested Stop RPC that blocks behind
-// dd-procmgrd's in-progress stop operation. The executor remains owned by the
-// supervisor; polling-informed idle reaping is tested in the full-stack slice.
+// TestControlStopsWithoutReenteringSupervisor proves par-control exits promptly on
+// SIGTERM instead of making a nested Stop RPC that would block behind dd-procmgrd's
+// in-progress stop. The supervisor keeps owning the executor.
 func (s *linuxPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervisor() {
-	started := time.Now()
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 30s timeout")
 	defer func() {
 		s.Require().NoError(s.runProcmgr("start", parControlProcess))
 		s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 	}()
+
+	started := time.Now()
+	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
+	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 30s timeout")
 
 	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
 	s.waitForProcessState(parExecutorProcess, "Running", 10*time.Second)
@@ -78,11 +77,7 @@ func (s *linuxPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSuperviso
 
 func (s *linuxPARSplitLifecycleSuite) runProcmgr(command, name string) error {
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo %s --socket %s %s %s",
-		procmgrCLI,
-		procmgrSocket,
-		command,
-		name,
+		"sudo %s --socket %s %s %s", procmgrCLI, procmgrSocket, command, name,
 	))
 	return err
 }
@@ -91,10 +86,7 @@ func (s *linuxPARSplitLifecycleSuite) waitForProcessState(name, state string, ti
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
-			"sudo %s --socket %s describe %s",
-			procmgrCLI,
-			procmgrSocket,
-			name,
+			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
 		))
 		assert.NoError(c, err)
 		assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
