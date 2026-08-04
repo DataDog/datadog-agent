@@ -52,10 +52,7 @@ pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
 
     // Unidentified clients (e.g. SecurityAnonymous) are denied Create, same as a known
     // non-privileged identity — but the pipe connection itself stays open.
-    match impersonated_client_may_mutate() {
-        Some(may_mutate) => may_mutate,
-        None => false,
-    }
+    impersonated_client_may_mutate().unwrap_or_default()
 }
 
 /// Win32 error codes for clients that connect or impersonate without a usable token.
