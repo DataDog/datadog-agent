@@ -31,6 +31,9 @@ func TestLegacyProcmgrUpgradeContinuesOnRetirementFailure(t *testing.T) {
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Skip("E2E_PIPELINE_ID env var is not set, this test requires a pipeline build")
 	}
+	if GetInstallMethodFromEnv(t) != InstallMethodInstallScript {
+		t.Skip("install-script only scenario")
+	}
 
 	flavor := e2eos.RedHat9
 	flavor.Architecture = e2eos.AMD64Arch
@@ -44,13 +47,16 @@ func TestLegacyProcmgrUpgradeContinuesOnRetirementFailure(t *testing.T) {
 		),
 	}
 
+	opts := []awshost.ProvisionerOption{
+		awshost.WithRunOptions(
+			scenec2.WithEC2InstanceOptions(scenec2.WithOSArch(flavor, flavor.Architecture)),
+			scenec2.WithoutAgent(),
+		),
+	}
+	opts = append(opts, suite.ProvisionerOptions()...)
+
 	e2e.Run(t, suite,
-		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithRunOptions(
-				scenec2.WithEC2InstanceOptions(scenec2.WithOSArch(flavor, flavor.Architecture)),
-				scenec2.WithoutAgent(),
-			),
-		)),
+		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(suite.Name()),
 	)
 }
