@@ -871,15 +871,6 @@ properties:
         - DD_APM_INSTRUMENTATION_ENABLED
         visibility: public
         description: Enables Single Step Instrumentation in the cluster (in beta)
-      on_demand:
-        node_type: setting
-        type: boolean
-        default: true
-        env_vars:
-        - DD_APM_INSTRUMENTATION_ON_DEMAND
-        comment: |-
-          Keeps the SSI admission webhook available for runtime workload
-          selection sources without enabling implicit instrumentation.
       enabled_namespaces:
         node_type: setting
         type: array
@@ -953,6 +944,12 @@ properties:
         env_parser: json
         additionalProperties:
           type: string
+      on_demand:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_INSTRUMENTATION_ON_DEMAND
       targets:
         node_type: setting
         type: array
