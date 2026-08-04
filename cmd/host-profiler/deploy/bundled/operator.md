@@ -104,7 +104,7 @@ The provided profile limits what the Host Profiler container can execute. It all
 
 ## Selective Deployment (optional)
 
-By default, enabling the `agent.datadoghq.com/host-profiler-enabled` annotation on the `DatadogAgent` Custom Resource turns on the Host Profiler sidecar on every node. To limit it to a subset of nodes, use a [`DatadogAgentProfile`](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md) (DAP) instead of setting the annotation on the `DatadogAgent` Custom Resource directly. This requires Datadog Operator **v1.30.0** or later.
+By default, enabling the `agent.datadoghq.com/host-profiler-enabled` annotation on the `DatadogAgent` Custom Resource turns on the Host Profiler sidecar on every node. To limit it to a subset of nodes, use a [`DatadogAgentProfile`](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md) (DAP) instead of setting the annotation on the `DatadogAgent` Custom Resource directly. This will be available starting in Datadog Operator **v1.30.0** or later.
 
 DAP is disabled by default. Enable it in the [datadog-operator Helm chart](https://github.com/DataDog/helm-charts/tree/main/charts/datadog-operator) values, or as `--set` command-line flags, before creating a profile:
 
