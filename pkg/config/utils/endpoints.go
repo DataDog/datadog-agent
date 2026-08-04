@@ -15,6 +15,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -72,7 +73,7 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + pkgconfigsetup.DefaultSite
+	return prefix + constants.DefaultSite
 }
 
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
@@ -264,7 +265,7 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	} else if c.GetString("site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
-	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
+	return BuildURLWithPrefix(prefix, constants.DefaultSite)
 }
 
 // GetMRFEndpoint returns the generic MRF endpoint to use.
