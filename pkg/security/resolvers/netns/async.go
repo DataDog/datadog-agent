@@ -50,7 +50,8 @@ func (tcr *Resolver) PushNewTCClassifierRequest(request TcClassifierRequest) {
 	case tcr.tcRequests <- request:
 		// do nothing
 	default:
-		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
+		tcr.countError(errorClassQueueFull)
+		seclog.Debugf("failed to slot new tc classifier request: %+v", request)
 	}
 }
 

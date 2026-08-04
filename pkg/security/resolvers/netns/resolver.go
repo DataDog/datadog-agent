@@ -18,6 +18,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -25,11 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -67,6 +69,7 @@ type Resolver struct {
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
 	tcRequests        chan TcClassifierRequest
+	errorCounters     map[string]*atomic.Int64
 	ctx               context.Context
 	wg                sync.WaitGroup
 }
@@ -80,6 +83,8 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 		tcRequests: make(chan TcClassifierRequest, 16),
 		ctx:        context.Background(),
+
+		errorCounters: newErrorCounters(),
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -213,13 +218,15 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 
 	ntl, err := nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	if err != nil {
+		nr.countError(errorClassNetlinkSocket)
 		seclog.Errorf("couldn't open netlink socket: %s", err)
 		return 0
 	}
 
 	links, err := listLinks(ntl.Sock)
 	if err != nil {
-		seclog.Errorf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
+		nr.countError(errorClassLinkList)
+		seclog.Debugf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
 		return 0
 	}
 
@@ -508,6 +515,8 @@ func (nr *Resolver) SendStats() error {
 	if lonelyNetworkNamespacesCount > 0 {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, lonelyNetworkNamespacesCount, []string{}, 1.0)
 	}
+
+	nr.sendErrorStats()
 	return nil
 }
 
