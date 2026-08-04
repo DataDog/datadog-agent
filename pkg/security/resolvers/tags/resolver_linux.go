@@ -186,7 +186,7 @@ func NewResolver(tagger Tagger, cgroupsResolver *cgroup.Resolver, versionResolve
 	resolver := &LinuxResolver{
 		Notifier:             utils.NewNotifier[Event, *Workload](),
 		DefaultResolver:      NewDefaultResolver(tagger),
-		workloadsWithoutTags: make(chan *Workload, 100),
+		workloadsWithoutTags: make(chan *Workload, 1000),
 		cgroupResolver:       cgroupsResolver,
 		versionResolver:      versionResolver,
 		workloads:            make(map[containerutils.CGroupID]*Workload),
