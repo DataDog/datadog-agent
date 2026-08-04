@@ -104,6 +104,7 @@ var (
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
+		"processes.d/datadog-agent-action-control.yaml",
 		"processes.d/datadog-agent-action-executor.yaml",
 		"run",
 		".pre_python_installed_packages.txt",
@@ -272,16 +273,31 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 	return nil
 }
 
-const parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
+const (
+	parControlProcmgrConfigName  = "datadog-agent-action-control.yaml"
+	parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
+)
 
-func writePARExecutorProcmgrConfig(installRoot string) error {
+// writePARProcmgrConfigs installs the split control-plane and executor definitions.
+// They are unconditional so split mode can be enabled without reinstalling.
+func writePARProcmgrConfigs(installRoot string) error {
+	return errors.Join(
+		writePARProcmgrConfig(installRoot, parControlProcmgrConfigName, embedded.PARControlProcessConfig),
+		writePARProcmgrConfig(installRoot, parExecutorProcmgrConfigName, embedded.PARExecutorProcessConfig),
+	)
+}
+
+func writePARProcmgrConfig(installRoot, name, config string) error {
 	processesDir := filepath.Join(installRoot, "processes.d")
-	config := strings.ReplaceAll(embedded.PARExecutorProcessConfig, "/opt/datadog-agent", installRoot)
+	config = strings.ReplaceAll(config, "/opt/datadog-agent", installRoot)
 	if err := os.MkdirAll(processesDir, 0755); err != nil {
-		return fmt.Errorf("failed to write PAR executor procmgr config: %w", err)
+		return fmt.Errorf("failed to create processes.d for %s: %w", name, err)
 	}
-	path := filepath.Join(processesDir, parExecutorProcmgrConfigName)
-	return os.WriteFile(path, []byte(config), 0644)
+	path := filepath.Join(processesDir, name)
+	if err := os.WriteFile(path, []byte(config), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+	return nil
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -368,8 +384,8 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to write DDOT process manager config: %v", err)
 	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
+	if err := writePARProcmgrConfigs(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR process manager configs: %v", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -484,8 +500,8 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
+	if err := writePARProcmgrConfigs(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR process manager configs: %v", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
@@ -534,8 +550,8 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
 	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
+	if err := writePARProcmgrConfigs(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR process manager configs: %v", err)
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx

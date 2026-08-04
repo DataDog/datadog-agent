@@ -17,6 +17,9 @@ type Component interface {
 // ErrNotEnabled is returned when the private action runner is not enabled
 var ErrNotEnabled = errors.New("private action runner is not enabled")
 
+// ErrSplitDeployment tells the monolithic runner to exit while par-control owns polling.
+var ErrSplitDeployment = errors.New("private action runner is running in split deployment mode")
+
 // Configuration keys for the private action runner.
 // Duplicated from pkg/config/setup/privateactionrunner.go because comp/
 // packages cannot import pkg/config/setup (depguard rule).
@@ -31,4 +34,5 @@ const (
 	PARDefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
 
 	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
+	PARSplitEnabled       = "private_action_runner.split_enabled"
 )
