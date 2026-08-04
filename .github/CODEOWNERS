@@ -272,6 +272,7 @@
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/  @DataDog/network-path
+/cmd/agent/dist/conf.d/network_config_management.d/  @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/orchestrator_ecs.d/  @DataDog/ecs-experiences
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring-core
