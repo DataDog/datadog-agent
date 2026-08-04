@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -954,6 +955,23 @@ func TestQueuedCgroupKillStillKillsTheWholeCgroupAtOnce(t *testing.T) {
 	report.RLock()
 	assert.Equal(t, KillActionStatusPerformed, report.Status)
 	report.RUnlock()
+}
+
+func TestGroupPendingKillsDropsBatchesLeftEmptyByDeduplication(t *testing.T) {
+	// The same pid can be queued under two different cgroups, for instance if a process migrated
+	// during the warmup window. Deduplication then leaves the second cgroup with no pid at all,
+	// and killing it would take down a whole cgroup with nothing to report as killed.
+	shared := killContext{pid: 100, path: "executable1"}
+	reports := []*KillActionReport{
+		{cgroupTarget: cgroupKillTarget{id: "/kubepods/podA", inode: 1}, pendingKills: []killContext{shared}},
+		{cgroupTarget: cgroupKillTarget{id: "/kubepods/podB", inode: 2}, pendingKills: []killContext{shared}},
+	}
+
+	batches := groupPendingKillsByCgroup(reports)
+
+	require.Len(t, batches, 1, "the cgroup left without any pid must not be killed")
+	assert.Equal(t, containerutils.CGroupID("/kubepods/podA"), batches[0].target.id)
+	assert.Equal(t, []killContext{shared}, batches[0].kcs)
 }
 
 func TestIsKillAllowed(t *testing.T) {
