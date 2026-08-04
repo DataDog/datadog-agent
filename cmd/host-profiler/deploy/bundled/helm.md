@@ -137,4 +137,15 @@ existingClusterAgent:
   tokenSecretName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
 ```
 
+- If you use `datadog.autoscaling.workload.enabled`, `datadog.instrumentationCrd.enabled`, or `clusterAgent.metricsProvider.useDatadogMetrics` on the second release, disable the `datadog-crds` subchart so it doesn't try to create CRDs already owned by the primary release:
+
+```yaml
+datadog-crds:
+  crds:
+    datadogMetrics: false
+    datadogPodAutoscalers: false
+    datadogPodAutoscalerClusterProfiles: false
+    datadogInstrumentations: false
+```
+
 See the [Datadog Helm chart values](https://github.com/DataDog/helm-charts/blob/main/charts/datadog/values.yaml) for the full field list.
