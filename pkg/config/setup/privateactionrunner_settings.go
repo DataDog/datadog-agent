@@ -34,7 +34,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"other":   "${run_path}/par-executor.sock",
 	}))
 
-	// Enables the Rust control plane and on-demand Go executor on supported platforms.
+	// Enables the Rust control plane and on-demand Go executor on Linux.
 	config.BindEnvAndSetDefault("private_action_runner.split_enabled", false)
 
 	// Control-plane settings consumed by par-control.
