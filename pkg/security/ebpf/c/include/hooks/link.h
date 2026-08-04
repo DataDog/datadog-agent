@@ -146,6 +146,15 @@ int rethook___lookup_hash(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
 }
 
+// lookup_one_qstr_excl replaces __lookup_hash on upstream >= 6.5 and on el9
+// z-streams that backported the rename. Same return value semantics — the
+// resolved target dentry — so we route it through the same origin so the
+// overlayfs-aware state machine (see comment above) still picks "last call".
+HOOK_EXIT("lookup_one_qstr_excl")
+int rethook_lookup_one_qstr_excl(ctx_t *ctx) {
+    return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
+}
+
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         pop_syscall(EVENT_LINK);

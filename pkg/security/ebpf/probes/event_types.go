@@ -449,10 +449,12 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_complete_walk"),
 				// target dentry
 				// __filename_create is the pre-5.15 (and some el9 z-stream) symbol name for filename_create
+				// lookup_one_qstr_excl is the >=6.5 (and some el9 z-stream) replacement for __lookup_hash
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					hookFunc("rethook_filename_create"),
 					hookFunc("rethook___filename_create"),
 					hookFunc("rethook___lookup_hash"),
+					hookFunc("rethook_lookup_one_qstr_excl"),
 				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", hasFentry, EntryAndExit)},
