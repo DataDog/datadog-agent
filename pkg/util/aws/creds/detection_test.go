@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
 
@@ -314,4 +315,85 @@ func TestDetectAWSCredentialSourceNoSource(t *testing.T) {
 	assert.Contains(t, err.Error(), "AWS_WEB_IDENTITY_TOKEN_FILE")
 	assert.Contains(t, err.Error(), "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
 	assert.Contains(t, err.Error(), "IMDS")
+}
+
+func TestIncompleteAWSCredentialEnv(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{name: "nothing set", env: nil, want: ""},
+		{
+			name: "complete static pair is not incomplete",
+			env:  map[string]string{"AWS_ACCESS_KEY_ID": "AKID", "AWS_SECRET_ACCESS_KEY": "SECRET"},
+			want: "",
+		},
+		{
+			name: "access key without secret",
+			env:  map[string]string{"AWS_ACCESS_KEY_ID": "AKID"},
+			want: "AWS_ACCESS_KEY_ID is set but AWS_SECRET_ACCESS_KEY is not",
+		},
+		{
+			name: "secret without access key",
+			env:  map[string]string{"AWS_SECRET_ACCESS_KEY": "SECRET"},
+			want: "AWS_SECRET_ACCESS_KEY is set but AWS_ACCESS_KEY_ID is not",
+		},
+		{
+			name: "complete IRSA pair is not incomplete",
+			env:  map[string]string{"AWS_ROLE_ARN": "arn:aws:iam::1:role/r", "AWS_WEB_IDENTITY_TOKEN_FILE": "/t"},
+			want: "",
+		},
+		{
+			name: "role arn without token file",
+			env:  map[string]string{"AWS_ROLE_ARN": "arn:aws:iam::1:role/r"},
+			want: "AWS_ROLE_ARN is set but AWS_WEB_IDENTITY_TOKEN_FILE is not",
+		},
+		{
+			name: "token file without role arn",
+			env:  map[string]string{"AWS_WEB_IDENTITY_TOKEN_FILE": "/t"},
+			want: "AWS_WEB_IDENTITY_TOKEN_FILE is set but AWS_ROLE_ARN is not",
+		},
+		{
+			// Either container variable alone is a complete configuration, so neither counts.
+			name: "container relative uri alone is complete",
+			env:  map[string]string{"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": "/v2/creds"},
+			want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			isolateAWSCredentialEnv(t)
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			assert.Equal(t, tc.want, IncompleteAWSCredentialEnv())
+		})
+	}
+}
+
+// An operator who excludes aws from cloud_provider_metadata has asked the Agent not to contact
+// IMDS. Detection's IMDS fallback reaches DoHTTPRequest directly, so without an explicit check it
+// would probe the endpoint anyway.
+func TestDetectAWSCredentialSourceHonorsCloudProviderMetadata(t *testing.T) {
+	isolateAWSCredentialEnv(t)
+	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n  - azure\n")
+
+	source, err := DetectAWSCredentialSource(context.Background())
+	require.Error(t, err)
+	assert.Empty(t, source)
+	assert.ErrorIs(t, err, ec2internal.ErrCloudProviderDisabled)
+}
+
+// The env-based sources are pure environment inspection and make no request, so the opt-out must
+// not suppress them.
+func TestDetectAWSCredentialSourceEnvSourcesIgnoreCloudProviderMetadata(t *testing.T) {
+	isolateAWSCredentialEnv(t)
+	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n")
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "SECRET")
+
+	source, err := DetectAWSCredentialSource(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, SourceEnvironment, source)
 }

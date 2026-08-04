@@ -33,6 +33,31 @@ func HasAWSContainerCredentialsInEnvironment() bool {
 		os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI") != ""
 }
 
+// IncompleteAWSCredentialEnv describes a credential mechanism whose environment variables are only
+// half set, or returns "" when none is. The static and IRSA predicates above require both variables
+// of their pair, so a half-configured mechanism is skipped and a lower-precedence one is used
+// instead. That fall-through is deliberate: erroring would turn an unrelated stray variable in the
+// environment into an authentication outage. But it should not be silent, because the operator ends
+// up authenticating as a different principal than they configured, and nothing else in the logs
+// would say so.
+//
+// AWS_CONTAINER_CREDENTIALS_RELATIVE_URI / _FULL_URI are not checked: either alone is a complete
+// configuration, which is why their predicate uses OR.
+func IncompleteAWSCredentialEnv() string {
+	set := func(k string) bool { return os.Getenv(k) != "" }
+	switch {
+	case set("AWS_ACCESS_KEY_ID") && !set("AWS_SECRET_ACCESS_KEY"):
+		return "AWS_ACCESS_KEY_ID is set but AWS_SECRET_ACCESS_KEY is not"
+	case set("AWS_SECRET_ACCESS_KEY") && !set("AWS_ACCESS_KEY_ID"):
+		return "AWS_SECRET_ACCESS_KEY is set but AWS_ACCESS_KEY_ID is not"
+	case set("AWS_ROLE_ARN") && !set("AWS_WEB_IDENTITY_TOKEN_FILE"):
+		return "AWS_ROLE_ARN is set but AWS_WEB_IDENTITY_TOKEN_FILE is not"
+	case set("AWS_WEB_IDENTITY_TOKEN_FILE") && !set("AWS_ROLE_ARN"):
+		return "AWS_WEB_IDENTITY_TOKEN_FILE is set but AWS_ROLE_ARN is not"
+	}
+	return ""
+}
+
 // Credential source names reported by DetectAWSCredentialSource. They describe the mechanism that
 // will supply credentials, not the provider implementation that resolves them.
 const (
@@ -64,6 +89,16 @@ func DetectAWSCredentialSource(ctx context.Context) (string, error) {
 	// ECS task role or EKS Pod Identity container credentials
 	if HasAWSContainerCredentialsInEnvironment() {
 		return SourceContainer, nil
+	}
+
+	// Only the IMDS leg contacts the network, and it is the one an operator can forbid: honor
+	// cloud_provider_metadata before probing. GetInstanceIdentity reaches DoHTTPRequest directly
+	// rather than going through GetMetadataItem, so the check does not happen for us.
+	if err := ec2internal.CheckCloudProviderEnabled(); err != nil {
+		return "", fmt.Errorf("no AWS credential source found: AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, "+
+			"AWS_ROLE_ARN+AWS_WEB_IDENTITY_TOKEN_FILE (IRSA) and "+
+			"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI/_FULL_URI (ECS/EKS Pod Identity) are all unset, "+
+			"and the EC2 IMDS fallback is not permitted: %w", err)
 	}
 
 	// Try to fetch instance identity document using ImdsAllVersions

@@ -50,6 +50,15 @@ const (
 	// containerCredentialsMaxResponseBytes bounds the credential document read. The real document is
 	// a few hundred bytes; this leaves generous headroom while capping a misbehaving endpoint.
 	containerCredentialsMaxResponseBytes = 64 << 10
+	// containerCredentialsMaxAttempts and containerCredentialsRetryBudget bound the retries for a
+	// transient container-credential failure. The endpoint is link-local, so a healthy one answers in
+	// single-digit milliseconds and a genuinely transient blip clears well inside the budget; the
+	// budget in turn keeps a stalled endpoint from multiplying containerCredentialsTimeout.
+	containerCredentialsMaxAttempts = 3
+	containerCredentialsRetryBudget = 3 * time.Second
+	// containerCredentialsRetryDelay spaces the retries. Fixed rather than exponential: the whole
+	// sequence is capped at containerCredentialsRetryBudget, so backing off adds no headroom.
+	containerCredentialsRetryDelay = 200 * time.Millisecond
 )
 
 // resolveCredentials selects the AWS credential provider matching the runtime
@@ -120,6 +129,15 @@ func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider aws.Crede
 // credentials (ECS / EKS Pod Identity), then EC2 IMDS instance role. It also returns the name of
 // the mechanism it selected, so callers can attribute a failure to the one leg that was tried.
 func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, string, error) {
+	// A half-configured mechanism is skipped rather than treated as an error, so the selection below
+	// silently lands on a lower-precedence source and the proof gets signed as a different principal.
+	// Say so, otherwise the only symptom is telemetry attributed to an unexpected identity.
+	if incomplete := creds.IncompleteAWSCredentialEnv(); incomplete != "" {
+		log.Warnf("delegated auth: %s, so that credential source is incomplete and was skipped; "+
+			"falling back to the next source in the AWS precedence order. Set both variables if you "+
+			"intended to use it.", incomplete)
+	}
+
 	switch {
 	case creds.HasAWSCredentialsInEnvironment():
 		return staticProvider{aws.Credentials{
@@ -370,24 +388,66 @@ type containerProvider struct {
 	token func() (string, error)
 }
 
-// Retrieve fetches and decodes the container credential document.
+// Retrieve fetches the container credential document, retrying a transient failure a few times
+// before giving up.
+//
+// The retries matter because the caller's fallback is slow: a failed fetch propagates to the
+// delegated-auth refresh loop, whose backoff starts at delegated_auth.refresh_interval_mins (60 by
+// default), so without them one transient response at startup leaves the Agent with no API key for
+// about an hour. credentials/endpointcreds, which this provider replaced, got equivalent retries
+// from the SDK's standard retryer.
+//
+// Attempts are bounded by both a count and an elapsed budget. The budget is what keeps this from
+// trading the hour-long outage for a startup stall: containerCredentialsTimeout is per attempt, so
+// against a wedged endpoint the first attempt alone exhausts the budget and Retrieve returns after
+// one timeout rather than three.
 func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	deadline := time.Now().Add(containerCredentialsRetryBudget)
+
+	var lastErr error
+	for attempt := 1; attempt <= containerCredentialsMaxAttempts; attempt++ {
+		c, retryable, err := p.retrieveOnce(ctx)
+		if err == nil {
+			return c, nil
+		}
+		lastErr = err
+
+		if !retryable || attempt == containerCredentialsMaxAttempts || !time.Now().Before(deadline) {
+			break
+		}
+		log.Debugf("container credentials attempt %d failed, retrying: %v", attempt, err)
+
+		select {
+		case <-ctx.Done():
+			return aws.Credentials{}, ctx.Err()
+		case <-time.After(containerCredentialsRetryDelay):
+		}
+	}
+	return aws.Credentials{}, lastErr
+}
+
+// retrieveOnce performs a single fetch. The bool reports whether the failure looks transient, which
+// is the same set credentials/endpointcreds retried through the SDK retryer: connection-level
+// errors, 5xx, and 429. A non-2xx outside that set (ex: 403 from a wrong authorization token) is a
+// configuration problem that retrying cannot fix, and a malformed document is not transient either.
+func (p *containerProvider) retrieveOnce(ctx context.Context) (aws.Credentials, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint, nil)
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("build container credentials request: %w", err)
+		return aws.Credentials{}, false, fmt.Errorf("build container credentials request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if p.token != nil {
 		token, err := p.token()
 		if err != nil {
-			return aws.Credentials{}, err
+			return aws.Credentials{}, false, err
 		}
 		req.Header.Set("Authorization", token)
 	}
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("container credentials request failed: %w", err)
+		// Connection refused, DNS, TLS, or the per-attempt timeout: all transient from here.
+		return aws.Credentials{}, true, fmt.Errorf("container credentials request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -395,18 +455,15 @@ func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, erro
 	// not be able to make the Agent allocate without bound.
 	body, err := io.ReadAll(io.LimitReader(resp.Body, containerCredentialsMaxResponseBytes))
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("read container credentials response: %w", err)
+		// A truncated body is usually the connection dropping mid-response.
+		return aws.Credentials{}, true, fmt.Errorf("read container credentials response: %w", err)
 	}
 	// Accept any 2xx, as credentials/endpointcreds does. The endpoint is documented to answer 200,
 	// but matching the reference implementation's range avoids rejecting a valid credential document
 	// over a status code we did not anticipate.
-	//
-	// One behavior is deliberately not carried over: endpointcreds wraps this call in the SDK's
-	// standard retryer (transient network errors, 5xx, and 429). Here a failed fetch propagates to
-	// the delegated-auth refresh loop, which already retries with exponential backoff, matching the
-	// IMDS and web-identity legs, neither of which retries internally either.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return aws.Credentials{}, fmt.Errorf("container credentials endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		retryable := resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests
+		return aws.Credentials{}, retryable, fmt.Errorf("container credentials endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var doc struct {
@@ -415,7 +472,7 @@ func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, erro
 		Token           string `json:"Token"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
-		return aws.Credentials{}, fmt.Errorf("parse container credentials response: %w", err)
+		return aws.Credentials{}, false, fmt.Errorf("parse container credentials response: %w", err)
 	}
 
 	// Blank fields are caught by resolveCredentialsFrom, which reports them against this source.
@@ -424,7 +481,7 @@ func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, erro
 		SecretAccessKey: doc.SecretAccessKey,
 		SessionToken:    doc.Token,
 		Source:          "DelegatedAuthContainer",
-	}, nil
+	}, false, nil
 }
 
 // containerCredentialsHTTPClient returns an HTTP client that never uses a proxy. The supported

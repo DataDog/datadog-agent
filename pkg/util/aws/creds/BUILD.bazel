@@ -21,6 +21,7 @@ dd_agent_go_test(
     data = ["tags/payloads/security_cred.json"],
     embed = [":creds"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/util/aws/creds/internal",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

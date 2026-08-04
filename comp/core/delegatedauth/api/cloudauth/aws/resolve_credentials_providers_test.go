@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -561,4 +562,106 @@ func TestContainerProvider_Retrieve_ResponseIsBounded(t *testing.T) {
 	_, err := p.Retrieve(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse container credentials response")
+}
+
+// The container endpoint's failures are retried in-provider because the caller's fallback is the
+// delegated-auth refresh loop, whose backoff starts at refresh_interval_mins (60 by default). A
+// single transient response must not cost an hour without an API key.
+func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
+	t.Run("retries a 503 and then succeeds", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if atomic.AddInt32(&calls, 1) == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			w.Write([]byte(`{"AccessKeyId":"AKID","SecretAccessKey":"SECRET"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		got, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "AKID", got.AccessKeyID)
+		assert.Equal(t, int32(2), atomic.LoadInt32(&calls), "should have retried exactly once")
+	})
+
+	t.Run("retries a 429", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if atomic.AddInt32(&calls, 1) == 1 {
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	})
+
+	// A 4xx other than 429 is a configuration problem (ex: a wrong authorization token). Retrying
+	// cannot fix it and would only delay the error.
+	t.Run("does not retry a 403", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "403")
+		assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "a 403 must not be retried")
+	})
+
+	// A malformed document is not transient either.
+	t.Run("does not retry an unparseable body", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.Write([]byte("not json"))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	})
+
+	t.Run("gives up after the attempt cap and returns the last error", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusBadGateway)
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "502")
+		assert.Equal(t, int32(containerCredentialsMaxAttempts), atomic.LoadInt32(&calls))
+	})
+
+	t.Run("stops immediately when the context is cancelled", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		cancel()
+		_, err := p.Retrieve(ctx)
+		require.Error(t, err)
+	})
 }
