@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -27,11 +28,11 @@ const (
 	procmgrSocket      = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 )
 
-type linuxPARSplitLifecycleSuite struct {
+type linuxPARSplitSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestLinuxPARSplitLifecycleSuite(t *testing.T) {
+func TestLinuxPARSplitSuite(t *testing.T) {
 	t.Parallel()
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	config := fmt.Sprintf(`private_action_runner:
@@ -40,54 +41,86 @@ func TestLinuxPARSplitLifecycleSuite(t *testing.T) {
   self_enroll: false
   urn: %s
   private_key: %s
-`, urn, privateKey)
+  idle_timeout_seconds: 5
+  actions_allowlist:
+    - %s
+`, urn, privateKey, runCommandAction)
 
-	e2e.Run(t, &linuxPARSplitLifecycleSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &linuxPARSplitSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(config),
+					agentparams.WithFile(
+						"/etc/datadog-agent/environment",
+						"DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true\n",
+						true,
+					),
+				),
 			),
 		),
 	))
 }
 
-// TestControlStartsExecutor proves that the package contains both process
-// definitions and that dd-procmgrd starts par-control, which in turn starts the
-// otherwise on-demand executor.
-func (s *linuxPARSplitLifecycleSuite) TestControlStartsExecutor() {
+func (s *linuxPARSplitSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// The split control plane must be the OPMS poller, while the expensive Go
+	// executor is reclaimed after startup pre-warm.
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		count, err := s.Env().FakeIntake.Client().GetPARDequeueCount()
+		assert.NoError(c, err)
+		assert.Greater(c, count, 0, "par-control has not polled fakeintake")
+	}, 2*time.Minute, 2*time.Second)
+	s.waitForProcessState(parExecutorProcess, "Stopped", 2*time.Minute)
 }
 
-// TestControlStopsWithoutReenteringSupervisor proves that par-control exits
-// promptly on SIGTERM instead of making a nested Stop RPC that blocks behind
-// dd-procmgrd's in-progress stop operation. The executor remains owned by the
-// supervisor; polling-informed idle reaping is tested in the full-stack slice.
-func (s *linuxPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervisor() {
-	started := time.Now()
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 30s timeout")
-	defer func() {
-		s.Require().NoError(s.runProcmgr("start", parControlProcess))
-		s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-	}()
-
-	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessState(parExecutorProcess, "Running", 10*time.Second)
+// TestSplitRunnerReportsLivenessToOPMS proves the always-on control plane runs
+// the runner health-check loop the Go monolith owns via its CommonRunner. In
+// split mode the monolith stands down, so if par-control did not health-check,
+// the only OPMS traffic from an idle host would be task polling and the runner's
+// liveness signal would disappear for every split-mode deployment. The interval
+// is a fixed 30s contract (healthCheckInterval in the Go config constants), so
+// the wait budget covers at least two intervals.
+func (s *linuxPARSplitSuite) TestSplitRunnerReportsLivenessToOPMS() {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		count, err := s.Env().FakeIntake.Client().GetPARHealthCheckCount()
+		assert.NoError(c, err)
+		assert.Greater(c, count, 0, "par-control never sent an OPMS runner health check")
+	}, 90*time.Second, 5*time.Second)
 }
 
-func (s *linuxPARSplitLifecycleSuite) runProcmgr(command, name string) error {
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo %s --socket %s %s %s",
-		procmgrCLI,
-		procmgrSocket,
-		command,
-		name,
-	))
-	return err
+func (s *linuxPARSplitSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	if !s.IsDevMode() {
+		s.Require().NoError(s.Env().FakeIntake.Client().FlushPAR())
+	}
 }
 
-func (s *linuxPARSplitLifecycleSuite) waitForProcessState(name, state string, timeout time.Duration) {
+// TestSplitRunnerStartsExecutorOnDemand proves the packaged process-manager
+// definitions, Rust control plane, local gRPC transport, and Go executor work
+// together. The executor begins stopped, runs one real action, publishes the
+// result to fakeintake, and is reclaimed again after the idle timeout.
+func (s *linuxPARSplitSuite) TestSplitRunnerStartsExecutorOnDemand() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo par-split-e2e",
+		"allowedCommands": []string{"rshell:echo"},
+	})
+	s.Require().NoError(err)
+
+	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, 2*time.Minute)
+	s.Require().NoError(err)
+	s.Require().True(result.Success, "split PAR action failed: %+v", result)
+	s.Require().Equal(0, rshellExitCode(result), "unexpected rshell result: %+v", result)
+	assert.Contains(s.T(), result.Outputs["stdout"], "par-split-e2e")
+
+	s.waitForProcessState(parExecutorProcess, "Stopped", 2*time.Minute)
+}
+
+func (s *linuxPARSplitSuite) waitForProcessState(name, state string, timeout time.Duration) {
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
