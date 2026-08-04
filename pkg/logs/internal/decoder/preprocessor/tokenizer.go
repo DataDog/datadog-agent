@@ -16,8 +16,11 @@ import (
 const maxRun = 10
 
 // maxSpecialTokenLen and the special-token/debug-string tables are generated
-// from the master list in gen_token_tables.go into token_tables_gen.go.
-//go:generate go run gen_token_tables.go
+// from the master list in gentokentables/main.go into token_tables_gen.go.
+// `bazel run //pkg/logs/internal/decoder/preprocessor:token_tables` is
+// equivalent, and its companion :token_tables_test fails if the committed file
+// is stale.
+//go:generate go run ./gentokentables -output token_tables_gen.go
 
 // Clearing the ASCII case bit uppercases letters. The wider masks apply the
 // same operation to several packed bytes at once.

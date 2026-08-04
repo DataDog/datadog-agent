@@ -3,22 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ignore
-
-// Command gen_token_tables generates token_tables_gen.go from the master token
-// list below: the SWAR keyword matcher (getSpecialToken), tokenToString,
-// isImportant, and the special-character lookup. Edit the lists here and run
-// `go generate ./...` — do not hand-edit the generated file.
+// Command gentokentables generates the preprocessor's token_tables_gen.go from
+// the master token list below: the SWAR keyword matcher (getSpecialToken),
+// tokenToString, isImportant, and the special-character lookup. Edit the lists
+// here and run `go generate ./pkg/logs/internal/decoder/preprocessor` (or
+// `bazel run //pkg/logs/internal/decoder/preprocessor:token_tables`) — do not
+// hand-edit the generated file.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/format"
 	"log"
 	"os"
 	"strconv"
 	"strings"
-	"text/template"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 // keywordToken is a token matched from one or more case-insensitive keywords.
@@ -77,6 +79,9 @@ var charTokens = []charToken{
 const maxKeyword = 9
 
 func main() {
+	output := flag.String("output", "token_tables_gen.go", "path of the generated file to write")
+	flag.Parse()
+
 	maxLen := 0
 	for _, kt := range keywordTokens {
 		for _, kw := range kt.Keywords {
@@ -100,7 +105,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("format generated source: %v\n----\n%s", err, b.String())
 	}
-	if err := os.WriteFile("token_tables_gen.go", src, 0644); err != nil {
+	if err := os.WriteFile(*output, src, 0644); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -238,7 +243,10 @@ func genGetSpecialToken(b *strings.Builder, maxLen int) {
 			lengths = append(lengths, genLen{N: L, Fold: foldExpr(L), Arms: arms})
 		}
 	}
-	template.Must(template.New("getSpecialToken").Parse(getSpecialTokenTmpl)).Execute(b, lengths)
+	tmpl := template.Must(template.New("getSpecialToken").Parse(getSpecialTokenTmpl))
+	if err := tmpl.Execute(b, lengths); err != nil {
+		log.Fatalf("execute getSpecialToken template: %v", err)
+	}
 }
 
 // genTokenMeta emits the display string and severity of each named token as a
