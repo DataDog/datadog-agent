@@ -65,7 +65,7 @@ fn computer_sid() -> Result<Vec<u8>> {
         .with_context(|| format!("lookup SID for {computer_name}"))
 }
 
-fn computer_name() -> Result<String> {
+pub(crate) fn computer_name() -> Result<String> {
     let mut buffer = [0u16; 16];
     let mut size = buffer.len() as u32;
     let ok = unsafe { GetComputerNameW(buffer.as_mut_ptr(), &mut size) };
