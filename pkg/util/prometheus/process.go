@@ -177,6 +177,13 @@ func ProcessMetrics(data []byte, contentType string, cfg *ProcessConfig) ([]Proc
 		return nil, err
 	}
 
+	// Strip _total suffix from counter family names to match Python prometheus_client behavior.
+	for i := range families {
+		if families[i].Type == "COUNTER" {
+			families[i].Name = trimCounterSuffix(families[i].Name)
+		}
+	}
+
 	// Phase 1: strip prefix and collect shared labels
 	for i := range families {
 		if cc.rawMetricPrefix != "" && strings.HasPrefix(families[i].Name, cc.rawMetricPrefix) {

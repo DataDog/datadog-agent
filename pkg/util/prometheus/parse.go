@@ -120,16 +120,9 @@ func ParseMetricsWithFilter(data []byte, filter []string, contentType string) ([
 				result = result[:len(result)-1]
 			}
 			name, typ := parser.Type()
-			familyName := string(name)
-			upperType := strings.ToUpper(string(typ))
-			// Strip _total suffix from counter family names to match
-			// Python prometheus_client behavior (>= 0.14).
-			if upperType == "COUNTER" {
-				familyName = trimCounterSuffix(familyName)
-			}
 			result = append(result, MetricFamily{
-				Name:    familyName,
-				Type:    upperType,
+				Name:    string(name),
+				Type:    strings.ToUpper(string(typ)),
 				Samples: make([]Sample, 0, 8),
 			})
 
@@ -146,7 +139,11 @@ func ParseMetricsWithFilter(data []byte, filter []string, contentType string) ([
 
 			// Fast path: check if raw name matches current family (common for COUNTER/GAUGE)
 			if len(result) == 0 || result[len(result)-1].Name != rawName {
-				// Slow path: try trimming suffix based on current family type
+				// Slow path: try trimming suffix based on current family type.
+				// For COUNTER this handles OpenMetrics format where the TYPE line uses
+				// the base name (e.g. "foo") but series are named "foo_total".
+				// For HISTOGRAM/SUMMARY, sub-series (_bucket, _sum, _count) must be
+				// mapped back to the base family name.
 				name := rawName
 				if len(result) > 0 {
 					switch result[len(result)-1].Type {
@@ -207,10 +204,17 @@ func ParseMetrics(data []byte) ([]MetricFamily, error) {
 
 // ParseMetricsToJSON parses prometheus-formatted metrics and returns the result as a JSON string.
 // This is used by the Python check bridge to avoid Python-side parsing overhead.
+// Counter family names have their _total suffix stripped to match Python prometheus_client (>= 0.14).
 func ParseMetricsToJSON(data []byte, contentType string) (string, error) {
 	families, err := ParseMetricsWithFilter(data, nil, contentType)
 	if err != nil {
 		return "", err
+	}
+	// Strip _total suffix from counter family names to match Python prometheus_client behavior.
+	for i := range families {
+		if families[i].Type == "COUNTER" {
+			families[i].Name = trimCounterSuffix(families[i].Name)
+		}
 	}
 	out, err := json.Marshal(families)
 	if err != nil {
