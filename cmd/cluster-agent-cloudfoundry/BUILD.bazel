@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "CLUSTER_AGENT_TAGS", "COMMON_TAGS")
+load("//tasks:build_tags.bzl", "CLUSTER_AGENT_TAGS")
 
 go_library(
     name = "cluster-agent-cloudfoundry_lib",
@@ -105,7 +105,7 @@ go_library(
 dd_agent_go_binary(
     name = "cluster-agent-cloudfoundry",
     embed = [":cluster-agent-cloudfoundry_lib"],
-    gotags = sorted(COMMON_TAGS | CLUSTER_AGENT_TAGS),
+    gotags = CLUSTER_AGENT_TAGS,
     target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )
