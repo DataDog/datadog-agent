@@ -649,10 +649,9 @@ process_config:
 
     #[test]
     fn lookup_dotted_key_is_case_insensitive() {
-        let yaml: serde_yaml::Value = serde_yaml::from_str(
-            "process_config:\n  Process_Collection:\n    enabled: true\n",
-        )
-        .unwrap();
+        let yaml: serde_yaml::Value =
+            serde_yaml::from_str("process_config:\n  Process_Collection:\n    enabled: true\n")
+                .unwrap();
         assert_eq!(
             lookup_dotted_key(&yaml, "process_config.process_collection.enabled"),
             Some(&serde_yaml::Value::Bool(true))
