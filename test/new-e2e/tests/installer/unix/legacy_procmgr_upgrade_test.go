@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -21,7 +20,8 @@ import (
 )
 
 const (
-	legacyProcmgrUnit = "datadog-agent-procmgrd.service"
+	legacyProcmgrUnit            = "datadog-agent-procmgrd.service"
+	legacyProcmgrBaselineRegistry = "install.datadoghq.com.internal.dda-testing.com"
 )
 
 type legacyProcmgrUpgradeSuite struct {
@@ -63,10 +63,15 @@ func (s *legacyProcmgrUpgradeSuite) TestLegacyProcmgrUpgradeContinuesOnRetiremen
 	defer s.Purge()
 
 	s.requireSELinuxEnforcing()
-	s.installProductionAgent(legacyProcmgrStableAgentVersion())
+	s.installLegacyProcmgrBaseline(legacyProcmgrStableAgentVersion())
 
 	if _, err := s.Env().RemoteHost.Execute("systemctl cat " + legacyProcmgrUnit); err != nil {
-		s.T().Skipf("stable agent %s does not ship %s", legacyProcmgrStableAgentVersion(), legacyProcmgrUnit)
+		s.T().Fatalf(
+			"baseline agent %s must ship %s (install via pinned fleet OCI %s-1)",
+			legacyProcmgrStableAgentVersion(),
+			legacyProcmgrUnit,
+			legacyProcmgrStableAgentVersion(),
+		)
 	}
 
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, legacyProcmgrUnit)
@@ -99,20 +104,26 @@ func (s *legacyProcmgrUpgradeSuite) requireSELinuxEnforcing() {
 	}
 }
 
-func (s *legacyProcmgrUpgradeSuite) installProductionAgent(version string) {
-	env := map[string]string{
-		"DD_API_KEY": GetAPIKey(),
-		"DD_SITE":    "datadoghq.com",
+func (s *legacyProcmgrUpgradeSuite) installLegacyProcmgrBaseline(version string) {
+	packages := make([]TestPackageConfig, len(PackagesConfig))
+	copy(packages, PackagesConfig)
+	for i := range packages {
+		if packages[i].Name != "datadog-agent" {
+			continue
+		}
+		packages[i].Version = version + "-1"
+		packages[i].Registry = legacyProcmgrBaselineRegistry
 	}
-	cmd := fmt.Sprintf(
-		"agent_version=%s bash -c \"$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)\"",
-		version,
+
+	env := InstallScriptEnvWithPackages(s.arch, packages)
+	_, err := s.Env().RemoteHost.Execute(
+		`DD_REMOTE_UPDATES=true bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`,
+		client.WithEnvVariables(env),
 	)
-	_, err := s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(env))
 	require.NoErrorf(
 		s.T(),
 		err,
-		"failed to install datadog-agent %s from production; stdout=%s stderr=%s",
+		"failed to install datadog-agent %s baseline from fleet OCI; stdout=%s stderr=%s",
 		version,
 		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"),
 		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"),
