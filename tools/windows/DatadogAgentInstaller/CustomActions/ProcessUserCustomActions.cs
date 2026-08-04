@@ -357,7 +357,8 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Returns the Agent user password from the command line, or the LSA secret store
+        /// Returns the Agent user password from the command line, the installer LSA secret store,
+        /// or the SCM LSA secret for an existing Agent service during upgrade.
         /// </summary>
         private string FetchAgentPassword()
         {
@@ -367,16 +368,36 @@ namespace Datadog.CustomActions
                 return ddAgentUserPassword;
             }
 
+            var agentPasswordKey = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
+
             // If the password is not provided on the command line, try to fetch it from the LSA secret store
             try
             {
-                var keyName = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
-                ddAgentUserPassword = _nativeMethods.FetchSecret(keyName);
+                ddAgentUserPassword = _nativeMethods.FetchSecret(agentPasswordKey);
             }
             catch (Exception e)
             {
                 // Ignore errors, the password may not exist yet
                 _session.Log($"Failed to read Agent password from LSA, using empty string, this is unexpected only during upgrades: {e}");
+            }
+
+            if (string.IsNullOrEmpty(ddAgentUserPassword) &&
+                _serviceController.ServiceExists(Constants.AgentServiceName))
+            {
+                var scmPasswordKey = $"_SC_{Constants.AgentServiceName}";
+                try
+                {
+                    ddAgentUserPassword = _nativeMethods.FetchSecret(scmPasswordKey);
+                    if (!string.IsNullOrEmpty(ddAgentUserPassword))
+                    {
+                        _session.Log(
+                            $"Read Agent password from SCM LSA secret {scmPasswordKey} for upgrade migration");
+                    }
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to read Agent password from SCM LSA secret {scmPasswordKey}: {e}");
+                }
             }
 
             return ddAgentUserPassword;
