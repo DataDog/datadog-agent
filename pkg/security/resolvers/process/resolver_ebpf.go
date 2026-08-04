@@ -1615,6 +1615,14 @@ func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgrou
 
 // UpdateSID updates the SID of the given process cache entry
 func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
+	p.RLock()
+	currSID := pce.SID
+	p.RUnlock()
+
+	if currSID == sid {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
