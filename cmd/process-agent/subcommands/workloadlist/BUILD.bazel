@@ -14,6 +14,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "@com_github_fatih_color//:color",

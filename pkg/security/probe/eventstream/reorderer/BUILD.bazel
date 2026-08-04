@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "reorderer",
@@ -38,11 +39,10 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "reorderer_test",
     srcs = ["reorderer_test.go"],
     embed = [":reorderer"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_cilium_ebpf//perf",

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
@@ -177,7 +178,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}

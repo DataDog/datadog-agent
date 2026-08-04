@@ -18,11 +18,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/rshell/interp"
 )
 
@@ -51,6 +53,20 @@ func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []
 	return task
 }
 
+func makeTaskWithSystemServices(command string, allowedCommands []string, systemServices map[string]*structpb.ListValue) *types.Task {
+	task := makeTask(command, allowedCommands)
+	task.Data.Attributes.SystemInputs.GetRemoteAction().SystemServices = systemServices
+	return task
+}
+
+func systemServiceActions(actions ...string) *structpb.ListValue {
+	values := make([]*structpb.Value, 0, len(actions))
+	for _, action := range actions {
+		values = append(values, structpb.NewStringValue(action))
+	}
+	return &structpb.ListValue{Values: values}
+}
+
 func makeLegacyTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -71,7 +87,7 @@ func makeLegacyTaskWithPaths(command string, allowedCommands []string, allowedPa
 func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
 	return RunCommandHandlerConfig{
 		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
-		OperatorAllowedCommands: []string{setup.RShellCommandAllowAllWildcard},
+		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 	}
 }
 
@@ -111,7 +127,7 @@ func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
 		},
 		{
 			name:    "wildcard token itself is ignored",
-			backend: []string{setup.RShellCommandAllowAllWildcard, "rshell:echo"},
+			backend: []string{rShellCommandAllowAllWildcard, "rshell:echo"},
 			want:    []string{"rshell:echo"},
 		},
 		{
@@ -136,7 +152,7 @@ func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
 }
 
 func TestFilterAllowedCommandsDefaultOperatorPolicyEqualsBackendPolicy(t *testing.T) {
-	backend := []string{"rshell:echo", "rshell:cat", "evil:curl", "rshell:", setup.RShellCommandAllowAllWildcard}
+	backend := []string{"rshell:echo", "rshell:cat", "evil:curl", "rshell:", rShellCommandAllowAllWildcard}
 	handler := newDefaultRunCommandHandler()
 
 	got := handler.filterAllowedCommands(backend)
@@ -171,7 +187,7 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 		},
 		{
 			name:     "agent wildcard leaves backend rshell commands intact",
-			agent:    []string{setup.RShellCommandAllowAllWildcard},
+			agent:    []string{rShellCommandAllowAllWildcard},
 			backend:  []string{"rshell:echo", "evil:cat", "rshell:cat"},
 			expected: []string{"rshell:echo", "rshell:cat"},
 		},
@@ -198,6 +214,136 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFilterAllowedSystemServices(t *testing.T) {
+	tests := []struct {
+		name     string
+		operator map[string][]string
+		backend  map[string]*structpb.ListValue
+		want     []interp.SystemServiceControlGrant
+	}{
+		{
+			name: "missing backend policy denies all",
+		},
+		{
+			name: "unset operator policy passes backend grants through deterministically",
+			backend: map[string]*structpb.ListValue{
+				"nginx.service": systemServiceActions("reload"),
+				"mysql.service": systemServiceActions("restart", "read", "read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+				{Service: "nginx.service", Actions: []interp.SystemServiceAction{"reload"}},
+			},
+		},
+		{
+			name:     "explicit empty operator policy denies all",
+			operator: map[string][]string{},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("read"),
+			},
+		},
+		{
+			name: "operator policy intersects exact service and action names",
+			operator: map[string][]string{
+				"mysql.service": {"reload", "read", "read"},
+				"NGINX.service": {"read"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
+			},
+		},
+		{
+			name: "operator wildcard preserves backend actions for the exact service",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "backend wildcard is narrowed by explicit operator actions",
+			operator: map[string][]string{
+				"mysql.service": {"read", "restart"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "wildcards on both sides remain a wildcard",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{interp.SystemServiceAllActions}},
+			},
+		},
+		{
+			name: "nil and empty backend action lists grant nothing",
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": nil,
+				"nginx.service": {},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+				OperatorAllowedSystemServices: test.operator,
+			})
+
+			got := handler.filterSystemServiceGrants(backendSystemServiceGrants(test.backend))
+
+			if len(test.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, test.want, got)
+			}
+		})
+	}
+}
+
+func TestBackendSystemServiceGrantsIgnoresNonStringActionsWithWarning(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.WarnLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "warn")
+
+	got := backendSystemServiceGrants(map[string]*structpb.ListValue{
+		"mysql.service": {
+			Values: []*structpb.Value{
+				structpb.NewStringValue("read"),
+				structpb.NewNumberValue(1),
+				nil,
+			},
+		},
+	})
+
+	assert.Equal(t, []interp.SystemServiceControlGrant{
+		{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
+	}, got)
+	assert.Contains(t, logBuffer.String(), `ignoring non-string system service action at index 1 for "mysql.service"`)
+	assert.Contains(t, logBuffer.String(), `ignoring non-string system service action at index 2 for "mysql.service"`)
 }
 
 func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
@@ -433,16 +579,28 @@ func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
 func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 	paths := []string{"/var/log", "/etc"}
 	commands := []string{"rshell:zls", "rshell:cat", "rshell:cat"}
+	services := map[string][]string{
+		"mysql.service": {"restart", "read", "read"},
+	}
 	pathsCopy := slices.Clone(paths)
 	commandsCopy := slices.Clone(commands)
+	servicesCopy := map[string][]string{
+		"mysql.service": slices.Clone(services["mysql.service"]),
+	}
 
-	NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    paths,
-		OperatorAllowedCommands: commands,
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          paths,
+		OperatorAllowedCommands:       commands,
+		OperatorAllowedSystemServices: services,
 	})
 
 	assert.Equal(t, pathsCopy, paths, "AgentAllowedPaths input must not be mutated")
 	assert.Equal(t, commandsCopy, commands, "AgentAllowedCommands input must not be mutated")
+	assert.Equal(t, servicesCopy, services, "AgentAllowedSystemServices input must not be mutated")
+
+	services["mysql.service"][0] = "reload"
+	assert.Equal(t, []string{"read", "restart"}, handler.operatorAllowedSystemServices["mysql.service"],
+		"AgentAllowedSystemServices must be copied before being retained")
 }
 
 func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
@@ -551,6 +709,50 @@ func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 0, result.ExitCode)
 	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
+		"mysql.service": systemServiceActions("read", "reboot"),
+	})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+	assert.Contains(t, result.SandboxWarnings,
+		`AllowedSystemServices: skipping unsupported action "reboot" in grant 0 for "mysql.service"`)
+}
+
+func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.DebugLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "debug")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{
+			"mysql.service": {"read"},
+		},
+	})
+	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
+		"nginx.service": systemServiceActions("reload"),
+		"mysql.service": systemServiceActions("restart", "read", "read"),
+	})
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "backendAllowedSystemServices=[{mysql.service [read restart]} {nginx.service [reload]}]")
+	assert.Contains(t, logs, "effectiveAllowedSystemServices=[{mysql.service [read]}]")
 }
 
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
@@ -771,15 +973,22 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
 // actions and that each carries the expected rshell execution mode.
 func TestNewRshellBundleRegistersBothModes(t *testing.T) {
-	bundle := NewRshellBundle(&parconfig.Config{})
+	operatorServices := map[string][]string{
+		"mysql.service": {"read", "restart"},
+	}
+	bundle := NewRshellBundle(&parconfig.Config{
+		RShellAllowedSystemServices: operatorServices,
+	})
 
 	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
 	require.True(t, ok, "runCommand should be registered")
 	assert.Equal(t, interp.ModeReadOnly, runCommand.mode)
+	assert.Equal(t, operatorServices, runCommand.operatorAllowedSystemServices)
 
 	runRemediation, ok := bundle.GetAction("runRemediationCommand").(*RunCommandHandler)
 	require.True(t, ok, "runRemediationCommand should be registered")
 	assert.Equal(t, interp.ModeRemediation, runRemediation.mode)
+	assert.Equal(t, operatorServices, runRemediation.operatorAllowedSystemServices)
 }
 
 // TestRunRemediationCommandAllowsFileRedirect verifies that, in remediation

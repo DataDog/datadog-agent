@@ -186,31 +186,21 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 // This is a regression test. Unset events notified from Replace() had the
 // expected workloadmeta kind but were always of type
 // *workloadmeta.KubernetesPod instead of the expected type. This mismatch
-// caused a panic in workloadmeta filters like the one used in this test
-// (workloadmeta.IsNodeMetadata).
+// caused a panic in workloadmeta filters like the one used in this test.
 func TestReplace(t *testing.T) {
 	t.Parallel()
-	gvr := schema.GroupVersionResource{
-		Group:    "",
-		Version:  "v1",
-		Resource: "nodes",
-	}
 
-	testNodeMetadata := workloadmeta.KubernetesMetadata{
+	testNodeEntity := workloadmeta.KubernetesNode{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   "test-node",
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "test-node",
 		},
-		GVR: &gvr,
 	}
 
 	workloadmetaComponent := mockedWorkloadmeta(t)
-
-	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
-	require.NoError(t, err)
 
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(10*time.Second))
 	defer cancel()
@@ -224,13 +214,7 @@ func TestReplace(t *testing.T) {
 	// the expected type.
 	go func() {
 		defer wg.Done()
-		filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
-			workloadmeta.KindKubernetesMetadata,
-			func(entity workloadmeta.Entity) bool {
-				metadata := entity.(*workloadmeta.KubernetesMetadata)
-				return workloadmeta.IsNodeMetadata(metadata)
-			},
-		).Build()
+		filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesNode).Build()
 
 		wmetaEventsCh := workloadmetaComponent.Subscribe("test-subscriber", workloadmeta.NormalPriority, filter)
 		defer workloadmetaComponent.Unsubscribe(wmetaEventsCh)
@@ -256,12 +240,12 @@ func TestReplace(t *testing.T) {
 		expectedEvents := []workloadmeta.Event{
 			{
 				Type:       workloadmeta.EventTypeSet,
-				Entity:     &testNodeMetadata,
+				Entity:     &testNodeEntity,
 				IsComplete: true,
 			},
 			{
 				Type:       workloadmeta.EventTypeUnset,
-				Entity:     &testNodeMetadata,
+				Entity:     &testNodeEntity,
 				IsComplete: true,
 			},
 		}
@@ -269,13 +253,13 @@ func TestReplace(t *testing.T) {
 		require.ElementsMatch(t, expectedEvents, events)
 	}()
 
-	metadataStore := &reflectorStore{
+	nodeStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
 		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      parser,
+		parser:      kubernetesresourceparsers.NewNodeParser(),
 	}
 
-	partialObjMetadata := metav1.PartialObjectMetadata{
+	testNode := corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-node",
 		},
@@ -289,10 +273,10 @@ func TestReplace(t *testing.T) {
 	// events, and we would not be able to check what we want in this test.
 	<-receivedInitialBundle
 
-	err = metadataStore.Add(&partialObjMetadata)
+	err := nodeStore.Add(&testNode)
 	require.NoError(t, err)
 
-	err = metadataStore.Replace(nil, "")
+	err = nodeStore.Replace(nil, "")
 	require.NoError(t, err)
 
 	wg.Wait()

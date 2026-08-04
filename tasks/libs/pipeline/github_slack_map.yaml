@@ -81,8 +81,8 @@
     name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#fleet-remediation'
-    id: 'C08U2C0GCMV'
+    name: '#fleet-remediation-reviews'
+    id: 'C0BEJRSH57Z'
 '@datadog/agent-integrations':
   notification:
     name: '#agent-integrations'
@@ -293,6 +293,13 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
+'@datadog/fleet-automation':
+  notification:
+    name: '#fleet-automation-monitoring'
+    id: 'C06TZ0APY6Q'
+  review:
+    name: '#fleet-automation'
+    id: 'C05PUSNU4H5'
 '@datadog/gpu-monitoring-agent':
   notification:
     name: '#gpu-monitoring-agent-ops'
@@ -379,11 +386,11 @@
     id: 'C027P1CK07N'
 '@datadog/sensitive-data-scanner':
   notification:
-    name: '#sensitive-data-scanner'
-    id: 'C035A167T0S'
+    name: '#data-security-dev'
+    id: 'C0B1T21VBM1'
   review:
-    name: '#sensitive-data-scanner'
-    id: 'C035A167T0S'
+    name: '#data-security-dev'
+    id: 'C0B1T21VBM1'
 '@datadog/serverless':
   notification:
     name: '#serverless-agent'

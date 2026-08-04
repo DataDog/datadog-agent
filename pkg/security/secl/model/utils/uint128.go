@@ -7,7 +7,9 @@
 package utils
 
 import (
+	"fmt"
 	"math/big"
+	"strconv"
 )
 
 // TraceID is a 128-bit identifier for a trace.
@@ -29,4 +31,22 @@ func (t TraceID) bigInt() *big.Int {
 
 func (t TraceID) String() string {
 	return t.bigInt().String()
+}
+
+// HexString returns the trace ID as lowercase hex.
+//
+// When Hi == 0 (the high half was not collected, e.g. dd-trace-go pprof
+// labels expose only the lower 64 bits), Lo is emitted unpadded so the
+// result is byte-exact for backend pattern searches against the uint64
+// lower half.
+//
+// When Hi != 0 the full 128-bit ID was collected and the result must
+// match the canonical 16-byte form (e.g. APM's 32-char display): Hi is
+// emitted unpadded but Lo is zero-padded to 16 hex chars so leading
+// zeros in Lo — which are part of the real 128-bit ID — are preserved.
+func (t TraceID) HexString() string {
+	if t.Hi == 0 {
+		return strconv.FormatUint(t.Lo, 16)
+	}
+	return fmt.Sprintf("%x%016x", t.Hi, t.Lo)
 }
