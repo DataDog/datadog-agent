@@ -22,7 +22,6 @@ properties:
         - health_check
         - ddflare
         - datadog
-        - cumulativetodelta
         items:
           type: string
         env_parser: comma_and_space_separated

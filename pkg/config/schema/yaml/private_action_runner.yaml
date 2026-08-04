@@ -95,16 +95,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  executor:
-    node_type: section
-    type: object
-    properties:
-      socket_path:
-        node_type: setting
-        type: string
-        platform_default:
-          windows: \\.\pipe\dd-par-executor
-          other: ${run_path}/par-executor.sock
   identity_file_path:
     node_type: setting
     type: string
@@ -165,20 +155,6 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
-      allowed_system_services:
-        node_type: setting
-        type: object
-        default: {}
-        env_parser: json
-        additionalProperties:
-          items:
-            type: string
-          type: array
-        comment: |-
-          Optional local restriction on backend system-service grants. When
-          unset, backend grants pass through; an explicit empty map denies all.
-          The "*" action admits every backend-granted action for an exact service.
-          The environment variable accepts a JSON object only.
   skip_connection_creation:
     node_type: setting
     type: boolean
