@@ -478,6 +478,7 @@
 /comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go        @DataDog/windows-products
 /comp/forwarder/eventplatform/impl/pipelines_datastreams.go            @DataDog/data-streams-monitoring
 /comp/forwarder/eventplatform/impl/pipelines_dataobservability.go      @DataDog/data-observability
+/comp/forwarder/eventplatform/impl/pipelines_datasecurity.go           @DataDog/sensitive-data-scanner
 /comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go      @DataDog/windows-products
 
 /comp/core/agenttelemetry               @DataDog/fleet-remediation
