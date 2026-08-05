@@ -278,8 +278,6 @@ const (
 	parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
 )
 
-// writePARProcmgrConfigs installs the split control-plane and executor definitions.
-// They are unconditional so split mode can be enabled without reinstalling.
 func writePARProcmgrConfigs(installRoot string) error {
 	return errors.Join(
 		writePARProcmgrConfig(installRoot, parControlProcmgrConfigName, embedded.PARControlProcessConfig),
