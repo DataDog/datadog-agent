@@ -25,6 +25,30 @@ else
     echo "Tracing buffer size file not found, skipping"
 fi
 
+## Use expedited RCU grace periods.
+##
+## Detaching a kprobe has to wait for an RCU grace period before the handler can be freed.
+## Normal RCU waits passively for every CPU to pass through a quiescent state, which costs tens
+## of milliseconds; the test suites detach a few hundred probes each time they rebuild their eBPF
+## manager, so that latency multiplies into whole minutes. Expediting trades IPI noise and power
+## for grace periods that are orders of magnitude shorter, which is the right trade for a
+## disposable test VM (and the wrong one for a real host, hence: KMT only, never the agent).
+##
+## Measured on the CWS functional tests: probe detach drops from 7.11s to 0.69s per rebuild on
+## kernel 5.15, and from 34.28s to 20.02s on 6.12. See CWS_KMT_CI_SPEED.md.
+## rcu_normal has to be cleared as well because it takes precedence over rcu_expedited.
+for rcu_knob in rcu_normal:0 rcu_expedited:1; do
+    rcu_path="/sys/kernel/${rcu_knob%%:*}"
+    rcu_value="${rcu_knob##*:}"
+    if [[ -f "${rcu_path}" ]]; then
+        echo "Setting ${rcu_path} to ${rcu_value}"
+        echo "${rcu_value}" > "${rcu_path}" || \
+            echo "Failed to set ${rcu_path}, continuing anyway"
+    else
+        echo "${rcu_path} not found, skipping"
+    fi
+done
+
 # VM provisioning end !
 
 # Start tests
