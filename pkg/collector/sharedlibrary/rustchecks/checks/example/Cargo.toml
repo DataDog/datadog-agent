@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-core = { path = "../../core" }
+shlib_core = { path = "../../core" }
 libc.workspace = true
 
 [lib]
