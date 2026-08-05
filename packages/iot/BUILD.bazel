@@ -22,8 +22,6 @@ pkg_filegroup(
     name = "iot_components",
     srcs = [
         "//packages/agent/iot:all_files",
-        # TODO: //packages/iot/dependencies:all_files
-        # TODO: //packages/install_dir:embedded (iot-specific variant)
     ],
     prefix = "/opt/datadog-agent",
 )
