@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -544,6 +545,13 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 	return policyDef
 }
 
+// isProcRootGone reports whether err is the expected outcome of reaching for the proc root of a
+// process that is exiting: the entry is already reaped (ENOENT) or the task has dropped its
+// address space and the kernel no longer resolves it (ESRCH).
+func isProcRootGone(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
+}
+
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	var (
 		lastErr error
@@ -569,6 +577,9 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 		if sbom.ContainerID != "" {
 			stat, err := utils.UnixStat(containerProcRootPath)
 			if err != nil {
+				if isProcRootGone(err) {
+					continue
+				}
 				return nil, fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
 			}
 			if stat.Dev == r.hostRootDevice {
@@ -578,9 +589,13 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
 			sbom.usrMerged = isUsrMerged(containerProcRootPath)
-			sbom.setReport(report)
 			scanned = true
 			break
+		}
+
+		if isProcRootGone(lastErr) {
+			lastErr = nil
+			continue
 		}
 
 		seclog.Errorf("couldn't generate SBOM: %v", lastErr)

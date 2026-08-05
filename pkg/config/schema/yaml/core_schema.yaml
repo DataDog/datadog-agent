@@ -6472,6 +6472,8 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+    tags:
+    - full-agent-only:true
   appsec:
     node_type: section
     type: object
@@ -9597,6 +9599,10 @@ properties:
       or connected mode (expects core agent for secrets and tagger)
   otelcollector:
     $ref: otelcollector.yaml
+  patch_prometheus_client:
+    node_type: setting
+    type: boolean
+    default: true
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
@@ -9711,6 +9717,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+    tags:
+    - full-agent-only:true
   remote_policies:
     node_type: setting
     type: boolean
@@ -10364,6 +10372,7 @@ properties:
     - runtime
     items:
       type: string
+    comment: this is a list of the statsd prefixes used by the agent and its components
   telemetry:
     node_type: section
     type: object

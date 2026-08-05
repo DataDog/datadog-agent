@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
@@ -32,7 +33,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
 	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
-	config.BindEnvAndSetDefault("metric_lookback.collection_interval", time.Second)
+	config.BindEnvAndSetDefault("metric_lookback.collection_interval", 1*time.Second)
 	config.BindEnvAndSetDefault("metric_lookback.capacity", 262144)
 	config.BindEnvAndSetDefault("metric_lookback.shard_count", 16)
 	config.BindEnvAndSetDefault("metric_lookback.dogstatsd.metric_names", []string{})
@@ -41,7 +42,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.monitor.evaluation_interval", 30*time.Second)
 	config.BindEnvAndSetDefault("metric_lookback.monitor.range_epsilon", float64(0))
 	config.BindEnvAndSetDefault("metric_lookback.monitor.partition_tags", []string{})
-	config.BindEnvAndSetDefault("metric_lookback.egress.pre_trigger_window", 0*time.Second)
+	config.BindEnvAndSetDefault("metric_lookback.egress.pre_trigger_window", time.Duration(0))
 	config.BindEnvAndSetDefault("metric_lookback.egress.post_recovery_window", 30*time.Second)
 
 	config.BindEnvAndSetDefault("host_aliases", []string{})
@@ -81,12 +82,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// the darwin and bsd network check has not been ported from python
 	// If true, then new version of network v2 check will be used.
 	// Otherwise, the python version of network check will be used.
-	config.BindEnvAndSetDefault("use_networkv2_check", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("use_networkv2_check", getPlatformDefault(map[string]interface{}{
 		"linux":   true,
 		"windows": true,
 		"other":   false,
 	}))
-	config.BindEnvAndSetDefault("network_check.use_core_loader", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("network_check.use_core_loader", getPlatformDefault(map[string]interface{}{
 		"linux":   true,
 		"windows": true,
 		"other":   false,
@@ -145,11 +146,13 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("flare.profile_overhead_runtime", 10*time.Second)
 	config.BindEnvAndSetDefault("flare.rc_profiling.blocking_rate", 0)
 	config.BindEnvAndSetDefault("flare.rc_profiling.mutex_fraction", 0)
-	config.BindEnvAndSetDefault("flare.rc_streamlogs.duration", 60*time.Second)
+	config.BindEnvAndSetDefault("flare.rc_streamlogs.duration", 1*time.Minute)
 
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
+
+	config.BindEnvAndSetDefault("patch_prometheus_client", true)
 
 	// Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)
@@ -245,8 +248,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.netflow_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.remote_config.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
-	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
-	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
+	config.BindEnvAndSetDefault("network_path.collector.timeout", constants.DefaultNetworkPathTimeout)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", constants.DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 1000)
@@ -265,8 +268,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
 	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
-	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
-	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
+	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", constants.DefaultNetworkPathStaticPathTracerouteQueries)
+	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", constants.DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
 	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
@@ -434,7 +437,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// value in milliseconds
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 1000)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
-	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3000*time.Millisecond)
+	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3*time.Second)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_timeout_factor", 3)
 	config.BindEnvAndSetDefault("ecs_task_collection_enabled", true)
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
@@ -444,11 +447,30 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{
-		"bosh_settings", "cli-cert", "common-psm1", "configure-sh", "containerd-configure-sh",
-		"disable-address-manager", "disable-legacy-endpoints", "enable-oslogin", "gce-container-declaration",
-		"google-container-manifest", "ipsec-cert", "k8s-node-setup-psm1", "kube-env", "kubeconfig",
-		"kubelet-config", "serial-port-logging-enable", "shutdown-script", "ssh-keys", "sshKeys", "ssl-cert",
-		"startup-script", "user-data", "windows-keys", "windows-startup-script-ps1",
+		"bosh_settings",
+		"cli-cert",
+		"common-psm1",
+		"configure-sh",
+		"containerd-configure-sh",
+		"disable-address-manager",
+		"disable-legacy-endpoints",
+		"enable-oslogin",
+		"gce-container-declaration",
+		"google-container-manifest",
+		"ipsec-cert",
+		"k8s-node-setup-psm1",
+		"kube-env",
+		"kubeconfig",
+		"kubelet-config",
+		"serial-port-logging-enable",
+		"shutdown-script",
+		"ssh-keys",
+		"sshKeys",
+		"ssl-cert",
+		"startup-script",
+		"user-data",
+		"windows-keys",
+		"windows-startup-script-ps1",
 	})
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	// value in milliseconds
@@ -903,7 +925,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false)
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
-	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog", "cumulativetodelta"})
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{
+		"infraattributes",
+		"prometheus",
+		"pprof",
+		"zpages",
+		"health_check",
+		"ddflare",
+		"datadog",
+		"cumulativetodelta",
+	})
 	pkgconfighelper.ParseEnvSplitCommaAndSpace("otelcollector.converter.features", config)
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
@@ -925,7 +956,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// resolve the hostname to get the IP address
 	config.BindEnvAndSetDefault("metadata_ip_resolution_from_hostname", false)
 
-	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", constants.DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", "${log_path}/security-agent.log")
 	config.BindEnvAndSetDefault("security_agent.disable_thp", true)
@@ -934,7 +965,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
-	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", constants.DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.profile_dd_url", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.api_key", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.env", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENV", "DD_ENV")
@@ -967,7 +998,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("compliance_config.exclude_pause_container", true)
 
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("runtime_security_config.socket", getPlatformDefault(map[string]interface{}{
 		"windows": "localhost:3335",
 		"other":   "${install_path}/run/runtime-security.sock",
 	}))
@@ -1028,8 +1059,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
-	config.BindEnvAndSetDefault("installer.refresh_interval", time.Duration(30*time.Second))
-	config.BindEnvAndSetDefault("installer.gc_interval", time.Duration(time.Hour))
+	config.BindEnvAndSetDefault("installer.refresh_interval", 30*time.Second)
+	config.BindEnvAndSetDefault("installer.gc_interval", 1*time.Hour)
 
 	// Legacy installer configuration
 	config.SetDefault("remote_policies", false)
@@ -1057,9 +1088,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_intervals", 5)
 
 	config.BindEnvAndSetDefault("remote_agent.registry.enabled", true)
-	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
-	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
-	config.BindEnvAndSetDefault("remote_agent.registry.recommended_refresh_interval", time.Duration(10*time.Second))
+	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", 30*time.Second)
+	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", 3*time.Second)
+	config.BindEnvAndSetDefault("remote_agent.registry.recommended_refresh_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
@@ -1135,7 +1166,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("api_key", "")
-	config.BindEnvAndSetDefault("site", DefaultSite)
+	config.BindEnvAndSetDefault("site", constants.DefaultSite)
 	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
 	config.BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
@@ -1200,12 +1231,12 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_runner_utilization_threshold", float64(0.95))
-	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 60*time.Second)
+	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
-	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
+	config.BindEnvAndSetDefault("check_system_probe_timeout", 1*time.Minute)
 	// If not zero, the agent will log a warning if a check is running for longer than this timeout
-	config.BindEnvAndSetDefault("check_watchdog_warning_timeout", 0*time.Second)
+	config.BindEnvAndSetDefault("check_watchdog_warning_timeout", time.Duration(0))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
@@ -1303,12 +1334,12 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
 
 	// Agent GUI access host
-	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
-	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
-	// 		By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
+	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+	// Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+	// By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
 	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
-	config.BindEnvAndSetDefault("GUI_port", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("GUI_port", getPlatformDefault(map[string]interface{}{
 		"darwin":  5002,
 		"windows": 5002,
 		"other":   -1,
@@ -1322,7 +1353,7 @@ func agent(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "config_files_discovery.forwarder.")
 	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_interval", time.Hour)
 	config.BindEnvAndSetDefault("config_files_discovery.heartbeat_jitter", 10*time.Minute)
-	config.BindEnvAndSetDefault("config_files_discovery.startup_jitter", time.Minute)
+	config.BindEnvAndSetDefault("config_files_discovery.startup_jitter", 1*time.Minute)
 
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)
@@ -1371,19 +1402,19 @@ func agent(config pkgconfigmodel.Setup) {
 	// it maps group resources to labels as tags maps
 	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
 	// examples of group resources:
-	// 	- `deployments.apps`
-	// 	- `statefulsets.apps`
-	// 	- `pods`
-	// 	- `nodes`
+	// - `deployments.apps`
+	// - `statefulsets.apps`
+	// - `pods`
+	// - `nodes`
 	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
 	// kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
 	// it maps group resources to annotations as tags maps
 	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
 	// examples of group resources:
-	// 	- `deployments.apps`
-	// 	- `statefulsets.apps`
-	// 	- `pods`
-	// 	- `nodes`
+	// - `deployments.apps`
+	// - `statefulsets.apps`
+	// - `pods`
+	// - `nodes`
 	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
 	config.BindEnvAndSetDefault("provider_kind", "")
 
@@ -1490,7 +1521,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_include_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	// in hours
-	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1)
+	config.BindEnvAndSetDefault("container_exclude_stopped_age", constants.DefaultAuditorTTL-1)
 	// in seconds
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))
 	// in seconds, 0 means disabled
@@ -1583,8 +1614,8 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
-	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
-	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_compressor_kind", constants.DefaultCompressorKind)
+	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", constants.DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.endpoints", []string{})
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
@@ -1638,7 +1669,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)
 	// in minutes
-	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval)
+	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", constants.DefaultAPIKeyValidationInterval)
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
 	// forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
@@ -1649,7 +1680,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
-	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("forwarder_recovery_interval", constants.DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	config.BindEnvAndSetDefault("forwarder_storage_path", "${run_path}/transactions_to_retry")
@@ -1658,7 +1689,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// 0 means disabled. This is a BETA feature.
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)
 	// Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
-	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", float64(0.80))
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", float64(0.8))
 	// 15 mins
 	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900)
 
@@ -1705,7 +1736,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("dogstatsd_socket", getPlatformDefault(map[string]interface{}{
 		"linux": "/var/run/datadog/dsd.socket",
 		"aix":   "/var/run/datadog/dsd.socket",
 		"other": "",
@@ -1778,7 +1809,30 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
-	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
+	// this is a list of the statsd prefixes used by the agent and its components
+	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", []string{
+		"datadog.agent",
+		"datadog.dogstatsd",
+		"datadog.process",
+		"datadog.trace_agent",
+		"datadog.tracer",
+		"activemq",
+		"activemq_58",
+		"airflow",
+		"cassandra",
+		"confluent",
+		"hazelcast",
+		"hive",
+		"ignite",
+		"jboss",
+		"jvm",
+		"kafka",
+		"presto",
+		"sidekiq",
+		"solr",
+		"tomcat",
+		"runtime",
+	})
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
@@ -1832,18 +1886,17 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// maximum log message size in bytes
-	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 
 	// Increase the number of files that can be tailed in parallel:
 	// The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
 	//
 	// There is no effective limit for windows due to use of CreateFile win32 API
 	// The OS default for most linux distributions is 1024
-	config.BindEnvAndSetDefault("logs_config.open_files_limit",
-		GetPlatformDefault(map[string]interface{}{
-			"darwin": 200,
-			"other":  500,
-		}))
+	config.BindEnvAndSetDefault("logs_config.open_files_limit", getPlatformDefault(map[string]interface{}{
+		"darwin": 200,
+		"other":  500,
+	}))
 	// add global processing rules that are applied on all logs
 	config.BindEnvAndSetDefault("logs_config.processing_rules", []interface{}{})
 	// enforce the agent to use files to collect container logs on kubernetes environment
@@ -2019,7 +2072,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
 
 	// in hours
-	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL)
+	config.BindEnvAndSetDefault("logs_config.auditor_ttl", constants.DefaultAuditorTTL)
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
 	// It may be useful to increase it when logs writing is slowed down, that
@@ -2045,18 +2098,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Max disk usage in MB all integrations logs files are allowed to use in total
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", float64(0.80))
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", float64(0.8))
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", "${log_path}/streamlogs_info/streamlogs.log")
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
-	config.BindEnvAndSetDefault("logs_config.atomic_registry_write",
-		GetPlatformDefault(map[string]interface{}{
-			"fargate": false,
-			"other":   true,
-		}),
-	)
+	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", getPlatformDefault(map[string]interface{}{
+		"fargate": false,
+		"other":   true,
+	}))
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
@@ -2066,7 +2117,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
 }
 
-// vector integration
 func vector(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.enabled", false)
 	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.url", "")
@@ -2165,11 +2215,11 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 	config.BindEnvAndSetDefault("kubernetes_kube_service_ignore_readiness", false)
 
-	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\kubelet-pod-resources`,
 		"other":   "/var/lib/kubelet/pod-resources/kubelet.sock",
 	}))
-	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", GetPlatformDefault(map[string]interface{}{
+	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", getPlatformDefault(map[string]interface{}{
 		"windows": `\\.\pipe\kubelet-device-plugins`,
 		"other":   "/var/lib/kubelet/device-plugins",
 	}))
@@ -2266,18 +2316,18 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.saturation_k", float64(5))
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.window", 15*time.Second)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.low_threshold", float64(0.15))
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.high_threshold", float64(0.40))
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.margin_pct", float64(0.20))
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.high_threshold", float64(0.4))
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.margin_pct", float64(0.2))
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_events", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.correlation_event_threshold", "high")
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.logs", false)
-	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown", 300*time.Second)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown", 5*time.Minute)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.max_anomalies", 50)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", float64(0.5))
-	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention", 120*time.Second)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention", 2*time.Minute)
 
 	// Baseline analysis window.
 	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.enabled", true)
