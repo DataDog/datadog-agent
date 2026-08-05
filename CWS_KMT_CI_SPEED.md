@@ -341,7 +341,117 @@ Then read the four `kmt_run_secagent_tests_x64_teardown` jobs. KMT jobs run on
 `.on_security_agent_changes_or_manual`, and this branch touches `pkg/security/**`, so they
 fire automatically.
 
-## 10. How to reproduce the analysis
+## 10. RESULTS — Angle 2 measured (pipeline 129070096, 2026-08-05)
+
+Four arms, all green. 80 microVMs on one m5d.metal (3.33x CPU / 2.50x memory oversubscribed),
+~270 running probes out of ~532 in every arm, **kprobe mode on both platforms** (so no fentry
+confound: 5.15 logs `fentry enabled but not fully supported`, 6.12 logs `fentry disabled on
+kernels >= 6.11`).
+
+Median `EBPFProbe.Close/Manager.Stop` per module teardown:
+
+| platform | kernel | baseline | `rcu_expedited=1` | speedup |
+|---|---|---|---|---|
+| ubuntu_22.04 | 5.15 | 7.11s | **0.69s** | **10.3x** |
+| amazon_6.12 | 6.12 | **34.28s** | 20.02s | 1.71x |
+
+Job wall clock: 316s / 273s (ubuntu), 567s / 420s (amazon).
+
+### Finding 1 — the 34s is confirmed, and it is `Manager.Stop`
+
+The production reference job measured a 34.3s median pre-instantiate window on amazon_6.12,
+inferred from test2json timestamps (§1). Direct instrumentation on the same platform gives
+`testMod.cleanup` = **34.38s** and `Manager.Stop` = **34.28s**. The inference was correct and
+the cost is specifically detaching the eBPF probes — not config generation, not the Docker
+cmd wrapper, not resolvers. Everything else in the teardown path is ~0.00s:
+`Probe.Stop`, `StopReaders`, `cancel+wait`, `consumers.Stop/CWS`, `Resolvers.Close`,
+`Erpc.Close`, `rawPacketCollections`, `newSimpleTest`, `setTestPolicy`.
+
+### Finding 2 — it is NOT contention. Angle 1 is exonerated for this cost
+
+The CPU-pressure samples settle Angle 1 vs Angle 2:
+
+```
+before teardown  load= 0.16   PSI some avg10=1.00%
+after  teardown  load= 5.59   PSI some avg10=0.03%
+before teardown  load=14.43   PSI some avg10=0.65%
+```
+
+Load average climbs into double digits **while CPU pressure falls to near zero**. That is
+tasks accumulating in uninterruptible sleep — blocked in the kernel — not competing for CPU.
+The 34s is genuine kernel blocking in probe detach and would be 34s on an idle box.
+
+Oversubscription is still real (§2) and still worth fixing for its own sake, but it does not
+explain the dominant cost of the cws_host suite. Angle 2 is the prize; Angle 1 drops down the
+list.
+
+### Finding 3 — `rcu_expedited` is a 10x fix on <= 6.10 and only 1.7x on 6.12
+
+The A/B on 5.15 is textbook: `rcu_expedited` moves **only** the detach phase, and every other
+phase matches to two decimal places (`eventMonitor.Init` 6.99 vs 7.16, `Start` 2.06 vs 2.08,
+`cmdWrapper` 0.24 vs 0.29, `genTestConfigs` 0.08 vs 0.08). Probe detach is RCU-grace-period
+bound, as hypothesized in §3.
+
+On 6.12 it only gets 34.28s -> 20.02s. `/sys/kernel/rcu_expedited` expedites
+`synchronize_rcu()`, but kprobe removal also waits on **RCU-Tasks**, a separate flavor with its
+own grace-period machinery. The candidate knobs exist on 6.x but are **read-only**, i.e.
+boot-param only — so chasing the 6.12 residual needs a microVM kernel cmdline change and loses
+the "no infra change" advantage:
+
+```
+/sys/module/rcupdate/parameters/rcu_task_lazy_lim        32   r--r--r--
+/sys/module/rcupdate/parameters/rcu_task_enqueue_lim      1
+/sys/module/rcupdate/parameters/rcu_tasks_rude_lazy_ms   -1   r--r--r--
+/sys/module/rcupdate/parameters/rcu_tasks_trace_lazy_ms  -1   r--r--r--
+```
+
+Stated conservatively: the measurement supports "`rcu_expedited` does not cover the flavor
+kprobe removal waits on". Which knob fixes the residual is untested.
+
+### Finding 4 — the rebuild cost inverts across platforms
+
+`eventMonitor.Init` is 3.50s on amazon_6.12 but 7.16s on ubuntu_22.04 — the rebuild is
+*cheaper* on the platform where teardown is 5x more expensive. Teardown and rebuild need
+separate treatment and the reload floor is platform-specific.
+
+### What this means for the 55-minute job
+
+For cws_host on amazon_6.12 with its 43 reloads (§1):
+
+| scenario | teardown total | vs today |
+|---|---|---|
+| today | 43 x 34.28s = 1474s (24.6 min) | — |
+| + `rcu_expedited` (Angle 2b) | 43 x 20.02s = 861s | **-10.2 min** |
+| + Angle 3 grouping (20 switches) | 20 x 20.02s = 400s | **-17.9 min** |
+| + 6.12 residual solved too | 20 x ~0.7s = 14s | **-24.3 min** |
+
+Two notes. The 1474s projection independently reproduces the 1511s measured from timestamps
+in §1, which is a good consistency check. And the 34s is specific to kernels >= 6.11 — the
+5.15 baseline is only 7.11s, so its cws_host job carries ~5 min of teardown, not 25. That
+matches the platform ranking in §2, where `ubuntu_26.04` (61 min) and `amazon_6.12` (57 min)
+are the two worst and the only two that blew the timeout.
+
+Angle 3 is now *more* valuable relative to Angle 2, not less: once teardown is cheap, halving
+the number of reloads is what removes the remaining time.
+
+### Revised priority
+
+1. **Angle 2b for kernels <= 6.10** — `rcu_expedited`, 10x on detach, sysfs-only, no infra change.
+2. **Angle 3** — group tests by static config, 41 switches -> 20. Now the biggest remaining lever.
+3. **The 6.12+ residual** — needs a kernel cmdline experiment (RCU-Tasks knobs are read-only).
+   This is where the timeouts actually live, so it matters most despite being the hardest.
+4. **Angle 2d** — the `reflect.DeepEqual`-over-func-fields bug in `testOpts.Equal`; cheap, still valid.
+5. **Angle 5** — timeout headroom, unchanged.
+6. **Angle 1** — oversubscription. Demoted: real, but not the cause of the dominant cost.
+
+### Artifacts
+
+Jobs `1923956066` (amazon baseline), `1923956068` (amazon rcu), `1923956069` (ubuntu baseline),
+`1923956070` (ubuntu rcu). Analysis scripts: `analyze_phases.py` (phase aggregation + A/B
+table) and `probe_mode.py` (fentry mode, probe counts, RCU knobs) — both parse `[phase]` lines
+out of the testjson artifact.
+
+## 11. How to reproduce the analysis
 
 ```bash
 # job trace (gitlab.ddbuild.io is OAuth-gated; dda handles auth)
