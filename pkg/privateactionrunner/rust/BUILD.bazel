@@ -48,8 +48,10 @@ rust_library(
         "@crates//:tonic-prost",
         "@crates//:tower",
     ] + select({
-        # ERROR_PIPE_BUSY, for the named-pipe client retry loop.
-        "@platforms//os:windows": ["@crates//:windows-sys"],
+        "@platforms//os:windows": [
+            "@crates//:windows-registry",
+            "@crates//:windows-sys",
+        ],
         "//conditions:default": [],
     }),
 )
@@ -81,6 +83,7 @@ rust_test(
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = ["@crates//:tempfile"],
 )
 
 pkg_files(
