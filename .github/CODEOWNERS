@@ -380,6 +380,7 @@
 /comp/checks @DataDog/agent-runtimes
 /comp/collector @DataDog/agent-runtimes
 /comp/core @DataDog/agent-runtimes
+/comp/core/delegatedauth @DataDog/credential-management
 /comp/dogstatsd @DataDog/agent-metric-pipelines
 /comp/forwarder @DataDog/agent-metric-pipelines
 /comp/healthplatform @DataDog/fleet-remediation
@@ -686,6 +687,7 @@
 /pkg/system-probe/config/adjust_security.go  @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/tagset/                            @DataDog/agent-runtimes
 /pkg/util/                              @DataDog/agent-runtimes
+/pkg/util/aws/creds                     @DataDog/credential-management
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/agent-integrations
 /pkg/util/clusteragent/                 @DataDog/container-platform
