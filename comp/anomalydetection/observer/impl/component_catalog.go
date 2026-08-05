@@ -186,7 +186,7 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentDetector,
 				defaultConfig:  DefaultRRCFConfig(),
 				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
-				defaultEnabled: true,
+				defaultEnabled: false,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(RRCFConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -473,16 +473,6 @@ var statelessDetectorAllowlist = map[string]struct{}{
 	//
 	// Truly-stateless catalog Detectors are listed below.
 
-	// RRCF tracks a FIXED set of metric definitions configured at construction
-	// (RRCFConfig.Metrics, with DefaultRRCFMetrics() as the fallback). Its
-	// resolvedKeys / cursors maps are keyed by cursorKey (a metric definition
-	// identifier), not by ingested SeriesRef — so the map size is bounded by
-	// the configured metrics, not by storage cardinality. Adding storage-eviction
-	// fan-out would not free anything because RRCF state isn't keyed by SeriesRef.
-	// If RRCF is ever extended to track per-tag-combination state keyed by
-	// SeriesRef, this entry must be removed and RRCF must implement
-	// SeriesRemover.
-	"rrcf": {},
 }
 
 // validateDetectorTeardownContract checks that every detector entry in the

@@ -57,13 +57,19 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
-| Detector | `rrcf` | on |
-| Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
+| Detector | `rrcf`, `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | on |
 | Correlator | `cross_signal`, `passthrough` | off |
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+RRCF has two paths: its original multivariate forest analyzes the fixed
+configured system-metric set, while a separate shared forest analyzes scalar
+count shingles from all built-in log-extractor namespaces. The shared log
+forest avoids allocating one forest per dynamically named log pattern; its
+per-series state is limited to incremental cursors and the current shingle
+prefix.
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
 
