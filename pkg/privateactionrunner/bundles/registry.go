@@ -48,6 +48,7 @@ import (
 	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
 	com_datadoghq_remoteaction_networkconfigmanagement "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement"
 	com_datadoghq_remoteaction_networks "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks"
+	com_datadoghq_remoteaction_queries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
 	com_datadoghq_remoteaction_rshell "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
@@ -96,6 +97,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.remoteaction.agent":                   com_datadoghq_remoteaction_agent.NewAgent(ipcClient),
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
+			"com.datadoghq.remoteaction.queries":                 com_datadoghq_remoteaction_queries.NewRemoteQueriesBundle(),
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
 			"com.datadoghq.remoteaction.rshell":                  com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),

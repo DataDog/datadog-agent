@@ -24,6 +24,7 @@ go_library(
         "memory.go",
         "no_kubeutil.go",
         "python_aix.go",
+        "remote_query_stream.go",
         "subprocesses.go",
         "tagger.go",
         "test_check.go",
